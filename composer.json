@@ -41,6 +41,7 @@
         "aurora/cache": "@dev",
         "aurora/plugin": "@dev",
         "aurora/config": "@dev",
+        "aurora/entity": "@dev",
         "aurora/typed-data": "@dev"
     },
     "require-dev": {
@@ -53,6 +54,7 @@
             "Aurora\\Config\\Tests\\": "packages/config/tests/",
             "Aurora\\Plugin\\Tests\\": "packages/plugin/tests/",
             "Aurora\\TypedData\\Tests\\": "packages/typed-data/tests/",
+            "Aurora\\Entity\\Tests\\": "packages/entity/tests/",
             "Aurora\\Tests\\": "tests/"
         }
     },

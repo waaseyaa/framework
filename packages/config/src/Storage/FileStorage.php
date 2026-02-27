@@ -129,12 +129,15 @@ final class FileStorage implements StorageInterface
     public function deleteAll(string $prefix = ''): bool
     {
         $names = $this->listAll($prefix);
+        $success = true;
 
         foreach ($names as $name) {
-            $this->delete($name);
+            if (!$this->delete($name)) {
+                $success = false;
+            }
         }
 
-        return true;
+        return $success;
     }
 
     public function createCollection(string $collection): static

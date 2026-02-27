@@ -5,8 +5,6 @@
     "license": "GPL-2.0-or-later",
     "require": {
         "php": ">=8.3",
-        "aurora/cache": "@dev",
-        "aurora/typed-data": "@dev",
         "symfony/event-dispatcher": "^7.0",
         "symfony/yaml": "^7.0"
     },
