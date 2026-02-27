@@ -43,6 +43,7 @@
         "aurora/config": "@dev",
         "aurora/entity": "@dev",
         "aurora/database-legacy": "@dev",
+        "aurora/entity-storage": "@dev",
         "aurora/field": "@dev",
         "aurora/typed-data": "@dev"
     },
@@ -59,6 +60,7 @@
             "Aurora\\Entity\\Tests\\": "packages/entity/tests/",
             "Aurora\\Field\\Tests\\": "packages/field/tests/",
             "Aurora\\Database\\Tests\\": "packages/database-legacy/tests/",
+            "Aurora\\EntityStorage\\Tests\\": "packages/entity-storage/tests/",
             "Aurora\\Tests\\": "tests/"
         }
     },
