@@ -4,7 +4,7 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInitf0861c26e18d1826eb6bb8a2b5a236e8
+class ComposerStaticInitc6549ed0250eff553d2e60be68a047b3
 {
     public static $files = array (
         '6e3fae29631ef280660b3cdad06f25a8' => __DIR__ . '/..' . '/symfony/deprecation-contracts/function.php',
@@ -50,6 +50,8 @@ class ComposerStaticInitf0861c26e18d1826eb6bb8a2b5a236e8
         ),
         'A' => 
         array (
+            'Aurora\\Workflows\\Tests\\' => 23,
+            'Aurora\\Workflows\\' => 17,
             'Aurora\\Validation\\Tests\\' => 24,
             'Aurora\\Validation\\' => 18,
             'Aurora\\User\\Tests\\' => 18,
@@ -57,6 +59,8 @@ class ComposerStaticInitf0861c26e18d1826eb6bb8a2b5a236e8
             'Aurora\\TypedData\\Tests\\' => 23,
             'Aurora\\TypedData\\' => 17,
             'Aurora\\Tests\\' => 13,
+            'Aurora\\Taxonomy\\Tests\\' => 22,
+            'Aurora\\Taxonomy\\' => 16,
             'Aurora\\State\\Tests\\' => 19,
             'Aurora\\State\\' => 13,
             'Aurora\\Routing\\Tests\\' => 21,
@@ -65,6 +69,14 @@ class ComposerStaticInitf0861c26e18d1826eb6bb8a2b5a236e8
             'Aurora\\Queue\\' => 13,
             'Aurora\\Plugin\\Tests\\' => 20,
             'Aurora\\Plugin\\' => 14,
+            'Aurora\\Path\\Tests\\' => 18,
+            'Aurora\\Path\\' => 12,
+            'Aurora\\Node\\Tests\\' => 18,
+            'Aurora\\Node\\' => 12,
+            'Aurora\\Menu\\Tests\\' => 18,
+            'Aurora\\Menu\\' => 12,
+            'Aurora\\Media\\Tests\\' => 19,
+            'Aurora\\Media\\' => 13,
             'Aurora\\Field\\Tests\\' => 19,
             'Aurora\\Field\\' => 13,
             'Aurora\\Entity\\Tests\\' => 20,
@@ -163,6 +175,14 @@ class ComposerStaticInitf0861c26e18d1826eb6bb8a2b5a236e8
         array (
             0 => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy',
         ),
+        'Aurora\\Workflows\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/workflows/tests',
+        ),
+        'Aurora\\Workflows\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/aurora/workflows/src',
+        ),
         'Aurora\\Validation\\Tests\\' => 
         array (
             0 => __DIR__ . '/../..' . '/packages/validation/tests',
@@ -190,6 +210,14 @@ class ComposerStaticInitf0861c26e18d1826eb6bb8a2b5a236e8
         'Aurora\\Tests\\' => 
         array (
             0 => __DIR__ . '/../..' . '/tests',
+        ),
+        'Aurora\\Taxonomy\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/taxonomy/tests',
+        ),
+        'Aurora\\Taxonomy\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/aurora/taxonomy/src',
         ),
         'Aurora\\State\\Tests\\' => 
         array (
@@ -222,6 +250,38 @@ class ComposerStaticInitf0861c26e18d1826eb6bb8a2b5a236e8
         'Aurora\\Plugin\\' => 
         array (
             0 => __DIR__ . '/..' . '/aurora/plugin/src',
+        ),
+        'Aurora\\Path\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/path/tests',
+        ),
+        'Aurora\\Path\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/aurora/path/src',
+        ),
+        'Aurora\\Node\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/node/tests',
+        ),
+        'Aurora\\Node\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/aurora/node/src',
+        ),
+        'Aurora\\Menu\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/menu/tests',
+        ),
+        'Aurora\\Menu\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/aurora/menu/src',
+        ),
+        'Aurora\\Media\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/media/tests',
+        ),
+        'Aurora\\Media\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/aurora/media/src',
         ),
         'Aurora\\Field\\Tests\\' => 
         array (
@@ -1475,9 +1535,9 @@ class ComposerStaticInitf0861c26e18d1826eb6bb8a2b5a236e8
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInitf0861c26e18d1826eb6bb8a2b5a236e8::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInitf0861c26e18d1826eb6bb8a2b5a236e8::$prefixDirsPsr4;
-            $loader->classMap = ComposerStaticInitf0861c26e18d1826eb6bb8a2b5a236e8::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInitc6549ed0250eff553d2e60be68a047b3::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInitc6549ed0250eff553d2e60be68a047b3::$prefixDirsPsr4;
+            $loader->classMap = ComposerStaticInitc6549ed0250eff553d2e60be68a047b3::$classMap;
 
         }, null, ClassLoader::class);
     }

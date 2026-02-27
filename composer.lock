@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "f0861c26e18d1826eb6bb8a2b5a236e8",
+    "content-hash": "c6549ed0250eff553d2e60be68a047b3",
     "packages": [
         {
             "name": "aurora/access",
@@ -258,6 +258,143 @@
             }
         },
         {
+            "name": "aurora/media",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/media",
+                "reference": "2a95f9958c99ad96bded81d1f68665616e27412b"
+            },
+            "require": {
+                "aurora/entity": "@dev",
+                "php": ">=8.3"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Aurora\\Media\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Aurora\\Media\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Media entity type and file management for Aurora CMS",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "aurora/menu",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/menu",
+                "reference": "b36f747bf0e914040b2accbfcb2cf820b4ffa931"
+            },
+            "require": {
+                "aurora/entity": "@dev",
+                "php": ">=8.3"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Aurora\\Menu\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Aurora\\Menu\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Menu and navigation link management for Aurora CMS",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "aurora/node",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/node",
+                "reference": "ff20ee96806e20bb55ce8f81f577f32ccbb6c778"
+            },
+            "require": {
+                "aurora/access": "@dev",
+                "aurora/entity": "@dev",
+                "php": ">=8.3"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Aurora\\Node\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Aurora\\Node\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Content node entity type for Aurora CMS",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "aurora/path",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/path",
+                "reference": "3020270f596a7994cd8c54d0b580fb0d2d6d0814"
+            },
+            "require": {
+                "aurora/entity": "@dev",
+                "php": ">=8.3"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Aurora\\Path\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Aurora\\Path\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "URL path aliases and routing integration for Aurora CMS",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
             "name": "aurora/plugin",
             "version": "dev-main",
             "dist": {
@@ -396,6 +533,41 @@
             }
         },
         {
+            "name": "aurora/taxonomy",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/taxonomy",
+                "reference": "96015fa88581559575ce62df7eb76152c4a2d7b5"
+            },
+            "require": {
+                "aurora/access": "@dev",
+                "aurora/entity": "@dev",
+                "php": ">=8.3"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Aurora\\Taxonomy\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Aurora\\Taxonomy\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Taxonomy vocabulary and term entity types for Aurora CMS",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
             "name": "aurora/typed-data",
             "version": "dev-main",
             "dist": {
@@ -496,6 +668,40 @@
                 "GPL-2.0-or-later"
             ],
             "description": "Data validation constraints and validators for Aurora CMS",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "aurora/workflows",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/workflows",
+                "reference": "3db162067c99f0606e3889a27718dc003c9d75a4"
+            },
+            "require": {
+                "aurora/entity": "@dev",
+                "php": ">=8.3"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Aurora\\Workflows\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Aurora\\Workflows\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Content moderation and editorial workflow states for Aurora CMS",
             "transport-options": {
                 "relative": true
             }
@@ -3638,13 +3844,19 @@
         "aurora/entity": 20,
         "aurora/entity-storage": 20,
         "aurora/field": 20,
+        "aurora/media": 20,
+        "aurora/menu": 20,
+        "aurora/node": 20,
+        "aurora/path": 20,
         "aurora/plugin": 20,
         "aurora/queue": 20,
         "aurora/routing": 20,
         "aurora/state": 20,
+        "aurora/taxonomy": 20,
         "aurora/typed-data": 20,
         "aurora/user": 20,
-        "aurora/validation": 20
+        "aurora/validation": 20,
+        "aurora/workflows": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,

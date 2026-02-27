@@ -45,13 +45,19 @@
         "aurora/entity": "@dev",
         "aurora/entity-storage": "@dev",
         "aurora/field": "@dev",
+        "aurora/media": "@dev",
+        "aurora/menu": "@dev",
+        "aurora/node": "@dev",
+        "aurora/path": "@dev",
         "aurora/plugin": "@dev",
         "aurora/queue": "@dev",
         "aurora/routing": "@dev",
         "aurora/state": "@dev",
+        "aurora/taxonomy": "@dev",
         "aurora/typed-data": "@dev",
         "aurora/user": "@dev",
-        "aurora/validation": "@dev"
+        "aurora/validation": "@dev",
+        "aurora/workflows": "@dev"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
@@ -70,9 +76,15 @@
             "Aurora\\Access\\Tests\\": "packages/access/tests/",
             "Aurora\\Queue\\Tests\\": "packages/queue/tests/",
             "Aurora\\State\\Tests\\": "packages/state/tests/",
+            "Aurora\\Media\\Tests\\": "packages/media/tests/",
+            "Aurora\\Menu\\Tests\\": "packages/menu/tests/",
+            "Aurora\\Node\\Tests\\": "packages/node/tests/",
+            "Aurora\\Path\\Tests\\": "packages/path/tests/",
             "Aurora\\Routing\\Tests\\": "packages/routing/tests/",
+            "Aurora\\Taxonomy\\Tests\\": "packages/taxonomy/tests/",
             "Aurora\\User\\Tests\\": "packages/user/tests/",
             "Aurora\\Validation\\Tests\\": "packages/validation/tests/",
+            "Aurora\\Workflows\\Tests\\": "packages/workflows/tests/",
             "Aurora\\Tests\\": "tests/"
         }
     },
