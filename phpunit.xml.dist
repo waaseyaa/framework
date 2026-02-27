@@ -12,6 +12,7 @@
         </testsuite>
         <testsuite name="Integration">
             <directory>packages/*/tests/Integration</directory>
+            <directory>tests/Integration</directory>
         </testsuite>
     </testsuites>
     <source>

@@ -38,13 +38,23 @@
     ],
     "require": {
         "php": ">=8.3",
-        "aurora/full": "^0.1"
+        "aurora/cache": "@dev",
+        "aurora/plugin": "@dev",
+        "aurora/typed-data": "@dev"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
         "phpstan/phpstan": "^1.10"
     },
-    "minimum-stability": "stable",
+    "autoload-dev": {
+        "psr-4": {
+            "Aurora\\Cache\\Tests\\": "packages/cache/tests/",
+            "Aurora\\Plugin\\Tests\\": "packages/plugin/tests/",
+            "Aurora\\TypedData\\Tests\\": "packages/typed-data/tests/",
+            "Aurora\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "dev",
     "prefer-stable": true,
     "config": {
         "sort-packages": true
