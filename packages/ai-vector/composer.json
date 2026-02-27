@@ -1,0 +1,26 @@
+{
+    "name": "aurora/ai-vector",
+    "description": "Vector embedding storage and similarity search for Aurora CMS",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=8.3",
+        "aurora/entity": "^0.1",
+        "aurora/field": "^0.1",
+        "aurora/plugin": "^0.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Aurora\\AI\\Vector\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Aurora\\AI\\Vector\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "stable"
+}

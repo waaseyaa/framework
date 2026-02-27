@@ -1,0 +1,18 @@
+{
+    "name": "aurora/cms",
+    "description": "Aurora CMS — complete headless CMS with admin and CLI.",
+    "type": "metapackage",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "aurora/core": "^0.1",
+        "aurora/node": "^0.1",
+        "aurora/taxonomy": "^0.1",
+        "aurora/media": "^0.1",
+        "aurora/path": "^0.1",
+        "aurora/menu": "^0.1",
+        "aurora/workflows": "^0.1",
+        "aurora/api": "^0.1",
+        "aurora/cli": "^0.1"
+    },
+    "minimum-stability": "stable"
+}

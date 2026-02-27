@@ -1,0 +1,23 @@
+{
+    "name": "aurora/core",
+    "description": "Aurora CMS core engine — entities, fields, config, plugins, routing, access.",
+    "type": "metapackage",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "aurora/cache": "^0.1",
+        "aurora/plugin": "^0.1",
+        "aurora/typed-data": "^0.1",
+        "aurora/config": "^0.1",
+        "aurora/entity": "^0.1",
+        "aurora/field": "^0.1",
+        "aurora/entity-storage": "^0.1",
+        "aurora/database-legacy": "^0.1",
+        "aurora/access": "^0.1",
+        "aurora/user": "^0.1",
+        "aurora/routing": "^0.1",
+        "aurora/queue": "^0.1",
+        "aurora/state": "^0.1",
+        "aurora/validation": "^0.1"
+    },
+    "minimum-stability": "stable"
+}

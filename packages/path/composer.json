@@ -1,0 +1,25 @@
+{
+    "name": "aurora/path",
+    "description": "URL path aliases and routing integration for Aurora CMS",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=8.3",
+        "aurora/entity": "^0.1",
+        "aurora/routing": "^0.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Aurora\\Path\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Aurora\\Path\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "stable"
+}

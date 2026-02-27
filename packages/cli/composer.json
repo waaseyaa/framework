@@ -1,0 +1,27 @@
+{
+    "name": "aurora/cli",
+    "description": "Command-line interface and console commands for Aurora CMS",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=8.3",
+        "aurora/entity": "^0.1",
+        "aurora/config": "^0.1",
+        "aurora/field": "^0.1",
+        "symfony/console": "^7.3"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Aurora\\CLI\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Aurora\\CLI\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "stable"
+}

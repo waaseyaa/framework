@@ -1,0 +1,27 @@
+{
+    "name": "aurora/ssr",
+    "description": "Server-side rendering with Twig templates for Aurora CMS",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=8.3",
+        "aurora/entity": "^0.1",
+        "aurora/field": "^0.1",
+        "aurora/routing": "^0.1",
+        "twig/twig": "^3.21"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Aurora\\SSR\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Aurora\\SSR\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "stable"
+}
