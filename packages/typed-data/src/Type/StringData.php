@@ -8,9 +8,12 @@ use Aurora\TypedData\DataDefinitionInterface;
 use Aurora\TypedData\PrimitiveInterface;
 use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Symfony\Component\Validator\Validation;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 final class StringData implements PrimitiveInterface
 {
+    private static ?ValidatorInterface $validator = null;
+
     private mixed $value;
 
     public function __construct(
@@ -37,9 +40,9 @@ final class StringData implements PrimitiveInterface
 
     public function validate(): ConstraintViolationListInterface
     {
-        $validator = Validation::createValidator();
+        self::$validator ??= Validation::createValidator();
 
-        return $validator->validate($this->value, $this->definition->getConstraints());
+        return self::$validator->validate($this->value, $this->definition->getConstraints());
     }
 
     public function getString(): string

@@ -34,6 +34,7 @@ final class MapDataTest extends TestCase
         $this->assertInstanceOf(TypedDataInterface::class, $map);
         $this->assertInstanceOf(\IteratorAggregate::class, $map);
         $this->assertInstanceOf(\Traversable::class, $map);
+        $this->assertInstanceOf(\Countable::class, $map);
     }
 
     public function testEmptyByDefault(): void

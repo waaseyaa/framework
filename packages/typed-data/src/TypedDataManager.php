@@ -37,7 +37,7 @@ final class TypedDataManager implements TypedDataManagerInterface
         return new DataDefinition(dataType: $dataType);
     }
 
-    public function create(DataDefinitionInterface $definition, mixed $value = null): TypedDataInterface
+    public function create(DataDefinitionInterface $definition, mixed $value = null, array $options = []): TypedDataInterface
     {
         $dataType = $definition->getDataType();
 
@@ -48,7 +48,7 @@ final class TypedDataManager implements TypedDataManagerInterface
         $class = $this->typeMap[$dataType];
 
         $instance = match ($dataType) {
-            'list' => new $class($definition, $this),
+            'list' => new $class($definition, $this, $options['item_type'] ?? 'string'),
             'map' => new $class($definition, $this),
             default => new $class($definition, $value),
         };
@@ -73,8 +73,12 @@ final class TypedDataManager implements TypedDataManagerInterface
         );
 
         $value = $configuration['value'] ?? null;
+        $options = [];
+        if (isset($configuration['item_type'])) {
+            $options['item_type'] = $configuration['item_type'];
+        }
 
-        return $this->create($definition, $value);
+        return $this->create($definition, $value, $options);
     }
 
     /** @return array<string, DataDefinitionInterface> */

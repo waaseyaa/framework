@@ -32,12 +32,14 @@ final class ListData implements ListInterface, \IteratorAggregate
 
     public function setValue(mixed $value): void
     {
+        if (!is_array($value)) {
+            return;
+        }
+
         $this->items = [];
 
-        if (is_array($value)) {
-            foreach ($value as $item) {
-                $this->appendItem($item);
-            }
+        foreach ($value as $item) {
+            $this->appendItem($item);
         }
     }
 
