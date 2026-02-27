@@ -1,0 +1,26 @@
+{
+    "name": "aurora/field",
+    "description": "Field type system — pluggable field types, definitions, formatters for Aurora CMS",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=8.3",
+        "aurora/entity": "^0.1",
+        "aurora/plugin": "^0.1",
+        "aurora/typed-data": "^0.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Aurora\\Field\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Aurora\\Field\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "stable"
+}

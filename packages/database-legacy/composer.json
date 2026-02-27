@@ -1,0 +1,23 @@
+{
+    "name": "aurora/database-legacy",
+    "description": "Database adapter wrapping Drupal DBAL. Interim until Doctrine migration.",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=8.3"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Aurora\\Database\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Aurora\\Database\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "stable"
+}
