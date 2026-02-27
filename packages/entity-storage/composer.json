@@ -3,12 +3,22 @@
     "description": "Pluggable entity persistence. v0.1.0: SQL storage behind clean interfaces.",
     "type": "library",
     "license": "GPL-2.0-or-later",
+    "repositories": [
+        {"type": "path", "url": "../entity"},
+        {"type": "path", "url": "../field"},
+        {"type": "path", "url": "../cache"},
+        {"type": "path", "url": "../database-legacy"},
+        {"type": "path", "url": "../plugin"},
+        {"type": "path", "url": "../typed-data"},
+        {"type": "path", "url": "../config"}
+    ],
     "require": {
         "php": ">=8.3",
-        "aurora/entity": "^0.1",
-        "aurora/field": "^0.1",
-        "aurora/cache": "^0.1",
-        "aurora/database-legacy": "^0.1"
+        "aurora/entity": "@dev",
+        "aurora/field": "@dev",
+        "aurora/cache": "@dev",
+        "aurora/database-legacy": "@dev",
+        "symfony/event-dispatcher": "^7.3"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
@@ -23,5 +33,6 @@
             "Aurora\\EntityStorage\\Tests\\": "tests/"
         }
     },
-    "minimum-stability": "stable"
+    "minimum-stability": "dev",
+    "prefer-stable": true
 }
