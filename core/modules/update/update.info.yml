@@ -1,0 +1,11 @@
+name: 'Update Status'
+type: module
+description: 'Checks for updates and can notify users if there are new releases available.'
+# version: VERSION
+package: Core
+configure: update.settings
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361967

@@ -1,0 +1,12 @@
+name: Deprecated module contrib
+type: module
+description: 'Deprecated module contrib'
+package: Testing
+# version: VERSION
+lifecycle: deprecated
+lifecycle_link: 'http://example.com/deprecated'
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361968

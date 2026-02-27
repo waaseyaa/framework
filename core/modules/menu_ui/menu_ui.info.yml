@@ -1,0 +1,13 @@
+name: Menu UI
+type: module
+description: 'Provides a user interface for managing menus.'
+package: Core
+# version: VERSION
+configure: entity.menu.collection
+dependencies:
+  - drupal:menu_link_content
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361968

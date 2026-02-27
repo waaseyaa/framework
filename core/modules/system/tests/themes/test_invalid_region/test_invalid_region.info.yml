@@ -1,0 +1,12 @@
+name: 'Theme test with missing content region'
+type: theme
+base theme: stable9
+description: 'Test theme which has a non-existent content region.'
+# version: VERSION
+regions:
+  - foo: Foo
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361967

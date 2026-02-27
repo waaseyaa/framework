@@ -1,0 +1,10 @@
+name: 'Node module access automatic cacheability bubbling tests'
+type: module
+description: 'Support module for node permission testing. Provides a route which does a node access query without explicitly specifying the corresponding cache context.'
+package: Testing
+# version: VERSION
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361968

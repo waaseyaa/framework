@@ -1,0 +1,15 @@
+name: Navigation Top Bar
+type: module
+description: 'Obsolete. All the functionality has been moved to the navigation module.'
+package: Core (Experimental)
+lifecycle: obsolete
+lifecycle_link: 'https://www.drupal.org/docs/core-modules-and-themes/deprecated-and-obsolete#s-understanding-obsolete-extensions'
+# version: VERSION
+dependencies:
+  - navigation:navigation
+hidden: true
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361968

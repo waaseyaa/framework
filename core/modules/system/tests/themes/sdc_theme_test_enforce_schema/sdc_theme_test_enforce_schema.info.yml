@@ -1,0 +1,12 @@
+name: 'SDC test theme'
+type: theme
+description: 'Test theme for sdc that enforces schema definitions.'
+# version: VERSION
+base theme: sdc_theme_test
+
+enforce_prop_schemas: true
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361967

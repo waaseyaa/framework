@@ -1,0 +1,13 @@
+name: 'Content Moderation'
+type: module
+description: 'Provides additional publication states that can be used by other modules to moderate content.'
+# version: VERSION
+package: Core
+configure: entity.workflow.collection
+dependencies:
+  - drupal:workflows
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361968

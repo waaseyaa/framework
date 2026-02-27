@@ -1,0 +1,11 @@
+name: module cache bin tests
+type: module
+description: Test cache bins defined by modules.
+package: Testing
+# version: VERSION
+hidden: true
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361967

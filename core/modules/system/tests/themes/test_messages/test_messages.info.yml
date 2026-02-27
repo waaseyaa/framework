@@ -1,0 +1,10 @@
+name: 'Theme test messages'
+type: theme
+description: 'Test theme which provides another div for messages.'
+# version: VERSION
+base theme: starterkit_theme
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361967

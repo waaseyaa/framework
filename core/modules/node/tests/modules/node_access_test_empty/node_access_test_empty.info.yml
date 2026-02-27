@@ -1,0 +1,10 @@
+name: 'Node module empty access tests'
+type: module
+description: 'Support module for node permission testing. Provides empty grants hook implementations.'
+package: Testing
+# version: VERSION
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361968

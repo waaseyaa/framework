@@ -1,0 +1,12 @@
+name: 'Datetime Range'
+type: module
+description: 'Provides the ability to store end dates.'
+package: Field types
+# version: VERSION
+dependencies:
+  - drupal:datetime
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361968

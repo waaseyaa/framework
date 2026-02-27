@@ -1,0 +1,11 @@
+name: 'Package Manager Test Event Logger'
+description: 'Provides an event subscriber to test logging during events in Package Manager'
+type: module
+package: Testing
+dependencies:
+  - auto_updates:package_manager
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361968

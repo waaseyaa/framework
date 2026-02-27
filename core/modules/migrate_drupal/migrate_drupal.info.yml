@@ -1,0 +1,13 @@
+name: Migrate Drupal
+type: module
+description: 'Provides a framework to migrate data from previous versions of Drupal into the site.'
+package: Migration
+# version: VERSION
+dependencies:
+  - drupal:migrate
+  - drupal:phpass
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361968

@@ -1,0 +1,10 @@
+name: 'Test Hook Runtime Requirements'
+type: module
+description: 'Support module for testing hook_runtime_requirements().'
+package: Testing
+# version: VERSION
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361967

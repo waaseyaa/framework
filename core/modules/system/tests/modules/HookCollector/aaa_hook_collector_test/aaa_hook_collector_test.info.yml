@@ -1,0 +1,12 @@
+name: AAA Hook collector test
+type: module
+description: 'Test module used to test hook ordering.'
+package: Testing
+# version: VERSION
+core_version_requirement: '*'
+hidden: true
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361968

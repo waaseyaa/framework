@@ -1,0 +1,25 @@
+<?php
+
+/**
+ * @file
+ */
+
+use Drupal\navigation\TopBarRegion;
+
+/**
+ * Prepares variables for navigation top bar template.
+ *
+ * Default template: top-bar.html.twig
+ *
+ * @param array $variables
+ *   An associative array containing:
+ *    - element: An associative array containing the properties and children of
+ *      the top bar.
+ */
+function template_preprocess_top_bar(&$variables): void {
+  $element = $variables['element'];
+
+  foreach (TopBarRegion::cases() as $region) {
+    $variables[$region->value] = $element[$region->value] ?? NULL;
+  }
+}

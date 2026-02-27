@@ -1,0 +1,10 @@
+name: 'Migrate drupal field discovery tet'
+type: module
+description: 'Module containing a test class exposing protected field discovery methods'
+package: Testing
+# version: VERSION
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361968

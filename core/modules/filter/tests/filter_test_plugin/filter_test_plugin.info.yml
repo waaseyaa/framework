@@ -1,0 +1,10 @@
+name: 'Filter test plugin'
+type: module
+description: 'Tests enabling of modules which provide filter plugins.'
+package: Testing
+# version: VERSION
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361968

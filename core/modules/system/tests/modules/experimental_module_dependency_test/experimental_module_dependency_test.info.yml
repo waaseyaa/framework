@@ -1,0 +1,12 @@
+name: 'Experimental Dependency Test'
+type: module
+description: 'Module with a dependency in the experimental package.'
+package: Testing
+dependencies:
+  - drupal:experimental_module_test
+# version: VERSION
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361968

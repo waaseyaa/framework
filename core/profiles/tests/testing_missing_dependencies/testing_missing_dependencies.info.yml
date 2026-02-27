@@ -1,0 +1,17 @@
+name: 'Testing missing dependencies'
+type: profile
+description: 'Minimal profile for running a test when dependencies are listed but missing.'
+# version: VERSION
+hidden: true
+install:
+  - block
+  - drupal:node
+  - drupal:fictional
+  - missing_module1
+  - missing_module2
+keep_english: true
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361967

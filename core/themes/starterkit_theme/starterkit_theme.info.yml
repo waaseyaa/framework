@@ -1,0 +1,27 @@
+name: Starterkit theme
+type: theme
+'base theme': stable9
+hidden: true
+# version: VERSION
+libraries:
+  - starterkit_theme/base
+  - starterkit_theme/messages
+  - core/normalize
+libraries-extend:
+  user/drupal.user:
+    - starterkit_theme/user
+  core/drupal.dropbutton:
+    - starterkit_theme/dropbutton
+  core/drupal.dialog:
+    - starterkit_theme/dialog
+  file/drupal.file:
+    - starterkit_theme/file
+  core/drupal.progress:
+    - starterkit_theme/progress
+  core/drupal.tablesort:
+    - starterkit_theme/drupal.tablesort
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361967

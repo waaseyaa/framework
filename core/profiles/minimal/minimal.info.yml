@@ -1,0 +1,17 @@
+name: Minimal
+type: profile
+description: 'Build a custom site without pre-configured functionality. Suitable for advanced users.'
+# version: VERSION
+install:
+  - node
+  - block
+  - dblog
+  - page_cache
+  - dynamic_page_cache
+themes:
+  - stark
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361967

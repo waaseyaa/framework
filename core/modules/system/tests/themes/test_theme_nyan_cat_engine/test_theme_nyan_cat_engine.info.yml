@@ -1,0 +1,12 @@
+# cspell:ignore nyan
+name: 'Test theme for Nyan Cat engine'
+type: theme
+description: 'Theme for testing the theme system with the Nyan Cat theme engine'
+# version: VERSION
+engine: nyan_cat
+base theme: false
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361967

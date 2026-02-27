@@ -1,0 +1,10 @@
+name: 'Link Test Theme'
+type: theme
+description: 'Theme for testing link module'
+# version: VERSION
+base theme: stark
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361968

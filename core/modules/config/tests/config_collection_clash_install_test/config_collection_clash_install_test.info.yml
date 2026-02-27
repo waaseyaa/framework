@@ -1,0 +1,13 @@
+# This should contain a copy of the configuration from the
+# config_collection_install_test module.
+name: 'Config collection clash test module'
+type: module
+package: Testing
+# version: VERSION
+dependencies:
+  - drupal:config_collection_install_test
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361968

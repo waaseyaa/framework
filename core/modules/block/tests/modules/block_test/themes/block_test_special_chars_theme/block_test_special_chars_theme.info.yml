@@ -1,0 +1,12 @@
+name: '<"Cat" & ''Mouse''>'
+type: theme
+base theme: stable9
+description: 'Theme for testing special characters in block admin.'
+regions:
+  content: Content
+  help: Help
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361968

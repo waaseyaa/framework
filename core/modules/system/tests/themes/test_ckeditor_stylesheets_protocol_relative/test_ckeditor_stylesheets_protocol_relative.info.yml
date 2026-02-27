@@ -1,0 +1,14 @@
+name: Test protocol-relative CKEditor stylesheets
+type: theme
+description: 'A theme that uses a protocol-relative CKEditor stylesheet.'
+# version: VERSION
+base theme: false
+ckeditor_stylesheets:
+  - //fonts.googleapis.com/css?family=Open+Sans
+ckeditor5-stylesheets:
+  - //fonts.googleapis.com/css?family=Open+Sans
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361967

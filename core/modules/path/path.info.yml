@@ -1,0 +1,13 @@
+name: Path
+type: module
+description: 'Allows users to create custom URLs for existing paths on the site.'
+package: Core
+# version: VERSION
+configure: entity.path_alias.collection
+dependencies:
+  - drupal:path_alias
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361968

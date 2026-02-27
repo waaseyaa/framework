@@ -1,0 +1,14 @@
+name: User
+type: module
+description: 'Allows users to register and log in, and manages user roles and permissions.'
+package: Core
+# version: VERSION
+required: true
+configure: user.admin_index
+dependencies:
+  - drupal:system
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361967

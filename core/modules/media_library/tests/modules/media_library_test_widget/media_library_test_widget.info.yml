@@ -1,0 +1,13 @@
+name: 'Media Library test widget'
+type: module
+description: 'Test widget that has a nested media library widget'
+package: Testing
+dependencies:
+  - drupal:image
+  - drupal:media_library
+  - drupal:media_test_source
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361968

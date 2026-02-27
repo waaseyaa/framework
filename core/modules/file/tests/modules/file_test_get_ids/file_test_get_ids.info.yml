@@ -1,0 +1,12 @@
+name: 'File test getIds'
+type: module
+description: 'Provides file source plugin restricted to used files.'
+package: Testing
+# version: VERSION
+dependencies:
+  - drupal:file
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361968

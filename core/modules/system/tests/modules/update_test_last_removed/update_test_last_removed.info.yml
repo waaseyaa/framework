@@ -1,0 +1,10 @@
+name: 'Update test with hook_update_last_removed() implementation'
+type: module
+description: 'Support module for update testing.'
+package: Testing
+# version: VERSION
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361967

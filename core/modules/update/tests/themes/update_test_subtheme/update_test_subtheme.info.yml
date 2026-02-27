@@ -1,0 +1,10 @@
+name: 'Update test subtheme'
+type: theme
+description: 'Test theme which uses update_test_base_theme as the base theme.'
+# version: VERSION
+base theme: update_test_base_theme
+
+# Information added by Drupal.org packaging script on 2025-12-10
+version: '11.2.10'
+project: 'drupal'
+datestamp: 1765361967
