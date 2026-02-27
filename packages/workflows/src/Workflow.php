@@ -85,6 +85,7 @@ final class Workflow extends ConfigEntityBase
     public function addState(WorkflowState $state): static
     {
         $this->states[$state->id] = $state;
+        $this->syncStatesToValues();
 
         return $this;
     }
@@ -154,6 +155,9 @@ final class Workflow extends ConfigEntityBase
             }
         }
 
+        $this->syncStatesToValues();
+        $this->syncTransitionsToValues();
+
         return $this;
     }
 
@@ -163,6 +167,7 @@ final class Workflow extends ConfigEntityBase
     public function addTransition(WorkflowTransition $transition): static
     {
         $this->transitions[$transition->id] = $transition;
+        $this->syncTransitionsToValues();
 
         return $this;
     }
@@ -199,6 +204,7 @@ final class Workflow extends ConfigEntityBase
     public function removeTransition(string $id): static
     {
         unset($this->transitions[$id]);
+        $this->syncTransitionsToValues();
 
         return $this;
     }
@@ -233,6 +239,32 @@ final class Workflow extends ConfigEntityBase
         }
 
         return false;
+    }
+
+    private function syncStatesToValues(): void
+    {
+        $states = [];
+        foreach ($this->states as $state) {
+            $states[$state->id] = [
+                'label' => $state->label,
+                'weight' => $state->weight,
+            ];
+        }
+        $this->values['states'] = $states;
+    }
+
+    private function syncTransitionsToValues(): void
+    {
+        $transitions = [];
+        foreach ($this->transitions as $transition) {
+            $transitions[$transition->id] = [
+                'label' => $transition->label,
+                'from' => $transition->from,
+                'to' => $transition->to,
+                'weight' => $transition->weight,
+            ];
+        }
+        $this->values['transitions'] = $transitions;
     }
 
     /**

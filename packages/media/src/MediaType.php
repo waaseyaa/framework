@@ -68,6 +68,7 @@ final class MediaType extends ConfigEntityBase
     public function setSource(string $source): static
     {
         $this->source = $source;
+        $this->values['source'] = $source;
 
         return $this;
     }
@@ -86,6 +87,7 @@ final class MediaType extends ConfigEntityBase
     public function setDescription(string $description): static
     {
         $this->description = $description;
+        $this->values['description'] = $description;
 
         return $this;
     }
@@ -108,6 +110,7 @@ final class MediaType extends ConfigEntityBase
     public function setSourceConfiguration(array $configuration): static
     {
         $this->sourceConfiguration = $configuration;
+        $this->values['source_configuration'] = $configuration;
 
         return $this;
     }

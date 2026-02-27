@@ -60,6 +60,7 @@ final class Menu extends ConfigEntityBase
     public function setDescription(string $description): static
     {
         $this->description = $description;
+        $this->values['description'] = $description;
 
         return $this;
     }
@@ -78,6 +79,7 @@ final class Menu extends ConfigEntityBase
     public function setLocked(bool $locked): static
     {
         $this->locked = $locked;
+        $this->values['locked'] = $locked;
 
         return $this;
     }
