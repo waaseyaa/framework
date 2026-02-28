@@ -11,6 +11,7 @@
         "aurora/entity": "^0.1",
         "aurora/foundation": "^0.1",
         "aurora/field": "^0.1",
+        "aurora/foundation": "^0.1",
         "aurora/entity-storage": "^0.1",
         "aurora/database-legacy": "^0.1",
         "aurora/access": "^0.1",

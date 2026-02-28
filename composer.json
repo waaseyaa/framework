@@ -84,6 +84,7 @@
             "Aurora\\TypedData\\Tests\\": "packages/typed-data/tests/",
             "Aurora\\Entity\\Tests\\": "packages/entity/tests/",
             "Aurora\\Field\\Tests\\": "packages/field/tests/",
+            "Aurora\\Foundation\\Tests\\": "packages/foundation/tests/",
             "Aurora\\Database\\Tests\\": "packages/database-legacy/tests/",
             "Aurora\\EntityStorage\\Tests\\": "packages/entity-storage/tests/",
             "Aurora\\Access\\Tests\\": "packages/access/tests/",
