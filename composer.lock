@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "8d305bfff525a8bc19a482447f35c615",
+    "content-hash": "ed4bb420cff3ddc4e116269570b50540",
     "packages": [
         {
             "name": "aurora/access",
@@ -256,7 +256,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
-                "reference": "d910593e43f661e0e557e8c58bc9236e49516cc4"
+                "reference": "4736c14df56c52df4b5023c3a4b4cef74bea29d8"
             },
             "require": {
                 "aurora/access": "@dev",
@@ -466,6 +466,43 @@
                 "GPL-2.0-or-later"
             ],
             "description": "Field type system — pluggable field types, definitions, formatters for Aurora CMS",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "aurora/mcp",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/mcp",
+                "reference": "c29e06281b076e40e8401ea9b0cf58921b60dc5d"
+            },
+            "require": {
+                "aurora/access": "@dev",
+                "aurora/ai-agent": "@dev",
+                "aurora/ai-schema": "@dev",
+                "aurora/routing": "@dev",
+                "php": ">=8.3"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Aurora\\Mcp\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Aurora\\Mcp\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Remote MCP server endpoint for Aurora CMS",
             "transport-options": {
                 "relative": true
             }
@@ -4673,6 +4710,7 @@
         "aurora/entity": 20,
         "aurora/entity-storage": 20,
         "aurora/field": 20,
+        "aurora/mcp": 20,
         "aurora/media": 20,
         "aurora/menu": 20,
         "aurora/node": 20,

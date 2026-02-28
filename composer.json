@@ -34,6 +34,7 @@
         { "type": "path", "url": "packages/cli" },
         { "type": "path", "url": "packages/core" },
         { "type": "path", "url": "packages/cms" },
+        { "type": "path", "url": "packages/mcp" },
         { "type": "path", "url": "packages/full" }
     ],
     "require": {
@@ -51,6 +52,7 @@
         "aurora/entity": "@dev",
         "aurora/entity-storage": "@dev",
         "aurora/field": "@dev",
+        "aurora/mcp": "@dev",
         "aurora/media": "@dev",
         "aurora/menu": "@dev",
         "aurora/node": "@dev",
@@ -86,6 +88,7 @@
             "Aurora\\Api\\Tests\\": "packages/api/tests/",
             "Aurora\\Queue\\Tests\\": "packages/queue/tests/",
             "Aurora\\State\\Tests\\": "packages/state/tests/",
+            "Aurora\\Mcp\\Tests\\": "packages/mcp/tests/",
             "Aurora\\Media\\Tests\\": "packages/media/tests/",
             "Aurora\\Menu\\Tests\\": "packages/menu/tests/",
             "Aurora\\Node\\Tests\\": "packages/node/tests/",
