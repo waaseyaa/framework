@@ -8,6 +8,10 @@
         "psr/cache": "^3.0",
         "psr/simple-cache": "^3.0"
     },
+    "suggest": {
+        "aurora/entity": "Required for EntityCacheInvalidator listener",
+        "aurora/config": "Required for ConfigCacheInvalidator listener"
+    },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
     },

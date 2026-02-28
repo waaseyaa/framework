@@ -35,7 +35,8 @@
         { "type": "path", "url": "packages/core" },
         { "type": "path", "url": "packages/cms" },
         { "type": "path", "url": "packages/mcp" },
-        { "type": "path", "url": "packages/full" }
+        { "type": "path", "url": "packages/full" },
+        { "type": "path", "url": "packages/foundation" }
     ],
     "require": {
         "php": ">=8.3",
@@ -52,6 +53,7 @@
         "aurora/entity": "@dev",
         "aurora/entity-storage": "@dev",
         "aurora/field": "@dev",
+        "aurora/foundation": "@dev",
         "aurora/mcp": "@dev",
         "aurora/media": "@dev",
         "aurora/menu": "@dev",
@@ -103,6 +105,7 @@
             "Aurora\\AI\\Schema\\Tests\\": "packages/ai-schema/tests/",
             "Aurora\\AI\\Pipeline\\Tests\\": "packages/ai-pipeline/tests/",
             "Aurora\\AI\\Vector\\Tests\\": "packages/ai-vector/tests/",
+            "Aurora\\Foundation\\Tests\\": "packages/foundation/tests/",
             "Aurora\\Tests\\": "tests/"
         }
     },

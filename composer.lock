@@ -4,11 +4,11 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "ed4bb420cff3ddc4e116269570b50540",
+    "content-hash": "1055686f28f198803de06a9e4d1cfbbc",
     "packages": [
         {
             "name": "aurora/access",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/access",
@@ -43,7 +43,7 @@
         },
         {
             "name": "aurora/ai-agent",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-agent",
@@ -78,7 +78,7 @@
         },
         {
             "name": "aurora/ai-pipeline",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-pipeline",
@@ -113,7 +113,7 @@
         },
         {
             "name": "aurora/ai-schema",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-schema",
@@ -147,7 +147,7 @@
         },
         {
             "name": "aurora/ai-vector",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-vector",
@@ -181,7 +181,7 @@
         },
         {
             "name": "aurora/api",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/api",
@@ -217,11 +217,11 @@
         },
         {
             "name": "aurora/cache",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/cache",
-                "reference": "950c00396e810d11d0dc8048e7a2ac7b4d04bb80"
+                "reference": "563f4d8ad4eceb5dd60047c82d1e4cc0bbe01acf"
             },
             "require": {
                 "php": ">=8.3",
@@ -230,6 +230,10 @@
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
+            },
+            "suggest": {
+                "aurora/config": "Required for ConfigCacheInvalidator listener",
+                "aurora/entity": "Required for EntityCacheInvalidator listener"
             },
             "type": "library",
             "autoload": {
@@ -252,7 +256,7 @@
         },
         {
             "name": "aurora/cli",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
@@ -291,7 +295,7 @@
         },
         {
             "name": "aurora/config",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/config",
@@ -326,7 +330,7 @@
         },
         {
             "name": "aurora/database-legacy",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/database-legacy",
@@ -359,7 +363,7 @@
         },
         {
             "name": "aurora/entity",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/entity",
@@ -398,7 +402,7 @@
         },
         {
             "name": "aurora/entity-storage",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/entity-storage",
@@ -436,7 +440,7 @@
         },
         {
             "name": "aurora/field",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/field",
@@ -471,8 +475,43 @@
             }
         },
         {
+            "name": "aurora/foundation",
+            "version": "dev-unit-16-cache-assets",
+            "dist": {
+                "type": "path",
+                "url": "packages/foundation",
+                "reference": "aa906694f71fa79996af834213c4ac837e515a2e"
+            },
+            "require": {
+                "php": ">=8.3",
+                "symfony/event-dispatcher": "^7.0",
+                "symfony/uid": "^7.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Aurora\\Foundation\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Aurora\\Foundation\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Core framework primitives: service providers, domain events, results, error handling",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
             "name": "aurora/mcp",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/mcp",
@@ -509,7 +548,7 @@
         },
         {
             "name": "aurora/media",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/media",
@@ -543,7 +582,7 @@
         },
         {
             "name": "aurora/menu",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/menu",
@@ -577,7 +616,7 @@
         },
         {
             "name": "aurora/node",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/node",
@@ -612,7 +651,7 @@
         },
         {
             "name": "aurora/path",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/path",
@@ -646,7 +685,7 @@
         },
         {
             "name": "aurora/plugin",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/plugin",
@@ -680,7 +719,7 @@
         },
         {
             "name": "aurora/queue",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/queue",
@@ -714,7 +753,7 @@
         },
         {
             "name": "aurora/routing",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/routing",
@@ -750,7 +789,7 @@
         },
         {
             "name": "aurora/ssr",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/ssr",
@@ -786,7 +825,7 @@
         },
         {
             "name": "aurora/state",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/state",
@@ -820,7 +859,7 @@
         },
         {
             "name": "aurora/taxonomy",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/taxonomy",
@@ -855,7 +894,7 @@
         },
         {
             "name": "aurora/typed-data",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/typed-data",
@@ -889,7 +928,7 @@
         },
         {
             "name": "aurora/user",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/user",
@@ -924,7 +963,7 @@
         },
         {
             "name": "aurora/validation",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/validation",
@@ -960,7 +999,7 @@
         },
         {
             "name": "aurora/workflows",
-            "version": "dev-main",
+            "version": "dev-unit-16-cache-assets",
             "dist": {
                 "type": "path",
                 "url": "packages/workflows",
@@ -3209,11 +3248,11 @@
         },
         {
             "name": "phpstan/phpstan",
-            "version": "1.12.32",
+            "version": "1.12.33",
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/2770dcdf5078d0b0d53f94317e06affe88419aa8",
-                "reference": "2770dcdf5078d0b0d53f94317e06affe88419aa8",
+                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/37982d6fc7cbb746dda7773530cda557cdf119e1",
+                "reference": "37982d6fc7cbb746dda7773530cda557cdf119e1",
                 "shasum": ""
             },
             "require": {
@@ -3258,7 +3297,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-09-30T10:16:31+00:00"
+            "time": "2026-02-28T20:30:03+00:00"
         },
         {
             "name": "phpunit/php-code-coverage",
@@ -4710,6 +4749,7 @@
         "aurora/entity": 20,
         "aurora/entity-storage": 20,
         "aurora/field": 20,
+        "aurora/foundation": 20,
         "aurora/mcp": 20,
         "aurora/media": 20,
         "aurora/menu": 20,
