@@ -77,7 +77,7 @@ class InMemoryEntityStorage implements EntityStorageInterface
 
     public function getQuery(): EntityQueryInterface
     {
-        return new InMemoryEntityQuery(array_keys($this->entities));
+        return new InMemoryEntityQuery(array_keys($this->entities), $this->entities);
     }
 
     public function getEntityTypeId(): string

@@ -7,6 +7,9 @@ namespace Aurora\Api;
 use Aurora\Access\AccessResult;
 use Aurora\Access\AccountInterface;
 use Aurora\Access\EntityAccessHandler;
+use Aurora\Api\Query\PaginationLinks;
+use Aurora\Api\Query\QueryApplier;
+use Aurora\Api\Query\QueryParser;
 use Aurora\Entity\EntityTypeManagerInterface;
 
 /**
@@ -28,7 +31,7 @@ final class JsonApiController
      * GET collection — list entities of a given type.
      *
      * @param string               $entityTypeId The entity type to list.
-     * @param array<string, mixed> $query        Optional query parameters (future: filter, sort, page).
+     * @param array<string, mixed> $query        Optional query parameters (filter, sort, page, fields).
      */
     public function index(string $entityTypeId, array $query = []): JsonApiDocument
     {
@@ -39,8 +42,27 @@ final class JsonApiController
         }
 
         $storage = $this->entityTypeManager->getStorage($entityTypeId);
+
+        // Parse query parameters.
+        $parser = new QueryParser();
+        $parsedQuery = $parser->parse($query);
+        $applier = new QueryApplier();
+
+        // Count total matching entities (before pagination).
+        $countQuery = $storage->getQuery();
+        $countQuery->accessCheck(false);
+        // Apply only filters to the count query (not sorts/pagination).
+        foreach ($parsedQuery->filters as $filter) {
+            $countQuery->condition($filter->field, $filter->value, $filter->operator);
+        }
+        $countQuery->count();
+        $countResult = $countQuery->execute();
+        $total = (int) ($countResult[0] ?? 0);
+
+        // Build and execute the main query with filters, sorts, and pagination.
         $entityQuery = $storage->getQuery();
         $entityQuery->accessCheck(false);
+        $applier->apply($parsedQuery, $entityQuery);
 
         $ids = $entityQuery->execute();
         $entities = $ids !== [] ? $storage->loadMultiple($ids) : [];
@@ -55,9 +77,41 @@ final class JsonApiController
 
         $resources = $this->serializer->serializeCollection($entities);
 
+        // Apply sparse fieldsets if requested.
+        if (isset($parsedQuery->sparseFieldsets[$entityTypeId])) {
+            $allowedFields = $parsedQuery->sparseFieldsets[$entityTypeId];
+            $resources = array_map(
+                static fn(JsonApiResource $resource): JsonApiResource => new JsonApiResource(
+                    type: $resource->type,
+                    id: $resource->id,
+                    attributes: array_intersect_key(
+                        $resource->attributes,
+                        array_flip($allowedFields),
+                    ),
+                    relationships: $resource->relationships,
+                    links: $resource->links,
+                    meta: $resource->meta,
+                ),
+                $resources,
+            );
+        }
+
+        // Generate pagination links and meta.
+        $offset = $applier->getEffectiveOffset($parsedQuery);
+        $limit = $applier->getEffectiveLimit($parsedQuery);
+        $basePath = "/api/{$entityTypeId}";
+        $links = PaginationLinks::generate($basePath, $offset, $limit, $total);
+
+        $meta = [
+            'total' => $total,
+            'offset' => $offset,
+            'limit' => $limit,
+        ];
+
         return JsonApiDocument::fromCollection(
             $resources,
-            links: ['self' => "/api/{$entityTypeId}"],
+            links: $links,
+            meta: $meta,
         );
     }
 

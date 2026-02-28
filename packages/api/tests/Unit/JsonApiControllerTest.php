@@ -64,7 +64,7 @@ final class JsonApiControllerTest extends TestCase
         $array = $doc->toArray();
 
         $this->assertSame([], $array['data']);
-        $this->assertSame('/api/article', $array['links']['self']);
+        $this->assertStringStartsWith('/api/article', $array['links']['self']);
     }
 
     #[Test]
