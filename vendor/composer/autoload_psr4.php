@@ -62,6 +62,8 @@ return array(
     'Aurora\\Menu\\' => array($vendorDir . '/aurora/menu/src'),
     'Aurora\\Media\\Tests\\' => array($baseDir . '/packages/media/tests'),
     'Aurora\\Media\\' => array($vendorDir . '/aurora/media/src'),
+    'Aurora\\Foundation\\Tests\\' => array($baseDir . '/packages/foundation/tests'),
+    'Aurora\\Foundation\\' => array($vendorDir . '/aurora/foundation/src'),
     'Aurora\\Field\\Tests\\' => array($baseDir . '/packages/field/tests'),
     'Aurora\\Field\\' => array($vendorDir . '/aurora/field/src'),
     'Aurora\\Entity\\Tests\\' => array($baseDir . '/packages/entity/tests'),

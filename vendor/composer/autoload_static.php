@@ -96,6 +96,8 @@ class ComposerStaticInitc6549ed0250eff553d2e60be68a047b3
             'Aurora\\Menu\\' => 12,
             'Aurora\\Media\\Tests\\' => 19,
             'Aurora\\Media\\' => 13,
+            'Aurora\\Foundation\\Tests\\' => 24,
+            'Aurora\\Foundation\\' => 18,
             'Aurora\\Field\\Tests\\' => 19,
             'Aurora\\Field\\' => 13,
             'Aurora\\Entity\\Tests\\' => 20,
@@ -349,6 +351,14 @@ class ComposerStaticInitc6549ed0250eff553d2e60be68a047b3
         'Aurora\\Media\\' => 
         array (
             0 => __DIR__ . '/..' . '/aurora/media/src',
+        ),
+        'Aurora\\Foundation\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/foundation/tests',
+        ),
+        'Aurora\\Foundation\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/aurora/foundation/src',
         ),
         'Aurora\\Field\\Tests\\' => 
         array (

@@ -4,6 +4,7 @@
     "type": "metapackage",
     "license": "GPL-2.0-or-later",
     "require": {
+        "aurora/foundation": "^0.1",
         "aurora/cache": "^0.1",
         "aurora/plugin": "^0.1",
         "aurora/typed-data": "^0.1",

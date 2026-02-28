@@ -2,8 +2,8 @@
     "packages": [
         {
             "name": "aurora/access",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/access",
@@ -40,8 +40,8 @@
         },
         {
             "name": "aurora/ai-agent",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-agent",
@@ -78,8 +78,8 @@
         },
         {
             "name": "aurora/ai-pipeline",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-pipeline",
@@ -116,8 +116,8 @@
         },
         {
             "name": "aurora/ai-schema",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-schema",
@@ -153,8 +153,8 @@
         },
         {
             "name": "aurora/ai-vector",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-vector",
@@ -190,16 +190,17 @@
         },
         {
             "name": "aurora/api",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/api",
-                "reference": "57b67432289156dffa91f1454387a71a98678adc"
+                "reference": "d0e67bc16455846933a6972069c18c85c76ee886"
             },
             "require": {
                 "aurora/access": "@dev",
                 "aurora/entity": "@dev",
+                "aurora/foundation": "@dev",
                 "aurora/routing": "@dev",
                 "php": ">=8.3"
             },
@@ -229,8 +230,8 @@
         },
         {
             "name": "aurora/cache",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/cache",
@@ -267,12 +268,12 @@
         },
         {
             "name": "aurora/cli",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
-                "reference": "d910593e43f661e0e557e8c58bc9236e49516cc4"
+                "reference": "4736c14df56c52df4b5023c3a4b4cef74bea29d8"
             },
             "require": {
                 "aurora/access": "@dev",
@@ -309,8 +310,8 @@
         },
         {
             "name": "aurora/config",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/config",
@@ -347,8 +348,8 @@
         },
         {
             "name": "aurora/database-legacy",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/database-legacy",
@@ -383,8 +384,8 @@
         },
         {
             "name": "aurora/entity",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/entity",
@@ -425,8 +426,8 @@
         },
         {
             "name": "aurora/entity-storage",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/entity-storage",
@@ -466,8 +467,8 @@
         },
         {
             "name": "aurora/field",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/field",
@@ -504,9 +505,47 @@
             "install-path": "../aurora/field"
         },
         {
+            "name": "aurora/foundation",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
+            "dist": {
+                "type": "path",
+                "url": "packages/foundation",
+                "reference": "aa906694f71fa79996af834213c4ac837e515a2e"
+            },
+            "require": {
+                "php": ">=8.3",
+                "symfony/event-dispatcher": "^7.0",
+                "symfony/uid": "^7.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "installation-source": "dist",
+            "autoload": {
+                "psr-4": {
+                    "Aurora\\Foundation\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Aurora\\Foundation\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Core framework primitives: service providers, domain events, results, error handling",
+            "transport-options": {
+                "relative": true
+            },
+            "install-path": "../aurora/foundation"
+        },
+        {
             "name": "aurora/media",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/media",
@@ -542,8 +581,8 @@
         },
         {
             "name": "aurora/menu",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/menu",
@@ -579,8 +618,8 @@
         },
         {
             "name": "aurora/node",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/node",
@@ -617,8 +656,8 @@
         },
         {
             "name": "aurora/path",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/path",
@@ -654,8 +693,8 @@
         },
         {
             "name": "aurora/plugin",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/plugin",
@@ -691,8 +730,8 @@
         },
         {
             "name": "aurora/queue",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/queue",
@@ -728,8 +767,8 @@
         },
         {
             "name": "aurora/routing",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/routing",
@@ -767,8 +806,8 @@
         },
         {
             "name": "aurora/ssr",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/ssr",
@@ -806,8 +845,8 @@
         },
         {
             "name": "aurora/state",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/state",
@@ -843,8 +882,8 @@
         },
         {
             "name": "aurora/taxonomy",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/taxonomy",
@@ -881,8 +920,8 @@
         },
         {
             "name": "aurora/typed-data",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/typed-data",
@@ -918,8 +957,8 @@
         },
         {
             "name": "aurora/user",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/user",
@@ -956,8 +995,8 @@
         },
         {
             "name": "aurora/validation",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/validation",
@@ -995,8 +1034,8 @@
         },
         {
             "name": "aurora/workflows",
-            "version": "dev-main",
-            "version_normalized": "dev-main",
+            "version": "dev-unit-14-broadcasting",
+            "version_normalized": "dev-unit-14-broadcasting",
             "dist": {
                 "type": "path",
                 "url": "packages/workflows",
@@ -1280,12 +1319,12 @@
         },
         {
             "name": "phpstan/phpstan",
-            "version": "1.12.32",
-            "version_normalized": "1.12.32.0",
+            "version": "1.12.33",
+            "version_normalized": "1.12.33.0",
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/2770dcdf5078d0b0d53f94317e06affe88419aa8",
-                "reference": "2770dcdf5078d0b0d53f94317e06affe88419aa8",
+                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/37982d6fc7cbb746dda7773530cda557cdf119e1",
+                "reference": "37982d6fc7cbb746dda7773530cda557cdf119e1",
                 "shasum": ""
             },
             "require": {
@@ -1294,7 +1333,7 @@
             "conflict": {
                 "phpstan/phpstan-shim": "*"
             },
-            "time": "2025-09-30T10:16:31+00:00",
+            "time": "2026-02-28T20:30:03+00:00",
             "bin": [
                 "phpstan",
                 "phpstan.phar"

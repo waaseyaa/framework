@@ -10,11 +10,13 @@
         {"type": "path", "url": "../plugin"},
         {"type": "path", "url": "../cache"},
         {"type": "path", "url": "../typed-data"},
-        {"type": "path", "url": "../config"}
+        {"type": "path", "url": "../config"},
+        {"type": "path", "url": "../foundation"}
     ],
     "require": {
         "php": ">=8.3",
         "aurora/entity": "@dev",
+        "aurora/foundation": "@dev",
         "aurora/routing": "@dev",
         "aurora/access": "@dev"
     },
