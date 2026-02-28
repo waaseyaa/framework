@@ -1,0 +1,15 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Job;
+
+use Aurora\Queue\Job\Job;
+
+final class {{ class }} extends Job
+{
+    public function handle(): void
+    {
+        //
+    }
+}

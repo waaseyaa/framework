@@ -1,0 +1,22 @@
+<?php
+
+declare(strict_types=1);
+
+use Aurora\Foundation\Migration\Migration;
+use Aurora\Foundation\Migration\SchemaBuilder;
+
+return new class extends Migration
+{
+    public function up(SchemaBuilder $schema): void
+    {
+        $schema->create('{{ table }}', function ($table) {
+            $table->id();
+            $table->timestamps();
+        });
+    }
+
+    public function down(SchemaBuilder $schema): void
+    {
+        $schema->dropIfExists('{{ table }}');
+    }
+};

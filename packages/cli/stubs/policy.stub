@@ -1,0 +1,33 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Policy;
+
+use Aurora\Access\AccessPolicyInterface;
+use Aurora\Access\AccessResult;
+use Aurora\Access\AccountInterface;
+use Aurora\Entity\EntityInterface;
+
+final class {{ class }} implements AccessPolicyInterface
+{
+    public function view(AccountInterface $account, EntityInterface $entity): AccessResult
+    {
+        return AccessResult::neutral();
+    }
+
+    public function create(AccountInterface $account, string $entityTypeId): AccessResult
+    {
+        return AccessResult::neutral();
+    }
+
+    public function update(AccountInterface $account, EntityInterface $entity): AccessResult
+    {
+        return AccessResult::neutral();
+    }
+
+    public function delete(AccountInterface $account, EntityInterface $entity): AccessResult
+    {
+        return AccessResult::neutral();
+    }
+}
