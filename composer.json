@@ -57,6 +57,8 @@
         "aurora/typed-data": "@dev",
         "aurora/user": "@dev",
         "aurora/validation": "@dev",
+        "aurora/ai-schema": "@dev",
+        "aurora/ai-vector": "@dev",
         "aurora/api": "@dev",
         "aurora/workflows": "@dev"
     },
@@ -87,6 +89,8 @@
             "Aurora\\User\\Tests\\": "packages/user/tests/",
             "Aurora\\Validation\\Tests\\": "packages/validation/tests/",
             "Aurora\\Workflows\\Tests\\": "packages/workflows/tests/",
+            "Aurora\\AI\\Schema\\Tests\\": "packages/ai-schema/tests/",
+            "Aurora\\AI\\Vector\\Tests\\": "packages/ai-vector/tests/",
             "Aurora\\Tests\\": "tests/"
         }
     },

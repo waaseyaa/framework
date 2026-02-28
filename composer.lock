@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "813aaa719714d2a7cefd20db0077792a",
+    "content-hash": "c0d8260b452cb734b353ac48675d6acf",
     "packages": [
         {
             "name": "aurora/access",
@@ -42,17 +42,84 @@
             }
         },
         {
+            "name": "aurora/ai-schema",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/ai-schema",
+                "reference": "87319b9394b6ba17e88262a3f847f8a65f9239a2"
+            },
+            "require": {
+                "aurora/entity": "@dev",
+                "php": ">=8.3"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Aurora\\AI\\Schema\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Aurora\\AI\\Schema\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "AI-friendly schema definitions and entity metadata for Aurora CMS",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "aurora/ai-vector",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/ai-vector",
+                "reference": "0a3495ad3ff15aff800b4dd7a6407792b2db22f6"
+            },
+            "require": {
+                "aurora/entity": "@dev",
+                "php": ">=8.3"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Aurora\\AI\\Vector\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Aurora\\AI\\Vector\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Vector embedding storage and similarity search for Aurora CMS",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
             "name": "aurora/api",
             "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/api",
-                "reference": "2a584d4177863f53dfd2bdc9fcc9b3768cc72c8c"
+                "reference": "57b67432289156dffa91f1454387a71a98678adc"
             },
             "require": {
                 "aurora/access": "@dev",
                 "aurora/entity": "@dev",
-                "aurora/field": "@dev",
                 "aurora/routing": "@dev",
                 "php": ">=8.3"
             },
@@ -3875,6 +3942,8 @@
     "minimum-stability": "dev",
     "stability-flags": {
         "aurora/access": 20,
+        "aurora/ai-schema": 20,
+        "aurora/ai-vector": 20,
         "aurora/api": 20,
         "aurora/cache": 20,
         "aurora/config": 20,
