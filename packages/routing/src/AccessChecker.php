@@ -6,6 +6,7 @@ namespace Aurora\Routing;
 
 use Aurora\Access\AccessResult;
 use Aurora\Access\AccountInterface;
+use Aurora\Access\Gate\GateInterface;
 use Symfony\Component\Routing\Route;
 
 /**
@@ -15,12 +16,17 @@ use Symfony\Component\Routing\Route;
  *   - '_public' => true — always allow access (no authentication required)
  *   - '_permission' => 'administer site' — require a specific permission
  *   - '_role' => 'administrator' — require a specific role (or comma-separated list)
+ *   - '_gate' => ['ability' => 'config.export', 'subject' => null] — require a gate ability
  *
  * Multiple requirements are combined with AND logic (all must pass).
  * If no access requirements are present, returns AccessResult::neutral().
  */
 final class AccessChecker
 {
+    public function __construct(
+        private readonly ?GateInterface $gate = null,
+    ) {}
+
     /**
      * Check access for a matched route.
      *
@@ -63,10 +69,58 @@ final class AccessChecker
             $result = $result->andIf($roleResult);
         }
 
+        // Check _gate option (gate ability check).
+        $gateOptions = $route->getOption('_gate');
+        if ($gateOptions !== null && is_array($gateOptions)) {
+            $hasRequirement = true;
+            $result = $result->andIf($this->checkGate($gateOptions));
+        }
+
         if (!$hasRequirement) {
             return AccessResult::neutral('No access requirements specified on route.');
         }
 
         return $result;
+    }
+
+    /**
+     * Check a gate ability on the route.
+     *
+     * @param array{ability: string, subject?: mixed} $gateOptions
+     */
+    private function checkGate(array $gateOptions): AccessResult
+    {
+        if ($this->gate === null) {
+            return AccessResult::forbidden('Gate check required but no Gate implementation is available.');
+        }
+
+        $ability = $gateOptions['ability'] ?? '';
+        if ($ability === '') {
+            return AccessResult::forbidden('Gate ability not specified.');
+        }
+
+        $subject = $gateOptions['subject'] ?? null;
+
+        return $this->gate->allows($ability, $subject)
+            ? AccessResult::allowed()
+            : AccessResult::forbidden("Gate denied ability '{$ability}'.");
+    }
+
+    /**
+     * Apply GateAttribute metadata to a route's options.
+     *
+     * Call this during route compilation to transfer #[GateAttribute]
+     * metadata into the route's '_gate' option for runtime checking.
+     *
+     * @param Route $route The route to enhance.
+     * @param string $ability The gate ability from the attribute.
+     * @param mixed $subject Optional subject for the gate check.
+     */
+    public static function applyGateToRoute(Route $route, string $ability, mixed $subject = null): void
+    {
+        $route->setOption('_gate', [
+            'ability' => $ability,
+            'subject' => $subject,
+        ]);
     }
 }

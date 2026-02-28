@@ -9,12 +9,14 @@
         {"type": "path", "url": "../cache"},
         {"type": "path", "url": "../typed-data"},
         {"type": "path", "url": "../access"},
-        {"type": "path", "url": "../config"}
+        {"type": "path", "url": "../config"},
+        {"type": "path", "url": "../i18n"}
     ],
     "require": {
         "php": ">=8.3",
         "aurora/entity": "@dev",
         "aurora/access": "@dev",
+        "aurora/i18n": "@dev",
         "symfony/routing": "^7.3"
     },
     "require-dev": {
