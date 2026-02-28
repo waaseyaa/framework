@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Aurora\Api\Tests\Fixtures;
 
 use Aurora\Entity\EntityInterface;
+use Aurora\Entity\FieldableInterface;
 use Aurora\Entity\Storage\EntityQueryInterface;
 use Aurora\Entity\Storage\EntityStorageInterface;
 
@@ -57,7 +58,7 @@ class InMemoryEntityStorage implements EntityStorageInterface
 
         if ($isNew) {
             $id = $this->nextId++;
-            if ($entity instanceof TestEntity) {
+            if ($entity instanceof FieldableInterface) {
                 $entity->set('id', $id);
             }
             $entity->enforceIsNew(false);
