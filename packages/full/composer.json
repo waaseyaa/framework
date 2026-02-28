@@ -10,7 +10,8 @@
         "aurora/ai-agent": "^0.1",
         "aurora/ai-vector": "^0.1",
         "aurora/ai-pipeline": "^0.1",
-        "aurora/ssr": "^0.1"
+        "aurora/ssr": "^0.1",
+        "aurora/mcp": "^0.1"
     },
     "minimum-stability": "stable"
 }
