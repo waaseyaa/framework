@@ -37,7 +37,11 @@ interface GateInterface
      * @param mixed   $subject The subject being acted upon.
      * @param ?object $user    The user performing the action.
      *
+<<<<<<< HEAD
      * @throws \RuntimeException If the ability is not allowed.
+=======
+     * @throws AccessDeniedException If the ability is not allowed.
+>>>>>>> unit-9-access-gate
      */
     public function authorize(string $ability, mixed $subject, ?object $user = null): void;
 }
