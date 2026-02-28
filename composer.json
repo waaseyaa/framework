@@ -34,6 +34,7 @@
         { "type": "path", "url": "packages/cli" },
         { "type": "path", "url": "packages/core" },
         { "type": "path", "url": "packages/cms" },
+        { "type": "path", "url": "packages/foundation" },
         { "type": "path", "url": "packages/full" }
     ],
     "require": {
@@ -51,6 +52,7 @@
         "aurora/entity": "@dev",
         "aurora/entity-storage": "@dev",
         "aurora/field": "@dev",
+        "aurora/foundation": "@dev",
         "aurora/media": "@dev",
         "aurora/menu": "@dev",
         "aurora/node": "@dev",
@@ -100,6 +102,7 @@
             "Aurora\\AI\\Schema\\Tests\\": "packages/ai-schema/tests/",
             "Aurora\\AI\\Pipeline\\Tests\\": "packages/ai-pipeline/tests/",
             "Aurora\\AI\\Vector\\Tests\\": "packages/ai-vector/tests/",
+            "Aurora\\Foundation\\Tests\\": "packages/foundation/tests/",
             "Aurora\\Tests\\": "tests/"
         }
     },

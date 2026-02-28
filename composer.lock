@@ -4,11 +4,11 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "8d305bfff525a8bc19a482447f35c615",
+    "content-hash": "6bbd0cf4577eff8cacf06be9e524ca3c",
     "packages": [
         {
             "name": "aurora/access",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/access",
@@ -43,7 +43,7 @@
         },
         {
             "name": "aurora/ai-agent",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-agent",
@@ -78,7 +78,7 @@
         },
         {
             "name": "aurora/ai-pipeline",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-pipeline",
@@ -113,7 +113,7 @@
         },
         {
             "name": "aurora/ai-schema",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-schema",
@@ -147,7 +147,7 @@
         },
         {
             "name": "aurora/ai-vector",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-vector",
@@ -181,7 +181,7 @@
         },
         {
             "name": "aurora/api",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/api",
@@ -217,7 +217,7 @@
         },
         {
             "name": "aurora/cache",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/cache",
@@ -252,11 +252,11 @@
         },
         {
             "name": "aurora/cli",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
-                "reference": "d910593e43f661e0e557e8c58bc9236e49516cc4"
+                "reference": "4736c14df56c52df4b5023c3a4b4cef74bea29d8"
             },
             "require": {
                 "aurora/access": "@dev",
@@ -291,7 +291,7 @@
         },
         {
             "name": "aurora/config",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/config",
@@ -326,7 +326,7 @@
         },
         {
             "name": "aurora/database-legacy",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/database-legacy",
@@ -359,15 +359,16 @@
         },
         {
             "name": "aurora/entity",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/entity",
-                "reference": "081f4791e6b83f0508a240739815224ab2dadd2a"
+                "reference": "ab59eb2702dea305e3e343216864b4e64deddffb"
             },
             "require": {
                 "aurora/cache": "@dev",
                 "aurora/config": "@dev",
+                "aurora/foundation": "@dev",
                 "aurora/plugin": "@dev",
                 "aurora/typed-data": "@dev",
                 "php": ">=8.3",
@@ -398,7 +399,7 @@
         },
         {
             "name": "aurora/entity-storage",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/entity-storage",
@@ -436,7 +437,7 @@
         },
         {
             "name": "aurora/field",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/field",
@@ -471,8 +472,46 @@
             }
         },
         {
+            "name": "aurora/foundation",
+            "version": "dev-unit-1-foundation",
+            "dist": {
+                "type": "path",
+                "url": "packages/foundation",
+                "reference": "e57125e623fad7d0a2a7b3fd682919d2373b97b2"
+            },
+            "require": {
+                "doctrine/dbal": "^4.0",
+                "php": ">=8.3",
+                "symfony/dependency-injection": "^7.0",
+                "symfony/event-dispatcher": "^7.0",
+                "symfony/messenger": "^7.0",
+                "symfony/uid": "^7.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Aurora\\Foundation\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Aurora\\Foundation\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Core framework primitives: service providers, domain events, results, error handling",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
             "name": "aurora/media",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/media",
@@ -506,7 +545,7 @@
         },
         {
             "name": "aurora/menu",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/menu",
@@ -540,7 +579,7 @@
         },
         {
             "name": "aurora/node",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/node",
@@ -575,7 +614,7 @@
         },
         {
             "name": "aurora/path",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/path",
@@ -609,7 +648,7 @@
         },
         {
             "name": "aurora/plugin",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/plugin",
@@ -643,7 +682,7 @@
         },
         {
             "name": "aurora/queue",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/queue",
@@ -677,7 +716,7 @@
         },
         {
             "name": "aurora/routing",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/routing",
@@ -713,7 +752,7 @@
         },
         {
             "name": "aurora/ssr",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/ssr",
@@ -749,7 +788,7 @@
         },
         {
             "name": "aurora/state",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/state",
@@ -783,7 +822,7 @@
         },
         {
             "name": "aurora/taxonomy",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/taxonomy",
@@ -818,7 +857,7 @@
         },
         {
             "name": "aurora/typed-data",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/typed-data",
@@ -852,7 +891,7 @@
         },
         {
             "name": "aurora/user",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/user",
@@ -887,7 +926,7 @@
         },
         {
             "name": "aurora/validation",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/validation",
@@ -923,7 +962,7 @@
         },
         {
             "name": "aurora/workflows",
-            "version": "dev-main",
+            "version": "dev-unit-1-foundation",
             "dist": {
                 "type": "path",
                 "url": "packages/workflows",
@@ -954,6 +993,160 @@
             "transport-options": {
                 "relative": true
             }
+        },
+        {
+            "name": "doctrine/dbal",
+            "version": "4.4.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/doctrine/dbal.git",
+                "reference": "476f7f0fa6ea4aa5364926db7fabdf6049075722"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/doctrine/dbal/zipball/476f7f0fa6ea4aa5364926db7fabdf6049075722",
+                "reference": "476f7f0fa6ea4aa5364926db7fabdf6049075722",
+                "shasum": ""
+            },
+            "require": {
+                "doctrine/deprecations": "^1.1.5",
+                "php": "^8.2",
+                "psr/cache": "^1|^2|^3",
+                "psr/log": "^1|^2|^3"
+            },
+            "require-dev": {
+                "doctrine/coding-standard": "14.0.0",
+                "fig/log-test": "^1",
+                "jetbrains/phpstorm-stubs": "2023.2",
+                "phpstan/phpstan": "2.1.30",
+                "phpstan/phpstan-phpunit": "2.0.7",
+                "phpstan/phpstan-strict-rules": "^2",
+                "phpunit/phpunit": "11.5.50",
+                "slevomat/coding-standard": "8.27.1",
+                "squizlabs/php_codesniffer": "4.0.1",
+                "symfony/cache": "^6.3.8|^7.0|^8.0",
+                "symfony/console": "^5.4|^6.3|^7.0|^8.0"
+            },
+            "suggest": {
+                "symfony/console": "For helpful console commands such as SQL execution and import of files."
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Doctrine\\DBAL\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Guilherme Blanco",
+                    "email": "guilhermeblanco@gmail.com"
+                },
+                {
+                    "name": "Roman Borschel",
+                    "email": "roman@code-factory.org"
+                },
+                {
+                    "name": "Benjamin Eberlei",
+                    "email": "kontakt@beberlei.de"
+                },
+                {
+                    "name": "Jonathan Wage",
+                    "email": "jonwage@gmail.com"
+                }
+            ],
+            "description": "Powerful PHP database abstraction layer (DBAL) with many features for database schema introspection and management.",
+            "homepage": "https://www.doctrine-project.org/projects/dbal.html",
+            "keywords": [
+                "abstraction",
+                "database",
+                "db2",
+                "dbal",
+                "mariadb",
+                "mssql",
+                "mysql",
+                "oci8",
+                "oracle",
+                "pdo",
+                "pgsql",
+                "postgresql",
+                "queryobject",
+                "sasql",
+                "sql",
+                "sqlite",
+                "sqlserver",
+                "sqlsrv"
+            ],
+            "support": {
+                "issues": "https://github.com/doctrine/dbal/issues",
+                "source": "https://github.com/doctrine/dbal/tree/4.4.2"
+            },
+            "funding": [
+                {
+                    "url": "https://www.doctrine-project.org/sponsorship.html",
+                    "type": "custom"
+                },
+                {
+                    "url": "https://www.patreon.com/phpdoctrine",
+                    "type": "patreon"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/doctrine%2Fdbal",
+                    "type": "tidelift"
+                }
+            ],
+            "time": "2026-02-26T12:12:19+00:00"
+        },
+        {
+            "name": "doctrine/deprecations",
+            "version": "1.1.6",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/doctrine/deprecations.git",
+                "reference": "d4fe3e6fd9bb9e72557a19674f44d8ac7db4c6ca"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/doctrine/deprecations/zipball/d4fe3e6fd9bb9e72557a19674f44d8ac7db4c6ca",
+                "reference": "d4fe3e6fd9bb9e72557a19674f44d8ac7db4c6ca",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^7.1 || ^8.0"
+            },
+            "conflict": {
+                "phpunit/phpunit": "<=7.5 || >=14"
+            },
+            "require-dev": {
+                "doctrine/coding-standard": "^9 || ^12 || ^14",
+                "phpstan/phpstan": "1.4.10 || 2.1.30",
+                "phpstan/phpstan-phpunit": "^1.0 || ^2",
+                "phpunit/phpunit": "^7.5 || ^8.5 || ^9.6 || ^10.5 || ^11.5 || ^12.4 || ^13.0",
+                "psr/log": "^1 || ^2 || ^3"
+            },
+            "suggest": {
+                "psr/log": "Allows logging deprecations via PSR-3 logger implementation"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Doctrine\\Deprecations\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "A small layer on top of trigger_error(E_USER_DEPRECATED) or PSR-3 logging with options to disable all deprecations or selectively for packages.",
+            "homepage": "https://www.doctrine-project.org/",
+            "support": {
+                "issues": "https://github.com/doctrine/deprecations/issues",
+                "source": "https://github.com/doctrine/deprecations/tree/1.1.6"
+            },
+            "time": "2026-02-07T07:09:04+00:00"
         },
         {
             "name": "psr/cache",
@@ -1430,6 +1623,90 @@
                 }
             ],
             "time": "2026-02-25T17:02:47+00:00"
+        },
+        {
+            "name": "symfony/dependency-injection",
+            "version": "v7.4.6",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/dependency-injection.git",
+                "reference": "a3f7d594ca53a34a7d39ae683fbca09408b0c598"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/dependency-injection/zipball/a3f7d594ca53a34a7d39ae683fbca09408b0c598",
+                "reference": "a3f7d594ca53a34a7d39ae683fbca09408b0c598",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.2",
+                "psr/container": "^1.1|^2.0",
+                "symfony/deprecation-contracts": "^2.5|^3",
+                "symfony/service-contracts": "^3.6",
+                "symfony/var-exporter": "^6.4.20|^7.2.5|^8.0"
+            },
+            "conflict": {
+                "ext-psr": "<1.1|>=2",
+                "symfony/config": "<6.4",
+                "symfony/finder": "<6.4",
+                "symfony/yaml": "<6.4"
+            },
+            "provide": {
+                "psr/container-implementation": "1.1|2.0",
+                "symfony/service-implementation": "1.1|2.0|3.0"
+            },
+            "require-dev": {
+                "symfony/config": "^6.4|^7.0|^8.0",
+                "symfony/expression-language": "^6.4|^7.0|^8.0",
+                "symfony/yaml": "^6.4|^7.0|^8.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Symfony\\Component\\DependencyInjection\\": ""
+                },
+                "exclude-from-classmap": [
+                    "/Tests/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Fabien Potencier",
+                    "email": "fabien@symfony.com"
+                },
+                {
+                    "name": "Symfony Community",
+                    "homepage": "https://symfony.com/contributors"
+                }
+            ],
+            "description": "Allows you to standardize and centralize the way objects are constructed in your application",
+            "homepage": "https://symfony.com",
+            "support": {
+                "source": "https://github.com/symfony/dependency-injection/tree/v7.4.6"
+            },
+            "funding": [
+                {
+                    "url": "https://symfony.com/sponsor",
+                    "type": "custom"
+                },
+                {
+                    "url": "https://github.com/fabpot",
+                    "type": "github"
+                },
+                {
+                    "url": "https://github.com/nicolas-grekas",
+                    "type": "github"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/symfony/symfony",
+                    "type": "tidelift"
+                }
+            ],
+            "time": "2026-02-25T16:50:00+00:00"
         },
         {
             "name": "symfony/deprecation-contracts",
@@ -2778,6 +3055,86 @@
             "time": "2026-02-25T16:50:00+00:00"
         },
         {
+            "name": "symfony/var-exporter",
+            "version": "v8.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/var-exporter.git",
+                "reference": "7345f46c251f2eb27c7b3ebdb5bb076b3ffcae04"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/var-exporter/zipball/7345f46c251f2eb27c7b3ebdb5bb076b3ffcae04",
+                "reference": "7345f46c251f2eb27c7b3ebdb5bb076b3ffcae04",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.4"
+            },
+            "require-dev": {
+                "symfony/property-access": "^7.4|^8.0",
+                "symfony/serializer": "^7.4|^8.0",
+                "symfony/var-dumper": "^7.4|^8.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Symfony\\Component\\VarExporter\\": ""
+                },
+                "exclude-from-classmap": [
+                    "/Tests/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Nicolas Grekas",
+                    "email": "p@tchwork.com"
+                },
+                {
+                    "name": "Symfony Community",
+                    "homepage": "https://symfony.com/contributors"
+                }
+            ],
+            "description": "Allows exporting any serializable PHP data structure to plain PHP code",
+            "homepage": "https://symfony.com",
+            "keywords": [
+                "clone",
+                "construct",
+                "export",
+                "hydrate",
+                "instantiate",
+                "lazy-loading",
+                "proxy",
+                "serialize"
+            ],
+            "support": {
+                "source": "https://github.com/symfony/var-exporter/tree/v8.0.0"
+            },
+            "funding": [
+                {
+                    "url": "https://symfony.com/sponsor",
+                    "type": "custom"
+                },
+                {
+                    "url": "https://github.com/fabpot",
+                    "type": "github"
+                },
+                {
+                    "url": "https://github.com/nicolas-grekas",
+                    "type": "github"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/symfony/symfony",
+                    "type": "tidelift"
+                }
+            ],
+            "time": "2025-11-05T18:53:00+00:00"
+        },
+        {
             "name": "symfony/yaml",
             "version": "v7.4.6",
             "source": {
@@ -3172,11 +3529,11 @@
         },
         {
             "name": "phpstan/phpstan",
-            "version": "1.12.32",
+            "version": "1.12.33",
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/2770dcdf5078d0b0d53f94317e06affe88419aa8",
-                "reference": "2770dcdf5078d0b0d53f94317e06affe88419aa8",
+                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/37982d6fc7cbb746dda7773530cda557cdf119e1",
+                "reference": "37982d6fc7cbb746dda7773530cda557cdf119e1",
                 "shasum": ""
             },
             "require": {
@@ -3221,7 +3578,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-09-30T10:16:31+00:00"
+            "time": "2026-02-28T20:30:03+00:00"
         },
         {
             "name": "phpunit/php-code-coverage",
@@ -4673,6 +5030,7 @@
         "aurora/entity": 20,
         "aurora/entity-storage": 20,
         "aurora/field": 20,
+        "aurora/foundation": 20,
         "aurora/media": 20,
         "aurora/menu": 20,
         "aurora/node": 20,
