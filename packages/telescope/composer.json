@@ -1,0 +1,24 @@
+{
+    "name": "aurora/telescope",
+    "description": "Application observability and debugging for Aurora CMS",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=8.3"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Aurora\\Telescope\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Aurora\\Telescope\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

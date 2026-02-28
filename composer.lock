@@ -4,11 +4,11 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "8d305bfff525a8bc19a482447f35c615",
+    "content-hash": "a2ba946fc997e192e59d3903ed4f1307",
     "packages": [
         {
             "name": "aurora/access",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/access",
@@ -43,7 +43,7 @@
         },
         {
             "name": "aurora/ai-agent",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-agent",
@@ -78,7 +78,7 @@
         },
         {
             "name": "aurora/ai-pipeline",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-pipeline",
@@ -113,7 +113,7 @@
         },
         {
             "name": "aurora/ai-schema",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-schema",
@@ -147,7 +147,7 @@
         },
         {
             "name": "aurora/ai-vector",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-vector",
@@ -181,7 +181,7 @@
         },
         {
             "name": "aurora/api",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/api",
@@ -217,7 +217,7 @@
         },
         {
             "name": "aurora/cache",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/cache",
@@ -252,11 +252,11 @@
         },
         {
             "name": "aurora/cli",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
-                "reference": "d910593e43f661e0e557e8c58bc9236e49516cc4"
+                "reference": "4736c14df56c52df4b5023c3a4b4cef74bea29d8"
             },
             "require": {
                 "aurora/access": "@dev",
@@ -291,7 +291,7 @@
         },
         {
             "name": "aurora/config",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/config",
@@ -326,7 +326,7 @@
         },
         {
             "name": "aurora/database-legacy",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/database-legacy",
@@ -359,7 +359,7 @@
         },
         {
             "name": "aurora/entity",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/entity",
@@ -398,7 +398,7 @@
         },
         {
             "name": "aurora/entity-storage",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/entity-storage",
@@ -436,7 +436,7 @@
         },
         {
             "name": "aurora/field",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/field",
@@ -472,7 +472,7 @@
         },
         {
             "name": "aurora/media",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/media",
@@ -506,7 +506,7 @@
         },
         {
             "name": "aurora/menu",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/menu",
@@ -540,7 +540,7 @@
         },
         {
             "name": "aurora/node",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/node",
@@ -575,7 +575,7 @@
         },
         {
             "name": "aurora/path",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/path",
@@ -609,7 +609,7 @@
         },
         {
             "name": "aurora/plugin",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/plugin",
@@ -643,7 +643,7 @@
         },
         {
             "name": "aurora/queue",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/queue",
@@ -677,7 +677,7 @@
         },
         {
             "name": "aurora/routing",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/routing",
@@ -713,7 +713,7 @@
         },
         {
             "name": "aurora/ssr",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/ssr",
@@ -749,7 +749,7 @@
         },
         {
             "name": "aurora/state",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/state",
@@ -783,7 +783,7 @@
         },
         {
             "name": "aurora/taxonomy",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/taxonomy",
@@ -817,8 +817,41 @@
             }
         },
         {
+            "name": "aurora/telescope",
+            "version": "dev-unit-15-telescope",
+            "dist": {
+                "type": "path",
+                "url": "packages/telescope",
+                "reference": "c52cfb57ea45ebb88ef076e09ee5542f2ea0c765"
+            },
+            "require": {
+                "php": ">=8.3"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Aurora\\Telescope\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Aurora\\Telescope\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Application observability and debugging for Aurora CMS",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
             "name": "aurora/typed-data",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/typed-data",
@@ -852,7 +885,7 @@
         },
         {
             "name": "aurora/user",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/user",
@@ -887,7 +920,7 @@
         },
         {
             "name": "aurora/validation",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/validation",
@@ -923,7 +956,7 @@
         },
         {
             "name": "aurora/workflows",
-            "version": "dev-main",
+            "version": "dev-unit-15-telescope",
             "dist": {
                 "type": "path",
                 "url": "packages/workflows",
@@ -4683,6 +4716,7 @@
         "aurora/ssr": 20,
         "aurora/state": 20,
         "aurora/taxonomy": 20,
+        "aurora/telescope": 20,
         "aurora/typed-data": 20,
         "aurora/user": 20,
         "aurora/validation": 20,

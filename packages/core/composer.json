@@ -17,6 +17,7 @@
         "aurora/routing": "^0.1",
         "aurora/queue": "^0.1",
         "aurora/state": "^0.1",
+        "aurora/telescope": "^0.1",
         "aurora/validation": "^0.1"
     },
     "minimum-stability": "stable"

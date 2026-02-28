@@ -34,7 +34,8 @@
         { "type": "path", "url": "packages/cli" },
         { "type": "path", "url": "packages/core" },
         { "type": "path", "url": "packages/cms" },
-        { "type": "path", "url": "packages/full" }
+        { "type": "path", "url": "packages/full" },
+        { "type": "path", "url": "packages/telescope" }
     ],
     "require": {
         "php": ">=8.3",
@@ -61,6 +62,7 @@
         "aurora/ssr": "@dev",
         "aurora/state": "@dev",
         "aurora/taxonomy": "@dev",
+        "aurora/telescope": "@dev",
         "aurora/typed-data": "@dev",
         "aurora/user": "@dev",
         "aurora/validation": "@dev",
@@ -100,6 +102,7 @@
             "Aurora\\AI\\Schema\\Tests\\": "packages/ai-schema/tests/",
             "Aurora\\AI\\Pipeline\\Tests\\": "packages/ai-pipeline/tests/",
             "Aurora\\AI\\Vector\\Tests\\": "packages/ai-vector/tests/",
+            "Aurora\\Telescope\\Tests\\": "packages/telescope/tests/",
             "Aurora\\Tests\\": "tests/"
         }
     },
