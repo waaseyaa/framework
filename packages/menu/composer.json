@@ -1,6 +1,6 @@
 {
-    "name": "aurora/menu",
-    "description": "Menu and navigation link management for Aurora CMS",
+    "name": "waaseyaa/menu",
+    "description": "Menu and navigation link management for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
@@ -12,19 +12,19 @@
     ],
     "require": {
         "php": ">=8.3",
-        "aurora/entity": "@dev"
+        "waaseyaa/entity": "@dev"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\Menu\\": "src/"
+            "Waaseyaa\\Menu\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\Menu\\Tests\\": "tests/"
+            "Waaseyaa\\Menu\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",

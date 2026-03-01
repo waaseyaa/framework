@@ -1,6 +1,6 @@
 {
-    "name": "aurora/ai-pipeline",
-    "description": "AI processing pipelines with queue-based execution for Aurora CMS",
+    "name": "waaseyaa/ai-pipeline",
+    "description": "AI processing pipelines with queue-based execution for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
@@ -13,20 +13,20 @@
     ],
     "require": {
         "php": ">=8.3",
-        "aurora/entity": "@dev",
-        "aurora/queue": "@dev"
+        "waaseyaa/entity": "@dev",
+        "waaseyaa/queue": "@dev"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\AI\\Pipeline\\": "src/"
+            "Waaseyaa\\AI\\Pipeline\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\AI\\Pipeline\\Tests\\": "tests/"
+            "Waaseyaa\\AI\\Pipeline\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",

@@ -1,6 +1,6 @@
 {
-    "name": "aurora/cli",
-    "description": "Command-line interface and console commands for Aurora CMS",
+    "name": "waaseyaa/cli",
+    "description": "Command-line interface and console commands for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
@@ -15,11 +15,11 @@
     ],
     "require": {
         "php": ">=8.3",
-        "aurora/entity": "@dev",
-        "aurora/config": "@dev",
-        "aurora/cache": "@dev",
-        "aurora/user": "@dev",
-        "aurora/access": "@dev",
+        "waaseyaa/entity": "@dev",
+        "waaseyaa/config": "@dev",
+        "waaseyaa/cache": "@dev",
+        "waaseyaa/user": "@dev",
+        "waaseyaa/access": "@dev",
         "symfony/console": "^7.0"
     },
     "require-dev": {
@@ -27,12 +27,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\CLI\\": "src/"
+            "Waaseyaa\\CLI\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\CLI\\Tests\\": "tests/"
+            "Waaseyaa\\CLI\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",

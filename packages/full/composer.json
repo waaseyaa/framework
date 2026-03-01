@@ -1,17 +1,17 @@
 {
-    "name": "aurora/full",
-    "description": "Aurora CMS full platform — CMS + AI + SSR + GraphQL.",
+    "name": "waaseyaa/full",
+    "description": "Waaseyaa full platform — CMS + AI + SSR + GraphQL.",
     "type": "metapackage",
     "license": "GPL-2.0-or-later",
     "require": {
-        "aurora/cms": "^0.1",
-        "aurora/graphql": "^0.1",
-        "aurora/ai-schema": "^0.1",
-        "aurora/ai-agent": "^0.1",
-        "aurora/ai-vector": "^0.1",
-        "aurora/ai-pipeline": "^0.1",
-        "aurora/ssr": "^0.1",
-        "aurora/mcp": "^0.1"
+        "waaseyaa/cms": "^0.1",
+        "waaseyaa/graphql": "^0.1",
+        "waaseyaa/ai-schema": "^0.1",
+        "waaseyaa/ai-agent": "^0.1",
+        "waaseyaa/ai-vector": "^0.1",
+        "waaseyaa/ai-pipeline": "^0.1",
+        "waaseyaa/ssr": "^0.1",
+        "waaseyaa/mcp": "^0.1"
     },
     "minimum-stability": "stable"
 }

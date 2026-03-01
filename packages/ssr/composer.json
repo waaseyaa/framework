@@ -1,6 +1,6 @@
 {
-    "name": "aurora/ssr",
-    "description": "Server-side rendering with Twig templates for Aurora CMS",
+    "name": "waaseyaa/ssr",
+    "description": "Server-side rendering with Twig templates for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
@@ -15,8 +15,8 @@
     ],
     "require": {
         "php": ">=8.3",
-        "aurora/entity": "@dev",
-        "aurora/routing": "@dev",
+        "waaseyaa/entity": "@dev",
+        "waaseyaa/routing": "@dev",
         "twig/twig": "^3.0"
     },
     "require-dev": {
@@ -24,12 +24,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\SSR\\": "src/"
+            "Waaseyaa\\SSR\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\SSR\\Tests\\": "tests/"
+            "Waaseyaa\\SSR\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",

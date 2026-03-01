@@ -1,5 +1,5 @@
 {
-    "name": "aurora/database-legacy",
+    "name": "waaseyaa/database-legacy",
     "description": "Database adapter wrapping Drupal DBAL. Interim until Doctrine migration.",
     "type": "library",
     "license": "GPL-2.0-or-later",
@@ -11,12 +11,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\Database\\": "src/"
+            "Waaseyaa\\Database\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\Database\\Tests\\": "tests/"
+            "Waaseyaa\\Database\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "stable"

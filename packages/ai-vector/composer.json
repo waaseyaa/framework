@@ -1,6 +1,6 @@
 {
-    "name": "aurora/ai-vector",
-    "description": "Vector embedding storage and similarity search for Aurora CMS",
+    "name": "waaseyaa/ai-vector",
+    "description": "Vector embedding storage and similarity search for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
@@ -12,19 +12,19 @@
     ],
     "require": {
         "php": ">=8.3",
-        "aurora/entity": "@dev"
+        "waaseyaa/entity": "@dev"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\AI\\Vector\\": "src/"
+            "Waaseyaa\\AI\\Vector\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\AI\\Vector\\Tests\\": "tests/"
+            "Waaseyaa\\AI\\Vector\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",

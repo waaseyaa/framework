@@ -1,13 +1,13 @@
 {
-    "name": "aurora/state",
-    "description": "Key-value state storage for Aurora CMS",
+    "name": "waaseyaa/state",
+    "description": "Key-value state storage for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "minimum-stability": "dev",
     "prefer-stable": true,
     "require": {
         "php": ">=8.3",
-        "aurora/database-legacy": "@dev"
+        "waaseyaa/database-legacy": "@dev"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
@@ -20,12 +20,12 @@
     ],
     "autoload": {
         "psr-4": {
-            "Aurora\\State\\": "src/"
+            "Waaseyaa\\State\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\State\\Tests\\": "tests/"
+            "Waaseyaa\\State\\Tests\\": "tests/"
         }
     }
 }

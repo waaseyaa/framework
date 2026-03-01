@@ -1,25 +1,25 @@
 {
-    "name": "aurora/graphql",
-    "description": "GraphQL query and mutation layer for Aurora CMS",
+    "name": "waaseyaa/graphql",
+    "description": "GraphQL query and mutation layer for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "require": {
         "php": ">=8.3",
-        "aurora/entity": "^0.1",
-        "aurora/field": "^0.1",
-        "aurora/access": "^0.1"
+        "waaseyaa/entity": "^0.1",
+        "waaseyaa/field": "^0.1",
+        "waaseyaa/access": "^0.1"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\GraphQL\\": "src/"
+            "Waaseyaa\\GraphQL\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\GraphQL\\Tests\\": "tests/"
+            "Waaseyaa\\GraphQL\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "stable"

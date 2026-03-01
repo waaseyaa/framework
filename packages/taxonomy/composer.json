@@ -1,6 +1,6 @@
 {
-    "name": "aurora/taxonomy",
-    "description": "Taxonomy vocabulary and term entity types for Aurora CMS",
+    "name": "waaseyaa/taxonomy",
+    "description": "Taxonomy vocabulary and term entity types for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
@@ -13,20 +13,20 @@
     ],
     "require": {
         "php": ">=8.3",
-        "aurora/entity": "@dev",
-        "aurora/access": "@dev"
+        "waaseyaa/entity": "@dev",
+        "waaseyaa/access": "@dev"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\Taxonomy\\": "src/"
+            "Waaseyaa\\Taxonomy\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\Taxonomy\\Tests\\": "tests/"
+            "Waaseyaa\\Taxonomy\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",

@@ -1,6 +1,6 @@
 {
-    "name": "aurora/config",
-    "description": "Configuration management as YAML with package-aware ownership for Aurora CMS",
+    "name": "waaseyaa/config",
+    "description": "Configuration management as YAML with package-aware ownership for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "require": {
@@ -13,12 +13,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\Config\\": "src/"
+            "Waaseyaa\\Config\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\Config\\Tests\\": "tests/"
+            "Waaseyaa\\Config\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",

@@ -1,6 +1,6 @@
 {
-    "name": "aurora/user",
-    "description": "User entity, authentication, and session management for Aurora CMS",
+    "name": "waaseyaa/user",
+    "description": "User entity, authentication, and session management for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
@@ -14,20 +14,20 @@
     ],
     "require": {
         "php": ">=8.3",
-        "aurora/entity": "@dev",
-        "aurora/access": "@dev"
+        "waaseyaa/entity": "@dev",
+        "waaseyaa/access": "@dev"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\User\\": "src/"
+            "Waaseyaa\\User\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\User\\Tests\\": "tests/"
+            "Waaseyaa\\User\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",

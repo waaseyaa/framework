@@ -1,5 +1,5 @@
 {
-    "name": "aurora/foundation",
+    "name": "waaseyaa/foundation",
     "description": "Core framework primitives: service providers, domain events, results, error handling",
     "type": "library",
     "license": "GPL-2.0-or-later",
@@ -16,12 +16,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\Foundation\\": "src/"
+            "Waaseyaa\\Foundation\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\Foundation\\Tests\\": "tests/"
+            "Waaseyaa\\Foundation\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",

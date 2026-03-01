@@ -1,5 +1,5 @@
 {
-    "name": "aurora/entity",
+    "name": "waaseyaa/entity",
     "description": "Entity type system — types, interfaces, lifecycle, queries. No storage.",
     "type": "library",
     "license": "GPL-2.0-or-later",
@@ -12,11 +12,11 @@
     ],
     "require": {
         "php": ">=8.3",
-        "aurora/typed-data": "@dev",
-        "aurora/plugin": "@dev",
-        "aurora/cache": "@dev",
-        "aurora/config": "@dev",
-        "aurora/foundation": "@dev",
+        "waaseyaa/typed-data": "@dev",
+        "waaseyaa/plugin": "@dev",
+        "waaseyaa/cache": "@dev",
+        "waaseyaa/config": "@dev",
+        "waaseyaa/foundation": "@dev",
         "symfony/event-dispatcher": "^7.3",
         "symfony/uid": "^7.3"
     },
@@ -25,12 +25,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\Entity\\": "src/"
+            "Waaseyaa\\Entity\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\Entity\\Tests\\": "tests/"
+            "Waaseyaa\\Entity\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",

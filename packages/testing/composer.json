@@ -1,6 +1,6 @@
 {
-    "name": "aurora/testing",
-    "description": "Testing utilities for Aurora CMS — base test case, entity factories, and helper traits.",
+    "name": "waaseyaa/testing",
+    "description": "Testing utilities for Waaseyaa — base test case, entity factories, and helper traits.",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "require": {
@@ -9,12 +9,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\Testing\\": "src/"
+            "Waaseyaa\\Testing\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\Testing\\Tests\\": "tests/"
+            "Waaseyaa\\Testing\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",

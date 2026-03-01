@@ -1,23 +1,23 @@
 {
-    "name": "aurora/ai-schema",
-    "description": "AI-friendly schema definitions and entity metadata for Aurora CMS",
+    "name": "waaseyaa/ai-schema",
+    "description": "AI-friendly schema definitions and entity metadata for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "require": {
         "php": ">=8.3",
-        "aurora/entity": "@dev"
+        "waaseyaa/entity": "@dev"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\AI\\Schema\\": "src/"
+            "Waaseyaa\\AI\\Schema\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\AI\\Schema\\Tests\\": "tests/"
+            "Waaseyaa\\AI\\Schema\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",

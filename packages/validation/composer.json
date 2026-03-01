@@ -1,6 +1,6 @@
 {
-    "name": "aurora/validation",
-    "description": "Data validation constraints and validators for Aurora CMS",
+    "name": "waaseyaa/validation",
+    "description": "Data validation constraints and validators for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
@@ -12,8 +12,8 @@
     ],
     "require": {
         "php": ">=8.3",
-        "aurora/typed-data": "@dev",
-        "aurora/entity": "@dev",
+        "waaseyaa/typed-data": "@dev",
+        "waaseyaa/entity": "@dev",
         "symfony/validator": "^7.3"
     },
     "require-dev": {
@@ -21,12 +21,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\Validation\\": "src/"
+            "Waaseyaa\\Validation\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\Validation\\Tests\\": "tests/"
+            "Waaseyaa\\Validation\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",

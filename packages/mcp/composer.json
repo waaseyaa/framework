@@ -1,6 +1,6 @@
 {
-    "name": "aurora/mcp",
-    "description": "Remote MCP server endpoint for Aurora CMS",
+    "name": "waaseyaa/mcp",
+    "description": "Remote MCP server endpoint for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
@@ -19,22 +19,22 @@
     ],
     "require": {
         "php": ">=8.3",
-        "aurora/ai-schema": "@dev",
-        "aurora/ai-agent": "@dev",
-        "aurora/routing": "@dev",
-        "aurora/access": "@dev"
+        "waaseyaa/ai-schema": "@dev",
+        "waaseyaa/ai-agent": "@dev",
+        "waaseyaa/routing": "@dev",
+        "waaseyaa/access": "@dev"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\Mcp\\": "src/"
+            "Waaseyaa\\Mcp\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\Mcp\\Tests\\": "tests/"
+            "Waaseyaa\\Mcp\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",

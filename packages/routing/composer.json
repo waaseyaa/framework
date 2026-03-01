@@ -1,6 +1,6 @@
 {
-    "name": "aurora/routing",
-    "description": "HTTP routing and controller resolution for Aurora CMS",
+    "name": "waaseyaa/routing",
+    "description": "HTTP routing and controller resolution for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
@@ -14,9 +14,9 @@
     ],
     "require": {
         "php": ">=8.3",
-        "aurora/entity": "@dev",
-        "aurora/access": "@dev",
-        "aurora/i18n": "@dev",
+        "waaseyaa/entity": "@dev",
+        "waaseyaa/access": "@dev",
+        "waaseyaa/i18n": "@dev",
         "symfony/routing": "^7.3"
     },
     "require-dev": {
@@ -24,12 +24,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\Routing\\": "src/"
+            "Waaseyaa\\Routing\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\Routing\\Tests\\": "tests/"
+            "Waaseyaa\\Routing\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",

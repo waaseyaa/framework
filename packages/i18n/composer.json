@@ -1,5 +1,5 @@
 {
-    "name": "aurora/i18n",
+    "name": "waaseyaa/i18n",
     "description": "Internationalization foundation: Language, LanguageManager, LanguageContext, FallbackChain",
     "type": "library",
     "license": "GPL-2.0-or-later",
@@ -11,12 +11,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\I18n\\": "src/"
+            "Waaseyaa\\I18n\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\I18n\\Tests\\": "tests/"
+            "Waaseyaa\\I18n\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "stable"

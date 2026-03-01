@@ -1,6 +1,6 @@
 {
-    "name": "aurora/media",
-    "description": "Media entity type and file management for Aurora CMS",
+    "name": "waaseyaa/media",
+    "description": "Media entity type and file management for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
@@ -12,19 +12,19 @@
     ],
     "require": {
         "php": ">=8.3",
-        "aurora/entity": "@dev"
+        "waaseyaa/entity": "@dev"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\Media\\": "src/"
+            "Waaseyaa\\Media\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\Media\\Tests\\": "tests/"
+            "Waaseyaa\\Media\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",

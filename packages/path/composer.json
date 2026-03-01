@@ -1,6 +1,6 @@
 {
-    "name": "aurora/path",
-    "description": "URL path aliases and routing integration for Aurora CMS",
+    "name": "waaseyaa/path",
+    "description": "URL path aliases and routing integration for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
@@ -12,19 +12,19 @@
     ],
     "require": {
         "php": ">=8.3",
-        "aurora/entity": "@dev"
+        "waaseyaa/entity": "@dev"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\Path\\": "src/"
+            "Waaseyaa\\Path\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\Path\\Tests\\": "tests/"
+            "Waaseyaa\\Path\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",

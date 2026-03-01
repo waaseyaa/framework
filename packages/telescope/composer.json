@@ -1,6 +1,6 @@
 {
-    "name": "aurora/telescope",
-    "description": "Application observability and debugging for Aurora CMS",
+    "name": "waaseyaa/telescope",
+    "description": "Application observability and debugging for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "require": {
@@ -11,12 +11,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\Telescope\\": "src/"
+            "Waaseyaa\\Telescope\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\Telescope\\Tests\\": "tests/"
+            "Waaseyaa\\Telescope\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",

@@ -1,5 +1,5 @@
 {
-    "name": "aurora/entity-storage",
+    "name": "waaseyaa/entity-storage",
     "description": "Pluggable entity persistence. v0.1.0: SQL storage behind clean interfaces.",
     "type": "library",
     "license": "GPL-2.0-or-later",
@@ -14,10 +14,10 @@
     ],
     "require": {
         "php": ">=8.3",
-        "aurora/entity": "@dev",
-        "aurora/field": "@dev",
-        "aurora/cache": "@dev",
-        "aurora/database-legacy": "@dev",
+        "waaseyaa/entity": "@dev",
+        "waaseyaa/field": "@dev",
+        "waaseyaa/cache": "@dev",
+        "waaseyaa/database-legacy": "@dev",
         "symfony/event-dispatcher": "^7.3"
     },
     "require-dev": {
@@ -25,12 +25,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\EntityStorage\\": "src/"
+            "Waaseyaa\\EntityStorage\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\EntityStorage\\Tests\\": "tests/"
+            "Waaseyaa\\EntityStorage\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",

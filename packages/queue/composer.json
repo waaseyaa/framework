@@ -1,6 +1,6 @@
 {
-    "name": "aurora/queue",
-    "description": "Asynchronous task queue and job processing for Aurora CMS",
+    "name": "waaseyaa/queue",
+    "description": "Asynchronous task queue and job processing for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "require": {
@@ -12,12 +12,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\Queue\\": "src/"
+            "Waaseyaa\\Queue\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\Queue\\Tests\\": "tests/"
+            "Waaseyaa\\Queue\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",

@@ -1,6 +1,6 @@
 {
-    "name": "aurora/ai-agent",
-    "description": "AI agent orchestration and tool execution for Aurora CMS",
+    "name": "waaseyaa/ai-agent",
+    "description": "AI agent orchestration and tool execution for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
@@ -13,20 +13,20 @@
     ],
     "require": {
         "php": ">=8.3",
-        "aurora/ai-schema": "@dev",
-        "aurora/access": "@dev"
+        "waaseyaa/ai-schema": "@dev",
+        "waaseyaa/access": "@dev"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
     },
     "autoload": {
         "psr-4": {
-            "Aurora\\AI\\Agent\\": "src/"
+            "Waaseyaa\\AI\\Agent\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Aurora\\AI\\Agent\\Tests\\": "tests/"
+            "Waaseyaa\\AI\\Agent\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",
