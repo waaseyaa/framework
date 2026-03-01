@@ -9,10 +9,11 @@ declare(strict_types=1);
  *   php -S localhost:8080 -t public
  *
  * Routes:
- *   GET|POST        /api/{entityType}       — JSON:API collection / create
- *   GET|PATCH|DELETE /api/{entityType}/{id}  — JSON:API resource CRUD
+ *   GET|POST        /api/{entityType}         — JSON:API collection / create
+ *   GET|PATCH|DELETE /api/{entityType}/{id}    — JSON:API resource CRUD
  *   GET              /api/schema/{entity_type} — JSON Schema with widget hints
- *   GET              /api/openapi.json       — OpenAPI 3.1 specification
+ *   GET              /api/openapi.json         — OpenAPI 3.1 specification
+ *   GET              /api/entity-types         — list registered entity types
  */
 
 // Find autoloader.
@@ -62,8 +63,7 @@ $allowedOrigins = ['http://localhost:3000', 'http://127.0.0.1:3000'];
 
 if (in_array($origin, $allowedOrigins, true)) {
     header("Access-Control-Allow-Origin: {$origin}");
-} else {
-    header('Access-Control-Allow-Origin: http://localhost:3000');
+    header('Vary: Origin');
 }
 header('Access-Control-Allow-Methods: GET, POST, PATCH, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Accept, Authorization');
@@ -115,6 +115,9 @@ foreach ($entityTypes as $entityType) {
 
 $method = $_SERVER['REQUEST_METHOD'];
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+if (!is_string($path)) {
+    sendJson(400, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '400', 'title' => 'Bad Request', 'detail' => 'Malformed request URI.']]]);
+}
 $queryString = $_SERVER['QUERY_STRING'] ?? '';
 
 $context = new RequestContext('', $method);
@@ -158,10 +161,13 @@ $schemaPresenter = new SchemaPresenter();
 
 try {
     $params = $router->match($path);
-} catch (\Symfony\Component\Routing\Exception\ResourceNotFoundException $e) {
-    sendJson(404, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => "No route matches {$path}."]]]);
-} catch (\Symfony\Component\Routing\Exception\MethodNotAllowedException $e) {
-    sendJson(405, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '405', 'title' => 'Method Not Allowed', 'detail' => "Method {$method} not allowed for {$path}."]]]);
+} catch (\Symfony\Component\Routing\Exception\ResourceNotFoundException) {
+    sendJson(404, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => 'No route matches the requested path.']]]);
+} catch (\Symfony\Component\Routing\Exception\MethodNotAllowedException) {
+    sendJson(405, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '405', 'title' => 'Method Not Allowed', 'detail' => "Method {$method} is not allowed for this route."]]]);
+} catch (\Throwable $e) {
+    error_log(sprintf('[Aurora] Routing error: %s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine()));
+    sendJson(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'A routing error occurred.']]]);
 }
 
 $controller = $params['_controller'] ?? '';
@@ -170,7 +176,14 @@ $controller = $params['_controller'] ?? '';
 $body = null;
 if (in_array($method, ['POST', 'PATCH'], true)) {
     $raw = file_get_contents('php://input');
-    $body = $raw !== '' ? json_decode($raw, true) : [];
+    if ($raw !== '') {
+        $body = json_decode($raw, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            sendJson(400, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '400', 'title' => 'Bad Request', 'detail' => 'Invalid JSON in request body.']]]);
+        }
+    } else {
+        $body = [];
+    }
 }
 
 // Parse query parameters.
@@ -239,12 +252,13 @@ try {
     sendJson($document->statusCode, $document->toArray());
 
 } catch (\Throwable $e) {
+    error_log(sprintf('[Aurora] Unhandled exception: %s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine()));
     sendJson(500, [
         'jsonapi' => ['version' => '1.1'],
         'errors' => [[
             'status' => '500',
             'title' => 'Internal Server Error',
-            'detail' => $e->getMessage(),
+            'detail' => 'An unexpected error occurred.',
         ]],
     ]);
 }
