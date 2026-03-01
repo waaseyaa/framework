@@ -10,3 +10,10 @@ packages/*/composer.lock
 # PHPUnit
 .phpunit.result.cache
 packages/*/.phpunit.result.cache
+
+# Database
+*.sqlite
+
+# Admin SPA build artifacts and dependencies
+packages/admin/.nuxt/
+packages/admin/node_modules/
