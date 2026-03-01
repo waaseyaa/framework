@@ -4,1105 +4,8 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "bb891f8b0ea2551175e8159360d09eef",
+    "content-hash": "a7ada916b7cd5921add0039400185ae9",
     "packages": [
-        {
-            "name": "aurora/access",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/access",
-                "reference": "c3b486d311dd75c2d54708a1a7a3e0e825b00ed6"
-            },
-            "require": {
-                "aurora/entity": "@dev",
-                "aurora/plugin": "@dev",
-                "php": ">=8.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\Access\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\Access\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Access control and permission system for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/ai-agent",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/ai-agent",
-                "reference": "271b7b2a1f7833374b05350f50f60d9916a43b64"
-            },
-            "require": {
-                "aurora/access": "@dev",
-                "aurora/ai-schema": "@dev",
-                "php": ">=8.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\AI\\Agent\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\AI\\Agent\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "AI agent orchestration and tool execution for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/ai-pipeline",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/ai-pipeline",
-                "reference": "400d02dc534639feb44bc872793bbe6aa1b74a35"
-            },
-            "require": {
-                "aurora/entity": "@dev",
-                "aurora/queue": "@dev",
-                "php": ">=8.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\AI\\Pipeline\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\AI\\Pipeline\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "AI processing pipelines with queue-based execution for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/ai-schema",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/ai-schema",
-                "reference": "87319b9394b6ba17e88262a3f847f8a65f9239a2"
-            },
-            "require": {
-                "aurora/entity": "@dev",
-                "php": ">=8.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\AI\\Schema\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\AI\\Schema\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "AI-friendly schema definitions and entity metadata for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/ai-vector",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/ai-vector",
-                "reference": "0a3495ad3ff15aff800b4dd7a6407792b2db22f6"
-            },
-            "require": {
-                "aurora/entity": "@dev",
-                "php": ">=8.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\AI\\Vector\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\AI\\Vector\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Vector embedding storage and similarity search for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/api",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/api",
-                "reference": "d0e67bc16455846933a6972069c18c85c76ee886"
-            },
-            "require": {
-                "aurora/access": "@dev",
-                "aurora/entity": "@dev",
-                "aurora/foundation": "@dev",
-                "aurora/routing": "@dev",
-                "php": ">=8.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\Api\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\Api\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "RESTful JSON:API resource layer for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/cache",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/cache",
-                "reference": "563f4d8ad4eceb5dd60047c82d1e4cc0bbe01acf"
-            },
-            "require": {
-                "php": ">=8.3",
-                "psr/cache": "^3.0",
-                "psr/simple-cache": "^3.0"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "suggest": {
-                "aurora/config": "Required for ConfigCacheInvalidator listener",
-                "aurora/entity": "Required for EntityCacheInvalidator listener"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\Cache\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\Cache\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Cache bins with cache tag invalidation for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/cli",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/cli",
-                "reference": "4736c14df56c52df4b5023c3a4b4cef74bea29d8"
-            },
-            "require": {
-                "aurora/access": "@dev",
-                "aurora/cache": "@dev",
-                "aurora/config": "@dev",
-                "aurora/entity": "@dev",
-                "aurora/user": "@dev",
-                "php": ">=8.3",
-                "symfony/console": "^7.0"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\CLI\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\CLI\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Command-line interface and console commands for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/config",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/config",
-                "reference": "4dbaa252ad6bbbcd7d35a1cfb31f59f920bb9997"
-            },
-            "require": {
-                "php": ">=8.3",
-                "symfony/event-dispatcher": "^7.0",
-                "symfony/yaml": "^7.0"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\Config\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\Config\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Configuration management as YAML with package-aware ownership for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/database-legacy",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/database-legacy",
-                "reference": "42e1e1f968647cac60cb7188bdbb6fcf58284c14"
-            },
-            "require": {
-                "php": ">=8.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\Database\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\Database\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Database adapter wrapping Drupal DBAL. Interim until Doctrine migration.",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/entity",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/entity",
-                "reference": "ab59eb2702dea305e3e343216864b4e64deddffb"
-            },
-            "require": {
-                "aurora/cache": "@dev",
-                "aurora/config": "@dev",
-                "aurora/foundation": "@dev",
-                "aurora/plugin": "@dev",
-                "aurora/typed-data": "@dev",
-                "php": ">=8.3",
-                "symfony/event-dispatcher": "^7.3",
-                "symfony/uid": "^7.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\Entity\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\Entity\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Entity type system — types, interfaces, lifecycle, queries. No storage.",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/entity-storage",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/entity-storage",
-                "reference": "2502900c0bddc62ef7c969924a76a7e2e4cc7104"
-            },
-            "require": {
-                "aurora/cache": "@dev",
-                "aurora/database-legacy": "@dev",
-                "aurora/entity": "@dev",
-                "aurora/field": "@dev",
-                "php": ">=8.3",
-                "symfony/event-dispatcher": "^7.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\EntityStorage\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\EntityStorage\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Pluggable entity persistence. v0.1.0: SQL storage behind clean interfaces.",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/field",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/field",
-                "reference": "498c14ae4b443b31328cf39403ce6a611543e8a7"
-            },
-            "require": {
-                "aurora/entity": "@dev",
-                "aurora/plugin": "@dev",
-                "aurora/typed-data": "@dev",
-                "php": ">=8.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\Field\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\Field\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Field type system — pluggable field types, definitions, formatters for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/foundation",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/foundation",
-                "reference": "e57125e623fad7d0a2a7b3fd682919d2373b97b2"
-            },
-            "require": {
-                "doctrine/dbal": "^4.0",
-                "php": ">=8.3",
-                "symfony/dependency-injection": "^7.0",
-                "symfony/event-dispatcher": "^7.0",
-                "symfony/messenger": "^7.0",
-                "symfony/uid": "^7.0"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\Foundation\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\Foundation\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Core framework primitives: service providers, domain events, results, error handling",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/i18n",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/i18n",
-                "reference": "3767fed335dbdd7b82f226d3fdd997c9e2f9eae4"
-            },
-            "require": {
-                "php": ">=8.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\I18n\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\I18n\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Internationalization foundation: Language, LanguageManager, LanguageContext, FallbackChain",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/mcp",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/mcp",
-                "reference": "c29e06281b076e40e8401ea9b0cf58921b60dc5d"
-            },
-            "require": {
-                "aurora/access": "@dev",
-                "aurora/ai-agent": "@dev",
-                "aurora/ai-schema": "@dev",
-                "aurora/routing": "@dev",
-                "php": ">=8.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\Mcp\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\Mcp\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Remote MCP server endpoint for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/media",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/media",
-                "reference": "2a95f9958c99ad96bded81d1f68665616e27412b"
-            },
-            "require": {
-                "aurora/entity": "@dev",
-                "php": ">=8.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\Media\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\Media\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Media entity type and file management for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/menu",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/menu",
-                "reference": "b36f747bf0e914040b2accbfcb2cf820b4ffa931"
-            },
-            "require": {
-                "aurora/entity": "@dev",
-                "php": ">=8.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\Menu\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\Menu\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Menu and navigation link management for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/node",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/node",
-                "reference": "ff20ee96806e20bb55ce8f81f577f32ccbb6c778"
-            },
-            "require": {
-                "aurora/access": "@dev",
-                "aurora/entity": "@dev",
-                "php": ">=8.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\Node\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\Node\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Content node entity type for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/path",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/path",
-                "reference": "3020270f596a7994cd8c54d0b580fb0d2d6d0814"
-            },
-            "require": {
-                "aurora/entity": "@dev",
-                "php": ">=8.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\Path\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\Path\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "URL path aliases and routing integration for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/plugin",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/plugin",
-                "reference": "36dba64f6147415e04be7dfdc91aa9ea711c54da"
-            },
-            "require": {
-                "aurora/cache": "*",
-                "php": ">=8.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\Plugin\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\Plugin\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Attribute-based plugin discovery and management for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/queue",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/queue",
-                "reference": "5668dd240983679795d6e48260207181ae6a9b6a"
-            },
-            "require": {
-                "php": ">=8.3",
-                "symfony/messenger": "^7.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\Queue\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\Queue\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Asynchronous task queue and job processing for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/routing",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/routing",
-                "reference": "5fa90d38ae87fbb0c926cd738e242bb2c093d736"
-            },
-            "require": {
-                "aurora/access": "@dev",
-                "aurora/entity": "@dev",
-                "aurora/i18n": "@dev",
-                "php": ">=8.3",
-                "symfony/routing": "^7.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\Routing\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\Routing\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "HTTP routing and controller resolution for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/ssr",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/ssr",
-                "reference": "4d36c43b2ebf24acd77919a371547934692b9992"
-            },
-            "require": {
-                "aurora/entity": "@dev",
-                "aurora/routing": "@dev",
-                "php": ">=8.3",
-                "twig/twig": "^3.0"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\SSR\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\SSR\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Server-side rendering with Twig templates for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/state",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/state",
-                "reference": "8020943140a5404a14bd4ad698f5282a5d1bfdc9"
-            },
-            "require": {
-                "aurora/database-legacy": "@dev",
-                "php": ">=8.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\State\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\State\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Key-value state storage for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/taxonomy",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/taxonomy",
-                "reference": "96015fa88581559575ce62df7eb76152c4a2d7b5"
-            },
-            "require": {
-                "aurora/access": "@dev",
-                "aurora/entity": "@dev",
-                "php": ">=8.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\Taxonomy\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\Taxonomy\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Taxonomy vocabulary and term entity types for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/telescope",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/telescope",
-                "reference": "c52cfb57ea45ebb88ef076e09ee5542f2ea0c765"
-            },
-            "require": {
-                "php": ">=8.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\Telescope\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\Telescope\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Application observability and debugging for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/typed-data",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/typed-data",
-                "reference": "588544f6412535f195d1524876064ecd81d42064"
-            },
-            "require": {
-                "php": ">=8.3",
-                "symfony/validator": "^7.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\TypedData\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\TypedData\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Type system with PHP-native facade for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/user",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/user",
-                "reference": "39b1bbad59afa46dd044181c53fdb8de0f2cfbd9"
-            },
-            "require": {
-                "aurora/access": "@dev",
-                "aurora/entity": "@dev",
-                "php": ">=8.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\User\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\User\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "User entity, authentication, and session management for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/validation",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/validation",
-                "reference": "b2fe52f4f3a9942b43b2458d5f31374efacf4c25"
-            },
-            "require": {
-                "aurora/entity": "@dev",
-                "aurora/typed-data": "@dev",
-                "php": ">=8.3",
-                "symfony/validator": "^7.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\Validation\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\Validation\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Data validation constraints and validators for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "aurora/workflows",
-            "version": "dev-arch-v2-integration",
-            "dist": {
-                "type": "path",
-                "url": "packages/workflows",
-                "reference": "3db162067c99f0606e3889a27718dc003c9d75a4"
-            },
-            "require": {
-                "aurora/entity": "@dev",
-                "php": ">=8.3"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Aurora\\Workflows\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Aurora\\Workflows\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Content moderation and editorial workflow states for Aurora CMS",
-            "transport-options": {
-                "relative": true
-            }
-        },
         {
             "name": "doctrine/dbal",
             "version": "4.4.2",
@@ -3397,40 +2300,1106 @@
                 }
             ],
             "time": "2026-01-23T21:00:41+00:00"
-        }
-    ],
-    "packages-dev": [
+        },
         {
-            "name": "aurora/testing",
-            "version": "dev-arch-v2-integration",
+            "name": "waaseyaa/access",
+            "version": "dev-refactor/aurora-to-waaseyaa",
             "dist": {
                 "type": "path",
-                "url": "packages/testing",
-                "reference": "bb864beb6d68a70d5d4f9e309a7ef61cbddc865f"
+                "url": "packages/access",
+                "reference": "23962889d3022324008b461b5839a7123b9a645d"
             },
             "require": {
                 "php": ">=8.3",
+                "waaseyaa/entity": "@dev",
+                "waaseyaa/plugin": "@dev"
+            },
+            "require-dev": {
                 "phpunit/phpunit": "^10.5"
             },
             "type": "library",
             "autoload": {
                 "psr-4": {
-                    "Aurora\\Testing\\": "src/"
+                    "Waaseyaa\\Access\\": "src/"
                 }
             },
             "autoload-dev": {
                 "psr-4": {
-                    "Aurora\\Testing\\Tests\\": "tests/"
+                    "Waaseyaa\\Access\\Tests\\": "tests/"
                 }
             },
             "license": [
                 "GPL-2.0-or-later"
             ],
-            "description": "Testing utilities for Aurora CMS — base test case, entity factories, and helper traits.",
+            "description": "Access control and permission system for Waaseyaa",
             "transport-options": {
                 "relative": true
             }
         },
+        {
+            "name": "waaseyaa/ai-agent",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/ai-agent",
+                "reference": "2e3e76e91c0d099dbe1c19f416dc6ec930a58176"
+            },
+            "require": {
+                "php": ">=8.3",
+                "waaseyaa/access": "@dev",
+                "waaseyaa/ai-schema": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\AI\\Agent\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\AI\\Agent\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "AI agent orchestration and tool execution for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/ai-pipeline",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/ai-pipeline",
+                "reference": "263bb907ee465a232e7fe0c1d0dd0f139d02c183"
+            },
+            "require": {
+                "php": ">=8.3",
+                "waaseyaa/entity": "@dev",
+                "waaseyaa/queue": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\AI\\Pipeline\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\AI\\Pipeline\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "AI processing pipelines with queue-based execution for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/ai-schema",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/ai-schema",
+                "reference": "af39e96904c7095ad53be7e1ad8decfa10342dbc"
+            },
+            "require": {
+                "php": ">=8.3",
+                "waaseyaa/entity": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\AI\\Schema\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\AI\\Schema\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "AI-friendly schema definitions and entity metadata for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/ai-vector",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/ai-vector",
+                "reference": "c9c3341b28b0fb6d9b11a12772a586b3beab0d61"
+            },
+            "require": {
+                "php": ">=8.3",
+                "waaseyaa/entity": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\AI\\Vector\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\AI\\Vector\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Vector embedding storage and similarity search for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/api",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/api",
+                "reference": "f9717e8578ed928adf77488dfac41f69cde3bd80"
+            },
+            "require": {
+                "php": ">=8.3",
+                "waaseyaa/access": "@dev",
+                "waaseyaa/entity": "@dev",
+                "waaseyaa/foundation": "@dev",
+                "waaseyaa/routing": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Api\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Api\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "RESTful JSON:API resource layer for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/cache",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/cache",
+                "reference": "cda989c22038da30b71167c013b4e84128bee067"
+            },
+            "require": {
+                "php": ">=8.3",
+                "psr/cache": "^3.0",
+                "psr/simple-cache": "^3.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "suggest": {
+                "waaseyaa/config": "Required for ConfigCacheInvalidator listener",
+                "waaseyaa/entity": "Required for EntityCacheInvalidator listener"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Cache\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Cache\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Cache bins with cache tag invalidation for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/cli",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/cli",
+                "reference": "0a871d68789a7e1b5c876ecc3adfd2be17d5c3fc"
+            },
+            "require": {
+                "php": ">=8.3",
+                "symfony/console": "^7.0",
+                "waaseyaa/access": "@dev",
+                "waaseyaa/cache": "@dev",
+                "waaseyaa/config": "@dev",
+                "waaseyaa/entity": "@dev",
+                "waaseyaa/user": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\CLI\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\CLI\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Command-line interface and console commands for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/config",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/config",
+                "reference": "d8355dccba58a4b7b6562f6f9bb8591d0bef8c47"
+            },
+            "require": {
+                "php": ">=8.3",
+                "symfony/event-dispatcher": "^7.0",
+                "symfony/yaml": "^7.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Config\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Config\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Configuration management as YAML with package-aware ownership for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/database-legacy",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/database-legacy",
+                "reference": "a98ff3814dd2550d6783625c78044b75413f16f0"
+            },
+            "require": {
+                "php": ">=8.3"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Database\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Database\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Database adapter wrapping Drupal DBAL. Interim until Doctrine migration.",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/entity",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/entity",
+                "reference": "82d5cae1308433f496815bd72fc53b604a03e82c"
+            },
+            "require": {
+                "php": ">=8.3",
+                "symfony/event-dispatcher": "^7.3",
+                "symfony/uid": "^7.3",
+                "waaseyaa/cache": "@dev",
+                "waaseyaa/config": "@dev",
+                "waaseyaa/foundation": "@dev",
+                "waaseyaa/plugin": "@dev",
+                "waaseyaa/typed-data": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Entity\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Entity\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Entity type system — types, interfaces, lifecycle, queries. No storage.",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/entity-storage",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/entity-storage",
+                "reference": "bc75412794a576d759df832ed1de4d43c4934183"
+            },
+            "require": {
+                "php": ">=8.3",
+                "symfony/event-dispatcher": "^7.3",
+                "waaseyaa/cache": "@dev",
+                "waaseyaa/database-legacy": "@dev",
+                "waaseyaa/entity": "@dev",
+                "waaseyaa/field": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\EntityStorage\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\EntityStorage\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Pluggable entity persistence. v0.1.0: SQL storage behind clean interfaces.",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/field",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/field",
+                "reference": "9db1d6d781f17c9b89e4ecd164fb007af593f841"
+            },
+            "require": {
+                "php": ">=8.3",
+                "waaseyaa/entity": "@dev",
+                "waaseyaa/plugin": "@dev",
+                "waaseyaa/typed-data": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Field\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Field\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Field type system — pluggable field types, definitions, formatters for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/foundation",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/foundation",
+                "reference": "81b1deb9a9533186528c548d29b6944f1256f320"
+            },
+            "require": {
+                "doctrine/dbal": "^4.0",
+                "php": ">=8.3",
+                "symfony/dependency-injection": "^7.0",
+                "symfony/event-dispatcher": "^7.0",
+                "symfony/messenger": "^7.0",
+                "symfony/uid": "^7.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Foundation\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Foundation\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Core framework primitives: service providers, domain events, results, error handling",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/i18n",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/i18n",
+                "reference": "ff6da1cc48a0a8097534e97e39fd9f09003e6054"
+            },
+            "require": {
+                "php": ">=8.3"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\I18n\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\I18n\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Internationalization foundation: Language, LanguageManager, LanguageContext, FallbackChain",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/mcp",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/mcp",
+                "reference": "7e366286197ed6318496c78220927b1aa5bc1632"
+            },
+            "require": {
+                "php": ">=8.3",
+                "waaseyaa/access": "@dev",
+                "waaseyaa/ai-agent": "@dev",
+                "waaseyaa/ai-schema": "@dev",
+                "waaseyaa/routing": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Mcp\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Mcp\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Remote MCP server endpoint for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/media",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/media",
+                "reference": "ad2c04fe297bb6e5489472d777ed9f2c9873e1a4"
+            },
+            "require": {
+                "php": ">=8.3",
+                "waaseyaa/entity": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Media\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Media\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Media entity type and file management for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/menu",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/menu",
+                "reference": "e98d462f2f049e531adf5f3171541c12fdfc4bb0"
+            },
+            "require": {
+                "php": ">=8.3",
+                "waaseyaa/entity": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Menu\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Menu\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Menu and navigation link management for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/node",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/node",
+                "reference": "fdff4149e584502b7bcc849d63ddb7fde9ef19d6"
+            },
+            "require": {
+                "php": ">=8.3",
+                "waaseyaa/access": "@dev",
+                "waaseyaa/entity": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Node\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Node\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Content node entity type for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/path",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/path",
+                "reference": "5716b8eb550e24919cfa8e7d94f67a91deeb8d32"
+            },
+            "require": {
+                "php": ">=8.3",
+                "waaseyaa/entity": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Path\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Path\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "URL path aliases and routing integration for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/plugin",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/plugin",
+                "reference": "708fbea5043a2a518c973c0442c6d535f904ec22"
+            },
+            "require": {
+                "php": ">=8.3",
+                "waaseyaa/cache": "*"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Plugin\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Plugin\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Attribute-based plugin discovery and management for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/queue",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/queue",
+                "reference": "34c6f13bae931c6489ed3a1d4cb22e3afc2465ef"
+            },
+            "require": {
+                "php": ">=8.3",
+                "symfony/messenger": "^7.3"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Queue\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Queue\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Asynchronous task queue and job processing for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/routing",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/routing",
+                "reference": "11caad24ceb22ebcb57a1a1a20b62c5bd7147905"
+            },
+            "require": {
+                "php": ">=8.3",
+                "symfony/routing": "^7.3",
+                "waaseyaa/access": "@dev",
+                "waaseyaa/entity": "@dev",
+                "waaseyaa/i18n": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Routing\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Routing\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "HTTP routing and controller resolution for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/ssr",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/ssr",
+                "reference": "aee3097b90fa0774e24d64b7f11ca0fe31a13539"
+            },
+            "require": {
+                "php": ">=8.3",
+                "twig/twig": "^3.0",
+                "waaseyaa/entity": "@dev",
+                "waaseyaa/routing": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\SSR\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\SSR\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Server-side rendering with Twig templates for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/state",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/state",
+                "reference": "44aa57fc4869310e51b47ea371aa453b7454d8db"
+            },
+            "require": {
+                "php": ">=8.3",
+                "waaseyaa/database-legacy": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\State\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\State\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Key-value state storage for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/taxonomy",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/taxonomy",
+                "reference": "d9eefd6e6e609b9b34d922a313260cc4b1195d16"
+            },
+            "require": {
+                "php": ">=8.3",
+                "waaseyaa/access": "@dev",
+                "waaseyaa/entity": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Taxonomy\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Taxonomy\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Taxonomy vocabulary and term entity types for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/telescope",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/telescope",
+                "reference": "d6813eb72d73cf5e6262d7fcb08ae22e5f2d6250"
+            },
+            "require": {
+                "php": ">=8.3"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Telescope\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Telescope\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Application observability and debugging for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/typed-data",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/typed-data",
+                "reference": "e2650796408262c6f4713680898c71f9eb70ecc7"
+            },
+            "require": {
+                "php": ">=8.3",
+                "symfony/validator": "^7.3"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\TypedData\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\TypedData\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Type system with PHP-native facade for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/user",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/user",
+                "reference": "927eca4434b96ed5834114a4c793fb1cae035560"
+            },
+            "require": {
+                "php": ">=8.3",
+                "waaseyaa/access": "@dev",
+                "waaseyaa/entity": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\User\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\User\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "User entity, authentication, and session management for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/validation",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/validation",
+                "reference": "771fbc82d51744341f0ec36a3d3754c5cdb015f5"
+            },
+            "require": {
+                "php": ">=8.3",
+                "symfony/validator": "^7.3",
+                "waaseyaa/entity": "@dev",
+                "waaseyaa/typed-data": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Validation\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Validation\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Data validation constraints and validators for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/workflows",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/workflows",
+                "reference": "9d18d722e96069b78c5bd8d8cc691ab1380b07d6"
+            },
+            "require": {
+                "php": ">=8.3",
+                "waaseyaa/entity": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Workflows\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Workflows\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Content moderation and editorial workflow states for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        }
+    ],
+    "packages-dev": [
         {
             "name": "myclabs/deep-copy",
             "version": "1.13.4",
@@ -5152,43 +5121,74 @@
                 }
             ],
             "time": "2025-11-17T20:03:58+00:00"
+        },
+        {
+            "name": "waaseyaa/testing",
+            "version": "dev-refactor/aurora-to-waaseyaa",
+            "dist": {
+                "type": "path",
+                "url": "packages/testing",
+                "reference": "ad8400dcbe2206a0da0ab2da8a3c9b5810287e7a"
+            },
+            "require": {
+                "php": ">=8.3",
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Testing\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Testing\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Testing utilities for Waaseyaa — base test case, entity factories, and helper traits.",
+            "transport-options": {
+                "relative": true
+            }
         }
     ],
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
-        "aurora/access": 20,
-        "aurora/ai-agent": 20,
-        "aurora/ai-pipeline": 20,
-        "aurora/ai-schema": 20,
-        "aurora/ai-vector": 20,
-        "aurora/api": 20,
-        "aurora/cache": 20,
-        "aurora/cli": 20,
-        "aurora/config": 20,
-        "aurora/database-legacy": 20,
-        "aurora/entity": 20,
-        "aurora/entity-storage": 20,
-        "aurora/field": 20,
-        "aurora/foundation": 20,
-        "aurora/i18n": 20,
-        "aurora/mcp": 20,
-        "aurora/media": 20,
-        "aurora/menu": 20,
-        "aurora/node": 20,
-        "aurora/path": 20,
-        "aurora/plugin": 20,
-        "aurora/queue": 20,
-        "aurora/routing": 20,
-        "aurora/ssr": 20,
-        "aurora/state": 20,
-        "aurora/taxonomy": 20,
-        "aurora/telescope": 20,
-        "aurora/testing": 20,
-        "aurora/typed-data": 20,
-        "aurora/user": 20,
-        "aurora/validation": 20,
-        "aurora/workflows": 20
+        "waaseyaa/access": 20,
+        "waaseyaa/ai-agent": 20,
+        "waaseyaa/ai-pipeline": 20,
+        "waaseyaa/ai-schema": 20,
+        "waaseyaa/ai-vector": 20,
+        "waaseyaa/api": 20,
+        "waaseyaa/cache": 20,
+        "waaseyaa/cli": 20,
+        "waaseyaa/config": 20,
+        "waaseyaa/database-legacy": 20,
+        "waaseyaa/entity": 20,
+        "waaseyaa/entity-storage": 20,
+        "waaseyaa/field": 20,
+        "waaseyaa/foundation": 20,
+        "waaseyaa/i18n": 20,
+        "waaseyaa/mcp": 20,
+        "waaseyaa/media": 20,
+        "waaseyaa/menu": 20,
+        "waaseyaa/node": 20,
+        "waaseyaa/path": 20,
+        "waaseyaa/plugin": 20,
+        "waaseyaa/queue": 20,
+        "waaseyaa/routing": 20,
+        "waaseyaa/ssr": 20,
+        "waaseyaa/state": 20,
+        "waaseyaa/taxonomy": 20,
+        "waaseyaa/telescope": 20,
+        "waaseyaa/testing": 20,
+        "waaseyaa/typed-data": 20,
+        "waaseyaa/user": 20,
+        "waaseyaa/validation": 20,
+        "waaseyaa/workflows": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,

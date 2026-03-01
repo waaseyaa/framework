@@ -26,6 +26,74 @@ class ComposerStaticInitc6549ed0250eff553d2e60be68a047b3
     );
 
     public static $prefixLengthsPsr4 = array (
+        'W' => 
+        array (
+            'Waaseyaa\\Workflows\\Tests\\' => 25,
+            'Waaseyaa\\Workflows\\' => 19,
+            'Waaseyaa\\Validation\\Tests\\' => 26,
+            'Waaseyaa\\Validation\\' => 20,
+            'Waaseyaa\\User\\Tests\\' => 20,
+            'Waaseyaa\\User\\' => 14,
+            'Waaseyaa\\TypedData\\Tests\\' => 25,
+            'Waaseyaa\\TypedData\\' => 19,
+            'Waaseyaa\\Tests\\' => 15,
+            'Waaseyaa\\Testing\\Tests\\' => 23,
+            'Waaseyaa\\Testing\\' => 17,
+            'Waaseyaa\\Telescope\\Tests\\' => 25,
+            'Waaseyaa\\Telescope\\' => 19,
+            'Waaseyaa\\Taxonomy\\Tests\\' => 24,
+            'Waaseyaa\\Taxonomy\\' => 18,
+            'Waaseyaa\\State\\Tests\\' => 21,
+            'Waaseyaa\\State\\' => 15,
+            'Waaseyaa\\SSR\\Tests\\' => 19,
+            'Waaseyaa\\SSR\\' => 13,
+            'Waaseyaa\\Routing\\Tests\\' => 23,
+            'Waaseyaa\\Routing\\' => 17,
+            'Waaseyaa\\Queue\\Tests\\' => 21,
+            'Waaseyaa\\Queue\\' => 15,
+            'Waaseyaa\\Plugin\\Tests\\' => 22,
+            'Waaseyaa\\Plugin\\' => 16,
+            'Waaseyaa\\Path\\Tests\\' => 20,
+            'Waaseyaa\\Path\\' => 14,
+            'Waaseyaa\\Node\\Tests\\' => 20,
+            'Waaseyaa\\Node\\' => 14,
+            'Waaseyaa\\Menu\\Tests\\' => 20,
+            'Waaseyaa\\Menu\\' => 14,
+            'Waaseyaa\\Media\\Tests\\' => 21,
+            'Waaseyaa\\Media\\' => 15,
+            'Waaseyaa\\Mcp\\Tests\\' => 19,
+            'Waaseyaa\\Mcp\\' => 13,
+            'Waaseyaa\\I18n\\Tests\\' => 20,
+            'Waaseyaa\\I18n\\' => 14,
+            'Waaseyaa\\Foundation\\Tests\\' => 26,
+            'Waaseyaa\\Foundation\\' => 20,
+            'Waaseyaa\\Field\\Tests\\' => 21,
+            'Waaseyaa\\Field\\' => 15,
+            'Waaseyaa\\Entity\\Tests\\' => 22,
+            'Waaseyaa\\Entity\\' => 16,
+            'Waaseyaa\\EntityStorage\\Tests\\' => 29,
+            'Waaseyaa\\EntityStorage\\' => 23,
+            'Waaseyaa\\Database\\Tests\\' => 24,
+            'Waaseyaa\\Database\\' => 18,
+            'Waaseyaa\\Config\\Tests\\' => 22,
+            'Waaseyaa\\Config\\' => 16,
+            'Waaseyaa\\Cache\\Tests\\' => 21,
+            'Waaseyaa\\Cache\\' => 15,
+            'Waaseyaa\\CLI\\Tests\\' => 19,
+            'Waaseyaa\\CLI\\' => 13,
+            'Waaseyaa\\Api\\Tests\\' => 19,
+            'Waaseyaa\\Api\\' => 13,
+            'Waaseyaa\\Access\\Tests\\' => 22,
+            'Waaseyaa\\Access\\' => 16,
+            'Waaseyaa\\AI\\Vector\\Tests\\' => 25,
+            'Waaseyaa\\AI\\Vector\\' => 19,
+            'Waaseyaa\\AI\\Schema\\Tests\\' => 25,
+            'Waaseyaa\\AI\\Schema\\' => 19,
+            'Waaseyaa\\AI\\Pipeline\\Tests\\' => 27,
+            'Waaseyaa\\AI\\Pipeline\\' => 21,
+            'Waaseyaa\\AI\\Agent\\Tests\\' => 24,
+            'Waaseyaa\\AI\\Agent\\' => 18,
+        ),
         'T' => 
         array (
             'Twig\\' => 5,
@@ -69,77 +137,269 @@ class ComposerStaticInitc6549ed0250eff553d2e60be68a047b3
             'Doctrine\\DBAL\\' => 14,
             'DeepCopy\\' => 9,
         ),
-        'A' => 
-        array (
-            'Aurora\\Workflows\\Tests\\' => 23,
-            'Aurora\\Workflows\\' => 17,
-            'Aurora\\Validation\\Tests\\' => 24,
-            'Aurora\\Validation\\' => 18,
-            'Aurora\\User\\Tests\\' => 18,
-            'Aurora\\User\\' => 12,
-            'Aurora\\TypedData\\Tests\\' => 23,
-            'Aurora\\TypedData\\' => 17,
-            'Aurora\\Tests\\' => 13,
-            'Aurora\\Testing\\Tests\\' => 21,
-            'Aurora\\Testing\\' => 15,
-            'Aurora\\Telescope\\Tests\\' => 23,
-            'Aurora\\Telescope\\' => 17,
-            'Aurora\\Taxonomy\\Tests\\' => 22,
-            'Aurora\\Taxonomy\\' => 16,
-            'Aurora\\State\\Tests\\' => 19,
-            'Aurora\\State\\' => 13,
-            'Aurora\\SSR\\Tests\\' => 17,
-            'Aurora\\SSR\\' => 11,
-            'Aurora\\Routing\\Tests\\' => 21,
-            'Aurora\\Routing\\' => 15,
-            'Aurora\\Queue\\Tests\\' => 19,
-            'Aurora\\Queue\\' => 13,
-            'Aurora\\Plugin\\Tests\\' => 20,
-            'Aurora\\Plugin\\' => 14,
-            'Aurora\\Path\\Tests\\' => 18,
-            'Aurora\\Path\\' => 12,
-            'Aurora\\Node\\Tests\\' => 18,
-            'Aurora\\Node\\' => 12,
-            'Aurora\\Menu\\Tests\\' => 18,
-            'Aurora\\Menu\\' => 12,
-            'Aurora\\Media\\Tests\\' => 19,
-            'Aurora\\Media\\' => 13,
-            'Aurora\\Mcp\\Tests\\' => 17,
-            'Aurora\\Mcp\\' => 11,
-            'Aurora\\I18n\\Tests\\' => 18,
-            'Aurora\\I18n\\' => 12,
-            'Aurora\\Foundation\\Tests\\' => 24,
-            'Aurora\\Foundation\\' => 18,
-            'Aurora\\Field\\Tests\\' => 19,
-            'Aurora\\Field\\' => 13,
-            'Aurora\\Entity\\Tests\\' => 20,
-            'Aurora\\Entity\\' => 14,
-            'Aurora\\EntityStorage\\Tests\\' => 27,
-            'Aurora\\EntityStorage\\' => 21,
-            'Aurora\\Database\\Tests\\' => 22,
-            'Aurora\\Database\\' => 16,
-            'Aurora\\Config\\Tests\\' => 20,
-            'Aurora\\Config\\' => 14,
-            'Aurora\\Cache\\Tests\\' => 19,
-            'Aurora\\Cache\\' => 13,
-            'Aurora\\CLI\\Tests\\' => 17,
-            'Aurora\\CLI\\' => 11,
-            'Aurora\\Api\\Tests\\' => 17,
-            'Aurora\\Api\\' => 11,
-            'Aurora\\Access\\Tests\\' => 20,
-            'Aurora\\Access\\' => 14,
-            'Aurora\\AI\\Vector\\Tests\\' => 23,
-            'Aurora\\AI\\Vector\\' => 17,
-            'Aurora\\AI\\Schema\\Tests\\' => 23,
-            'Aurora\\AI\\Schema\\' => 17,
-            'Aurora\\AI\\Pipeline\\Tests\\' => 25,
-            'Aurora\\AI\\Pipeline\\' => 19,
-            'Aurora\\AI\\Agent\\Tests\\' => 22,
-            'Aurora\\AI\\Agent\\' => 16,
-        ),
     );
 
     public static $prefixDirsPsr4 = array (
+        'Waaseyaa\\Workflows\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/workflows/tests',
+        ),
+        'Waaseyaa\\Workflows\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/workflows/src',
+        ),
+        'Waaseyaa\\Validation\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/validation/tests',
+        ),
+        'Waaseyaa\\Validation\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/validation/src',
+        ),
+        'Waaseyaa\\User\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/user/tests',
+        ),
+        'Waaseyaa\\User\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/user/src',
+        ),
+        'Waaseyaa\\TypedData\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/typed-data/tests',
+        ),
+        'Waaseyaa\\TypedData\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/typed-data/src',
+        ),
+        'Waaseyaa\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/tests',
+        ),
+        'Waaseyaa\\Testing\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/testing/tests',
+        ),
+        'Waaseyaa\\Testing\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/testing/src',
+        ),
+        'Waaseyaa\\Telescope\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/telescope/tests',
+        ),
+        'Waaseyaa\\Telescope\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/telescope/src',
+        ),
+        'Waaseyaa\\Taxonomy\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/taxonomy/tests',
+        ),
+        'Waaseyaa\\Taxonomy\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/taxonomy/src',
+        ),
+        'Waaseyaa\\State\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/state/tests',
+        ),
+        'Waaseyaa\\State\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/state/src',
+        ),
+        'Waaseyaa\\SSR\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/ssr/tests',
+        ),
+        'Waaseyaa\\SSR\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/ssr/src',
+        ),
+        'Waaseyaa\\Routing\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/routing/tests',
+        ),
+        'Waaseyaa\\Routing\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/routing/src',
+        ),
+        'Waaseyaa\\Queue\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/queue/tests',
+        ),
+        'Waaseyaa\\Queue\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/queue/src',
+        ),
+        'Waaseyaa\\Plugin\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/plugin/tests',
+        ),
+        'Waaseyaa\\Plugin\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/plugin/src',
+        ),
+        'Waaseyaa\\Path\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/path/tests',
+        ),
+        'Waaseyaa\\Path\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/path/src',
+        ),
+        'Waaseyaa\\Node\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/node/tests',
+        ),
+        'Waaseyaa\\Node\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/node/src',
+        ),
+        'Waaseyaa\\Menu\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/menu/tests',
+        ),
+        'Waaseyaa\\Menu\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/menu/src',
+        ),
+        'Waaseyaa\\Media\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/media/tests',
+        ),
+        'Waaseyaa\\Media\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/media/src',
+        ),
+        'Waaseyaa\\Mcp\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/mcp/tests',
+        ),
+        'Waaseyaa\\Mcp\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/mcp/src',
+        ),
+        'Waaseyaa\\I18n\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/i18n/tests',
+        ),
+        'Waaseyaa\\I18n\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/i18n/src',
+        ),
+        'Waaseyaa\\Foundation\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/foundation/tests',
+        ),
+        'Waaseyaa\\Foundation\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/foundation/src',
+        ),
+        'Waaseyaa\\Field\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/field/tests',
+        ),
+        'Waaseyaa\\Field\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/field/src',
+        ),
+        'Waaseyaa\\Entity\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/entity/tests',
+        ),
+        'Waaseyaa\\Entity\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/entity/src',
+        ),
+        'Waaseyaa\\EntityStorage\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/entity-storage/tests',
+        ),
+        'Waaseyaa\\EntityStorage\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/entity-storage/src',
+        ),
+        'Waaseyaa\\Database\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/database-legacy/tests',
+        ),
+        'Waaseyaa\\Database\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/database-legacy/src',
+        ),
+        'Waaseyaa\\Config\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/config/tests',
+        ),
+        'Waaseyaa\\Config\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/config/src',
+        ),
+        'Waaseyaa\\Cache\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/cache/tests',
+        ),
+        'Waaseyaa\\Cache\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/cache/src',
+        ),
+        'Waaseyaa\\CLI\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/cli/tests',
+        ),
+        'Waaseyaa\\CLI\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/cli/src',
+        ),
+        'Waaseyaa\\Api\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/api/tests',
+        ),
+        'Waaseyaa\\Api\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/api/src',
+        ),
+        'Waaseyaa\\Access\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/access/tests',
+        ),
+        'Waaseyaa\\Access\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/access/src',
+        ),
+        'Waaseyaa\\AI\\Vector\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/ai-vector/tests',
+        ),
+        'Waaseyaa\\AI\\Vector\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/ai-vector/src',
+        ),
+        'Waaseyaa\\AI\\Schema\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/ai-schema/tests',
+        ),
+        'Waaseyaa\\AI\\Schema\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/ai-schema/src',
+        ),
+        'Waaseyaa\\AI\\Pipeline\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/ai-pipeline/tests',
+        ),
+        'Waaseyaa\\AI\\Pipeline\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/ai-pipeline/src',
+        ),
+        'Waaseyaa\\AI\\Agent\\Tests\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/packages/ai-agent/tests',
+        ),
+        'Waaseyaa\\AI\\Agent\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/waaseyaa/ai-agent/src',
+        ),
         'Twig\\' => 
         array (
             0 => __DIR__ . '/..' . '/twig/twig/src',
@@ -263,266 +523,6 @@ class ComposerStaticInitc6549ed0250eff553d2e60be68a047b3
         'DeepCopy\\' => 
         array (
             0 => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy',
-        ),
-        'Aurora\\Workflows\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/workflows/tests',
-        ),
-        'Aurora\\Workflows\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/workflows/src',
-        ),
-        'Aurora\\Validation\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/validation/tests',
-        ),
-        'Aurora\\Validation\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/validation/src',
-        ),
-        'Aurora\\User\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/user/tests',
-        ),
-        'Aurora\\User\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/user/src',
-        ),
-        'Aurora\\TypedData\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/typed-data/tests',
-        ),
-        'Aurora\\TypedData\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/typed-data/src',
-        ),
-        'Aurora\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/tests',
-        ),
-        'Aurora\\Testing\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/testing/tests',
-        ),
-        'Aurora\\Testing\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/testing/src',
-        ),
-        'Aurora\\Telescope\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/telescope/tests',
-        ),
-        'Aurora\\Telescope\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/telescope/src',
-        ),
-        'Aurora\\Taxonomy\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/taxonomy/tests',
-        ),
-        'Aurora\\Taxonomy\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/taxonomy/src',
-        ),
-        'Aurora\\State\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/state/tests',
-        ),
-        'Aurora\\State\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/state/src',
-        ),
-        'Aurora\\SSR\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/ssr/tests',
-        ),
-        'Aurora\\SSR\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/ssr/src',
-        ),
-        'Aurora\\Routing\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/routing/tests',
-        ),
-        'Aurora\\Routing\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/routing/src',
-        ),
-        'Aurora\\Queue\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/queue/tests',
-        ),
-        'Aurora\\Queue\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/queue/src',
-        ),
-        'Aurora\\Plugin\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/plugin/tests',
-        ),
-        'Aurora\\Plugin\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/plugin/src',
-        ),
-        'Aurora\\Path\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/path/tests',
-        ),
-        'Aurora\\Path\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/path/src',
-        ),
-        'Aurora\\Node\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/node/tests',
-        ),
-        'Aurora\\Node\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/node/src',
-        ),
-        'Aurora\\Menu\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/menu/tests',
-        ),
-        'Aurora\\Menu\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/menu/src',
-        ),
-        'Aurora\\Media\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/media/tests',
-        ),
-        'Aurora\\Media\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/media/src',
-        ),
-        'Aurora\\Mcp\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/mcp/tests',
-        ),
-        'Aurora\\Mcp\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/mcp/src',
-        ),
-        'Aurora\\I18n\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/i18n/tests',
-        ),
-        'Aurora\\I18n\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/i18n/src',
-        ),
-        'Aurora\\Foundation\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/foundation/tests',
-        ),
-        'Aurora\\Foundation\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/foundation/src',
-        ),
-        'Aurora\\Field\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/field/tests',
-        ),
-        'Aurora\\Field\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/field/src',
-        ),
-        'Aurora\\Entity\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/entity/tests',
-        ),
-        'Aurora\\Entity\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/entity/src',
-        ),
-        'Aurora\\EntityStorage\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/entity-storage/tests',
-        ),
-        'Aurora\\EntityStorage\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/entity-storage/src',
-        ),
-        'Aurora\\Database\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/database-legacy/tests',
-        ),
-        'Aurora\\Database\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/database-legacy/src',
-        ),
-        'Aurora\\Config\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/config/tests',
-        ),
-        'Aurora\\Config\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/config/src',
-        ),
-        'Aurora\\Cache\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/cache/tests',
-        ),
-        'Aurora\\Cache\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/cache/src',
-        ),
-        'Aurora\\CLI\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/cli/tests',
-        ),
-        'Aurora\\CLI\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/cli/src',
-        ),
-        'Aurora\\Api\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/api/tests',
-        ),
-        'Aurora\\Api\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/api/src',
-        ),
-        'Aurora\\Access\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/access/tests',
-        ),
-        'Aurora\\Access\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/access/src',
-        ),
-        'Aurora\\AI\\Vector\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/ai-vector/tests',
-        ),
-        'Aurora\\AI\\Vector\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/ai-vector/src',
-        ),
-        'Aurora\\AI\\Schema\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/ai-schema/tests',
-        ),
-        'Aurora\\AI\\Schema\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/ai-schema/src',
-        ),
-        'Aurora\\AI\\Pipeline\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/ai-pipeline/tests',
-        ),
-        'Aurora\\AI\\Pipeline\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/ai-pipeline/src',
-        ),
-        'Aurora\\AI\\Agent\\Tests\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/packages/ai-agent/tests',
-        ),
-        'Aurora\\AI\\Agent\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/aurora/ai-agent/src',
         ),
     );
 
