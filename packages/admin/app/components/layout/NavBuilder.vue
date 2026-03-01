@@ -16,7 +16,7 @@ onMounted(async () => {
     const response = await $fetch<{ data: EntityTypeInfo[] }>('/api/entity-types')
     entityTypes.value = response.data
   } catch (e: unknown) {
-    console.error('[Aurora] Failed to load navigation entity types:', e)
+    console.error('[Waaseyaa] Failed to load navigation entity types:', e)
     loadError.value = true
   }
 })

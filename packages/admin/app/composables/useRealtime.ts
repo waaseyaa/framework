@@ -36,7 +36,7 @@ export function useRealtime(channels: string[] = ['admin']) {
         const msg: BroadcastMessage = JSON.parse(event.data)
         messages.value = [...messages.value.slice(-99), msg]
       } catch (e) {
-        console.warn('[Aurora] Failed to parse SSE message:', event.data)
+        console.warn('[Waaseyaa] Failed to parse SSE message:', event.data)
       }
     }
 
@@ -47,12 +47,12 @@ export function useRealtime(channels: string[] = ['admin']) {
 
       retryCount++
       if (retryCount > MAX_RETRIES) {
-        console.error(`[Aurora] SSE connection failed after ${MAX_RETRIES} retries. Giving up.`)
+        console.error(`[Waaseyaa] SSE connection failed after ${MAX_RETRIES} retries. Giving up.`)
         return
       }
 
       const delay = Math.min(3000 * Math.pow(2, retryCount - 1), 30000)
-      console.warn(`[Aurora] SSE disconnected. Reconnecting in ${delay}ms (attempt ${retryCount}/${MAX_RETRIES})`)
+      console.warn(`[Waaseyaa] SSE disconnected. Reconnecting in ${delay}ms (attempt ${retryCount}/${MAX_RETRIES})`)
       reconnectTimer = setTimeout(connect, delay)
     }
   }

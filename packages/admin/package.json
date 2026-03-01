@@ -1,9 +1,9 @@
 {
-    "name": "@aurora/admin",
+    "name": "@waaseyaa/admin",
     "version": "0.1.0",
     "private": true,
     "type": "module",
-    "description": "Schema-driven admin SPA for Aurora CMS (Nuxt 3 + Vue 3)",
+    "description": "Schema-driven admin SPA for Waaseyaa (Nuxt 3 + Vue 3)",
     "scripts": {
         "dev": "nuxt dev",
         "build": "nuxt build",

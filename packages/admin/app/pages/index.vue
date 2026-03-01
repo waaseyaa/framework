@@ -18,7 +18,7 @@ onMounted(async () => {
     const response = await $fetch<{ data: EntityTypeInfo[] }>('/api/entity-types')
     entityTypes.value = response.data
   } catch (e: any) {
-    console.error('[Aurora] Failed to load entity types for dashboard:', e)
+    console.error('[Waaseyaa] Failed to load entity types for dashboard:', e)
     loadError.value = e.data?.errors?.[0]?.detail ?? e.message ?? t('error_loading_types')
   } finally {
     loading.value = false

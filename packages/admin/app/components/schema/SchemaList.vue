@@ -41,7 +41,7 @@ async function fetchEntities() {
     entities.value = result.data
     total.value = result.meta?.total ?? result.data.length
   } catch (e: any) {
-    console.error('[Aurora] Failed to fetch entities:', e)
+    console.error('[Waaseyaa] Failed to fetch entities:', e)
     listError.value = e.data?.errors?.[0]?.detail ?? e.message ?? t('error_loading_entities')
   } finally {
     loading.value = false
@@ -78,7 +78,7 @@ async function deleteEntity(entity: JsonApiResource) {
     await remove(props.entityType, entity.id)
     await fetchEntities()
   } catch (e: any) {
-    console.error('[Aurora] Failed to delete entity:', e)
+    console.error('[Waaseyaa] Failed to delete entity:', e)
     listError.value = e.data?.errors?.[0]?.detail ?? e.message ?? t('error_deleting')
   }
 }
