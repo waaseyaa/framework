@@ -41,16 +41,32 @@ if ($autoloader === null) {
     exit(1);
 }
 
+use Aurora\Access\PermissionHandler;
 use Aurora\Cache\CacheFactory;
 use Aurora\CLI\AuroraApplication;
+use Aurora\CLI\Command\AboutCommand;
 use Aurora\CLI\Command\CacheClearCommand;
 use Aurora\CLI\Command\ConfigExportCommand;
 use Aurora\CLI\Command\ConfigImportCommand;
 use Aurora\CLI\Command\EntityCreateCommand;
 use Aurora\CLI\Command\EntityListCommand;
+use Aurora\CLI\Command\EntityTypeListCommand;
+use Aurora\CLI\Command\EventListCommand;
 use Aurora\CLI\Command\InstallCommand;
+use Aurora\CLI\Command\Make\MakeEntityCommand;
+use Aurora\CLI\Command\Make\MakeJobCommand;
+use Aurora\CLI\Command\Make\MakeListenerCommand;
+use Aurora\CLI\Command\Make\MakeMigrationCommand;
+use Aurora\CLI\Command\Make\MakePolicyCommand;
+use Aurora\CLI\Command\Make\MakeProviderCommand;
+use Aurora\CLI\Command\Make\MakeTestCommand;
 use Aurora\CLI\Command\MakeEntityTypeCommand;
 use Aurora\CLI\Command\MakePluginCommand;
+use Aurora\CLI\Command\PermissionListCommand;
+use Aurora\CLI\Command\RouteListCommand;
+use Aurora\CLI\Command\Telescope\TelescopeClearCommand;
+use Aurora\CLI\Command\Telescope\TelescopeListCommand;
+use Aurora\CLI\Command\Telescope\TelescopePruneCommand;
 use Aurora\CLI\Command\UserCreateCommand;
 use Aurora\CLI\Command\UserRoleCommand;
 use Aurora\Config\ConfigManager;
@@ -61,6 +77,7 @@ use Aurora\Entity\EntityTypeManager;
 use Aurora\EntityStorage\SqlEntityStorage;
 use Aurora\EntityStorage\SqlSchemaHandler;
 use Aurora\Node\Node;
+use Aurora\Routing\AuroraRouter;
 use Aurora\User\User;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 
@@ -122,11 +139,18 @@ foreach ($entityTypes as $entityType) {
     $entityTypeManager->registerEntityType($entityType);
 }
 
+// Router.
+$router = new AuroraRouter();
+
+// Permissions.
+$permissionHandler = new PermissionHandler();
+
 // --- Application -----------------------------------------------------------
 
 $app = new AuroraApplication();
 
 $app->registerCommands([
+    // Core commands.
     new InstallCommand($entityTypeManager, $configManager),
     new CacheClearCommand($cacheFactory),
     new ConfigExportCommand($configManager),
@@ -135,8 +159,32 @@ $app->registerCommands([
     new EntityListCommand($entityTypeManager),
     new UserCreateCommand($entityTypeManager),
     new UserRoleCommand($entityTypeManager),
+    // Legacy make commands.
     new MakePluginCommand(),
     new MakeEntityTypeCommand(),
+    // New make:* scaffold commands.
+    new MakeEntityCommand(),
+    new MakeJobCommand(),
+    new MakeListenerCommand(),
+    new MakeMigrationCommand(),
+    new MakePolicyCommand(),
+    new MakeProviderCommand(),
+    new MakeTestCommand(),
+    // Introspection commands.
+    new AboutCommand(info: [
+        'name' => 'Aurora CMS',
+        'version' => '0.1.0',
+        'php' => PHP_VERSION,
+        'environment' => getenv('APP_ENV') ?: 'production',
+    ]),
+    new EntityTypeListCommand($entityTypeManager),
+    new EventListCommand($dispatcher),
+    new RouteListCommand($router),
+    new PermissionListCommand($permissionHandler),
+    // Telescope commands.
+    new TelescopeClearCommand(),
+    new TelescopeListCommand(),
+    new TelescopePruneCommand(),
 ]);
 
 $app->run();
