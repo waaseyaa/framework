@@ -21,11 +21,11 @@ const formData = ref<Record<string, any>>({})
 const saving = ref(false)
 const loadError = ref<string | null>(null)
 
-// Load schema and optionally existing entity.
+// Load schema, then optionally load existing entity if schema succeeded.
 onMounted(async () => {
   await fetchSchema()
 
-  if (props.entityId) {
+  if (schema.value && props.entityId) {
     try {
       const resource = await get(props.entityType, props.entityId)
       formData.value = { ...resource.attributes }
