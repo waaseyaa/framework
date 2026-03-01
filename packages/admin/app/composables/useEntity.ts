@@ -23,8 +23,10 @@ export function useEntity() {
     const params = new URLSearchParams()
 
     if (query.page) {
-      params.set('page[offset]', String(query.page.offset ?? 0))
-      params.set('page[limit]', String(query.page.limit ?? 25))
+      const offset = typeof query.page.offset === 'number' ? query.page.offset : 0
+      const limit = typeof query.page.limit === 'number' ? query.page.limit : 25
+      params.set('page[offset]', String(offset))
+      params.set('page[limit]', String(limit))
     }
     if (query.sort) {
       params.set('sort', query.sort)
