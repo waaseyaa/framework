@@ -15,6 +15,7 @@ export interface SchemaProperty {
   'x-weight'?: number
   'x-required'?: boolean
   'x-enum-labels'?: Record<string, string>
+  'x-target-type'?: string
 }
 
 export interface EntitySchema {

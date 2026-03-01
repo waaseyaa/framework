@@ -78,5 +78,24 @@ export function useEntity() {
     await $fetch(`/api/${type}/${id}`, { method: 'DELETE' })
   }
 
-  return { list, get, create, update, remove }
+  async function search(
+    type: string,
+    labelField: string,
+    query: string,
+    limit: number = 10,
+  ): Promise<JsonApiResource[]> {
+    if (query.length < 2) return []
+
+    const params = new URLSearchParams()
+    params.set(`filter[${labelField}][operator]`, 'STARTS_WITH')
+    params.set(`filter[${labelField}][value]`, query)
+    params.set('page[limit]', String(limit))
+    params.set('sort', labelField)
+
+    const url = `/api/${type}?${params.toString()}`
+    const response = await $fetch<JsonApiDocument>(url)
+    return (Array.isArray(response.data) ? response.data : []) as JsonApiResource[]
+  }
+
+  return { list, get, create, update, remove, search }
 }

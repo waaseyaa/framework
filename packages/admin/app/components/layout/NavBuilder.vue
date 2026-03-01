@@ -55,6 +55,7 @@ onMounted(async () => {
   color: var(--color-text);
   text-decoration: none;
   font-size: 14px;
+  transition: background 0.15s;
 }
 .nav-item:hover { background: var(--color-bg); }
 .nav-item.router-link-active { color: var(--color-primary); font-weight: 500; }

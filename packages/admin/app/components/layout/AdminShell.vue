@@ -2,19 +2,40 @@
 import { useLanguage } from '~/composables/useLanguage'
 
 const { t } = useLanguage()
+const sidebarOpen = ref(false)
+
+function toggleSidebar() {
+  sidebarOpen.value = !sidebarOpen.value
+}
+
+// Close sidebar on route change (mobile).
+const route = useRoute()
+watch(() => route.fullPath, () => {
+  sidebarOpen.value = false
+})
 </script>
 
 <template>
   <div class="admin-shell">
-    <header class="topbar">
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <header class="topbar" role="banner">
+      <button class="topbar-toggle" aria-label="Toggle menu" @click="toggleSidebar">
+        <span class="topbar-toggle-icon">&#9776;</span>
+      </button>
       <NuxtLink to="/" class="topbar-brand">{{ t('app_name') }}</NuxtLink>
     </header>
 
     <div class="admin-body">
-      <aside class="sidebar">
+      <div v-if="sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false" />
+      <aside
+        class="sidebar"
+        :class="{ 'sidebar--open': sidebarOpen }"
+        role="navigation"
+        :aria-label="t('sidebar_nav')"
+      >
         <LayoutNavBuilder />
       </aside>
-      <main class="content">
+      <main id="main-content" class="content" role="main">
         <slot />
       </main>
     </div>
@@ -63,6 +84,17 @@ body {
   font-size: 16px;
 }
 
+.topbar-toggle {
+  display: none;
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 8px;
+  margin-right: 8px;
+}
+
 .admin-body {
   display: flex;
   min-height: calc(100vh - var(--topbar-height));
@@ -73,6 +105,10 @@ body {
   background: var(--color-surface);
   border-right: 1px solid var(--color-border);
   padding: 16px 0;
+}
+
+.sidebar-overlay {
+  display: none;
 }
 
 .content {
@@ -91,6 +127,7 @@ body {
   cursor: pointer;
   font-size: 14px;
   text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
 }
 .btn:hover { background: var(--color-bg); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -108,6 +145,7 @@ body {
   border-radius: 4px;
   font-size: 14px;
   font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 .field-input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15); }
 .field-textarea { resize: vertical; min-height: 100px; }
@@ -133,4 +171,94 @@ body {
 
 .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
 .page-header h1 { font-size: 24px; font-weight: 600; }
+
+/* Skip link for accessibility */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 16px;
+  background: var(--color-primary);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 0 0 4px 4px;
+  z-index: 1000;
+  font-size: 14px;
+  text-decoration: none;
+}
+.skip-link:focus {
+  top: 0;
+}
+
+/* Screen reader only utility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* SSE connection indicator */
+.sse-status {
+  display: inline-block;
+  color: #16a34a;
+  font-size: 10px;
+  margin-left: 8px;
+  vertical-align: middle;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Responsive layout */
+@media (max-width: 768px) {
+  .topbar-toggle {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: var(--topbar-height);
+    left: 0;
+    bottom: 0;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+  }
+
+  .sidebar--open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    top: var(--topbar-height);
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 40;
+  }
+
+  .content {
+    padding: 16px;
+  }
+
+  .page-header h1 {
+    font-size: 20px;
+  }
+
+  .entity-table {
+    font-size: 13px;
+  }
+  .entity-table th, .entity-table td {
+    padding: 8px;
+  }
+}
 </style>

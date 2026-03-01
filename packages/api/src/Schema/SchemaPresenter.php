@@ -276,6 +276,11 @@ final class SchemaPresenter
             if (isset($settings['max'])) {
                 $schema['maximum'] = $settings['max'];
             }
+
+            // Handle target_type for entity_reference fields.
+            if (isset($settings['target_type'])) {
+                $schema['x-target-type'] = $settings['target_type'];
+            }
         }
 
         return $schema;

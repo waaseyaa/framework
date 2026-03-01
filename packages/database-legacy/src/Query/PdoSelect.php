@@ -277,6 +277,9 @@ final class PdoSelect implements SelectInterface
                 $parts[] = $field . ' BETWEEN ? AND ?';
                 $this->params[] = $value[0];
                 $this->params[] = $value[1];
+            } elseif ($operator === 'LIKE' || $operator === 'NOT LIKE') {
+                $parts[] = $field . ' ' . $operator . " ? ESCAPE '\\'";
+                $this->params[] = $value;
             } else {
                 $parts[] = $field . ' ' . $operator . ' ?';
                 $this->params[] = $value;

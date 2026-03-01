@@ -2,6 +2,7 @@
 import { useSchema } from '~/composables/useSchema'
 import { useEntity, type JsonApiResource } from '~/composables/useEntity'
 import { useLanguage } from '~/composables/useLanguage'
+import { useRealtime } from '~/composables/useRealtime'
 
 const props = defineProps<{
   entityType: string
@@ -10,6 +11,7 @@ const props = defineProps<{
 const { t } = useLanguage()
 const { schema, loading: schemaLoading, fetch: fetchSchema, sortedProperties } = useSchema(props.entityType)
 const { list, remove } = useEntity()
+const { messages, connected, error: sseError, reconnect } = useRealtime(['admin'])
 
 const entities = ref<JsonApiResource[]>([])
 const loading = ref(false)
@@ -87,6 +89,18 @@ onMounted(async () => {
   await fetchSchema()
   await fetchEntities()
 })
+
+// Auto-refresh when entity events arrive for this entity type.
+watch(messages, (msgs) => {
+  if (msgs.length === 0) return
+  const latest = msgs[msgs.length - 1]
+  if (
+    (latest.event === 'entity.saved' || latest.event === 'entity.deleted') &&
+    latest.data?.entityType === props.entityType
+  ) {
+    fetchEntities()
+  }
+})
 </script>
 
 <template>
@@ -121,7 +135,11 @@ onMounted(async () => {
               <NuxtLink :to="`/${entityType}/${entity.id}`" class="btn btn-sm">
                 {{ t('edit') }}
               </NuxtLink>
-              <button class="btn btn-sm btn-danger" @click="deleteEntity(entity)">
+              <button
+                class="btn btn-sm btn-danger"
+                :aria-label="t('delete') + ': ' + (entity.attributes[columns[0]?.[0]] ?? entity.id)"
+                @click="deleteEntity(entity)"
+              >
                 {{ t('delete') }}
               </button>
             </td>
@@ -133,6 +151,12 @@ onMounted(async () => {
         <span>{{ t('showing') }} {{ offset + 1 }}–{{ Math.min(offset + limit, total) }} {{ t('of') }} {{ total }}</span>
         <button :disabled="offset === 0" class="btn btn-sm" @click="prevPage">{{ t('previous') }}</button>
         <button :disabled="offset + limit >= total" class="btn btn-sm" @click="nextPage">{{ t('next') }}</button>
+        <span v-if="connected" class="sse-status" :title="t('realtime_connected')">&#9679;</span>
+        <button v-else-if="sseError" class="btn btn-sm" @click="reconnect">{{ sseError }}</button>
+      </div>
+
+      <div class="sr-only" role="status" aria-live="polite">
+        {{ t('showing') }} {{ offset + 1 }}–{{ Math.min(offset + limit, total) }} {{ t('of') }} {{ total }}
       </div>
     </template>
   </div>

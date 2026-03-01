@@ -13,6 +13,7 @@ const MAX_RETRIES = 10
 export function useRealtime(channels: string[] = ['admin']) {
   const messages: Ref<BroadcastMessage[]> = ref([])
   const connected = ref(false)
+  const error = ref<string | null>(null)
 
   let eventSource: EventSource | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -48,6 +49,7 @@ export function useRealtime(channels: string[] = ['admin']) {
       retryCount++
       if (retryCount > MAX_RETRIES) {
         console.error(`[Waaseyaa] SSE connection failed after ${MAX_RETRIES} retries. Giving up.`)
+        error.value = 'Real-time connection lost.'
         return
       }
 
@@ -67,8 +69,14 @@ export function useRealtime(channels: string[] = ['admin']) {
     connected.value = false
   }
 
+  function reconnect() {
+    retryCount = 0
+    error.value = null
+    connect()
+  }
+
   connect()
   onUnmounted(disconnect)
 
-  return { messages, connected, disconnect }
+  return { messages, connected, error, disconnect, reconnect }
 }

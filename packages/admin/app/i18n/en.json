@@ -25,5 +25,10 @@
   "error_loading_types": "Failed to load entity types.",
   "error_loading_entities": "Failed to load entities.",
   "error_deleting": "Failed to delete item.",
-  "error_nav": "Navigation unavailable."
+  "error_nav": "Navigation unavailable.",
+  "autocomplete_placeholder": "Start typing to search...",
+  "autocomplete_no_results": "No results found.",
+  "autocomplete_loading": "Searching...",
+  "realtime_connected": "Real-time updates active",
+  "sidebar_nav": "Sidebar navigation"
 }

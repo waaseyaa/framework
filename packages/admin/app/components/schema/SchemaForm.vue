@@ -69,7 +69,12 @@ async function onSubmit() {
       />
 
       <div class="form-actions">
-        <button type="submit" :disabled="saving" class="btn btn-primary">
+        <button
+          type="submit"
+          :disabled="saving"
+          class="btn btn-primary"
+          :aria-label="saving ? t('saving') : (entityId ? t('save') : t('create'))"
+        >
           {{ saving ? t('saving') : (entityId ? t('save') : t('create')) }}
         </button>
       </div>
