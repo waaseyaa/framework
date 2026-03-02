@@ -949,6 +949,88 @@
             "time": "2024-09-25T14:21:43+00:00"
         },
         {
+            "name": "symfony/http-foundation",
+            "version": "v7.4.6",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/http-foundation.git",
+                "reference": "fd97d5e926e988a363cef56fbbf88c5c528e9065"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/http-foundation/zipball/fd97d5e926e988a363cef56fbbf88c5c528e9065",
+                "reference": "fd97d5e926e988a363cef56fbbf88c5c528e9065",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.2",
+                "symfony/deprecation-contracts": "^2.5|^3",
+                "symfony/polyfill-mbstring": "^1.1"
+            },
+            "conflict": {
+                "doctrine/dbal": "<3.6",
+                "symfony/cache": "<6.4.12|>=7.0,<7.1.5"
+            },
+            "require-dev": {
+                "doctrine/dbal": "^3.6|^4",
+                "predis/predis": "^1.1|^2.0",
+                "symfony/cache": "^6.4.12|^7.1.5|^8.0",
+                "symfony/clock": "^6.4|^7.0|^8.0",
+                "symfony/dependency-injection": "^6.4|^7.0|^8.0",
+                "symfony/expression-language": "^6.4|^7.0|^8.0",
+                "symfony/http-kernel": "^6.4|^7.0|^8.0",
+                "symfony/mime": "^6.4|^7.0|^8.0",
+                "symfony/rate-limiter": "^6.4|^7.0|^8.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Symfony\\Component\\HttpFoundation\\": ""
+                },
+                "exclude-from-classmap": [
+                    "/Tests/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Fabien Potencier",
+                    "email": "fabien@symfony.com"
+                },
+                {
+                    "name": "Symfony Community",
+                    "homepage": "https://symfony.com/contributors"
+                }
+            ],
+            "description": "Defines an object-oriented layer for the HTTP specification",
+            "homepage": "https://symfony.com",
+            "support": {
+                "source": "https://github.com/symfony/http-foundation/tree/v7.4.6"
+            },
+            "funding": [
+                {
+                    "url": "https://symfony.com/sponsor",
+                    "type": "custom"
+                },
+                {
+                    "url": "https://github.com/fabpot",
+                    "type": "github"
+                },
+                {
+                    "url": "https://github.com/nicolas-grekas",
+                    "type": "github"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/symfony/symfony",
+                    "type": "tidelift"
+                }
+            ],
+            "time": "2026-02-21T16:25:55+00:00"
+        },
+        {
             "name": "symfony/messenger",
             "version": "v7.4.6",
             "source": {
@@ -2303,7 +2385,7 @@
         },
         {
             "name": "waaseyaa/access",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/access",
@@ -2338,7 +2420,7 @@
         },
         {
             "name": "waaseyaa/ai-agent",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-agent",
@@ -2373,7 +2455,7 @@
         },
         {
             "name": "waaseyaa/ai-pipeline",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-pipeline",
@@ -2408,7 +2490,7 @@
         },
         {
             "name": "waaseyaa/ai-schema",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-schema",
@@ -2442,7 +2524,7 @@
         },
         {
             "name": "waaseyaa/ai-vector",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-vector",
@@ -2476,7 +2558,7 @@
         },
         {
             "name": "waaseyaa/api",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/api",
@@ -2513,7 +2595,7 @@
         },
         {
             "name": "waaseyaa/cache",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/cache",
@@ -2552,7 +2634,7 @@
         },
         {
             "name": "waaseyaa/cli",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
@@ -2591,7 +2673,7 @@
         },
         {
             "name": "waaseyaa/config",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/config",
@@ -2626,7 +2708,7 @@
         },
         {
             "name": "waaseyaa/database-legacy",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/database-legacy",
@@ -2659,7 +2741,7 @@
         },
         {
             "name": "waaseyaa/entity",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/entity",
@@ -2699,7 +2781,7 @@
         },
         {
             "name": "waaseyaa/entity-storage",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/entity-storage",
@@ -2737,7 +2819,7 @@
         },
         {
             "name": "waaseyaa/field",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/field",
@@ -2773,19 +2855,21 @@
         },
         {
             "name": "waaseyaa/foundation",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/foundation",
-                "reference": "81b1deb9a9533186528c548d29b6944f1256f320"
+                "reference": "f8c1367c3ee576f020e31271caed8b951ab0b5dd"
             },
             "require": {
                 "doctrine/dbal": "^4.0",
                 "php": ">=8.3",
                 "symfony/dependency-injection": "^7.0",
                 "symfony/event-dispatcher": "^7.0",
+                "symfony/http-foundation": "^7.0",
                 "symfony/messenger": "^7.0",
-                "symfony/uid": "^7.0"
+                "symfony/uid": "^7.0",
+                "waaseyaa/queue": "@dev"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -2811,7 +2895,7 @@
         },
         {
             "name": "waaseyaa/i18n",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/i18n",
@@ -2844,7 +2928,7 @@
         },
         {
             "name": "waaseyaa/mcp",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/mcp",
@@ -2881,7 +2965,7 @@
         },
         {
             "name": "waaseyaa/media",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/media",
@@ -2915,7 +2999,7 @@
         },
         {
             "name": "waaseyaa/menu",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/menu",
@@ -2949,7 +3033,7 @@
         },
         {
             "name": "waaseyaa/node",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/node",
@@ -2984,7 +3068,7 @@
         },
         {
             "name": "waaseyaa/path",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/path",
@@ -3018,7 +3102,7 @@
         },
         {
             "name": "waaseyaa/plugin",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/plugin",
@@ -3052,7 +3136,7 @@
         },
         {
             "name": "waaseyaa/queue",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/queue",
@@ -3086,7 +3170,7 @@
         },
         {
             "name": "waaseyaa/routing",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/routing",
@@ -3123,7 +3207,7 @@
         },
         {
             "name": "waaseyaa/ssr",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/ssr",
@@ -3159,7 +3243,7 @@
         },
         {
             "name": "waaseyaa/state",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/state",
@@ -3193,7 +3277,7 @@
         },
         {
             "name": "waaseyaa/taxonomy",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/taxonomy",
@@ -3228,7 +3312,7 @@
         },
         {
             "name": "waaseyaa/telescope",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/telescope",
@@ -3261,7 +3345,7 @@
         },
         {
             "name": "waaseyaa/typed-data",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/typed-data",
@@ -3295,7 +3379,7 @@
         },
         {
             "name": "waaseyaa/user",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/user",
@@ -3330,7 +3414,7 @@
         },
         {
             "name": "waaseyaa/validation",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/validation",
@@ -3366,7 +3450,7 @@
         },
         {
             "name": "waaseyaa/workflows",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/workflows",
@@ -5124,7 +5208,7 @@
         },
         {
             "name": "waaseyaa/testing",
-            "version": "dev-refactor/aurora-to-waaseyaa",
+            "version": "dev-feature/laravel-integration",
             "dist": {
                 "type": "path",
                 "url": "packages/testing",

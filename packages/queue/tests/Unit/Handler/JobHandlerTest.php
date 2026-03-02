@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Queue\Tests\Unit\Handler;
 
+use Waaseyaa\Foundation\Middleware\JobMiddlewareInterface;
+use Waaseyaa\Foundation\Middleware\JobNextHandlerInterface;
+use Waaseyaa\Foundation\Middleware\JobPipeline;
 use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\Handler\JobHandler;
 use Waaseyaa\Queue\Job;
@@ -90,5 +93,94 @@ final class JobHandlerTest extends TestCase
         // incrementAttempts() runs before handle(), so the counter must be 1
         // when handle() executes.
         $this->assertSame(1, $attemptsAtHandleTime);
+    }
+
+    #[Test]
+    public function supports_job_instances(): void
+    {
+        $handler = new JobHandler();
+        $job = new class extends Job {
+            public function handle(): void {}
+        };
+
+        $this->assertTrue($handler->supports($job));
+        $this->assertFalse($handler->supports(new \stdClass()));
+    }
+
+    #[Test]
+    public function handles_job_without_pipeline(): void
+    {
+        $handled = false;
+        $job = new class($handled) extends Job {
+            public function __construct(private bool &$handled) {}
+            public function handle(): void
+            {
+                $this->handled = true;
+            }
+        };
+
+        $handler = new JobHandler();
+        $handler->handle($job);
+
+        $this->assertTrue($handled);
+        $this->assertSame(1, $job->getAttempts());
+    }
+
+    #[Test]
+    public function handles_job_through_pipeline(): void
+    {
+        $pipelineUsed = false;
+        $jobHandled = false;
+
+        $mw = new class($pipelineUsed) implements JobMiddlewareInterface {
+            public function __construct(private bool &$used) {}
+            public function process(Job $job, JobNextHandlerInterface $next): void
+            {
+                $this->used = true;
+                $next->handle($job);
+            }
+        };
+
+        $pipeline = new JobPipeline([$mw]);
+
+        $job = new class($jobHandled) extends Job {
+            public function __construct(private bool &$handled) {}
+            public function handle(): void
+            {
+                $this->handled = true;
+            }
+        };
+
+        $handler = new JobHandler(pipeline: $pipeline);
+        $handler->handle($job);
+
+        $this->assertTrue($pipelineUsed);
+        $this->assertTrue($jobHandled);
+        $this->assertSame(1, $job->getAttempts());
+    }
+
+    #[Test]
+    public function increments_attempts_before_pipeline(): void
+    {
+        $attemptsDuringPipeline = 0;
+
+        $mw = new class($attemptsDuringPipeline) implements JobMiddlewareInterface {
+            public function __construct(private int &$attempts) {}
+            public function process(Job $job, JobNextHandlerInterface $next): void
+            {
+                $this->attempts = $job->getAttempts();
+                $next->handle($job);
+            }
+        };
+
+        $pipeline = new JobPipeline([$mw]);
+        $job = new class extends Job {
+            public function handle(): void {}
+        };
+
+        $handler = new JobHandler(pipeline: $pipeline);
+        $handler->handle($job);
+
+        $this->assertSame(1, $attemptsDuringPipeline);
     }
 }

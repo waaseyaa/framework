@@ -19,6 +19,9 @@ packages/admin/.nuxt/
 packages/admin/.output/
 packages/admin/node_modules/
 
+# Storage (compiled artifacts)
+storage/
+
 # Worktrees
 .worktrees/
 
