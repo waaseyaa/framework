@@ -16,17 +16,39 @@ final class PackageManifest
 
     /**
      * Create from a cached array (loaded from storage/framework/packages.php).
+     *
+     * @throws \InvalidArgumentException If required keys are missing or have wrong types
      */
     public static function fromArray(array $data): self
     {
+        $requiredKeys = ['providers', 'commands', 'routes', 'migrations', 'field_types', 'listeners', 'middleware'];
+        $missing = array_diff($requiredKeys, array_keys($data));
+
+        if ($missing !== []) {
+            throw new \InvalidArgumentException(sprintf(
+                'PackageManifest cache is missing required keys: %s',
+                implode(', ', $missing),
+            ));
+        }
+
+        foreach ($requiredKeys as $key) {
+            if (!is_array($data[$key])) {
+                throw new \InvalidArgumentException(sprintf(
+                    'PackageManifest cache key "%s" must be an array, got %s',
+                    $key,
+                    get_debug_type($data[$key]),
+                ));
+            }
+        }
+
         return new self(
-            providers: $data['providers'] ?? [],
-            commands: $data['commands'] ?? [],
-            routes: $data['routes'] ?? [],
-            migrations: $data['migrations'] ?? [],
-            fieldTypes: $data['field_types'] ?? [],
-            listeners: $data['listeners'] ?? [],
-            middleware: $data['middleware'] ?? [],
+            providers: $data['providers'],
+            commands: $data['commands'],
+            routes: $data['routes'],
+            migrations: $data['migrations'],
+            fieldTypes: $data['field_types'],
+            listeners: $data['listeners'],
+            middleware: $data['middleware'],
         );
     }
 

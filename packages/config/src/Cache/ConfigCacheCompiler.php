@@ -34,6 +34,8 @@ final class ConfigCacheCompiler
 
     /**
      * Compile and write cache file.
+     *
+     * @throws \RuntimeException If the cache directory or file cannot be written
      */
     public function compileAndCache(): array
     {

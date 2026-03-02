@@ -43,10 +43,28 @@ final class PackageManifestTest extends TestCase
     }
 
     #[Test]
-    public function from_array_handles_missing_keys(): void
+    public function from_array_throws_on_missing_keys(): void
     {
-        $manifest = PackageManifest::fromArray([]);
-        $this->assertSame([], $manifest->providers);
-        $this->assertSame([], $manifest->fieldTypes);
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('missing required keys');
+
+        PackageManifest::fromArray([]);
+    }
+
+    #[Test]
+    public function from_array_throws_on_non_array_value(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('must be an array');
+
+        PackageManifest::fromArray([
+            'providers' => 'not-an-array',
+            'commands' => [],
+            'routes' => [],
+            'migrations' => [],
+            'field_types' => [],
+            'listeners' => [],
+            'middleware' => [],
+        ]);
     }
 }

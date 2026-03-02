@@ -121,6 +121,8 @@ final class PackageManifestCompiler
 
     /**
      * Compile and write to cache file.
+     *
+     * @throws \RuntimeException If the cache directory or file cannot be written
      */
     public function compileAndCache(): PackageManifest
     {
