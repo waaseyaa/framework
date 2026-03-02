@@ -9,9 +9,15 @@ use Waaseyaa\Entity\EntityInterface;
 /**
  * Checks access for a specific field on an entity.
  *
- * Policies implement this interface alongside AccessPolicyInterface to
- * opt into field-level access control. The same #[AccessPolicy] attribute
- * and appliesTo() method scope field checks to entity types.
+ * Classes must implement both this interface AND AccessPolicyInterface
+ * to participate in field-level access checks. EntityAccessHandler
+ * iterates its AccessPolicyInterface policies and delegates to
+ * fieldAccess() only for those that also implement this interface.
+ * The same #[AccessPolicy] attribute and appliesTo() scoping apply.
+ *
+ * When no field access policy provides an opinion (all return Neutral),
+ * the field is treated as accessible. Field access control is additive:
+ * only explicit Forbidden results restrict access.
  */
 interface FieldAccessPolicyInterface
 {

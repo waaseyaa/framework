@@ -19,6 +19,7 @@ use Waaseyaa\Entity\EntityTypeInterface;
  * - "x-description": field description for help text
  * - "x-weight": field display order weight
  * - "x-required": whether the field is required in forms
+ * - "x-access-restricted": field is viewable but not editable by the current account
  */
 final class SchemaPresenter
 {
@@ -89,9 +90,14 @@ final class SchemaPresenter
     /**
      * Present an entity type as a JSON Schema with widget hints.
      *
-     * @param EntityTypeInterface          $entityType       The entity type definition.
-     * @param array<string, array<string, mixed>> $fieldDefinitions Optional field definitions keyed by field name.
+     * @param EntityTypeInterface                  $entityType       The entity type definition.
+     * @param array<string, array<string, mixed>>  $fieldDefinitions Optional field definitions keyed by field name.
      *   Each field definition may contain: type, label, description, required, weight, settings.
+     * @param EntityInterface|null                 $entity           Optional entity for field access checking.
+     * @param EntityAccessHandler|null             $accessHandler    Optional access handler for field filtering.
+     * @param AccountInterface|null                $account          Optional account for access checks.
+     *   When all three optional parameters are provided, view-denied fields are removed
+     *   and edit-denied fields are marked readOnly with x-access-restricted.
      *
      * @return array<string, mixed> JSON Schema array.
      */

@@ -66,7 +66,7 @@ async function onSubmit() {
         :schema="fieldSchema"
         :disabled="!!fieldSchema['x-access-restricted']"
         :model-value="formData[fieldName] ?? ''"
-        @update:model-value="!fieldSchema['x-access-restricted'] && (formData[fieldName] = $event)"
+        @update:model-value="(val: any) => { if (!fieldSchema['x-access-restricted']) formData[fieldName] = val }"
       />
 
       <div class="form-actions">

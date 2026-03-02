@@ -182,6 +182,21 @@ final class JsonApiControllerFieldAccessTest extends TestCase
     }
 
     #[Test]
+    public function storeDoesNotPersistEntityWhenFieldAccessDenied(): void
+    {
+        $countBefore = count($this->storage->loadMultiple());
+
+        $this->controller->store('article', [
+            'data' => [
+                'type' => 'article',
+                'attributes' => ['title' => 'New', 'status' => 'published'],
+            ],
+        ]);
+
+        $this->assertCount($countBefore, $this->storage->loadMultiple());
+    }
+
+    #[Test]
     public function storeAllowsNonRestrictedFields(): void
     {
         $doc = $this->controller->store('article', [

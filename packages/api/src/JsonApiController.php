@@ -187,6 +187,7 @@ final class JsonApiController
 
         $attributes = $data['data']['attributes'] ?? [];
         $storage = $this->entityTypeManager->getStorage($entityTypeId);
+        $entity = $storage->create($attributes);
 
         // Check create access.
         if ($this->accessHandler !== null && $this->account !== null) {
@@ -199,10 +200,9 @@ final class JsonApiController
             }
 
             // Check field edit access for submitted attributes.
-            $tempEntity = $storage->create($attributes);
             foreach (array_keys($attributes) as $fieldName) {
                 $fieldResult = $this->accessHandler->checkFieldAccess(
-                    $tempEntity,
+                    $entity,
                     (string) $fieldName,
                     'edit',
                     $this->account,
@@ -215,7 +215,6 @@ final class JsonApiController
             }
         }
 
-        $entity = $storage->create($attributes);
         $storage->save($entity);
 
         $resource = $this->serializer->serialize($entity, $this->accessHandler, $this->account);

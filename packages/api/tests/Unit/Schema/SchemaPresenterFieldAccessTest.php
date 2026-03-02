@@ -161,4 +161,29 @@ final class SchemaPresenterFieldAccessTest extends TestCase
         $this->assertSame('hidden', $schema['properties']['id']['x-widget']);
         $this->assertArrayNotHasKey('x-access-restricted', $schema['properties']['id']);
     }
+
+    #[Test]
+    public function presentRemovesViewDeniedFieldFromRequiredArray(): void
+    {
+        $accessHandler = new EntityAccessHandler([$this->createPolicy()]);
+
+        $fieldDefs = [
+            'body' => ['type' => 'text', 'label' => 'Body', 'required' => true],
+            'secret' => ['type' => 'string', 'label' => 'Secret', 'required' => true],
+            'status' => ['type' => 'string', 'label' => 'Status'],
+        ];
+
+        $schema = $this->presenter->present(
+            $this->createEntityType(),
+            $fieldDefs,
+            $this->createEntity(),
+            $accessHandler,
+            $this->createAccount(),
+        );
+
+        // 'secret' is view-denied: must be removed from both properties AND required.
+        $this->assertArrayNotHasKey('secret', $schema['properties']);
+        $this->assertContains('body', $schema['required']);
+        $this->assertNotContains('secret', $schema['required']);
+    }
 }
