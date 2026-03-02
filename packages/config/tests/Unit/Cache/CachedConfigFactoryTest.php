@@ -118,6 +118,38 @@ final class CachedConfigFactoryTest extends TestCase
         $this->assertSame(2, $configs['b']->get('val'));
     }
 
+    #[Test]
+    public function get_falls_through_when_cache_file_is_corrupt(): void
+    {
+        $cachePath = $this->tempDir . '/corrupt.php';
+        file_put_contents($cachePath, '<?php throw new \RuntimeException("corrupt");');
+
+        $storage = new MemoryStorage();
+        $storage->write('system.site', ['name' => 'From Storage']);
+        $inner = new ConfigFactory($storage, new EventDispatcher());
+
+        $factory = new CachedConfigFactory($inner, $cachePath);
+        $config = $factory->get('system.site');
+
+        $this->assertSame('From Storage', $config->get('name'));
+    }
+
+    #[Test]
+    public function get_falls_through_when_cache_returns_non_array(): void
+    {
+        $cachePath = $this->tempDir . '/bad.php';
+        file_put_contents($cachePath, '<?php return "not an array";');
+
+        $storage = new MemoryStorage();
+        $storage->write('system.site', ['name' => 'Real']);
+        $inner = new ConfigFactory($storage, new EventDispatcher());
+
+        $factory = new CachedConfigFactory($inner, $cachePath);
+        $config = $factory->get('system.site');
+
+        $this->assertSame('Real', $config->get('name'));
+    }
+
     private function removeDir(string $dir): void
     {
         if (!is_dir($dir)) {

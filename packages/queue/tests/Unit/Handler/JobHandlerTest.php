@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Queue\Tests\Unit\Handler;
 
 use Waaseyaa\Foundation\Middleware\JobMiddlewareInterface;
-use Waaseyaa\Foundation\Middleware\JobNextHandlerInterface;
+use Waaseyaa\Foundation\Middleware\JobHandlerInterface;
 use Waaseyaa\Foundation\Middleware\JobPipeline;
 use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\Handler\JobHandler;
@@ -96,37 +96,6 @@ final class JobHandlerTest extends TestCase
     }
 
     #[Test]
-    public function supports_job_instances(): void
-    {
-        $handler = new JobHandler();
-        $job = new class extends Job {
-            public function handle(): void {}
-        };
-
-        $this->assertTrue($handler->supports($job));
-        $this->assertFalse($handler->supports(new \stdClass()));
-    }
-
-    #[Test]
-    public function handles_job_without_pipeline(): void
-    {
-        $handled = false;
-        $job = new class($handled) extends Job {
-            public function __construct(private bool &$handled) {}
-            public function handle(): void
-            {
-                $this->handled = true;
-            }
-        };
-
-        $handler = new JobHandler();
-        $handler->handle($job);
-
-        $this->assertTrue($handled);
-        $this->assertSame(1, $job->getAttempts());
-    }
-
-    #[Test]
     public function handles_job_through_pipeline(): void
     {
         $pipelineUsed = false;
@@ -134,7 +103,7 @@ final class JobHandlerTest extends TestCase
 
         $mw = new class($pipelineUsed) implements JobMiddlewareInterface {
             public function __construct(private bool &$used) {}
-            public function process(Job $job, JobNextHandlerInterface $next): void
+            public function process(Job $job, JobHandlerInterface $next): void
             {
                 $this->used = true;
                 $next->handle($job);
@@ -166,7 +135,7 @@ final class JobHandlerTest extends TestCase
 
         $mw = new class($attemptsDuringPipeline) implements JobMiddlewareInterface {
             public function __construct(private int &$attempts) {}
-            public function process(Job $job, JobNextHandlerInterface $next): void
+            public function process(Job $job, JobHandlerInterface $next): void
             {
                 $this->attempts = $job->getAttempts();
                 $next->handle($job);

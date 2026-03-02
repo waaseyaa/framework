@@ -142,6 +142,64 @@ final class PackageManifestCompilerTest extends TestCase
         $this->assertFileExists($storagePath . '/framework/packages.php');
     }
 
+    #[Test]
+    public function load_recompiles_when_cache_is_corrupt(): void
+    {
+        $storagePath = $this->tempDir . '/storage';
+        mkdir($storagePath . '/framework', 0o755, true);
+
+        // Write a corrupt cache file
+        file_put_contents(
+            $storagePath . '/framework/packages.php',
+            '<?php throw new \RuntimeException("corrupt");',
+        );
+
+        // Write valid installed.json so recompile succeeds
+        $installed = [
+            'packages' => [
+                [
+                    'name' => 'waaseyaa/test',
+                    'extra' => [
+                        'waaseyaa' => [
+                            'providers' => ['Waaseyaa\\Test\\RecompiledProvider'],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode($installed, JSON_THROW_ON_ERROR),
+        );
+
+        $compiler = new PackageManifestCompiler($this->tempDir, $storagePath);
+        $manifest = $compiler->load();
+
+        $this->assertSame(['Waaseyaa\\Test\\RecompiledProvider'], $manifest->providers);
+    }
+
+    #[Test]
+    public function load_recompiles_when_cache_returns_non_array(): void
+    {
+        $storagePath = $this->tempDir . '/storage';
+        mkdir($storagePath . '/framework', 0o755, true);
+
+        file_put_contents(
+            $storagePath . '/framework/packages.php',
+            '<?php return "not an array";',
+        );
+
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => []], JSON_THROW_ON_ERROR),
+        );
+
+        $compiler = new PackageManifestCompiler($this->tempDir, $storagePath);
+        $manifest = $compiler->load();
+
+        $this->assertSame([], $manifest->providers);
+    }
+
     private function removeDir(string $dir): void
     {
         if (!is_dir($dir)) {

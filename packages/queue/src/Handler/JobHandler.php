@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Queue\Handler;
 
-use Waaseyaa\Foundation\Middleware\JobNextHandlerInterface;
+use Waaseyaa\Foundation\Middleware\JobHandlerInterface as JobHandlerContract;
 use Waaseyaa\Foundation\Middleware\JobPipeline;
 use Waaseyaa\Queue\Job;
 
@@ -34,7 +34,7 @@ final class JobHandler implements HandlerInterface
         /** @var Job $message */
         $message->incrementAttempts();
 
-        $jobHandler = new class implements JobNextHandlerInterface {
+        $jobHandler = new class implements JobHandlerContract {
             public function handle(Job $job): void
             {
                 $job->handle();

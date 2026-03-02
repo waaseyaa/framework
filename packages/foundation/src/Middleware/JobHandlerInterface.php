@@ -6,7 +6,7 @@ namespace Waaseyaa\Foundation\Middleware;
 
 use Waaseyaa\Queue\Job;
 
-interface JobNextHandlerInterface
+interface JobHandlerInterface
 {
     public function handle(Job $job): void;
 }

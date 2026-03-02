@@ -13,16 +13,16 @@ final class JobPipeline
         private readonly array $middleware = [],
     ) {}
 
-    public function handle(Job $job, JobNextHandlerInterface $finalHandler): void
+    public function handle(Job $job, JobHandlerInterface $finalHandler): void
     {
         $handler = $finalHandler;
 
         foreach (array_reverse($this->middleware) as $mw) {
             $next = $handler;
-            $handler = new class($mw, $next) implements JobNextHandlerInterface {
+            $handler = new class($mw, $next) implements JobHandlerInterface {
                 public function __construct(
                     private readonly JobMiddlewareInterface $middleware,
-                    private readonly JobNextHandlerInterface $next,
+                    private readonly JobHandlerInterface $next,
                 ) {}
 
                 public function handle(Job $job): void

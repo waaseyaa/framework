@@ -8,5 +8,5 @@ use Waaseyaa\Queue\Job;
 
 interface JobMiddlewareInterface
 {
-    public function process(Job $job, JobNextHandlerInterface $next): void;
+    public function process(Job $job, JobHandlerInterface $next): void;
 }

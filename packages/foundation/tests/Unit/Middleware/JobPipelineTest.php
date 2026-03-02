@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Tests\Unit\Middleware;
 
 use Waaseyaa\Foundation\Middleware\JobMiddlewareInterface;
-use Waaseyaa\Foundation\Middleware\JobNextHandlerInterface;
+use Waaseyaa\Foundation\Middleware\JobHandlerInterface;
 use Waaseyaa\Foundation\Middleware\JobPipeline;
 use Waaseyaa\Queue\Job;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -21,7 +21,7 @@ final class JobPipelineTest extends TestCase
         $handled = false;
         $pipeline = new JobPipeline();
 
-        $handler = new class($handled) implements JobNextHandlerInterface {
+        $handler = new class($handled) implements JobHandlerInterface {
             public function __construct(private bool &$handled) {}
             public function handle(Job $job): void
             {
@@ -40,7 +40,7 @@ final class JobPipelineTest extends TestCase
 
         $mw1 = new class($log) implements JobMiddlewareInterface {
             public function __construct(private array &$log) {}
-            public function process(Job $job, JobNextHandlerInterface $next): void
+            public function process(Job $job, JobHandlerInterface $next): void
             {
                 $this->log[] = 'mw1-before';
                 $next->handle($job);
@@ -50,7 +50,7 @@ final class JobPipelineTest extends TestCase
 
         $mw2 = new class($log) implements JobMiddlewareInterface {
             public function __construct(private array &$log) {}
-            public function process(Job $job, JobNextHandlerInterface $next): void
+            public function process(Job $job, JobHandlerInterface $next): void
             {
                 $this->log[] = 'mw2-before';
                 $next->handle($job);
@@ -58,7 +58,7 @@ final class JobPipelineTest extends TestCase
             }
         };
 
-        $handler = new class($log) implements JobNextHandlerInterface {
+        $handler = new class($log) implements JobHandlerInterface {
             public function __construct(private array &$log) {}
             public function handle(Job $job): void
             {
@@ -78,13 +78,13 @@ final class JobPipelineTest extends TestCase
         $reached = false;
 
         $skip = new class implements JobMiddlewareInterface {
-            public function process(Job $job, JobNextHandlerInterface $next): void
+            public function process(Job $job, JobHandlerInterface $next): void
             {
                 // Don't call next — skip the job
             }
         };
 
-        $handler = new class($reached) implements JobNextHandlerInterface {
+        $handler = new class($reached) implements JobHandlerInterface {
             public function __construct(private bool &$reached) {}
             public function handle(Job $job): void
             {
