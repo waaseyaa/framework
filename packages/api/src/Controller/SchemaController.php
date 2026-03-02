@@ -43,7 +43,16 @@ final class SchemaController
         $entity = null;
         if ($this->accessHandler !== null && $this->account !== null) {
             $class = $entityType->getClass();
-            $entity = new $class([]);
+            try {
+                $entity = new $class([]);
+            } catch (\Throwable $e) {
+                error_log(sprintf(
+                    '[Waaseyaa] SchemaController: failed to create prototype entity for %s (%s): %s',
+                    $entityTypeId,
+                    $class,
+                    $e->getMessage(),
+                ));
+            }
         }
 
         $schema = $this->schemaPresenter->present(

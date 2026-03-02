@@ -258,6 +258,8 @@ if ($authResponse->getStatusCode() >= 400) {
 // --- Field-level access context ------------------------------------------------
 
 $account = $httpRequest->attributes->get('_account');
+// TODO: Populate with field-access policies from discovery/registry.
+// With an empty policy set, open-by-default semantics apply: all fields are accessible.
 $accessHandler = new EntityAccessHandler([]);
 
 // --- Dispatch ---------------------------------------------------------------
