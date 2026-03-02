@@ -92,4 +92,65 @@ class EntityAccessHandler
 
         return $result;
     }
+
+    /**
+     * Check access for a specific field on an entity.
+     *
+     * Only policies implementing FieldAccessPolicyInterface participate.
+     * Results are combined using OR logic, with Forbidden short-circuiting.
+     *
+     * @param EntityInterface  $entity    The entity being accessed.
+     * @param string           $fieldName The field name being checked.
+     * @param string           $operation The operation: 'view' or 'edit'.
+     * @param AccountInterface $account   The account requesting access.
+     */
+    public function checkFieldAccess(
+        EntityInterface $entity,
+        string $fieldName,
+        string $operation,
+        AccountInterface $account,
+    ): AccessResult {
+        $result = AccessResult::neutral('No field access policy provided an opinion.');
+        $entityTypeId = $entity->getEntityTypeId();
+
+        foreach ($this->policies as $policy) {
+            if (!$policy->appliesTo($entityTypeId)) {
+                continue;
+            }
+            if (!$policy instanceof FieldAccessPolicyInterface) {
+                continue;
+            }
+
+            $policyResult = $policy->fieldAccess($entity, $fieldName, $operation, $account);
+            $result = $result->orIf($policyResult);
+
+            if ($result->isForbidden()) {
+                return $result;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Filter a list of field names, removing those that are forbidden.
+     *
+     * @param EntityInterface  $entity     The entity being accessed.
+     * @param string[]         $fieldNames The field names to check.
+     * @param string           $operation  The operation: 'view' or 'edit'.
+     * @param AccountInterface $account    The account requesting access.
+     *
+     * @return string[] Field names that are not forbidden.
+     */
+    public function filterFields(
+        EntityInterface $entity,
+        array $fieldNames,
+        string $operation,
+        AccountInterface $account,
+    ): array {
+        return array_values(array_filter(
+            $fieldNames,
+            fn(string $field): bool => !$this->checkFieldAccess($entity, $field, $operation, $account)->isForbidden(),
+        ));
+    }
 }

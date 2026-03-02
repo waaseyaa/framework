@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Api\Schema;
 
+use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 
 /**
@@ -92,7 +95,13 @@ final class SchemaPresenter
      *
      * @return array<string, mixed> JSON Schema array.
      */
-    public function present(EntityTypeInterface $entityType, array $fieldDefinitions = []): array
+    public function present(
+        EntityTypeInterface $entityType,
+        array $fieldDefinitions = [],
+        ?EntityInterface $entity = null,
+        ?EntityAccessHandler $accessHandler = null,
+        ?AccountInterface $account = null,
+    ): array
     {
         $schema = [
             '$schema' => 'https://json-schema.org/draft-07/schema#',
@@ -128,6 +137,34 @@ final class SchemaPresenter
 
                 if (!empty($definition['required'])) {
                     $required[] = $fieldName;
+                }
+            }
+        }
+
+        // Apply field access control if context is available.
+        if ($entity !== null && $accessHandler !== null && $account !== null) {
+            $systemKeys = array_values($keys);
+            foreach ($properties as $fieldName => $property) {
+                // Skip system properties — they are always shown as-is.
+                if (in_array($fieldName, $systemKeys, true)) {
+                    continue;
+                }
+
+                $viewResult = $accessHandler->checkFieldAccess($entity, $fieldName, 'view', $account);
+                if ($viewResult->isForbidden()) {
+                    unset($properties[$fieldName]);
+                    // Also remove from required list.
+                    $required = array_values(array_filter(
+                        $required,
+                        static fn(string $name): bool => $name !== $fieldName,
+                    ));
+                    continue;
+                }
+
+                $editResult = $accessHandler->checkFieldAccess($entity, $fieldName, 'edit', $account);
+                if ($editResult->isForbidden()) {
+                    $properties[$fieldName]['readOnly'] = true;
+                    $properties[$fieldName]['x-access-restricted'] = true;
                 }
             }
         }

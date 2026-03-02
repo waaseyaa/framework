@@ -5,6 +5,7 @@ const props = defineProps<{
   name: string
   modelValue: any
   schema: SchemaProperty
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [value: any] }>()
@@ -12,6 +13,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: any] }>()
 const label = computed(() => props.schema['x-label'] ?? props.name)
 const description = computed(() => props.schema['x-description'] ?? props.schema.description)
 const required = computed(() => props.schema['x-required'] ?? false)
+const isDisabled = computed(() => props.disabled || (props.schema.readOnly && props.schema['x-access-restricted']))
 
 const widgetMap: Record<string, Component> = {
   text: resolveComponent('WidgetsTextInput') as Component,
@@ -45,6 +47,7 @@ const widgetComponent = computed(() => {
     :label="label"
     :description="description"
     :required="required"
+    :disabled="isDisabled"
     :schema="schema"
     @update:model-value="emit('update:modelValue', $event)"
   />

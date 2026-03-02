@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Api;
 
+use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 
@@ -22,9 +24,15 @@ final class ResourceSerializer
 
     /**
      * Serialize a single entity to a JsonApiResource.
+     *
+     * When an access handler and account are provided, fields that the account
+     * cannot view are omitted from the attributes.
      */
-    public function serialize(EntityInterface $entity): JsonApiResource
-    {
+    public function serialize(
+        EntityInterface $entity,
+        ?EntityAccessHandler $accessHandler = null,
+        ?AccountInterface $account = null,
+    ): JsonApiResource {
         $entityTypeId = $entity->getEntityTypeId();
         $entityType = $this->entityTypeManager->getDefinition($entityTypeId);
         $keys = $entityType->getKeys();
@@ -36,6 +44,12 @@ final class ResourceSerializer
         $allValues = $entity->toArray();
         $excludedFields = $this->getExcludedFields($keys);
         $attributes = array_diff_key($allValues, array_flip($excludedFields));
+
+        // Filter out fields the account cannot view.
+        if ($accessHandler !== null && $account !== null) {
+            $allowedFields = $accessHandler->filterFields($entity, array_keys($attributes), 'view', $account);
+            $attributes = array_intersect_key($attributes, array_flip($allowedFields));
+        }
 
         // Build self link.
         $selfLink = $this->basePath . '/' . $entityTypeId . '/' . $resourceId;
@@ -54,10 +68,13 @@ final class ResourceSerializer
      * @param array<EntityInterface> $entities
      * @return array<JsonApiResource>
      */
-    public function serializeCollection(array $entities): array
-    {
+    public function serializeCollection(
+        array $entities,
+        ?EntityAccessHandler $accessHandler = null,
+        ?AccountInterface $account = null,
+    ): array {
         return array_values(array_map(
-            fn(EntityInterface $entity): JsonApiResource => $this->serialize($entity),
+            fn(EntityInterface $entity): JsonApiResource => $this->serialize($entity, $accessHandler, $account),
             $entities,
         ));
     }

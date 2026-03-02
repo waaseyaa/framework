@@ -76,7 +76,7 @@ final class JsonApiController
             );
         }
 
-        $resources = $this->serializer->serializeCollection($entities);
+        $resources = $this->serializer->serializeCollection($entities, $this->accessHandler, $this->account);
 
         // Apply sparse fieldsets if requested.
         if (isset($parsedQuery->sparseFieldsets[$entityTypeId])) {
@@ -148,7 +148,7 @@ final class JsonApiController
             }
         }
 
-        $resource = $this->serializer->serialize($entity);
+        $resource = $this->serializer->serialize($entity, $this->accessHandler, $this->account);
 
         return JsonApiDocument::fromResource(
             $resource,
@@ -186,6 +186,7 @@ final class JsonApiController
         }
 
         $attributes = $data['data']['attributes'] ?? [];
+        $storage = $this->entityTypeManager->getStorage($entityTypeId);
 
         // Check create access.
         if ($this->accessHandler !== null && $this->account !== null) {
@@ -196,13 +197,28 @@ final class JsonApiController
                     JsonApiError::forbidden("Access denied for creating entity of type '{$entityTypeId}'."),
                 );
             }
+
+            // Check field edit access for submitted attributes.
+            $tempEntity = $storage->create($attributes);
+            foreach (array_keys($attributes) as $fieldName) {
+                $fieldResult = $this->accessHandler->checkFieldAccess(
+                    $tempEntity,
+                    (string) $fieldName,
+                    'edit',
+                    $this->account,
+                );
+                if ($fieldResult->isForbidden()) {
+                    return $this->errorDocument(
+                        JsonApiError::forbidden("No edit access to field '{$fieldName}'."),
+                    );
+                }
+            }
         }
 
-        $storage = $this->entityTypeManager->getStorage($entityTypeId);
         $entity = $storage->create($attributes);
         $storage->save($entity);
 
-        $resource = $this->serializer->serialize($entity);
+        $resource = $this->serializer->serialize($entity, $this->accessHandler, $this->account);
 
         return new JsonApiDocument(
             data: $resource,
@@ -271,8 +287,25 @@ final class JsonApiController
             }
         }
 
-        // Apply attribute updates.
+        // Check field edit access for submitted attributes.
         $attributes = $data['data']['attributes'] ?? [];
+        if ($this->accessHandler !== null && $this->account !== null) {
+            foreach (array_keys($attributes) as $fieldName) {
+                $fieldResult = $this->accessHandler->checkFieldAccess(
+                    $entity,
+                    (string) $fieldName,
+                    'edit',
+                    $this->account,
+                );
+                if ($fieldResult->isForbidden()) {
+                    return $this->errorDocument(
+                        JsonApiError::forbidden("No edit access to field '{$fieldName}'."),
+                    );
+                }
+            }
+        }
+
+        // Apply attribute updates.
         if (!$entity instanceof FieldableInterface) {
             return $this->errorDocument(
                 JsonApiError::unprocessable("Entity type '{$entityTypeId}' does not support field updates."),
@@ -284,7 +317,7 @@ final class JsonApiController
 
         $storage->save($entity);
 
-        $resource = $this->serializer->serialize($entity);
+        $resource = $this->serializer->serialize($entity, $this->accessHandler, $this->account);
 
         return JsonApiDocument::fromResource(
             $resource,

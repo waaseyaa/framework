@@ -16,6 +16,7 @@ export interface SchemaProperty {
   'x-required'?: boolean
   'x-enum-labels'?: Record<string, string>
   'x-target-type'?: string
+  'x-access-restricted'?: boolean
 }
 
 export interface EntitySchema {
@@ -64,8 +65,15 @@ export function useSchema(entityType: string) {
   }
 
   /**
-   * Return properties sorted by x-weight. When `editable` is true, readOnly and
-   * hidden fields are excluded. When false (default), all properties are returned.
+   * Return properties sorted by x-weight.
+   *
+   * When `editable` is true:
+   *  - System readOnly fields (id, uuid — no x-access-restricted) are excluded.
+   *  - Hidden widgets are excluded.
+   *  - Access-restricted fields (readOnly + x-access-restricted) are kept — they
+   *    render as disabled widgets so users can see but not edit the value.
+   *
+   * When false (default), all properties are returned.
    */
   function sortedProperties(editable = false) {
     if (!schema.value) return []
@@ -73,7 +81,12 @@ export function useSchema(entityType: string) {
     const entries = Object.entries(schema.value.properties)
 
     const filtered = editable
-      ? entries.filter(([, prop]) => !prop.readOnly && prop['x-widget'] !== 'hidden')
+      ? entries.filter(([, prop]) => {
+          if (prop['x-widget'] === 'hidden') return false
+          // System readOnly (no x-access-restricted) → exclude from form.
+          if (prop.readOnly && !prop['x-access-restricted']) return false
+          return true
+        })
       : entries
 
     return filtered.sort(([, a], [, b]) => {
