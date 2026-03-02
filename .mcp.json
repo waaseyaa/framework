@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "waaseyaa-specs": {
+      "command": "node",
+      "args": ["tools/spec-retrieval/server.js"],
+      "cwd": "."
+    }
+  }
+}

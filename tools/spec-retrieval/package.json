@@ -1,0 +1,14 @@
+{
+  "name": "waaseyaa-spec-retrieval",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "MCP server for retrieving Waaseyaa subsystem specs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  }
+}
