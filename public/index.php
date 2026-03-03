@@ -34,7 +34,7 @@ foreach ($autoloadPaths as $path) {
 if ($autoloader === null) {
     http_response_code(500);
     header('Content-Type: application/json');
-    echo json_encode(['error' => 'Composer autoloader not found. Run composer install.']);
+    echo json_encode(['error' => 'Composer autoloader not found. Run composer install.'], JSON_THROW_ON_ERROR);
     exit(1);
 }
 
@@ -195,7 +195,25 @@ $entityTypes = [
 ];
 
 foreach ($entityTypes as $entityType) {
-    $entityTypeManager->registerEntityType($entityType);
+    try {
+        $entityTypeManager->registerEntityType($entityType);
+    } catch (\Throwable $e) {
+        error_log(sprintf(
+            '[Waaseyaa] Failed to register entity type "%s": %s in %s:%d',
+            $entityType->getId(),
+            $e->getMessage(),
+            $e->getFile(),
+            $e->getLine(),
+        ));
+        sendJson(500, [
+            'jsonapi' => ['version' => '1.1'],
+            'errors' => [[
+                'status' => '500',
+                'title' => 'Internal Server Error',
+                'detail' => sprintf('Failed to register entity type: %s', $entityType->getId()),
+            ]],
+        ]);
+    }
 }
 
 // --- Broadcast storage for SSE ------------------------------------------------
@@ -348,8 +366,9 @@ $body = null;
 if (in_array($method, ['POST', 'PATCH'], true)) {
     $raw = $httpRequest->getContent();
     if ($raw !== '') {
-        $body = json_decode($raw, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
+        try {
+            $body = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
             sendJson(400, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '400', 'title' => 'Bad Request', 'detail' => 'Invalid JSON in request body.']]]);
         }
     } else {
@@ -396,7 +415,7 @@ try {
             header('X-Accel-Buffering: no');
 
             // Send initial connected event.
-            echo "event: connected\ndata: " . json_encode(['channels' => $channels]) . "\n\n";
+            echo "event: connected\ndata: " . json_encode(['channels' => $channels], JSON_THROW_ON_ERROR) . "\n\n";
             if (ob_get_level() > 0) { ob_flush(); }
             flush();
 
@@ -408,7 +427,7 @@ try {
                     $messages = $broadcastStorage->poll($cursor, $channels);
                 } catch (\Throwable $e) {
                     error_log(sprintf('[Waaseyaa] SSE poll error: %s', $e->getMessage()));
-                    echo "event: error\ndata: " . json_encode(['message' => 'Broadcast poll failed']) . "\n\n";
+                    echo "event: error\ndata: " . json_encode(['message' => 'Broadcast poll failed'], JSON_THROW_ON_ERROR) . "\n\n";
                     if (ob_get_level() > 0) { ob_flush(); }
                     flush();
                     usleep(5_000_000); // Back off 5s on error.
@@ -417,8 +436,12 @@ try {
 
                 foreach ($messages as $msg) {
                     $cursor = $msg['id'];
-                    $frame = "event: {$msg['event']}\ndata: " . json_encode($msg) . "\n\n";
-                    echo $frame;
+                    try {
+                        $frame = "event: {$msg['event']}\ndata: " . json_encode($msg, JSON_THROW_ON_ERROR) . "\n\n";
+                        echo $frame;
+                    } catch (\JsonException $e) {
+                        error_log(sprintf('[Waaseyaa] SSE json_encode error for event %s: %s', $msg['event'] ?? 'unknown', $e->getMessage()));
+                    }
                 }
 
                 if ($messages !== []) {
@@ -495,6 +518,11 @@ function sendJson(int $status, array $data): never
 {
     http_response_code($status);
     header('Content-Type: application/vnd.api+json');
-    echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+    try {
+        echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
+    } catch (\JsonException $e) {
+        error_log(sprintf('[Waaseyaa] JSON encoding failed in sendJson: %s', $e->getMessage()));
+        echo '{"jsonapi":{"version":"1.1"},"errors":[{"status":"500","title":"Internal Server Error","detail":"Response encoding failed."}]}';
+    }
     exit;
 }

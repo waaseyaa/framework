@@ -10,6 +10,11 @@ const loadError = ref(false)
 onMounted(async () => {
   try {
     const response = await $fetch<{ data: EntityTypeInfo[] }>('/api/entity-types')
+    if (!Array.isArray(response.data)) {
+      console.error('[Waaseyaa] /api/entity-types returned unexpected shape:', response)
+      loadError.value = true
+      return
+    }
     entityTypes.value = response.data
   } catch (e: unknown) {
     console.error('[Waaseyaa] Failed to load navigation entity types:', e)

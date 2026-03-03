@@ -11,10 +11,16 @@ const loadError = ref<string | null>(null)
 onMounted(async () => {
   try {
     const response = await $fetch<{ data: EntityTypeInfo[] }>('/api/entity-types')
+    if (!Array.isArray(response.data)) {
+      console.error('[Waaseyaa] /api/entity-types returned unexpected shape:', response)
+      loadError.value = t('error_loading_types')
+      return
+    }
     entityTypes.value = response.data
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('[Waaseyaa] Failed to load entity types for dashboard:', e)
-    loadError.value = e.data?.errors?.[0]?.detail ?? e.message ?? t('error_loading_types')
+    const detail = (e as any)?.data?.errors?.[0]?.detail
+    loadError.value = detail ?? (e instanceof Error ? e.message : null) ?? t('error_loading_types')
   } finally {
     loading.value = false
   }

@@ -16,6 +16,7 @@ packages/*/.phpunit.result.cache
 
 # Admin SPA build artifacts and dependencies
 packages/admin/.nuxt/
+packages/admin/.nuxtrc
 packages/admin/.output/
 packages/admin/node_modules/
 
