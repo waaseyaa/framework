@@ -137,6 +137,11 @@ Design docs in `docs/plans/` are session artifacts (implementation history). Spe
 - **SchemaPresenter `x-access-restricted`**: JSON Schema extension marking fields viewable but not editable. The admin SPA reads this to show disabled widgets instead of hiding the field. Distinct from system `readOnly` (id, uuid) which hides the field from forms entirely.
 - **Stale specs cause bad code**: When refactoring a subsystem, update the relevant `docs/specs/` file. Stale specs cause agents to generate code conflicting with recent changes. Run `tools/drift-detector.sh` to find affected specs.
 - **`sendJson()` in `index.php` exits**: The front controller's `sendJson()` helper sends a JSON:API response and calls `exit`. Code after a `sendJson()` call is unreachable — no `return` needed.
+- **Account sentinel IDs**: `AnonymousUser` uses `id: 0`, `DevAdminAccount` uses `PHP_INT_MAX`. Never use `1` or other low integers for non-real accounts — they collide with auto-increment UIDs.
+- **`PackageManifestCompiler` requires optimized autoloader**: `scanClasses()` reads `vendor/composer/autoload_classmap.php`, which is empty under default PSR-4 autoloading. Run `composer dump-autoload --optimize` to populate the classmap, or policy auto-discovery silently finds nothing. See #17.
+- **Dev-mode SAPI guard**: Use `PHP_SAPI === 'cli-server'` to gate dev-only behavior (e.g., `DevAdminAccount` in `index.php`). Classes with constructor guards must also allow `cli` SAPI for PHPUnit to instantiate them.
+- **CORS origin hardcoded**: `index.php` allows only `localhost:3000`. Nuxt dev server may bind to 3001+ if port is taken — requests will fail silently with CORS errors. Tracked in `docs/roadmap.md` for dynamic origin handling.
+- **SchemaController field definitions**: `SchemaController::show()` passes `$entityType->getFieldDefinitions()` to `SchemaPresenter::present()`. Field definitions are registered per entity type in `index.php` via the `fieldDefinitions:` constructor param on `EntityType`.
 
 ## Testing
 - Integration tests in `tests/Integration/PhaseN/` — one directory per implementation phase
