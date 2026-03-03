@@ -7,7 +7,7 @@ Specification for how Waaseyaa packages are discovered, registered, booted, and 
 Waaseyaa uses a two-phase discovery system:
 
 1. **Coarse-grained**: Composer `extra.waaseyaa` in each package's `composer.json` declares providers, commands, routes, migrations, and permissions.
-2. **Fine-grained**: PHP 8 attributes on classes (`#[AsFieldType]`, `#[Listener]`, `#[AsMiddleware]`, `PolicyAttribute`) are scanned at compile time from Composer's autoload classmap.
+2. **Fine-grained**: PHP 8 attributes on classes (`#[AsFieldType]`, `#[Listener]`, `#[AsMiddleware]`, `PolicyAttribute`) are scanned at compile time from Composer's autoload classmap, with PSR-4 directory scanning as fallback.
 
 Both are unified by `PackageManifestCompiler` into a single cached artifact at `storage/framework/packages.php`.
 
@@ -238,14 +238,23 @@ final class PackageManifestCompiler
 **Compile pipeline:**
 
 1. Read `vendor/composer/installed.json` for coarse-grained manifest data (providers, commands, routes, migrations, permissions)
-2. Read `vendor/composer/autoload_classmap.php` for all Waaseyaa-namespaced classes
+2. Scan for Waaseyaa-namespaced classes using a two-tier strategy (see below)
 3. Reflect each class, checking for discovery attributes
 4. Sort middleware and listeners by priority (descending -- highest priority first)
 5. Produce `PackageManifest` instance
 
+**Class scanning strategy (step 2):**
+
+The compiler uses a classmap-first approach with PSR-4 fallback:
+
+1. **Classmap (preferred):** Read `vendor/composer/autoload_classmap.php` and filter to `Waaseyaa\` entries. This is populated by `composer dump-autoload --optimize` and is the fastest, most reliable path.
+2. **PSR-4 fallback:** If the classmap has no `Waaseyaa\` entries (default `composer install` only includes Composer internals and polyfill stubs), fall back to reading `vendor/composer/autoload_psr4.php`. For each `Waaseyaa\` namespace (excluding `Tests\` namespaces), recursively scan directories for `.php` files and derive class names from namespace prefix + relative path.
+
+The fallback logs a warning via `error_log()` recommending `composer dump-autoload --optimize`. The PSR-4 path is protected by try-catch for corrupt map files.
+
 **Attribute scanning details:**
 
-The compiler scans classes that start with `Waaseyaa\` from the classmap. For each concrete (non-abstract, non-interface, non-trait) class:
+The compiler scans `Waaseyaa\` classes (from either classmap or PSR-4 fallback). For each concrete (non-abstract, non-interface, non-trait) class:
 
 | Attribute | What it discovers | How |
 |-----------|------------------|-----|

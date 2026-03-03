@@ -186,13 +186,15 @@ final class PackageManifestCompiler
     }
 
     /**
-     * Scan autoloaded namespaces for classes with discovery attributes.
+     * Collect Waaseyaa class names from classmap or PSR-4 directories,
+     * filtered to those with discovery attributes.
      *
      * @return string[]
      */
     private function scanClasses(): array
     {
-        // Try classmap first (populated by composer dump-autoload --optimize)
+        // Prefer classmap (populated by composer dump-autoload --optimize).
+        // Falls back to PSR-4 scanning if classmap is missing or contains no Waaseyaa\ entries.
         $classmapPath = $this->basePath . '/vendor/composer/autoload_classmap.php';
         if (is_file($classmapPath)) {
             $classMap = require $classmapPath;
@@ -205,12 +207,18 @@ final class PackageManifestCompiler
             }
         }
 
-        // Fallback: scan PSR-4 directories
+        error_log(
+            '[Waaseyaa] PackageManifestCompiler: no Waaseyaa classes in autoload_classmap.php. '
+            . 'Falling back to PSR-4 directory scanning. '
+            . 'Run "composer dump-autoload --optimize" for faster, reliable discovery.',
+        );
+
         return $this->filterDiscoveryClasses($this->scanPsr4Classes());
     }
 
     /**
-     * Filter candidate class names to those with discovery attributes.
+     * Filter candidate class names to concrete classes with discovery attributes.
+     * Skips abstract classes, interfaces, traits, and classes that cannot be reflected.
      *
      * @param string[] $candidates
      * @return string[]
@@ -256,10 +264,24 @@ final class PackageManifestCompiler
             return [];
         }
 
-        $psr4Map = require $psr4Path;
+        try {
+            $psr4Map = require $psr4Path;
+        } catch (\Throwable $e) {
+            error_log(
+                '[Waaseyaa] PackageManifestCompiler: failed to load PSR-4 map: ' . $e->getMessage(),
+            );
+            return [];
+        }
+
+        if (!is_array($psr4Map)) {
+            return [];
+        }
+
         $classes = [];
 
         foreach ($psr4Map as $namespace => $dirs) {
+            // Skip non-Waaseyaa namespaces and test namespaces (PSR-4 maps include
+            // test directories unlike optimized classmaps)
             if (!str_starts_with($namespace, 'Waaseyaa\\') || str_contains($namespace, 'Tests\\')) {
                 continue;
             }
