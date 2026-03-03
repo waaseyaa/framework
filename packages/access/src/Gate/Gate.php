@@ -68,20 +68,22 @@ final class Gate implements GateInterface
     private function indexPolicies(): void
     {
         foreach ($this->policies as $policy) {
-            $entityType = $this->detectEntityType($policy);
+            $entityTypes = $this->detectEntityTypes($policy);
 
-            if ($entityType !== null) {
+            foreach ($entityTypes as $entityType) {
                 $this->resolvedPolicies[$entityType] = $policy;
             }
         }
     }
 
     /**
-     * Detect the entity type a policy applies to.
+     * Detect the entity types a policy applies to.
      *
      * First checks for a #[PolicyAttribute], then falls back to naming convention.
+     *
+     * @return string[]
      */
-    private function detectEntityType(object $policy): ?string
+    private function detectEntityTypes(object $policy): array
     {
         $reflection = new \ReflectionClass($policy);
 
@@ -92,7 +94,7 @@ final class Gate implements GateInterface
             /** @var PolicyAttribute $attr */
             $attr = $attributes[0]->newInstance();
 
-            return $attr->entityType;
+            return $attr->entityTypes;
         }
 
         // Fall back to naming convention: "NodePolicy" -> "node".
@@ -101,10 +103,10 @@ final class Gate implements GateInterface
         if (str_ends_with($shortName, 'Policy')) {
             $typePart = substr($shortName, 0, -6); // Remove "Policy" suffix.
 
-            return $this->toSnakeCase($typePart);
+            return [$this->toSnakeCase($typePart)];
         }
 
-        return null;
+        return [];
     }
 
     /**
