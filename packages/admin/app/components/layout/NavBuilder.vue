@@ -1,12 +1,8 @@
 <script setup lang="ts">
 import { useLanguage } from '~/composables/useLanguage'
+import { groupEntityTypes, type EntityTypeInfo } from '~/composables/useNavGroups'
 
 const { t } = useLanguage()
-
-interface EntityTypeInfo {
-  id: string
-  label: string
-}
 
 const entityTypes = ref<EntityTypeInfo[]>([])
 const loadError = ref(false)
@@ -20,6 +16,8 @@ onMounted(async () => {
     loadError.value = true
   }
 })
+
+const navGroups = computed(() => groupEntityTypes(entityTypes.value))
 </script>
 
 <template>
@@ -27,16 +25,18 @@ onMounted(async () => {
     <NuxtLink to="/" class="nav-item">
       {{ t('dashboard') }}
     </NuxtLink>
-    <div class="nav-section">{{ t('content') }}</div>
     <div v-if="loadError" class="nav-error">{{ t('error_nav') }}</div>
-    <NuxtLink
-      v-for="et in entityTypes"
-      :key="et.id"
-      :to="`/${et.id}`"
-      class="nav-item"
-    >
-      {{ et.label }}
-    </NuxtLink>
+    <template v-for="group in navGroups" :key="group.key">
+      <div class="nav-section">{{ t(group.labelKey) }}</div>
+      <NuxtLink
+        v-for="et in group.entityTypes"
+        :key="et.id"
+        :to="`/${et.id}`"
+        class="nav-item"
+      >
+        {{ et.label }}
+      </NuxtLink>
+    </template>
   </nav>
 </template>
 

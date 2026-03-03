@@ -121,7 +121,7 @@
     "scripts": {
         "dev": [
             "Composer\\Config::disableProcessTimeout",
-            "php -S localhost:8081 -t public & npm run dev --prefix packages/admin && kill $!"
+            "PHP_CLI_SERVER_WORKERS=4 php -S localhost:8081 -t public & npm run dev --prefix packages/admin && kill $!"
         ]
     },
     "minimum-stability": "dev",

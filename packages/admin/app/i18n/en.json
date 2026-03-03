@@ -30,5 +30,13 @@
   "autocomplete_no_results": "No results found.",
   "autocomplete_loading": "Searching...",
   "realtime_connected": "Real-time updates active",
-  "sidebar_nav": "Sidebar navigation"
+  "sidebar_nav": "Sidebar navigation",
+  "nav_group_people": "People",
+  "nav_group_content": "Content",
+  "nav_group_taxonomy": "Taxonomy",
+  "nav_group_media": "Media",
+  "nav_group_structure": "Structure",
+  "nav_group_workflows": "Workflows",
+  "nav_group_ai": "AI",
+  "nav_group_other": "Other"
 }

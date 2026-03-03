@@ -50,10 +50,20 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
+use Waaseyaa\AI\Pipeline\Pipeline;
+use Waaseyaa\Media\Media;
+use Waaseyaa\Media\MediaType;
+use Waaseyaa\Menu\Menu;
+use Waaseyaa\Menu\MenuLink;
 use Waaseyaa\Node\Node;
+use Waaseyaa\Node\NodeType;
+use Waaseyaa\Path\PathAlias;
 use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\Routing\RouteBuilder;
+use Waaseyaa\Taxonomy\Term;
+use Waaseyaa\Taxonomy\Vocabulary;
 use Waaseyaa\User\User;
+use Waaseyaa\Workflows\Workflow;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Routing\RequestContext;
 use Waaseyaa\Api\Controller\BroadcastController;
@@ -103,6 +113,15 @@ $entityTypeManager = new EntityTypeManager(
 );
 
 $entityTypes = [
+    // Layer 1: Core Data.
+    new EntityType(
+        id: 'user',
+        label: 'User',
+        class: User::class,
+        keys: ['id' => 'uid', 'uuid' => 'uuid', 'label' => 'name'],
+    ),
+
+    // Layer 2: Content Types.
     new EntityType(
         id: 'node',
         label: 'Content',
@@ -110,10 +129,68 @@ $entityTypes = [
         keys: ['id' => 'nid', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
     ),
     new EntityType(
-        id: 'user',
-        label: 'User',
-        class: User::class,
-        keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'name'],
+        id: 'node_type',
+        label: 'Content Type',
+        class: NodeType::class,
+        keys: ['id' => 'type', 'label' => 'name'],
+    ),
+    new EntityType(
+        id: 'taxonomy_term',
+        label: 'Taxonomy Term',
+        class: Term::class,
+        keys: ['id' => 'tid', 'uuid' => 'uuid', 'label' => 'name', 'bundle' => 'vid'],
+    ),
+    new EntityType(
+        id: 'taxonomy_vocabulary',
+        label: 'Vocabulary',
+        class: Vocabulary::class,
+        keys: ['id' => 'vid', 'label' => 'name'],
+    ),
+    new EntityType(
+        id: 'media',
+        label: 'Media',
+        class: Media::class,
+        keys: ['id' => 'mid', 'uuid' => 'uuid', 'label' => 'name', 'bundle' => 'bundle'],
+    ),
+    new EntityType(
+        id: 'media_type',
+        label: 'Media Type',
+        class: MediaType::class,
+        keys: ['id' => 'id', 'label' => 'label'],
+    ),
+    new EntityType(
+        id: 'path_alias',
+        label: 'Path Alias',
+        class: PathAlias::class,
+        keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'alias', 'langcode' => 'langcode'],
+    ),
+    new EntityType(
+        id: 'menu',
+        label: 'Menu',
+        class: Menu::class,
+        keys: ['id' => 'id', 'label' => 'label'],
+    ),
+    new EntityType(
+        id: 'menu_link',
+        label: 'Menu Link',
+        class: MenuLink::class,
+        keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'menu_name'],
+    ),
+
+    // Layer 3: Services.
+    new EntityType(
+        id: 'workflow',
+        label: 'Workflow',
+        class: Workflow::class,
+        keys: ['id' => 'id', 'label' => 'label'],
+    ),
+
+    // Layer 5: AI.
+    new EntityType(
+        id: 'pipeline',
+        label: 'Pipeline',
+        class: Pipeline::class,
+        keys: ['id' => 'id', 'label' => 'label'],
     ),
 ];
 

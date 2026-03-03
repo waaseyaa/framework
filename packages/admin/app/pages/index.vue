@@ -1,13 +1,8 @@
 <script setup lang="ts">
 import { useLanguage } from '~/composables/useLanguage'
+import type { EntityTypeInfo } from '~/composables/useNavGroups'
 
 const { t } = useLanguage()
-
-interface EntityTypeInfo {
-  id: string
-  label: string
-  keys: Record<string, string>
-}
 
 const entityTypes = ref<EntityTypeInfo[]>([])
 const loading = ref(true)
