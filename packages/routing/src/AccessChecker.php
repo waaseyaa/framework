@@ -73,7 +73,7 @@ final class AccessChecker
         $gateOptions = $route->getOption('_gate');
         if ($gateOptions !== null && is_array($gateOptions)) {
             $hasRequirement = true;
-            $result = $result->andIf($this->checkGate($gateOptions));
+            $result = $result->andIf($this->checkGate($gateOptions, $account));
         }
 
         if (!$hasRequirement) {
@@ -88,7 +88,7 @@ final class AccessChecker
      *
      * @param array{ability: string, subject?: mixed} $gateOptions
      */
-    private function checkGate(array $gateOptions): AccessResult
+    private function checkGate(array $gateOptions, AccountInterface $account): AccessResult
     {
         if ($this->gate === null) {
             return AccessResult::forbidden('Gate check required but no Gate implementation is available.');
@@ -101,7 +101,7 @@ final class AccessChecker
 
         $subject = $gateOptions['subject'] ?? null;
 
-        return $this->gate->allows($ability, $subject)
+        return $this->gate->allows($ability, $subject, $account)
             ? AccessResult::allowed()
             : AccessResult::forbidden("Gate denied ability '{$ability}'.");
     }
