@@ -6,7 +6,7 @@ Waaseyaa's access control system spans three packages: `packages/access/` (core 
 
 | Package | Path | Provides |
 |---------|------|----------|
-| access | `packages/access/src/` | AccessPolicyInterface, AccessResult, AccessStatus, EntityAccessHandler, AccountInterface, FieldAccessPolicyInterface, PermissionHandler, Gate, AuthorizationMiddleware |
+| access | `packages/access/src/` | AccessPolicyInterface, AccessResult, AccessStatus, EntityAccessHandler, AccountInterface, FieldAccessPolicyInterface, PermissionHandler, Gate, EntityAccessGate, AuthorizationMiddleware |
 | routing | `packages/routing/src/` | AccessChecker (route-level access) |
 | user | `packages/user/src/Middleware/` | SessionMiddleware (account resolution) |
 
@@ -174,9 +174,13 @@ For `checkFieldAccess()` and `filterFields()`, see `docs/specs/field-access.md`.
 Policies are passed to the constructor or added via `addPolicy()`. In `public/index.php`, the handler is created with an array of policy instances:
 
 ```php
-$accessHandler = new EntityAccessHandler([]);
-// Policies are manually registered; auto-discovery writes them into the manifest
-// but instantiation happens in the front controller.
+$accessHandler = new EntityAccessHandler([
+    new NodeAccessPolicy(),
+    new TermAccessPolicy(),
+    new ConfigEntityAccessPolicy(entityTypeIds: ['node_type', 'taxonomy_vocabulary', ...]),
+]);
+$gate = new EntityAccessGate($accessHandler);
+$accessChecker = new AccessChecker(gate: $gate);
 ```
 
 ## Gate System
@@ -215,6 +219,27 @@ Policy resolution strategy:
 2. Fall back to naming convention: `NodePolicy` maps to entity type `node` (PascalCase to snake_case).
 
 Ability delegation: `$gate->allows('update', $node)` calls `$policy->update($user, $node)`. If the method does not exist, ability is denied.
+
+### EntityAccessGate (Adapter)
+
+**File:** `packages/access/src/Gate/EntityAccessGate.php`
+**Namespace:** `Waaseyaa\Access\Gate`
+
+```php
+final class EntityAccessGate implements GateInterface
+{
+    public function __construct(private readonly EntityAccessHandler $handler)
+}
+```
+
+Adapter that bridges `GateInterface` to `EntityAccessHandler`, reusing existing `AccessPolicyInterface` policies. Translation logic:
+
+- `allows($ability, EntityInterface $subject, AccountInterface $user)` → `$handler->check($subject, $ability, $user)->isAllowed()`
+- `allows('create', string $entityTypeId, AccountInterface $user)` → `$handler->checkCreateAccess($entityTypeId, '', $user)->isAllowed()`
+- String subject + non-`create` ability → `false` (instance required for view/update/delete)
+- Non-`AccountInterface` user or unsupported subject type → `false` with `error_log()` diagnostic
+
+Wired in `public/index.php`: wraps `EntityAccessHandler` and is passed to `AccessChecker(gate: $gate)`. Policy exceptions are caught, logged, and treated as denial.
 
 ### PolicyAttribute
 
@@ -439,6 +464,7 @@ packages/access/src/
     Gate/
         GateInterface.php            - Gate contract (allows/denies/authorize)
         Gate.php                     - Gate implementation with policy resolution
+        EntityAccessGate.php         - Adapter bridging GateInterface to EntityAccessHandler
         PolicyAttribute.php          - Maps policy class to entity type
         AccessDeniedException.php    - Thrown by Gate::authorize()
     Middleware/

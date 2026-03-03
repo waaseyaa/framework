@@ -25,17 +25,53 @@ final class EntityAccessGate implements GateInterface
     public function allows(string $ability, mixed $subject, ?object $user = null): bool
     {
         if (!$user instanceof AccountInterface) {
+            error_log(sprintf(
+                '[Waaseyaa] EntityAccessGate: expected AccountInterface, got %s for ability "%s".',
+                get_debug_type($user),
+                $ability,
+            ));
             return false;
         }
 
         if ($subject instanceof EntityInterface) {
-            return $this->handler->check($subject, $ability, $user)->isAllowed();
+            try {
+                return $this->handler->check($subject, $ability, $user)->isAllowed();
+            } catch (\Throwable $e) {
+                error_log(sprintf(
+                    '[Waaseyaa] EntityAccessGate: policy check threw %s for ability "%s" on %s: %s',
+                    $e::class,
+                    $ability,
+                    $subject->getEntityTypeId(),
+                    $e->getMessage(),
+                ));
+                return false;
+            }
         }
 
         if (is_string($subject) && $ability === 'create') {
-            return $this->handler->checkCreateAccess($subject, '', $user)->isAllowed();
+            // @todo Bundle is not conveyed through GateInterface; empty string used.
+            // When bundle-aware create policies are added, this adapter will need
+            // richer subject structures (e.g., ['entity_type' => 'node', 'bundle' => 'article']).
+            try {
+                return $this->handler->checkCreateAccess($subject, '', $user)->isAllowed();
+            } catch (\Throwable $e) {
+                error_log(sprintf(
+                    '[Waaseyaa] EntityAccessGate: create access check threw %s for ability "%s" on "%s": %s',
+                    $e::class,
+                    $ability,
+                    $subject,
+                    $e->getMessage(),
+                ));
+                return false;
+            }
         }
 
+        // This adapter only handles EntityInterface and string-typed create checks.
+        error_log(sprintf(
+            '[Waaseyaa] EntityAccessGate: unsupported subject type %s for ability "%s"; denying.',
+            get_debug_type($subject),
+            $ability,
+        ));
         return false;
     }
 

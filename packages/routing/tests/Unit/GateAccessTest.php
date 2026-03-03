@@ -236,6 +236,23 @@ final class GateAccessTest extends TestCase
     }
 
     #[Test]
+    public function gateWithEmptyAbilityReturnsForbidden(): void
+    {
+        $gate = $this->createMock(GateInterface::class);
+        $gate->expects($this->never())->method('allows');
+
+        $checker = new AccessChecker(gate: $gate);
+
+        $route = new Route('/api/config/export');
+        $route->setOption('_gate', ['ability' => '', 'subject' => null]);
+
+        $account = $this->createMock(AccountInterface::class);
+        $result = $checker->check($route, $account);
+
+        $this->assertTrue($result->isForbidden());
+    }
+
+    #[Test]
     public function gatePassesSubjectToGateCheck(): void
     {
         $account = $this->createMock(AccountInterface::class);

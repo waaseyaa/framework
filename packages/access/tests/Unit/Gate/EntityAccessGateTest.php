@@ -57,6 +57,19 @@ final class EntityAccessGateTest extends TestCase
         $this->assertFalse($gate->allows('view', $entity, $account));
     }
 
+    #[Test]
+    public function deniesWithEntitySubjectWhenPolicyReturnsForbidden(): void
+    {
+        $entity = $this->createEntity('node');
+        $account = $this->createAccount(['administrator']);
+        $policy = $this->createPolicy('node', AccessResult::forbidden('Explicitly forbidden.'));
+        $handler = new EntityAccessHandler([$policy]);
+
+        $gate = new EntityAccessGate($handler);
+
+        $this->assertFalse($gate->allows('view', $entity, $account));
+    }
+
     // --- allows() with string subject (create access) ---
 
     #[Test]
@@ -139,6 +152,19 @@ final class EntityAccessGateTest extends TestCase
         $this->assertFalse($gate->denies('view', $entity, $account));
     }
 
+    #[Test]
+    public function deniesReturnsTrueWhenAccessDenied(): void
+    {
+        $entity = $this->createEntity('node');
+        $account = $this->createAccount([]);
+        $policy = $this->createPolicy('node', AccessResult::neutral());
+        $handler = new EntityAccessHandler([$policy]);
+
+        $gate = new EntityAccessGate($handler);
+
+        $this->assertTrue($gate->denies('view', $entity, $account));
+    }
+
     // --- authorize() ---
 
     #[Test]
@@ -165,8 +191,31 @@ final class EntityAccessGateTest extends TestCase
 
         $gate = new EntityAccessGate($handler);
 
-        $this->expectException(AccessDeniedException::class);
-        $gate->authorize('view', $entity, $account);
+        try {
+            $gate->authorize('view', $entity, $account);
+            $this->fail('Expected AccessDeniedException was not thrown.');
+        } catch (AccessDeniedException $e) {
+            $this->assertSame('view', $e->ability);
+            $this->assertSame($entity, $e->subject);
+        }
+    }
+
+    // --- Policy exception handling ---
+
+    #[Test]
+    public function deniesWhenPolicyThrowsException(): void
+    {
+        $entity = $this->createEntity('node');
+        $account = $this->createAccount(['administrator']);
+
+        $policy = $this->createMock(AccessPolicyInterface::class);
+        $policy->method('appliesTo')->willReturn(true);
+        $policy->method('access')->willThrowException(new \RuntimeException('Database unavailable'));
+
+        $handler = new EntityAccessHandler([$policy]);
+        $gate = new EntityAccessGate($handler);
+
+        $this->assertFalse($gate->allows('view', $entity, $account));
     }
 
     // --- Unsupported subject types ---
