@@ -6,6 +6,7 @@ export default defineVitestConfig({
     environment: 'nuxt',
     setupFiles: ['./tests/setup.ts'],
     restoreMocks: true,
+    exclude: ['**/node_modules/**', '**/e2e/**'],
     coverage: {
       provider: 'v8',
       include: ['app/**/*.{ts,vue}'],
