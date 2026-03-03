@@ -351,11 +351,19 @@ final class GateTest extends TestCase
     }
 
     #[Test]
-    public function policyAttributeEntityTypeProperty(): void
+    public function policyAttributeEntityTypesPropertyFromString(): void
     {
         $attr = new PolicyAttribute(entityType: 'node');
 
-        $this->assertSame('node', $attr->entityType);
+        $this->assertSame(['node'], $attr->entityTypes);
+    }
+
+    #[Test]
+    public function policyAttributeEntityTypesPropertyFromArray(): void
+    {
+        $attr = new PolicyAttribute(entityType: ['node_type', 'taxonomy_vocabulary']);
+
+        $this->assertSame(['node_type', 'taxonomy_vocabulary'], $attr->entityTypes);
     }
 
     #[Test]

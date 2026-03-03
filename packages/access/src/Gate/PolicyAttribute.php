@@ -19,7 +19,15 @@ namespace Waaseyaa\Access\Gate;
 #[\Attribute(\Attribute::TARGET_CLASS)]
 final class PolicyAttribute
 {
+    /** @var string[] */
+    public readonly array $entityTypes;
+
+    /**
+     * @param string|string[] $entityType One entity type ID or an array of them.
+     */
     public function __construct(
-        public readonly string $entityType,
-    ) {}
+        string|array $entityType,
+    ) {
+        $this->entityTypes = is_array($entityType) ? $entityType : [$entityType];
+    }
 }
