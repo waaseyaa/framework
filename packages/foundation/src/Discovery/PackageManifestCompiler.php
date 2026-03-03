@@ -108,7 +108,7 @@ final class PackageManifestCompiler
 
             foreach ($ref->getAttributes(self::POLICY_ATTRIBUTE) as $attr) {
                 $instance = $attr->newInstance();
-                $policies[$instance->entityType] = $class;
+                $policies[$class] = $instance->entityTypes;
             }
         }
 

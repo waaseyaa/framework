@@ -278,7 +278,7 @@ final class PackageManifestCompilerTest extends TestCase
         $compiler = new PackageManifestCompiler($this->tempDir, $storagePath);
         $manifest = $compiler->compile();
 
-        $this->assertSame('Waaseyaa\\TestFixtures\\NodePolicy', $manifest->policies['node'] ?? null);
+        $this->assertSame(['node'], $manifest->policies['Waaseyaa\\TestFixtures\\NodePolicy'] ?? null);
     }
 
     private function removeDir(string $dir): void
