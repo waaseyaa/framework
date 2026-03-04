@@ -598,6 +598,38 @@ final class HttpKernelTest extends TestCase
         $this->assertStringStartsWith('v2:en:full:public:published:', $published);
     }
 
+    #[Test]
+    public function discovery_cache_tags_include_related_entities_for_invalidation_coverage(): void
+    {
+        $kernel = new HttpKernel('/tmp/test-project');
+        $method = new \ReflectionMethod(HttpKernel::class, 'buildDiscoveryCacheTags');
+        $method->setAccessible(true);
+
+        $tags = $method->invoke($kernel, [
+            'data' => [
+                'source' => ['type' => 'node', 'id' => '1'],
+                'items' => [
+                    ['related_entity_type' => 'node', 'related_entity_id' => '2'],
+                ],
+                'clusters' => [[
+                    'related_entities' => [
+                        ['type' => 'node', 'id' => '3'],
+                    ],
+                ]],
+            ],
+            'meta' => [
+                'surface' => 'discovery_api',
+                'filters' => ['status' => 'published', 'direction' => 'both'],
+            ],
+        ]);
+
+        $this->assertContains('discovery:entity:node:1', $tags);
+        $this->assertContains('discovery:entity:node:2', $tags);
+        $this->assertContains('discovery:entity:node:3', $tags);
+        $this->assertContains('discovery:status:published', $tags);
+        $this->assertContains('discovery:direction:both', $tags);
+    }
+
 }
 
 final class TestKernelEntity implements EntityInterface

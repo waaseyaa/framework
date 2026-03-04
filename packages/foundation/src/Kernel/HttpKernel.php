@@ -30,6 +30,7 @@ use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
+use Waaseyaa\Foundation\Cache\DiscoveryCachePrimitives;
 use Waaseyaa\I18n\Language;
 use Waaseyaa\I18n\LanguageManager;
 use Waaseyaa\Media\File;
@@ -911,14 +912,7 @@ final class HttpKernel extends AbstractKernel
      */
     private function buildDiscoveryCacheKey(string $surface, string $entityType, string $entityId, array $options): string
     {
-        $serialized = json_encode([
-            'surface' => $surface,
-            'entity_type' => $entityType,
-            'entity_id' => $entityId,
-            'options' => $this->normalizeForCacheKey($options),
-        ], JSON_THROW_ON_ERROR);
-
-        return 'discovery:' . sha1((string) $serialized);
+        return $this->discoveryCachePrimitives()->buildKey($surface, $entityType, $entityId, $options);
     }
 
     private function normalizeForCacheKey(mixed $value): mixed
@@ -988,16 +982,7 @@ final class HttpKernel extends AbstractKernel
      */
     private function withDiscoveryContractMeta(array $payload): array
     {
-        if (!isset($payload['meta']) || !is_array($payload['meta'])) {
-            $payload['meta'] = [];
-        }
-        $payload['meta']['contract_version'] = self::DISCOVERY_CONTRACT_VERSION;
-        $payload['meta']['contract_stability'] = self::DISCOVERY_CONTRACT_STABILITY;
-        if (!is_string($payload['meta']['surface'] ?? null) || trim((string) $payload['meta']['surface']) === '') {
-            $payload['meta']['surface'] = 'discovery_api';
-        }
-
-        return $payload;
+        return $this->discoveryCachePrimitives()->withContractMeta($payload);
     }
 
     /**
@@ -1006,44 +991,12 @@ final class HttpKernel extends AbstractKernel
      */
     private function buildDiscoveryCacheTags(array $payload): array
     {
-        $tags = [
-            'discovery',
-            'discovery:contract:' . self::DISCOVERY_CONTRACT_VERSION,
-        ];
+        return $this->discoveryCachePrimitives()->buildTags($payload);
+    }
 
-        $meta = is_array($payload['meta'] ?? null) ? $payload['meta'] : [];
-        $surface = is_string($meta['surface'] ?? null) ? trim((string) $meta['surface']) : '';
-        if ($surface !== '') {
-            $tags[] = 'discovery:surface:' . strtolower($surface);
-        }
-
-        $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
-        $source = is_array($data['source'] ?? null) ? $data['source'] : [];
-        if ($source === [] && is_array($data['data'] ?? null)) {
-            $source = is_array($data['data']['source'] ?? null) ? $data['data']['source'] : [];
-        }
-        if ($source !== []) {
-            $sourceType = is_string($source['type'] ?? null) ? strtolower(trim((string) $source['type'])) : '';
-            $sourceId = is_scalar($source['id'] ?? null) ? trim((string) $source['id']) : '';
-            if ($sourceType !== '') {
-                $tags[] = 'discovery:entity:' . $sourceType;
-            }
-            if ($sourceType !== '' && $sourceId !== '') {
-                $tags[] = sprintf('discovery:entity:%s:%s', $sourceType, $sourceId);
-            }
-        }
-
-        $filters = is_array($meta['filters'] ?? null) ? $meta['filters'] : [];
-        $status = is_string($filters['status'] ?? null) ? strtolower(trim((string) $filters['status'])) : '';
-        if ($status !== '') {
-            $tags[] = 'discovery:status:' . $status;
-        }
-        $direction = is_string($filters['direction'] ?? null) ? strtolower(trim((string) $filters['direction'])) : '';
-        if ($direction !== '') {
-            $tags[] = 'discovery:direction:' . $direction;
-        }
-
-        return array_values(array_unique($tags));
+    private function discoveryCachePrimitives(): DiscoveryCachePrimitives
+    {
+        return new DiscoveryCachePrimitives();
     }
 
     private function isDiscoveryEndpointPairPublic(string $fromType, string $fromId, string $toType, string $toId): bool

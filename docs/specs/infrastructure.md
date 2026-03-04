@@ -325,6 +325,7 @@ Cache key contract:
 - Stable hash of `{surface, entity_type, entity_id, options}`.
 - `options` are recursively normalized with deterministic associative-key sorting.
 - Key dimensions include relationship filters, direction, temporal filters (`at/from/to`), pagination (`limit/offset`), and status mode.
+- Shared primitive: `Waaseyaa\Foundation\Cache\DiscoveryCachePrimitives`.
 
 Runtime behavior:
 
@@ -343,6 +344,7 @@ Invalidation:
   - `discovery`
   - `discovery:entity:{type}`
   - `discovery:entity:{type}:{id}`
+  - related-entity tags extracted from discovery payload edges/clusters/browse surfaces
   - plus broad discovery-surface tags for relationship/node graph-impact changes
 - Fallback path (non tag-aware backends): `deleteAll()` for correctness.
 
