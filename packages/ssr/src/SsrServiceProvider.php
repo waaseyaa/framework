@@ -11,6 +11,7 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 final class SsrServiceProvider extends ServiceProvider
 {
     private static ?Environment $twigEnvironment = null;
+    private static ?FieldFormatterRegistry $formatterRegistry = null;
 
     public function register(): void
     {
@@ -24,11 +25,17 @@ final class SsrServiceProvider extends ServiceProvider
         }
 
         self::$twigEnvironment = self::createTwigEnvironment($this->projectRoot);
+        self::$formatterRegistry = new FieldFormatterRegistry($this->manifestFormatters);
     }
 
     public static function getTwigEnvironment(): ?Environment
     {
         return self::$twigEnvironment;
+    }
+
+    public static function getFormatterRegistry(): ?FieldFormatterRegistry
+    {
+        return self::$formatterRegistry;
     }
 
     public static function createTwigEnvironment(string $projectRoot): Environment

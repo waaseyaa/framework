@@ -38,13 +38,16 @@ final class SsrServiceProviderTest extends TestCase
         file_put_contents($projectRoot . '/templates/page.html.twig', '<h1>Booted</h1>');
 
         $provider = new SsrServiceProvider();
-        $provider->setKernelContext($projectRoot, []);
+        $provider->setKernelContext($projectRoot, [], ['string' => \Waaseyaa\SSR\Formatter\PlainTextFormatter::class]);
         $provider->register();
         $provider->boot();
 
         $twig = SsrServiceProvider::getTwigEnvironment();
         $this->assertNotNull($twig);
         $this->assertSame('<h1>Booted</h1>', $twig->render('page.html.twig'));
+        $registry = SsrServiceProvider::getFormatterRegistry();
+        $this->assertNotNull($registry);
+        $this->assertSame('&lt;b&gt;x&lt;/b&gt;', $registry->format('string', '<b>x</b>'));
 
         $this->removeDirectory($projectRoot);
     }

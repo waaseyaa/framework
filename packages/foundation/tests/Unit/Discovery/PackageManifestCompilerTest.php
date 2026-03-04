@@ -340,6 +340,46 @@ final class PackageManifestCompilerTest extends TestCase
     }
 
     #[Test]
+    public function compile_discovers_field_formatters_via_attribute(): void
+    {
+        $fixtureDir = $this->tempDir . '/src/Formatter';
+        mkdir($fixtureDir, 0o755, true);
+
+        $fixtureClass = <<<'PHP'
+        <?php
+        declare(strict_types=1);
+        namespace Waaseyaa\TestFixturesFormatter;
+        use Waaseyaa\Field\FieldFormatterInterface;
+        use Waaseyaa\SSR\Attribute\AsFormatter;
+        #[AsFormatter(fieldType: 'string')]
+        final class FixturePlainTextFormatter implements FieldFormatterInterface
+        {
+            public function format(mixed $value, array $settings = []): string { return (string) $value; }
+        }
+        PHP;
+
+        file_put_contents($fixtureDir . '/FixturePlainTextFormatter.php', $fixtureClass);
+        require_once $fixtureDir . '/FixturePlainTextFormatter.php';
+
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/autoload_classmap.php',
+            '<?php return [\'Waaseyaa\\\\TestFixturesFormatter\\\\FixturePlainTextFormatter\' => \'' . $fixtureDir . '/FixturePlainTextFormatter.php\'];',
+        );
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => []], JSON_THROW_ON_ERROR),
+        );
+
+        $compiler = new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage');
+        $manifest = $compiler->compile();
+
+        $this->assertSame(
+            'Waaseyaa\\TestFixturesFormatter\\FixturePlainTextFormatter',
+            $manifest->formatters['string'] ?? null,
+        );
+    }
+
+    #[Test]
     public function compile_discovers_policy_classes(): void
     {
         $fixtureDir = $this->tempDir . '/src';

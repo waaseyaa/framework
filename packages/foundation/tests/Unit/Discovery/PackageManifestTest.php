@@ -19,6 +19,7 @@ final class PackageManifestTest extends TestCase
         $this->assertSame([], $manifest->routes);
         $this->assertSame([], $manifest->migrations);
         $this->assertSame([], $manifest->fieldTypes);
+        $this->assertSame([], $manifest->formatters);
         $this->assertSame([], $manifest->listeners);
         $this->assertSame([], $manifest->middleware);
     }
@@ -30,6 +31,7 @@ final class PackageManifestTest extends TestCase
             providers: ['App\\Provider'],
             commands: ['App\\Command'],
             fieldTypes: ['text' => 'App\\TextField'],
+            formatters: ['string' => 'App\\PlainTextFormatter'],
             middleware: ['http' => [['class' => 'App\\Mw', 'priority' => 100]]],
         );
 
@@ -39,6 +41,7 @@ final class PackageManifestTest extends TestCase
         $this->assertSame($manifest->providers, $restored->providers);
         $this->assertSame($manifest->commands, $restored->commands);
         $this->assertSame($manifest->fieldTypes, $restored->fieldTypes);
+        $this->assertSame($manifest->formatters, $restored->formatters);
         $this->assertSame($manifest->middleware, $restored->middleware);
     }
 
@@ -85,6 +88,7 @@ final class PackageManifestTest extends TestCase
 
         $this->assertSame([], $manifest->permissions);
         $this->assertSame([], $manifest->policies);
+        $this->assertSame([], $manifest->formatters);
     }
 
     #[Test]
@@ -93,6 +97,7 @@ final class PackageManifestTest extends TestCase
         $manifest = new PackageManifest();
         $this->assertSame([], $manifest->permissions);
         $this->assertSame([], $manifest->policies);
+        $this->assertSame([], $manifest->formatters);
     }
 
     #[Test]
@@ -106,6 +111,9 @@ final class PackageManifestTest extends TestCase
             policies: [
                 'node' => 'App\\Policy\\NodePolicy',
             ],
+            formatters: [
+                'string' => 'App\\Formatter\\PlainTextFormatter',
+            ],
         );
 
         $array = $manifest->toArray();
@@ -113,5 +121,6 @@ final class PackageManifestTest extends TestCase
 
         $this->assertSame($manifest->permissions, $restored->permissions);
         $this->assertSame($manifest->policies, $restored->policies);
+        $this->assertSame($manifest->formatters, $restored->formatters);
     }
 }

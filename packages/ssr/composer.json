@@ -16,6 +16,7 @@
     "require": {
         "php": ">=8.3",
         "waaseyaa/entity": "@dev",
+        "waaseyaa/field": "@dev",
         "waaseyaa/routing": "@dev",
         "twig/twig": "^3.0"
     },

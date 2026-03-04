@@ -11,6 +11,9 @@ abstract class ServiceProvider implements ServiceProviderInterface
     /** @var array<string, mixed> */
     protected array $config = [];
 
+    /** @var array<string, class-string> */
+    protected array $manifestFormatters = [];
+
     /** @var array<string, array{concrete: string|callable, shared: bool}> */
     private array $bindings = [];
 
@@ -38,11 +41,13 @@ abstract class ServiceProvider implements ServiceProviderInterface
      * Provide kernel context to providers before register()/boot().
      *
      * @param array<string, mixed> $config
+     * @param array<string, class-string> $manifestFormatters
      */
-    public function setKernelContext(string $projectRoot, array $config): void
+    public function setKernelContext(string $projectRoot, array $config, array $manifestFormatters = []): void
     {
         $this->projectRoot = $projectRoot;
         $this->config = $config;
+        $this->manifestFormatters = $manifestFormatters;
     }
 
     protected function singleton(string $abstract, string|callable $concrete): void

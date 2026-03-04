@@ -10,6 +10,7 @@ use Waaseyaa\Foundation\Event\Attribute\Listener;
 final class PackageManifestCompiler
 {
     private const POLICY_ATTRIBUTE = 'Waaseyaa\\Access\\Gate\\PolicyAttribute';
+    private const FORMATTER_ATTRIBUTE = 'Waaseyaa\\SSR\\Attribute\\AsFormatter';
 
     public function __construct(
         private readonly string $basePath,
@@ -26,6 +27,7 @@ final class PackageManifestCompiler
         $routes = [];
         $migrations = [];
         $fieldTypes = [];
+        $formatters = [];
         $listeners = [];
         $middleware = [];
         $permissions = [];
@@ -71,6 +73,13 @@ final class PackageManifestCompiler
             foreach ($ref->getAttributes(AsFieldType::class) as $attr) {
                 $instance = $attr->newInstance();
                 $fieldTypes[$instance->id] = $class;
+            }
+
+            foreach ($ref->getAttributes(self::FORMATTER_ATTRIBUTE) as $attr) {
+                $instance = $attr->newInstance();
+                if (isset($instance->fieldType) && is_string($instance->fieldType) && $instance->fieldType !== '') {
+                    $formatters[$instance->fieldType] = $class;
+                }
             }
 
             foreach ($ref->getAttributes(Listener::class) as $attr) {
@@ -128,6 +137,7 @@ final class PackageManifestCompiler
             routes: $routes,
             migrations: $migrations,
             fieldTypes: $fieldTypes,
+            formatters: $formatters,
             listeners: $listeners,
             middleware: $middleware,
             permissions: $permissions,
@@ -238,7 +248,8 @@ final class PackageManifestCompiler
                     || !empty($ref->getAttributes(Listener::class))
                     || !empty($ref->getAttributes(AsMiddleware::class))
                     || !empty($ref->getAttributes(AsEntityType::class))
-                    || !empty($ref->getAttributes(self::POLICY_ATTRIBUTE));
+                    || !empty($ref->getAttributes(self::POLICY_ATTRIBUTE))
+                    || !empty($ref->getAttributes(self::FORMATTER_ATTRIBUTE));
 
                 if ($hasDiscoveryAttribute) {
                     $classes[] = $class;
