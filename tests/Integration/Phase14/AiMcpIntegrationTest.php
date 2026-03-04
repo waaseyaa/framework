@@ -305,6 +305,50 @@ final class AiMcpIntegrationTest extends TestCase
         $this->assertSame(-32000, $response['error']['code']);
         $this->assertStringContainsString('not visible', $response['error']['message']);
     }
+
+    #[Test]
+    public function traversalToolReturnsExecutionErrorWhenSourceNodeIsNotVisible(): void
+    {
+        $storage = $this->entityTypeManager->getStorage('node');
+        $fixtures = WorkflowFixturePack::aiMcpNodes();
+        $published = $storage->create($fixtures['teaching_published']);
+        $storage->save($published);
+        $draft = $storage->create($fixtures['teaching_draft']);
+        $storage->save($draft);
+
+        $relationshipStorage = $this->entityTypeManager->getStorage('relationship');
+        $relationship = $relationshipStorage->create([
+            'relationship_type' => 'related',
+            'from_entity_type' => 'node',
+            'from_entity_id' => (string) $draft->id(),
+            'to_entity_type' => 'node',
+            'to_entity_id' => (string) $published->id(),
+            'status' => 1,
+        ]);
+        $relationshipStorage->save($relationship);
+
+        $mcp = new McpController(
+            entityTypeManager: $this->entityTypeManager,
+            serializer: $this->serializer,
+            accessHandler: $this->accessHandler,
+            account: $this->account,
+            embeddingStorage: $this->embeddingStorage,
+            embeddingProvider: $this->provider,
+        );
+
+        $response = $mcp->handleRpc([
+            'jsonrpc' => '2.0',
+            'id' => 32,
+            'method' => 'tools/call',
+            'params' => [
+                'name' => 'traverse_relationships',
+                'arguments' => ['type' => 'node', 'id' => (string) $draft->id()],
+            ],
+        ]);
+
+        $this->assertSame(-32000, $response['error']['code']);
+        $this->assertStringContainsString('source entity is not visible', $response['error']['message']);
+    }
 }
 
 final class AnonymousTestAccount implements AccountInterface

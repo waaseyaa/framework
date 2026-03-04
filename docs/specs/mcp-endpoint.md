@@ -206,6 +206,11 @@ Canonical search naming:
 - `search_entities` is the stable semantic/keyword search contract.
 - `search_teachings` is maintained as a backward-compatible alias and is marked deprecated in tool metadata.
 
+Traversal and graph permission boundaries (v1.0 hardening):
+- `traverse_relationships`, `get_related_entities`, and `get_knowledge_graph` require a visible source entity.
+- Rows referencing inaccessible related entities are filtered out before payload composition.
+- Hidden source entities produce deterministic execution errors (`-32000`) instead of partial graph leakage.
+
 ### Request Format
 
 ```json

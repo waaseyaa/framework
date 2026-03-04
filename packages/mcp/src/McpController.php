@@ -301,6 +301,7 @@ final class McpController
     private function toolTraverseRelationships(array $arguments): array
     {
         $parsed = $this->parseTraversalArguments($arguments);
+        $this->assertTraversalSourceVisible($parsed['entity_type'], $parsed['entity_id']);
         $rows = $this->collectTraversalRows($parsed);
 
         $data = [];
@@ -347,6 +348,7 @@ final class McpController
     private function toolGetRelatedEntities(array $arguments): array
     {
         $parsed = $this->parseTraversalArguments($arguments);
+        $this->assertTraversalSourceVisible($parsed['entity_type'], $parsed['entity_id']);
         $includeRelationships = filter_var($arguments['include_relationships'] ?? false, FILTER_VALIDATE_BOOLEAN);
         $rows = $this->collectTraversalRows($parsed);
 
@@ -423,6 +425,7 @@ final class McpController
     private function toolGetKnowledgeGraph(array $arguments): array
     {
         $parsed = $this->parseTraversalArguments($arguments);
+        $this->assertTraversalSourceVisible($parsed['entity_type'], $parsed['entity_id']);
 
         if ($this->relationshipTraversal !== null) {
             $graph = $this->relationshipTraversal->browse($parsed['entity_type'], $parsed['entity_id'], [
@@ -592,6 +595,10 @@ final class McpController
         if ($entityType === '' || $entityId === '') {
             throw new \InvalidArgumentException('Traversal requires non-empty "type" and "id" arguments.');
         }
+        $entityType = strtolower($entityType);
+        if (!$this->entityTypeManager->hasDefinition($entityType)) {
+            throw new \InvalidArgumentException(sprintf('Unknown traversal entity type: "%s".', $entityType));
+        }
 
         $direction = is_string($arguments['direction'] ?? null) ? strtolower(trim($arguments['direction'])) : 'both';
         if (!in_array($direction, ['outbound', 'inbound', 'both'], true)) {
@@ -631,7 +638,7 @@ final class McpController
         $limit = max(1, min(100, $limit));
 
         return [
-            'entity_type' => strtolower($entityType),
+            'entity_type' => $entityType,
             'entity_id' => $entityId,
             'direction' => $direction,
             'status' => $status,
@@ -797,6 +804,29 @@ final class McpController
         $relationshipStorage = $this->entityTypeManager->getStorage('relationship');
         $ids = $relationshipStorage->getQuery()->accessCheck(false)->execute();
         $rows = [];
+        /** @var array<string, bool> $visibilityCache */
+        $visibilityCache = [];
+        $isVisible = function (string $entityType, string $entityId) use (&$visibilityCache): bool {
+            $cacheKey = $entityType . ':' . $entityId;
+            if (array_key_exists($cacheKey, $visibilityCache)) {
+                return $visibilityCache[$cacheKey];
+            }
+
+            if (!$this->entityTypeManager->hasDefinition($entityType)) {
+                $visibilityCache[$cacheKey] = false;
+                return false;
+            }
+
+            $entity = $this->loadEntityByTypeAndId($entityType, $entityId);
+            if (!$entity instanceof EntityInterface) {
+                $visibilityCache[$cacheKey] = false;
+                return false;
+            }
+
+            $visibilityCache[$cacheKey] = $this->accessHandler->check($entity, 'view', $this->account)->isAllowed();
+            return $visibilityCache[$cacheKey];
+        };
+
         foreach ($relationshipStorage->loadMultiple($ids) as $relationship) {
             if (!$this->accessHandler->check($relationship, 'view', $this->account)->isAllowed()) {
                 continue;
@@ -835,6 +865,9 @@ final class McpController
             }
 
             if (in_array($parsed['direction'], ['outbound', 'both'], true) && $matchesOutbound) {
+                if (!$isVisible($toType, $toId)) {
+                    continue;
+                }
                 $rows[] = [
                     'relationship' => $relationship,
                     'related_entity_type' => $toType,
@@ -844,6 +877,9 @@ final class McpController
                 ];
             }
             if (in_array($parsed['direction'], ['inbound', 'both'], true) && $matchesInbound) {
+                if (!$isVisible($fromType, $fromId)) {
+                    continue;
+                }
                 $rows[] = [
                     'relationship' => $relationship,
                     'related_entity_type' => $fromType,
@@ -914,9 +950,7 @@ final class McpController
             throw new \InvalidArgumentException(sprintf('Unknown anchor entity type: "%s".', $anchorType));
         }
 
-        $storage = $this->entityTypeManager->getStorage($anchorType);
-        $resolvedId = ctype_digit($anchorId) ? (int) $anchorId : $anchorId;
-        $entity = $storage->load($resolvedId);
+        $entity = $this->loadEntityByTypeAndId($anchorType, $anchorId);
         if (!$entity instanceof EntityInterface) {
             throw new \InvalidArgumentException(sprintf('Anchor entity not found: %s:%s', $anchorType, $anchorId));
         }
@@ -998,6 +1032,31 @@ final class McpController
         }
 
         return false;
+    }
+
+    private function assertTraversalSourceVisible(string $entityType, string $entityId): void
+    {
+        $entity = $this->loadEntityByTypeAndId($entityType, $entityId);
+        if (!$entity instanceof EntityInterface) {
+            throw new \InvalidArgumentException(sprintf('Traversal source entity not found: %s:%s', $entityType, $entityId));
+        }
+
+        if (!$this->accessHandler->check($entity, 'view', $this->account)->isAllowed()) {
+            throw new \RuntimeException(sprintf('Traversal source entity is not visible: %s:%s', $entityType, $entityId));
+        }
+    }
+
+    private function loadEntityByTypeAndId(string $entityType, string $entityId): ?EntityInterface
+    {
+        if (!$this->entityTypeManager->hasDefinition($entityType)) {
+            return null;
+        }
+
+        $storage = $this->entityTypeManager->getStorage($entityType);
+        $resolvedId = ctype_digit($entityId) ? (int) $entityId : $entityId;
+        $entity = $storage->load($resolvedId);
+
+        return $entity instanceof EntityInterface ? $entity : null;
     }
 
     /**
