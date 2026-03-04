@@ -20,6 +20,7 @@ final class DomainValidationListener
         private readonly array $workflowBundles,
         private readonly array $temporalBundles = [],
         private readonly array $uniqueTitleBundles = [],
+        private readonly EditorialWorkflowStateMachine $stateMachine = new EditorialWorkflowStateMachine(),
     ) {}
 
     public function __invoke(EntityEvent $event): void
@@ -42,8 +43,11 @@ final class DomainValidationListener
             return;
         }
 
-        $workflowState = $this->normalizeWorkflowState($values['workflow_state'] ?? null, $values['status'] ?? 0);
-        if (!in_array($workflowState, ['draft', 'review', 'published'], true)) {
+        $workflowState = $this->stateMachine->normalizeState(
+            workflowState: $values['workflow_state'] ?? null,
+            status: $values['status'] ?? 0,
+        );
+        if (!$this->stateMachine->isKnownState($workflowState)) {
             throw new \InvalidArgumentException(sprintf(
                 'Validation failed for node bundle "%s": invalid workflow_state "%s".',
                 $bundle,
@@ -52,7 +56,7 @@ final class DomainValidationListener
         }
         if ($entity instanceof FieldableInterface) {
             $entity->set('workflow_state', $workflowState);
-            $entity->set('status', $workflowState === 'published' ? 1 : 0);
+            $entity->set('status', $this->stateMachine->statusForState($workflowState));
         }
 
         if ($entityId !== null) {
@@ -100,18 +104,17 @@ final class DomainValidationListener
         }
 
         $previousValues = $existing->toArray();
-        $previousState = $this->normalizeWorkflowState($previousValues['workflow_state'] ?? null, $previousValues['status'] ?? 0);
+        $previousState = $this->stateMachine->normalizeState(
+            workflowState: $previousValues['workflow_state'] ?? null,
+            status: $previousValues['status'] ?? 0,
+        );
         if ($previousState === $nextState) {
             return;
         }
 
-        $allowed = [
-            'draft' => ['review'],
-            'review' => ['draft', 'published'],
-            'published' => ['draft'],
-        ];
-
-        if (!in_array($nextState, $allowed[$previousState] ?? [], true)) {
+        try {
+            $this->stateMachine->assertTransitionAllowed($previousState, $nextState);
+        } catch (\InvalidArgumentException | \RuntimeException) {
             throw new \InvalidArgumentException(sprintf(
                 'Validation failed for node bundle "%s": invalid workflow transition %s -> %s.',
                 $bundle,
@@ -173,27 +176,5 @@ final class DomainValidationListener
         }
 
         return null;
-    }
-
-    private function normalizeWorkflowState(mixed $workflowState, mixed $status): string
-    {
-        if (is_string($workflowState) && trim($workflowState) !== '') {
-            return strtolower(trim($workflowState));
-        }
-
-        if (is_bool($status)) {
-            return $status ? 'published' : 'draft';
-        }
-        if (is_numeric($status)) {
-            return ((int) $status) === 1 ? 'published' : 'draft';
-        }
-        if (is_string($status)) {
-            $normalized = strtolower(trim($status));
-            if (in_array($normalized, ['1', 'true'], true)) {
-                return 'published';
-            }
-        }
-
-        return 'draft';
     }
 }

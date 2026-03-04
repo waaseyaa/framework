@@ -14,6 +14,8 @@ final class EditorialWorkflowService
      */
     public function __construct(
         private readonly array $coreBundles,
+        private readonly EditorialWorkflowStateMachine $stateMachine = new EditorialWorkflowStateMachine(),
+        private readonly ?\Closure $clock = null,
     ) {}
 
     /**
@@ -22,7 +24,7 @@ final class EditorialWorkflowService
     public function transitionNode(FieldableInterface $node, string $toState, AccountInterface $account): void
     {
         $bundle = (string) ($node->get('type') ?? '');
-        if (!in_array($bundle, $this->coreBundles, true)) {
+        if (!\in_array($bundle, $this->coreBundles, true)) {
             throw new \InvalidArgumentException(sprintf(
                 'Workflow transition is only supported for configured bundles. Got: "%s".',
                 $bundle,
@@ -30,36 +32,13 @@ final class EditorialWorkflowService
         }
 
         $to = strtolower(trim($toState));
-        if (!in_array($to, ['draft', 'review', 'published'], true)) {
-            throw new \InvalidArgumentException(sprintf('Unknown workflow state: "%s".', $toState));
-        }
-
         $from = $this->stateFromNode($node);
         if ($from === $to) {
             return;
         }
 
-        $allowed = [
-            'draft' => ['review'],
-            'review' => ['draft', 'published'],
-            'published' => ['draft'],
-        ];
-        if (!in_array($to, $allowed[$from] ?? [], true)) {
-            throw new \RuntimeException(sprintf(
-                'Invalid workflow transition for "%s": %s -> %s.',
-                $bundle,
-                $from,
-                $to,
-            ));
-        }
-
-        $requiredPermission = match ("{$from}:{$to}") {
-            'draft:review' => "submit {$bundle} for review",
-            'review:published' => "publish {$bundle} content",
-            'review:draft' => "return {$bundle} to draft",
-            'published:draft' => "revert {$bundle} to draft",
-            default => '',
-        };
+        $transition = $this->stateMachine->assertTransitionAllowed($from, $to);
+        $requiredPermission = $this->formatPermission($transition['permission'], $bundle);
 
         if ($requiredPermission !== ''
             && !$account->hasPermission('administer nodes')
@@ -74,36 +53,76 @@ final class EditorialWorkflowService
         }
 
         $node->set('workflow_state', $to);
-        $node->set('status', $to === 'published' ? 1 : 0);
+        $node->set('status', $this->stateMachine->statusForState($to));
+        $node->set('workflow_last_transition', [
+            'id' => $transition['id'],
+            'label' => $transition['label'],
+            'from' => $transition['from'],
+            'to' => $transition['to'],
+            'required_permission' => $requiredPermission,
+        ]);
 
         $audit = $node->get('workflow_audit');
-        if (!is_array($audit)) {
+        if (!\is_array($audit)) {
             $audit = [];
         }
         $audit[] = [
+            'transition' => $transition['id'],
             'from' => $from,
             'to' => $to,
             'uid' => (string) $account->id(),
-            'at' => time(),
+            'at' => $this->timestamp(),
         ];
         $node->set('workflow_audit', $audit);
     }
 
+    /**
+     * @return list<array{id: string, label: string, from: list<string>, to: string, required_permission: string}>
+     */
+    public function getAvailableTransitionMetadata(FieldableInterface $node): array
+    {
+        $bundle = (string) ($node->get('type') ?? '');
+        $from = $this->stateFromNode($node);
+
+        $transitions = $this->stateMachine->availableTransitions($from);
+        $metadata = [];
+        foreach ($transitions as $transition) {
+            $metadata[] = [
+                'id' => $transition['id'],
+                'label' => $transition['label'],
+                'from' => $transition['from'],
+                'to' => $transition['to'],
+                'required_permission' => $this->formatPermission($transition['permission'], $bundle),
+            ];
+        }
+
+        return $metadata;
+    }
+
+    public function currentState(FieldableInterface $node): string
+    {
+        return $this->stateFromNode($node);
+    }
+
     private function stateFromNode(FieldableInterface $node): string
     {
-        $state = $node->get('workflow_state');
-        if (is_string($state) && trim($state) !== '') {
-            return strtolower(trim($state));
+        return $this->stateMachine->normalizeState(
+            workflowState: $node->get('workflow_state'),
+            status: $node->get('status'),
+        );
+    }
+
+    private function formatPermission(string $pattern, string $bundle): string
+    {
+        return str_replace('{bundle}', $bundle, $pattern);
+    }
+
+    private function timestamp(): int
+    {
+        if ($this->clock instanceof \Closure) {
+            return (int) ($this->clock)();
         }
 
-        $status = $node->get('status');
-        if (is_numeric($status) && (int) $status === 1) {
-            return 'published';
-        }
-        if (is_bool($status) && $status) {
-            return 'published';
-        }
-
-        return 'draft';
+        return time();
     }
 }
