@@ -212,6 +212,7 @@ final class HttpKernelTest extends TestCase
         $this->assertNotNull($routes->get('api.search'));
         $this->assertNotNull($routes->get('api.discovery.hub'));
         $this->assertNotNull($routes->get('api.discovery.cluster'));
+        $this->assertNotNull($routes->get('api.discovery.timeline'));
         $this->assertNotNull($routes->get('api.media.upload'));
         $this->assertNotNull($routes->get('mcp.endpoint'));
         $this->assertNotNull($routes->get('public.home'));

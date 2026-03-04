@@ -193,6 +193,137 @@ final class RelationshipDiscoveryServiceTest extends TestCase
         $this->assertSame('Beta Node', $clusterPage['clusters'][0]['related_entities'][1]['label']);
     }
 
+    #[Test]
+    public function timelineRespectsDirectionAndTemporalWindowFilters(): void
+    {
+        $database = PdoDatabase::createSqlite();
+        $this->createRelationshipTable($database);
+
+        $this->insertTemporalRelationship($database, 1, 'references', 'node', '1', 'node', '2', 1, 100, 200);
+        $this->insertTemporalRelationship($database, 2, 'references', 'node', '3', 'node', '1', 1, 150, 260);
+        $this->insertTemporalRelationship($database, 3, 'references', 'node', '1', 'node', '4', 1, 300, 400);
+
+        $relationshipStorage = new DiscoveryRelationshipStorage([
+            1 => new Relationship([
+                'rid' => 1,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '2',
+                'directionality' => 'directed',
+                'status' => 1,
+                'start_date' => 100,
+                'end_date' => 200,
+            ]),
+            2 => new Relationship([
+                'rid' => 2,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '3',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '1',
+                'directionality' => 'directed',
+                'status' => 1,
+                'start_date' => 150,
+                'end_date' => 260,
+            ]),
+            3 => new Relationship([
+                'rid' => 3,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '4',
+                'directionality' => 'directed',
+                'status' => 1,
+                'start_date' => 300,
+                'end_date' => 400,
+            ]),
+        ]);
+
+        $nodeStorage = new DiscoveryEntityStorage([
+            '1' => new DiscoveryTestEntity('node', 'article', 1, 'Source'),
+            '2' => new DiscoveryTestEntity('node', 'article', 2, 'Alpha Node'),
+            '3' => new DiscoveryTestEntity('node', 'article', 3, 'Inbound Node'),
+            '4' => new DiscoveryTestEntity('node', 'article', 4, 'Late Node'),
+        ]);
+
+        $manager = new DiscoveryEntityTypeManager([
+            'relationship' => $relationshipStorage,
+            'node' => $nodeStorage,
+        ]);
+
+        $service = new RelationshipDiscoveryService(new RelationshipTraversalService($manager, $database));
+        $timeline = $service->timeline('node', 1, [
+            'direction' => 'both',
+            'from' => 130,
+            'to' => 280,
+            'status' => 'published',
+        ]);
+
+        $this->assertSame(2, $timeline['page']['total']);
+        $this->assertSame('1', $timeline['items'][0]['relationship_id']);
+        $this->assertSame('outbound', $timeline['items'][0]['direction']);
+        $this->assertSame(100, $timeline['items'][0]['timeline_date']);
+        $this->assertSame('2', $timeline['items'][1]['relationship_id']);
+        $this->assertSame('inbound', $timeline['items'][1]['direction']);
+        $this->assertSame(150, $timeline['items'][1]['timeline_date']);
+    }
+
+    #[Test]
+    public function timelineDeterministicTieBreaksApplyForEqualStartDates(): void
+    {
+        $database = PdoDatabase::createSqlite();
+        $this->createRelationshipTable($database);
+
+        $this->insertTemporalRelationship($database, 1, 'influences', 'node', '1', 'node', '2', 1, 500, null);
+        $this->insertTemporalRelationship($database, 2, 'influences', 'node', '1', 'node', '3', 1, 500, null);
+
+        $relationshipStorage = new DiscoveryRelationshipStorage([
+            1 => new Relationship([
+                'rid' => 1,
+                'relationship_type' => 'influences',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '2',
+                'directionality' => 'directed',
+                'status' => 1,
+                'start_date' => 500,
+            ]),
+            2 => new Relationship([
+                'rid' => 2,
+                'relationship_type' => 'influences',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '3',
+                'directionality' => 'directed',
+                'status' => 1,
+                'start_date' => 500,
+            ]),
+        ]);
+
+        $nodeStorage = new DiscoveryEntityStorage([
+            '1' => new DiscoveryTestEntity('node', 'article', 1, 'Source'),
+            '2' => new DiscoveryTestEntity('node', 'article', 2, 'Alpha'),
+            '3' => new DiscoveryTestEntity('node', 'article', 3, 'Beta'),
+        ]);
+
+        $manager = new DiscoveryEntityTypeManager([
+            'relationship' => $relationshipStorage,
+            'node' => $nodeStorage,
+        ]);
+
+        $service = new RelationshipDiscoveryService(new RelationshipTraversalService($manager, $database));
+        $timeline = $service->timeline('node', 1, ['direction' => 'outbound', 'status' => 'published']);
+
+        $this->assertSame(2, $timeline['page']['total']);
+        $this->assertSame('1', $timeline['items'][0]['relationship_id']);
+        $this->assertSame('2', $timeline['items'][1]['relationship_id']);
+    }
+
     private function createRelationshipTable(PdoDatabase $database): void
     {
         $database->getPdo()->exec(<<<SQL
@@ -226,6 +357,24 @@ SQL);
         $database->query(
             'INSERT INTO relationship (rid, relationship_type, from_entity_type, from_entity_id, to_entity_type, to_entity_id, directionality, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [$rid, $relationshipType, $fromType, $fromId, $toType, $toId, 'directed', $status],
+        );
+    }
+
+    private function insertTemporalRelationship(
+        PdoDatabase $database,
+        int $rid,
+        string $relationshipType,
+        string $fromType,
+        string $fromId,
+        string $toType,
+        string $toId,
+        int $status,
+        ?int $startDate,
+        ?int $endDate,
+    ): void {
+        $database->query(
+            'INSERT INTO relationship (rid, relationship_type, from_entity_type, from_entity_id, to_entity_type, to_entity_id, directionality, status, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [$rid, $relationshipType, $fromType, $fromId, $toType, $toId, 'directed', $status, $startDate, $endDate],
         );
     }
 }

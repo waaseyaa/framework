@@ -161,6 +161,103 @@ final class RelationshipDiscoveryService
     }
 
     /**
+     * @param array{
+     *   direction?: 'outbound'|'inbound'|'both',
+     *   relationship_types?: list<string>,
+     *   status?: 'published'|'unpublished'|'all',
+     *   at?: int|string|null,
+     *   from?: int|string|null,
+     *   to?: int|string|null,
+     *   limit?: int|null,
+     *   offset?: int|null
+     * } $options
+     * @return array<string, mixed>
+     */
+    public function timeline(string $entityType, int|string $entityId, array $options = []): array
+    {
+        $limit = $this->normalizeLimit($options['limit'] ?? null, 20);
+        $offset = $this->normalizeOffset($options['offset'] ?? null);
+        $direction = $this->normalizeDirection($options['direction'] ?? 'both');
+        $from = $this->normalizeTemporal($options['from'] ?? null);
+        $to = $this->normalizeTemporal($options['to'] ?? null);
+        $at = $this->normalizeTemporal($options['at'] ?? null);
+
+        $browse = $this->traversalService->browse($entityType, $entityId, [
+            'relationship_types' => $this->normalizeRelationshipTypes($options['relationship_types'] ?? []),
+            'status' => $this->normalizeStatus($options['status'] ?? 'published'),
+            'at' => $at,
+        ]);
+
+        $edges = [];
+        if (in_array($direction, ['outbound', 'both'], true)) {
+            $edges = array_merge($edges, is_array($browse['outbound'] ?? null) ? $browse['outbound'] : []);
+        }
+        if (in_array($direction, ['inbound', 'both'], true)) {
+            $edges = array_merge($edges, is_array($browse['inbound'] ?? null) ? $browse['inbound'] : []);
+        }
+
+        $edges = array_values(array_filter(
+            $edges,
+            fn(array $edge): bool => $this->edgeOverlapsWindow($edge, $from, $to),
+        ));
+
+        usort($edges, static function (array $left, array $right): int {
+            $leftTimeline = self::timelineSortDate($left);
+            $rightTimeline = self::timelineSortDate($right);
+            $timelineCompare = $leftTimeline <=> $rightTimeline;
+            if ($timelineCompare !== 0) {
+                return $timelineCompare;
+            }
+
+            $leftDirectionRank = ((string) ($left['direction'] ?? '')) === 'outbound' ? 0 : 1;
+            $rightDirectionRank = ((string) ($right['direction'] ?? '')) === 'outbound' ? 0 : 1;
+            if ($leftDirectionRank !== $rightDirectionRank) {
+                return $leftDirectionRank <=> $rightDirectionRank;
+            }
+
+            $relationshipTypeCompare = strcmp((string) ($left['relationship_type'] ?? ''), (string) ($right['relationship_type'] ?? ''));
+            if ($relationshipTypeCompare !== 0) {
+                return $relationshipTypeCompare;
+            }
+
+            $relatedTypeCompare = strcmp((string) ($left['related_entity_type'] ?? ''), (string) ($right['related_entity_type'] ?? ''));
+            if ($relatedTypeCompare !== 0) {
+                return $relatedTypeCompare;
+            }
+
+            $relatedIdCompare = strcmp((string) ($left['related_entity_id'] ?? ''), (string) ($right['related_entity_id'] ?? ''));
+            if ($relatedIdCompare !== 0) {
+                return $relatedIdCompare;
+            }
+
+            return strcmp((string) ($left['relationship_id'] ?? ''), (string) ($right['relationship_id'] ?? ''));
+        });
+
+        $pagedEdges = array_slice($edges, $offset, $limit);
+        $items = array_map(function (array $edge): array {
+            $edge['timeline_date'] = self::timelineSortDate($edge);
+            return $edge;
+        }, $pagedEdges);
+
+        return [
+            'source' => $browse['source'],
+            'items' => $items,
+            'filters' => [
+                'direction' => $direction,
+                'from' => $from,
+                'to' => $to,
+                'at' => $at,
+            ],
+            'page' => [
+                'offset' => $offset,
+                'limit' => $limit,
+                'count' => count($items),
+                'total' => count($edges),
+            ],
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $browse
      * @return list<array<string, mixed>>
      */
@@ -314,5 +411,90 @@ final class RelationshipDiscoveryService
         }
 
         return max(0, (int) $offset);
+    }
+
+    private function normalizeDirection(mixed $direction): string
+    {
+        if (!is_string($direction)) {
+            return 'both';
+        }
+        $value = strtolower(trim($direction));
+        if (!in_array($value, ['outbound', 'inbound', 'both'], true)) {
+            return 'both';
+        }
+
+        return $value;
+    }
+
+    private function normalizeTemporal(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_int($value)) {
+            return $value;
+        }
+        if (is_numeric($value)) {
+            return (int) $value;
+        }
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+        if (ctype_digit($trimmed)) {
+            return (int) $trimmed;
+        }
+
+        $parsed = strtotime($trimmed);
+        if ($parsed === false) {
+            return null;
+        }
+
+        return $parsed;
+    }
+
+    /**
+     * @param array<string, mixed> $edge
+     */
+    private function edgeOverlapsWindow(array $edge, ?int $from, ?int $to): bool
+    {
+        if ($from === null && $to === null) {
+            return true;
+        }
+
+        $start = is_numeric($edge['start_date'] ?? null) ? (int) $edge['start_date'] : null;
+        $end = is_numeric($edge['end_date'] ?? null) ? (int) $edge['end_date'] : null;
+
+        if ($to !== null && $start !== null && $start > $to) {
+            return false;
+        }
+
+        if ($from !== null && $end !== null && $end < $from) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string, mixed> $edge
+     */
+    private static function timelineSortDate(array $edge): int
+    {
+        $start = is_numeric($edge['start_date'] ?? null) ? (int) $edge['start_date'] : null;
+        if ($start !== null) {
+            return $start;
+        }
+
+        $end = is_numeric($edge['end_date'] ?? null) ? (int) $edge['end_date'] : null;
+        if ($end !== null) {
+            return $end;
+        }
+
+        return PHP_INT_MAX;
     }
 }

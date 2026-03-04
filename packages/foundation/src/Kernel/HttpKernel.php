@@ -344,6 +344,15 @@ final class HttpKernel extends AbstractKernel
         );
 
         $router->addRoute(
+            'api.discovery.timeline',
+            RouteBuilder::create('/api/discovery/timeline/{entity_type}/{id}')
+                ->controller('discovery.timeline')
+                ->allowAll()
+                ->methods('GET')
+                ->build(),
+        );
+
+        $router->addRoute(
             'mcp.endpoint',
             RouteBuilder::create('/mcp')
                 ->controller('mcp.endpoint')
@@ -602,6 +611,38 @@ final class HttpKernel extends AbstractKernel
                         'relationship_types' => $relationshipTypes,
                         'status' => is_string($query['status'] ?? null) ? trim((string) $query['status']) : 'published',
                         'at' => $query['at'] ?? null,
+                        'limit' => is_numeric($query['limit'] ?? null) ? (int) $query['limit'] : null,
+                        'offset' => is_numeric($query['offset'] ?? null) ? (int) $query['offset'] : null,
+                    ]);
+
+                    $this->sendJson(200, ['data' => $payload]);
+                })(),
+
+                $controller === 'discovery.timeline' => (function () use ($params, $query): never {
+                    $entityType = is_string($params['entity_type'] ?? null) ? trim((string) $params['entity_type']) : '';
+                    $entityId = $params['id'] ?? null;
+                    if ($entityType === '' || !is_scalar($entityId) || trim((string) $entityId) === '') {
+                        $this->sendJson(400, [
+                            'jsonapi' => ['version' => '1.1'],
+                            'errors' => [[
+                                'status' => '400',
+                                'title' => 'Bad Request',
+                                'detail' => 'Discovery timeline requires route params "entity_type" and "id".',
+                            ]],
+                        ]);
+                    }
+
+                    $relationshipTypes = $this->parseRelationshipTypesQuery($query['relationship_types'] ?? null);
+                    $service = new RelationshipDiscoveryService(
+                        new RelationshipTraversalService($this->entityTypeManager, $this->database),
+                    );
+                    $payload = $service->timeline($entityType, (string) $entityId, [
+                        'direction' => is_string($query['direction'] ?? null) ? trim((string) $query['direction']) : 'both',
+                        'relationship_types' => $relationshipTypes,
+                        'status' => is_string($query['status'] ?? null) ? trim((string) $query['status']) : 'published',
+                        'at' => $query['at'] ?? null,
+                        'from' => $query['from'] ?? null,
+                        'to' => $query['to'] ?? null,
                         'limit' => is_numeric($query['limit'] ?? null) ? (int) $query['limit'] : null,
                         'offset' => is_numeric($query['offset'] ?? null) ? (int) $query['offset'] : null,
                     ]);
