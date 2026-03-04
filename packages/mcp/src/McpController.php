@@ -12,6 +12,7 @@ use Waaseyaa\AI\Vector\SearchController;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Relationship\RelationshipTraversalService;
 
 final class McpController
 {
@@ -22,6 +23,7 @@ final class McpController
         private readonly AccountInterface $account,
         private readonly EmbeddingStorageInterface $embeddingStorage,
         private readonly ?EmbeddingProviderInterface $embeddingProvider = null,
+        private readonly ?RelationshipTraversalService $relationshipTraversal = null,
     ) {}
 
     /**
@@ -41,6 +43,7 @@ final class McpController
                 ['name' => 'list_entity_types', 'description' => 'List available entity types and schemas'],
                 ['name' => 'traverse_relationships', 'description' => 'Traverse relationship entities for a source entity with direction/type/temporal filters'],
                 ['name' => 'get_related_entities', 'description' => 'Resolve related entities via relationship traversal with optional edge payloads'],
+                ['name' => 'get_knowledge_graph', 'description' => 'Return directional relationship graph surface for an entity'],
             ],
         ];
     }
@@ -82,6 +85,7 @@ final class McpController
                 'list_entity_types' => $this->toolListEntityTypes(),
                 'traverse_relationships' => $this->toolTraverseRelationships($arguments),
                 'get_related_entities' => $this->toolGetRelatedEntities($arguments),
+                'get_knowledge_graph' => $this->toolGetKnowledgeGraph($arguments),
                 default => null,
             };
         } catch (\InvalidArgumentException $e) {
@@ -281,6 +285,79 @@ final class McpController
         }
 
         return $payload;
+    }
+
+    /**
+     * @param array<string, mixed> $arguments
+     * @return array<string, mixed>
+     */
+    private function toolGetKnowledgeGraph(array $arguments): array
+    {
+        $parsed = $this->parseTraversalArguments($arguments);
+
+        if ($this->relationshipTraversal !== null) {
+            $graph = $this->relationshipTraversal->browse($parsed['entity_type'], $parsed['entity_id'], [
+                'relationship_types' => $parsed['relationship_types'],
+                'status' => $parsed['status'],
+                'at' => $parsed['at'],
+                'limit' => $parsed['limit'],
+            ]);
+        } else {
+            $rows = $this->collectTraversalRows($parsed + ['direction' => 'both']);
+            $graph = [
+                'source' => [
+                    'type' => $parsed['entity_type'],
+                    'id' => $parsed['entity_id'],
+                ],
+                'outbound' => [],
+                'inbound' => [],
+                'counts' => ['outbound' => 0, 'inbound' => 0, 'total' => 0],
+            ];
+
+            foreach ($rows as $row) {
+                $edge = [
+                    'relationship_id' => (string) $row['relationship']->id(),
+                    'relationship_type' => (string) ($row['relationship']->get('relationship_type') ?? ''),
+                    'direction' => $row['direction'],
+                    'inverse' => (bool) ($row['inverse'] ?? false),
+                    'directionality' => (string) ($row['relationship']->get('directionality') ?? 'directed'),
+                    'related_entity_type' => $row['related_entity_type'],
+                    'related_entity_id' => $row['related_entity_id'],
+                    'related_entity_label' => $row['related_entity_type'] . ':' . $row['related_entity_id'],
+                    'related_entity_path' => '/' . $row['related_entity_type'] . '/' . $row['related_entity_id'],
+                    'status' => (int) ($row['relationship']->get('status') ?? 0),
+                    'weight' => is_numeric($row['relationship']->get('weight')) ? (float) $row['relationship']->get('weight') : null,
+                    'confidence' => is_numeric($row['relationship']->get('confidence')) ? (float) $row['relationship']->get('confidence') : null,
+                    'start_date' => $this->normalizeTemporal($row['relationship']->get('start_date')),
+                    'end_date' => $this->normalizeTemporal($row['relationship']->get('end_date')),
+                ];
+
+                if ($row['direction'] === 'inbound') {
+                    $graph['inbound'][] = $edge;
+                } else {
+                    $graph['outbound'][] = $edge;
+                }
+            }
+
+            $graph['counts']['outbound'] = count($graph['outbound']);
+            $graph['counts']['inbound'] = count($graph['inbound']);
+            $graph['counts']['total'] = $graph['counts']['outbound'] + $graph['counts']['inbound'];
+        }
+
+        return [
+            'data' => $graph,
+            'meta' => [
+                'filters' => [
+                    'entity_type' => $parsed['entity_type'],
+                    'entity_id' => $parsed['entity_id'],
+                    'status' => $parsed['status'],
+                    'relationship_types' => $parsed['relationship_types'],
+                    'at' => $parsed['at'],
+                    'limit' => $parsed['limit'],
+                ],
+                'count' => (int) ($graph['counts']['total'] ?? 0),
+            ],
+        ];
     }
 
     /**

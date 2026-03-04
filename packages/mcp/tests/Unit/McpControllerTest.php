@@ -31,6 +31,7 @@ final class McpControllerTest extends TestCase
         $this->assertContains('list_entity_types', $toolNames);
         $this->assertContains('traverse_relationships', $toolNames);
         $this->assertContains('get_related_entities', $toolNames);
+        $this->assertContains('get_knowledge_graph', $toolNames);
     }
 
     #[Test]
@@ -45,7 +46,7 @@ final class McpControllerTest extends TestCase
 
         $this->assertSame('2.0', $response['jsonrpc']);
         $this->assertSame(1, $response['id']);
-        $this->assertCount(5, $response['result']['tools']);
+        $this->assertCount(6, $response['result']['tools']);
     }
 
     #[Test]
@@ -98,6 +99,22 @@ final class McpControllerTest extends TestCase
             'id' => 17,
             'method' => 'tools/call',
             'params' => ['name' => 'traverse_relationships', 'arguments' => []],
+        ]);
+
+        $this->assertSame(-32602, $response['error']['code']);
+        $this->assertStringContainsString('requires non-empty "type" and "id"', $response['error']['message']);
+    }
+
+    #[Test]
+    public function knowledgeGraphToolReturnsInvalidParamsWhenRequiredArgumentsAreMissing(): void
+    {
+        $controller = $this->createController();
+
+        $response = $controller->handleRpc([
+            'jsonrpc' => '2.0',
+            'id' => 18,
+            'method' => 'tools/call',
+            'params' => ['name' => 'get_knowledge_graph', 'arguments' => []],
         ]);
 
         $this->assertSame(-32602, $response['error']['code']);
