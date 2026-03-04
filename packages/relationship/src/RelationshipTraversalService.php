@@ -178,6 +178,7 @@ final class RelationshipTraversalService
             sourceEntityType: $entityType,
             sourceEntityId: $sourceId,
             direction: 'outbound',
+            statusMode: $normalized['status'],
         );
 
         $inboundEdges = $this->mapTraversalRelationships(
@@ -185,6 +186,7 @@ final class RelationshipTraversalService
             sourceEntityType: $entityType,
             sourceEntityId: $sourceId,
             direction: 'inbound',
+            statusMode: $normalized['status'],
         );
 
         return [
@@ -204,6 +206,7 @@ final class RelationshipTraversalService
 
     /**
      * @param list<Relationship> $relationships
+     * @param 'published'|'unpublished'|'all' $statusMode
      * @return list<array{
      *   relationship_id: string,
      *   relationship_type: string,
@@ -226,6 +229,7 @@ final class RelationshipTraversalService
         string $sourceEntityType,
         string $sourceEntityId,
         string $direction,
+        string $statusMode,
     ): array {
         $edges = [];
 
@@ -272,7 +276,14 @@ final class RelationshipTraversalService
                 continue;
             }
 
-            $relatedLabel = $this->loadEntityLabel($relatedType, $relatedId);
+            $relatedSummary = $this->loadEntitySummary($relatedType, $relatedId);
+            if ($statusMode === 'published' && !$relatedSummary['is_public']) {
+                continue;
+            }
+            if ($statusMode === 'unpublished' && $relatedSummary['is_public']) {
+                continue;
+            }
+
             $edges[] = [
                 'relationship_id' => (string) $relationship->id(),
                 'relationship_type' => (string) ($relationship->get('relationship_type') ?? ''),
@@ -281,7 +292,7 @@ final class RelationshipTraversalService
                 'directionality' => $directionality !== '' ? $directionality : 'directed',
                 'related_entity_type' => $relatedType,
                 'related_entity_id' => $relatedId,
-                'related_entity_label' => $relatedLabel,
+                'related_entity_label' => $relatedSummary['label'],
                 'related_entity_path' => sprintf('/%s/%s', $relatedType, $relatedId),
                 'status' => $this->statusSortValue($relationship),
                 'weight' => is_numeric($relationship->get('weight')) ? (float) $relationship->get('weight') : null,
@@ -294,24 +305,81 @@ final class RelationshipTraversalService
         return $edges;
     }
 
-    private function loadEntityLabel(string $entityType, string $entityId): string
+    /**
+     * @return array{label: string, is_public: bool}
+     */
+    private function loadEntitySummary(string $entityType, string $entityId): array
     {
         if (!$this->entityTypeManager->hasDefinition($entityType)) {
-            return sprintf('%s:%s', $entityType, $entityId);
+            return [
+                'label' => sprintf('%s:%s', $entityType, $entityId),
+                'is_public' => false,
+            ];
         }
 
         try {
             $storage = $this->entityTypeManager->getStorage($entityType);
             $resolvedId = ctype_digit($entityId) ? (int) $entityId : $entityId;
             $entity = $storage->load($resolvedId);
-            if ($entity !== null && trim($entity->label()) !== '') {
-                return $entity->label();
+            if ($entity !== null) {
+                $label = trim($entity->label()) !== ''
+                    ? $entity->label()
+                    : sprintf('%s:%s', $entityType, $entityId);
+
+                return [
+                    'label' => $label,
+                    'is_public' => $this->isEntityPublic($entityType, $entity->toArray()),
+                ];
             }
         } catch (\Throwable) {
             // Relationship browsing is best-effort for labels.
         }
 
-        return sprintf('%s:%s', $entityType, $entityId);
+        return [
+            'label' => sprintf('%s:%s', $entityType, $entityId),
+            'is_public' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     */
+    private function isEntityPublic(string $entityType, array $values): bool
+    {
+        if ($entityType === 'node') {
+            return $this->normalizeWorkflowState($values['workflow_state'] ?? null, $values['status'] ?? 0) === 'published';
+        }
+
+        if (!array_key_exists('status', $values)) {
+            return true;
+        }
+
+        return $this->normalizeStatusFlag($values['status']);
+    }
+
+    private function normalizeStatusFlag(mixed $status): bool
+    {
+        if (is_bool($status)) {
+            return $status;
+        }
+        if (is_int($status) || is_float($status)) {
+            return (int) $status === 1;
+        }
+        if (is_string($status)) {
+            $value = strtolower(trim($status));
+            return in_array($value, ['1', 'true', 'published', 'yes'], true);
+        }
+
+        return false;
+    }
+
+    private function normalizeWorkflowState(mixed $workflowState, mixed $status): string
+    {
+        if (is_string($workflowState) && trim($workflowState) !== '') {
+            return strtolower(trim($workflowState));
+        }
+
+        return $this->normalizeStatusFlag($status) ? 'published' : 'draft';
     }
 
     private function normalizeDirection(mixed $direction): string
