@@ -21,6 +21,7 @@ use Waaseyaa\CLI\Command\EntityCreateCommand;
 use Waaseyaa\CLI\Command\EntityListCommand;
 use Waaseyaa\CLI\Command\EntityTypeListCommand;
 use Waaseyaa\CLI\Command\EventListCommand;
+use Waaseyaa\CLI\Command\ExtensionScaffoldCommand;
 use Waaseyaa\CLI\Command\FixtureGenerateCommand;
 use Waaseyaa\CLI\Command\FixturePackRefreshCommand;
 use Waaseyaa\CLI\Command\FixtureScaffoldCommand;
@@ -159,6 +160,7 @@ final class ConsoleKernel extends AbstractKernel
             new BundleScaffoldCommand(),
             new RelationshipTypeScaffoldCommand(),
             new WorkflowScaffoldCommand(),
+            new ExtensionScaffoldCommand(),
             new OptimizeCommand(),
             new OptimizeManifestCommand($manifestCompiler),
             new OptimizeConfigCommand(new ConfigCacheCompiler(

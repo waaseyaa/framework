@@ -93,6 +93,7 @@ Use this as the default runbook for upgrades, baseline refreshes, and verificati
 2. Read subsystem spec(s) in `docs/specs/` for the package being changed.
 3. Use v1.2 tooling for deterministic setup:
    - `scaffold:bundle`, `scaffold:relationship`, `scaffold:workflow`
+   - `scaffold:extension`
    - `fixture:generate`
    - `debug:context`
    - `perf:baseline`, `perf:compare`
