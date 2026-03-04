@@ -1,0 +1,12 @@
+{
+    "contract_version": "v1.1",
+    "surface": "performance_regression_gate",
+    "snapshot_hash": "e2efaab9f0f473c3a7f5a0730e66d40de60d267b",
+    "thresholds_ms": {
+        "warm": 5000,
+        "semantic_search": 5000,
+        "ssr_navigation": 5000,
+        "discovery_hub": 5000,
+        "mcp_ai_discover": 5000
+    }
+}

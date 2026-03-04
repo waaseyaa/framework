@@ -602,8 +602,16 @@ Exit semantics:
 Deterministic baseline gate for semantic/discovery read paths:
 
 - warms `node` embeddings using workflow fixture corpus,
-- validates semantic search and MCP `ai_discover` output shape/order against a fixed baseline hash,
-- enforces latency budgets for warm, semantic search, and MCP discovery calls.
+- validates semantic/discovery/MCP/SSR-navigation output shape against a versioned baseline artifact:
+  - `tests/Baselines/performance_regression_v1.1.json`
+- enforces latency budgets for:
+  - semantic warm
+  - semantic search
+  - SSR relationship-navigation browse path
+  - discovery topic-hub path
+  - MCP `ai_discover`
+- supports controlled baseline refresh for local/CI maintenance via:
+  - `WAASEYAA_UPDATE_PERF_BASELINE=1`
 
 This gate is part of the v1.0 hardening verification substrate and is intended to detect both contract drift and severe read-path performance regressions.
 

@@ -30,18 +30,16 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Mcp\McpController;
+use Waaseyaa\Relationship\RelationshipDiscoveryService;
 use Waaseyaa\Relationship\Relationship;
 use Waaseyaa\Relationship\RelationshipSchemaManager;
+use Waaseyaa\Relationship\RelationshipTraversalService;
 use Waaseyaa\Tests\Support\WorkflowFixturePack;
 
 #[CoversNothing]
 final class SemanticWarmBaselineIntegrationTest extends TestCase
 {
-    private const string EXPECTED_BASELINE_HASH = '7d1f94b39753d5ed3bd07028e35244f853198e26';
-
-    private const float MAX_WARM_MS = 5000.0;
-    private const float MAX_SEMANTIC_SEARCH_MS = 5000.0;
-    private const float MAX_MCP_DISCOVERY_MS = 5000.0;
+    private const string BASELINE_ARTIFACT = __DIR__ . '/../../Baselines/performance_regression_v1.1.json';
 
     private PdoDatabase $database;
     private EntityTypeManager $entityTypeManager;
@@ -155,6 +153,23 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
         );
 
         $anchorId = (string) $this->nodeIdsByFixtureKey['anchor_water'];
+        $traversal = new RelationshipTraversalService($this->entityTypeManager, $this->database);
+        $discovery = new RelationshipDiscoveryService($traversal);
+
+        $ssrNavigationStarted = hrtime(true);
+        $ssrNavigation = $traversal->browse('node', $anchorId, [
+            'status' => 'published',
+            'limit' => 25,
+        ]);
+        $ssrNavigationDurationMs = $this->durationMs($ssrNavigationStarted);
+
+        $discoveryStarted = hrtime(true);
+        $topicHub = $discovery->topicHub('node', $anchorId, [
+            'status' => 'published',
+            'limit' => 20,
+        ]);
+        $discoveryDurationMs = $this->durationMs($discoveryStarted);
+
         $mcpStarted = hrtime(true);
         $mcpResult = $mcp->handleRpc([
             'jsonrpc' => '2.0',
@@ -194,6 +209,17 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
                 'count' => count($keywordSearch['data'] ?? []),
                 'titles' => $this->resourceTitles($keywordSearch['data'] ?? []),
             ],
+            'ssr_navigation' => [
+                'outbound' => (int) ($ssrNavigation['counts']['outbound'] ?? 0),
+                'inbound' => (int) ($ssrNavigation['counts']['inbound'] ?? 0),
+                'total' => (int) ($ssrNavigation['counts']['total'] ?? 0),
+                'first_outbound_relationship_type' => (string) ($ssrNavigation['outbound'][0]['relationship_type'] ?? ''),
+            ],
+            'discovery_hub' => [
+                'total' => (int) ($topicHub['page']['total'] ?? 0),
+                'count' => (int) ($topicHub['page']['count'] ?? 0),
+                'first_item_relationship_type' => (string) ($topicHub['items'][0]['relationship_type'] ?? ''),
+            ],
             'mcp_ai_discover' => [
                 'count' => count($mcpPayload['data']['recommendations'] ?? []),
                 'titles' => $this->recommendationTitles($mcpPayload['data']['recommendations'] ?? []),
@@ -204,11 +230,39 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
         ];
 
         $snapshotHash = sha1((string) json_encode($snapshot, JSON_THROW_ON_ERROR));
+        $baseline = $this->loadBaselineContract();
+        if ((string) getenv('WAASEYAA_UPDATE_PERF_BASELINE') === '1') {
+            $baseline['snapshot_hash'] = $snapshotHash;
+            $this->writeBaselineContract($baseline);
+        }
 
-        $this->assertSame(self::EXPECTED_BASELINE_HASH, $snapshotHash);
-        $this->assertLessThanOrEqual(self::MAX_WARM_MS, $warmDurationMs, 'semantic warm latency budget drifted');
-        $this->assertLessThanOrEqual(self::MAX_SEMANTIC_SEARCH_MS, $semanticSearchDurationMs, 'semantic search latency budget drifted');
-        $this->assertLessThanOrEqual(self::MAX_MCP_DISCOVERY_MS, $mcpDurationMs, 'ai_discover latency budget drifted');
+        $this->assertSame(
+            $baseline['snapshot_hash'],
+            $snapshotHash,
+            sprintf('performance baseline drift detected (expected %s, got %s)', $baseline['snapshot_hash'], $snapshotHash),
+        );
+
+        $durations = [
+            'warm' => $warmDurationMs,
+            'semantic_search' => $semanticSearchDurationMs,
+            'ssr_navigation' => $ssrNavigationDurationMs,
+            'discovery_hub' => $discoveryDurationMs,
+            'mcp_ai_discover' => $mcpDurationMs,
+        ];
+
+        foreach ($durations as $surface => $durationMs) {
+            $threshold = (float) ($baseline['thresholds_ms'][$surface] ?? 0.0);
+            $this->assertGreaterThan(
+                0.0,
+                $threshold,
+                sprintf('missing latency threshold for surface "%s"', $surface),
+            );
+            $this->assertLessThanOrEqual(
+                $threshold,
+                $durationMs,
+                sprintf('%s latency budget drifted: %.3fms > %.3fms', $surface, $durationMs, $threshold),
+            );
+        }
     }
 
     private function seedFixtureCorpus(): void
@@ -275,6 +329,49 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
     private function durationMs(int $startedAt): float
     {
         return round((hrtime(true) - $startedAt) / 1_000_000, 3);
+    }
+
+    /**
+     * @return array{
+     *   contract_version: string,
+     *   surface: string,
+     *   snapshot_hash: string,
+     *   thresholds_ms: array{
+     *     warm: float|int,
+     *     semantic_search: float|int,
+     *     ssr_navigation: float|int,
+     *     discovery_hub: float|int,
+     *     mcp_ai_discover: float|int
+     *   }
+     * }
+     */
+    private function loadBaselineContract(): array
+    {
+        if (!is_file(self::BASELINE_ARTIFACT)) {
+            $this->fail(sprintf('Missing baseline artifact: %s', self::BASELINE_ARTIFACT));
+        }
+
+        $raw = file_get_contents(self::BASELINE_ARTIFACT);
+        $this->assertIsString($raw, 'Failed reading performance baseline artifact.');
+
+        $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        $this->assertIsArray($decoded, 'Invalid performance baseline artifact shape.');
+
+        return $decoded;
+    }
+
+    /**
+     * @param array<string, mixed> $baseline
+     */
+    private function writeBaselineContract(array $baseline): void
+    {
+        $dir = dirname(self::BASELINE_ARTIFACT);
+        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+            $this->fail(sprintf('Failed to create baseline directory: %s', $dir));
+        }
+
+        $json = json_encode($baseline, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        file_put_contents(self::BASELINE_ARTIFACT, $json . PHP_EOL);
     }
 }
 
