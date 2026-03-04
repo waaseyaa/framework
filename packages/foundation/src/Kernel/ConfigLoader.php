@@ -9,7 +9,10 @@ final class ConfigLoader
     /**
      * Load configuration from a PHP file that returns an array.
      *
-     * @return array<string, mixed>
+     * The returned array shape depends on the config file. May be an
+     * associative key-value map or a sequential list of objects.
+     *
+     * @return array<mixed>
      */
     public static function load(string $path): array
     {
@@ -17,8 +20,25 @@ final class ConfigLoader
             return [];
         }
 
-        $data = require $path;
+        try {
+            $data = require $path;
+        } catch (\Throwable $e) {
+            throw new \RuntimeException(
+                sprintf('Failed to load configuration from %s: %s', $path, $e->getMessage()),
+                0,
+                $e,
+            );
+        }
 
-        return is_array($data) ? $data : [];
+        if (!is_array($data)) {
+            error_log(sprintf(
+                '[Waaseyaa] Config file %s did not return an array (got %s), treating as empty.',
+                $path,
+                get_debug_type($data),
+            ));
+            return [];
+        }
+
+        return $data;
     }
 }

@@ -46,6 +46,8 @@ Use `waaseyaa_search_specs` MCP tool to find specs affected by a change when the
 
 **Rule:** Packages can only import from their own layer or lower. Upward communication via DomainEvents.
 
+**Exemption:** The `Kernel/` classes in Foundation (`AbstractKernel`, `HttpKernel`, `ConsoleKernel`) are application bootstrappers that wire all layers together. They intentionally import from all layers. This is acceptable because kernels are entry-point orchestrators, not reusable library code — no other package imports from them.
+
 ## Operation Checklists
 
 **Adding an entity type:**

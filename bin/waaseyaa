@@ -9,11 +9,18 @@ $autoloadPaths = [
     __DIR__ . '/../../../autoload.php',
 ];
 
+$autoloaded = false;
 foreach ($autoloadPaths as $path) {
     if (file_exists($path)) {
         require $path;
+        $autoloaded = true;
         break;
     }
+}
+
+if (!$autoloaded) {
+    fwrite(STDERR, "Could not find Composer autoloader. Run 'composer install' first.\n");
+    exit(1);
 }
 
 $kernel = new Waaseyaa\Foundation\Kernel\ConsoleKernel(dirname(__DIR__));

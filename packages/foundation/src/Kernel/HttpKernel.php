@@ -27,6 +27,13 @@ use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\User\DevAdminAccount;
 use Waaseyaa\User\Middleware\SessionMiddleware;
 
+/**
+ * HTTP front controller kernel.
+ *
+ * Boots the application, handles CORS, matches routes, runs the
+ * authorization pipeline (Session -> Authorization), and dispatches
+ * to controllers. The handle() method is terminal (returns never).
+ */
 final class HttpKernel extends AbstractKernel
 {
     public function handle(): never
@@ -111,6 +118,13 @@ final class HttpKernel extends AbstractKernel
         $this->dispatch($method, $params, $httpRequest, $queryString, $broadcastStorage, $account);
     }
 
+    /**
+     * Handle CORS preflight and headers.
+     *
+     * Origins are configurable via waaseyaa.php 'cors_origins'. Defaults to
+     * Nuxt dev server ports. If the dev server binds to a different port,
+     * add it to the config array.
+     */
     private function handleCors(): void
     {
         $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
@@ -119,10 +133,17 @@ final class HttpKernel extends AbstractKernel
         if (in_array($origin, $allowedOrigins, true)) {
             header("Access-Control-Allow-Origin: {$origin}");
             header('Vary: Origin');
+            header('Access-Control-Allow-Methods: GET, POST, PATCH, DELETE, OPTIONS');
+            header('Access-Control-Allow-Headers: Content-Type, Accept, Authorization');
+            header('Access-Control-Max-Age: 86400');
+        } elseif ($origin !== '') {
+            error_log(sprintf(
+                '[Waaseyaa] CORS: origin "%s" not in allowed list (%s). '
+                . 'If using Nuxt dev server on a non-standard port, update cors_origins in config/waaseyaa.php.',
+                $origin,
+                implode(', ', $allowedOrigins),
+            ));
         }
-        header('Access-Control-Allow-Methods: GET, POST, PATCH, DELETE, OPTIONS');
-        header('Access-Control-Allow-Headers: Content-Type, Accept, Authorization');
-        header('Access-Control-Max-Age: 86400');
 
         if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
             http_response_code(204);

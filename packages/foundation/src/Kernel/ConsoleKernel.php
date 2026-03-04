@@ -46,17 +46,27 @@ final class ConsoleKernel extends AbstractKernel
 {
     public function handle(): int
     {
-        $this->boot();
+        try {
+            $this->boot();
+        } catch (\Throwable $e) {
+            fwrite(STDERR, sprintf(
+                "[Waaseyaa] Bootstrap failed: %s\n  in %s:%d\n",
+                $e->getMessage(),
+                $e->getFile(),
+                $e->getLine(),
+            ));
+            return 1;
+        }
 
         $configDir = $this->config['config_dir']
             ?? (getenv('WAASEYAA_CONFIG_DIR') ?: $this->projectRoot . '/config/sync');
         $activeDir = $this->projectRoot . '/config/active';
 
-        if (!is_dir($activeDir)) {
-            @mkdir($activeDir, 0755, true);
+        if (!is_dir($activeDir) && !mkdir($activeDir, 0755, true) && !is_dir($activeDir)) {
+            throw new \RuntimeException(sprintf('Unable to create config active directory: %s', $activeDir));
         }
-        if (!is_dir($configDir)) {
-            @mkdir($configDir, 0755, true);
+        if (!is_dir($configDir) && !mkdir($configDir, 0755, true) && !is_dir($configDir)) {
+            throw new \RuntimeException(sprintf('Unable to create config sync directory: %s', $configDir));
         }
 
         $activeStorage = new FileStorage($activeDir);

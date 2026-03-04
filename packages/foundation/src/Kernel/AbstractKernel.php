@@ -8,7 +8,7 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\PdoDatabase;
-use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
@@ -36,13 +36,17 @@ abstract class AbstractKernel
         protected readonly string $projectRoot,
     ) {}
 
+    /**
+     * Boot the kernel. Idempotent — safe to call multiple times.
+     *
+     * If boot fails partway through, the flag remains unset so the
+     * caller can retry after fixing the underlying issue.
+     */
     protected function boot(): void
     {
         if ($this->booted) {
             return;
         }
-
-        $this->booted = true;
 
         $this->config = ConfigLoader::load($this->projectRoot . '/config/waaseyaa.php');
 
@@ -54,6 +58,8 @@ abstract class AbstractKernel
         $this->loadAppEntityTypes();
         $this->bootProviders();
         $this->discoverAccessPolicies();
+
+        $this->booted = true;
     }
 
     protected function bootDatabase(): void
@@ -73,7 +79,7 @@ abstract class AbstractKernel
 
         $this->entityTypeManager = new EntityTypeManager(
             $dispatcher,
-            function (EntityType $definition) use ($database, $dispatcher): SqlEntityStorage {
+            function (EntityTypeInterface $definition) use ($database, $dispatcher): SqlEntityStorage {
                 $schemaHandler = new SqlSchemaHandler($definition, $database);
                 $schemaHandler->ensureTable();
                 return new SqlEntityStorage($definition, $database, $dispatcher);
@@ -108,20 +114,21 @@ abstract class AbstractKernel
             $this->providers[] = $provider;
         }
 
-        // Phase 1: register all providers
+        // Register all providers, then collect their entity types.
         foreach ($this->providers as $provider) {
             $provider->register();
         }
 
-        // Collect and register entity types from providers
+        // Register entity types declared by providers.
         foreach ($this->providers as $provider) {
             foreach ($provider->getEntityTypes() as $entityType) {
                 try {
                     $this->entityTypeManager->registerEntityType($entityType);
-                } catch (\Throwable $e) {
+                } catch (\RuntimeException | \InvalidArgumentException $e) {
                     error_log(sprintf(
-                        '[Waaseyaa] Failed to register entity type "%s": %s',
+                        '[Waaseyaa] Failed to register entity type "%s" from %s: %s',
                         $entityType->id(),
+                        $provider::class,
                         $e->getMessage(),
                     ));
                 }
@@ -134,17 +141,24 @@ abstract class AbstractKernel
         $path = $this->projectRoot . '/config/entity-types.php';
         $types = ConfigLoader::load($path);
 
-        foreach ($types as $typeData) {
-            if ($typeData instanceof \Waaseyaa\Entity\EntityTypeInterface) {
-                try {
-                    $this->entityTypeManager->registerEntityType($typeData);
-                } catch (\Throwable $e) {
-                    error_log(sprintf(
-                        '[Waaseyaa] Failed to register app entity type "%s": %s',
-                        $typeData->id(),
-                        $e->getMessage(),
-                    ));
-                }
+        foreach ($types as $index => $typeData) {
+            if (!$typeData instanceof \Waaseyaa\Entity\EntityTypeInterface) {
+                error_log(sprintf(
+                    '[Waaseyaa] config/entity-types.php item at index %s is not an EntityTypeInterface (got %s).',
+                    $index,
+                    get_debug_type($typeData),
+                ));
+                continue;
+            }
+
+            try {
+                $this->entityTypeManager->registerEntityType($typeData);
+            } catch (\RuntimeException | \InvalidArgumentException $e) {
+                error_log(sprintf(
+                    '[Waaseyaa] Failed to register app entity type "%s": %s',
+                    $typeData->id(),
+                    $e->getMessage(),
+                ));
             }
         }
     }
@@ -161,15 +175,31 @@ abstract class AbstractKernel
         $policies = [];
         foreach ($this->manifest->policies as $class => $entityTypes) {
             if (!class_exists($class)) {
+                error_log(sprintf(
+                    '[Waaseyaa] Access policy class not found: %s (covering entity types: %s). '
+                    . 'Run "composer dump-autoload --optimize" to update the classmap.',
+                    $class,
+                    implode(', ', $entityTypes),
+                ));
                 continue;
             }
 
-            $ref = new \ReflectionClass($class);
-            $constructor = $ref->getConstructor();
-            if ($constructor !== null && $constructor->getNumberOfRequiredParameters() > 0) {
-                $policies[] = new $class($entityTypes);
-            } else {
-                $policies[] = new $class();
+            try {
+                // Policies may accept their entity type list as a constructor
+                // argument (e.g. ConfigEntityAccessPolicy). Detect via reflection.
+                $ref = new \ReflectionClass($class);
+                $constructor = $ref->getConstructor();
+                if ($constructor !== null && $constructor->getNumberOfRequiredParameters() > 0) {
+                    $policies[] = new $class($entityTypes);
+                } else {
+                    $policies[] = new $class();
+                }
+            } catch (\Throwable $e) {
+                error_log(sprintf(
+                    '[Waaseyaa] Failed to instantiate access policy %s: %s',
+                    $class,
+                    $e->getMessage(),
+                ));
             }
         }
 

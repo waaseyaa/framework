@@ -160,7 +160,7 @@ final class JsonApiController
      * POST — create a new entity.
      *
      * @param string               $entityTypeId The entity type.
-     * @param array<string, mixed> $data         The JSON:API resource data (expects 'attributes' key).
+     * @param array<string, mixed> $data         The full JSON:API request body (expects 'data.type' and optionally 'data.attributes').
      */
     public function store(string $entityTypeId, array $data): JsonApiDocument
     {
@@ -195,7 +195,16 @@ final class JsonApiController
             $labelKey = $keys['label'] ?? 'label';
             if ((!isset($attributes[$idKey]) || $attributes[$idKey] === '')
                 && isset($attributes[$labelKey]) && $attributes[$labelKey] !== '') {
-                $attributes[$idKey] = self::toMachineName((string) $attributes[$labelKey]);
+                $machineName = self::toMachineName((string) $attributes[$labelKey]);
+                if ($machineName === '') {
+                    return $this->errorDocument(
+                        JsonApiError::unprocessable(
+                            "Cannot generate a machine name from label '{$attributes[$labelKey]}'. "
+                            . 'Provide an explicit ID or use a label with alphanumeric characters.',
+                        ),
+                    );
+                }
+                $attributes[$idKey] = $machineName;
             }
         }
 
@@ -245,7 +254,7 @@ final class JsonApiController
      *
      * @param string               $entityTypeId The entity type.
      * @param int|string           $id           The entity ID.
-     * @param array<string, mixed> $data         The JSON:API resource data (expects 'attributes' key).
+     * @param array<string, mixed> $data         The full JSON:API request body (expects 'data.type' and optionally 'data.attributes').
      */
     public function update(string $entityTypeId, int|string $id, array $data): JsonApiDocument
     {
@@ -414,8 +423,8 @@ final class JsonApiController
     /**
      * Convert a label to a machine name (lowercase, underscores only).
      *
-     * Mirrors the MachineNameInput.vue frontend logic so the server
-     * can generate IDs for config entities when not provided by the client.
+     * Mirrors packages/admin/app/components/MachineNameInput.vue frontend
+     * logic. If either implementation changes, the other must be updated.
      */
     private static function toMachineName(string $value): string
     {

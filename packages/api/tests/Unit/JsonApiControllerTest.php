@@ -615,6 +615,53 @@ final class JsonApiControllerTest extends TestCase
         $this->assertSame('custom_blog', $array['data']['id']);
     }
 
+    #[Test]
+    public function storeRejectsConfigEntityWhenLabelProducesEmptyMachineName(): void
+    {
+        $configStorage = new class('node_type') extends InMemoryEntityStorage {
+            public function create(array $values = []): \Waaseyaa\Entity\EntityInterface
+            {
+                return new TestEntity(
+                    values: $values,
+                    entityTypeId: 'node_type',
+                    entityKeys: ['id' => 'type', 'label' => 'name'],
+                );
+            }
+        };
+
+        $configManager = new EntityTypeManager(
+            new EventDispatcher(),
+            fn() => $configStorage,
+        );
+        $configManager->registerEntityType(new EntityType(
+            id: 'node_type',
+            label: 'Content Type',
+            class: TestEntity::class,
+            keys: ['id' => 'type', 'label' => 'name'],
+        ));
+
+        $configController = new JsonApiController(
+            $configManager,
+            new ResourceSerializer($configManager),
+        );
+
+        $data = [
+            'data' => [
+                'type' => 'node_type',
+                'attributes' => [
+                    'name' => '!!!',
+                ],
+            ],
+        ];
+
+        $doc = $configController->store('node_type', $data);
+
+        $this->assertSame(422, $doc->statusCode);
+        $array = $doc->toArray();
+        $this->assertArrayHasKey('errors', $array);
+        $this->assertStringContainsString('Cannot generate a machine name', $array['errors'][0]['detail']);
+    }
+
     private function createMockAccount(): AccountInterface
     {
         return new class implements AccountInterface {
