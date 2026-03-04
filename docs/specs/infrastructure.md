@@ -346,15 +346,28 @@ Invalidation:
   - plus broad discovery-surface tags for relationship/node graph-impact changes
 - Fallback path (non tag-aware backends): `deleteAll()` for correctness.
 
-## SSR Render Cache Variant Contract (v1.0)
+## SSR Render Cache Variant Contract (v1.1)
 
-SSR render cache keys now include deterministic variant dimensions in the language segment:
+SSR render cache keys include a deterministic variant suffix built from:
 
-- workflow dimension (`wf:<state>`) from `workflow_visibility.state`
-- graph dimension (`graph:<hash>`) derived from normalized `relationship_navigation` context
-- contract dimension (`contract:v1.0`)
+- language (`langcode`)
+- view mode (`view_mode`)
+- preview/public mode (`preview`)
+- workflow state (`workflow_visibility.state`)
+- graph-context hash (normalized `relationship_navigation`)
+- contract version
 
-This stabilizes render-cache partitioning for graph-aware SSR contexts while preserving deterministic replay under equivalent context inputs.
+The variant payload is normalized and hashed, then emitted with a readable prefix:
+
+- `v2:{langcode}:{view_mode}:{public|preview}:{workflow_state}:{hash}`
+
+This hardens cache partitioning and prevents future cache-key ambiguity while preserving deterministic replay under equivalent context inputs.
+
+Security boundary:
+
+- preview requests and public requests resolve to distinct variant keys,
+- preview render paths are not persisted to shared public cache storage,
+- public cache reads/writes remain restricted to unauthenticated, non-preview requests.
 
 Render cache invalidation is broadened for relationship-aware pages:
 

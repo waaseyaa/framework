@@ -1175,7 +1175,12 @@ final class HttpKernel extends AbstractKernel
             $relationshipContext = $this->buildRelationshipRenderContext($entity);
             $renderContext = $relationshipContext;
             $renderContext['workflow_visibility'] = $visibilityResolver->buildRenderContext($entity, $previewRequested);
-            $cacheVariantLangcode = $this->buildSsrCacheVariantLangcode($contentLangcode, $renderContext);
+            $cacheVariantLangcode = $this->buildSsrCacheVariantLangcode(
+                $contentLangcode,
+                $viewMode->name,
+                $previewRequested,
+                $renderContext,
+            );
 
             if (
                 !$account->isAuthenticated()
@@ -1552,7 +1557,12 @@ final class HttpKernel extends AbstractKernel
     /**
      * @param array<string, mixed> $renderContext
      */
-    private function buildSsrCacheVariantLangcode(string $langcode, array $renderContext): string
+    private function buildSsrCacheVariantLangcode(
+        string $langcode,
+        string $viewMode,
+        bool $previewRequested,
+        array $renderContext,
+    ): string
     {
         $workflowState = 'unknown';
         if (is_array($renderContext['workflow_visibility'] ?? null)) {
@@ -1571,13 +1581,34 @@ final class HttpKernel extends AbstractKernel
             }
         }
 
+        $variantPayload = [
+            'contract_version' => self::DISCOVERY_CONTRACT_VERSION,
+            'langcode' => strtolower(trim($langcode)),
+            'view_mode' => strtolower(trim($viewMode)),
+            'preview' => $previewRequested ? 1 : 0,
+            'workflow_state' => $workflowState,
+            'graph_hash' => $graphHash,
+        ];
+        $serializedVariantPayload = json_encode($this->normalizeForCacheKey($variantPayload), JSON_THROW_ON_ERROR);
+        $variantHash = substr(sha1((string) $serializedVariantPayload), 0, 16);
+
         return sprintf(
-            '%s|wf:%s|graph:%s|contract:%s',
-            $langcode,
-            $workflowState,
-            $graphHash,
-            self::DISCOVERY_CONTRACT_VERSION,
+            'v2:%s:%s:%s:%s:%s',
+            $this->sanitizeCacheToken($langcode, 'unknown'),
+            $this->sanitizeCacheToken($viewMode, 'full'),
+            $previewRequested ? 'preview' : 'public',
+            $this->sanitizeCacheToken($workflowState, 'unknown'),
+            $variantHash,
         );
+    }
+
+    private function sanitizeCacheToken(string $value, string $fallback): string
+    {
+        $normalized = strtolower(trim($value));
+        $normalized = preg_replace('/[^a-z0-9_-]+/', '-', $normalized) ?? '';
+        $normalized = trim($normalized, '-_');
+
+        return $normalized === '' ? $fallback : $normalized;
     }
 
     private function cacheControlHeaderForRender(AccountInterface $account, int $maxAge): string

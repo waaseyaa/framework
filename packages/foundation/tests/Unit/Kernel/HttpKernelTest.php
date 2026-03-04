@@ -537,7 +537,7 @@ final class HttpKernelTest extends TestCase
         $method = new \ReflectionMethod(HttpKernel::class, 'buildSsrCacheVariantLangcode');
         $method->setAccessible(true);
 
-        $variantA = $method->invoke($kernel, 'en', [
+        $variantA = $method->invoke($kernel, 'en', 'full', false, [
             'workflow_visibility' => [
                 'state' => 'published',
                 'preview_requested' => false,
@@ -548,7 +548,7 @@ final class HttpKernelTest extends TestCase
                 'contract' => ['version' => 'v1.0', 'surface' => 'ssr_relationship_navigation'],
             ],
         ]);
-        $variantB = $method->invoke($kernel, 'en', [
+        $variantB = $method->invoke($kernel, 'en', 'full', false, [
             'relationship_navigation' => [
                 'contract' => ['surface' => 'ssr_relationship_navigation', 'version' => 'v1.0'],
                 'entity' => ['counts' => ['inbound' => 2, 'outbound' => 1]],
@@ -570,21 +570,32 @@ final class HttpKernelTest extends TestCase
         $method = new \ReflectionMethod(HttpKernel::class, 'buildSsrCacheVariantLangcode');
         $method->setAccessible(true);
 
-        $published = $method->invoke($kernel, 'en', [
+        $published = $method->invoke($kernel, 'en', 'full', false, [
             'workflow_visibility' => ['state' => 'published'],
             'relationship_navigation' => ['entity' => ['counts' => ['outbound' => 1]]],
         ]);
-        $review = $method->invoke($kernel, 'en', [
+        $review = $method->invoke($kernel, 'en', 'full', false, [
             'workflow_visibility' => ['state' => 'review'],
             'relationship_navigation' => ['entity' => ['counts' => ['outbound' => 1]]],
         ]);
-        $differentGraph = $method->invoke($kernel, 'en', [
+        $differentGraph = $method->invoke($kernel, 'en', 'full', false, [
             'workflow_visibility' => ['state' => 'published'],
             'relationship_navigation' => ['entity' => ['counts' => ['outbound' => 3]]],
+        ]);
+        $previewVariant = $method->invoke($kernel, 'en', 'full', true, [
+            'workflow_visibility' => ['state' => 'published'],
+            'relationship_navigation' => ['entity' => ['counts' => ['outbound' => 1]]],
+        ]);
+        $teaserVariant = $method->invoke($kernel, 'en', 'teaser', false, [
+            'workflow_visibility' => ['state' => 'published'],
+            'relationship_navigation' => ['entity' => ['counts' => ['outbound' => 1]]],
         ]);
 
         $this->assertNotSame($published, $review);
         $this->assertNotSame($published, $differentGraph);
+        $this->assertNotSame($published, $previewVariant);
+        $this->assertNotSame($published, $teaserVariant);
+        $this->assertStringStartsWith('v2:en:full:public:published:', $published);
     }
 
 }

@@ -181,6 +181,25 @@ TWIG,
         $this->assertStringNotContainsString('CHANGED TITLE', $second['body']);
     }
 
+    #[Test]
+    public function previewRequestDoesNotWriteOrReadPublicRenderCache(): void
+    {
+        $previewFirst = $this->request('/node/1?preview=1');
+        $this->assertSame(200, $previewFirst['status']);
+        $this->assertStringContainsString('Water Is Life', $previewFirst['body']);
+
+        $kernel = $this->bootKernel();
+        $storage = $kernel->getEntityTypeManager()->getStorage('node');
+        $node = $storage->load(1);
+        self::assertNotNull($node);
+        $node->set('title', 'PREVIEW CHANGED TITLE');
+        $storage->save($node);
+
+        $previewSecond = $this->request('/node/1?preview=1');
+        $this->assertSame(200, $previewSecond['status']);
+        $this->assertStringContainsString('PREVIEW CHANGED TITLE', $previewSecond['body']);
+    }
+
     private function seedEntities(): void
     {
         $kernel = $this->bootKernel();
