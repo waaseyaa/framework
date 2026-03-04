@@ -37,7 +37,7 @@ The access control system has four layers, being built bottom-up:
 | 3 | Dynamic CORS origin | Planned | CORS in `index.php` hardcodes `localhost:3000`. Nuxt dev server may bind to 3001+ if port is taken. Need dynamic origin handling (e.g., `WAASEYAA_CORS_ORIGIN` env var or pattern-based localhost matching). |
 | 4 | Boolean field rendering | Done | `ResourceSerializer` casts booleans to native `true`/`false`; `SchemaList.vue` formats as ✓/—. See #18 |
 | 5 | Timestamp auto-population + formatting | Done | `SqlEntityStorage` auto-populates `created`/`changed`; `ResourceSerializer` formats as ISO 8601; `SchemaList.vue` formats with `toLocaleString()`. See #19 |
-| 6 | Boolean field defaults on create | Bug | Create form defaults all boolean fields to checked (Promoted, Sticky should be unchecked). See #24 |
+| 6 | Boolean field defaults on create | Done | SchemaPresenter emits `default` in JSON Schema; SchemaForm initializes from defaults in create mode. See #24 |
 | 7 | Entity list headings show machine names | Enhancement | Page headings show `node_type` instead of "Content Type". Should use entity type labels. See #26 |
 
 ## Dev Server
