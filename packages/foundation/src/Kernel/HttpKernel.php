@@ -353,6 +353,15 @@ final class HttpKernel extends AbstractKernel
         );
 
         $router->addRoute(
+            'api.discovery.endpoint',
+            RouteBuilder::create('/api/discovery/endpoint/{entity_type}/{id}')
+                ->controller('discovery.endpoint')
+                ->allowAll()
+                ->methods('GET')
+                ->build(),
+        );
+
+        $router->addRoute(
             'mcp.endpoint',
             RouteBuilder::create('/mcp')
                 ->controller('mcp.endpoint')
@@ -650,6 +659,79 @@ final class HttpKernel extends AbstractKernel
                     $this->sendJson(200, ['data' => $payload]);
                 })(),
 
+                $controller === 'discovery.endpoint' => (function () use ($params, $query): never {
+                    $entityType = is_string($params['entity_type'] ?? null) ? trim((string) $params['entity_type']) : '';
+                    $entityId = $params['id'] ?? null;
+                    if ($entityType === '' || !is_scalar($entityId) || trim((string) $entityId) === '') {
+                        $this->sendJson(400, [
+                            'jsonapi' => ['version' => '1.1'],
+                            'errors' => [[
+                                'status' => '400',
+                                'title' => 'Bad Request',
+                                'detail' => 'Discovery endpoint requires route params "entity_type" and "id".',
+                            ]],
+                        ]);
+                    }
+
+                    $resolvedId = (string) $entityId;
+                    $resolvedEntity = $this->loadDiscoveryEntity($entityType, $resolvedId);
+                    if ($resolvedEntity === null || !$this->isDiscoveryEntityPublic($entityType, $resolvedEntity->toArray())) {
+                        $this->sendJson(404, [
+                            'jsonapi' => ['version' => '1.1'],
+                            'errors' => [[
+                                'status' => '404',
+                                'title' => 'Not Found',
+                                'detail' => sprintf('Discovery endpoint not publicly visible: %s:%s', $entityType, $resolvedId),
+                            ]],
+                        ]);
+                    }
+
+                    $relationshipTypes = $this->parseRelationshipTypesQuery($query['relationship_types'] ?? null);
+                    $service = new RelationshipDiscoveryService(
+                        new RelationshipTraversalService($this->entityTypeManager, $this->database),
+                    );
+
+                    if ($entityType !== 'relationship') {
+                        $payload = $service->endpointPage($entityType, $resolvedId, [
+                            'relationship_types' => $relationshipTypes,
+                            'status' => is_string($query['status'] ?? null) ? trim((string) $query['status']) : 'published',
+                            'at' => $query['at'] ?? null,
+                            'limit' => is_numeric($query['limit'] ?? null) ? (int) $query['limit'] : null,
+                        ]);
+                        $this->sendJson(200, ['data' => $payload]);
+                    }
+
+                    $values = $resolvedEntity->toArray();
+                    $fromType = trim((string) ($values['from_entity_type'] ?? ''));
+                    $fromId = trim((string) ($values['from_entity_id'] ?? ''));
+                    $toType = trim((string) ($values['to_entity_type'] ?? ''));
+                    $toId = trim((string) ($values['to_entity_id'] ?? ''));
+                    if (
+                        $fromType === ''
+                        || $fromId === ''
+                        || $toType === ''
+                        || $toId === ''
+                        || !$this->isDiscoveryEndpointPairPublic($fromType, $fromId, $toType, $toId)
+                    ) {
+                        $this->sendJson(404, [
+                            'jsonapi' => ['version' => '1.1'],
+                            'errors' => [[
+                                'status' => '404',
+                                'title' => 'Not Found',
+                                'detail' => sprintf('Relationship endpoint pair not publicly visible for %s:%s', $entityType, $resolvedId),
+                            ]],
+                        ]);
+                    }
+
+                    $payload = $service->relationshipEntityPage($values, [
+                        'relationship_types' => $relationshipTypes,
+                        'status' => is_string($query['status'] ?? null) ? trim((string) $query['status']) : 'published',
+                        'at' => $query['at'] ?? null,
+                        'limit' => is_numeric($query['limit'] ?? null) ? (int) $query['limit'] : null,
+                    ]);
+                    $this->sendJson(200, ['data' => $payload]);
+                })(),
+
                 $controller === 'mcp.endpoint' => (function () use ($method, $httpRequest, $account, $serializer): never {
                     $embeddingProvider = EmbeddingProviderFactory::fromConfig($this->config);
                     $embeddingStorage = new SqliteEmbeddingStorage($this->database->getPdo());
@@ -773,6 +855,80 @@ final class HttpKernel extends AbstractKernel
         }
 
         return [];
+    }
+
+    private function isDiscoveryEndpointPairPublic(string $fromType, string $fromId, string $toType, string $toId): bool
+    {
+        $from = $this->loadDiscoveryEntity($fromType, $fromId);
+        $to = $this->loadDiscoveryEntity($toType, $toId);
+
+        if ($from === null || $to === null) {
+            return false;
+        }
+
+        return $this->isDiscoveryEntityPublic($fromType, $from->toArray())
+            && $this->isDiscoveryEntityPublic($toType, $to->toArray());
+    }
+
+    private function loadDiscoveryEntity(string $entityType, string $entityId): ?EntityInterface
+    {
+        if (!$this->entityTypeManager->hasDefinition($entityType)) {
+            return null;
+        }
+
+        try {
+            $storage = $this->entityTypeManager->getStorage($entityType);
+            $resolvedId = ctype_digit($entityId) ? (int) $entityId : $entityId;
+            $entity = $storage->load($resolvedId);
+            if ($entity instanceof EntityInterface) {
+                return $entity;
+            }
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     */
+    private function isDiscoveryEntityPublic(string $entityType, array $values): bool
+    {
+        if ($entityType === 'node') {
+            return $this->normalizeDiscoveryWorkflowState($values['workflow_state'] ?? null, $values['status'] ?? 0) === 'published';
+        }
+
+        if (!array_key_exists('status', $values)) {
+            return true;
+        }
+
+        return $this->normalizeDiscoveryStatusFlag($values['status']);
+    }
+
+    private function normalizeDiscoveryStatusFlag(mixed $status): bool
+    {
+        if (is_bool($status)) {
+            return $status;
+        }
+        if (is_numeric($status)) {
+            return ((int) $status) === 1;
+        }
+        if (is_string($status)) {
+            $normalized = strtolower(trim($status));
+            return in_array($normalized, ['1', 'true', 'published', 'yes'], true);
+        }
+
+        return false;
+    }
+
+    private function normalizeDiscoveryWorkflowState(mixed $workflowState, mixed $status): string
+    {
+        if (is_string($workflowState) && trim($workflowState) !== '') {
+            return strtolower(trim($workflowState));
+        }
+
+        return $this->normalizeDiscoveryStatusFlag($status) ? 'published' : 'draft';
     }
 
     private function handleRenderPage(
@@ -946,17 +1102,19 @@ final class HttpKernel extends AbstractKernel
         }
 
         try {
-            $traversal = new RelationshipTraversalService($this->entityTypeManager, $this->database);
+            $discovery = new RelationshipDiscoveryService(
+                new RelationshipTraversalService($this->entityTypeManager, $this->database),
+            );
             $entityType = $entity->getEntityTypeId();
             $entityId = (string) $entity->id();
 
             if ($entityType === 'node') {
                 return [
                     'relationship_navigation' => [
-                        'entity' => $traversal->browse($entityType, $entityId, [
+                        'entity' => $discovery->endpointPage($entityType, $entityId, [
                             'status' => 'published',
                             'limit' => 12,
-                        ]),
+                        ])['browse'],
                     ],
                 ];
             }
@@ -966,35 +1124,29 @@ final class HttpKernel extends AbstractKernel
             }
 
             $values = $entity->toArray();
-            $fromType = trim((string) ($values['from_entity_type'] ?? ''));
-            $fromId = trim((string) ($values['from_entity_id'] ?? ''));
-            $toType = trim((string) ($values['to_entity_type'] ?? ''));
-            $toId = trim((string) ($values['to_entity_id'] ?? ''));
-
-            if ($fromType === '' || $fromId === '' || $toType === '' || $toId === '') {
+            $endpoint = $discovery->relationshipEntityPage($values, [
+                'status' => 'published',
+                'limit' => 8,
+            ]);
+            if ($endpoint === []) {
                 return [];
             }
 
             return [
                 'relationship_navigation' => [
                     'from_endpoint' => [
-                        'type' => $fromType,
-                        'id' => $fromId,
-                        'path' => sprintf('/%s/%s', $fromType, $fromId),
-                        'browse' => $traversal->browse($fromType, $fromId, [
-                            'status' => 'published',
-                            'limit' => 8,
-                        ]),
+                        'type' => (string) ($endpoint['from_endpoint']['endpoint']['type'] ?? ''),
+                        'id' => (string) ($endpoint['from_endpoint']['endpoint']['id'] ?? ''),
+                        'path' => (string) ($endpoint['from_endpoint']['endpoint']['path'] ?? ''),
+                        'browse' => $endpoint['from_endpoint']['browse'] ?? [],
                     ],
                     'to_endpoint' => [
-                        'type' => $toType,
-                        'id' => $toId,
-                        'path' => sprintf('/%s/%s', $toType, $toId),
-                        'browse' => $traversal->browse($toType, $toId, [
-                            'status' => 'published',
-                            'limit' => 8,
-                        ]),
+                        'type' => (string) ($endpoint['to_endpoint']['endpoint']['type'] ?? ''),
+                        'id' => (string) ($endpoint['to_endpoint']['endpoint']['id'] ?? ''),
+                        'path' => (string) ($endpoint['to_endpoint']['endpoint']['path'] ?? ''),
+                        'browse' => $endpoint['to_endpoint']['browse'] ?? [],
                     ],
+                    'edge_context' => $endpoint['edge_context'],
                 ],
             ];
         } catch (\Throwable $e) {

@@ -88,6 +88,7 @@ Relationship traversal powers reusable discovery composition primitives:
 - Topic hub aggregation: deterministic, paginated edge lists with facet counts.
 - Cluster composition: grouped neighborhoods keyed by `relationship_type + related_entity_type`.
 - Timeline navigation: temporal edge listing with `direction`, `from`, `to`, and `at` filters.
+- Endpoint pages: public endpoint contract exposing directional/inverse edge metadata and relationship edge context.
 - Public discovery route payloads must preserve deterministic ordering under identical fixture input.
 
 Deterministic ordering for hub/cluster composition:

@@ -324,6 +324,80 @@ final class RelationshipDiscoveryServiceTest extends TestCase
         $this->assertSame('2', $timeline['items'][1]['relationship_id']);
     }
 
+    #[Test]
+    public function endpointPageAndRelationshipEntityPageExposeDirectionalEdgeContext(): void
+    {
+        $database = PdoDatabase::createSqlite();
+        $this->createRelationshipTable($database);
+
+        $this->insertTemporalRelationship($database, 1, 'references', 'node', '1', 'node', '2', 1, 200, 260);
+        $this->insertTemporalRelationship($database, 2, 'influences', 'node', '3', 'node', '1', 1, 210, null);
+
+        $relationshipStorage = new DiscoveryRelationshipStorage([
+            1 => new Relationship([
+                'rid' => 1,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '2',
+                'directionality' => 'directed',
+                'status' => 1,
+                'start_date' => 200,
+                'end_date' => 260,
+            ]),
+            2 => new Relationship([
+                'rid' => 2,
+                'relationship_type' => 'influences',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '3',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '1',
+                'directionality' => 'directed',
+                'status' => 1,
+                'start_date' => 210,
+            ]),
+        ]);
+
+        $nodeStorage = new DiscoveryEntityStorage([
+            '1' => new DiscoveryTestEntity('node', 'article', 1, 'Source'),
+            '2' => new DiscoveryTestEntity('node', 'article', 2, 'Target'),
+            '3' => new DiscoveryTestEntity('node', 'article', 3, 'Inbound'),
+        ]);
+
+        $manager = new DiscoveryEntityTypeManager([
+            'relationship' => $relationshipStorage,
+            'node' => $nodeStorage,
+        ]);
+
+        $service = new RelationshipDiscoveryService(new RelationshipTraversalService($manager, $database));
+        $endpointPage = $service->endpointPage('node', 1, ['status' => 'published']);
+
+        $this->assertSame('node', $endpointPage['endpoint']['type']);
+        $this->assertSame('1', $endpointPage['endpoint']['id']);
+        $this->assertSame(2, $endpointPage['browse']['counts']['total']);
+        $this->assertArrayHasKey('direction', $endpointPage['browse']['outbound'][0]);
+        $this->assertArrayHasKey('inverse', $endpointPage['browse']['outbound'][0]);
+
+        $relationshipPage = $service->relationshipEntityPage([
+            'relationship_type' => 'references',
+            'directionality' => 'directed',
+            'status' => 1,
+            'from_entity_type' => 'node',
+            'from_entity_id' => '1',
+            'to_entity_type' => 'node',
+            'to_entity_id' => '2',
+            'start_date' => 200,
+            'end_date' => 260,
+        ], ['status' => 'published']);
+
+        $this->assertSame('references', $relationshipPage['edge_context']['relationship_type']);
+        $this->assertSame('directed', $relationshipPage['edge_context']['directionality']);
+        $this->assertSame('node', $relationshipPage['from_endpoint']['endpoint']['type']);
+        $this->assertSame('1', $relationshipPage['from_endpoint']['endpoint']['id']);
+        $this->assertSame('2', $relationshipPage['to_endpoint']['endpoint']['id']);
+    }
+
     private function createRelationshipTable(PdoDatabase $database): void
     {
         $database->getPdo()->exec(<<<SQL

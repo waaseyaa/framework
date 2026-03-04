@@ -258,6 +258,85 @@ final class RelationshipDiscoveryService
     }
 
     /**
+     * @param array{
+     *   relationship_types?: list<string>,
+     *   status?: 'published'|'unpublished'|'all',
+     *   at?: int|string|null,
+     *   limit?: int|null
+     * } $options
+     * @return array<string, mixed>
+     */
+    public function endpointPage(string $entityType, int|string $entityId, array $options = []): array
+    {
+        $browse = $this->traversalService->browse($entityType, $entityId, [
+            'relationship_types' => $this->normalizeRelationshipTypes($options['relationship_types'] ?? []),
+            'status' => $this->normalizeStatus($options['status'] ?? 'published'),
+            'at' => $options['at'] ?? null,
+            'limit' => $this->normalizeLimit($options['limit'] ?? null, 12),
+        ]);
+
+        return [
+            'endpoint' => [
+                'type' => $entityType,
+                'id' => (string) $entityId,
+                'path' => sprintf('/%s/%s', $entityType, (string) $entityId),
+            ],
+            'browse' => $browse,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $relationshipValues
+     * @param array{
+     *   relationship_types?: list<string>,
+     *   status?: 'published'|'unpublished'|'all',
+     *   at?: int|string|null,
+     *   limit?: int|null
+     * } $options
+     * @return array<string, mixed>
+     */
+    public function relationshipEntityPage(array $relationshipValues, array $options = []): array
+    {
+        $fromType = trim((string) ($relationshipValues['from_entity_type'] ?? ''));
+        $fromId = trim((string) ($relationshipValues['from_entity_id'] ?? ''));
+        $toType = trim((string) ($relationshipValues['to_entity_type'] ?? ''));
+        $toId = trim((string) ($relationshipValues['to_entity_id'] ?? ''));
+
+        if ($fromType === '' || $fromId === '' || $toType === '' || $toId === '') {
+            return [];
+        }
+
+        $status = $this->normalizeStatus($options['status'] ?? 'published');
+        $relationshipTypes = $this->normalizeRelationshipTypes($options['relationship_types'] ?? []);
+        $at = $options['at'] ?? null;
+        $limit = $this->normalizeLimit($options['limit'] ?? null, 8);
+
+        return [
+            'from_endpoint' => $this->endpointPage($fromType, $fromId, [
+                'status' => $status,
+                'relationship_types' => $relationshipTypes,
+                'at' => $at,
+                'limit' => $limit,
+            ]),
+            'to_endpoint' => $this->endpointPage($toType, $toId, [
+                'status' => $status,
+                'relationship_types' => $relationshipTypes,
+                'at' => $at,
+                'limit' => $limit,
+            ]),
+            'edge_context' => [
+                'relationship_type' => (string) ($relationshipValues['relationship_type'] ?? ''),
+                'directionality' => (string) ($relationshipValues['directionality'] ?? 'directed'),
+                'status' => is_numeric($relationshipValues['status'] ?? null) ? (int) $relationshipValues['status'] : 0,
+                'weight' => is_numeric($relationshipValues['weight'] ?? null) ? (float) $relationshipValues['weight'] : null,
+                'confidence' => is_numeric($relationshipValues['confidence'] ?? null) ? (float) $relationshipValues['confidence'] : null,
+                'start_date' => $this->normalizeTemporal($relationshipValues['start_date'] ?? null),
+                'end_date' => $this->normalizeTemporal($relationshipValues['end_date'] ?? null),
+            ],
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $browse
      * @return list<array<string, mixed>>
      */
