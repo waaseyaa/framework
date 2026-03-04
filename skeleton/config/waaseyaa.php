@@ -35,4 +35,10 @@ return [
 
     // Allowed CORS origins for the admin SPA.
     'cors_origins' => ['http://localhost:3000', 'http://127.0.0.1:3000'],
+
+    // SSR theme id discovered from Composer package metadata.
+    // Theme packages expose extra.waaseyaa.theme in composer.json.
+    'ssr' => [
+        'theme' => getenv('WAASEYAA_SSR_THEME') ?: '',
+    ],
 ];

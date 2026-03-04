@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Waaseyaa\SSR;
 
 use Twig\Environment;
-use Twig\Loader\FilesystemLoader;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 final class SsrServiceProvider extends ServiceProvider
@@ -24,7 +23,8 @@ final class SsrServiceProvider extends ServiceProvider
             return;
         }
 
-        self::$twigEnvironment = self::createTwigEnvironment($this->projectRoot);
+        self::$twigEnvironment = ThemeServiceProvider::getTwigEnvironment()
+            ?? self::createTwigEnvironment($this->projectRoot, $this->config);
         self::$formatterRegistry = new FieldFormatterRegistry($this->manifestFormatters);
     }
 
@@ -38,35 +38,11 @@ final class SsrServiceProvider extends ServiceProvider
         return self::$formatterRegistry;
     }
 
-    public static function createTwigEnvironment(string $projectRoot): Environment
+    /**
+     * @param array<string, mixed> $config
+     */
+    public static function createTwigEnvironment(string $projectRoot, array $config = []): Environment
     {
-        $loader = new FilesystemLoader();
-
-        // App-level templates override package templates.
-        $appTemplates = rtrim($projectRoot, '/') . '/templates';
-        if (is_dir($appTemplates)) {
-            $loader->addPath($appTemplates);
-        }
-
-        $packageTemplateDirs = glob(rtrim($projectRoot, '/') . '/packages/*/templates');
-        if ($packageTemplateDirs !== false) {
-            foreach ($packageTemplateDirs as $dir) {
-                if (is_dir($dir)) {
-                    $loader->addPath($dir);
-                }
-            }
-        }
-
-        // Base SSR theme templates (lowest priority fallback).
-        $baseThemeTemplates = rtrim($projectRoot, '/') . '/packages/ssr/templates';
-        if (is_dir($baseThemeTemplates)) {
-            $loader->addPath($baseThemeTemplates);
-        }
-
-        return new Environment($loader, [
-            'cache' => false,
-            'auto_reload' => true,
-            'strict_variables' => false,
-        ]);
+        return ThemeServiceProvider::createTwigEnvironment($projectRoot, $config);
     }
 }

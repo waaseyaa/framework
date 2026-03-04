@@ -486,7 +486,7 @@ final class HttpKernel extends AbstractKernel
         $twig = SsrServiceProvider::getTwigEnvironment();
         if ($twig === null) {
             try {
-                $twig = SsrServiceProvider::createTwigEnvironment($this->projectRoot);
+                $twig = SsrServiceProvider::createTwigEnvironment($this->projectRoot, $this->config);
             } catch (\Throwable $e) {
                 error_log(sprintf('[Waaseyaa] Twig environment initialization failed: %s', $e->getMessage()));
                 $this->sendJson(500, [

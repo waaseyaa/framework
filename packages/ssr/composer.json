@@ -35,7 +35,7 @@
     },
     "extra": {
         "waaseyaa": {
-            "providers": ["Waaseyaa\\SSR\\SsrServiceProvider"]
+            "providers": ["Waaseyaa\\SSR\\ThemeServiceProvider", "Waaseyaa\\SSR\\SsrServiceProvider"]
         }
     },
     "minimum-stability": "dev",
