@@ -24,11 +24,16 @@ use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
 use Waaseyaa\Media\File;
 use Waaseyaa\Media\LocalFileRepository;
+use Waaseyaa\Path\PathAliasResolver;
 use Waaseyaa\Routing\AccessChecker;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\SSR\ArrayViewModeConfig;
+use Waaseyaa\SSR\EntityRenderer;
+use Waaseyaa\SSR\FieldFormatterRegistry;
 use Waaseyaa\SSR\RenderController;
 use Waaseyaa\SSR\SsrServiceProvider;
+use Waaseyaa\SSR\ViewMode;
 use Waaseyaa\User\Middleware\BearerAuthMiddleware;
 use Waaseyaa\User\DevAdminAccount;
 use Waaseyaa\User\Middleware\SessionMiddleware;
@@ -496,7 +501,36 @@ final class HttpKernel extends AbstractKernel
         }
 
         try {
-            $response = (new RenderController($twig))->renderPath($path);
+            $normalizedPath = $path;
+            if ($normalizedPath === '' || $normalizedPath === '/') {
+                $response = (new RenderController($twig))->renderPath('/');
+                $this->sendHtml($response->statusCode, $response->content, $response->headers);
+            }
+            if (!str_starts_with($normalizedPath, '/')) {
+                $normalizedPath = '/' . $normalizedPath;
+            }
+
+            $aliasResolver = new PathAliasResolver($this->entityTypeManager->getStorage('path_alias'));
+            $resolved = $aliasResolver->resolve($normalizedPath);
+            if ($resolved === null) {
+                $response = (new RenderController($twig))->renderNotFound($normalizedPath);
+                $this->sendHtml($response->statusCode, $response->content, $response->headers);
+            }
+
+            $targetStorage = $this->entityTypeManager->getStorage($resolved->entityTypeId);
+            $entity = $targetStorage->load($resolved->entityId);
+            if ($entity === null) {
+                $response = (new RenderController($twig))->renderNotFound($normalizedPath);
+                $this->sendHtml($response->statusCode, $response->content, $response->headers);
+            }
+
+            $formatterRegistry = SsrServiceProvider::getFormatterRegistry()
+                ?? new FieldFormatterRegistry($this->manifest->formatters);
+            $viewModeConfig = new ArrayViewModeConfig(
+                is_array($this->config['view_modes'] ?? null) ? $this->config['view_modes'] : [],
+            );
+            $entityRenderer = new EntityRenderer($this->entityTypeManager, $formatterRegistry, $viewModeConfig);
+            $response = (new RenderController($twig, $entityRenderer))->renderEntity($entity, ViewMode::full());
             $this->sendHtml($response->statusCode, $response->content, $response->headers);
         } catch (\Throwable $e) {
             error_log(sprintf('[Waaseyaa] Render pipeline failed: %s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine()));
