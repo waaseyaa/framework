@@ -105,10 +105,14 @@ final class SearchController
     {
         $candidateIds = [];
         foreach (['title', 'name', 'body'] as $field) {
-            $ids = $storage->getQuery()
-                ->condition($field, $query, 'CONTAINS')
-                ->range(0, $limit)
-                ->execute();
+            try {
+                $ids = $storage->getQuery()
+                    ->condition($field, $query, 'CONTAINS')
+                    ->range(0, $limit)
+                    ->execute();
+            } catch (\Throwable) {
+                continue;
+            }
 
             foreach ($ids as $id) {
                 if (!in_array($id, $candidateIds, true)) {
