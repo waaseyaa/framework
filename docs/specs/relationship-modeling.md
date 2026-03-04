@@ -94,6 +94,7 @@ Relationship traversal powers reusable discovery composition primitives:
 - Timeline navigation: temporal edge listing with `direction`, `from`, `to`, and `at` filters.
 - Endpoint pages: public endpoint contract exposing directional/inverse edge metadata and relationship edge context.
 - Public discovery route payloads must preserve deterministic ordering under identical fixture input.
+- Traversal browse composition reuses an in-request related-entity summary cache keyed by `{entity_type}:{entity_id}` so repeated edges to the same endpoint do not trigger duplicate entity loads.
 
 Deterministic ordering for hub/cluster composition:
 

@@ -137,6 +137,67 @@ final class RelationshipTraversalServiceTest extends TestCase
         $this->assertSame('3', $result['outbound'][1]['related_entity_id']);
     }
 
+    public function testBrowseCachesRepeatedRelatedEntitySummaryLoadsAcrossDirections(): void
+    {
+        $database = PdoDatabase::createSqlite();
+        $this->createRelationshipTable($database);
+
+        $this->insertRelationship($database, 1, 'node', '1', 'node', '2', 1);
+        $this->insertRelationship($database, 2, 'node', '1', 'node', '2', 1);
+        $this->insertRelationship($database, 3, 'node', '2', 'node', '1', 1);
+
+        $relationshipStorage = new TraversalRelationshipStorage([
+            1 => new Relationship([
+                'rid' => 1,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '2',
+                'directionality' => 'directed',
+                'status' => 1,
+            ]),
+            2 => new Relationship([
+                'rid' => 2,
+                'relationship_type' => 'context',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '2',
+                'directionality' => 'directed',
+                'status' => 1,
+            ]),
+            3 => new Relationship([
+                'rid' => 3,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '2',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '1',
+                'directionality' => 'directed',
+                'status' => 1,
+            ]),
+        ]);
+        $nodeStorage = new TraversalEntityStorage([
+            '2' => new TraversalTestEntity('node', 'article', 2, 'Shared Node', [
+                'nid' => 2,
+                'type' => 'article',
+                'status' => 1,
+                'workflow_state' => 'published',
+            ]),
+        ]);
+        $manager = new TraversalEntityTypeManager([
+            'relationship' => $relationshipStorage,
+            'node' => $nodeStorage,
+        ]);
+
+        $service = new RelationshipTraversalService($manager, $database);
+        $result = $service->browse('node', 1, ['status' => 'published']);
+
+        $this->assertSame(3, $result['counts']['total']);
+        $this->assertSame(1, $nodeStorage->loadCalls);
+    }
+
     private function createRelationshipTable(PdoDatabase $database): void
     {
         $database->getPdo()->exec(<<<SQL
@@ -263,6 +324,8 @@ final class TraversalRelationshipStorage implements EntityStorageInterface
 
 final class TraversalEntityStorage implements EntityStorageInterface
 {
+    public int $loadCalls = 0;
+
     /**
      * @param array<string, TraversalTestEntity> $entities
      */
@@ -275,6 +338,7 @@ final class TraversalEntityStorage implements EntityStorageInterface
 
     public function load(int|string $id): ?EntityInterface
     {
+        $this->loadCalls++;
         return $this->entities[(string) $id] ?? null;
     }
 

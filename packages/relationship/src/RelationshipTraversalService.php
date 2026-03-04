@@ -174,6 +174,8 @@ final class RelationshipTraversalService
             'at' => $this->normalizeTemporal($options['at'] ?? null),
             'limit' => $this->normalizeLimit($options['limit'] ?? null),
         ];
+        /** @var array<string, array{label: string, is_public: bool}> $entitySummaryCache */
+        $entitySummaryCache = [];
 
         $outboundEdges = $this->mapTraversalRelationships(
             relationships: $this->traverse($entityType, $sourceId, $normalized + ['direction' => 'outbound']),
@@ -181,6 +183,7 @@ final class RelationshipTraversalService
             sourceEntityId: $sourceId,
             direction: 'outbound',
             statusMode: $normalized['status'],
+            entitySummaryCache: $entitySummaryCache,
         );
 
         $inboundEdges = $this->mapTraversalRelationships(
@@ -189,6 +192,7 @@ final class RelationshipTraversalService
             sourceEntityId: $sourceId,
             direction: 'inbound',
             statusMode: $normalized['status'],
+            entitySummaryCache: $entitySummaryCache,
         );
 
         return [
@@ -209,6 +213,7 @@ final class RelationshipTraversalService
     /**
      * @param list<Relationship> $relationships
      * @param 'published'|'unpublished'|'all' $statusMode
+     * @param array<string, array{label: string, is_public: bool}> $entitySummaryCache
      * @return list<array{
      *   relationship_id: string,
      *   relationship_type: string,
@@ -232,6 +237,7 @@ final class RelationshipTraversalService
         string $sourceEntityId,
         string $direction,
         string $statusMode,
+        array &$entitySummaryCache,
     ): array {
         $edges = [];
 
@@ -278,7 +284,7 @@ final class RelationshipTraversalService
                 continue;
             }
 
-            $relatedSummary = $this->loadEntitySummary($relatedType, $relatedId);
+            $relatedSummary = $this->loadEntitySummaryCached($relatedType, $relatedId, $entitySummaryCache);
             if ($statusMode === 'published' && !$relatedSummary['is_public']) {
                 continue;
             }
@@ -341,6 +347,22 @@ final class RelationshipTraversalService
             'label' => sprintf('%s:%s', $entityType, $entityId),
             'is_public' => false,
         ];
+    }
+
+    /**
+     * @param array<string, array{label: string, is_public: bool}> $summaryCache
+     * @return array{label: string, is_public: bool}
+     */
+    private function loadEntitySummaryCached(string $entityType, string $entityId, array &$summaryCache): array
+    {
+        $cacheKey = strtolower($entityType) . ':' . $entityId;
+        if (isset($summaryCache[$cacheKey])) {
+            return $summaryCache[$cacheKey];
+        }
+
+        $summaryCache[$cacheKey] = $this->loadEntitySummary($entityType, $entityId);
+
+        return $summaryCache[$cacheKey];
     }
 
     /**
