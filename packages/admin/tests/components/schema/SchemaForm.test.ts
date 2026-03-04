@@ -81,6 +81,12 @@ describe('SchemaForm submit — create mode (no entityId)', () => {
               'x-weight': 11,
               default: false,
             },
+            sticky: {
+              type: 'boolean',
+              'x-widget': 'boolean',
+              'x-label': 'Sticky',
+              'x-weight': 12,
+            },
           },
         },
       },
@@ -92,8 +98,14 @@ describe('SchemaForm submit — create mode (no entityId)', () => {
     await flushPromises()
 
     const checkboxes = wrapper.findAll('input[type="checkbox"]')
-    // At minimum, verify checkboxes exist and form rendered
-    expect(checkboxes.length).toBeGreaterThanOrEqual(1)
+    // 3 boolean fields should render as checkboxes
+    expect(checkboxes.length).toBe(3)
+    // status (default: true) should be checked
+    expect((checkboxes[0].element as HTMLInputElement).checked).toBe(true)
+    // promote (default: false) should be unchecked
+    expect((checkboxes[1].element as HTMLInputElement).checked).toBe(false)
+    // sticky (no default, convention: false) should be unchecked
+    expect((checkboxes[2].element as HTMLInputElement).checked).toBe(false)
   })
 
   it('emits error event when create fails', async () => {

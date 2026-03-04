@@ -17,6 +17,7 @@ export interface SchemaProperty {
   'x-enum-labels'?: Record<string, string>
   'x-target-type'?: string
   'x-access-restricted'?: boolean
+  default?: string | number | boolean
 }
 
 export interface EntitySchema {
