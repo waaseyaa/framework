@@ -52,6 +52,7 @@ use Waaseyaa\AI\Vector\EntityEmbeddingListener;
 use Waaseyaa\AI\Vector\SearchController;
 use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\Mcp\McpController;
+use Waaseyaa\Relationship\RelationshipDiscoveryService;
 use Waaseyaa\Relationship\RelationshipTraversalService;
 use Waaseyaa\User\Middleware\BearerAuthMiddleware;
 use Waaseyaa\User\DevAdminAccount;
@@ -325,6 +326,24 @@ final class HttpKernel extends AbstractKernel
         );
 
         $router->addRoute(
+            'api.discovery.hub',
+            RouteBuilder::create('/api/discovery/hub/{entity_type}/{id}')
+                ->controller('discovery.topic_hub')
+                ->allowAll()
+                ->methods('GET')
+                ->build(),
+        );
+
+        $router->addRoute(
+            'api.discovery.cluster',
+            RouteBuilder::create('/api/discovery/cluster/{entity_type}/{id}')
+                ->controller('discovery.cluster')
+                ->allowAll()
+                ->methods('GET')
+                ->build(),
+        );
+
+        $router->addRoute(
             'mcp.endpoint',
             RouteBuilder::create('/mcp')
                 ->controller('mcp.endpoint')
@@ -532,6 +551,64 @@ final class HttpKernel extends AbstractKernel
                     $this->sendJson($document->statusCode, $document->toArray());
                 })(),
 
+                $controller === 'discovery.topic_hub' => (function () use ($params, $query): never {
+                    $entityType = is_string($params['entity_type'] ?? null) ? trim((string) $params['entity_type']) : '';
+                    $entityId = $params['id'] ?? null;
+                    if ($entityType === '' || !is_scalar($entityId) || trim((string) $entityId) === '') {
+                        $this->sendJson(400, [
+                            'jsonapi' => ['version' => '1.1'],
+                            'errors' => [[
+                                'status' => '400',
+                                'title' => 'Bad Request',
+                                'detail' => 'Discovery hub requires route params "entity_type" and "id".',
+                            ]],
+                        ]);
+                    }
+
+                    $relationshipTypes = $this->parseRelationshipTypesQuery($query['relationship_types'] ?? null);
+                    $service = new RelationshipDiscoveryService(
+                        new RelationshipTraversalService($this->entityTypeManager, $this->database),
+                    );
+                    $payload = $service->topicHub($entityType, (string) $entityId, [
+                        'relationship_types' => $relationshipTypes,
+                        'status' => is_string($query['status'] ?? null) ? trim((string) $query['status']) : 'published',
+                        'at' => $query['at'] ?? null,
+                        'limit' => is_numeric($query['limit'] ?? null) ? (int) $query['limit'] : null,
+                        'offset' => is_numeric($query['offset'] ?? null) ? (int) $query['offset'] : null,
+                    ]);
+
+                    $this->sendJson(200, ['data' => $payload]);
+                })(),
+
+                $controller === 'discovery.cluster' => (function () use ($params, $query): never {
+                    $entityType = is_string($params['entity_type'] ?? null) ? trim((string) $params['entity_type']) : '';
+                    $entityId = $params['id'] ?? null;
+                    if ($entityType === '' || !is_scalar($entityId) || trim((string) $entityId) === '') {
+                        $this->sendJson(400, [
+                            'jsonapi' => ['version' => '1.1'],
+                            'errors' => [[
+                                'status' => '400',
+                                'title' => 'Bad Request',
+                                'detail' => 'Discovery cluster requires route params "entity_type" and "id".',
+                            ]],
+                        ]);
+                    }
+
+                    $relationshipTypes = $this->parseRelationshipTypesQuery($query['relationship_types'] ?? null);
+                    $service = new RelationshipDiscoveryService(
+                        new RelationshipTraversalService($this->entityTypeManager, $this->database),
+                    );
+                    $payload = $service->clusterPage($entityType, (string) $entityId, [
+                        'relationship_types' => $relationshipTypes,
+                        'status' => is_string($query['status'] ?? null) ? trim((string) $query['status']) : 'published',
+                        'at' => $query['at'] ?? null,
+                        'limit' => is_numeric($query['limit'] ?? null) ? (int) $query['limit'] : null,
+                        'offset' => is_numeric($query['offset'] ?? null) ? (int) $query['offset'] : null,
+                    ]);
+
+                    $this->sendJson(200, ['data' => $payload]);
+                })(),
+
                 $controller === 'mcp.endpoint' => (function () use ($method, $httpRequest, $account, $serializer): never {
                     $embeddingProvider = EmbeddingProviderFactory::fromConfig($this->config);
                     $embeddingStorage = new SqliteEmbeddingStorage($this->database->getPdo());
@@ -626,6 +703,35 @@ final class HttpKernel extends AbstractKernel
                 ]],
             ]);
         }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function parseRelationshipTypesQuery(mixed $value): array
+    {
+        if (is_string($value)) {
+            $parts = array_map('trim', explode(',', $value));
+            return array_values(array_filter($parts, static fn(string $part): bool => $part !== ''));
+        }
+
+        if (is_array($value)) {
+            $types = [];
+            foreach ($value as $candidate) {
+                if (!is_string($candidate)) {
+                    continue;
+                }
+                $normalized = trim($candidate);
+                if ($normalized === '') {
+                    continue;
+                }
+                $types[] = $normalized;
+            }
+
+            return array_values(array_unique($types));
+        }
+
+        return [];
     }
 
     private function handleRenderPage(

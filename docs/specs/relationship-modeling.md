@@ -81,6 +81,22 @@ Minimum indexes:
 - MCP traversal tools must consume relationship entities directly.
 - Semantic indexing may include relationship context fields where relevant.
 
+## Discovery Surfaces Contract (v0.9)
+
+Relationship traversal powers reusable discovery composition primitives:
+
+- Topic hub aggregation: deterministic, paginated edge lists with facet counts.
+- Cluster composition: grouped neighborhoods keyed by `relationship_type + related_entity_type`.
+- Public discovery route payloads must preserve deterministic ordering under identical fixture input.
+
+Deterministic ordering for hub/cluster composition:
+
+- `relationship_type` ascending
+- direction rank (`outbound` before `inbound`)
+- `related_entity_type` ascending
+- `related_entity_label` ascending (case-insensitive)
+- stable tie-breaker by `related_entity_id`, then `relationship_id`
+
 ## Test Matrix
 
 Unit:

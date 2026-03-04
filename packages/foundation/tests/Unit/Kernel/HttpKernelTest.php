@@ -210,6 +210,8 @@ final class HttpKernelTest extends TestCase
         $this->assertNotNull($routes->get('api.entity_types'));
         $this->assertNotNull($routes->get('api.broadcast'));
         $this->assertNotNull($routes->get('api.search'));
+        $this->assertNotNull($routes->get('api.discovery.hub'));
+        $this->assertNotNull($routes->get('api.discovery.cluster'));
         $this->assertNotNull($routes->get('api.media.upload'));
         $this->assertNotNull($routes->get('mcp.endpoint'));
         $this->assertNotNull($routes->get('public.home'));
@@ -345,6 +347,30 @@ final class HttpKernelTest extends TestCase
 
         $this->assertSame('en', $resolved['langcode']);
         $this->assertSame('/teachings/water', $resolved['alias_path']);
+    }
+
+    #[Test]
+    public function parses_relationship_types_from_comma_separated_query_string(): void
+    {
+        $kernel = new HttpKernel('/tmp/test-project');
+        $method = new \ReflectionMethod(HttpKernel::class, 'parseRelationshipTypesQuery');
+        $method->setAccessible(true);
+
+        $types = $method->invoke($kernel, 'references, influences, ,references');
+
+        $this->assertSame(['references', 'influences', 'references'], $types);
+    }
+
+    #[Test]
+    public function parses_relationship_types_from_array_query_value(): void
+    {
+        $kernel = new HttpKernel('/tmp/test-project');
+        $method = new \ReflectionMethod(HttpKernel::class, 'parseRelationshipTypesQuery');
+        $method->setAccessible(true);
+
+        $types = $method->invoke($kernel, ['references', 'influences', 'references', '', 123]);
+
+        $this->assertSame(['references', 'influences'], $types);
     }
 
 }
