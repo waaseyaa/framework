@@ -136,12 +136,16 @@ Fixture corpus must include:
 - unpublished relationship
 - mixed workflow node states (published/draft/archived) to verify visibility enforcement
 - cross-bundle related targets for hub/cluster aggregation
+- large-graph fanout set for traversal/discovery stress reads
+- deterministic mutation scenarios for cache invalidation coverage
 
 v0.9 adds shared framework fixtures in `tests/Support/WorkflowFixturePack.php`:
 
 - `discoveryNodes()` for public/non-public node mixes with fixed timestamps.
 - `discoveryRelationships()` for temporal + status-varied graph edges.
 - `discoverySearchScenarios()` for stable query expectations.
+- `performanceNodesLargeGraph()` and `performanceRelationshipsLargeGraph()` for high-fanout graph surfaces.
+- `performanceTraversalScenarios()` and `performanceCacheInvalidationScenarios()` for perf/correctness scenario coverage.
 - `corpusSnapshot()` and `corpusHash()` for deterministic hash regression gates.
 
 Downstream integration suites consume this shared corpus directly (SSR/search/MCP/discovery) to avoid drift across package-level tests.

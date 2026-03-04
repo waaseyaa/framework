@@ -259,6 +259,146 @@ final class WorkflowFixturePack
     }
 
     /**
+     * Deterministic larger graph corpus for traversal fanout/perf-focused suites.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public static function performanceNodesLargeGraph(): array
+    {
+        $states = ['published', 'review', 'draft', 'archived'];
+        $types = ['teaching', 'story', 'guide', 'article'];
+        $nodes = [];
+
+        for ($i = 1; $i <= 48; $i++) {
+            $key = sprintf('perf_%03d', $i);
+            $state = $states[($i - 1) % count($states)];
+            $nodes[$key] = [
+                'title' => sprintf('Performance Node %03d', $i),
+                'body' => sprintf('deterministic performance corpus body %03d', $i),
+                'type' => $types[($i - 1) % count($types)],
+                'uid' => 11,
+                'created' => self::FIXED_TIMESTAMP + (600 + ($i * 30)),
+                'changed' => self::FIXED_TIMESTAMP + (600 + ($i * 30)),
+                'status' => $state === 'published' ? 1 : 0,
+                'workflow_state' => $state,
+            ];
+        }
+
+        ksort($nodes);
+
+        return $nodes;
+    }
+
+    /**
+     * @return list<array{
+     *   key: string,
+     *   relationship_type: string,
+     *   from: string,
+     *   to: string,
+     *   status: int,
+     *   start_date: int,
+     *   end_date: ?int
+     * }>
+     */
+    public static function performanceRelationshipsLargeGraph(): array
+    {
+        $relationships = [];
+        $relationshipTypes = ['related', 'supports', 'temporal'];
+        $anchor = 'perf_001';
+
+        for ($i = 2; $i <= 40; $i++) {
+            $toKey = sprintf('perf_%03d', $i);
+            $relationshipType = $relationshipTypes[($i - 2) % count($relationshipTypes)];
+            $relationships[] = [
+                'key' => sprintf('perf_anchor_to_%03d', $i),
+                'relationship_type' => $relationshipType,
+                'from' => $anchor,
+                'to' => $toKey,
+                'status' => ($i % 5 === 0) ? 0 : 1,
+                'start_date' => self::FIXED_TIMESTAMP - ($i * 120),
+                'end_date' => $relationshipType === 'temporal'
+                    ? self::FIXED_TIMESTAMP + ($i * 120)
+                    : null,
+            ];
+        }
+
+        for ($i = 2; $i <= 47; $i++) {
+            $fromKey = sprintf('perf_%03d', $i);
+            $toKey = sprintf('perf_%03d', $i + 1);
+            $relationships[] = [
+                'key' => sprintf('perf_chain_%03d_to_%03d', $i, $i + 1),
+                'relationship_type' => 'related',
+                'from' => $fromKey,
+                'to' => $toKey,
+                'status' => 1,
+                'start_date' => self::FIXED_TIMESTAMP - (10_000 + ($i * 60)),
+                'end_date' => null,
+            ];
+        }
+
+        usort($relationships, static fn(array $a, array $b): int => strcmp((string) $a['key'], (string) $b['key']));
+
+        return $relationships;
+    }
+
+    /**
+     * @return list<array{
+     *   name: string,
+     *   anchor_key: string,
+     *   status: string,
+     *   limit: int,
+     *   expected_min_total: int
+     * }>
+     */
+    public static function performanceTraversalScenarios(): array
+    {
+        return [
+            [
+                'name' => 'published fanout keeps high-volume public edges',
+                'anchor_key' => 'perf_001',
+                'status' => 'published',
+                'limit' => 64,
+                'expected_min_total' => 7,
+            ],
+            [
+                'name' => 'all-status fanout includes unpublished edges',
+                'anchor_key' => 'perf_001',
+                'status' => 'all',
+                'limit' => 96,
+                'expected_min_total' => 39,
+            ],
+        ];
+    }
+
+    /**
+     * Deterministic mutation scenarios for cache invalidation coverage.
+     *
+     * @return list<array{
+     *   name: string,
+     *   mutate_entity_type: string,
+     *   mutate_key: string,
+     *   expected_affected_anchor_keys: list<string>
+     * }>
+     */
+    public static function performanceCacheInvalidationScenarios(): array
+    {
+        return [
+            [
+                'name' => 'anchor node mutation invalidates broad fanout surfaces',
+                'mutate_entity_type' => 'node',
+                'mutate_key' => 'perf_001',
+                'expected_affected_anchor_keys' => ['perf_001'],
+            ],
+            [
+                'name' => 'high-degree relationship mutation invalidates anchor surfaces',
+                'mutate_entity_type' => 'relationship',
+                'mutate_key' => 'perf_anchor_to_020',
+                'expected_affected_anchor_keys' => ['perf_001'],
+            ],
+        ];
+    }
+
+    /**
      * @return array{
      *   timestamp: int,
      *   ssr_nodes: array<string, array<string, mixed>>,
@@ -275,6 +415,29 @@ final class WorkflowFixturePack
      *     end_date: ?int
      *   }>,
      *   discovery_search: list<array{name: string, query: string, expected_visible_keys: list<string>}>,
+     *   performance_nodes: array<string, array<string, mixed>>,
+     *   performance_relationships: list<array{
+     *     key: string,
+     *     relationship_type: string,
+     *     from: string,
+     *     to: string,
+     *     status: int,
+     *     start_date: int,
+     *     end_date: ?int
+     *   }>,
+     *   performance_traversal: list<array{
+     *     name: string,
+     *     anchor_key: string,
+     *     status: string,
+     *     limit: int,
+     *     expected_min_total: int
+     *   }>,
+     *   performance_cache_invalidation: list<array{
+     *     name: string,
+     *     mutate_entity_type: string,
+     *     mutate_key: string,
+     *     expected_affected_anchor_keys: list<string>
+     *   }>,
      *   transition_access: list<array{
      *     name: string,
      *     bundle: string,
@@ -297,6 +460,10 @@ final class WorkflowFixturePack
             'discovery_nodes' => self::discoveryNodes(),
             'discovery_relationships' => self::discoveryRelationships(),
             'discovery_search' => self::discoverySearchScenarios(),
+            'performance_nodes' => self::performanceNodesLargeGraph(),
+            'performance_relationships' => self::performanceRelationshipsLargeGraph(),
+            'performance_traversal' => self::performanceTraversalScenarios(),
+            'performance_cache_invalidation' => self::performanceCacheInvalidationScenarios(),
             'transition_access' => self::transitionAccessScenarios(),
             'invalid_transitions' => self::invalidTransitionScenarios(),
         ];
