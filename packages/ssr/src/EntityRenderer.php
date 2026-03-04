@@ -22,6 +22,7 @@ final class EntityRenderer
      * @return array{
      *   entity: EntityInterface,
      *   entity_type: string,
+     *   bundle: string,
      *   view_mode: string,
      *   template_suggestions: list<string>,
      *   fields: array<string, array{raw: mixed, formatted: string, type: string}>
@@ -67,14 +68,36 @@ final class EntityRenderer
         return [
             'entity' => $entity,
             'entity_type' => $entityTypeId,
+            'bundle' => $entity->bundle(),
             'view_mode' => $mode,
-            'template_suggestions' => [
-                "{$entityTypeId}.{$mode}.html.twig",
-                "{$entityTypeId}.full.html.twig",
-                'entity.html.twig',
-            ],
+            'template_suggestions' => $this->buildTemplateSuggestions($entityTypeId, (string) $entity->bundle(), $mode),
             'fields' => $fields,
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function buildTemplateSuggestions(string $entityTypeId, string $bundle, string $mode): array
+    {
+        $modeSafe = preg_replace('/[^a-z0-9_]+/i', '_', strtolower($mode)) ?: 'full';
+        $bundleSafe = preg_replace('/[^a-z0-9_]+/i', '_', strtolower($bundle)) ?: $entityTypeId;
+
+        $suggestions = [
+            sprintf('%s.%s.%s.html.twig', $entityTypeId, $bundleSafe, $modeSafe),
+        ];
+
+        if ($modeSafe !== 'full') {
+            $suggestions[] = sprintf('%s.%s.full.html.twig', $entityTypeId, $bundleSafe);
+        }
+
+        $suggestions[] = sprintf('%s.%s.html.twig', $entityTypeId, $modeSafe);
+        if ($modeSafe !== 'full') {
+            $suggestions[] = sprintf('%s.full.html.twig', $entityTypeId);
+        }
+        $suggestions[] = 'entity.html.twig';
+
+        return array_values(array_unique($suggestions));
     }
 
     /**

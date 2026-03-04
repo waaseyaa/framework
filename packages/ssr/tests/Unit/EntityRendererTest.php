@@ -49,6 +49,7 @@ final class EntityRendererTest extends TestCase
         $renderer = new EntityRenderer($manager, new FieldFormatterRegistry(), $config);
         $entity = new RendererTestEntity('node', [
             'id' => 1,
+            'bundle' => 'article',
             'title' => 'Hello',
             'body' => '<p>Body</p>',
             'created' => 1767571200,
@@ -57,12 +58,16 @@ final class EntityRendererTest extends TestCase
         $bag = $renderer->render($entity, ViewMode::teaser());
 
         $this->assertSame('node', $bag['entity_type']);
+        $this->assertSame('article', $bag['bundle']);
         $this->assertSame('teaser', $bag['view_mode']);
         $this->assertSame(['title', 'body', 'created'], array_keys($bag['fields']));
         $this->assertSame('Hello', $bag['fields']['title']['formatted']);
         $this->assertSame('&lt;p&gt;Body&lt;/p&gt;', $bag['fields']['body']['formatted']);
         $this->assertSame('2026-01-05', $bag['fields']['created']['formatted']);
-        $this->assertSame('node.teaser.html.twig', $bag['template_suggestions'][0]);
+        $this->assertSame('node.article.teaser.html.twig', $bag['template_suggestions'][0]);
+        $this->assertSame('node.article.full.html.twig', $bag['template_suggestions'][1]);
+        $this->assertSame('node.teaser.html.twig', $bag['template_suggestions'][2]);
+        $this->assertSame('node.full.html.twig', $bag['template_suggestions'][3]);
     }
 
     #[Test]
