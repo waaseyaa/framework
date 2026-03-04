@@ -157,18 +157,21 @@ $entityTypes = [
                 'label' => 'Published',
                 'description' => 'Whether the content is published.',
                 'weight' => 10,
+                'default' => 1,
             ],
             'promote' => [
                 'type' => 'boolean',
                 'label' => 'Promoted to front page',
                 'description' => 'Whether the content is promoted to the front page.',
                 'weight' => 11,
+                'default' => 0,
             ],
             'sticky' => [
                 'type' => 'boolean',
                 'label' => 'Sticky at top of lists',
                 'description' => 'Whether the content is sticky at the top of lists.',
                 'weight' => 12,
+                'default' => 0,
             ],
             'uid' => [
                 'type' => 'entity_reference',
