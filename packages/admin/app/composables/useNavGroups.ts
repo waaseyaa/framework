@@ -4,6 +4,8 @@ export interface EntityTypeInfo {
   keys: Record<string, string>
 }
 
+type NonEmptyArray<T> = [T, ...T[]]
+
 interface NavGroupDefinition {
   key: string
   labelKey: string
@@ -13,7 +15,7 @@ interface NavGroupDefinition {
 export interface ResolvedNavGroup {
   key: string
   labelKey: string
-  entityTypes: EntityTypeInfo[]
+  entityTypes: NonEmptyArray<EntityTypeInfo>
 }
 
 const navGroupDefinitions: NavGroupDefinition[] = [
@@ -36,7 +38,11 @@ export function groupEntityTypes(entityTypes: EntityTypeInfo[]): ResolvedNavGrou
       .filter((et): et is EntityTypeInfo => et !== undefined)
 
     if (matched.length > 0) {
-      groups.push({ key: def.key, labelKey: def.labelKey, entityTypes: matched })
+      groups.push({
+        key: def.key,
+        labelKey: def.labelKey,
+        entityTypes: matched as NonEmptyArray<EntityTypeInfo>,
+      })
       for (const et of matched) {
         claimed.add(et.id)
       }
@@ -45,7 +51,11 @@ export function groupEntityTypes(entityTypes: EntityTypeInfo[]): ResolvedNavGrou
 
   const unclaimed = entityTypes.filter((et) => !claimed.has(et.id))
   if (unclaimed.length > 0) {
-    groups.push({ key: 'other', labelKey: 'nav_group_other', entityTypes: unclaimed })
+    groups.push({
+      key: 'other',
+      labelKey: 'nav_group_other',
+      entityTypes: unclaimed as NonEmptyArray<EntityTypeInfo>,
+    })
   }
 
   return groups
