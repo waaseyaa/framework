@@ -142,6 +142,39 @@ final class McpControllerTest extends TestCase
     }
 
     #[Test]
+    public function toolsIntrospectIncludesRegisteredExtensionHooksForApplicableTool(): void
+    {
+        $controller = $this->createControllerWithExtensions([
+            [
+                'id' => 'external_discovery_pack',
+                'label' => 'External Discovery Pack',
+                'tools' => ['ai_discover', 'search_teachings'],
+                'hooks' => ['before_tool_call', 'after_tool_result_meta'],
+            ],
+            [
+                'id' => 'workflow_only_pack',
+                'label' => 'Workflow Pack',
+                'tools' => ['editorial_transition'],
+                'hooks' => ['before_tool_call'],
+            ],
+        ]);
+
+        $response = $controller->handleRpc([
+            'jsonrpc' => '2.0',
+            'id' => 5,
+            'method' => 'tools/introspect',
+            'params' => [
+                'name' => 'ai_discover',
+            ],
+        ]);
+
+        $this->assertSame(1, $response['result']['extensions']['count']);
+        $this->assertSame('external_discovery_pack', $response['result']['extensions']['registered'][0]['id']);
+        $this->assertContains('extensions:before_tool_call', $response['result']['diagnostics']['execution_path']);
+        $this->assertContains('extensions:after_tool_result_meta', $response['result']['diagnostics']['execution_path']);
+    }
+
+    #[Test]
     public function listEntityTypesToolReturnsDefinitions(): void
     {
         $definition = new EntityType(
@@ -638,6 +671,29 @@ final class McpControllerTest extends TestCase
             account: new TestMcpAccount(),
             embeddingStorage: $storage,
             embeddingProvider: null,
+        );
+    }
+
+    /**
+     * @param list<array<string, mixed>> $extensions
+     */
+    private function createControllerWithExtensions(array $extensions): McpController
+    {
+        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager->method('getDefinitions')->willReturn([]);
+        $manager->method('getDefinition')->willThrowException(new \RuntimeException('not used'));
+
+        $serializer = new ResourceSerializer($manager);
+        $storage = $this->createMock(EmbeddingStorageInterface::class);
+
+        return new McpController(
+            entityTypeManager: $manager,
+            serializer: $serializer,
+            accessHandler: new EntityAccessHandler([]),
+            account: new TestMcpAccount(),
+            embeddingStorage: $storage,
+            embeddingProvider: null,
+            extensionRegistrations: $extensions,
         );
     }
 

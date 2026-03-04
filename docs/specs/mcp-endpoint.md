@@ -179,6 +179,7 @@ All communication uses JSON-RPC 2.0 over HTTP.
 | `initialize` | Returns protocol version, capabilities, server info |
 | `ping` | Health check, returns empty result |
 | `tools/list` | Returns all registered tool definitions |
+| `tools/introspect` | Returns deterministic tool diagnostics, contract metadata, and extension hook visibility |
 | `tools/call` | Executes a tool by name with arguments |
 
 ### Discovery Blend Tool Contract (v1.0 stable extension)
@@ -217,6 +218,12 @@ MCP read-path caching (v1.1 hardening):
 - cache keys are deterministic under equivalent argument ordering,
 - entity save/delete invalidates tagged MCP cache entries to avoid stale graph/discovery responses,
 - payload contract remains stable; caching is transparent to tool consumers.
+
+MCP extension registration diagnostics (v1.3 additive surface):
+- `tools/introspect` includes extension registration diagnostics for applicable tools,
+- extension diagnostics are additive and do not change `tools/call` result payload shape,
+- introspection includes registered extension IDs, hook names, and execution-path hook markers,
+- extension tool matching normalizes aliases to canonical tool names (`search_teachings` -> `search_entities`).
 
 ### Request Format
 
@@ -309,6 +316,7 @@ The MCP spec (protocol version 2025-03-26) defines Streamable HTTP as the remote
 | Feature | MVP | Future |
 |---------|-----|--------|
 | `tools/list` | Yes | -- |
+| `tools/introspect` | Yes | Expanded extension diagnostics |
 | `tools/call` | Yes | -- |
 | `resources/list` | No | v0.2.0+ |
 | `resources/read` | No | v0.2.0+ |

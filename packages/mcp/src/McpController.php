@@ -40,6 +40,7 @@ final class McpController
         private readonly ?EmbeddingProviderInterface $embeddingProvider = null,
         private readonly ?RelationshipTraversalService $relationshipTraversal = null,
         private readonly ?CacheBackendInterface $readCache = null,
+        private readonly array $extensionRegistrations = [],
     ) {
         $this->editorialStateMachine = new EditorialWorkflowStateMachine();
         $this->editorialTransitionResolver = new EditorialTransitionAccessResolver($this->editorialStateMachine);
@@ -113,6 +114,13 @@ final class McpController
 
         $canonicalTool = $this->canonicalToolName($requestedTool);
         $descriptor = $this->toolDiagnosticsDescriptor($canonicalTool);
+        $extensions = $this->introspectionExtensionsForTool($requestedTool, $canonicalTool);
+        $executionPath = $descriptor['execution_path'];
+        foreach ($extensions['execution_path_hooks'] as $hook) {
+            if (!in_array($hook, $executionPath, true)) {
+                $executionPath[] = $hook;
+            }
+        }
         $accountContext = $this->readCacheAccountContext();
         $stableMeta = [
             'contract_version' => self::CONTRACT_VERSION,
@@ -153,8 +161,9 @@ final class McpController
             'permissions' => [
                 'boundaries' => $descriptor['permission_boundaries'],
             ],
+            'extensions' => $extensions,
             'diagnostics' => [
-                'execution_path' => $descriptor['execution_path'],
+                'execution_path' => $executionPath,
                 'failure_modes' => $descriptor['failure_modes'],
             ],
         ]);
@@ -1209,6 +1218,104 @@ final class McpController
     private function canonicalToolName(string $tool): string
     {
         return $tool === 'search_teachings' ? 'search_entities' : $tool;
+    }
+
+    /**
+     * @return array{
+     *   count: int,
+     *   registered: list<array{
+     *     id: string,
+     *     label: string,
+     *     tools: list<string>,
+     *     hooks: list<string>
+     *   }>,
+     *   execution_path_hooks: list<string>
+     * }
+     */
+    private function introspectionExtensionsForTool(string $requestedTool, string $canonicalTool): array
+    {
+        $rows = [];
+        foreach ($this->extensionRegistrations as $registration) {
+            if (!is_array($registration)) {
+                continue;
+            }
+
+            $id = is_string($registration['id'] ?? null)
+                ? trim($registration['id'])
+                : (is_string($registration['plugin_id'] ?? null) ? trim($registration['plugin_id']) : '');
+            if ($id === '') {
+                continue;
+            }
+
+            $label = is_string($registration['label'] ?? null) ? trim($registration['label']) : $id;
+            if ($label === '') {
+                $label = $id;
+            }
+
+            $tools = [];
+            if (is_array($registration['tools'] ?? null)) {
+                foreach ($registration['tools'] as $tool) {
+                    if (!is_string($tool)) {
+                        continue;
+                    }
+                    $normalizedTool = $this->canonicalToolName(strtolower(trim($tool)));
+                    if ($normalizedTool !== '') {
+                        $tools[] = $normalizedTool;
+                    }
+                }
+            }
+            $tools = array_values(array_unique($tools));
+            sort($tools);
+
+            $isApplicable = $tools === [] || in_array($canonicalTool, $tools, true) || in_array($requestedTool, $tools, true);
+            if (!$isApplicable) {
+                continue;
+            }
+
+            $hooks = [];
+            if (is_array($registration['hooks'] ?? null)) {
+                foreach ($registration['hooks'] as $hook) {
+                    if (!is_string($hook)) {
+                        continue;
+                    }
+                    $normalizedHook = strtolower(trim($hook));
+                    if ($normalizedHook !== '') {
+                        $hooks[] = $normalizedHook;
+                    }
+                }
+            }
+            if ($hooks === []) {
+                $hooks = ['before_tool_call', 'after_tool_result_meta'];
+            }
+            $hooks = array_values(array_unique($hooks));
+            sort($hooks);
+
+            $rows[] = [
+                'id' => $id,
+                'label' => $label,
+                'tools' => $tools,
+                'hooks' => $hooks,
+            ];
+        }
+
+        usort($rows, static function (array $a, array $b): int {
+            return strcmp($a['id'], $b['id']);
+        });
+
+        $executionHooks = [];
+        foreach ($rows as $row) {
+            foreach ($row['hooks'] as $hook) {
+                $executionHooks[] = 'extensions:' . $hook;
+            }
+        }
+        $executionHooks = array_values(array_unique($executionHooks));
+        sort($executionHooks);
+
+        return [
+            'count' => count($rows),
+            'registered' => $rows,
+            'execution_path_hooks' => $executionHooks,
+        ];
     }
 
     /**
