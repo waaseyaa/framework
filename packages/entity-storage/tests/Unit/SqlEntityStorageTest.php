@@ -36,6 +36,10 @@ final class SqlEntityStorageTest extends TestCase
                 'label' => 'label',
                 'langcode' => 'langcode',
             ],
+            fieldDefinitions: [
+                'created' => ['type' => 'timestamp'],
+                'changed' => ['type' => 'timestamp'],
+            ],
         );
         $this->eventDispatcher = new EventDispatcher();
 
@@ -261,5 +265,69 @@ final class SqlEntityStorageTest extends TestCase
         $loaded = $this->storage->load($entity->id());
 
         $this->assertSame($originalUuid, $loaded->uuid());
+    }
+
+    public function testSaveNewEntitySetsCreatedTimestamp(): void
+    {
+        $before = time();
+
+        $entity = $this->storage->create([
+            'label' => 'Timestamp Test',
+            'bundle' => 'page',
+            'created' => 0,
+            'changed' => 0,
+        ]);
+        $entity->enforceIsNew();
+        $this->storage->save($entity);
+
+        $loaded = $this->storage->load($entity->id());
+        $created = (int) $loaded->get('created');
+        $changed = (int) $loaded->get('changed');
+
+        $this->assertGreaterThanOrEqual($before, $created);
+        $this->assertLessThanOrEqual(time(), $created);
+        $this->assertGreaterThanOrEqual($before, $changed);
+    }
+
+    public function testSaveExistingEntityUpdatesChangedTimestamp(): void
+    {
+        $entity = $this->storage->create([
+            'label' => 'Update Test',
+            'bundle' => 'page',
+            'created' => 1000,
+            'changed' => 1000,
+        ]);
+        $entity->enforceIsNew();
+        $this->storage->save($entity);
+
+        // Reload and save again.
+        $loaded = $this->storage->load($entity->id());
+        $loaded->set('label', 'Updated');
+        $before = time();
+        $this->storage->save($loaded);
+
+        $reloaded = $this->storage->load($entity->id());
+
+        // Created should NOT change on update.
+        $this->assertSame(1000, (int) $reloaded->get('created'));
+        // Changed should be updated.
+        $this->assertGreaterThanOrEqual($before, (int) $reloaded->get('changed'));
+    }
+
+    public function testSaveNewEntityPreservesExplicitCreatedTimestamp(): void
+    {
+        $entity = $this->storage->create([
+            'label' => 'Explicit Created',
+            'bundle' => 'page',
+            'created' => 1700000000,
+            'changed' => 0,
+        ]);
+        $entity->enforceIsNew();
+        $this->storage->save($entity);
+
+        $loaded = $this->storage->load($entity->id());
+
+        // Explicit non-zero created should be preserved.
+        $this->assertSame(1700000000, (int) $loaded->get('created'));
     }
 }

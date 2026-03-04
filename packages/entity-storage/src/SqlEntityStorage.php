@@ -108,6 +108,10 @@ final class SqlEntityStorage implements EntityStorageInterface
     public function save(EntityInterface $entity): int
     {
         $isNew = $entity->isNew();
+
+        // Auto-populate timestamp fields.
+        $this->populateTimestamps($entity, $isNew);
+
         $values = $entity->toArray();
 
         // Split values into schema columns and extra data.
@@ -321,6 +325,30 @@ final class SqlEntityStorage implements EntityStorageInterface
         $dbValues['_data'] = json_encode($extraData, \JSON_THROW_ON_ERROR);
 
         return $dbValues;
+    }
+
+    /**
+     * Auto-populate timestamp fields on save.
+     *
+     * Sets `created` to current time on new entities (if not already set).
+     * Always updates `changed` to current time.
+     */
+    private function populateTimestamps(EntityInterface $entity, bool $isNew): void
+    {
+        $fieldDefs = $this->entityType->getFieldDefinitions();
+        $now = time();
+
+        foreach ($fieldDefs as $fieldName => $def) {
+            if (($def['type'] ?? null) !== 'timestamp') {
+                continue;
+            }
+
+            if ($fieldName === 'created' && $isNew && (int) ($entity->get('created') ?? 0) === 0) {
+                $entity->set('created', $now);
+            } elseif ($fieldName === 'changed') {
+                $entity->set('changed', $now);
+            }
+        }
     }
 
     /**
