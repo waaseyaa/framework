@@ -205,6 +205,8 @@ final class ResourceSerializerTest extends TestCase
 
         $this->assertIsString($resource->attributes['created']);
         $this->assertStringContainsString('2024-03-04', $resource->attributes['created']);
+        $this->assertIsString($resource->attributes['changed']);
+        $this->assertStringContainsString('2024-03-04', $resource->attributes['changed']);
     }
 
     #[Test]
@@ -215,6 +217,21 @@ final class ResourceSerializerTest extends TestCase
             'uuid' => 'uuid-ts0',
             'title' => 'Test',
             'created' => 0,
+        ]);
+
+        $resource = $this->serializer->serialize($entity);
+
+        $this->assertNull($resource->attributes['created']);
+    }
+
+    #[Test]
+    public function serializeCastsNullTimestampToNull(): void
+    {
+        $entity = new TestEntity([
+            'id' => 1,
+            'uuid' => 'uuid-null-ts',
+            'title' => 'Test',
+            'created' => null,
         ]);
 
         $resource = $this->serializer->serialize($entity);

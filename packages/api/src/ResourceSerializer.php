@@ -114,10 +114,10 @@ final class ResourceSerializer
      */
     private function castAttributes(array $attributes, array $fieldDefinitions): array
     {
-        foreach ($attributes as $name => &$value) {
+        foreach ($attributes as $name => $value) {
             $type = $fieldDefinitions[$name]['type'] ?? null;
 
-            $value = match ($type) {
+            $attributes[$name] = match ($type) {
                 'boolean' => (bool) $value,
                 'timestamp', 'datetime' => $this->formatTimestamp($value),
                 default => $value,
@@ -132,6 +132,10 @@ final class ResourceSerializer
      */
     private function formatTimestamp(mixed $value): ?string
     {
+        if ($value === null) {
+            return null;
+        }
+
         $ts = (int) $value;
         if ($ts === 0) {
             return null;
