@@ -35,8 +35,8 @@ The access control system has four layers, being built bottom-up:
 | 1 | Entity CRUD views | Done | List, create, edit, delete for all entity types |
 | 2 | i18n locales beyond English | Planned | Infrastructure exists (`useLanguage` composable), needs locale files |
 | 3 | Dynamic CORS origin | Planned | CORS in `index.php` hardcodes `localhost:3000`. Nuxt dev server may bind to 3001+ if port is taken. Need dynamic origin handling (e.g., `WAASEYAA_CORS_ORIGIN` env var or pattern-based localhost matching). |
-| 4 | Boolean field rendering | Bug | Boolean fields return as `1`/`0` integers instead of `true`/`false`. Causes Vue prop warnings in checkbox widgets. See #18 |
-| 5 | Timestamp auto-population + formatting | Bug | `created`/`changed` not set on save. Datetime widget shows raw `0` instead of formatted dates. See #19 |
+| 4 | Boolean field rendering | Done | `ResourceSerializer` casts booleans to native `true`/`false`; `SchemaList.vue` formats as ✓/—. See #18 |
+| 5 | Timestamp auto-population + formatting | Done | `SqlEntityStorage` auto-populates `created`/`changed`; `ResourceSerializer` formats as ISO 8601; `SchemaList.vue` formats with `toLocaleString()`. See #19 |
 | 6 | Boolean field defaults on create | Bug | Create form defaults all boolean fields to checked (Promoted, Sticky should be unchecked). See #24 |
 | 7 | Entity list headings show machine names | Enhancement | Page headings show `node_type` instead of "Content Type". Should use entity type labels. See #26 |
 
