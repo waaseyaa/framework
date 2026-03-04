@@ -9,12 +9,16 @@
         {"type": "path", "url": "../plugin"},
         {"type": "path", "url": "../typed-data"},
         {"type": "path", "url": "../config"},
-        {"type": "path", "url": "../queue"}
+        {"type": "path", "url": "../queue"},
+        {"type": "path", "url": "../api"},
+        {"type": "path", "url": "../access"}
     ],
     "require": {
         "php": ">=8.3",
         "waaseyaa/entity": "@dev",
-        "waaseyaa/queue": "@dev"
+        "waaseyaa/queue": "@dev",
+        "waaseyaa/api": "@dev",
+        "waaseyaa/access": "@dev"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"

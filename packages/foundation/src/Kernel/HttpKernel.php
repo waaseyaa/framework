@@ -40,6 +40,9 @@ use Waaseyaa\SSR\RenderController;
 use Waaseyaa\SSR\RenderCache;
 use Waaseyaa\SSR\SsrServiceProvider;
 use Waaseyaa\SSR\ViewMode;
+use Waaseyaa\AI\Vector\EmbeddingProviderFactory;
+use Waaseyaa\AI\Vector\SearchController;
+use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\User\Middleware\BearerAuthMiddleware;
 use Waaseyaa\User\DevAdminAccount;
 use Waaseyaa\User\Middleware\SessionMiddleware;
@@ -282,6 +285,15 @@ final class HttpKernel extends AbstractKernel
         );
 
         $router->addRoute(
+            'api.search',
+            RouteBuilder::create('/api/search')
+                ->controller('search.semantic')
+                ->allowAll()
+                ->methods('GET')
+                ->build(),
+        );
+
+        $router->addRoute(
             'public.home',
             RouteBuilder::create('/')
                 ->controller('render.page')
@@ -447,6 +459,37 @@ final class HttpKernel extends AbstractKernel
 
                 $controller === 'media.upload' => (function () use ($httpRequest, $account, $serializer): never {
                     $this->handleMediaUpload($httpRequest, $account, $serializer);
+                })(),
+
+                $controller === 'search.semantic' => (function () use ($query, $account, $serializer): never {
+                    $searchQuery = is_string($query['q'] ?? null) ? trim((string) $query['q']) : '';
+                    $entityType = is_string($query['type'] ?? null) ? trim((string) $query['type']) : '';
+                    $limit = is_numeric($query['limit'] ?? null) ? (int) $query['limit'] : 10;
+
+                    if ($searchQuery === '' || $entityType === '') {
+                        $this->sendJson(400, [
+                            'jsonapi' => ['version' => '1.1'],
+                            'errors' => [[
+                                'status' => '400',
+                                'title' => 'Bad Request',
+                                'detail' => 'Search requires query parameters "q" and "type".',
+                            ]],
+                        ]);
+                    }
+
+                    $provider = EmbeddingProviderFactory::fromConfig($this->config);
+                    $embeddingStorage = new SqliteEmbeddingStorage($this->database->getPdo());
+                    $controller = new SearchController(
+                        entityTypeManager: $this->entityTypeManager,
+                        serializer: $serializer,
+                        embeddingStorage: $embeddingStorage,
+                        embeddingProvider: $provider,
+                        accessHandler: $this->accessHandler,
+                        account: $account,
+                    );
+
+                    $document = $controller->search($searchQuery, $entityType, $limit);
+                    $this->sendJson($document->statusCode, $document->toArray());
                 })(),
 
                 $controller === 'render.page' => (function () use ($params, $query, $account): never {
