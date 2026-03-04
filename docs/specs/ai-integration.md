@@ -284,6 +284,31 @@ When graph reranking changes order, JSON:API response meta includes:
 
 Workflow visibility remains enforced at search output: node entities are only returned when resolved workflow state is `published`.
 
+## AI-Assisted Discovery Blend Contract (v0.9)
+
+The MCP discovery surface now exposes a deterministic blend contract via the `ai_discover` tool (`Waaseyaa\Mcp\McpController`):
+
+- Input:
+  - `query` (required, non-empty)
+  - `type` (optional, defaults to `node`)
+  - `limit` (optional, clamped `1..100`)
+  - optional anchor pair `anchor_type` + `anchor_id` (must be provided together)
+- Search foundation:
+  - delegates to `SearchController` to preserve semantic/keyword fallback behavior and workflow visibility (`published` only for node output).
+- Explainability output:
+  - recommendations include deterministic explanation fields:
+    - `semantic_score`
+    - `graph_context_score`
+    - `combined_score`
+    - `base_rank`
+    - `visibility_contract` (`published_only`)
+- Graph context output:
+  - when anchor is present, response includes anchor graph summary (`outbound`, `inbound`, `total`, and relationship type counts) computed with published-only relationship traversal.
+- Enforcement:
+  - anchor entity must exist and pass `view` access checks,
+  - node anchors must be public (`workflow_state=published` or equivalent status),
+  - invalid params return JSON-RPC `-32602`; authorization/publicity failures return execution error `-32000`.
+
 ## Pipeline System
 
 ### Pipeline (Config Entity)

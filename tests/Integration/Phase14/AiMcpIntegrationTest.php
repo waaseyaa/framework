@@ -66,11 +66,25 @@ final class AiMcpIntegrationTest extends TestCase
                 'status' => ['type' => 'boolean'],
             ],
         ));
+        $this->entityTypeManager->registerEntityType(new EntityType(
+            id: 'relationship',
+            label: 'Relationship',
+            class: TestEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'relationship_type', 'bundle' => 'type'],
+            fieldDefinitions: [
+                'relationship_type' => ['type' => 'string'],
+                'from_entity_type' => ['type' => 'string'],
+                'from_entity_id' => ['type' => 'string'],
+                'to_entity_type' => ['type' => 'string'],
+                'to_entity_id' => ['type' => 'string'],
+                'status' => ['type' => 'boolean'],
+            ],
+        ));
 
         $this->embeddingStorage = new SqliteEmbeddingStorage($this->database->getPdo());
         $this->queue = new InMemoryQueue();
         $this->account = new AnonymousTestAccount();
-        $this->accessHandler = new EntityAccessHandler([new PublishedNodeViewPolicy()]);
+        $this->accessHandler = new EntityAccessHandler([new PublishedNodeViewPolicy(), new PublishedRelationshipViewPolicy()]);
         $this->serializer = new ResourceSerializer($this->entityTypeManager);
         $this->provider = new DeterministicEmbeddingProvider();
     }
@@ -171,6 +185,124 @@ final class AiMcpIntegrationTest extends TestCase
         $entityDecoded = json_decode($entityText, true, 512, JSON_THROW_ON_ERROR);
         $this->assertSame($expectedResourceId, $entityDecoded['data']['id']);
     }
+
+    #[Test]
+    public function aiDiscoveryToolBlendsSemanticAndGraphContextDeterministically(): void
+    {
+        $storage = $this->entityTypeManager->getStorage('node');
+        $fixtures = WorkflowFixturePack::aiMcpNodes();
+        $anchor = $storage->create([
+            'title' => 'Anchor teaching',
+            'body' => 'anchor context',
+            'type' => 'teaching',
+            'status' => 1,
+            'workflow_state' => 'published',
+        ]);
+        $storage->save($anchor);
+
+        $published = $storage->create($fixtures['teaching_published']);
+        $storage->save($published);
+        $draft = $storage->create($fixtures['teaching_draft']);
+        $storage->save($draft);
+
+        $relationshipStorage = $this->entityTypeManager->getStorage('relationship');
+        $relationship = $relationshipStorage->create([
+            'relationship_type' => 'related',
+            'from_entity_type' => 'node',
+            'from_entity_id' => (string) $anchor->id(),
+            'to_entity_type' => 'node',
+            'to_entity_id' => (string) $published->id(),
+            'status' => 1,
+        ]);
+        $relationshipStorage->save($relationship);
+
+        $pipeline = new EmbeddingPipeline(
+            storage: $this->embeddingStorage,
+            config: ['ai' => ['embedding_fields' => ['node' => ['title', 'body']]]],
+            provider: $this->provider,
+        );
+        $pipeline->processEntity($published);
+        $pipeline->processEntity($draft);
+        $pipeline->processEntity($anchor);
+
+        $mcp = new McpController(
+            entityTypeManager: $this->entityTypeManager,
+            serializer: $this->serializer,
+            accessHandler: $this->accessHandler,
+            account: $this->account,
+            embeddingStorage: $this->embeddingStorage,
+            embeddingProvider: $this->provider,
+        );
+
+        $response = $mcp->handleRpc([
+            'jsonrpc' => '2.0',
+            'id' => 30,
+            'method' => 'tools/call',
+            'params' => [
+                'name' => 'ai_discover',
+                'arguments' => [
+                    'query' => 'teaching A',
+                    'type' => 'node',
+                    'limit' => 5,
+                    'anchor_type' => 'node',
+                    'anchor_id' => (string) $anchor->id(),
+                ],
+            ],
+        ]);
+
+        $payload = json_decode((string) $response['result']['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame('v0.9', $payload['meta']['contract_version']);
+        $this->assertSame('semantic', $payload['meta']['mode']);
+        $this->assertSame(2, $payload['meta']['count']);
+        $this->assertCount(2, $payload['data']['recommendations']);
+        $this->assertSame('published_only', $payload['data']['recommendations'][0]['explanation']['visibility_contract']);
+        $this->assertSame('node', $payload['data']['graph_context']['source']['type']);
+        $this->assertSame((string) $anchor->id(), $payload['data']['graph_context']['source']['id']);
+        $this->assertSame(1, $payload['data']['graph_context']['counts']['total']);
+        $this->assertSame(1, $payload['data']['graph_context']['relationship_types']['related']);
+    }
+
+    #[Test]
+    public function aiDiscoveryToolReturnsExecutionErrorForNonPublicAnchor(): void
+    {
+        $storage = $this->entityTypeManager->getStorage('node');
+        $draftAnchor = $storage->create([
+            'title' => 'Draft anchor',
+            'body' => 'hidden',
+            'type' => 'teaching',
+            'status' => 0,
+            'workflow_state' => 'draft',
+        ]);
+        $storage->save($draftAnchor);
+
+        $mcp = new McpController(
+            entityTypeManager: $this->entityTypeManager,
+            serializer: $this->serializer,
+            accessHandler: $this->accessHandler,
+            account: $this->account,
+            embeddingStorage: $this->embeddingStorage,
+            embeddingProvider: $this->provider,
+        );
+
+        $response = $mcp->handleRpc([
+            'jsonrpc' => '2.0',
+            'id' => 31,
+            'method' => 'tools/call',
+            'params' => [
+                'name' => 'ai_discover',
+                'arguments' => [
+                    'query' => 'teaching',
+                    'type' => 'node',
+                    'limit' => 5,
+                    'anchor_type' => 'node',
+                    'anchor_id' => (string) $draftAnchor->id(),
+                ],
+            ],
+        ]);
+
+        $this->assertSame(-32000, $response['error']['code']);
+        $this->assertStringContainsString('not visible', $response['error']['message']);
+    }
 }
 
 final class AnonymousTestAccount implements AccountInterface
@@ -218,5 +350,29 @@ final class DeterministicEmbeddingProvider implements EmbeddingProviderInterface
         }
 
         return [0.0, 0.0, 1.0];
+    }
+}
+
+final class PublishedRelationshipViewPolicy implements AccessPolicyInterface
+{
+    public function appliesTo(string $entityTypeId): bool
+    {
+        return $entityTypeId === 'relationship';
+    }
+
+    public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+    {
+        if ($operation !== 'view') {
+            return AccessResult::neutral();
+        }
+
+        return (int) ($entity->toArray()['status'] ?? 0) === 1
+            ? AccessResult::allowed('Published')
+            : AccessResult::forbidden('Unpublished');
+    }
+
+    public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+    {
+        return AccessResult::neutral();
     }
 }

@@ -181,6 +181,22 @@ All communication uses JSON-RPC 2.0 over HTTP.
 | `tools/list` | Returns all registered tool definitions |
 | `tools/call` | Executes a tool by name with arguments |
 
+### Discovery Blend Tool Contract (v0.9 extension)
+
+Waaseyaa's MCP server also exposes first-party discovery tools from `Waaseyaa\Mcp\McpController`, including `ai_discover`.
+
+`ai_discover` combines:
+- semantic/keyword search output from `SearchController`,
+- relationship graph context summaries for optional anchor entities,
+- deterministic explanation payloads per recommendation.
+
+Contract guarantees:
+- workflow-correct public results (`node` recommendations are published-only),
+- stable JSON shape for recommendation explanations,
+- stable error paths:
+  - invalid argument contract violations => JSON-RPC `-32602`,
+  - unauthorized/non-public anchor execution failures => JSON-RPC `-32000`.
+
 ### Request Format
 
 ```json
