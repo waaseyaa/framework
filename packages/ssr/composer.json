@@ -32,6 +32,11 @@
             "Waaseyaa\\SSR\\Tests\\": "tests/"
         }
     },
+    "extra": {
+        "waaseyaa": {
+            "providers": ["Waaseyaa\\SSR\\SsrServiceProvider"]
+        }
+    },
     "minimum-stability": "dev",
     "prefer-stable": true
 }

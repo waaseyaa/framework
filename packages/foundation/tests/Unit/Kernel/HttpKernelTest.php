@@ -162,6 +162,9 @@ final class HttpKernelTest extends TestCase
         $this->assertNotNull($routes->get('api.entity_types'));
         $this->assertNotNull($routes->get('api.broadcast'));
         $this->assertNotNull($routes->get('api.media.upload'));
+        $this->assertNotNull($routes->get('public.home'));
+        $this->assertNotNull($routes->get('public.page'));
+        $this->assertTrue((bool) $routes->get('public.home')?->getOption('_render'));
     }
 
     #[Test]

@@ -27,6 +27,8 @@ use Waaseyaa\Media\LocalFileRepository;
 use Waaseyaa\Routing\AccessChecker;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\SSR\RenderController;
+use Waaseyaa\SSR\SsrServiceProvider;
 use Waaseyaa\User\Middleware\BearerAuthMiddleware;
 use Waaseyaa\User\DevAdminAccount;
 use Waaseyaa\User\Middleware\SessionMiddleware;
@@ -258,6 +260,28 @@ final class HttpKernel extends AbstractKernel
                 ->methods('POST')
                 ->build(),
         );
+
+        $router->addRoute(
+            'public.home',
+            RouteBuilder::create('/')
+                ->controller('render.page')
+                ->allowAll()
+                ->render()
+                ->methods('GET')
+                ->default('path', '/')
+                ->build(),
+        );
+
+        $router->addRoute(
+            'public.page',
+            RouteBuilder::create('/{path}')
+                ->controller('render.page')
+                ->allowAll()
+                ->render()
+                ->methods('GET')
+                ->requirement('path', '(?!api(?:/|$)).+')
+                ->build(),
+        );
     }
 
     private function registerBroadcastListeners(BroadcastStorage $broadcastStorage): void
@@ -405,6 +429,10 @@ final class HttpKernel extends AbstractKernel
                     $this->handleMediaUpload($httpRequest, $account, $serializer);
                 })(),
 
+                $controller === 'render.page' => (function () use ($params): never {
+                    $this->handleRenderPage((string) ($params['path'] ?? '/'));
+                })(),
+
                 str_contains($controller, 'SchemaController') => (function () use ($account, $params, $schemaPresenter): never {
                     $schemaController = new SchemaController($this->entityTypeManager, $schemaPresenter, $this->accessHandler, $account);
                     $document = $schemaController->show($params['entity_type']);
@@ -443,6 +471,41 @@ final class HttpKernel extends AbstractKernel
                     'status' => '500',
                     'title' => 'Internal Server Error',
                     'detail' => 'An unexpected error occurred.',
+                ]],
+            ]);
+        }
+    }
+
+    private function handleRenderPage(string $path): never
+    {
+        $twig = SsrServiceProvider::getTwigEnvironment();
+        if ($twig === null) {
+            try {
+                $twig = SsrServiceProvider::createTwigEnvironment($this->projectRoot);
+            } catch (\Throwable $e) {
+                error_log(sprintf('[Waaseyaa] Twig environment initialization failed: %s', $e->getMessage()));
+                $this->sendJson(500, [
+                    'jsonapi' => ['version' => '1.1'],
+                    'errors' => [[
+                        'status' => '500',
+                        'title' => 'Internal Server Error',
+                        'detail' => 'SSR environment is unavailable.',
+                    ]],
+                ]);
+            }
+        }
+
+        try {
+            $response = (new RenderController($twig))->renderPath($path);
+            $this->sendHtml($response->statusCode, $response->content, $response->headers);
+        } catch (\Throwable $e) {
+            error_log(sprintf('[Waaseyaa] Render pipeline failed: %s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine()));
+            $this->sendJson(500, [
+                'jsonapi' => ['version' => '1.1'],
+                'errors' => [[
+                    'status' => '500',
+                    'title' => 'Internal Server Error',
+                    'detail' => 'Failed to render page.',
                 ]],
             ]);
         }
@@ -727,6 +790,26 @@ final class HttpKernel extends AbstractKernel
             error_log(sprintf('[Waaseyaa] JSON encoding failed in sendJson: %s', $e->getMessage()));
             echo '{"jsonapi":{"version":"1.1"},"errors":[{"status":"500","title":"Internal Server Error","detail":"Response encoding failed."}]}';
         }
+        exit;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private function sendHtml(int $status, string $html, array $headers = []): never
+    {
+        http_response_code($status);
+        $contentType = $headers['Content-Type'] ?? 'text/html; charset=UTF-8';
+        header('Content-Type: ' . $contentType);
+
+        foreach ($headers as $name => $value) {
+            if (strtolower($name) === 'content-type') {
+                continue;
+            }
+            header($name . ': ' . $value);
+        }
+
+        echo $html;
         exit;
     }
 }

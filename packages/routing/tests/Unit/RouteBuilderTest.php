@@ -106,6 +106,16 @@ final class RouteBuilderTest extends TestCase
     }
 
     #[Test]
+    public function renderSetsRenderOption(): void
+    {
+        $route = RouteBuilder::create('/')
+            ->render()
+            ->build();
+
+        $this->assertTrue($route->getOption('_render'));
+    }
+
+    #[Test]
     public function requirementSetsRegex(): void
     {
         $route = RouteBuilder::create('/node/{id}')

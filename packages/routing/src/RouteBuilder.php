@@ -109,6 +109,15 @@ final class RouteBuilder
     }
 
     /**
+     * Mark route as SSR render route.
+     */
+    public function render(bool $enabled = true): self
+    {
+        $this->options['_render'] = $enabled;
+        return $this;
+    }
+
+    /**
      * Add a regex requirement for a route parameter.
      */
     public function requirement(string $key, string $regex): self

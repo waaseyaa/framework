@@ -6,6 +6,11 @@ namespace Waaseyaa\Foundation\ServiceProvider;
 
 abstract class ServiceProvider implements ServiceProviderInterface
 {
+    protected string $projectRoot = '';
+
+    /** @var array<string, mixed> */
+    protected array $config = [];
+
     /** @var array<string, array{concrete: string|callable, shared: bool}> */
     private array $bindings = [];
 
@@ -27,6 +32,17 @@ abstract class ServiceProvider implements ServiceProviderInterface
     public function isDeferred(): bool
     {
         return $this->provides() !== [];
+    }
+
+    /**
+     * Provide kernel context to providers before register()/boot().
+     *
+     * @param array<string, mixed> $config
+     */
+    public function setKernelContext(string $projectRoot, array $config): void
+    {
+        $this->projectRoot = $projectRoot;
+        $this->config = $config;
     }
 
     protected function singleton(string $abstract, string|callable $concrete): void

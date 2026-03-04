@@ -111,6 +111,8 @@ abstract class AbstractKernel
                 continue;
             }
 
+            $provider->setKernelContext($this->projectRoot, $this->config);
+
             $this->providers[] = $provider;
         }
 
