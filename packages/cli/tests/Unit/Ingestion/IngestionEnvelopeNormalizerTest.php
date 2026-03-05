@@ -136,4 +136,22 @@ final class IngestionEnvelopeNormalizerTest extends TestCase
         $this->assertSame('value', $envelope['items'][0]['custom']);
         $this->assertSame(42, $envelope['items'][0]['custom_number']);
     }
+
+    #[Test]
+    public function it_preserves_non_string_parser_version_for_type_validation(): void
+    {
+        $normalizer = new IngestionEnvelopeNormalizer();
+        $result = $normalizer->normalize([
+            'batch_id' => 'b',
+            'source_set_uri' => 'dataset://s',
+            'policy' => 'validate_only',
+            'items' => [[
+                'source_uri' => 'item://x',
+                'ingested_at' => 1,
+                'parser_version' => 101,
+            ]],
+        ]);
+
+        $this->assertSame(101, $result['envelope']['items'][0]['parser_version']);
+    }
 }

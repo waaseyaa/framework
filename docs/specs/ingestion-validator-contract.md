@@ -172,6 +172,9 @@ Initial frozen code set:
 - `schema.missing_required_envelope_field`
 - `schema.invalid_items_type`
 - `schema.malformed_ingested_at`
+- `schema.malformed_batch_id`
+- `schema.malformed_source_uri`
+- `schema.invalid_parser_version_type`
 
 ## Fixed Message Templates
 
@@ -193,6 +196,12 @@ Message text must remain stable in v1.5.
   - `Invalid items field type: "<value>". Expected: "<expected>".`
 - `schema.malformed_ingested_at`:
   - `Malformed ingested_at value: "<value>". Expected: "<expected>".`
+- `schema.malformed_batch_id`:
+  - `Malformed batch_id value: "<value>". Expected: "<expected>".`
+- `schema.malformed_source_uri`:
+  - `Malformed source_uri value: "<value>". Expected: "<expected>".`
+- `schema.invalid_parser_version_type`:
+  - `Invalid parser_version type: "<value>". Expected: "<expected>".`
 
 ## Severity Contract
 

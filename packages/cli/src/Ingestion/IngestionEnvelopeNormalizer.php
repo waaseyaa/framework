@@ -79,13 +79,17 @@ final class IngestionEnvelopeNormalizer
         return null;
     }
 
-    private function normalizeParserVersion(mixed $value): ?string
+    private function normalizeParserVersion(mixed $value): mixed
     {
         if ($value === null) {
             return null;
         }
 
-        $trimmed = is_string($value) ? trim($value) : '';
+        if (!is_string($value)) {
+            return $value;
+        }
+
+        $trimmed = trim($value);
         return $trimmed === '' ? null : $trimmed;
     }
 }

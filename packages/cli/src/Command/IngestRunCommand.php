@@ -434,6 +434,9 @@ final class IngestRunCommand extends Command
             if ($sourceUri === '') {
                 $sourceUri = $this->normalizeKey((string) ($record['title'] ?? ''));
             }
+            if ($sourceUri !== '' && !str_contains($sourceUri, '://')) {
+                $sourceUri = 'item://' . $sourceUri;
+            }
 
             $ingestedAt = $record['ingested_at'] ?? null;
             if ($ingestedAt === null || $ingestedAt === '') {

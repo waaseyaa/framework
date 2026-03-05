@@ -30,6 +30,14 @@ final class SchemaValidator
                 'expected' => 'non-empty string',
                 'field_name' => 'batch_id',
             ];
+        } elseif (preg_match('/^[a-z0-9][a-z0-9_-]*$/', $batchId) !== 1) {
+            $violations[] = [
+                'code' => 'schema.malformed_batch_id',
+                'location' => '/batch_id',
+                'item_index' => null,
+                'value' => $batchId,
+                'expected' => '^[a-z0-9][a-z0-9_-]*$',
+            ];
         }
 
         $policy = is_string($envelope['policy'] ?? null) ? (string) $envelope['policy'] : '';
@@ -125,6 +133,14 @@ final class SchemaValidator
                     'expected' => 'non-empty string',
                     'field_name' => 'source_uri',
                 ];
+            } elseif (!$this->isValidSourceSetUriFormat($sourceUri)) {
+                $violations[] = [
+                    'code' => 'schema.malformed_source_uri',
+                    'location' => '/items/' . $index . '/source_uri',
+                    'item_index' => $index,
+                    'value' => $sourceUri,
+                    'expected' => '<scheme>://<identifier>',
+                ];
             } elseif (isset($seenSourceUris[$sourceUri])) {
                 $violations[] = [
                     'code' => 'schema.duplicate_source_uri',
@@ -155,6 +171,17 @@ final class SchemaValidator
                     'item_index' => $index,
                     'value' => is_scalar($ingestedAt) ? (string) $ingestedAt : null,
                     'expected' => 'unix_timestamp_or_iso8601',
+                ];
+            }
+
+            $parserVersion = $item['parser_version'] ?? null;
+            if ($parserVersion !== null && !is_string($parserVersion)) {
+                $violations[] = [
+                    'code' => 'schema.invalid_parser_version_type',
+                    'location' => '/items/' . $index . '/parser_version',
+                    'item_index' => $index,
+                    'value' => gettype($parserVersion),
+                    'expected' => 'string_or_null',
                 ];
             }
         }

@@ -97,6 +97,21 @@ final class SchemaDiagnosticEmitter
                 (string) $value,
                 (string) ($violation['expected'] ?? ''),
             ),
+            'schema.malformed_batch_id' => sprintf(
+                'Malformed batch_id value: "%s". Expected: "%s".',
+                (string) $value,
+                (string) ($violation['expected'] ?? ''),
+            ),
+            'schema.malformed_source_uri' => sprintf(
+                'Malformed source_uri value: "%s". Expected: "%s".',
+                (string) $value,
+                (string) ($violation['expected'] ?? ''),
+            ),
+            'schema.invalid_parser_version_type' => sprintf(
+                'Invalid parser_version type: "%s". Expected: "%s".',
+                (string) $value,
+                (string) ($violation['expected'] ?? ''),
+            ),
             'schema.malformed_ingested_at' => sprintf(
                 'Malformed ingested_at value: "%s". Expected: "%s".',
                 (string) $value,

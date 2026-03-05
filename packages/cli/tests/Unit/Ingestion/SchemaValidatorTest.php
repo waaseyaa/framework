@@ -21,8 +21,8 @@ final class SchemaValidatorTest extends TestCase
             'source_set_uri' => 'unknown://set',
             'policy' => 'invalid',
             'items' => [
-                ['source_uri' => 'a', 'ingested_at' => 1735689600, 'parser_version' => null],
-                ['source_uri' => 'a', 'ingested_at' => null, 'parser_version' => null],
+                ['source_uri' => 'item://a', 'ingested_at' => 1735689600, 'parser_version' => null],
+                ['source_uri' => 'item://a', 'ingested_at' => null, 'parser_version' => null],
             ],
         ]);
 
@@ -150,5 +150,69 @@ final class SchemaValidatorTest extends TestCase
 
         $this->assertCount(1, $malformed);
         $this->assertSame('/items/0/ingested_at', $malformed[0]['location']);
+    }
+
+    #[Test]
+    public function it_reports_malformed_batch_id_when_format_is_invalid(): void
+    {
+        $validator = new SchemaValidator();
+        $violations = $validator->validate([
+            'batch_id' => 'batch id with spaces',
+            'source_set_uri' => 'dataset://set',
+            'policy' => 'atomic_fail_fast',
+            'items' => [['source_uri' => 'item://a', 'ingested_at' => 1735689600, 'parser_version' => null]],
+        ]);
+
+        $malformed = array_values(array_filter(
+            $violations,
+            static fn(array $row): bool => (string) ($row['code'] ?? '') === 'schema.malformed_batch_id',
+        ));
+
+        $this->assertCount(1, $malformed);
+        $this->assertSame('/batch_id', $malformed[0]['location']);
+    }
+
+    #[Test]
+    public function it_reports_malformed_source_uri_when_item_source_uri_is_not_uri_like(): void
+    {
+        $validator = new SchemaValidator();
+        $violations = $validator->validate([
+            'batch_id' => 'batch_1',
+            'source_set_uri' => 'dataset://set',
+            'policy' => 'validate_only',
+            'items' => [
+                ['source_uri' => 'not-a-uri', 'ingested_at' => 1735689600, 'parser_version' => null],
+            ],
+        ]);
+
+        $malformed = array_values(array_filter(
+            $violations,
+            static fn(array $row): bool => (string) ($row['code'] ?? '') === 'schema.malformed_source_uri',
+        ));
+
+        $this->assertCount(1, $malformed);
+        $this->assertSame('/items/0/source_uri', $malformed[0]['location']);
+    }
+
+    #[Test]
+    public function it_reports_invalid_parser_version_type_when_not_string_or_null(): void
+    {
+        $validator = new SchemaValidator();
+        $violations = $validator->validate([
+            'batch_id' => 'batch_1',
+            'source_set_uri' => 'dataset://set',
+            'policy' => 'validate_only',
+            'items' => [
+                ['source_uri' => 'item://a', 'ingested_at' => 1735689600, 'parser_version' => 101],
+            ],
+        ]);
+
+        $invalidType = array_values(array_filter(
+            $violations,
+            static fn(array $row): bool => (string) ($row['code'] ?? '') === 'schema.invalid_parser_version_type',
+        ));
+
+        $this->assertCount(1, $invalidType);
+        $this->assertSame('/items/0/parser_version', $invalidType[0]['location']);
     }
 }
