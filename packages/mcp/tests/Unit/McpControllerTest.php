@@ -175,6 +175,35 @@ final class McpControllerTest extends TestCase
     }
 
     #[Test]
+    public function toolsCallContractMetaRemainsStableWhenExtensionsAreRegistered(): void
+    {
+        $controller = $this->createControllerWithExtensions([
+            [
+                'id' => 'external_discovery_pack',
+                'tools' => ['list_entity_types'],
+                'hooks' => ['before_tool_call'],
+            ],
+        ]);
+
+        $response = $controller->handleRpc([
+            'jsonrpc' => '2.0',
+            'id' => 6,
+            'method' => 'tools/call',
+            'params' => [
+                'name' => 'list_entity_types',
+                'arguments' => [],
+            ],
+        ]);
+
+        $payload = $this->decodeToolPayload($response);
+        $this->assertSame('v1.0', $payload['meta']['contract_version']);
+        $this->assertSame('stable', $payload['meta']['contract_stability']);
+        $this->assertSame('list_entity_types', $payload['meta']['tool']);
+        $this->assertSame('list_entity_types', $payload['meta']['tool_invoked']);
+        $this->assertArrayNotHasKey('extensions', $payload['meta']);
+    }
+
+    #[Test]
     public function listEntityTypesToolReturnsDefinitions(): void
     {
         $definition = new EntityType(

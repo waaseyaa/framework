@@ -21,7 +21,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/api/*`, `packages/routing/*` | `waaseyaa:api-layer` | `docs/specs/api-layer.md` |
 | `packages/admin/*` | `waaseyaa:admin-spa` | `docs/specs/admin-spa.md` |
 | `packages/ai-*/*` | `waaseyaa:ai-integration` | `docs/specs/ai-integration.md` |
-| `packages/foundation/*`, `packages/cache/*`, `packages/database-legacy/*`, `packages/plugin/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md`, `docs/specs/package-discovery.md`, `docs/specs/plugin-extension-points.md`, `docs/specs/external-extension-sdk.md` |
+| `packages/foundation/*`, `packages/cache/*`, `packages/database-legacy/*`, `packages/plugin/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md`, `docs/specs/package-discovery.md`, `docs/specs/plugin-extension-points.md`, `docs/specs/external-extension-sdk.md`, `docs/specs/extension-compatibility-matrix.md` |
 | `packages/mcp/*` | `waaseyaa:mcp-endpoint` | `docs/specs/mcp-endpoint.md` |
 | `public/index.php`, `packages/*/src/Middleware/*` | `waaseyaa:middleware-pipeline` | `docs/specs/middleware-pipeline.md` |
 
