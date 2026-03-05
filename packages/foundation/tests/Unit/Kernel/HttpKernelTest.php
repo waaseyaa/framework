@@ -282,11 +282,71 @@ final class HttpKernelTest extends TestCase
     public function render_cache_control_header_depends_on_authentication(): void
     {
         $kernel = new HttpKernel('/tmp/test-project');
+        $configProp = new \ReflectionProperty(\Waaseyaa\Foundation\Kernel\AbstractKernel::class, 'config');
+        $configProp->setAccessible(true);
+        $configProp->setValue($kernel, []);
         $method = new \ReflectionMethod(HttpKernel::class, 'cacheControlHeaderForRender');
         $method->setAccessible(true);
 
-        $this->assertSame('public, max-age=120', $method->invoke($kernel, new AnonymousUser(), 120));
+        $this->assertSame(
+            'public, max-age=120, s-maxage=120, stale-while-revalidate=60, stale-if-error=600',
+            $method->invoke($kernel, new AnonymousUser(), 120),
+        );
         $this->assertSame('private, no-store', $method->invoke($kernel, new DevAdminAccount(), 120));
+    }
+
+    #[Test]
+    public function render_cache_control_header_honors_shared_and_stale_config(): void
+    {
+        $kernel = new HttpKernel('/tmp/test-project');
+        $configProp = new \ReflectionProperty(\Waaseyaa\Foundation\Kernel\AbstractKernel::class, 'config');
+        $configProp->setAccessible(true);
+        $configProp->setValue($kernel, [
+            'ssr' => [
+                'cache_shared_max_age' => 900,
+                'cache_stale_while_revalidate' => 180,
+                'cache_stale_if_error' => 3600,
+            ],
+        ]);
+        $method = new \ReflectionMethod(HttpKernel::class, 'cacheControlHeaderForRender');
+        $method->setAccessible(true);
+
+        $this->assertSame(
+            'public, max-age=300, s-maxage=900, stale-while-revalidate=180, stale-if-error=3600',
+            $method->invoke($kernel, new AnonymousUser(), 300),
+        );
+    }
+
+    #[Test]
+    public function render_surrogate_headers_include_workflow_and_graph_dimensions(): void
+    {
+        $kernel = new HttpKernel('/tmp/test-project');
+        $method = new \ReflectionMethod(HttpKernel::class, 'buildRenderSurrogateHeaders');
+        $method->setAccessible(true);
+
+        $headers = $method->invoke(
+            $kernel,
+            'node',
+            '42',
+            'full',
+            'en',
+            'v2:en:full:public:published:abc123',
+            [
+                'workflow_visibility' => ['state' => 'published'],
+                'relationship_navigation' => [
+                    'entity' => ['outbound' => [['relationship_id' => '9']]],
+                ],
+            ],
+        );
+
+        $this->assertArrayHasKey('Surrogate-Key', $headers);
+        $this->assertArrayHasKey('X-Waaseyaa-Render-Variant', $headers);
+        $this->assertArrayHasKey('X-Waaseyaa-Render-Workflow', $headers);
+        $this->assertStringContainsString('waaseyaa:ssr:entity:node:42', $headers['Surrogate-Key']);
+        $this->assertStringContainsString('waaseyaa:ssr:workflow:published', $headers['Surrogate-Key']);
+        $this->assertStringContainsString('waaseyaa:ssr:graph:', $headers['Surrogate-Key']);
+        $this->assertSame('v2:en:full:public:published:abc123', $headers['X-Waaseyaa-Render-Variant']);
+        $this->assertSame('published', $headers['X-Waaseyaa-Render-Workflow']);
     }
 
     #[Test]

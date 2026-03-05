@@ -1143,6 +1143,20 @@ final class HttpKernel extends AbstractKernel
                 $previewRequested,
                 $renderContext,
             );
+            $surrogateHeaders = (
+                !$account->isAuthenticated()
+                && !$previewRequested
+                && $entity->id() !== null
+            )
+                ? $this->buildRenderSurrogateHeaders(
+                    $resolved->entityTypeId,
+                    (string) $entity->id(),
+                    $viewMode->name,
+                    $contentLangcode,
+                    $cacheVariantLangcode,
+                    $renderContext,
+                )
+                : [];
 
             if (
                 !$account->isAuthenticated()
@@ -1157,7 +1171,7 @@ final class HttpKernel extends AbstractKernel
                     $cacheVariantLangcode,
                 );
                 if ($cached !== null) {
-                    $headers = $cached->headers;
+                    $headers = array_merge($cached->headers, $surrogateHeaders);
                     $headers['Cache-Control'] = $cacheControlHeader;
                     $this->sendHtml($cached->statusCode, $cached->content, $headers);
                 }
@@ -1181,7 +1195,7 @@ final class HttpKernel extends AbstractKernel
                 );
             }
 
-            $headers = $response->headers;
+            $headers = array_merge($response->headers, $surrogateHeaders);
             $headers['Cache-Control'] = $cacheControlHeader;
             $this->sendHtml($response->statusCode, $response->content, $headers);
         } catch (\Throwable $e) {
@@ -1548,6 +1562,36 @@ final class HttpKernel extends AbstractKernel
         return 300;
     }
 
+    private function resolveRenderSharedCacheMaxAge(int $defaultMaxAge): int
+    {
+        $ssrConfig = $this->config['ssr'] ?? null;
+        if (is_array($ssrConfig) && isset($ssrConfig['cache_shared_max_age']) && is_numeric($ssrConfig['cache_shared_max_age'])) {
+            return max(0, (int) $ssrConfig['cache_shared_max_age']);
+        }
+
+        return max(0, $defaultMaxAge);
+    }
+
+    private function resolveRenderStaleWhileRevalidate(): int
+    {
+        $ssrConfig = $this->config['ssr'] ?? null;
+        if (is_array($ssrConfig) && isset($ssrConfig['cache_stale_while_revalidate']) && is_numeric($ssrConfig['cache_stale_while_revalidate'])) {
+            return max(0, (int) $ssrConfig['cache_stale_while_revalidate']);
+        }
+
+        return 60;
+    }
+
+    private function resolveRenderStaleIfError(): int
+    {
+        $ssrConfig = $this->config['ssr'] ?? null;
+        if (is_array($ssrConfig) && isset($ssrConfig['cache_stale_if_error']) && is_numeric($ssrConfig['cache_stale_if_error'])) {
+            return max(0, (int) $ssrConfig['cache_stale_if_error']);
+        }
+
+        return 600;
+    }
+
     /**
      * @param array<string, mixed> $renderContext
      */
@@ -1611,7 +1655,64 @@ final class HttpKernel extends AbstractKernel
             return 'private, no-store';
         }
 
-        return 'public, max-age=' . max(0, $maxAge);
+        $safeMaxAge = max(0, $maxAge);
+        $sharedMaxAge = $this->resolveRenderSharedCacheMaxAge($safeMaxAge);
+        $staleWhileRevalidate = $this->resolveRenderStaleWhileRevalidate();
+        $staleIfError = $this->resolveRenderStaleIfError();
+
+        return sprintf(
+            'public, max-age=%d, s-maxage=%d, stale-while-revalidate=%d, stale-if-error=%d',
+            $safeMaxAge,
+            $sharedMaxAge,
+            $staleWhileRevalidate,
+            $staleIfError,
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $renderContext
+     * @return array<string, string>
+     */
+    private function buildRenderSurrogateHeaders(
+        string $entityType,
+        string $entityId,
+        string $viewMode,
+        string $langcode,
+        string $variant,
+        array $renderContext,
+    ): array {
+        $workflowState = 'unknown';
+        if (is_array($renderContext['workflow_visibility'] ?? null)) {
+            $workflowStateCandidate = $renderContext['workflow_visibility']['state'] ?? null;
+            if (is_string($workflowStateCandidate) && trim($workflowStateCandidate) !== '') {
+                $workflowState = strtolower(trim($workflowStateCandidate));
+            }
+        }
+
+        $graphHash = 'none';
+        if (is_array($renderContext['relationship_navigation'] ?? null) && $renderContext['relationship_navigation'] !== []) {
+            $serialized = json_encode(
+                $this->normalizeForCacheKey($renderContext['relationship_navigation']),
+                JSON_THROW_ON_ERROR,
+            );
+            $graphHash = substr(sha1((string) $serialized), 0, 12);
+        }
+
+        $keys = array_values(array_unique([
+            'waaseyaa:ssr',
+            'waaseyaa:ssr:entity:' . $this->sanitizeCacheToken($entityType, 'entity'),
+            'waaseyaa:ssr:entity:' . $this->sanitizeCacheToken($entityType, 'entity') . ':' . $this->sanitizeCacheToken($entityId, '0'),
+            'waaseyaa:ssr:workflow:' . $this->sanitizeCacheToken($workflowState, 'unknown'),
+            'waaseyaa:ssr:view:' . $this->sanitizeCacheToken($viewMode, 'full'),
+            'waaseyaa:ssr:lang:' . $this->sanitizeCacheToken($langcode, 'unknown'),
+            'waaseyaa:ssr:graph:' . $this->sanitizeCacheToken($graphHash, 'none'),
+        ]));
+
+        return [
+            'Surrogate-Key' => implode(' ', $keys),
+            'X-Waaseyaa-Render-Variant' => $variant,
+            'X-Waaseyaa-Render-Workflow' => $this->sanitizeCacheToken($workflowState, 'unknown'),
+        ];
     }
 
     private function handleMediaUpload(

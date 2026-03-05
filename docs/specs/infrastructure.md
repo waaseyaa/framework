@@ -415,6 +415,44 @@ Render cache invalidation is broadened for relationship-aware pages:
 - entity-specific invalidation still occurs on save/delete,
 - when `node` or `relationship` entities change, type-wide node/relationship render tags are invalidated to prevent stale relationship-navigation output.
 
+## Public SSR CDN Strategy (v1.4)
+
+Public SSR routes now expose deterministic HTTP cache profiles aligned with workflow and graph-context invariants:
+
+- `Cache-Control` for anonymous/public SSR responses:
+  - `public, max-age={cache_max_age}, s-maxage={cache_shared_max_age}, stale-while-revalidate={cache_stale_while_revalidate}, stale-if-error={cache_stale_if_error}`
+- Authenticated SSR responses remain private:
+  - `private, no-store`
+
+Default values when no explicit config is provided:
+
+- `cache_max_age`: `300`
+- `cache_shared_max_age`: fallback to `cache_max_age`
+- `cache_stale_while_revalidate`: `60`
+- `cache_stale_if_error`: `600`
+
+### Surrogate-key contract
+
+Public SSR entity responses also emit CDN-oriented surrogate keys:
+
+- `Surrogate-Key` includes:
+  - `waaseyaa:ssr`
+  - entity scope: `waaseyaa:ssr:entity:{type}` and `waaseyaa:ssr:entity:{type}:{id}`
+  - workflow scope: `waaseyaa:ssr:workflow:{workflow_state}`
+  - view/lang scope: `waaseyaa:ssr:view:{view_mode}`, `waaseyaa:ssr:lang:{langcode}`
+  - graph scope: `waaseyaa:ssr:graph:{graph_hash}`
+- Debug/trace headers:
+  - `X-Waaseyaa-Render-Variant`
+  - `X-Waaseyaa-Render-Workflow`
+
+### Invalidation behavior
+
+SSR cache invalidation remains workflow/graph-aware and deterministic:
+
+- save/delete of the rendered entity invalidates its entity-specific SSR cache entries,
+- save/delete of `node` and `relationship` entities triggers broader invalidation for relationship-aware public surfaces,
+- emitted surrogate keys are aligned with these invariants so CDN purge tooling can target entity/workflow/graph scopes without contract drift.
+
 ### InsertInterface
 
 File: `packages/database-legacy/src/InsertInterface.php`
