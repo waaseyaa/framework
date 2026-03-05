@@ -112,6 +112,7 @@ Use this as the default runbook for upgrades, baseline refreshes, and verificati
 
 ## Audit Trail
 
+- Extension release runbook: `docs/specs/extension-release-playbook.md`
 - v1.0 verification: `docs/plans/v1.0-verification-report.md`
 - v1.1 verification readiness: `docs/plans/v1.1-verification-gate-readiness-report.md`
 - v1.2 tooling reports:
