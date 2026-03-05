@@ -10,6 +10,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Waaseyaa\CLI\Ingestion\IngestionEnvelopeNormalizer;
+use Waaseyaa\CLI\Ingestion\RelationshipInferenceEngine;
 use Waaseyaa\CLI\Ingestion\SchemaDiagnosticEmitter;
 use Waaseyaa\CLI\Ingestion\SchemaValidator;
 use Waaseyaa\CLI\Ingestion\ValidationDiagnosticEmitter;
@@ -35,6 +36,7 @@ final class IngestRunCommand extends Command
             ->addOption('batch-id', null, InputOption::VALUE_REQUIRED, 'Batch idempotency key (defaults to deterministic hash)')
             ->addOption('policy', null, InputOption::VALUE_REQUIRED, 'Ingestion policy: atomic_fail_fast|validate_only', 'atomic_fail_fast')
             ->addOption('source', null, InputOption::VALUE_REQUIRED, 'Source identifier for audit metadata', 'manual://default')
+            ->addOption('infer-relationships', null, InputOption::VALUE_NONE, 'Infer candidate relationships from ingested text (review-safe defaults)')
             ->addOption('output', 'o', InputOption::VALUE_REQUIRED, 'Optional mapped output file (.json)')
             ->addOption('diagnostics-output', null, InputOption::VALUE_REQUIRED, 'Optional diagnostics output file (.json)');
     }
@@ -68,6 +70,7 @@ final class IngestRunCommand extends Command
         $authorId = max(0, (int) $input->getOption('author-id'));
         $policy = strtolower(trim((string) $input->getOption('policy')));
         $source = trim((string) $input->getOption('source'));
+        $inferRelationships = (bool) $input->getOption('infer-relationships');
         if ($source === '') {
             $output->writeln('<error>--source must be non-empty.</error>');
             return Command::INVALID;
@@ -91,6 +94,7 @@ final class IngestRunCommand extends Command
         $diagnostics = [
             'schema' => [],
             'validation' => [],
+            'inference' => [],
             'errors' => [],
             'warnings' => [],
         ];
@@ -122,6 +126,21 @@ final class IngestRunCommand extends Command
                 $source,
                 $diagnostics,
             );
+            if ($inferRelationships && $diagnostics['errors'] === []) {
+                $inferredRelationships = (new RelationshipInferenceEngine())->infer(
+                    $mappedCandidate['nodes'],
+                    $mappedCandidate['relationships'],
+                );
+                $mappedCandidate['relationships'] = array_values(array_merge(
+                    $mappedCandidate['relationships'],
+                    $inferredRelationships,
+                ));
+                usort(
+                    $mappedCandidate['relationships'],
+                    static fn(array $a, array $b): int => strcmp((string) ($a['key'] ?? ''), (string) ($b['key'] ?? '')),
+                );
+                $diagnostics['inference'] = $this->buildInferenceDiagnostics($inferredRelationships);
+            }
         }
         if ($diagnostics['schema'] === [] && $diagnostics['errors'] === []) {
             $validationViolations = (new ValidationGateValidator())->validate(
@@ -149,8 +168,10 @@ final class IngestRunCommand extends Command
                 'source' => $source,
                 'batch_id' => $normalizedEnvelope['envelope']['batch_id'] ?? $batchId,
                 'policy' => $normalizedEnvelope['envelope']['policy'] ?? $policy,
+                'inference_enabled' => $inferRelationships,
                 'node_count' => count($mapped['nodes']),
                 'relationship_count' => count($mapped['relationships']),
+                'inferred_relationship_count' => count($diagnostics['inference']),
                 'error_count' => count($diagnostics['schema']) + count($diagnostics['validation']) + count($diagnostics['errors']),
                 'schema_error_count' => count($diagnostics['schema']),
                 'validation_error_count' => count($diagnostics['validation']),
@@ -193,6 +214,44 @@ final class IngestRunCommand extends Command
 
         $output->writeln(sprintf('Ingest completed successfully (%d nodes, %d relationships).', count($mapped['nodes']), count($mapped['relationships'])));
         return Command::SUCCESS;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $inferredRelationships
+     * @return list<array<string, mixed>>
+     */
+    private function buildInferenceDiagnostics(array $inferredRelationships): array
+    {
+        $diagnostics = [];
+        foreach ($inferredRelationships as $relationship) {
+            $diagnostics[] = [
+                'code' => 'inference.relationship_inferred',
+                'category' => 'inference',
+                'message' => sprintf(
+                    'Inferred relationship "%s -> %s" with confidence %.4f.',
+                    (string) ($relationship['from'] ?? ''),
+                    (string) ($relationship['to'] ?? ''),
+                    (float) ($relationship['inference_confidence'] ?? 0.0),
+                ),
+                'location' => '/relationships/' . (string) ($relationship['key'] ?? ''),
+                'item_index' => null,
+                'context' => [
+                    'from' => (string) ($relationship['from'] ?? ''),
+                    'to' => (string) ($relationship['to'] ?? ''),
+                    'relationship_type' => (string) ($relationship['relationship_type'] ?? ''),
+                    'inference_confidence' => (float) ($relationship['inference_confidence'] ?? 0.0),
+                    'inference_source' => (string) ($relationship['inference_source'] ?? ''),
+                    'inference_review_state' => (string) ($relationship['inference_review_state'] ?? ''),
+                ],
+            ];
+        }
+
+        usort(
+            $diagnostics,
+            static fn(array $a, array $b): int => strcmp((string) ($a['location'] ?? ''), (string) ($b['location'] ?? '')),
+        );
+
+        return $diagnostics;
     }
 
     /**

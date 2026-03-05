@@ -329,4 +329,52 @@ TXT);
         $this->assertContains('validation.semantic.insufficient_publishable_tokens', $codes);
         $this->assertContains('validation.visibility.relationship_requires_public_endpoints', $codes);
     }
+
+    #[Test]
+    public function it_infers_review_safe_relationships_when_enabled(): void
+    {
+        $inputPath = $this->tempDir . '/inference-enabled.json';
+        file_put_contents($inputPath, json_encode([
+            'items' => [
+                [
+                    'key' => 'water_story',
+                    'title' => 'Water Story',
+                    'workflow_state' => 'published',
+                    'source_uri' => 'item://water_story',
+                    'ingested_at' => 1735689600,
+                    'body' => 'Water stewardship knowledge supports seasonal ceremony and memory continuity.',
+                ],
+                [
+                    'key' => 'seasonal_memory',
+                    'title' => 'Seasonal Memory',
+                    'workflow_state' => 'published',
+                    'source_uri' => 'item://seasonal_memory',
+                    'ingested_at' => 1735689601,
+                    'body' => 'Seasonal ceremony memory teachings support community stewardship and continuity.',
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        $app = new Application();
+        $app->add(new IngestRunCommand());
+        $tester = new CommandTester($app->find('ingest:run'));
+        $mappedPath = $this->tempDir . '/mapped-inference-enabled.json';
+        $tester->execute([
+            '--input' => $inputPath,
+            '--format' => 'structured',
+            '--source' => 'dataset://inference',
+            '--infer-relationships' => true,
+            '--output' => $mappedPath,
+        ]);
+
+        $this->assertSame(Command::SUCCESS, $tester->getStatusCode());
+        $decoded = json_decode((string) file_get_contents($mappedPath), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertTrue($decoded['meta']['inference_enabled']);
+        $this->assertSame(1, $decoded['meta']['inferred_relationship_count']);
+        $this->assertCount(1, $decoded['diagnostics']['inference']);
+        $this->assertSame('inference.relationship_inferred', $decoded['diagnostics']['inference'][0]['code']);
+        $this->assertSame('needs_review', $decoded['relationships'][0]['inference_review_state']);
+        $this->assertSame(0, $decoded['relationships'][0]['status']);
+    }
 }
