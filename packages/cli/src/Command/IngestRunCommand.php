@@ -9,6 +9,9 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Waaseyaa\CLI\Ingestion\IngestionEnvelopeNormalizer;
+use Waaseyaa\CLI\Ingestion\SchemaDiagnosticEmitter;
+use Waaseyaa\CLI\Ingestion\SchemaValidator;
 
 #[AsCommand(
     name: 'ingest:run',
@@ -27,7 +30,9 @@ final class IngestRunCommand extends Command
             ->addOption('default-workflow-state', null, InputOption::VALUE_REQUIRED, 'Default workflow state', 'draft')
             ->addOption('author-id', null, InputOption::VALUE_REQUIRED, 'Mapped author UID', '1')
             ->addOption('timestamp', null, InputOption::VALUE_REQUIRED, 'Deterministic ingest timestamp', '1735689600')
-            ->addOption('source', null, InputOption::VALUE_REQUIRED, 'Source identifier for audit metadata', 'ingest://manual')
+            ->addOption('batch-id', null, InputOption::VALUE_REQUIRED, 'Batch idempotency key (defaults to deterministic hash)')
+            ->addOption('policy', null, InputOption::VALUE_REQUIRED, 'Ingestion policy: atomic_fail_fast|validate_only', 'atomic_fail_fast')
+            ->addOption('source', null, InputOption::VALUE_REQUIRED, 'Source identifier for audit metadata', 'manual://default')
             ->addOption('output', 'o', InputOption::VALUE_REQUIRED, 'Optional mapped output file (.json)')
             ->addOption('diagnostics-output', null, InputOption::VALUE_REQUIRED, 'Optional diagnostics output file (.json)');
     }
@@ -59,6 +64,7 @@ final class IngestRunCommand extends Command
 
         $timestamp = max(0, (int) $input->getOption('timestamp'));
         $authorId = max(0, (int) $input->getOption('author-id'));
+        $policy = strtolower(trim((string) $input->getOption('policy')));
         $source = trim((string) $input->getOption('source'));
         if ($source === '') {
             $output->writeln('<error>--source must be non-empty.</error>');
@@ -75,8 +81,13 @@ final class IngestRunCommand extends Command
         if ($resolvedFormat === 'auto') {
             $resolvedFormat = str_ends_with(strtolower($inputPath), '.json') ? 'structured' : 'unstructured';
         }
+        $batchId = trim((string) $input->getOption('batch-id'));
+        if ($batchId === '') {
+            $batchId = 'batch_' . substr(sha1($inputPath . '|' . $source . '|' . $raw), 0, 16);
+        }
 
         $diagnostics = [
+            'schema' => [],
             'errors' => [],
             'warnings' => [],
         ];
@@ -85,15 +96,30 @@ final class IngestRunCommand extends Command
             ? $this->parseStructured($raw, $diagnostics)
             : $this->parseUnstructured($raw, $diagnostics);
 
-        $mapped = $this->mapRecords(
-            $records,
-            $defaultBundle,
-            $defaultState,
-            $authorId,
-            $timestamp,
-            $source,
-            $diagnostics,
+        $schemaEnvelope = $this->buildSchemaEnvelope(
+            records: $records,
+            batchId: $batchId,
+            sourceSetUri: $source,
+            policy: $policy,
+            timestamp: $timestamp,
         );
+        $normalizedEnvelope = (new IngestionEnvelopeNormalizer())->normalize($schemaEnvelope);
+        $violations = (new SchemaValidator())->validate($normalizedEnvelope['envelope']);
+        $diagnostics['schema'] = (new SchemaDiagnosticEmitter())->emit($violations);
+
+        $mapped = ['nodes' => [], 'relationships' => []];
+        $canMap = $policy !== 'validate_only' && $diagnostics['schema'] === [];
+        if ($canMap) {
+            $mapped = $this->mapRecords(
+                $records,
+                $defaultBundle,
+                $defaultState,
+                $authorId,
+                $timestamp,
+                $source,
+                $diagnostics,
+            );
+        }
 
         $result = [
             'meta' => [
@@ -101,9 +127,12 @@ final class IngestRunCommand extends Command
                 'input' => $inputPath,
                 'format' => $resolvedFormat,
                 'source' => $source,
+                'batch_id' => $normalizedEnvelope['envelope']['batch_id'] ?? $batchId,
+                'policy' => $normalizedEnvelope['envelope']['policy'] ?? $policy,
                 'node_count' => count($mapped['nodes']),
                 'relationship_count' => count($mapped['relationships']),
-                'error_count' => count($diagnostics['errors']),
+                'error_count' => count($diagnostics['schema']) + count($diagnostics['errors']),
+                'schema_error_count' => count($diagnostics['schema']),
                 'warning_count' => count($diagnostics['warnings']),
             ],
             'nodes' => $mapped['nodes'],
@@ -135,8 +164,9 @@ final class IngestRunCommand extends Command
             $output->writeln(sprintf('Ingest diagnostics written: %s', $diagnosticsPath));
         }
 
-        if ($diagnostics['errors'] !== []) {
-            $output->writeln(sprintf('<error>Ingest completed with %d error(s).</error>', count($diagnostics['errors'])));
+        $errorCount = count($diagnostics['schema']) + count($diagnostics['errors']);
+        if ($errorCount > 0) {
+            $output->writeln(sprintf('<error>Ingest completed with %d error(s).</error>', $errorCount));
             return Command::FAILURE;
         }
 
@@ -176,6 +206,9 @@ final class IngestRunCommand extends Command
                 'body' => is_string($item['body'] ?? null) ? trim($item['body']) : '',
                 'bundle' => is_string($item['bundle'] ?? null) ? trim($item['bundle']) : '',
                 'workflow_state' => is_string($item['workflow_state'] ?? null) ? strtolower(trim($item['workflow_state'])) : '',
+                'source_uri' => is_string($item['source_uri'] ?? null) ? trim($item['source_uri']) : '',
+                'ingested_at' => is_scalar($item['ingested_at'] ?? null) ? (string) $item['ingested_at'] : '',
+                'parser_version' => is_string($item['parser_version'] ?? null) ? trim($item['parser_version']) : '',
                 'relationships' => is_array($item['relationships'] ?? null) ? $item['relationships'] : [],
             ];
         }
@@ -201,6 +234,9 @@ final class IngestRunCommand extends Command
             $title = trim((string) array_shift($lines));
             $bundle = '';
             $workflowState = '';
+            $sourceUri = '';
+            $ingestedAt = '';
+            $parserVersion = '';
             $bodyLines = [];
             $relationships = [];
 
@@ -217,6 +253,18 @@ final class IngestRunCommand extends Command
                     $workflowState = strtolower(trim($m[1]));
                     continue;
                 }
+                if (preg_match('/^Source:\s*(.+)$/i', $trimmed, $m) === 1) {
+                    $sourceUri = trim($m[1]);
+                    continue;
+                }
+                if (preg_match('/^IngestedAt:\s*(.+)$/i', $trimmed, $m) === 1) {
+                    $ingestedAt = trim($m[1]);
+                    continue;
+                }
+                if (preg_match('/^Parser:\s*(.+)$/i', $trimmed, $m) === 1) {
+                    $parserVersion = trim($m[1]);
+                    continue;
+                }
                 if (preg_match('/^Relates:\s*([a-z0-9_-]+)\s+([a-z0-9_:-]+)$/i', $trimmed, $m) === 1) {
                     $relationships[] = ['to' => strtolower($m[1]), 'type' => strtolower($m[2])];
                     continue;
@@ -231,6 +279,9 @@ final class IngestRunCommand extends Command
                 'body' => trim(implode("\n", $bodyLines)),
                 'bundle' => $bundle,
                 'workflow_state' => $workflowState,
+                'source_uri' => $sourceUri,
+                'ingested_at' => $ingestedAt,
+                'parser_version' => $parserVersion,
                 'relationships' => $relationships,
             ];
         }
@@ -359,6 +410,49 @@ final class IngestRunCommand extends Command
         return [
             'nodes' => $nodes,
             'relationships' => $relationships,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return array<string, mixed>
+     */
+    private function buildSchemaEnvelope(
+        array $records,
+        string $batchId,
+        string $sourceSetUri,
+        string $policy,
+        int $timestamp,
+    ): array {
+        $items = [];
+        foreach ($records as $record) {
+            $sourceUri = trim((string) ($record['source_uri'] ?? ''));
+            if ($sourceUri === '') {
+                $sourceUri = trim((string) ($record['key'] ?? ''));
+            }
+            if ($sourceUri === '') {
+                $sourceUri = $this->normalizeKey((string) ($record['title'] ?? ''));
+            }
+
+            $ingestedAt = $record['ingested_at'] ?? null;
+            if ($ingestedAt === null || $ingestedAt === '') {
+                $ingestedAt = $timestamp;
+            }
+
+            $items[] = [
+                'source_uri' => $sourceUri,
+                'ingested_at' => $ingestedAt,
+                'parser_version' => ($record['parser_version'] ?? '') !== ''
+                    ? (string) $record['parser_version']
+                    : null,
+            ];
+        }
+
+        return [
+            'batch_id' => $batchId,
+            'source_set_uri' => $sourceSetUri,
+            'policy' => $policy,
+            'items' => $items,
         ];
     }
 

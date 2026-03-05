@@ -66,7 +66,7 @@ final class IngestRunCommandTest extends TestCase
         $tester->execute([
             '--input' => $inputPath,
             '--format' => 'structured',
-            '--source' => 'ingest://test',
+            '--source' => 'dataset://test',
             '--timestamp' => '1735689600',
             '--output' => $mappedPath,
         ]);
@@ -107,7 +107,7 @@ TXT);
         $tester->execute([
             '--input' => $inputPath,
             '--format' => 'unstructured',
-            '--source' => 'ingest://notes',
+            '--source' => 'manual://notes',
             '--output' => $mappedPath,
         ]);
 
@@ -142,7 +142,7 @@ TXT);
         $tester->execute([
             '--input' => $inputPath,
             '--format' => 'structured',
-            '--source' => 'ingest://invalid',
+            '--source' => 'dataset://invalid',
             '--output' => $mappedPath,
         ]);
 
