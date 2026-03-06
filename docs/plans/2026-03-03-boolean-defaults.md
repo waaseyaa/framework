@@ -281,5 +281,5 @@ Expected: All tests PASS
 **Step 4: Close issue**
 
 ```bash
-gh issue close 24 --repo jonesrussell/waaseyaa --comment "Fixed: SchemaPresenter emits default values in JSON Schema, SchemaForm initializes from schema defaults in create mode. Published defaults to checked, Promoted/Sticky default to unchecked."
+gh issue close 24 --repo waaseyaa/waaseyaa --comment "Fixed: SchemaPresenter emits default values in JSON Schema, SchemaForm initializes from schema defaults in create mode. Published defaults to checked, Promoted/Sticky default to unchecked."
 ```
