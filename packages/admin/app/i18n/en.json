@@ -44,5 +44,12 @@
   "nav_group_community": "Community",
   "nav_group_knowledge": "Cultural Knowledge",
   "nav_group_language": "Language",
+  "nav_group_ingestion": "Ingestion",
+  "ingest_widget_title": "Ingestion Status",
+  "ingest_widget_empty": "No ingestion activity yet.",
+  "ingest_status_pending_review": "Pending Review",
+  "ingest_status_approved": "Approved",
+  "ingest_status_rejected": "Rejected",
+  "ingest_status_failed": "Failed",
   "nav_group_other": "Other"
 }

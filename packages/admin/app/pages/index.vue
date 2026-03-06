@@ -33,6 +33,8 @@ onMounted(async () => {
       <h1>{{ t('dashboard') }}</h1>
     </div>
 
+    <IngestSummaryWidget />
+
     <div v-if="loading" class="loading">{{ t('loading') }}</div>
     <div v-else-if="loadError" class="error">{{ loadError }}</div>
 
