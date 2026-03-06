@@ -66,7 +66,7 @@ Three meta-packages provide convenient installation:
 ## Installation
 
 ```bash
-composer create-project waaseyaa/monorepo my-site
+composer create-project waaseyaa/waaseyaa my-site
 cd my-site
 ```
 

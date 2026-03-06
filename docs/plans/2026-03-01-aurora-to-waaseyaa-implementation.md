@@ -115,7 +115,7 @@ find . -name 'composer.json' -not -path './vendor/*' -exec sed -i 's/Aurora CMS/
 
 ```bash
 head -5 composer.json
-# Expected: "name": "waaseyaa/monorepo"
+# Expected: "name": "waaseyaa/waaseyaa"
 grep 'aurora' composer.json
 # Expected: No output
 ```
