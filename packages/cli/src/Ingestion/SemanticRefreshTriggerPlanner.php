@@ -227,6 +227,11 @@ final class SemanticRefreshTriggerPlanner
             }
         }
 
+        $federationChanges = $this->detectFederatedBindingChanges($current, $baseline);
+        if ($federationChanges !== []) {
+            $diagnostics = array_merge($diagnostics, $federationChanges);
+        }
+
         return $diagnostics;
     }
 
@@ -240,8 +245,10 @@ final class SemanticRefreshTriggerPlanner
         $afterPolicy = (string) ($current['policy']['ingestion_policy'] ?? '');
         $beforeInference = (bool) ($baseline['policy']['infer_relationships'] ?? false);
         $afterInference = (bool) ($current['policy']['infer_relationships'] ?? false);
+        $beforeMergePriority = (string) ($baseline['merge']['priority_policy'] ?? '');
+        $afterMergePriority = (string) ($current['merge']['priority_policy'] ?? '');
 
-        if ($beforePolicy === $afterPolicy && $beforeInference === $afterInference) {
+        if ($beforePolicy === $afterPolicy && $beforeInference === $afterInference && $beforeMergePriority === $afterMergePriority) {
             return [];
         }
 
@@ -251,9 +258,9 @@ final class SemanticRefreshTriggerPlanner
             'location' => '/policy',
             'item_index' => null,
             'context' => [
-                'policy_before' => $beforePolicy . '|infer=' . ($beforeInference ? '1' : '0'),
-                'policy_after' => $afterPolicy . '|infer=' . ($afterInference ? '1' : '0'),
-                'reason' => 'ingestion policy or inference toggle changed',
+                'policy_before' => $beforePolicy . '|infer=' . ($beforeInference ? '1' : '0') . '|merge=' . $beforeMergePriority,
+                'policy_after' => $afterPolicy . '|infer=' . ($afterInference ? '1' : '0') . '|merge=' . $afterMergePriority,
+                'reason' => 'ingestion policy, inference toggle, or merge policy changed',
             ],
         ];
     }
@@ -277,6 +284,23 @@ final class SemanticRefreshTriggerPlanner
                     'field' => 'item_count',
                     'drift_type' => 'count_changed',
                     'details' => sprintf('before=%d after=%d', $baselineCount, $currentCount),
+                    'item_index' => null,
+                ],
+            ];
+        }
+
+        $currentConflictCount = (int) ($current['merge']['conflict_count'] ?? 0);
+        $baselineConflictCount = (int) ($baseline['merge']['conflict_count'] ?? 0);
+        if ($currentConflictCount !== $baselineConflictCount) {
+            $diagnostics[] = [
+                'code' => 'refresh.structural_drift',
+                'message' => 'Merge conflict count changed.',
+                'location' => '/merge/conflict_count',
+                'item_index' => null,
+                'context' => [
+                    'field' => 'conflict_count',
+                    'drift_type' => 'count_changed',
+                    'details' => sprintf('before=%d after=%d', $baselineConflictCount, $currentConflictCount),
                     'item_index' => null,
                 ],
             ];
@@ -326,6 +350,75 @@ final class SemanticRefreshTriggerPlanner
                 continue;
             }
             $index[$key] = $relationship;
+        }
+
+        ksort($index);
+        return $index;
+    }
+
+    /**
+     * @param array<string, mixed>|null $baseline
+     * @return list<array<string, mixed>>
+     */
+    private function detectFederatedBindingChanges(array $current, ?array $baseline): array
+    {
+        $diagnostics = [];
+        $currentBindings = $this->bindingIndex((array) ($current['identity']['bindings'] ?? []));
+        $baselineBindings = $this->bindingIndex((array) ($baseline['identity']['bindings'] ?? []));
+        $keys = array_unique(array_merge(array_keys($currentBindings), array_keys($baselineBindings)));
+        sort($keys);
+
+        foreach ($keys as $canonicalId) {
+            $beforeMembers = $baselineBindings[$canonicalId] ?? [];
+            $afterMembers = $currentBindings[$canonicalId] ?? [];
+            if ($beforeMembers === $afterMembers) {
+                continue;
+            }
+
+            $change = $beforeMembers === [] ? 'added' : ($afterMembers === [] ? 'removed' : 'confidence_shift');
+            $diagnostics[] = [
+                'code' => 'refresh.relationship_change',
+                'message' => sprintf('Federated identity binding changed: %s.', $canonicalId),
+                'location' => '/identity/' . $canonicalId,
+                'item_index' => null,
+                'context' => [
+                    'edge_type' => 'source_binding',
+                    'source' => $canonicalId,
+                    'target' => implode(',', $afterMembers),
+                    'change' => $change,
+                    'confidence_before' => (float) count($beforeMembers),
+                    'confidence_after' => (float) count($afterMembers),
+                ],
+            ];
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param array<int|string, mixed> $bindings
+     * @return array<string, list<string>>
+     */
+    private function bindingIndex(array $bindings): array
+    {
+        $index = [];
+        foreach ($bindings as $binding) {
+            if (!is_array($binding)) {
+                continue;
+            }
+
+            $canonicalId = trim((string) ($binding['canonical_id'] ?? ''));
+            if ($canonicalId === '') {
+                continue;
+            }
+
+            $members = array_values(array_filter(array_map(
+                static fn(mixed $member): string => trim((string) $member),
+                (array) ($binding['member_source_ids'] ?? []),
+            ), static fn(string $member): bool => $member !== ''));
+            sort($members);
+
+            $index[$canonicalId] = $members;
         }
 
         ksort($index);

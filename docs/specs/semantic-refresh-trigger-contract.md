@@ -1,7 +1,7 @@
-# Semantic Refresh Trigger Contract (v1.5)
+# Semantic Refresh Trigger Contract (v1.6)
 
 ## Scope
-- Issue: `#168`
+- Issue: `#168`, `#177`
 - Surface: deterministic semantic refresh trigger classification from ingestion events.
 - Goal: emit stable `refresh.*` diagnostics and summary metadata with precedence-based trigger selection.
 
@@ -42,11 +42,13 @@ Each trigger diagnostic uses:
 - `change` (`added|removed|confidence_shift`)
 - `confidence_before` (float)
 - `confidence_after` (float)
+- Note: v1.6 includes federated binding deltas under `edge_type=source_binding` with deterministic source/member projections.
 
 ### `refresh.policy_change`
 - `policy_before` (string)
 - `policy_after` (string)
 - `reason` (string)
+- Note: v1.6 includes merge policy deltas in `policy_before` / `policy_after`.
 
 ### `refresh.structural_drift`
 - `field` (string)
@@ -67,9 +69,11 @@ Each trigger diagnostic uses:
 - Snapshot sections:
   - `envelope` (batch + source_set + items provenance)
   - `policy` (ingestion policy + infer toggle)
+  - `merge` (source-priority policy + conflict count)
+  - `identity` (canonical bindings + member source IDs)
   - `relationships` (sorted canonical rows)
   - `structure` (item/node/relationship counts + field type contract)
 
 ## Stability Rules
-- Category precedence and payload shapes are fixed for v1.5.
-- Changes are additive only; no renames/removals during v1.5.
+- Category precedence and payload shapes are fixed for v1.6.
+- Changes are additive only; no renames/removals during v1.6.
