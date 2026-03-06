@@ -66,6 +66,35 @@ final class PackageManifestCompiler
             }
         }
 
+        // Read root composer.json for app-level providers.
+        // Composer's installed.json excludes the root package, so app providers
+        // declared in the project's extra.waaseyaa.providers must be read separately.
+        $rootComposerPath = $this->basePath . '/composer.json';
+        if (is_file($rootComposerPath)) {
+            try {
+                $rootComposer = json_decode(file_get_contents($rootComposerPath), true, 512, JSON_THROW_ON_ERROR);
+                $rootExtra = $rootComposer['extra']['waaseyaa'] ?? null;
+                if (is_array($rootExtra)) {
+                    if (isset($rootExtra['providers'])) {
+                        array_push($providers, ...$rootExtra['providers']);
+                    }
+                    if (isset($rootExtra['commands'])) {
+                        array_push($commands, ...$rootExtra['commands']);
+                    }
+                    if (isset($rootExtra['routes'])) {
+                        array_push($routes, ...$rootExtra['routes']);
+                    }
+                    if (isset($rootExtra['permissions']) && is_array($rootExtra['permissions'])) {
+                        foreach ($rootExtra['permissions'] as $permId => $permDef) {
+                            $permissions[$permId] = $permDef;
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                error_log(sprintf('[Waaseyaa] Failed to read root composer.json: %s', $e->getMessage()));
+            }
+        }
+
         // Scan classes for attributes
         foreach ($this->scanClasses() as $class) {
             $ref = new \ReflectionClass($class);
@@ -196,34 +225,85 @@ final class PackageManifestCompiler
     }
 
     /**
-     * Collect Waaseyaa class names from classmap or PSR-4 directories,
+     * Collect class names from classmap or PSR-4 directories,
      * filtered to those with discovery attributes.
+     *
+     * Scans Waaseyaa\ framework classes and any app-level namespaces
+     * declared in the root composer.json autoload section.
      *
      * @return string[]
      */
     private function scanClasses(): array
     {
-        // Prefer classmap (populated by composer dump-autoload --optimize).
-        // Falls back to PSR-4 scanning if classmap is missing or contains no Waaseyaa\ entries.
+        $prefixes = $this->discoveryScanPrefixes();
+        $candidates = [];
+
+        // Use classmap for framework classes (populated by Composer without --optimize
+        // for polyfills/stubs, and fully populated with --optimize).
         $classmapPath = $this->basePath . '/vendor/composer/autoload_classmap.php';
         if (is_file($classmapPath)) {
             $classMap = require $classmapPath;
-            $candidates = array_filter(
+            $candidates = array_values(array_filter(
                 array_keys($classMap),
-                fn(string $c) => str_starts_with($c, 'Waaseyaa\\'),
+                static function (string $c) use ($prefixes): bool {
+                    foreach ($prefixes as $prefix) {
+                        if (str_starts_with($c, $prefix)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                },
+            ));
+        }
+
+        // App-namespace classes (e.g. Minoo\) typically aren't in the classmap
+        // without --optimize. Always scan PSR-4 directories for non-framework prefixes
+        // so app-level policies, listeners, and middleware are discovered.
+        $appPrefixes = array_values(array_filter($prefixes, static fn(string $p) => $p !== 'Waaseyaa\\'));
+        if ($appPrefixes !== []) {
+            $appClasses = $this->scanPsr4Classes($appPrefixes);
+            $candidates = array_values(array_unique(array_merge($candidates, $appClasses)));
+        }
+
+        if ($candidates === []) {
+            // No classmap entries and no app classes — full PSR-4 fallback.
+            error_log(
+                '[Waaseyaa] PackageManifestCompiler: no discoverable classes found. '
+                . 'Falling back to full PSR-4 directory scanning. '
+                . 'Run "composer dump-autoload --optimize" for faster, reliable discovery.',
             );
-            if ($candidates !== []) {
-                return $this->filterDiscoveryClasses($candidates);
+            $candidates = $this->scanPsr4Classes($prefixes);
+        }
+
+        return $this->filterDiscoveryClasses($candidates);
+    }
+
+    /**
+     * Build the list of namespace prefixes to scan for discovery attributes.
+     *
+     * Always includes Waaseyaa\, plus any PSR-4 namespaces from the root composer.json.
+     *
+     * @return string[]
+     */
+    private function discoveryScanPrefixes(): array
+    {
+        $prefixes = ['Waaseyaa\\'];
+
+        $rootComposerPath = $this->basePath . '/composer.json';
+        if (is_file($rootComposerPath)) {
+            try {
+                $root = json_decode(file_get_contents($rootComposerPath), true, 512, JSON_THROW_ON_ERROR);
+                foreach (array_keys($root['autoload']['psr-4'] ?? []) as $ns) {
+                    if (is_string($ns) && $ns !== '' && !str_starts_with($ns, 'Waaseyaa\\')) {
+                        $prefixes[] = $ns;
+                    }
+                }
+            } catch (\Throwable) {
+                // Root composer.json unreadable — proceed with framework-only scanning
             }
         }
 
-        error_log(
-            '[Waaseyaa] PackageManifestCompiler: no Waaseyaa classes in autoload_classmap.php. '
-            . 'Falling back to PSR-4 directory scanning. '
-            . 'Run "composer dump-autoload --optimize" for faster, reliable discovery.',
-        );
-
-        return $this->filterDiscoveryClasses($this->scanPsr4Classes());
+        return $prefixes;
     }
 
     /**
@@ -264,11 +344,12 @@ final class PackageManifestCompiler
     }
 
     /**
-     * Scan PSR-4 directories for Waaseyaa classes.
+     * Scan PSR-4 directories for discoverable classes.
      *
+     * @param string[] $prefixes Namespace prefixes to include.
      * @return string[]
      */
-    private function scanPsr4Classes(): array
+    private function scanPsr4Classes(array $prefixes): array
     {
         $psr4Path = $this->basePath . '/vendor/composer/autoload_psr4.php';
         if (!is_file($psr4Path)) {
@@ -291,9 +372,18 @@ final class PackageManifestCompiler
         $classes = [];
 
         foreach ($psr4Map as $namespace => $dirs) {
-            // Skip non-Waaseyaa namespaces and test namespaces (PSR-4 maps include
-            // test directories unlike optimized classmaps)
-            if (!str_starts_with($namespace, 'Waaseyaa\\') || str_contains($namespace, 'Tests\\')) {
+            // Skip test namespaces and namespaces not in scan prefixes.
+            if (str_contains($namespace, 'Tests\\')) {
+                continue;
+            }
+            $matched = false;
+            foreach ($prefixes as $prefix) {
+                if (str_starts_with($namespace, $prefix)) {
+                    $matched = true;
+                    break;
+                }
+            }
+            if (!$matched) {
                 continue;
             }
             foreach ($dirs as $dir) {
