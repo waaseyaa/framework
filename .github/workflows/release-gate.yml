@@ -1,0 +1,85 @@
+name: Release Gate
+
+on:
+  push:
+    tags:
+      - 'v1.0*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to validate
+        required: true
+
+jobs:
+  check-approval:
+    name: Verify v1.0 release authorization
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for v1.0 approval artifact
+        id: approval
+        run: |
+          if [ ! -f "release-approvals/v1.0.approved" ]; then
+            echo "::error::UNAUTHORIZED_V1_TAG: v1.0 tag created without owner approval."
+            echo "::error::See VERSIONING.md Section 1 and open a release-quarantine issue."
+            echo "::error::Tag: ${{ github.ref_name }}"
+            echo "::error::Commit: ${{ github.sha }}"
+            exit 1
+          fi
+          echo "Approval artifact found:"
+          cat release-approvals/v1.0.approved
+
+      - name: Validate approval artifact format
+        if: steps.approval.outcome == 'success'
+        run: |
+          FILE="release-approvals/v1.0.approved"
+          if ! grep -q "Authorized by:" "$FILE"; then
+            echo "::error::Approval artifact missing 'Authorized by:' field. See VERSIONING.md Section 6."
+            exit 1
+          fi
+          if ! grep -q "Date:" "$FILE"; then
+            echo "::error::Approval artifact missing 'Date:' field."
+            exit 1
+          fi
+          echo "Approval artifact format valid."
+
+  check-manifests:
+    name: Validate default manifests contain project_versioning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check project_versioning block in all defaults
+        run: |
+          FAILED=0
+          for f in defaults/*.yaml; do
+            if ! grep -q "project_versioning:" "$f"; then
+              echo "::error::MANIFEST_VERSIONING_MISSING: $f lacks project_versioning block"
+              FAILED=1
+            fi
+          done
+          if [ "$FAILED" -eq 1 ]; then
+            exit 1
+          fi
+          echo "All manifests contain project_versioning block."
+
+  detect-quarantine:
+    name: Detect existing v1.0 tags (quarantine scan)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan for unauthorized v1.0 tags
+        run: |
+          APPROVAL="release-approvals/v1.0.approved"
+          V1_TAGS=$(git tag --list 'v1.0*')
+          if [ -n "$V1_TAGS" ] && [ ! -f "$APPROVAL" ]; then
+            echo "::warning::TAG_QUARANTINE_DETECTED: Unauthorized v1.0 tag(s) found: $V1_TAGS"
+            echo "Open a release-quarantine issue per VERSIONING.md Section 2."
+          fi
