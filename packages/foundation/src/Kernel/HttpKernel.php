@@ -462,7 +462,7 @@ final class HttpKernel extends AbstractKernel
         $schemaPresenter = new SchemaPresenter();
 
         $body = null;
-        if (in_array($method, ['POST', 'PATCH'], true)) {
+        if (in_array($method, ['POST', 'PATCH'], true) && !str_contains($controller, '::')) {
             $raw = $httpRequest->getContent();
             if ($raw !== '') {
                 try {
