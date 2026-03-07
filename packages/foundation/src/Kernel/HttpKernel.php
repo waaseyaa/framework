@@ -1102,7 +1102,14 @@ final class HttpKernel extends AbstractKernel
             $aliasResolver = new PathAliasResolver($this->entityTypeManager->getStorage('path_alias'));
             $resolved = $aliasResolver->resolve($aliasLookupPath, $contentLangcode);
             if ($resolved === null) {
-                $response = (new RenderController($twig))->renderNotFound($aliasLookupPath);
+                $renderController = new RenderController($twig);
+                $pathResponse = $renderController->tryRenderPathTemplate($aliasLookupPath);
+                if ($pathResponse !== null) {
+                    $headers = $pathResponse->headers;
+                    $headers['Cache-Control'] = $cacheControlHeader;
+                    $this->sendHtml($pathResponse->statusCode, $pathResponse->content, $headers);
+                }
+                $response = $renderController->renderNotFound($aliasLookupPath);
                 $headers = $response->headers;
                 $headers['Cache-Control'] = $cacheControlHeader;
                 $this->sendHtml($response->statusCode, $response->content, $headers);

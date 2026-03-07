@@ -1,0 +1,24 @@
+{
+    "name": "waaseyaa/search",
+    "description": "Search provider interface and DTOs for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=8.3",
+        "twig/twig": "^3.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Waaseyaa\\Search\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Waaseyaa\\Search\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "stable"
+}

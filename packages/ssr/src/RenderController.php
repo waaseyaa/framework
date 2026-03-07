@@ -30,7 +30,16 @@ final class RenderController
             'path' => $normalizedPath,
         ];
 
-        foreach (['page.html.twig', 'ssr/page.html.twig'] as $template) {
+        // Try path-specific template first (e.g., /language → language.html.twig).
+        $segment = trim($normalizedPath, '/');
+        $templates = [];
+        if ($segment !== '' && preg_match('/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i', $segment)) {
+            $templates[] = $segment . '.html.twig';
+        }
+        $templates[] = 'page.html.twig';
+        $templates[] = 'ssr/page.html.twig';
+
+        foreach ($templates as $template) {
             try {
                 $html = $this->twig->render($template, $context);
                 return new SsrResponse(content: $html);
@@ -74,6 +83,49 @@ final class RenderController
         }
 
         return new SsrResponse(content: '<h1>Render template missing</h1>', statusCode: 500);
+    }
+
+    public function tryRenderPathTemplate(string $path): ?SsrResponse
+    {
+        $normalizedPath = trim($path);
+        if ($normalizedPath === '' || $normalizedPath === '/') {
+            return null;
+        }
+        if (!str_starts_with($normalizedPath, '/')) {
+            $normalizedPath = '/' . $normalizedPath;
+        }
+
+        $trimmed = trim($normalizedPath, '/');
+        if ($trimmed === '') {
+            return null;
+        }
+
+        // Try exact single-segment match first, then first segment of multi-segment paths.
+        $segments = [];
+        if (preg_match('/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i', $trimmed)) {
+            $segments[] = $trimmed;
+        } elseif (str_contains($trimmed, '/')) {
+            $firstSegment = explode('/', $trimmed, 2)[0];
+            if (preg_match('/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i', $firstSegment)) {
+                $segments[] = $firstSegment;
+            }
+        }
+
+        $context = [
+            'title' => 'Waaseyaa',
+            'path' => $normalizedPath,
+        ];
+
+        foreach ($segments as $segment) {
+            try {
+                $html = $this->twig->render($segment . '.html.twig', $context);
+                return new SsrResponse(content: $html);
+            } catch (LoaderError) {
+                continue;
+            }
+        }
+
+        return null;
     }
 
     public function renderNotFound(string $path): SsrResponse
