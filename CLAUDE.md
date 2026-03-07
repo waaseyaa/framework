@@ -24,6 +24,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/foundation/*`, `packages/cache/*`, `packages/database-legacy/*`, `packages/plugin/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md`, `docs/specs/package-discovery.md`, `docs/specs/plugin-extension-points.md`, `docs/specs/external-extension-sdk.md`, `docs/specs/extension-compatibility-matrix.md`, `docs/specs/extension-release-playbook.md`, `docs/specs/extension-author-onboarding.md` |
 | `packages/mcp/*` | `waaseyaa:mcp-endpoint` | `docs/specs/mcp-endpoint.md` |
 | `public/index.php`, `packages/*/src/Middleware/*` | `waaseyaa:middleware-pipeline` | `docs/specs/middleware-pipeline.md` |
+| GitHub issues, milestones, new features, roadmap | — | `docs/specs/workflow.md` |
 
 Use `waaseyaa_search_specs` MCP tool to find specs affected by a change when the mapping isn't obvious.
 
@@ -86,12 +87,25 @@ Use `waaseyaa_search_specs` MCP tool to find specs affected by a change when the
 3. `boot()` — subscribe to events, register routes, warm caches (after all providers registered)
 4. Add `extra.waaseyaa.providers` to the package's `composer.json` for auto-discovery
 
+## GitHub Workflow
+
+All work in this repo follows a GitHub-first workflow. See `docs/specs/workflow.md` (via `waaseyaa_get_spec workflow`) for the full governance model including the versioning strategy and current milestone structure.
+
+**The 5 rules — enforced at every session start via `bin/check-milestones`:**
+
+1. **All work begins with an issue.** Ask for the issue number before writing code. If none exists, create one and assign it to a milestone first.
+2. **Every issue belongs to a milestone.** Unassigned issues are incomplete triage — prompt assignment if missing.
+3. **Milestones define the roadmap.** Check the active milestone before proposing work. Do not invent new milestones without explicit discussion.
+4. **PRs must reference issues.** PR title format: `feat(#N): description`. Use `.github/pull_request_template.md`.
+5. **Read the drift report.** `bin/check-milestones` runs at session start. Flag any warnings before beginning work.
+
 ## Codified Context
 
 This project uses three-tier codified context infrastructure ([arxiv.org/abs/2602.20478](https://arxiv.org/abs/2602.20478)):
 - **Tier 1 (Constitution):** This CLAUDE.md file — loaded every session, orchestration triggers, checklists
 - **Tier 2 (Skills):** Domain specialist skills in `skills/waaseyaa/` — loaded on demand per the orchestration table
 - **Tier 3 (Specs):** Subsystem specs in `docs/specs/` — retrieved via `waaseyaa_*` MCP tools for deep context
+  - `docs/specs/workflow.md` — GitHub workflow governance, versioning model, milestone structure
 
 Design docs in `docs/plans/` are session artifacts (implementation history). Specs in `docs/specs/` are enduring architectural knowledge (kept current). When refactoring a subsystem, update its spec — run `tools/drift-detector.sh` to find stale specs.
 

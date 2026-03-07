@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bin/check-milestones",
+            "show_output": true
+          }
+        ]
+      }
+    ]
+  }
+}

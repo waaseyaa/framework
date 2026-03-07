@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Check for GitHub milestone/issue drift in waaseyaa/framework.
+# Runs at session start via Claude Code SessionStart hook.
+# Exits 0 always — output is a warning surface, not a CI gate.
+
+set -euo pipefail
+
+REPO="waaseyaa/framework"
+PROBLEMS=0
+
+echo "=== Milestone drift check: $REPO ==="
+
+# Issues with no milestone
+UNASSIGNED=$(gh api "repos/$REPO/issues?state=open&milestone=none&per_page=100" \
+  --jq '[.[] | select(.pull_request == null)] | length')
+
+if [ "$UNASSIGNED" -gt 0 ]; then
+  echo ""
+  echo "WARN: $UNASSIGNED open issue(s) have no milestone:"
+  gh api "repos/$REPO/issues?state=open&milestone=none&per_page=100" \
+    --jq '.[] | select(.pull_request == null) | "  #" + (.number|tostring) + " " + .title'
+  PROBLEMS=$((PROBLEMS + UNASSIGNED))
+fi
+
+# Milestones with zero open issues
+gh api "repos/$REPO/milestones?state=open&per_page=100" \
+  --jq '.[] | select(.open_issues == 0) | .title' | while read -r title; do
+  echo ""
+  echo "WARN: Milestone \"$title\" has no open issues — may be stale or complete"
+  PROBLEMS=$((PROBLEMS + 1))
+done
+
+if [ "$PROBLEMS" -eq 0 ]; then
+  echo "OK: All open issues are assigned to milestones."
+fi
+
+echo ""
+exit 0
