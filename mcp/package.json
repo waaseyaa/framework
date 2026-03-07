@@ -1,0 +1,11 @@
+{
+  "name": "waaseyaa-context-mcp",
+  "version": "1.0.0",
+  "description": "Codified context MCP server for waaseyaa/framework",
+  "type": "module",
+  "main": "server.js",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.0.0"
+  }
+}

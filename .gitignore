@@ -32,4 +32,5 @@ storage/
 .worktrees/
 
 .playwright-mcp/
+mcp/node_modules/
 

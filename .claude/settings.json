@@ -1,4 +1,10 @@
 {
+  "mcpServers": {
+    "waaseyaa": {
+      "command": "node",
+      "args": ["mcp/server.js"]
+    }
+  },
   "hooks": {
     "SessionStart": [
       {
