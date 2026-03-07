@@ -13,8 +13,12 @@ use Waaseyaa\Search\SearchResult;
 
 final class SearchTwigExtension extends AbstractExtension
 {
+    /**
+     * @param string[] $baseTopics When set, overrides user topic selection (OR semantics make merging unsafe).
+     */
     public function __construct(
         private readonly SearchProviderInterface $provider,
+        private readonly array $baseTopics = [],
     ) {}
 
     /** @return TwigFunction[] */
@@ -36,9 +40,9 @@ final class SearchTwigExtension extends AbstractExtension
         }
 
         $searchFilters = new SearchFilters(
-            topics: isset($filters['topic']) && $filters['topic'] !== ''
-                ? [(string) $filters['topic']]
-                : [],
+            topics: $this->baseTopics !== []
+                ? $this->baseTopics
+                : (isset($filters['topic']) && $filters['topic'] !== '' ? [(string) $filters['topic']] : []),
             contentType: (string) ($filters['content_type'] ?? ''),
             sourceNames: isset($filters['source']) && $filters['source'] !== ''
                 ? [(string) $filters['source']]

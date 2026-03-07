@@ -68,6 +68,51 @@ final class SearchTwigExtensionTest extends TestCase
     }
 
     #[Test]
+    public function it_uses_base_topics_ignoring_user_topic(): void
+    {
+        $provider = $this->createMock(SearchProviderInterface::class);
+        $provider->expects($this->once())
+            ->method('search')
+            ->with($this->callback(function (SearchRequest $req): bool {
+                return $req->filters->topics === ['indigenous'];
+            }))
+            ->willReturn(SearchResult::empty());
+
+        $ext = new SearchTwigExtension($provider, baseTopics: ['indigenous']);
+        $ext->search('test', ['topic' => 'education']);
+    }
+
+    #[Test]
+    public function it_sends_base_topics_when_no_user_topic(): void
+    {
+        $provider = $this->createMock(SearchProviderInterface::class);
+        $provider->expects($this->once())
+            ->method('search')
+            ->with($this->callback(function (SearchRequest $req): bool {
+                return $req->filters->topics === ['indigenous'];
+            }))
+            ->willReturn(SearchResult::empty());
+
+        $ext = new SearchTwigExtension($provider, baseTopics: ['indigenous']);
+        $ext->search('test');
+    }
+
+    #[Test]
+    public function it_uses_user_topic_when_no_base_topics(): void
+    {
+        $provider = $this->createMock(SearchProviderInterface::class);
+        $provider->expects($this->once())
+            ->method('search')
+            ->with($this->callback(function (SearchRequest $req): bool {
+                return $req->filters->topics === ['education'];
+            }))
+            ->willReturn(SearchResult::empty());
+
+        $ext = new SearchTwigExtension($provider);
+        $ext->search('test', ['topic' => 'education']);
+    }
+
+    #[Test]
     public function query_param_reads_from_get(): void
     {
         $_GET['q'] = 'test query';
