@@ -95,9 +95,20 @@ final class RenderController
             $normalizedPath = '/' . $normalizedPath;
         }
 
-        $segment = trim($normalizedPath, '/');
-        if ($segment === '' || !preg_match('/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i', $segment)) {
+        $trimmed = trim($normalizedPath, '/');
+        if ($trimmed === '') {
             return null;
+        }
+
+        // Try exact single-segment match first, then first segment of multi-segment paths.
+        $segments = [];
+        if (preg_match('/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i', $trimmed)) {
+            $segments[] = $trimmed;
+        } elseif (str_contains($trimmed, '/')) {
+            $firstSegment = explode('/', $trimmed, 2)[0];
+            if (preg_match('/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i', $firstSegment)) {
+                $segments[] = $firstSegment;
+            }
         }
 
         $context = [
@@ -105,12 +116,16 @@ final class RenderController
             'path' => $normalizedPath,
         ];
 
-        try {
-            $html = $this->twig->render($segment . '.html.twig', $context);
-            return new SsrResponse(content: $html);
-        } catch (LoaderError) {
-            return null;
+        foreach ($segments as $segment) {
+            try {
+                $html = $this->twig->render($segment . '.html.twig', $context);
+                return new SsrResponse(content: $html);
+            } catch (LoaderError) {
+                continue;
+            }
         }
+
+        return null;
     }
 
     public function renderNotFound(string $path): SsrResponse
