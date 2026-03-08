@@ -100,6 +100,15 @@ final class RouteBuilder
     }
 
     /**
+     * Require that the request is from an authenticated (non-anonymous) account.
+     */
+    public function requireAuthentication(): self
+    {
+        $this->options['_authenticated'] = true;
+        return $this;
+    }
+
+    /**
      * Allow all users (marks route as public).
      */
     public function allowAll(): self

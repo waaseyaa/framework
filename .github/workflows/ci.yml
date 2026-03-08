@@ -76,3 +76,25 @@ jobs:
             fi
           done
           exit $fail
+
+  security-defaults:
+    name: Security defaults
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check no secrets in defaults/
+        run: bash bin/check-no-secrets
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run structural secrets scan
+        run: ./vendor/bin/phpunit --filter Phase22

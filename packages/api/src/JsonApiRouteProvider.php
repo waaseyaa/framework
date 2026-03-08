@@ -71,6 +71,7 @@ final class JsonApiRouteProvider
             RouteBuilder::create($collectionPath)
                 ->controller("Waaseyaa\\Api\\JsonApiController::store")
                 ->methods('POST')
+                ->requireAuthentication()
                 ->default('_entity_type', $entityTypeId)
                 ->build(),
         );
@@ -81,6 +82,7 @@ final class JsonApiRouteProvider
             RouteBuilder::create($resourcePath)
                 ->controller("Waaseyaa\\Api\\JsonApiController::update")
                 ->methods('PATCH')
+                ->requireAuthentication()
                 ->default('_entity_type', $entityTypeId)
                 ->build(),
         );
@@ -91,6 +93,7 @@ final class JsonApiRouteProvider
             RouteBuilder::create($resourcePath)
                 ->controller("Waaseyaa\\Api\\JsonApiController::destroy")
                 ->methods('DELETE')
+                ->requireAuthentication()
                 ->default('_entity_type', $entityTypeId)
                 ->build(),
         );

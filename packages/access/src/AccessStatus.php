@@ -9,4 +9,5 @@ enum AccessStatus: string
     case ALLOWED = 'allowed';
     case NEUTRAL = 'neutral';
     case FORBIDDEN = 'forbidden';
+    case UNAUTHENTICATED = 'unauthenticated';
 }

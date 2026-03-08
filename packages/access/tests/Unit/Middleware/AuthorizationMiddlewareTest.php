@@ -120,6 +120,37 @@ final class AuthorizationMiddlewareTest extends TestCase
     }
 
     #[Test]
+    public function returns_401_when_authentication_required_and_anonymous(): void
+    {
+        $route = new Route('/api/node');
+        $route->setOption('_authenticated', true);
+
+        $account = new AnonymousUser();
+        $accessChecker = new AccessChecker();
+        $middleware = new AuthorizationMiddleware($accessChecker);
+
+        $request = Request::create('/api/node', 'POST');
+        $request->attributes->set('_account', $account);
+        $request->attributes->set('_route_object', $route);
+
+        $next = new class implements HttpHandlerInterface {
+            public function handle(Request $request): Response
+            {
+                return new Response('should not reach here');
+            }
+        };
+
+        $response = $middleware->process($request, $next);
+
+        $this->assertSame(401, $response->getStatusCode());
+        $this->assertStringContainsString('401', $response->getContent());
+        $this->assertSame(
+            'Bearer realm="Waaseyaa API"',
+            $response->headers->get('WWW-Authenticate'),
+        );
+    }
+
+    #[Test]
     public function returns_403_when_no_account_set(): void
     {
         $route = new Route('/api/node');

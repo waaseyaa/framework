@@ -17,6 +17,7 @@ schema:
   ref: core.note.schema.json
   version: "0.1.0"
   compatibility: liberal  # pre-v1: breaking changes allowed with migration task
+  encryption_policy: none  # body stored plaintext; opt-in field encryption not yet implemented
 
 entity_keys:
   id: id

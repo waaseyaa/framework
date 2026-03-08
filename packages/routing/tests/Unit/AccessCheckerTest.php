@@ -145,6 +145,70 @@ final class AccessCheckerTest extends TestCase
         $this->assertTrue($result->isForbidden());
     }
 
+    // --- _authenticated ---
+
+    #[Test]
+    public function authenticatedOptionWithAuthenticatedAccountReturnsAllowed(): void
+    {
+        $route = new Route('/api/node');
+        $route->setOption('_authenticated', true);
+
+        $account = $this->createMock(AccountInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
+
+        $result = $this->checker->check($route, $account);
+
+        $this->assertTrue($result->isAllowed());
+    }
+
+    #[Test]
+    public function authenticatedOptionWithAnonymousAccountReturnsUnauthenticated(): void
+    {
+        $route = new Route('/api/node');
+        $route->setOption('_authenticated', true);
+
+        $account = $this->createMock(AccountInterface::class);
+        $account->method('isAuthenticated')->willReturn(false);
+
+        $result = $this->checker->check($route, $account);
+
+        $this->assertTrue($result->isUnauthenticated());
+        $this->assertStringContainsString('Authentication is required', $result->reason);
+    }
+
+    #[Test]
+    public function authenticatedOptionShortCircuitsBeforePermissionCheck(): void
+    {
+        $route = new Route('/api/node');
+        $route->setOption('_authenticated', true);
+        $route->setOption('_permission', 'access content');
+
+        $account = $this->createMock(AccountInterface::class);
+        $account->method('isAuthenticated')->willReturn(false);
+        // hasPermission should never be called — short-circuited.
+        $account->expects($this->never())->method('hasPermission');
+
+        $result = $this->checker->check($route, $account);
+
+        $this->assertTrue($result->isUnauthenticated());
+    }
+
+    #[Test]
+    public function authenticatedWithPermissionBothCheckedWhenAuthenticated(): void
+    {
+        $route = new Route('/api/node');
+        $route->setOption('_authenticated', true);
+        $route->setOption('_permission', 'access content');
+
+        $account = $this->createMock(AccountInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
+        $account->method('hasPermission')->with('access content')->willReturn(true);
+
+        $result = $this->checker->check($route, $account);
+
+        $this->assertTrue($result->isAllowed());
+    }
+
     // --- Combined requirements (AND logic) ---
 
     #[Test]

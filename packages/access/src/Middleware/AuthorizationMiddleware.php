@@ -42,6 +42,20 @@ final class AuthorizationMiddleware implements HttpMiddlewareInterface
 
         $result = $this->accessChecker->check($route, $account);
 
+        if ($result->isUnauthenticated()) {
+            return new JsonResponse([
+                'jsonapi' => ['version' => '1.1'],
+                'errors' => [[
+                    'status' => '401',
+                    'title' => 'Unauthorized',
+                    'detail' => $result->reason,
+                ]],
+            ], 401, [
+                'Content-Type' => 'application/vnd.api+json',
+                'WWW-Authenticate' => 'Bearer realm="Waaseyaa API"',
+            ]);
+        }
+
         if ($result->isForbidden()) {
             return new JsonResponse([
                 'jsonapi' => ['version' => '1.1'],

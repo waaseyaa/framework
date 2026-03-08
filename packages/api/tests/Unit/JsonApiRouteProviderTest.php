@@ -141,6 +141,43 @@ final class JsonApiRouteProviderTest extends TestCase
     }
 
     #[Test]
+    public function writeRoutesRequireAuthentication(): void
+    {
+        $this->entityTypeManager->registerEntityType(new EntityType(
+            id: 'article',
+            label: 'Article',
+            class: TestEntity::class,
+        ));
+
+        $provider = new JsonApiRouteProvider($this->entityTypeManager);
+        $provider->registerRoutes($this->router);
+
+        $routes = $this->router->getRouteCollection();
+
+        $this->assertTrue($routes->get('api.article.store')->getOption('_authenticated'));
+        $this->assertTrue($routes->get('api.article.update')->getOption('_authenticated'));
+        $this->assertTrue($routes->get('api.article.destroy')->getOption('_authenticated'));
+    }
+
+    #[Test]
+    public function readRoutesDoNotRequireAuthentication(): void
+    {
+        $this->entityTypeManager->registerEntityType(new EntityType(
+            id: 'article',
+            label: 'Article',
+            class: TestEntity::class,
+        ));
+
+        $provider = new JsonApiRouteProvider($this->entityTypeManager);
+        $provider->registerRoutes($this->router);
+
+        $routes = $this->router->getRouteCollection();
+
+        $this->assertNull($routes->get('api.article.index')->getOption('_authenticated'));
+        $this->assertNull($routes->get('api.article.show')->getOption('_authenticated'));
+    }
+
+    #[Test]
     public function registersRoutesForMultipleEntityTypes(): void
     {
         $this->entityTypeManager->registerEntityType(new EntityType(

@@ -46,6 +46,16 @@ final class AccessChecker
             // Remains allowed — no change needed.
         }
 
+        // Check _authenticated option (requires a non-anonymous identity).
+        // Short-circuits: no point evaluating permissions for an anonymous user.
+        $authenticated = $route->getOption('_authenticated');
+        if ($authenticated === true) {
+            $hasRequirement = true;
+            if (!$account->isAuthenticated()) {
+                return AccessResult::unauthenticated('Authentication is required to access this resource.');
+            }
+        }
+
         // Check _permission option.
         $permission = $route->getOption('_permission');
         if ($permission !== null) {

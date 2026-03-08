@@ -51,11 +51,24 @@ class AccessResultTest extends TestCase
         $this->assertSame('denied', $result->reason);
     }
 
+    public function testUnauthenticatedFactory(): void
+    {
+        $result = AccessResult::unauthenticated('no identity');
+
+        $this->assertTrue($result->isUnauthenticated());
+        $this->assertFalse($result->isAllowed());
+        $this->assertFalse($result->isForbidden());
+        $this->assertFalse($result->isNeutral());
+        $this->assertSame(AccessStatus::UNAUTHENTICATED, $result->status);
+        $this->assertSame('no identity', $result->reason);
+    }
+
     public function testDefaultReasonIsEmpty(): void
     {
         $this->assertSame('', AccessResult::allowed()->reason);
         $this->assertSame('', AccessResult::neutral()->reason);
         $this->assertSame('', AccessResult::forbidden()->reason);
+        $this->assertSame('', AccessResult::unauthenticated()->reason);
     }
 
     // ---------------------------------------------------------------
@@ -129,6 +142,36 @@ class AccessResultTest extends TestCase
             AccessResult::forbidden(),
             AccessStatus::FORBIDDEN,
         ];
+
+        yield 'unauthenticated AND allowed = unauthenticated' => [
+            AccessResult::unauthenticated(),
+            AccessResult::allowed(),
+            AccessStatus::UNAUTHENTICATED,
+        ];
+
+        yield 'allowed AND unauthenticated = unauthenticated' => [
+            AccessResult::allowed(),
+            AccessResult::unauthenticated(),
+            AccessStatus::UNAUTHENTICATED,
+        ];
+
+        yield 'unauthenticated AND neutral = unauthenticated' => [
+            AccessResult::unauthenticated(),
+            AccessResult::neutral(),
+            AccessStatus::UNAUTHENTICATED,
+        ];
+
+        yield 'unauthenticated AND forbidden = unauthenticated' => [
+            AccessResult::unauthenticated(),
+            AccessResult::forbidden(),
+            AccessStatus::UNAUTHENTICATED,
+        ];
+
+        yield 'forbidden AND unauthenticated = unauthenticated' => [
+            AccessResult::forbidden(),
+            AccessResult::unauthenticated(),
+            AccessStatus::UNAUTHENTICATED,
+        ];
     }
 
     // ---------------------------------------------------------------
@@ -201,6 +244,36 @@ class AccessResultTest extends TestCase
             AccessResult::forbidden(),
             AccessResult::forbidden(),
             AccessStatus::FORBIDDEN,
+        ];
+
+        yield 'unauthenticated OR allowed = unauthenticated' => [
+            AccessResult::unauthenticated(),
+            AccessResult::allowed(),
+            AccessStatus::UNAUTHENTICATED,
+        ];
+
+        yield 'allowed OR unauthenticated = unauthenticated' => [
+            AccessResult::allowed(),
+            AccessResult::unauthenticated(),
+            AccessStatus::UNAUTHENTICATED,
+        ];
+
+        yield 'unauthenticated OR neutral = unauthenticated' => [
+            AccessResult::unauthenticated(),
+            AccessResult::neutral(),
+            AccessStatus::UNAUTHENTICATED,
+        ];
+
+        yield 'unauthenticated OR forbidden = unauthenticated' => [
+            AccessResult::unauthenticated(),
+            AccessResult::forbidden(),
+            AccessStatus::UNAUTHENTICATED,
+        ];
+
+        yield 'forbidden OR unauthenticated = unauthenticated' => [
+            AccessResult::forbidden(),
+            AccessResult::unauthenticated(),
+            AccessStatus::UNAUTHENTICATED,
         ];
     }
 
@@ -293,6 +366,7 @@ class AccessResultTest extends TestCase
         $this->assertSame('allowed', AccessStatus::ALLOWED->value);
         $this->assertSame('neutral', AccessStatus::NEUTRAL->value);
         $this->assertSame('forbidden', AccessStatus::FORBIDDEN->value);
+        $this->assertSame('unauthenticated', AccessStatus::UNAUTHENTICATED->value);
     }
 
     public function testAccessStatusFromString(): void
@@ -300,5 +374,6 @@ class AccessResultTest extends TestCase
         $this->assertSame(AccessStatus::ALLOWED, AccessStatus::from('allowed'));
         $this->assertSame(AccessStatus::NEUTRAL, AccessStatus::from('neutral'));
         $this->assertSame(AccessStatus::FORBIDDEN, AccessStatus::from('forbidden'));
+        $this->assertSame(AccessStatus::UNAUTHENTICATED, AccessStatus::from('unauthenticated'));
     }
 }

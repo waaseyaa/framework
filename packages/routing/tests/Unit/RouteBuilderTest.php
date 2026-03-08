@@ -96,6 +96,16 @@ final class RouteBuilderTest extends TestCase
     }
 
     #[Test]
+    public function requireAuthenticationSetsOption(): void
+    {
+        $route = RouteBuilder::create('/api/node')
+            ->requireAuthentication()
+            ->build();
+
+        $this->assertTrue($route->getOption('_authenticated'));
+    }
+
+    #[Test]
     public function allowAllSetsPublicOption(): void
     {
         $route = RouteBuilder::create('/public')
