@@ -12,6 +12,7 @@ use Waaseyaa\AI\Vector\EmbeddingProviderFactory;
 use Waaseyaa\AI\Vector\SemanticIndexWarmer;
 use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\CLI\Command\AboutCommand;
+use Waaseyaa\CLI\Command\AuditLogCommand;
 use Waaseyaa\CLI\Command\CacheClearCommand;
 use Waaseyaa\CLI\Command\ConfigExportCommand;
 use Waaseyaa\CLI\Command\ConfigImportCommand;
@@ -51,6 +52,8 @@ use Waaseyaa\CLI\Command\SemanticWarmCommand;
 use Waaseyaa\CLI\Command\Telescope\TelescopeClearCommand;
 use Waaseyaa\CLI\Command\Telescope\TelescopeListCommand;
 use Waaseyaa\CLI\Command\Telescope\TelescopePruneCommand;
+use Waaseyaa\CLI\Command\TypeDisableCommand;
+use Waaseyaa\CLI\Command\TypeEnableCommand;
 use Waaseyaa\CLI\Command\UserCreateCommand;
 use Waaseyaa\CLI\Command\UserRoleCommand;
 use Waaseyaa\CLI\Command\WorkflowScaffoldCommand;
@@ -151,6 +154,9 @@ final class ConsoleKernel extends AbstractKernel
                 'environment' => getenv('APP_ENV') ?: 'production',
             ]),
             new EntityTypeListCommand($this->entityTypeManager),
+            new TypeDisableCommand($this->entityTypeManager, $this->lifecycleManager),
+            new TypeEnableCommand($this->entityTypeManager, $this->lifecycleManager),
+            new AuditLogCommand($this->lifecycleManager),
             new EventListCommand($this->dispatcher),
             new RouteListCommand($router),
             new PermissionListCommand($permissionHandler),

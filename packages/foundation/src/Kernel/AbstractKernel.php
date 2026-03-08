@@ -9,6 +9,7 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\PdoDatabase;
 use Waaseyaa\Entity\EntityTypeInterface;
+use Waaseyaa\Entity\EntityTypeLifecycleManager;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
@@ -27,6 +28,7 @@ abstract class AbstractKernel
     protected EntityTypeManager $entityTypeManager;
     protected PackageManifest $manifest;
     protected EntityAccessHandler $accessHandler;
+    protected EntityTypeLifecycleManager $lifecycleManager;
 
     /** @var array<string, mixed> */
     protected array $config = [];
@@ -58,6 +60,7 @@ abstract class AbstractKernel
         $this->config = ConfigLoader::load($this->projectRoot . '/config/waaseyaa.php');
 
         $this->dispatcher = new EventDispatcher();
+        $this->lifecycleManager = new EntityTypeLifecycleManager($this->projectRoot);
         $this->bootDatabase();
         $this->bootEntityTypeManager();
         $this->compileManifest();
@@ -175,25 +178,39 @@ abstract class AbstractKernel
     }
 
     /**
-     * Validate that at least one content type is registered.
+     * Validate that at least one content type is registered and enabled.
      *
-     * Throws if zero types are registered (DEFAULT_TYPE_MISSING).
-     * DEFAULT_TYPE_DISABLED (all types disabled) is deferred to #198
-     * once the lifecycle/status concept exists on EntityType.
+     * Throws DEFAULT_TYPE_MISSING if no types are registered at all.
+     * Throws DEFAULT_TYPE_DISABLED if all registered types have been disabled
+     * via the lifecycle manager.
      *
-     * @throws \RuntimeException if no content types are registered.
+     * @throws \RuntimeException
      */
     protected function validateContentTypes(): void
     {
-        if ($this->entityTypeManager->getDefinitions() !== []) {
-            return;
+        $definitions = $this->entityTypeManager->getDefinitions();
+
+        if ($definitions === []) {
+            throw new \RuntimeException(
+                '[CRITICAL] DEFAULT_TYPE_MISSING: No content types registered. '
+                . 'Remediation: Ensure core.note is not disabled, or register a custom type. '
+                . 'See defaults/core.note.yaml and defaults/README.md.',
+            );
         }
 
-        throw new \RuntimeException(
-            '[CRITICAL] DEFAULT_TYPE_MISSING: No content types registered. '
-            . 'Remediation: Ensure core.note is not disabled, or register a custom type. '
-            . 'See defaults/core.note.yaml and defaults/README.md.',
+        $disabledIds = $this->lifecycleManager->getDisabledTypeIds();
+        $enabledTypes = array_filter(
+            $definitions,
+            static fn(\Waaseyaa\Entity\EntityTypeInterface $def): bool => !in_array($def->id(), $disabledIds, true),
         );
+
+        if ($enabledTypes === []) {
+            throw new \RuntimeException(
+                '[CRITICAL] DEFAULT_TYPE_DISABLED: All registered content types are disabled. '
+                . 'Remediation: Run `waaseyaa type:enable core.note` or enable at least one content type. '
+                . 'See defaults/core.note.yaml and defaults/README.md.',
+            );
+        }
     }
 
     protected function bootProviders(): void
@@ -326,6 +343,11 @@ abstract class AbstractKernel
     public function applyDiscoveryExtensionContext(array $context): array
     {
         return $this->getKnowledgeToolingExtensionRunner()->applyDiscoveryContext($context);
+    }
+
+    public function getLifecycleManager(): EntityTypeLifecycleManager
+    {
+        return $this->lifecycleManager;
     }
 
     public function getProjectRoot(): string

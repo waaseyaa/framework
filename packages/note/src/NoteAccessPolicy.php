@@ -48,7 +48,8 @@ final class NoteAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
     {
         if ($operation === 'delete') {
             return AccessResult::forbidden(
-                'core.note is a built-in type and cannot be deleted. See #198 for lifecycle management.',
+                '[DEFAULT_TYPE_NOT_DELETABLE] core.note is a built-in type and cannot be deleted via API. '
+                . 'To disable it temporarily, use `waaseyaa type:disable note`.',
             );
         }
 

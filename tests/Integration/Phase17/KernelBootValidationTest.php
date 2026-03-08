@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeLifecycleManager;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Note\Note;
@@ -71,6 +72,57 @@ final class KernelBootValidationTest extends TestCase
 
         $this->assertCount(2, $kernel->getEntityTypeManager()->getDefinitions());
     }
+
+    #[Test]
+    public function bootHaltsWithDefaultTypeDisabledWhenAllTypesDisabled(): void
+    {
+        $tempDir = sys_get_temp_dir() . '/waaseyaa_disabled_test_' . uniqid();
+        mkdir($tempDir . '/storage/framework', 0755, true);
+
+        $lifecycleManager = new EntityTypeLifecycleManager($tempDir);
+        $lifecycleManager->disable('note', 'test');
+
+        $kernel = new MinimalTestKernel(types: [
+            new EntityType(id: 'note', label: 'Note', class: Note::class, keys: ['id' => 'id']),
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/DEFAULT_TYPE_DISABLED/');
+
+        try {
+            $kernel->bootForTest($lifecycleManager);
+        } finally {
+            array_map('unlink', glob($tempDir . '/storage/framework/*') ?: []);
+            @rmdir($tempDir . '/storage/framework');
+            @rmdir($tempDir . '/storage');
+            @rmdir($tempDir);
+        }
+    }
+
+    #[Test]
+    public function bootSucceedsWhenOnlyOneOfTwoTypesIsDisabled(): void
+    {
+        $tempDir = sys_get_temp_dir() . '/waaseyaa_partial_disabled_test_' . uniqid();
+        mkdir($tempDir . '/storage/framework', 0755, true);
+
+        $lifecycleManager = new EntityTypeLifecycleManager($tempDir);
+        $lifecycleManager->disable('article', 'test');
+
+        $kernel = new MinimalTestKernel(types: [
+            new EntityType(id: 'note', label: 'Note', class: Note::class, keys: ['id' => 'id']),
+            new EntityType(id: 'article', label: 'Article', class: Note::class, keys: ['id' => 'id']),
+        ]);
+
+        // Should not throw — 'note' is still enabled.
+        $kernel->bootForTest($lifecycleManager);
+
+        array_map('unlink', glob($tempDir . '/storage/framework/*') ?: []);
+        @rmdir($tempDir . '/storage/framework');
+        @rmdir($tempDir . '/storage');
+        @rmdir($tempDir);
+
+        $this->assertTrue(true); // boot succeeded
+    }
 }
 
 /**
@@ -91,10 +143,11 @@ class MinimalTestKernel extends AbstractKernel
     /**
      * Runs only the entity type registration + validation portion of boot.
      */
-    public function bootForTest(): void
+    public function bootForTest(?EntityTypeLifecycleManager $lifecycleManager = null): void
     {
         $this->dispatcher = new EventDispatcher();
         $this->entityTypeManager = new EntityTypeManager($this->dispatcher);
+        $this->lifecycleManager = $lifecycleManager ?? new EntityTypeLifecycleManager(sys_get_temp_dir());
 
         foreach ($this->types as $type) {
             $this->entityTypeManager->registerEntityType($type);
