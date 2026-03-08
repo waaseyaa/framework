@@ -178,4 +178,65 @@ class EntityTypeManagerTest extends TestCase
     {
         $this->assertSame([], $this->manager->getDefinitions());
     }
+
+    // -----------------------------------------------------------------------
+    // Namespace reservation (#206)
+    // -----------------------------------------------------------------------
+
+    public function testRegisterEntityTypeWithCoreNamespaceThrows(): void
+    {
+        $type = new EntityType(id: 'core.custom', label: 'Custom', class: TestEntity::class);
+
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('[NAMESPACE_RESERVED]');
+
+        $this->manager->registerEntityType($type);
+    }
+
+    public function testRegisterEntityTypeWithCoreNamespaceErrorIncludesTypeId(): void
+    {
+        $type = new EntityType(id: 'core.custom', label: 'Custom', class: TestEntity::class);
+
+        try {
+            $this->manager->registerEntityType($type);
+            $this->fail('Expected DomainException');
+        } catch (\DomainException $e) {
+            $this->assertStringContainsString('core.custom', $e->getMessage());
+        }
+    }
+
+    public function testRegisterEntityTypeWithoutCoreNamespaceSucceeds(): void
+    {
+        $type = new EntityType(id: 'note', label: 'Note', class: TestEntity::class);
+        $this->manager->registerEntityType($type);
+
+        $this->assertTrue($this->manager->hasDefinition('note'));
+    }
+
+    public function testRegisterCoreEntityTypeWithCoreNamespaceSucceeds(): void
+    {
+        $type = new EntityType(id: 'core.note', label: 'Note', class: TestEntity::class);
+        $this->manager->registerCoreEntityType($type);
+
+        $this->assertTrue($this->manager->hasDefinition('core.note'));
+    }
+
+    public function testRegisterCoreEntityTypeWithoutCoreNamespaceAlsoSucceeds(): void
+    {
+        $type = new EntityType(id: 'node', label: 'Content', class: TestEntity::class);
+        $this->manager->registerCoreEntityType($type);
+
+        $this->assertTrue($this->manager->hasDefinition('node'));
+    }
+
+    public function testRegisterCoreEntityTypeRejectsDuplicates(): void
+    {
+        $type = new EntityType(id: 'core.note', label: 'Note', class: TestEntity::class);
+        $this->manager->registerCoreEntityType($type);
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        $duplicate = new EntityType(id: 'core.note', label: 'Note v2', class: TestEntity::class);
+        $this->manager->registerCoreEntityType($duplicate);
+    }
 }

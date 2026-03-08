@@ -42,9 +42,40 @@ class EntityTypeManager implements EntityTypeManagerInterface
     /**
      * Register an entity type definition.
      *
+     * The `core.` namespace is reserved for built-in platform types. Attempting
+     * to register a type with a `core.*` ID via this method throws NAMESPACE_RESERVED.
+     * Use registerCoreEntityType() for platform-level registrations.
+     *
+     * @throws \DomainException        If the entity type ID uses the reserved `core.` namespace.
      * @throws \InvalidArgumentException If an entity type with the same ID is already registered.
      */
     public function registerEntityType(EntityTypeInterface $type): void
+    {
+        if (str_starts_with($type->id(), 'core.')) {
+            throw new \DomainException(\sprintf(
+                '[NAMESPACE_RESERVED] The "core." namespace is reserved for built-in platform types. '
+                . 'Entity type "%s" cannot be registered by extensions or tenants. '
+                . 'Use a custom namespace prefix instead.',
+                $type->id(),
+            ));
+        }
+
+        $this->persistDefinition($type);
+    }
+
+    /**
+     * Register a built-in platform entity type, bypassing the `core.` namespace guard.
+     *
+     * Only kernel boot code and core service providers should call this method.
+     *
+     * @throws \InvalidArgumentException If an entity type with the same ID is already registered.
+     */
+    public function registerCoreEntityType(EntityTypeInterface $type): void
+    {
+        $this->persistDefinition($type);
+    }
+
+    private function persistDefinition(EntityTypeInterface $type): void
     {
         if (isset($this->definitions[$type->id()])) {
             throw new \InvalidArgumentException(\sprintf(

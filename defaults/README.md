@@ -22,6 +22,26 @@ schemas, and configuration.
 Built-in types use the `core.` namespace prefix. Custom types must use a different namespace.
 The `core.` namespace is reserved and cannot be claimed by extensions or tenants.
 
+### Enforcement
+
+The `core.` namespace is enforced at registration time in `EntityTypeManager`:
+
+- `registerEntityType()` — throws `[NAMESPACE_RESERVED]` `\DomainException` if the type ID starts with `core.`
+- `registerCoreEntityType()` — bypasses the guard; for kernel boot and core service providers only
+
+**Extension and tenant code must use `registerEntityType()` and choose a non-`core.` namespace.**
+Attempting to register `core.*` types from extension service providers will fail at boot.
+
+### Choosing a namespace
+
+Use a short, globally-unique prefix for your organisation or extension:
+
+```
+myorg.article      ✓  custom type in myorg namespace
+acme.product       ✓  tenant-scoped type
+core.article       ✗  reserved — DomainException thrown
+```
+
 ## Adding a New Default
 
 1. Create `<namespace>.<type>.yaml` with `project_versioning` block.
