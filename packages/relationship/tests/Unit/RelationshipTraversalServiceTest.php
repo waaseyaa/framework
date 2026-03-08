@@ -264,6 +264,16 @@ final class TraversalEntityTypeManager implements EntityTypeManagerInterface
 
         return $this->storages[$entityTypeId];
     }
+
+    public function registerEntityType(EntityTypeInterface $type): void
+    {
+        throw new \RuntimeException('Not needed in test.');
+    }
+
+    public function registerCoreEntityType(EntityTypeInterface $type): void
+    {
+        throw new \RuntimeException('Not needed in test.');
+    }
 }
 
 final class TraversalRelationshipStorage implements EntityStorageInterface
