@@ -7,14 +7,12 @@ namespace Waaseyaa\Foundation\Ingestion;
 /**
  * Thrown when an ingestion envelope fails validation.
  *
- * Carries structured error details for operator diagnostics.
- * The canonical error shape will be defined in #249; this exception
- * provides the interim structured transport.
+ * Carries canonical IngestionError objects for operator diagnostics.
  */
 final class InvalidEnvelopeException extends \RuntimeException
 {
     /**
-     * @param list<array{field: string, message: string}> $errors
+     * @param list<IngestionError> $errors
      */
     public function __construct(
         public readonly array $errors,
@@ -22,5 +20,16 @@ final class InvalidEnvelopeException extends \RuntimeException
         string $message = 'Envelope validation failed.',
     ) {
         parent::__construct($message);
+    }
+
+    /**
+     * @return list<array{code: string, message: string, field: string, trace_id: ?string, details: array<string, mixed>}>
+     */
+    public function toArray(): array
+    {
+        return array_map(
+            static fn(IngestionError $error) => $error->toArray(),
+            $this->errors,
+        );
     }
 }

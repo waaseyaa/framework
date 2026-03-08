@@ -8,10 +8,14 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Foundation\Ingestion\Envelope;
+use Waaseyaa\Foundation\Ingestion\IngestionError;
+use Waaseyaa\Foundation\Ingestion\IngestionErrorCode;
 use Waaseyaa\Foundation\Ingestion\PayloadValidator;
 use Waaseyaa\Foundation\Schema\DefaultsSchemaRegistry;
 
 #[CoversClass(PayloadValidator::class)]
+#[CoversClass(IngestionError::class)]
+#[CoversClass(IngestionErrorCode::class)]
 final class PayloadValidatorTest extends TestCase
 {
     private string $defaultsDir;
@@ -114,8 +118,9 @@ final class PayloadValidatorTest extends TestCase
         $errors = $this->validator->validate($envelope);
 
         $this->assertCount(1, $errors);
-        $this->assertSame('type', $errors[0]['field']);
-        $this->assertStringContainsString('No schema registered', $errors[0]['message']);
+        $this->assertSame('type', $errors[0]->field);
+        $this->assertSame(IngestionErrorCode::PAYLOAD_SCHEMA_NOT_FOUND, $errors[0]->code);
+        $this->assertStringContainsString('No schema registered', $errors[0]->message);
     }
 
     // ------------------------------------------------------------------
@@ -131,7 +136,7 @@ final class PayloadValidatorTest extends TestCase
 
         $errors = $this->validator->validate($envelope);
 
-        $fields = array_column($errors, 'field');
+        $fields = array_map(static fn(IngestionError $e) => $e->field, $errors);
         $this->assertContains('title', $fields);
     }
 
@@ -142,7 +147,7 @@ final class PayloadValidatorTest extends TestCase
 
         $errors = $this->validator->validate($envelope);
 
-        $fields = array_column($errors, 'field');
+        $fields = array_map(static fn(IngestionError $e) => $e->field, $errors);
         $this->assertContains('title', $fields);
         $this->assertContains('tenant_id', $fields);
     }
@@ -150,9 +155,6 @@ final class PayloadValidatorTest extends TestCase
     #[Test]
     public function readOnlyRequiredFieldIsNotRequired(): void
     {
-        // `id` is readOnly, so it should not be required even if listed.
-        // Our test schema only requires title + tenant_id, but this tests
-        // that readOnly fields in required are skipped.
         $this->writeSchema('core.strict', [
             '$schema' => 'http://json-schema.org/draft-07/schema#',
             'type'    => 'object',
@@ -169,7 +171,6 @@ final class PayloadValidatorTest extends TestCase
             ],
         ]);
 
-        // Rebuild validator with updated registry.
         $registry = new DefaultsSchemaRegistry($this->defaultsDir);
         $validator = new PayloadValidator($registry);
 
@@ -193,9 +194,10 @@ final class PayloadValidatorTest extends TestCase
 
         $errors = $this->validator->validate($envelope);
 
-        $fields = array_column($errors, 'field');
-        $this->assertContains('title', $fields);
-        $this->assertStringContainsString("type 'string'", $this->findError($errors, 'title'));
+        $this->assertNotEmpty($this->findErrors($errors, 'title'));
+        $titleError = $this->findErrors($errors, 'title')[0];
+        $this->assertSame(IngestionErrorCode::PAYLOAD_FIELD_TYPE_INVALID, $titleError->code);
+        $this->assertStringContainsString("type 'string'", $titleError->message);
     }
 
     #[Test]
@@ -209,7 +211,9 @@ final class PayloadValidatorTest extends TestCase
         $errors = $this->validator->validate($envelope);
 
         $this->assertNotEmpty($errors);
-        $this->assertStringContainsString("type 'string'", $this->findError($errors, 'tenant_id'));
+        $tenantErrors = $this->findErrors($errors, 'tenant_id');
+        $this->assertNotEmpty($tenantErrors);
+        $this->assertStringContainsString("type 'string'", $tenantErrors[0]->message);
     }
 
     // ------------------------------------------------------------------
@@ -226,7 +230,9 @@ final class PayloadValidatorTest extends TestCase
 
         $errors = $this->validator->validate($envelope);
 
-        $this->assertStringContainsString('at least 1', $this->findError($errors, 'title'));
+        $titleErrors = $this->findErrors($errors, 'title');
+        $this->assertNotEmpty($titleErrors);
+        $this->assertStringContainsString('at least 1', $titleErrors[0]->message);
     }
 
     #[Test]
@@ -239,7 +245,10 @@ final class PayloadValidatorTest extends TestCase
 
         $errors = $this->validator->validate($envelope);
 
-        $this->assertStringContainsString('at most 512', $this->findError($errors, 'title'));
+        $titleErrors = $this->findErrors($errors, 'title');
+        $this->assertNotEmpty($titleErrors);
+        $this->assertStringContainsString('at most 512', $titleErrors[0]->message);
+        $this->assertSame(IngestionErrorCode::PAYLOAD_FIELD_TOO_LONG, $titleErrors[0]->code);
     }
 
     // ------------------------------------------------------------------
@@ -257,7 +266,10 @@ final class PayloadValidatorTest extends TestCase
 
         $errors = $this->validator->validate($envelope);
 
-        $this->assertStringContainsString('read-only', $this->findError($errors, 'id'));
+        $idErrors = $this->findErrors($errors, 'id');
+        $this->assertNotEmpty($idErrors);
+        $this->assertStringContainsString('read-only', $idErrors[0]->message);
+        $this->assertSame(IngestionErrorCode::PAYLOAD_FIELD_READ_ONLY, $idErrors[0]->code);
     }
 
     #[Test]
@@ -272,7 +284,7 @@ final class PayloadValidatorTest extends TestCase
 
         $errors = $this->validator->validate($envelope);
 
-        $fields = array_column($errors, 'field');
+        $fields = array_map(static fn(IngestionError $e) => $e->field, $errors);
         $this->assertContains('id', $fields);
         $this->assertContains('uuid', $fields);
     }
@@ -292,7 +304,10 @@ final class PayloadValidatorTest extends TestCase
 
         $errors = $this->validator->validate($envelope);
 
-        $this->assertStringContainsString('Unknown field', $this->findError($errors, 'foo'));
+        $fooErrors = $this->findErrors($errors, 'foo');
+        $this->assertNotEmpty($fooErrors);
+        $this->assertStringContainsString('Unknown field', $fooErrors[0]->message);
+        $this->assertSame(IngestionErrorCode::PAYLOAD_FIELD_UNKNOWN, $fooErrors[0]->code);
     }
 
     #[Test]
@@ -339,11 +354,43 @@ final class PayloadValidatorTest extends TestCase
 
         $errors = $this->validator->validate($envelope);
 
-        $fields = array_column($errors, 'field');
+        $fields = array_map(static fn(IngestionError $e) => $e->field, $errors);
         $this->assertContains('id', $fields);
         $this->assertContains('foo', $fields);
         $this->assertContains('title', $fields);
         $this->assertContains('tenant_id', $fields);
+    }
+
+    // ------------------------------------------------------------------
+    // Canonical error shape
+    // ------------------------------------------------------------------
+
+    #[Test]
+    public function errorsCarryTraceId(): void
+    {
+        $envelope = $this->makeEnvelope('core.note', []);
+
+        $errors = $this->validator->validate($envelope);
+
+        $this->assertNotEmpty($errors);
+        foreach ($errors as $error) {
+            $this->assertSame('550e8400-e29b-41d4-a716-446655440000', $error->traceId);
+        }
+    }
+
+    #[Test]
+    public function errorsSerializeToCanonicalShape(): void
+    {
+        $envelope = $this->makeEnvelope('core.note', ['id' => 1]);
+
+        $errors = $this->validator->validate($envelope);
+
+        $arr = $errors[0]->toArray();
+        $this->assertArrayHasKey('code', $arr);
+        $this->assertArrayHasKey('message', $arr);
+        $this->assertArrayHasKey('field', $arr);
+        $this->assertArrayHasKey('trace_id', $arr);
+        $this->assertArrayHasKey('details', $arr);
     }
 
     // ------------------------------------------------------------------
@@ -388,7 +435,7 @@ final class PayloadValidatorTest extends TestCase
         ]);
 
         $errors = $validator->validate($envelope);
-        $fields = array_column($errors, 'field');
+        $fields = array_map(static fn(IngestionError $e) => $e->field, $errors);
 
         $this->assertContains('id', $fields);
         $this->assertContains('title', $fields);
@@ -419,15 +466,15 @@ final class PayloadValidatorTest extends TestCase
         );
     }
 
-    /** @param list<array{field: string, message: string}> $errors */
-    private function findError(array $errors, string $field): string
+    /**
+     * @param list<IngestionError> $errors
+     * @return list<IngestionError>
+     */
+    private function findErrors(array $errors, string $field): array
     {
-        foreach ($errors as $error) {
-            if ($error['field'] === $field) {
-                return $error['message'];
-            }
-        }
-
-        $this->fail("No error found for field '{$field}'. Errors: " . json_encode($errors));
+        return array_values(array_filter(
+            $errors,
+            static fn(IngestionError $e) => $e->field === $field,
+        ));
     }
 }

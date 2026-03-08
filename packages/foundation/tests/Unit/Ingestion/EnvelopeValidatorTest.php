@@ -9,11 +9,15 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Foundation\Ingestion\Envelope;
 use Waaseyaa\Foundation\Ingestion\EnvelopeValidator;
+use Waaseyaa\Foundation\Ingestion\IngestionError;
+use Waaseyaa\Foundation\Ingestion\IngestionErrorCode;
 use Waaseyaa\Foundation\Ingestion\InvalidEnvelopeException;
 
 #[CoversClass(EnvelopeValidator::class)]
 #[CoversClass(Envelope::class)]
 #[CoversClass(InvalidEnvelopeException::class)]
+#[CoversClass(IngestionError::class)]
+#[CoversClass(IngestionErrorCode::class)]
 final class EnvelopeValidatorTest extends TestCase
 {
     private EnvelopeValidator $validator;
@@ -270,7 +274,7 @@ final class EnvelopeValidatorTest extends TestCase
             $this->validator->validate($raw);
             $this->fail('Expected InvalidEnvelopeException');
         } catch (InvalidEnvelopeException $e) {
-            $fields = array_column($e->errors, 'field');
+            $fields = array_map(static fn(IngestionError $err) => $err->field, $e->errors);
             $this->assertContains('foo', $fields);
             $this->assertContains('bar', $fields);
         }
@@ -319,6 +323,42 @@ final class EnvelopeValidatorTest extends TestCase
         }
     }
 
+    #[Test]
+    public function errorsCarryCanonicalErrorCodes(): void
+    {
+        $raw = $this->validEnvelope();
+        unset($raw['source']);
+
+        try {
+            $this->validator->validate($raw);
+            $this->fail('Expected InvalidEnvelopeException');
+        } catch (InvalidEnvelopeException $e) {
+            $this->assertInstanceOf(IngestionError::class, $e->errors[0]);
+            $this->assertSame(IngestionErrorCode::ENVELOPE_FIELD_MISSING, $e->errors[0]->code);
+            $this->assertSame('source', $e->errors[0]->field);
+        }
+    }
+
+    #[Test]
+    public function exceptionToArraySerializesErrors(): void
+    {
+        $raw = $this->validEnvelope();
+        $raw['extra'] = 'bad';
+
+        try {
+            $this->validator->validate($raw);
+            $this->fail('Expected InvalidEnvelopeException');
+        } catch (InvalidEnvelopeException $e) {
+            $arr = $e->toArray();
+            $this->assertArrayHasKey('code', $arr[0]);
+            $this->assertArrayHasKey('message', $arr[0]);
+            $this->assertArrayHasKey('field', $arr[0]);
+            $this->assertArrayHasKey('trace_id', $arr[0]);
+            $this->assertArrayHasKey('details', $arr[0]);
+            $this->assertSame('ENVELOPE_FIELD_UNKNOWN', $arr[0]['code']);
+        }
+    }
+
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
@@ -345,13 +385,13 @@ final class EnvelopeValidatorTest extends TestCase
         } catch (InvalidEnvelopeException $e) {
             $matchingErrors = array_filter(
                 $e->errors,
-                static fn(array $err) => $err['field'] === $field
-                    && str_contains(strtolower($err['message']), strtolower($messageContains)),
+                static fn(IngestionError $err) => $err->field === $field
+                    && str_contains(strtolower($err->message), strtolower($messageContains)),
             );
             $this->assertNotEmpty(
                 $matchingErrors,
                 "Expected error on field '{$field}' containing '{$messageContains}'. Got: "
-                . json_encode($e->errors),
+                . json_encode(array_map(fn(IngestionError $e) => $e->toArray(), $e->errors)),
             );
         }
     }

@@ -25,29 +25,33 @@ final class PayloadValidator
     /**
      * Validate an envelope's payload against the schema for its declared type.
      *
-     * @return list<array{field: string, message: string}> Empty if valid.
+     * @return list<IngestionError> Empty if valid.
      */
     public function validate(Envelope $envelope): array
     {
         $entry = $this->registry->get($envelope->type);
 
         if ($entry === null) {
-            return [[
-                'field'   => 'type',
-                'message' => "No schema registered for type '{$envelope->type}'.",
-            ]];
+            return [new IngestionError(
+                code:    IngestionErrorCode::PAYLOAD_SCHEMA_NOT_FOUND,
+                message: "No schema registered for type '{$envelope->type}'.",
+                field:   'type',
+                traceId: $envelope->traceId,
+            )];
         }
 
         $schema = $this->loadSchema($entry->schemaPath);
 
         if ($schema === null) {
-            return [[
-                'field'   => 'type',
-                'message' => "Failed to load schema for type '{$envelope->type}'.",
-            ]];
+            return [new IngestionError(
+                code:    IngestionErrorCode::PAYLOAD_SCHEMA_LOAD_FAILED,
+                message: "Failed to load schema for type '{$envelope->type}'.",
+                field:   'type',
+                traceId: $envelope->traceId,
+            )];
         }
 
-        return $this->validatePayload($envelope->payload, $schema);
+        return $this->validatePayload($envelope->payload, $schema, $envelope->traceId);
     }
 
     /**
@@ -72,9 +76,9 @@ final class PayloadValidator
     /**
      * @param array<string, mixed> $payload
      * @param array<string, mixed> $schema
-     * @return list<array{field: string, message: string}>
+     * @return list<IngestionError>
      */
-    private function validatePayload(array $payload, array $schema): array
+    private function validatePayload(array $payload, array $schema, string $traceId): array
     {
         $errors = [];
         /** @var array<string, array<string, mixed>> $properties */
@@ -85,10 +89,12 @@ final class PayloadValidator
         // Reject readOnly fields — they should not appear in ingestion payloads.
         foreach ($properties as $name => $propSchema) {
             if (($propSchema['readOnly'] ?? false) === true && array_key_exists($name, $payload)) {
-                $errors[] = [
-                    'field'   => $name,
-                    'message' => "Field '{$name}' is read-only and must not be included in ingestion payloads.",
-                ];
+                $errors[] = new IngestionError(
+                    code:    IngestionErrorCode::PAYLOAD_FIELD_READ_ONLY,
+                    message: "Field '{$name}' is read-only and must not be included in ingestion payloads.",
+                    field:   $name,
+                    traceId: $traceId,
+                );
             }
         }
 
@@ -100,10 +106,12 @@ final class PayloadValidator
             }
 
             if (!array_key_exists($field, $payload)) {
-                $errors[] = [
-                    'field'   => $field,
-                    'message' => "Required field '{$field}' is missing.",
-                ];
+                $errors[] = new IngestionError(
+                    code:    IngestionErrorCode::PAYLOAD_FIELD_MISSING,
+                    message: "Required field '{$field}' is missing.",
+                    field:   $field,
+                    traceId: $traceId,
+                );
                 continue;
             }
 
@@ -113,10 +121,12 @@ final class PayloadValidator
                 && is_string($payload[$field])
                 && strlen($payload[$field]) < (int) $fieldSchema['minLength']
             ) {
-                $errors[] = [
-                    'field'   => $field,
-                    'message' => "Field '{$field}' must have at least {$fieldSchema['minLength']} character(s).",
-                ];
+                $errors[] = new IngestionError(
+                    code:    IngestionErrorCode::PAYLOAD_FIELD_TOO_SHORT,
+                    message: "Field '{$field}' must have at least {$fieldSchema['minLength']} character(s).",
+                    field:   $field,
+                    traceId: $traceId,
+                );
             }
         }
 
@@ -127,10 +137,12 @@ final class PayloadValidator
             // Unknown field check.
             if ($propSchema === null) {
                 if ($additionalProperties === false) {
-                    $errors[] = [
-                        'field'   => $name,
-                        'message' => "Unknown field '{$name}'. Not defined in schema.",
-                    ];
+                    $errors[] = new IngestionError(
+                        code:    IngestionErrorCode::PAYLOAD_FIELD_UNKNOWN,
+                        message: "Unknown field '{$name}'. Not defined in schema.",
+                        field:   $name,
+                        traceId: $traceId,
+                    );
                 }
                 continue;
             }
@@ -140,7 +152,7 @@ final class PayloadValidator
                 continue;
             }
 
-            $this->validateFieldType($name, $value, $propSchema, $errors);
+            $this->validateFieldType($name, $value, $propSchema, $traceId, $errors);
         }
 
         return $errors;
@@ -148,9 +160,9 @@ final class PayloadValidator
 
     /**
      * @param array<string, mixed> $propSchema
-     * @param list<array{field: string, message: string}> $errors
+     * @param list<IngestionError> $errors
      */
-    private function validateFieldType(string $name, mixed $value, array $propSchema, array &$errors): void
+    private function validateFieldType(string $name, mixed $value, array $propSchema, string $traceId, array &$errors): void
     {
         $expectedType = $propSchema['type'] ?? null;
 
@@ -169,27 +181,33 @@ final class PayloadValidator
         };
 
         if (!$typeValid) {
-            $errors[] = [
-                'field'   => $name,
-                'message' => "Field '{$name}' must be of type '{$expectedType}'.",
-            ];
+            $errors[] = new IngestionError(
+                code:    IngestionErrorCode::PAYLOAD_FIELD_TYPE_INVALID,
+                message: "Field '{$name}' must be of type '{$expectedType}'.",
+                field:   $name,
+                traceId: $traceId,
+            );
             return;
         }
 
         // String constraints.
         if ($expectedType === 'string' && is_string($value)) {
             if (isset($propSchema['minLength']) && strlen($value) < (int) $propSchema['minLength']) {
-                $errors[] = [
-                    'field'   => $name,
-                    'message' => "Field '{$name}' must have at least {$propSchema['minLength']} character(s).",
-                ];
+                $errors[] = new IngestionError(
+                    code:    IngestionErrorCode::PAYLOAD_FIELD_TOO_SHORT,
+                    message: "Field '{$name}' must have at least {$propSchema['minLength']} character(s).",
+                    field:   $name,
+                    traceId: $traceId,
+                );
             }
 
             if (isset($propSchema['maxLength']) && strlen($value) > (int) $propSchema['maxLength']) {
-                $errors[] = [
-                    'field'   => $name,
-                    'message' => "Field '{$name}' must have at most {$propSchema['maxLength']} character(s).",
-                ];
+                $errors[] = new IngestionError(
+                    code:    IngestionErrorCode::PAYLOAD_FIELD_TOO_LONG,
+                    message: "Field '{$name}' must have at most {$propSchema['maxLength']} character(s).",
+                    field:   $name,
+                    traceId: $traceId,
+                );
             }
         }
     }
