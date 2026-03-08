@@ -53,6 +53,8 @@ abstract class AbstractKernel
             return;
         }
 
+        EnvLoader::load($this->projectRoot . '/.env');
+
         $this->config = ConfigLoader::load($this->projectRoot . '/config/waaseyaa.php');
 
         $this->dispatcher = new EventDispatcher();
