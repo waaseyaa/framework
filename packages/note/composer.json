@@ -1,0 +1,35 @@
+{
+    "name": "waaseyaa/note",
+    "description": "Default built-in Note content type for Waaseyaa (core.note)",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "repositories": [
+        {"type": "path", "url": "../entity"},
+        {"type": "path", "url": "../access"}
+    ],
+    "require": {
+        "php": ">=8.3",
+        "waaseyaa/entity": "@dev",
+        "waaseyaa/access": "@dev"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Waaseyaa\\Note\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Waaseyaa\\Note\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "waaseyaa": {
+            "providers": ["Waaseyaa\\Note\\NoteServiceProvider"]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

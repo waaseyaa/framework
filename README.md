@@ -12,7 +12,7 @@ Waaseyaa is structured as 7 architectural layers with strict downward-only depen
 Layer 6  Interfaces     cli · ssr · admin
 Layer 5  AI             ai-schema · ai-agent · ai-vector · ai-pipeline
 Layer 4  API            api · graphql
-Layer 3  Content Types  node · taxonomy · media · path · menu · workflows
+Layer 3  Content Types  note · node · taxonomy · media · path · menu · workflows
 Layer 2  Services       access · user · routing · queue · state · validation
 Layer 1  Core Data      config · entity · field · entity-storage · database-legacy
 Layer 0  Foundation     cache · plugin · typed-data
@@ -42,6 +42,7 @@ Three meta-packages provide convenient installation:
 | 2 | `waaseyaa/queue` | Message queue with in-memory and sync backends |
 | 2 | `waaseyaa/state` | Key-value state storage |
 | 2 | `waaseyaa/validation` | Constraint-based entity validation |
+| 3 | `waaseyaa/note` | Built-in default content type (`core.note`) — non-deletable, always available at boot |
 | 3 | `waaseyaa/node` | Node content type with access policies |
 | 3 | `waaseyaa/taxonomy` | Vocabulary and term hierarchies |
 | 3 | `waaseyaa/media` | Media entities with type-based handling |
@@ -69,6 +70,23 @@ Three meta-packages provide convenient installation:
 composer create-project waaseyaa/waaseyaa my-site
 cd my-site
 ```
+
+## Getting Started with Content
+
+Waaseyaa ships with a built-in default content type called **`core.note`** — a minimal, generic note with a title and body. It is always present at boot and cannot be deleted via API.
+
+Create your first note:
+
+```bash
+# POST /api/note
+curl -X POST http://localhost:8000/api/note \
+  -H "Content-Type: application/vnd.api+json" \
+  -d '{"data":{"type":"note","attributes":{"title":"Hello, Waaseyaa","tenant_id":"acme","body":"My first note."}}}'
+```
+
+The `core.note` schema, lifecycle rules, and namespace policy are documented in [`defaults/README.md`](defaults/README.md).
+
+To add a custom content type, see the [`waaseyaa/node`](packages/node) package as a reference implementation.
 
 ## Running Tests
 
