@@ -57,3 +57,22 @@ jobs:
             fi
           done
           exit $fail
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install ajv-cli
+        run: npm install -g ajv-cli
+
+      - name: Validate defaults JSON Schemas are valid draft-07
+        run: |
+          fail=0
+          for f in defaults/*.schema.json; do
+            if ! ajv compile --spec=draft7 -s "$f" > /dev/null 2>&1; then
+              echo "FAIL: $f is not a valid JSON Schema draft-07"
+              fail=1
+            fi
+          done
+          exit $fail
