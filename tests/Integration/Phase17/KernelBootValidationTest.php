@@ -38,7 +38,7 @@ final class KernelBootValidationTest extends TestCase
             $this->fail('Expected RuntimeException was not thrown.');
         } catch (\RuntimeException $e) {
             $this->assertStringContainsString('DEFAULT_TYPE_MISSING', $e->getMessage());
-            $this->assertStringContainsString('core.note', $e->getMessage());
+            $this->assertStringContainsString('content type', $e->getMessage());
         }
     }
 

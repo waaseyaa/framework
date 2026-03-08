@@ -13,6 +13,8 @@ use Waaseyaa\Entity\EntityTypeLifecycleManager;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
+use Waaseyaa\Foundation\Diagnostic\DiagnosticCode;
+use Waaseyaa\Foundation\Diagnostic\DiagnosticEmitter;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -188,28 +190,31 @@ abstract class AbstractKernel
      */
     protected function validateContentTypes(): void
     {
+        $emitter     = new DiagnosticEmitter();
         $definitions = $this->entityTypeManager->getDefinitions();
 
         if ($definitions === []) {
-            throw new \RuntimeException(
-                '[CRITICAL] DEFAULT_TYPE_MISSING: No content types registered. '
-                . 'Remediation: Ensure core.note is not disabled, or register a custom type. '
-                . 'See defaults/core.note.yaml and defaults/README.md.',
+            $entry = $emitter->emit(
+                DiagnosticCode::DEFAULT_TYPE_MISSING,
+                DiagnosticCode::DEFAULT_TYPE_MISSING->defaultMessage(),
+                ['registered_type_count' => 0],
             );
+            throw new \RuntimeException('[CRITICAL] ' . $entry->code->value . ': ' . $entry->message);
         }
 
-        $disabledIds = $this->lifecycleManager->getDisabledTypeIds();
+        $disabledIds  = $this->lifecycleManager->getDisabledTypeIds();
         $enabledTypes = array_filter(
             $definitions,
             static fn(\Waaseyaa\Entity\EntityTypeInterface $def): bool => !in_array($def->id(), $disabledIds, true),
         );
 
         if ($enabledTypes === []) {
-            throw new \RuntimeException(
-                '[CRITICAL] DEFAULT_TYPE_DISABLED: All registered content types are disabled. '
-                . 'Remediation: Run `waaseyaa type:enable core.note` or enable at least one content type. '
-                . 'See defaults/core.note.yaml and defaults/README.md.',
+            $entry = $emitter->emit(
+                DiagnosticCode::DEFAULT_TYPE_DISABLED,
+                DiagnosticCode::DEFAULT_TYPE_DISABLED->defaultMessage(),
+                ['disabled_ids' => $disabledIds, 'registered_type_count' => count($definitions)],
             );
+            throw new \RuntimeException('[CRITICAL] ' . $entry->code->value . ': ' . $entry->message);
         }
     }
 
@@ -368,5 +373,29 @@ abstract class AbstractKernel
     public function getEventDispatcher(): EventDispatcherInterface
     {
         return $this->dispatcher;
+    }
+
+    /**
+     * Return a snapshot of entity type registry status for operator diagnostics.
+     *
+     * Schema compatibility is derived from each type's field definitions when a
+     * 'compatibility' key is present; otherwise defaults to 'liberal' (pre-v1 policy).
+     */
+    public function getBootReport(): \Waaseyaa\Foundation\Diagnostic\BootDiagnosticReport
+    {
+        $definitions      = $this->entityTypeManager->getDefinitions();
+        $disabledIds      = $this->lifecycleManager->getDisabledTypeIds();
+        $schemaCompat     = [];
+
+        foreach ($definitions as $id => $type) {
+            $fieldDefs = $type->getFieldDefinitions();
+            $schemaCompat[$id] = $fieldDefs['compatibility'] ?? 'liberal';
+        }
+
+        return new \Waaseyaa\Foundation\Diagnostic\BootDiagnosticReport(
+            registeredTypes:     $definitions,
+            disabledTypeIds:     $disabledIds,
+            schemaCompatibility: $schemaCompat,
+        );
     }
 }
