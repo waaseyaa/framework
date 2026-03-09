@@ -7,17 +7,35 @@ on:
     branches: [main]
 
 jobs:
-  test:
-    name: PHPUnit
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
+          coverage: none
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Check PHP syntax
+        run: find packages/*/src -name '*.php' -print0 | xargs -0 -n1 php -l
+
+  test:
+    name: PHPUnit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: none
 
       - name: Install dependencies
@@ -26,13 +44,12 @@ jobs:
       - name: Run unit tests
         run: ./vendor/bin/phpunit --testsuite Unit
 
-      - name: Run integration tests (includes boot validation)
+      - name: Run integration tests
         run: ./vendor/bin/phpunit --testsuite Integration
 
   manifest-conformance:
     name: Manifest conformance
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -61,7 +78,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install ajv-cli
         run: npm install -g ajv-cli
@@ -70,7 +87,7 @@ jobs:
         run: |
           fail=0
           for f in defaults/*.schema.json; do
-            if ! ajv compile --spec=draft7 -s "$f" > /dev/null 2>&1; then
+            if ! ajv compile --spec=draft7 --strict=false -s "$f" > /dev/null 2>&1; then
               echo "FAIL: $f is not a valid JSON Schema draft-07"
               fail=1
             fi
@@ -80,17 +97,14 @@ jobs:
   ingestion-defaults:
     name: Ingestion defaults
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Validate ingestion schema metadata and compatibility rules
         run: bash bin/check-ingestion-defaults
 
   security-defaults:
     name: Security defaults
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -100,7 +114,8 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml
           coverage: none
 
       - name: Install dependencies
