@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Waaseyaa</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background-color: #111827;
+      color: #F9FAFB;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Hero */
+    .hero {
+      min-height: 70vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      padding: 80px 24px 60px;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(245, 158, 11, 0.12) 0%, rgba(245, 158, 11, 0.04) 40%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .wordmark {
+      font-size: 3.5rem;
+      font-weight: 600;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      color: #FFFFFF;
+      position: relative;
+      margin-bottom: 16px;
+    }
+
+    .tagline {
+      font-size: 1.15rem;
+      font-weight: 300;
+      color: #9CA3AF;
+      margin-bottom: 48px;
+      letter-spacing: 0.02em;
+    }
+
+    .pills {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      position: relative;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 6px 16px;
+      border: 1px solid #374151;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: #D1D5DB;
+      letter-spacing: 0.01em;
+      transition: border-color 0.2s ease, color 0.2s ease;
+    }
+
+    .pill:hover {
+      border-color: #F59E0B;
+      color: #F59E0B;
+    }
+
+    /* Quick Links */
+    .links {
+      padding: 60px 0;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .card {
+      display: block;
+      background: #1F2937;
+      border: 1px solid #374151;
+      border-radius: 12px;
+      padding: 32px 24px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .card:hover {
+      border-color: #F59E0B;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .card-label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #F59E0B;
+      margin-bottom: 8px;
+    }
+
+    .card-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #FFFFFF;
+      margin-bottom: 8px;
+    }
+
+    .card-desc {
+      font-size: 0.875rem;
+      color: #9CA3AF;
+      line-height: 1.5;
+    }
+
+    .card-arrow {
+      display: inline-block;
+      margin-top: 16px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: #6B7280;
+      transition: color 0.2s ease;
+    }
+
+    .card:hover .card-arrow {
+      color: #F59E0B;
+    }
+
+    /* Getting Started */
+    .getting-started {
+      padding: 60px 0;
+      border-top: 1px solid #1F2937;
+    }
+
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #FFFFFF;
+      margin-bottom: 8px;
+    }
+
+    .section-subtitle {
+      font-size: 0.95rem;
+      color: #6B7280;
+      margin-bottom: 40px;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+    }
+
+    .subsection-title {
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #F59E0B;
+      margin-bottom: 16px;
+    }
+
+    .code-block {
+      background: #0D1117;
+      border: 1px solid #21262D;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 10px;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.85rem;
+      color: #E6EDF3;
+      overflow-x: auto;
+    }
+
+    .code-block .prompt {
+      color: #6B7280;
+      user-select: none;
+    }
+
+    .code-block .cmd {
+      color: #F59E0B;
+    }
+
+    .config-list {
+      list-style: none;
+    }
+
+    .config-list li {
+      padding: 12px 0;
+      border-bottom: 1px solid #1F2937;
+      font-size: 0.9rem;
+    }
+
+    .config-list li:last-child {
+      border-bottom: none;
+    }
+
+    .config-key {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.825rem;
+      color: #F59E0B;
+      background: rgba(245, 158, 11, 0.08);
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+
+    .config-val {
+      display: block;
+      color: #9CA3AF;
+      font-size: 0.825rem;
+      margin-top: 4px;
+    }
+
+    /* Footer */
+    .footer {
+      padding: 40px 0;
+      border-top: 1px solid #1F2937;
+      text-align: center;
+    }
+
+    .footer p {
+      font-size: 0.8rem;
+      color: #4B5563;
+      line-height: 1.8;
+    }
+
+    .footer code {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.775rem;
+      color: #6B7280;
+      background: #1F2937;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+
+    .footer a {
+      color: #6B7280;
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+
+    .footer a:hover {
+      color: #F59E0B;
+    }
+
+    /* Focus-visible */
+    .card:focus-visible {
+      outline: 2px solid #F59E0B;
+      outline-offset: 2px;
+    }
+
+    .footer a:focus-visible {
+      outline: 2px solid #F59E0B;
+      outline-offset: 2px;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .wordmark {
+        font-size: 2.2rem;
+        letter-spacing: 0.25em;
+      }
+
+      .tagline {
+        font-size: 1rem;
+        margin-bottom: 36px;
+      }
+
+      .hero {
+        min-height: 60vh;
+        padding: 60px 24px 40px;
+      }
+
+      .hero::before {
+        width: 400px;
+        height: 400px;
+      }
+
+      .cards {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+
+      .two-col {
+        grid-template-columns: 1fr;
+        gap: 32px;
+      }
+
+      .pill {
+        font-size: 0.75rem;
+        padding: 5px 12px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .wordmark {
+        font-size: 1.8rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <main>
+  <section class="hero">
+    <h1 class="wordmark">Waaseyaa</h1>
+    <p class="tagline">A light for the modern web</p>
+    <div class="pills">
+      <span class="pill">PHP 8.3+</span>
+      <span class="pill">7-Layer Architecture</span>
+      <span class="pill">JSON:API</span>
+      <span class="pill">Entity System</span>
+      <span class="pill">AI-Ready Pipeline</span>
+    </div>
+  </section>
+
+  <section class="links">
+    <div class="container">
+      <div class="cards">
+        <a href="/admin" class="card">
+          <div class="card-label">Interface</div>
+          <h3 class="card-title">Admin SPA</h3>
+          <div class="card-desc">Manage content, entities, and configuration through the admin dashboard.</div>
+          <span class="card-arrow">/admin &rarr;</span>
+        </a>
+        <a href="/api" class="card">
+          <div class="card-label">Endpoint</div>
+          <h3 class="card-title">API</h3>
+          <div class="card-desc">Explore the JSON:API endpoints for your entity types and resources.</div>
+          <span class="card-arrow">/api &rarr;</span>
+        </a>
+        <a href="https://github.com/waaseyaa/framework" target="_blank" rel="noopener noreferrer" class="card">
+          <div class="card-label">Reference</div>
+          <h3 class="card-title">Documentation</h3>
+          <div class="card-desc">Guides, architecture overview, and API reference on GitHub.</div>
+          <span class="card-arrow">github.com &rarr;</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="getting-started">
+    <div class="container">
+      <h2 class="section-title">Getting started</h2>
+      <p class="section-subtitle">Common commands and where things live.</p>
+      <div class="two-col">
+        <div>
+          <h3 class="subsection-title">CLI Commands</h3>
+          <div class="code-block"><span class="prompt">$ </span><span class="cmd">bin/waaseyaa serve</span></div>
+          <div class="code-block"><span class="prompt">$ </span><span class="cmd">bin/waaseyaa entity:create</span></div>
+          <div class="code-block"><span class="prompt">$ </span><span class="cmd">bin/waaseyaa config:export</span></div>
+        </div>
+        <div>
+          <h3 class="subsection-title">Configuration</h3>
+          <ul class="config-list" role="list">
+            <li>
+              <span class="config-key">WAASEYAA_DB</span>
+              <span class="config-val">SQLite database path (env variable)</span>
+            </li>
+            <li>
+              <span class="config-key">config/sync/</span>
+              <span class="config-val">Configuration sync directory</span>
+            </li>
+            <li>
+              <span class="config-key">templates/</span>
+              <span class="config-val">Twig templates for server-rendered pages</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>To replace this page, edit or delete <code>templates/home.html.twig</code></p>
+      <p><a href="https://github.com/waaseyaa/framework" target="_blank" rel="noopener noreferrer">github.com/waaseyaa/framework</a></p>
+    </div>
+  </footer>
+
+</body>
+</html>
