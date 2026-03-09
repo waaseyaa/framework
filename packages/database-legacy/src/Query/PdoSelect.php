@@ -158,7 +158,16 @@ final class PdoSelect implements SelectInterface
         $sql = $this->buildSql();
 
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($this->params);
+        foreach ($this->params as $i => $value) {
+            $type = match (true) {
+                is_int($value)  => \PDO::PARAM_INT,
+                is_bool($value) => \PDO::PARAM_BOOL,
+                is_null($value) => \PDO::PARAM_NULL,
+                default         => \PDO::PARAM_STR,
+            };
+            $stmt->bindValue($i + 1, $value, $type);
+        }
+        $stmt->execute();
 
         return $stmt;
     }

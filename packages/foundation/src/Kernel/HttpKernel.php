@@ -461,8 +461,13 @@ final class HttpKernel extends AbstractKernel
         $serializer = new ResourceSerializer($this->entityTypeManager);
         $schemaPresenter = new SchemaPresenter();
 
+        // JSON body parsing only applies to JSON API controllers.
+        // SSR app controllers (identified by '::' in the controller name) receive
+        // form-encoded POST data via $httpRequest->request and must not be subjected
+        // to JSON parsing, which would reject application/x-www-form-urlencoded bodies.
         $body = null;
-        if (in_array($method, ['POST', 'PATCH'], true)) {
+        $isAppController = str_contains($controller, '::') || $controller === 'render.page';
+        if (!$isAppController && in_array($method, ['POST', 'PATCH'], true)) {
             $raw = $httpRequest->getContent();
             if ($raw !== '') {
                 try {
