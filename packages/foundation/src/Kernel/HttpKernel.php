@@ -2023,6 +2023,13 @@ final class HttpKernel extends AbstractKernel
         return $clean;
     }
 
+    /**
+     * Maps a file URI to its public HTTP path (e.g. public://images/a.jpg → /files/images/a.jpg).
+     *
+     * Note: the /files/ URL prefix is intentionally independent of the filesystem storage root
+     * (resolveFilesRootDir()). The web server or front controller is responsible for mapping
+     * /files/* requests to the configured storage directory.
+     */
     private function buildPublicFileUrl(string $uri): string
     {
         $prefix = 'public://';

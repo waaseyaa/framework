@@ -244,6 +244,30 @@ final class HttpKernelTest extends TestCase
     }
 
     #[Test]
+    public function resolves_files_root_dir_defaults_to_storage_files(): void
+    {
+        $kernel = new HttpKernel('/var/www/myapp');
+        $method = new \ReflectionMethod(HttpKernel::class, 'resolveFilesRootDir');
+        $method->setAccessible(true);
+
+        $this->assertSame('/var/www/myapp/storage/files', $method->invoke($kernel));
+    }
+
+    #[Test]
+    public function resolves_files_root_dir_uses_configured_path_when_set(): void
+    {
+        $kernel = new HttpKernel('/var/www/myapp');
+        $configProp = new \ReflectionProperty(\Waaseyaa\Foundation\Kernel\AbstractKernel::class, 'config');
+        $configProp->setAccessible(true);
+        $configProp->setValue($kernel, ['files_dir' => '/mnt/uploads']);
+
+        $method = new \ReflectionMethod(HttpKernel::class, 'resolveFilesRootDir');
+        $method->setAccessible(true);
+
+        $this->assertSame('/mnt/uploads', $method->invoke($kernel));
+    }
+
+    #[Test]
     public function builds_public_file_url_from_public_uri(): void
     {
         $kernel = new HttpKernel('/tmp/test-project');
