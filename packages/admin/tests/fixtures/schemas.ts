@@ -43,3 +43,36 @@ export const userSchema: EntitySchema = {
   },
   required: ['name'],
 }
+
+export const noteSchema: EntitySchema = {
+  $schema: 'http://json-schema.org/draft-07/schema#',
+  title: 'Note',
+  description: 'A note entity',
+  type: 'object',
+  'x-entity-type': 'note',
+  'x-translatable': false,
+  'x-revisionable': false,
+  properties: {
+    id: {
+      type: 'integer',
+      readOnly: true,
+      'x-widget': 'hidden',
+      'x-weight': -10,
+      'x-label': 'ID',
+    },
+    title: {
+      type: 'string',
+      'x-widget': 'text',
+      'x-label': 'Title',
+      'x-weight': 0,
+      'x-required': true,
+    },
+    body: {
+      type: 'string',
+      'x-widget': 'textarea',
+      'x-label': 'Body',
+      'x-weight': 1,
+    },
+  },
+  required: ['title'],
+}

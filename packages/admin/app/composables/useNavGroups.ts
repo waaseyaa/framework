@@ -3,6 +3,7 @@ export interface EntityTypeInfo {
   label: string
   keys: Record<string, string>
   group?: string | null
+  disabled?: boolean
 }
 
 type NonEmptyArray<T> = [T, ...T[]]

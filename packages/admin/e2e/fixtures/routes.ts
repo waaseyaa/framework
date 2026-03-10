@@ -1,7 +1,8 @@
 // packages/admin/e2e/fixtures/routes.ts
 import type { Page } from '@playwright/test'
 import { entityTypes } from '../../tests/fixtures/entityTypes'
-import { userSchema } from '../../tests/fixtures/schemas'
+import { userSchema, noteSchema } from '../../tests/fixtures/schemas'
+import type { EntitySchema } from '~/composables/useSchema'
 
 export async function mockEntityTypesRoute(page: Page) {
   await page.route('**/api/entity-types', (route) =>
@@ -9,9 +10,10 @@ export async function mockEntityTypesRoute(page: Page) {
   )
 }
 
-export async function mockSchemaRoute(page: Page, entityType = 'user') {
+export async function mockSchemaRoute(page: Page, entityType = 'user', schema?: EntitySchema) {
+  const resolved = schema ?? (entityType === 'note' ? noteSchema : userSchema)
   await page.route(`**/api/schema/${entityType}`, (route) =>
-    route.fulfill({ json: { meta: { schema: userSchema } } }),
+    route.fulfill({ json: { meta: { schema: resolved } } }),
   )
 }
 

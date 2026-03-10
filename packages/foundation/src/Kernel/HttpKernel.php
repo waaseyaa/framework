@@ -26,6 +26,7 @@ use Waaseyaa\Cache\CacheFactory;
 use Waaseyaa\Cache\CacheConfiguration;
 use Waaseyaa\Cache\TagAwareCacheInterface;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityTypeIdNormalizer;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
@@ -324,6 +325,22 @@ final class HttpKernel extends AbstractKernel
         );
 
         $router->addRoute(
+            'api.entity_types.disable',
+            RouteBuilder::create('/api/entity-types/{entity_type}/disable')
+                ->controller('entity_type.disable')
+                ->methods('POST')
+                ->build(),
+        );
+
+        $router->addRoute(
+            'api.entity_types.enable',
+            RouteBuilder::create('/api/entity-types/{entity_type}/enable')
+                ->controller('entity_type.enable')
+                ->methods('POST')
+                ->build(),
+        );
+
+        $router->addRoute(
             'api.broadcast',
             RouteBuilder::create('/api/broadcast')
                 ->controller('broadcast')
@@ -493,6 +510,7 @@ final class HttpKernel extends AbstractKernel
                 })(),
 
                 $controller === 'entity_types' => (function (): never {
+                    $disabledIds = $this->lifecycleManager->getDisabledTypeIds();
                     $types = [];
                     foreach ($this->entityTypeManager->getDefinitions() as $id => $def) {
                         $types[] = [
@@ -502,9 +520,74 @@ final class HttpKernel extends AbstractKernel
                             'translatable' => $def->isTranslatable(),
                             'revisionable' => $def->isRevisionable(),
                             'group' => $def->getGroup(),
+                            'disabled' => in_array($id, $disabledIds, true),
                         ];
                     }
                     $this->sendJson(200, ['data' => $types]);
+                })(),
+
+                $controller === 'entity_type.disable' => (function () use ($params, $query, $account): never {
+                    $rawTypeId = (string) ($params['entity_type'] ?? '');
+                    $normalizer = new EntityTypeIdNormalizer($this->entityTypeManager);
+                    $typeId = $normalizer->normalize($rawTypeId);
+                    $force = filter_var($query['force'] ?? false, FILTER_VALIDATE_BOOL);
+
+                    if ($rawTypeId === '' || !$this->entityTypeManager->hasDefinition($typeId)) {
+                        $this->sendJson(404, [
+                            'errors' => [[
+                                'status' => '404',
+                                'title' => 'Not Found',
+                                'detail' => sprintf('Unknown entity type: "%s".', $rawTypeId),
+                            ]],
+                        ]);
+                    }
+
+                    if ($this->lifecycleManager->isDisabled($typeId)) {
+                        $this->sendJson(200, ['data' => ['id' => $typeId, 'disabled' => true]]);
+                    }
+
+                    $definitions = array_keys($this->entityTypeManager->getDefinitions());
+                    $disabledIds = $this->lifecycleManager->getDisabledTypeIds();
+                    $enabledCount = count(array_filter(
+                        $definitions,
+                        static fn(string $id): bool => $id !== $typeId && !in_array($id, $disabledIds, true),
+                    ));
+
+                    if ($enabledCount === 0 && !$force) {
+                        $this->sendJson(409, [
+                            'errors' => [[
+                                'status' => '409',
+                                'title' => 'Conflict',
+                                'detail' => 'Cannot disable the last enabled content type. Enable another type first.',
+                            ]],
+                        ]);
+                    }
+
+                    $this->lifecycleManager->disable($typeId, (string) $account->id());
+                    $this->sendJson(200, ['data' => ['id' => $typeId, 'disabled' => true]]);
+                })(),
+
+                $controller === 'entity_type.enable' => (function () use ($params, $account): never {
+                    $rawTypeId = (string) ($params['entity_type'] ?? '');
+                    $normalizer = new EntityTypeIdNormalizer($this->entityTypeManager);
+                    $typeId = $normalizer->normalize($rawTypeId);
+
+                    if ($rawTypeId === '' || !$this->entityTypeManager->hasDefinition($typeId)) {
+                        $this->sendJson(404, [
+                            'errors' => [[
+                                'status' => '404',
+                                'title' => 'Not Found',
+                                'detail' => sprintf('Unknown entity type: "%s".', $rawTypeId),
+                            ]],
+                        ]);
+                    }
+
+                    if (!$this->lifecycleManager->isDisabled($typeId)) {
+                        $this->sendJson(200, ['data' => ['id' => $typeId, 'disabled' => false]]);
+                    }
+
+                    $this->lifecycleManager->enable($typeId, (string) $account->id());
+                    $this->sendJson(200, ['data' => ['id' => $typeId, 'disabled' => false]]);
                 })(),
 
                 $controller === 'broadcast' => (function () use ($broadcastStorage, $query): never {

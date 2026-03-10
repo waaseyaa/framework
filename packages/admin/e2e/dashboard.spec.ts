@@ -30,4 +30,15 @@ test.describe('Dashboard', () => {
     await page.locator('a[href="/user"]').first().click()
     await expect(page).toHaveURL('/user')
   })
+
+  test('shows onboarding prompt when no custom types exist', async ({ page }) => {
+    await page.route('**/api/node_type**', (route) =>
+      route.fulfill({
+        json: { jsonapi: { version: '1.0' }, data: [], meta: { total: 0 }, links: {} },
+      }),
+    )
+    await page.goto('/')
+    await expect(page.getByText('Get started with your first content type')).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Use Note (built-in)' })).toBeVisible()
+  })
 })
