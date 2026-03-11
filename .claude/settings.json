@@ -12,7 +12,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bin/check-milestones",
+            "command": "bin/check-milestones 2>&1",
             "show_output": true
           }
         ]
