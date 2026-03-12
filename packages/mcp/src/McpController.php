@@ -10,17 +10,16 @@ use Waaseyaa\AI\Vector\EmbeddingProviderInterface;
 use Waaseyaa\AI\Vector\EmbeddingStorageInterface;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Cache\CacheBackendInterface;
-use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Mcp\Cache\ReadCache;
 use Waaseyaa\Mcp\Rpc\ResponseFormatter;
+use Waaseyaa\Mcp\Rpc\ToolIntrospector;
 use Waaseyaa\Mcp\Tools\DiscoveryTools;
+use Waaseyaa\Mcp\Tools\EditorialTools;
 use Waaseyaa\Mcp\Tools\EntityTools;
 use Waaseyaa\Mcp\Tools\TraversalTools;
-use Waaseyaa\Entity\FieldableInterface;
 use Waaseyaa\Relationship\RelationshipTraversalService;
 use Waaseyaa\Workflows\EditorialTransitionAccessResolver;
-use Waaseyaa\Workflows\EditorialWorkflowService;
 use Waaseyaa\Workflows\EditorialWorkflowStateMachine;
 use Waaseyaa\Workflows\WorkflowVisibility;
 
@@ -29,10 +28,12 @@ final class McpController
     private const string CONTRACT_VERSION = 'v1.0';
     private const string CONTRACT_STABILITY = 'stable';
     private readonly ResponseFormatter $formatter;
+    private readonly ToolIntrospector $introspector;
     private readonly ReadCache $readCacheHandler;
     private readonly EntityTools $entityTools;
     private readonly DiscoveryTools $discoveryTools;
     private readonly TraversalTools $traversalTools;
+    private readonly EditorialTools $editorialTools;
     private readonly EditorialWorkflowStateMachine $editorialStateMachine;
     private readonly EditorialTransitionAccessResolver $editorialTransitionResolver;
     private readonly WorkflowVisibility $workflowVisibility;
@@ -49,6 +50,7 @@ final class McpController
         private readonly array $extensionRegistrations = [],
     ) {
         $this->formatter = new ResponseFormatter();
+        $this->introspector = new ToolIntrospector($this->formatter, $this->extensionRegistrations);
         $this->readCacheHandler = new ReadCache(account: $this->account, backend: $this->readCache);
         $this->entityTools = new EntityTools(
             entityTypeManager: $this->entityTypeManager,
@@ -74,6 +76,14 @@ final class McpController
             accessHandler: $this->accessHandler,
             account: $this->account,
             relationshipTraversal: $this->relationshipTraversal,
+        );
+        $this->editorialTools = new EditorialTools(
+            entityTypeManager: $this->entityTypeManager,
+            serializer: $this->serializer,
+            accessHandler: $this->accessHandler,
+            account: $this->account,
+            editorialStateMachine: $this->editorialStateMachine,
+            editorialTransitionResolver: $this->editorialTransitionResolver,
         );
     }
 
@@ -143,8 +153,8 @@ final class McpController
         }
 
         $canonicalTool = $this->formatter->canonicalToolName($requestedTool);
-        $descriptor = $this->toolDiagnosticsDescriptor($canonicalTool);
-        $extensions = $this->introspectionExtensionsForTool($requestedTool, $canonicalTool);
+        $descriptor = $this->introspector->diagnosticsDescriptor($canonicalTool);
+        $extensions = $this->introspector->extensionsForTool($requestedTool, $canonicalTool);
         $executionPath = $descriptor['execution_path'];
         foreach ($extensions['execution_path_hooks'] as $hook) {
             if (!in_array($hook, $executionPath, true)) {
@@ -230,10 +240,10 @@ final class McpController
                 'traverse_relationships' => $this->traversalTools->traverse($arguments),
                 'get_related_entities' => $this->traversalTools->getRelated($arguments),
                 'get_knowledge_graph' => $this->traversalTools->knowledgeGraph($arguments),
-                'editorial_transition' => $this->toolEditorialTransition($arguments),
-                'editorial_validate' => $this->toolEditorialValidate($arguments),
-                'editorial_publish' => $this->toolEditorialPublish($arguments),
-                'editorial_archive' => $this->toolEditorialArchive($arguments),
+                'editorial_transition' => $this->editorialTools->transition($arguments),
+                'editorial_validate' => $this->editorialTools->validate($arguments),
+                'editorial_publish' => $this->editorialTools->publish($arguments),
+                'editorial_archive' => $this->editorialTools->archive($arguments),
                 default => null,
             };
         } catch (\InvalidArgumentException $e) {
@@ -252,652 +262,4 @@ final class McpController
 
         return $this->formatter->result($id, $this->formatter->formatToolContent($result));
     }
-
-    /**
-     * @param array<string, mixed> $arguments
-     * @return array<string, mixed>
-     */
-    private function toolEditorialTransition(array $arguments): array
-    {
-        $targetState = $this->requiredStateArgument($arguments, 'to_state');
-        $resolved = $this->loadEditorialNode($arguments);
-        $validation = $this->editorialValidationResult($resolved['entity'], $resolved['bundle'], $targetState);
-        if (!$validation['is_valid']) {
-            throw new \RuntimeException($validation['violations'][0] ?? 'Editorial transition validation failed.');
-        }
-
-        $service = $this->editorialWorkflowServiceForBundle($resolved['bundle']);
-        $service->transitionNode($resolved['entity'], $targetState, $this->account);
-        $resolved['storage']->save($resolved['entity']);
-
-        return [
-            'data' => $this->editorialNodeSnapshot(
-                $resolved['entity'],
-                $resolved['bundle'],
-                $service->getAvailableTransitionMetadata($resolved['entity']),
-            ),
-            'meta' => [
-                'tool' => 'editorial_transition',
-                'requested_state' => $targetState,
-            ],
-        ];
-    }
-
-    /**
-     * @param array<string, mixed> $arguments
-     * @return array<string, mixed>
-     */
-    private function toolEditorialValidate(array $arguments): array
-    {
-        $resolved = $this->loadEditorialNode($arguments);
-        $requestedState = null;
-        if (array_key_exists('to_state', $arguments)) {
-            $requestedState = $this->requiredStateArgument($arguments, 'to_state');
-        }
-
-        $validation = $this->editorialValidationResult($resolved['entity'], $resolved['bundle'], $requestedState);
-        $service = $this->editorialWorkflowServiceForBundle($resolved['bundle']);
-
-        return [
-            'data' => $this->editorialNodeSnapshot(
-                $resolved['entity'],
-                $resolved['bundle'],
-                $service->getAvailableTransitionMetadata($resolved['entity']),
-            ) + [
-                'requested_state' => $requestedState,
-                'is_valid' => $validation['is_valid'],
-                'violations' => $validation['violations'],
-            ],
-            'meta' => [
-                'tool' => 'editorial_validate',
-            ],
-        ];
-    }
-
-    /**
-     * @param array<string, mixed> $arguments
-     * @return array<string, mixed>
-     */
-    private function toolEditorialPublish(array $arguments): array
-    {
-        $arguments['to_state'] = EditorialWorkflowStateMachine::STATE_PUBLISHED;
-
-        return $this->toolEditorialTransition($arguments);
-    }
-
-    /**
-     * @param array<string, mixed> $arguments
-     * @return array<string, mixed>
-     */
-    private function toolEditorialArchive(array $arguments): array
-    {
-        $arguments['to_state'] = EditorialWorkflowStateMachine::STATE_ARCHIVED;
-
-        return $this->toolEditorialTransition($arguments);
-    }
-
-    private function requiredStateArgument(array $arguments, string $name): string
-    {
-        $state = is_string($arguments[$name] ?? null) ? strtolower(trim($arguments[$name])) : '';
-        if ($state === '') {
-            throw new \InvalidArgumentException(sprintf('Editorial tool requires non-empty "%s".', $name));
-        }
-        if (!$this->editorialStateMachine->isKnownState($state)) {
-            throw new \InvalidArgumentException(sprintf('Unknown editorial workflow state: "%s".', $state));
-        }
-
-        return $state;
-    }
-
-    /**
-     * @param array<string, mixed> $arguments
-     * @return array{
-     *   entity: EntityInterface&FieldableInterface,
-     *   storage: \Waaseyaa\Entity\Storage\EntityStorageInterface,
-     *   bundle: string
-     * }
-     */
-    private function loadEditorialNode(array $arguments): array
-    {
-        $entityType = is_string($arguments['type'] ?? null) ? strtolower(trim($arguments['type'])) : '';
-        if ($entityType === '') {
-            throw new \InvalidArgumentException('Editorial tools require non-empty "type".');
-        }
-        if ($entityType !== 'node') {
-            throw new \InvalidArgumentException('Editorial tools only support "node" entities.');
-        }
-        if (!$this->entityTypeManager->hasDefinition($entityType)) {
-            throw new \InvalidArgumentException(sprintf('Unknown entity type: "%s".', $entityType));
-        }
-
-        $idRaw = $arguments['id'] ?? null;
-        if (!is_scalar($idRaw) || trim((string) $idRaw) === '') {
-            throw new \InvalidArgumentException('Editorial tools require non-empty "id".');
-        }
-        $resolvedId = ctype_digit((string) $idRaw) ? (int) $idRaw : (string) $idRaw;
-
-        $storage = $this->entityTypeManager->getStorage($entityType);
-        $entity = $storage->load($resolvedId);
-        if ($entity === null) {
-            throw new \InvalidArgumentException(sprintf('Entity not found: %s:%s', $entityType, (string) $idRaw));
-        }
-        if (!$entity instanceof FieldableInterface) {
-            throw new \RuntimeException(sprintf('Entity %s:%s is not fieldable.', $entityType, (string) $idRaw));
-        }
-
-        $bundle = strtolower(trim((string) ($entity->bundle() !== '' ? $entity->bundle() : $entity->get('type'))));
-        if ($bundle === '') {
-            throw new \RuntimeException('Editorial workflow requires a non-empty node bundle.');
-        }
-
-        return [
-            'entity' => $entity,
-            'storage' => $storage,
-            'bundle' => $bundle,
-        ];
-    }
-
-    /**
-     * @param EntityInterface&FieldableInterface $entity
-     * @return array{is_valid: bool, violations: list<string>}
-     */
-    private function editorialValidationResult(FieldableInterface $entity, string $bundle, ?string $targetState): array
-    {
-        $violations = [];
-
-        $updateAccess = $this->accessHandler->check($entity, 'update', $this->account);
-        if (!$updateAccess->isAllowed()) {
-            $violations[] = $updateAccess->reason !== ''
-                ? $updateAccess->reason
-                : 'Update access denied for editorial operation.';
-        }
-
-        $currentState = $this->editorialStateMachine->normalizeState(
-            workflowState: $entity->get('workflow_state'),
-            status: $entity->get('status'),
-        );
-        if (!$this->editorialStateMachine->isKnownState($currentState)) {
-            $violations[] = sprintf('Unknown current workflow state: "%s".', $currentState);
-        }
-
-        if ($targetState !== null) {
-            $transitionAccess = $this->editorialTransitionResolver->canTransition($bundle, $currentState, $targetState, $this->account);
-            if (!$transitionAccess->isAllowed()) {
-                $violations[] = $transitionAccess->reason !== ''
-                    ? $transitionAccess->reason
-                    : sprintf('Workflow transition "%s" -> "%s" is not authorized.', $currentState, $targetState);
-            }
-        }
-
-        return [
-            'is_valid' => $violations === [],
-            'violations' => $violations,
-        ];
-    }
-
-    /**
-     * @param EntityInterface&FieldableInterface $entity
-     * @param list<array{id: string, label: string, from: list<string>, to: string, required_permission: string}> $availableTransitions
-     * @return array<string, mixed>
-     */
-    private function editorialNodeSnapshot(FieldableInterface $entity, string $bundle, array $availableTransitions): array
-    {
-        return [
-            'type' => $entity->getEntityTypeId(),
-            'id' => (string) $entity->id(),
-            'bundle' => $bundle,
-            'workflow_state' => $this->editorialStateMachine->normalizeState(
-                workflowState: $entity->get('workflow_state'),
-                status: $entity->get('status'),
-            ),
-            'status' => (int) ($entity->get('status') ?? 0),
-            'workflow_last_transition' => $entity->get('workflow_last_transition'),
-            'available_transitions' => $availableTransitions,
-        ];
-    }
-
-    private function editorialWorkflowServiceForBundle(string $bundle): EditorialWorkflowService
-    {
-        return new EditorialWorkflowService(
-            coreBundles: [$bundle],
-            stateMachine: $this->editorialStateMachine,
-            transitionAccessResolver: $this->editorialTransitionResolver,
-        );
-    }
-
-    /**
-     * @param array{
-     *   entity_type: string,
-     *   entity_id: string,
-     *   direction: string,
-     *   status: string,
-     *   relationship_types: list<string>,
-     *   at: ?int,
-     *   limit: int
-     * } $parsed
-     * @return list<array{
-     *   relationship: \Waaseyaa\Entity\EntityInterface,
-     *   related_entity_type: string,
-     *   related_entity_id: string,
-     *   direction: string,
-     *   inverse: bool
-     * }>
-     */
-    private function collectTraversalRows(array $parsed): array
-    {
-        if (!$this->entityTypeManager->hasDefinition('relationship')) {
-            return [];
-        }
-
-        $relationshipStorage = $this->entityTypeManager->getStorage('relationship');
-        $ids = $relationshipStorage->getQuery()->accessCheck(false)->execute();
-        $rows = [];
-        /** @var array<string, bool> $visibilityCache */
-        $visibilityCache = [];
-        $isVisible = function (string $entityType, string $entityId) use (&$visibilityCache): bool {
-            $cacheKey = $entityType . ':' . $entityId;
-            if (array_key_exists($cacheKey, $visibilityCache)) {
-                return $visibilityCache[$cacheKey];
-            }
-
-            if (!$this->entityTypeManager->hasDefinition($entityType)) {
-                $visibilityCache[$cacheKey] = false;
-                return false;
-            }
-
-            $entity = $this->loadEntityByTypeAndId($entityType, $entityId);
-            if (!$entity instanceof EntityInterface) {
-                $visibilityCache[$cacheKey] = false;
-                return false;
-            }
-
-            $visibilityCache[$cacheKey] = $this->accessHandler->check($entity, 'view', $this->account)->isAllowed();
-            return $visibilityCache[$cacheKey];
-        };
-
-        foreach ($relationshipStorage->loadMultiple($ids) as $relationship) {
-            if (!$this->accessHandler->check($relationship, 'view', $this->account)->isAllowed()) {
-                continue;
-            }
-
-            $values = $relationship->toArray();
-            $fromType = strtolower((string) ($values['from_entity_type'] ?? ''));
-            $fromId = (string) ($values['from_entity_id'] ?? '');
-            $toType = strtolower((string) ($values['to_entity_type'] ?? ''));
-            $toId = (string) ($values['to_entity_id'] ?? '');
-            if ($fromType === '' || $fromId === '' || $toType === '' || $toId === '') {
-                continue;
-            }
-
-            $status = (int) ($values['status'] ?? 0);
-            if ($parsed['status'] === 'published' && $status !== 1) {
-                continue;
-            }
-            if ($parsed['status'] === 'unpublished' && $status !== 0) {
-                continue;
-            }
-
-            $relationshipType = strtolower((string) ($values['relationship_type'] ?? ''));
-            if ($parsed['relationship_types'] !== [] && !in_array($relationshipType, $parsed['relationship_types'], true)) {
-                continue;
-            }
-
-            if ($parsed['at'] !== null && !$this->isRelationshipActiveAt($values, $parsed['at'])) {
-                continue;
-            }
-
-            $matchesOutbound = $fromType === $parsed['entity_type'] && $fromId === $parsed['entity_id'];
-            $matchesInbound = $toType === $parsed['entity_type'] && $toId === $parsed['entity_id'];
-            if (!$matchesOutbound && !$matchesInbound) {
-                continue;
-            }
-
-            if (in_array($parsed['direction'], ['outbound', 'both'], true) && $matchesOutbound) {
-                if (!$isVisible($toType, $toId)) {
-                    continue;
-                }
-                $rows[] = [
-                    'relationship' => $relationship,
-                    'related_entity_type' => $toType,
-                    'related_entity_id' => $toId,
-                    'direction' => 'outbound',
-                    'inverse' => false,
-                ];
-            }
-            if (in_array($parsed['direction'], ['inbound', 'both'], true) && $matchesInbound) {
-                if (!$isVisible($fromType, $fromId)) {
-                    continue;
-                }
-                $rows[] = [
-                    'relationship' => $relationship,
-                    'related_entity_type' => $fromType,
-                    'related_entity_id' => $fromId,
-                    'direction' => 'inbound',
-                    'inverse' => true,
-                ];
-            }
-        }
-
-        usort($rows, static function (array $a, array $b): int {
-            $aDirectionRank = $a['direction'] === 'outbound' ? 0 : 1;
-            $bDirectionRank = $b['direction'] === 'outbound' ? 0 : 1;
-            if ($aDirectionRank !== $bDirectionRank) {
-                return $aDirectionRank <=> $bDirectionRank;
-            }
-
-            $aType = (string) ($a['relationship']->get('relationship_type') ?? '');
-            $bType = (string) ($b['relationship']->get('relationship_type') ?? '');
-            $typeCompare = strcmp($aType, $bType);
-            if ($typeCompare !== 0) {
-                return $typeCompare;
-            }
-
-            return strcmp((string) $a['relationship']->id(), (string) $b['relationship']->id());
-        });
-
-        if (count($rows) > $parsed['limit']) {
-            $rows = array_slice($rows, 0, $parsed['limit']);
-        }
-
-        return $rows;
-    }
-
-    private function assertTraversalSourceVisible(string $entityType, string $entityId): void
-    {
-        $entity = $this->loadEntityByTypeAndId($entityType, $entityId);
-        if (!$entity instanceof EntityInterface) {
-            throw new \InvalidArgumentException(sprintf('Traversal source entity not found: %s:%s', $entityType, $entityId));
-        }
-
-        if (!$this->accessHandler->check($entity, 'view', $this->account)->isAllowed()) {
-            throw new \RuntimeException(sprintf('Traversal source entity is not visible: %s:%s', $entityType, $entityId));
-        }
-    }
-
-    private function loadEntityByTypeAndId(string $entityType, string $entityId): ?EntityInterface
-    {
-        if (!$this->entityTypeManager->hasDefinition($entityType)) {
-            return null;
-        }
-
-        $storage = $this->entityTypeManager->getStorage($entityType);
-        $resolvedId = ctype_digit($entityId) ? (int) $entityId : $entityId;
-        $entity = $storage->load($resolvedId);
-
-        return $entity instanceof EntityInterface ? $entity : null;
-    }
-
-    /**
-     * @param array<string, mixed> $relationshipValues
-     */
-    private function isRelationshipActiveAt(array $relationshipValues, int $at): bool
-    {
-        $start = $this->normalizeTemporal($relationshipValues['start_date'] ?? null);
-        $end = $this->normalizeTemporal($relationshipValues['end_date'] ?? null);
-
-        if ($start !== null && $at < $start) {
-            return false;
-        }
-        if ($end !== null && $at > $end) {
-            return false;
-        }
-
-        return true;
-    }
-
-    private function normalizeTemporal(mixed $value): ?int
-    {
-        if ($value === null || $value === '') {
-            return null;
-        }
-        if (is_int($value)) {
-            return $value;
-        }
-        if (is_numeric($value)) {
-            return (int) $value;
-        }
-
-        try {
-            return (new \DateTimeImmutable((string) $value))->getTimestamp();
-        } catch (\Throwable) {
-            return null;
-        }
-    }
-
-    /**
-     * @return array{
-     *   count: int,
-     *   registered: list<array{
-     *     id: string,
-     *     label: string,
-     *     tools: list<string>,
-     *     hooks: list<string>
-     *   }>,
-     *   execution_path_hooks: list<string>
-     * }
-     */
-    private function introspectionExtensionsForTool(string $requestedTool, string $canonicalTool): array
-    {
-        $rows = [];
-        foreach ($this->extensionRegistrations as $registration) {
-            if (!is_array($registration)) {
-                continue;
-            }
-
-            $id = is_string($registration['id'] ?? null)
-                ? trim($registration['id'])
-                : (is_string($registration['plugin_id'] ?? null) ? trim($registration['plugin_id']) : '');
-            if ($id === '') {
-                continue;
-            }
-
-            $label = is_string($registration['label'] ?? null) ? trim($registration['label']) : $id;
-            if ($label === '') {
-                $label = $id;
-            }
-
-            $tools = [];
-            if (is_array($registration['tools'] ?? null)) {
-                foreach ($registration['tools'] as $tool) {
-                    if (!is_string($tool)) {
-                        continue;
-                    }
-                    $normalizedTool = $this->formatter->canonicalToolName(strtolower(trim($tool)));
-                    if ($normalizedTool !== '') {
-                        $tools[] = $normalizedTool;
-                    }
-                }
-            }
-            $tools = array_values(array_unique($tools));
-            sort($tools);
-
-            $isApplicable = $tools === [] || in_array($canonicalTool, $tools, true) || in_array($requestedTool, $tools, true);
-            if (!$isApplicable) {
-                continue;
-            }
-
-            $hooks = [];
-            if (is_array($registration['hooks'] ?? null)) {
-                foreach ($registration['hooks'] as $hook) {
-                    if (!is_string($hook)) {
-                        continue;
-                    }
-                    $normalizedHook = strtolower(trim($hook));
-                    if ($normalizedHook !== '') {
-                        $hooks[] = $normalizedHook;
-                    }
-                }
-            }
-            if ($hooks === []) {
-                $hooks = ['before_tool_call', 'after_tool_result_meta'];
-            }
-            $hooks = array_values(array_unique($hooks));
-            sort($hooks);
-
-            $rows[] = [
-                'id' => $id,
-                'label' => $label,
-                'tools' => $tools,
-                'hooks' => $hooks,
-            ];
-        }
-
-        usort($rows, static function (array $a, array $b): int {
-            return strcmp($a['id'], $b['id']);
-        });
-
-        $executionHooks = [];
-        foreach ($rows as $row) {
-            foreach ($row['hooks'] as $hook) {
-                $executionHooks[] = 'extensions:' . $hook;
-            }
-        }
-        $executionHooks = array_values(array_unique($executionHooks));
-        sort($executionHooks);
-
-        return [
-            'count' => count($rows),
-            'registered' => $rows,
-            'execution_path_hooks' => $executionHooks,
-        ];
-    }
-
-    /**
-     * @return array{
-     *   handler: string,
-     *   category: string,
-     *   cache_tags: list<string>,
-     *   visibility_source_access: string,
-     *   workflow_policy: string,
-     *   permission_boundaries: list<string>,
-     *   execution_path: list<string>,
-     *   failure_modes: list<string>
-     * }
-     */
-    private function toolDiagnosticsDescriptor(string $tool): array
-    {
-        return match ($tool) {
-            'search_entities' => [
-                'handler' => 'toolSearchEntities',
-                'category' => 'semantic_read',
-                'cache_tags' => ['mcp_read', 'mcp_read:tool:search_entities'],
-                'visibility_source_access' => 'entity_view_access',
-                'workflow_policy' => 'visibility-aware',
-                'permission_boundaries' => ['entity:view'],
-                'execution_path' => ['rpc:tools/call', 'resolver:toolSearchEntities', 'meta:stable_contract', 'response:format_tool_content'],
-                'failure_modes' => ['invalid_query_type', 'embedding_provider_failure'],
-            ],
-            'ai_discover' => [
-                'handler' => 'toolAiDiscover',
-                'category' => 'discovery_read',
-                'cache_tags' => ['mcp_read', 'mcp_read:tool:ai_discover'],
-                'visibility_source_access' => 'entity_view_access',
-                'workflow_policy' => 'published_only',
-                'permission_boundaries' => ['entity:view'],
-                'execution_path' => ['rpc:tools/call', 'resolver:toolAiDiscover', 'graph:optional_anchor_context', 'meta:stable_contract', 'response:format_tool_content'],
-                'failure_modes' => ['missing_query', 'hidden_anchor_entity', 'non_public_anchor_entity', 'semantic_search_failure'],
-            ],
-            'get_entity' => [
-                'handler' => 'toolGetEntity',
-                'category' => 'entity_read',
-                'cache_tags' => ['mcp_read:disabled'],
-                'visibility_source_access' => 'entity_view_access',
-                'workflow_policy' => 'visibility-aware',
-                'permission_boundaries' => ['entity:view'],
-                'execution_path' => ['rpc:tools/call', 'resolver:toolGetEntity', 'response:format_tool_content'],
-                'failure_modes' => ['unknown_entity_type', 'entity_not_found', 'access_denied'],
-            ],
-            'list_entity_types' => [
-                'handler' => 'toolListEntityTypes',
-                'category' => 'schema_read',
-                'cache_tags' => ['mcp_read:disabled'],
-                'visibility_source_access' => 'none',
-                'workflow_policy' => 'not_applicable',
-                'permission_boundaries' => ['schema:list'],
-                'execution_path' => ['rpc:tools/call', 'resolver:toolListEntityTypes', 'response:format_tool_content'],
-                'failure_modes' => ['definition_resolution_failure'],
-            ],
-            'traverse_relationships' => [
-                'handler' => 'toolTraverseRelationships',
-                'category' => 'graph_read',
-                'cache_tags' => ['mcp_read', 'mcp_read:tool:traverse_relationships'],
-                'visibility_source_access' => 'source_view_required',
-                'workflow_policy' => 'relationship_visibility_filter',
-                'permission_boundaries' => ['entity:view', 'relationship:view'],
-                'execution_path' => ['rpc:tools/call', 'resolver:toolTraverseRelationships', 'graph:collectTraversalRows', 'meta:stable_contract', 'response:format_tool_content'],
-                'failure_modes' => ['missing_source_arguments', 'unknown_source_type', 'hidden_source_entity'],
-            ],
-            'get_related_entities' => [
-                'handler' => 'toolGetRelatedEntities',
-                'category' => 'graph_read',
-                'cache_tags' => ['mcp_read', 'mcp_read:tool:get_related_entities'],
-                'visibility_source_access' => 'source_view_required',
-                'workflow_policy' => 'relationship_visibility_filter',
-                'permission_boundaries' => ['entity:view', 'relationship:view'],
-                'execution_path' => ['rpc:tools/call', 'resolver:toolGetRelatedEntities', 'graph:collectTraversalRows', 'meta:stable_contract', 'response:format_tool_content'],
-                'failure_modes' => ['missing_source_arguments', 'unknown_source_type', 'hidden_source_entity'],
-            ],
-            'get_knowledge_graph' => [
-                'handler' => 'toolGetKnowledgeGraph',
-                'category' => 'graph_read',
-                'cache_tags' => ['mcp_read', 'mcp_read:tool:get_knowledge_graph'],
-                'visibility_source_access' => 'source_view_required',
-                'workflow_policy' => 'relationship_visibility_filter',
-                'permission_boundaries' => ['entity:view', 'relationship:view'],
-                'execution_path' => ['rpc:tools/call', 'resolver:toolGetKnowledgeGraph', 'graph:collectTraversalRows_or_service', 'meta:stable_contract', 'response:format_tool_content'],
-                'failure_modes' => ['missing_source_arguments', 'unknown_source_type', 'hidden_source_entity'],
-            ],
-            'editorial_transition' => [
-                'handler' => 'toolEditorialTransition',
-                'category' => 'editorial_write',
-                'cache_tags' => ['mcp_read:disabled'],
-                'visibility_source_access' => 'entity_update_access',
-                'workflow_policy' => 'workflow_transition_enforced',
-                'permission_boundaries' => ['entity:update', 'workflow:transition', 'storage:save'],
-                'execution_path' => ['rpc:tools/call', 'resolver:toolEditorialTransition', 'workflow:validate_transition', 'storage:save', 'meta:stable_contract', 'response:format_tool_content'],
-                'failure_modes' => ['missing_target_state', 'unknown_target_state', 'transition_unauthorized', 'validation_failed'],
-            ],
-            'editorial_validate' => [
-                'handler' => 'toolEditorialValidate',
-                'category' => 'editorial_read',
-                'cache_tags' => ['mcp_read:disabled'],
-                'visibility_source_access' => 'entity_update_access',
-                'workflow_policy' => 'workflow_transition_enforced',
-                'permission_boundaries' => ['entity:update', 'workflow:transition'],
-                'execution_path' => ['rpc:tools/call', 'resolver:toolEditorialValidate', 'workflow:validate_transition', 'meta:stable_contract', 'response:format_tool_content'],
-                'failure_modes' => ['missing_entity_identity', 'unknown_target_state', 'transition_unauthorized'],
-            ],
-            'editorial_publish' => [
-                'handler' => 'toolEditorialPublish',
-                'category' => 'editorial_write',
-                'cache_tags' => ['mcp_read:disabled'],
-                'visibility_source_access' => 'entity_update_access',
-                'workflow_policy' => 'workflow_transition_enforced',
-                'permission_boundaries' => ['entity:update', 'workflow:publish', 'storage:save'],
-                'execution_path' => ['rpc:tools/call', 'resolver:toolEditorialPublish', 'resolver:toolEditorialTransition', 'storage:save', 'meta:stable_contract', 'response:format_tool_content'],
-                'failure_modes' => ['transition_unauthorized', 'validation_failed'],
-            ],
-            'editorial_archive' => [
-                'handler' => 'toolEditorialArchive',
-                'category' => 'editorial_write',
-                'cache_tags' => ['mcp_read:disabled'],
-                'visibility_source_access' => 'entity_update_access',
-                'workflow_policy' => 'workflow_transition_enforced',
-                'permission_boundaries' => ['entity:update', 'workflow:archive', 'storage:save'],
-                'execution_path' => ['rpc:tools/call', 'resolver:toolEditorialArchive', 'resolver:toolEditorialTransition', 'storage:save', 'meta:stable_contract', 'response:format_tool_content'],
-                'failure_modes' => ['transition_unauthorized', 'validation_failed'],
-            ],
-            default => [
-                'handler' => 'unknown',
-                'category' => 'unknown',
-                'cache_tags' => ['mcp_read:disabled'],
-                'visibility_source_access' => 'unknown',
-                'workflow_policy' => 'unknown',
-                'permission_boundaries' => [],
-                'execution_path' => ['rpc:tools/call'],
-                'failure_modes' => ['unknown_tool'],
-            ],
-        };
-    }
-
 }
