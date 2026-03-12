@@ -20,6 +20,7 @@ use Waaseyaa\Database\PdoDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\CorsHandler;
 use Waaseyaa\Foundation\Http\DiscoveryApiHandler;
+use Waaseyaa\Foundation\Http\SsrPageHandler;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Kernel\BuiltinRouteRegistrar;
 use Waaseyaa\Foundation\Kernel\EventListenerRegistrar;
@@ -331,15 +332,8 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function render_surrogate_headers_include_workflow_and_graph_dimensions(): void
     {
-        $kernel = new HttpKernel('/tmp/test-project');
-        $dhProp = new \ReflectionProperty(HttpKernel::class, 'discoveryHandler');
-        $dhProp->setAccessible(true);
-        $dhProp->setValue($kernel, new DiscoveryApiHandler(new EntityTypeManager(new EventDispatcher()), PdoDatabase::createSqlite()));
-        $method = new \ReflectionMethod(HttpKernel::class, 'buildRenderSurrogateHeaders');
-        $method->setAccessible(true);
-
-        $headers = $method->invoke(
-            $kernel,
+        $handler = $this->createSsrPageHandler();
+        $headers = $handler->buildRenderSurrogateHeaders(
             'node',
             '42',
             'full',
@@ -366,10 +360,7 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function render_language_resolution_uses_url_prefix_and_strips_alias_lookup_path(): void
     {
-        $kernel = new HttpKernel('/tmp/test-project');
-        $configProp = new \ReflectionProperty(\Waaseyaa\Foundation\Kernel\AbstractKernel::class, 'config');
-        $configProp->setAccessible(true);
-        $configProp->setValue($kernel, [
+        $handler = $this->createSsrPageHandler([
             'i18n' => [
                 'languages' => [
                     ['id' => 'en', 'label' => 'English', 'is_default' => true],
@@ -378,11 +369,8 @@ final class HttpKernelTest extends TestCase
             ],
         ]);
 
-        $method = new \ReflectionMethod(HttpKernel::class, 'resolveRenderLanguageAndAliasPath');
-        $method->setAccessible(true);
-
         $request = Request::create('/fr/teachings/water');
-        $resolved = $method->invoke($kernel, '/fr/teachings/water', $request);
+        $resolved = $handler->resolveRenderLanguageAndAliasPath('/fr/teachings/water', $request);
 
         $this->assertSame('fr', $resolved['langcode']);
         $this->assertSame('/teachings/water', $resolved['alias_path']);
@@ -391,10 +379,7 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function render_language_resolution_uses_accept_language_when_no_url_prefix(): void
     {
-        $kernel = new HttpKernel('/tmp/test-project');
-        $configProp = new \ReflectionProperty(\Waaseyaa\Foundation\Kernel\AbstractKernel::class, 'config');
-        $configProp->setAccessible(true);
-        $configProp->setValue($kernel, [
+        $handler = $this->createSsrPageHandler([
             'i18n' => [
                 'languages' => [
                     ['id' => 'en', 'label' => 'English', 'is_default' => true],
@@ -403,12 +388,9 @@ final class HttpKernelTest extends TestCase
             ],
         ]);
 
-        $method = new \ReflectionMethod(HttpKernel::class, 'resolveRenderLanguageAndAliasPath');
-        $method->setAccessible(true);
-
         $request = Request::create('/teachings/water');
         $request->headers->set('Accept-Language', 'fr-CA,fr;q=0.9,en;q=0.8');
-        $resolved = $method->invoke($kernel, '/teachings/water', $request);
+        $resolved = $handler->resolveRenderLanguageAndAliasPath('/teachings/water', $request);
 
         $this->assertSame('fr', $resolved['langcode']);
         $this->assertSame('/teachings/water', $resolved['alias_path']);
@@ -417,16 +399,10 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function render_language_resolution_defaults_to_english_when_not_configured(): void
     {
-        $kernel = new HttpKernel('/tmp/test-project');
-        $configProp = new \ReflectionProperty(\Waaseyaa\Foundation\Kernel\AbstractKernel::class, 'config');
-        $configProp->setAccessible(true);
-        $configProp->setValue($kernel, []);
-
-        $method = new \ReflectionMethod(HttpKernel::class, 'resolveRenderLanguageAndAliasPath');
-        $method->setAccessible(true);
+        $handler = $this->createSsrPageHandler();
 
         $request = Request::create('/teachings/water');
-        $resolved = $method->invoke($kernel, '/teachings/water', $request);
+        $resolved = $handler->resolveRenderLanguageAndAliasPath('/teachings/water', $request);
 
         $this->assertSame('en', $resolved['langcode']);
         $this->assertSame('/teachings/water', $resolved['alias_path']);
@@ -611,14 +587,9 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function ssr_cache_variant_langcode_is_deterministic_for_equivalent_context_order(): void
     {
-        $kernel = new HttpKernel('/tmp/test-project');
-        $dhProp = new \ReflectionProperty(HttpKernel::class, 'discoveryHandler');
-        $dhProp->setAccessible(true);
-        $dhProp->setValue($kernel, new DiscoveryApiHandler(new EntityTypeManager(new EventDispatcher()), PdoDatabase::createSqlite()));
-        $method = new \ReflectionMethod(HttpKernel::class, 'buildSsrCacheVariantLangcode');
-        $method->setAccessible(true);
+        $handler = $this->createSsrPageHandler();
 
-        $variantA = $method->invoke($kernel, 'en', 'full', false, [
+        $variantA = $handler->buildSsrCacheVariantLangcode('en', 'full', false, [
             'workflow_visibility' => [
                 'state' => 'published',
                 'preview_requested' => false,
@@ -629,7 +600,7 @@ final class HttpKernelTest extends TestCase
                 'contract' => ['version' => 'v1.0', 'surface' => 'ssr_relationship_navigation'],
             ],
         ]);
-        $variantB = $method->invoke($kernel, 'en', 'full', false, [
+        $variantB = $handler->buildSsrCacheVariantLangcode('en', 'full', false, [
             'relationship_navigation' => [
                 'contract' => ['surface' => 'ssr_relationship_navigation', 'version' => 'v1.0'],
                 'entity' => ['counts' => ['inbound' => 2, 'outbound' => 1]],
@@ -647,30 +618,25 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function ssr_cache_variant_langcode_changes_with_workflow_or_graph_dimensions(): void
     {
-        $kernel = new HttpKernel('/tmp/test-project');
-        $dhProp = new \ReflectionProperty(HttpKernel::class, 'discoveryHandler');
-        $dhProp->setAccessible(true);
-        $dhProp->setValue($kernel, new DiscoveryApiHandler(new EntityTypeManager(new EventDispatcher()), PdoDatabase::createSqlite()));
-        $method = new \ReflectionMethod(HttpKernel::class, 'buildSsrCacheVariantLangcode');
-        $method->setAccessible(true);
+        $handler = $this->createSsrPageHandler();
 
-        $published = $method->invoke($kernel, 'en', 'full', false, [
+        $published = $handler->buildSsrCacheVariantLangcode('en', 'full', false, [
             'workflow_visibility' => ['state' => 'published'],
             'relationship_navigation' => ['entity' => ['counts' => ['outbound' => 1]]],
         ]);
-        $review = $method->invoke($kernel, 'en', 'full', false, [
+        $review = $handler->buildSsrCacheVariantLangcode('en', 'full', false, [
             'workflow_visibility' => ['state' => 'review'],
             'relationship_navigation' => ['entity' => ['counts' => ['outbound' => 1]]],
         ]);
-        $differentGraph = $method->invoke($kernel, 'en', 'full', false, [
+        $differentGraph = $handler->buildSsrCacheVariantLangcode('en', 'full', false, [
             'workflow_visibility' => ['state' => 'published'],
             'relationship_navigation' => ['entity' => ['counts' => ['outbound' => 3]]],
         ]);
-        $previewVariant = $method->invoke($kernel, 'en', 'full', true, [
+        $previewVariant = $handler->buildSsrCacheVariantLangcode('en', 'full', true, [
             'workflow_visibility' => ['state' => 'published'],
             'relationship_navigation' => ['entity' => ['counts' => ['outbound' => 1]]],
         ]);
-        $teaserVariant = $method->invoke($kernel, 'en', 'teaser', false, [
+        $teaserVariant = $handler->buildSsrCacheVariantLangcode('en', 'teaser', false, [
             'workflow_visibility' => ['state' => 'published'],
             'relationship_navigation' => ['entity' => ['counts' => ['outbound' => 1]]],
         ]);
@@ -711,6 +677,23 @@ final class HttpKernelTest extends TestCase
         $this->assertContains('discovery:direction:both', $tags);
     }
 
+    private function createSsrPageHandler(array $config = []): SsrPageHandler
+    {
+        $entityTypeManager = new EntityTypeManager(new EventDispatcher());
+        $database = PdoDatabase::createSqlite();
+        $discoveryHandler = new DiscoveryApiHandler($entityTypeManager, $database);
+        $cacheConfigResolver = new CacheConfigResolver($config);
+
+        return new SsrPageHandler(
+            entityTypeManager: $entityTypeManager,
+            database: $database,
+            renderCache: null,
+            cacheConfigResolver: $cacheConfigResolver,
+            discoveryHandler: $discoveryHandler,
+            projectRoot: '/tmp/test-project',
+            config: $config,
+        );
+    }
 }
 
 final class TestKernelEntity implements EntityInterface
