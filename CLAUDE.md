@@ -1,7 +1,7 @@
 # Waaseyaa
 
 ## Project Structure
-- Monorepo: 29 PHP packages in `packages/`, 3 meta-packages, 1 JS admin SPA
+- Monorepo: 38 PHP packages in `packages/`, 3 meta-packages (core, cms, full), 1 JS admin SPA
 - 7-layer architecture (Foundation → Core Data → Content Types → Services → API → AI → Interfaces)
 - Each package has its own `composer.json` with path repository references
 - Root `composer.json` uses `@dev` constraints for all waaseyaa/* packages
@@ -33,7 +33,11 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/ssr/*` | — | — |
 | `packages/telescope/*` | — | — |
 | `packages/workflows/*` | — | — |
+| `packages/mail/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md` |
+| `packages/cms/*`, `packages/core/*`, `packages/full/*` | — (metapackages) | — |
+| `packages/graphql/*` | — (stub) | — |
 | GitHub issues, milestones, new features, roadmap | — | `docs/specs/workflow.md`, `docs/specs/v1.5-verification-gate-contract.md`, `docs/specs/v1.6-verification-gate-contract.md` |
+| `docs/specs/**`, `.claude/**`, `**/CLAUDE.md` | `updating-codified-context` | — |
 
 Use `waaseyaa_search_specs` MCP tool to find specs affected by a change when the mapping isn't obvious.
 
@@ -46,13 +50,13 @@ Use `waaseyaa_search_specs` MCP tool to find specs affected by a change when the
 
 | Layer | Name | Packages |
 |---|---|---|
-| 0 | Foundation | foundation, cache, plugin, typed-data, database-legacy, testing, i18n, queue, state, validation |
+| 0 | Foundation | foundation, cache, plugin, typed-data, database-legacy, testing, i18n, queue, state, validation, mail |
 | 1 | Core Data | entity, entity-storage, access, user, config, field |
 | 2 | Content Types | node, taxonomy, media, path, menu, note, relationship |
 | 3 | Services | workflows, search |
 | 4 | API | api, routing |
 | 5 | AI | ai-schema, ai-agent, ai-pipeline, ai-vector |
-| 6 | Interfaces | cli, admin, mcp, ssr, telescope |
+| 6 | Interfaces | cli, admin, mcp, ssr, telescope, graphql |
 
 **Rule:** Packages can only import from their own layer or lower. Upward communication via DomainEvents.
 

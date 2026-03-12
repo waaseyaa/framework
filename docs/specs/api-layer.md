@@ -655,6 +655,57 @@ final class OpenApiGenerator
 
 Generates OpenAPI 3.1.0 spec. For each entity type, creates four component schemas (`{Type}Resource`, `{Type}Attributes`, `{Type}CreateRequest`, `{Type}UpdateRequest`) and five path operations. Includes shared schemas for `JsonApiDocument`, `JsonApiErrorDocument`, `JsonApiError`, `JsonApiVersion`, and `JsonApiLinks`.
 
+## Discovery API Handler
+
+`DiscoveryApiHandler` encapsulates logic for discovery endpoints (topic hubs, clusters, timelines, entity endpoint pages). It handles discovery cache primitives, relationship type parsing, entity visibility checks, and cache key building.
+
+### Instantiation Lifecycle
+
+`DiscoveryApiHandler` is instantiated in `HttpKernel::handle()` **after** `boot()` completes and after the cache infrastructure is set up. The creation sequence in `handle()` is:
+
+1. `$this->boot()` — bootstraps providers, entity types, access policies, and the event dispatcher.
+2. Cache bins are configured (`render`, `discovery`, `mcp_read`) via `CacheFactory`.
+3. `$this->discoveryHandler = new DiscoveryApiHandler(...)` is created with three dependencies:
+   - `$this->entityTypeManager` — the fully booted `EntityTypeManager` (available after `boot()`).
+   - `$this->database` — the `PdoDatabase` instance (available after `boot()`).
+   - `$this->discoveryCache` — a `CacheBackendInterface` (`DatabaseBackend` backed by the `cache_discovery` table), created moments earlier in the same method.
+
+The handler is stored as `$this->discoveryHandler` on the kernel and subsequently passed to both `SsrPageHandler` and `ControllerDispatcher`.
+
+### Constructor
+
+```php
+// packages/api/src/Http/DiscoveryApiHandler.php
+final class DiscoveryApiHandler
+{
+    public function __construct(
+        private readonly EntityTypeManager $entityTypeManager,
+        private readonly PdoDatabase $database,
+        private readonly ?CacheBackendInterface $discoveryCache = null,
+    ) {}
+}
+```
+
+### Key Capabilities
+
+| Method | Purpose |
+|--------|---------|
+| `parseRelationshipTypesQuery(mixed $value): list<string>` | Normalizes comma-separated string or array query param into a list of relationship type IDs |
+| `buildDiscoveryCacheKey(string $surface, string $entityType, string $entityId, array $options): string` | Delegates to `DiscoveryCachePrimitives` to build a deterministic cache key |
+| `normalizeForCacheKey(mixed $value): mixed` | Recursively sorts associative array keys for stable cache key generation |
+| `getDiscoveryCachedResponse(string $cacheKey, AccountInterface $account): ?array` | Returns cached response for anonymous users; bypasses cache for authenticated users |
+| `prepareDiscoveryResponse(int $status, array $payload, string $cacheKey, AccountInterface $account): array` | Returns `[payload, headers]` tuple — caches for anonymous (public, max-age=120), sets `no-store` for authenticated |
+| `isDiscoveryEndpointPairPublic(string $fromType, string $fromId, string $toType, string $toId): bool` | Checks both endpoints of a relationship exist and are publicly visible via `WorkflowVisibility` |
+| `loadDiscoveryEntity(string $entityType, string $entityId): ?EntityInterface` | Loads an entity by type and ID (resolves numeric strings to int), returns null on any failure |
+| `isDiscoveryEntityPublic(string $entityType, array $values): bool` | Delegates to `WorkflowVisibility::isEntityPublic()` for publish-state checking |
+| `createDiscoveryService(): RelationshipDiscoveryService` | Factory method — creates a `RelationshipDiscoveryService` with a `RelationshipTraversalService` wired to the handler's entity type manager and database |
+
+### Discovery Cache Strategy
+
+- **Anonymous users**: Responses are cached in the `discovery` cache bin with a 120-second TTL. Cache tags are derived from the payload via `DiscoveryCachePrimitives::buildTags()`. Cached responses include `X-Waaseyaa-Discovery-Cache: MISS` on first generation.
+- **Authenticated users**: Cache is bypassed entirely (`Cache-Control: private, no-store`) to ensure fresh, access-aware results.
+- Cache invalidation is handled by event listeners registered via `EventListenerRegistrar::registerDiscoveryCacheListeners()`.
+
 ## File Reference
 
 ```
@@ -667,6 +718,8 @@ packages/api/
       BroadcastStorage.php
       SchemaController.php
       TranslationController.php
+    Http/
+      DiscoveryApiHandler.php
     OpenApi/
       OpenApiGenerator.php
       SchemaBuilder.php

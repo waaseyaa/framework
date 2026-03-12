@@ -10,6 +10,7 @@ Specification for the foundational infrastructure layer of Waaseyaa CMS: domain 
 | `packages/cache/` | `Waaseyaa\Cache\` | 0 (Foundation) | CacheBackendInterface, MemoryBackend, DatabaseBackend, NullBackend, tag invalidation |
 | `packages/database-legacy/` | `Waaseyaa\Database\` | 0 (Foundation) | DatabaseInterface, PdoDatabase, query builder (select/insert/update/delete), schema, transactions |
 | `packages/plugin/` | `Waaseyaa\Plugin\` | 0 (Foundation) | PluginManager, attribute-based plugin discovery, plugin factory |
+| `packages/mail/` | `Waaseyaa\Mail\` | 0 (Foundation) | Transport-agnostic mail API with Twig templating, pluggable transports (ArrayTransport for tests, LocalTransport for file-based delivery) |
 
 ## Domain Events
 
@@ -202,6 +203,25 @@ File: `packages/cache/src/CacheTagsInvalidator.php`
 | `EntityCacheInvalidator` | `packages/cache/src/Listener/EntityCacheInvalidator.php` | `EntityEvent` (post-save, post-delete) | `entity:{type}`, `entity:{type}:{id}` |
 | `ConfigCacheInvalidator` | `packages/cache/src/Listener/ConfigCacheInvalidator.php` | `ConfigEvent` (post-save, post-delete) | `config`, `config:{name}` |
 | `TranslationCacheInvalidator` | `packages/cache/src/Listener/TranslationCacheInvalidator.php` | Translation events | Translation-specific tags |
+
+### Cache initialization timing in HttpKernel
+
+Cache setup follows a two-stage lifecycle:
+
+1. **Boot phase** (`AbstractKernel::boot()`): Core services are initialized (database, config, entity type manager, dispatcher, access handler). No cache bins or cache-related objects are created yet.
+
+2. **Handle phase** (`HttpKernel::handle()`, after `boot()` returns):
+   - `CacheConfigResolver` is instantiated with the loaded config array.
+   - `CacheConfiguration` is created and bin factories are registered for `render`, `discovery`, and `mcp_read` bins (all database-backed).
+   - `CacheFactory` creates the three cache backends.
+   - `RenderCache` wraps the render backend; `discoveryCache` and `mcpReadCache` are stored as `CacheBackendInterface` references.
+   - `EventListenerRegistrar` registers invalidation listeners in this order:
+     1. `registerRenderCacheListeners(renderCache)`
+     2. `registerDiscoveryCacheListeners(discoveryCache)`
+     3. `registerMcpReadCacheListeners(mcpReadCache)`
+   - All three listener methods subscribe to `EntityEvents::POST_SAVE->value` and `EntityEvents::POST_DELETE->value` (the string-backed enum values from `Waaseyaa\Entity\Event\EntityEvents`, e.g. `'waaseyaa.entity.post_save'`).
+
+This means `CacheConfigResolver` is **not** available during boot — it requires the config array which is populated by boot, and is only needed by the SSR page handler created later in `handle()`.
 
 ### Atomic file writes pattern
 
@@ -534,7 +554,7 @@ try {
 
 ## Schema System
 
-### SchemaInterface (legacy)
+### SchemaInterface (database DDL)
 
 File: `packages/database-legacy/src/SchemaInterface.php`
 
@@ -557,6 +577,8 @@ interface SchemaInterface
 `PdoSchema` uses SQLite-specific SQL. Type mapping: `serial` -> INTEGER AUTOINCREMENT, `varchar` -> TEXT, `int`/`integer` -> INTEGER, `text` -> TEXT, `float`/`numeric`/`decimal` -> REAL, `blob` -> BLOB.
 
 Note: SQLite cannot add a primary key to an existing table. `addPrimaryKey()` throws `\RuntimeException`.
+
+**Distinction from SchemaPresenter**: `SchemaInterface` is a database DDL abstraction in `packages/database-legacy/` for creating/altering tables. It is unrelated to `SchemaPresenter` (`packages/api/src/Schema/SchemaPresenter.php`), which generates JSON Schema output from entity field definitions for the API layer. `SchemaPresenter` works with `EntityType::getFieldDefinitions()` and does not use `SchemaInterface`.
 
 ## Migration System
 

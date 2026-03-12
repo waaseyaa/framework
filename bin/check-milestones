@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Reports milestone drift for Claude session-start awareness.
+# Always exits 0 — this is a warning surface, not a CI gate.
+
+REPO="jonesrussell/waaseyaa"
+WARNINGS=0
+
+echo "=== Milestone drift check ==="
+
+# Check if gh CLI is available
+if ! command -v gh &>/dev/null; then
+  echo "SKIP: gh CLI not found — install GitHub CLI to enable milestone checks"
+  exit 0
+fi
+
+# Check if authenticated
+if ! gh auth status &>/dev/null 2>&1; then
+  echo "SKIP: gh not authenticated — run 'gh auth login' to enable milestone checks"
+  exit 0
+fi
+
+# Open issues with no milestone
+echo ""
+echo "--- Open issues with no milestone ---"
+NO_MILESTONE=$(gh issue list --repo "$REPO" --no-milestone --state open --limit 100 --json number,title 2>/dev/null || echo "[]")
+COUNT=$(echo "$NO_MILESTONE" | grep -c '"number"' || true)
+
+if [[ "$COUNT" -gt 0 ]]; then
+  echo "WARNING: $COUNT open issue(s) without a milestone (incomplete triage):"
+  echo "$NO_MILESTONE" | grep -oP '"number":\s*\K\d+|"title":\s*"\K[^"]+' | paste - - | while read -r num title; do
+    echo "  #$num — $title"
+  done
+  WARNINGS=1
+else
+  echo "OK: All open issues have milestones"
+fi
+
+# Open milestones with no open issues
+echo ""
+echo "--- Open milestones with no open issues ---"
+MILESTONES=$(gh api "repos/$REPO/milestones?state=open" 2>/dev/null || echo "[]")
+EMPTY_MILESTONES=$(echo "$MILESTONES" | grep -oP '"title":\s*"\K[^"]+|"open_issues":\s*\K\d+' | paste - - | awk -F'\t' '$2 == "0" { print $1 }')
+
+if [[ -n "$EMPTY_MILESTONES" ]]; then
+  echo "WARNING: Open milestones with no open issues (possibly stale):"
+  echo "$EMPTY_MILESTONES" | while read -r ms; do
+    echo "  - $ms"
+  done
+  WARNINGS=1
+else
+  echo "OK: All open milestones have open issues"
+fi
+
+# Active milestone summary
+echo ""
+echo "--- Active milestones ---"
+echo "$MILESTONES" | grep -oP '"title":\s*"\K[^"]+|"open_issues":\s*\K\d+|"closed_issues":\s*\K\d+' | paste - - - | while read -r title open closed; do
+  total=$((open + closed))
+  if [[ "$total" -gt 0 ]]; then
+    pct=$((closed * 100 / total))
+  else
+    pct=0
+  fi
+  echo "  $title: $open open / $closed closed ($pct% complete)"
+done
+
+echo ""
+if [[ "$WARNINGS" -gt 0 ]]; then
+  echo "Review warnings above before starting work."
+else
+  echo "No drift detected."
+fi
+
+exit 0
