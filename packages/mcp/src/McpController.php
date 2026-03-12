@@ -9,13 +9,13 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Vector\EmbeddingProviderInterface;
 use Waaseyaa\AI\Vector\EmbeddingStorageInterface;
 use Waaseyaa\AI\Vector\SearchController;
-use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Mcp\Cache\ReadCache;
 use Waaseyaa\Mcp\Rpc\ResponseFormatter;
+use Waaseyaa\Mcp\Tools\EntityTools;
 use Waaseyaa\Entity\FieldableInterface;
 use Waaseyaa\Relationship\RelationshipTraversalService;
 use Waaseyaa\Workflows\EditorialTransitionAccessResolver;
@@ -29,6 +29,7 @@ final class McpController
     private const string CONTRACT_STABILITY = 'stable';
     private readonly ResponseFormatter $formatter;
     private readonly ReadCache $readCacheHandler;
+    private readonly EntityTools $entityTools;
     private readonly EditorialWorkflowStateMachine $editorialStateMachine;
     private readonly EditorialTransitionAccessResolver $editorialTransitionResolver;
     private readonly WorkflowVisibility $workflowVisibility;
@@ -46,6 +47,12 @@ final class McpController
     ) {
         $this->formatter = new ResponseFormatter();
         $this->readCacheHandler = new ReadCache(account: $this->account, backend: $this->readCache);
+        $this->entityTools = new EntityTools(
+            entityTypeManager: $this->entityTypeManager,
+            serializer: $this->serializer,
+            accessHandler: $this->accessHandler,
+            account: $this->account,
+        );
         $this->editorialStateMachine = new EditorialWorkflowStateMachine();
         $this->editorialTransitionResolver = new EditorialTransitionAccessResolver($this->editorialStateMachine);
         $this->workflowVisibility = new WorkflowVisibility($this->editorialStateMachine);
@@ -199,8 +206,8 @@ final class McpController
                 'search_entities' => $this->toolSearchEntities($arguments),
                 'search_teachings' => $this->toolSearchTeachings($arguments),
                 'ai_discover' => $this->toolAiDiscover($arguments),
-                'get_entity' => $this->toolGetEntity($arguments),
-                'list_entity_types' => $this->toolListEntityTypes(),
+                'get_entity' => $this->entityTools->getEntity($arguments),
+                'list_entity_types' => $this->entityTools->listEntityTypes(),
                 'traverse_relationships' => $this->toolTraverseRelationships($arguments),
                 'get_related_entities' => $this->toolGetRelatedEntities($arguments),
                 'get_knowledge_graph' => $this->toolGetKnowledgeGraph($arguments),
@@ -349,43 +356,6 @@ final class McpController
                 'anchor' => $anchor,
             ],
         ];
-    }
-
-    /**
-     * @param array<string, mixed> $arguments
-     * @return array<string, mixed>
-     */
-    private function toolGetEntity(array $arguments): array
-    {
-        $entityType = is_string($arguments['type'] ?? null) ? trim($arguments['type']) : '';
-        $id = $arguments['id'] ?? null;
-
-        $controller = new JsonApiController(
-            entityTypeManager: $this->entityTypeManager,
-            serializer: $this->serializer,
-            accessHandler: $this->accessHandler,
-            account: $this->account,
-        );
-
-        return $controller->show($entityType, is_numeric((string) $id) ? (int) $id : (string) $id)->toArray();
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function toolListEntityTypes(): array
-    {
-        $types = [];
-        foreach ($this->entityTypeManager->getDefinitions() as $id => $definition) {
-            $types[] = [
-                'id' => $id,
-                'label' => $definition->getLabel(),
-                'keys' => $definition->getKeys(),
-                'fields' => $definition->getFieldDefinitions(),
-            ];
-        }
-
-        return ['data' => $types];
     }
 
     /**
