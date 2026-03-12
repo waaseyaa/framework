@@ -17,6 +17,7 @@ use Waaseyaa\Cache\CacheConfigResolver;
 use Waaseyaa\Cache\CacheFactory;
 use Waaseyaa\Cache\CacheConfiguration;
 use Waaseyaa\Foundation\Http\CorsHandler;
+use Waaseyaa\Foundation\Http\ResponseSender;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Foundation\Http\ControllerDispatcher;
 use Waaseyaa\SSR\SsrPageHandler;
@@ -58,7 +59,7 @@ final class HttpKernel extends AbstractKernel
         $method = $_SERVER['REQUEST_METHOD'];
         $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
         if (!is_string($path)) {
-            $this->sendJson(400, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '400', 'title' => 'Bad Request', 'detail' => 'Malformed request URI.']]]);
+            ResponseSender::json(400, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '400', 'title' => 'Bad Request', 'detail' => 'Malformed request URI.']]]);
         }
         $queryString = $_SERVER['QUERY_STRING'] ?? '';
 
@@ -109,12 +110,12 @@ final class HttpKernel extends AbstractKernel
         try {
             $params = $router->match($path);
         } catch (\Symfony\Component\Routing\Exception\ResourceNotFoundException) {
-            $this->sendJson(404, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => 'No route matches the requested path.']]]);
+            ResponseSender::json(404, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => 'No route matches the requested path.']]]);
         } catch (\Symfony\Component\Routing\Exception\MethodNotAllowedException) {
-            $this->sendJson(405, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '405', 'title' => 'Method Not Allowed', 'detail' => "Method {$method} is not allowed for this route."]]]);
+            ResponseSender::json(405, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '405', 'title' => 'Method Not Allowed', 'detail' => "Method {$method} is not allowed for this route."]]]);
         } catch (\Throwable $e) {
             error_log(sprintf('[Waaseyaa] Routing error: %s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine()));
-            $this->sendJson(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'A routing error occurred.']]]);
+            ResponseSender::json(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'A routing error occurred.']]]);
         }
 
         // Authorization pipeline.
@@ -156,7 +157,7 @@ final class HttpKernel extends AbstractKernel
             );
         } catch (\Throwable $e) {
             error_log(sprintf('[Waaseyaa] Authorization pipeline error: %s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine()));
-            $this->sendJson(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'An authorization error occurred.']]]);
+            ResponseSender::json(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'An authorization error occurred.']]]);
         }
 
         if ($authResponse->getStatusCode() >= 400) {
@@ -167,7 +168,7 @@ final class HttpKernel extends AbstractKernel
         $account = $httpRequest->attributes->get('_account');
         if (!$account instanceof AccountInterface) {
             error_log('[Waaseyaa] _account attribute missing or invalid after authorization pipeline.');
-            $this->sendJson(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'Account resolution failed.']]]);
+            ResponseSender::json(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'Account resolution failed.']]]);
         }
 
         // Dispatch.
@@ -239,27 +240,5 @@ final class HttpKernel extends AbstractKernel
     }
 
 
-
-    /**
-     * @param array<string, string> $headers
-     */
-    private function sendJson(int $status, array $data, array $headers = []): never
-    {
-        http_response_code($status);
-        header('Content-Type: application/vnd.api+json');
-        foreach ($headers as $name => $value) {
-            if (strtolower($name) === 'content-type') {
-                continue;
-            }
-            header($name . ': ' . $value);
-        }
-        try {
-            echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
-        } catch (\JsonException $e) {
-            error_log(sprintf('[Waaseyaa] JSON encoding failed in sendJson: %s', $e->getMessage()));
-            echo '{"jsonapi":{"version":"1.1"},"errors":[{"status":"500","title":"Internal Server Error","detail":"Response encoding failed."}]}';
-        }
-        exit;
-    }
 
 }
