@@ -14,6 +14,7 @@ use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Mcp\Rpc\ResponseFormatter;
 use Waaseyaa\Entity\FieldableInterface;
 use Waaseyaa\Relationship\RelationshipTraversalService;
 use Waaseyaa\Workflows\EditorialTransitionAccessResolver;
@@ -27,6 +28,7 @@ final class McpController
     private const string CONTRACT_STABILITY = 'stable';
     private const int READ_CACHE_MAX_AGE = 120;
 
+    private readonly ResponseFormatter $formatter;
     private readonly EditorialWorkflowStateMachine $editorialStateMachine;
     private readonly EditorialTransitionAccessResolver $editorialTransitionResolver;
     private readonly WorkflowVisibility $workflowVisibility;
@@ -42,6 +44,7 @@ final class McpController
         private readonly ?CacheBackendInterface $readCache = null,
         private readonly array $extensionRegistrations = [],
     ) {
+        $this->formatter = new ResponseFormatter();
         $this->editorialStateMachine = new EditorialWorkflowStateMachine();
         $this->editorialTransitionResolver = new EditorialTransitionAccessResolver($this->editorialStateMachine);
         $this->workflowVisibility = new WorkflowVisibility($this->editorialStateMachine);
@@ -56,7 +59,7 @@ final class McpController
             'protocolVersion' => '2024-11-05',
             'server' => [
                 'name' => 'Waaseyaa MCP',
-                'version' => self::CONTRACT_VERSION,
+                'version' => $this->formatter->contractVersion(),
             ],
             'tools' => [
                 ['name' => 'search_entities', 'description' => 'Stable semantic/keyword search contract for entities'],
@@ -86,10 +89,10 @@ final class McpController
         $params = is_array($rpc['params'] ?? null) ? $rpc['params'] : [];
 
         return match ($method) {
-            'tools/list' => $this->result($id, ['tools' => $this->manifest()['tools']]),
+            'tools/list' => $this->formatter->result($id, ['tools' => $this->manifest()['tools']]),
             'tools/introspect' => $this->handleToolIntrospection($id, $params),
             'tools/call' => $this->handleToolCall($id, $params),
-            default => $this->error($id, -32601, "Method not found: {$method}"),
+            default => $this->formatter->error($id, -32601, "Method not found: {$method}"),
         };
     }
 
@@ -101,7 +104,7 @@ final class McpController
     {
         $requestedTool = is_string($params['name'] ?? null) ? trim($params['name']) : '';
         if ($requestedTool === '') {
-            return $this->error($id, -32602, 'Missing tool name.');
+            return $this->formatter->error($id, -32602, 'Missing tool name.');
         }
 
         $knownTools = array_map(
@@ -109,10 +112,10 @@ final class McpController
             $this->manifest()['tools'],
         );
         if (!in_array($requestedTool, $knownTools, true)) {
-            return $this->error($id, -32602, "Unknown tool: {$requestedTool}");
+            return $this->formatter->error($id, -32602, "Unknown tool: {$requestedTool}");
         }
 
-        $canonicalTool = $this->canonicalToolName($requestedTool);
+        $canonicalTool = $this->formatter->canonicalToolName($requestedTool);
         $descriptor = $this->toolDiagnosticsDescriptor($canonicalTool);
         $extensions = $this->introspectionExtensionsForTool($requestedTool, $canonicalTool);
         $executionPath = $descriptor['execution_path'];
@@ -132,7 +135,7 @@ final class McpController
             $stableMeta['deprecated_alias'] = $requestedTool;
         }
 
-        return $this->result($id, [
+        return $this->formatter->result($id, [
             'tool' => [
                 'requested' => $requestedTool,
                 'canonical' => $canonicalTool,
@@ -179,14 +182,14 @@ final class McpController
         $arguments = is_array($params['arguments'] ?? null) ? $params['arguments'] : [];
 
         if ($tool === '') {
-            return $this->error($id, -32602, 'Missing tool name.');
+            return $this->formatter->error($id, -32602, 'Missing tool name.');
         }
 
         $cacheKey = $this->buildReadCacheKeyForTool($tool, $arguments);
         if ($cacheKey !== null) {
             $cachedResult = $this->getReadCachedToolResult($cacheKey);
             if ($cachedResult !== null) {
-                return $this->result($id, $this->formatToolContent($cachedResult));
+                return $this->formatter->result($id, $this->formatter->formatToolContent($cachedResult));
             }
         }
 
@@ -207,20 +210,20 @@ final class McpController
                 default => null,
             };
         } catch (\InvalidArgumentException $e) {
-            return $this->error($id, -32602, $e->getMessage());
+            return $this->formatter->error($id, -32602, $e->getMessage());
         } catch (\Throwable $e) {
-            return $this->error($id, -32000, $e->getMessage());
+            return $this->formatter->error($id, -32000, $e->getMessage());
         }
 
         if ($result === null) {
-            return $this->error($id, -32602, "Unknown tool: {$tool}");
+            return $this->formatter->error($id, -32602, "Unknown tool: {$tool}");
         }
-        $result = $this->withStableContractMeta($result, $tool);
+        $result = $this->formatter->withStableContractMeta($result, $tool);
         if ($cacheKey !== null) {
             $this->setReadCachedToolResult($cacheKey, $tool, $arguments, $result);
         }
 
-        return $this->result($id, $this->formatToolContent($result));
+        return $this->formatter->result($id, $this->formatter->formatToolContent($result));
     }
 
     /**
@@ -1168,59 +1171,6 @@ final class McpController
     }
 
     /**
-     * @return array<string, mixed>
-     */
-    private function result(mixed $id, mixed $result): array
-    {
-        return [
-            'jsonrpc' => '2.0',
-            'id' => $id,
-            'result' => $result,
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function error(mixed $id, int $code, string $message): array
-    {
-        return [
-            'jsonrpc' => '2.0',
-            'id' => $id,
-            'error' => [
-                'code' => $code,
-                'message' => $message,
-            ],
-        ];
-    }
-
-    /**
-     * @param array<string, mixed> $result
-     * @return array<string, mixed>
-     */
-    private function withStableContractMeta(array $result, string $invokedTool): array
-    {
-        if (!isset($result['meta']) || !is_array($result['meta'])) {
-            $result['meta'] = [];
-        }
-
-        $canonicalTool = $this->canonicalToolName($invokedTool);
-        $result['meta']['contract_version'] = self::CONTRACT_VERSION;
-        $result['meta']['contract_stability'] = self::CONTRACT_STABILITY;
-        $result['meta']['tool_invoked'] = $invokedTool;
-        if (!is_string($result['meta']['tool'] ?? null) || trim($result['meta']['tool']) === '') {
-            $result['meta']['tool'] = $canonicalTool;
-        }
-
-        return $result;
-    }
-
-    private function canonicalToolName(string $tool): string
-    {
-        return $tool === 'search_teachings' ? 'search_entities' : $tool;
-    }
-
-    /**
      * @return array{
      *   count: int,
      *   registered: list<array{
@@ -1258,7 +1208,7 @@ final class McpController
                     if (!is_string($tool)) {
                         continue;
                     }
-                    $normalizedTool = $this->canonicalToolName(strtolower(trim($tool)));
+                    $normalizedTool = $this->formatter->canonicalToolName(strtolower(trim($tool)));
                     if ($normalizedTool !== '') {
                         $tools[] = $normalizedTool;
                     }
@@ -1454,20 +1404,6 @@ final class McpController
                 'failure_modes' => ['unknown_tool'],
             ],
         };
-    }
-
-    /**
-     * @param array<string, mixed> $result
-     * @return array{content: array<int, array{type: string, text: string}>}
-     */
-    private function formatToolContent(array $result): array
-    {
-        return [
-            'content' => [[
-                'type' => 'text',
-                'text' => json_encode($result, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
-            ]],
-        ];
     }
 
     /**
