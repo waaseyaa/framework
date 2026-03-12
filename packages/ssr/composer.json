@@ -14,9 +14,10 @@
         {"type": "path", "url": "../access"}
     ],
     "require": {
-        "php": ">=8.3",
+        "php": ">=8.4",
         "waaseyaa/access": "@dev",
         "waaseyaa/cache": "@dev",
+        "waaseyaa/config": "@dev",
         "waaseyaa/entity": "@dev",
         "waaseyaa/field": "@dev",
         "waaseyaa/routing": "@dev",

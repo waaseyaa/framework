@@ -8,7 +8,9 @@ use Twig\Environment;
 use Twig\Loader\ChainLoader;
 use Twig\Loader\FilesystemLoader;
 use Twig\TwigFunction;
+use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\SSR\Twig\WaaseyaaExtension;
 
 final class ThemeServiceProvider extends ServiceProvider
 {
@@ -58,6 +60,18 @@ final class ThemeServiceProvider extends ServiceProvider
                 ['is_safe' => ['html']],
             ));
         }
+
+        $configFactory = null;
+        if (interface_exists(ConfigFactoryInterface::class)) {
+            // ConfigFactory will be available at runtime when the config package is loaded.
+            // For static factory usage (tests), configFactory stays null and config() returns ''.
+        }
+
+        $env->addExtension(new WaaseyaaExtension(
+            assetBasePath: (string) ($config['ssr']['asset_base_path'] ?? ''),
+            configFactory: $configFactory,
+            envWhitelist: (array) ($config['ssr']['env_whitelist'] ?? []),
+        ));
 
         return $env;
     }
