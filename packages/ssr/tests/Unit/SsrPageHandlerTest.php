@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Waaseyaa\Foundation\Tests\Unit\Http;
+namespace Waaseyaa\SSR\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -13,7 +13,7 @@ use Waaseyaa\Cache\CacheConfigResolver;
 use Waaseyaa\Database\PdoDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\DiscoveryApiHandler;
-use Waaseyaa\Foundation\Http\SsrPageHandler;
+use Waaseyaa\SSR\SsrPageHandler;
 
 #[CoversClass(SsrPageHandler::class)]
 final class SsrPageHandlerTest extends TestCase

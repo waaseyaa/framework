@@ -19,7 +19,7 @@ use Waaseyaa\Cache\CacheConfiguration;
 use Waaseyaa\Foundation\Http\CorsHandler;
 use Waaseyaa\Foundation\Http\DiscoveryApiHandler;
 use Waaseyaa\Foundation\Http\ControllerDispatcher;
-use Waaseyaa\Foundation\Http\SsrPageHandler;
+use Waaseyaa\SSR\SsrPageHandler;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
 use Waaseyaa\Routing\AccessChecker;

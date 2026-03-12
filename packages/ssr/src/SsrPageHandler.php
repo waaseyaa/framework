@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Waaseyaa\Foundation\Http;
+namespace Waaseyaa\SSR;
 
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
@@ -11,6 +11,7 @@ use Waaseyaa\Cache\CacheConfigResolver;
 use Waaseyaa\Database\PdoDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\Http\DiscoveryApiHandler;
 use Waaseyaa\I18n\Language;
 use Waaseyaa\I18n\LanguageManager;
 use Waaseyaa\Path\PathAliasResolver;
@@ -19,13 +20,6 @@ use Waaseyaa\Relationship\RelationshipTraversalService;
 use Waaseyaa\Routing\Language\AcceptHeaderNegotiator;
 use Waaseyaa\Routing\Language\LanguageNegotiator;
 use Waaseyaa\Routing\Language\UrlPrefixNegotiator;
-use Waaseyaa\SSR\ArrayViewModeConfig;
-use Waaseyaa\SSR\EntityRenderer;
-use Waaseyaa\SSR\FieldFormatterRegistry;
-use Waaseyaa\SSR\RenderCache;
-use Waaseyaa\SSR\RenderController;
-use Waaseyaa\SSR\SsrServiceProvider;
-use Waaseyaa\SSR\ViewMode;
 use Waaseyaa\Workflows\EditorialVisibilityResolver;
 
 /**

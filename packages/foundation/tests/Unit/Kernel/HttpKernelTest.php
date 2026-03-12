@@ -23,7 +23,7 @@ use Waaseyaa\Foundation\Http\DiscoveryApiHandler;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityTypeLifecycleManager;
 use Waaseyaa\Foundation\Http\ControllerDispatcher;
-use Waaseyaa\Foundation\Http\SsrPageHandler;
+use Waaseyaa\SSR\SsrPageHandler;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Kernel\BuiltinRouteRegistrar;
 use Waaseyaa\Foundation\Kernel\EventListenerRegistrar;

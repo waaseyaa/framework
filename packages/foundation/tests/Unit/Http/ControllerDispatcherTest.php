@@ -15,7 +15,7 @@ use Waaseyaa\Entity\EntityTypeLifecycleManager;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\ControllerDispatcher;
 use Waaseyaa\Foundation\Http\DiscoveryApiHandler;
-use Waaseyaa\Foundation\Http\SsrPageHandler;
+use Waaseyaa\SSR\SsrPageHandler;
 
 #[CoversClass(ControllerDispatcher::class)]
 final class ControllerDispatcherTest extends TestCase

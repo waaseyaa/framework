@@ -27,6 +27,7 @@ use Waaseyaa\AI\Vector\EmbeddingProviderFactory;
 use Waaseyaa\AI\Vector\SearchController;
 use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\Mcp\McpController;
+use Waaseyaa\SSR\SsrPageHandler;
 
 /**
  * Routes a matched controller name to the appropriate handler.
