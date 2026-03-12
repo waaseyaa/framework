@@ -1,0 +1,41 @@
+parameters:
+    level: 5
+    paths:
+        - packages/foundation/src
+        - packages/cache/src
+        - packages/plugin/src
+        - packages/typed-data/src
+        - packages/database-legacy/src
+        - packages/testing/src
+        - packages/i18n/src
+        - packages/queue/src
+        - packages/state/src
+        - packages/validation/src
+        - packages/entity/src
+        - packages/entity-storage/src
+        - packages/field/src
+        - packages/config/src
+        - packages/access/src
+        - packages/user/src
+        - packages/node/src
+        - packages/taxonomy/src
+        - packages/media/src
+        - packages/menu/src
+        - packages/path/src
+        - packages/note/src
+        - packages/relationship/src
+        - packages/workflows/src
+        - packages/search/src
+        - packages/api/src
+        - packages/routing/src
+        - packages/ai-schema/src
+        - packages/ai-agent/src
+        - packages/ai-pipeline/src
+        - packages/ai-vector/src
+        - packages/cli/src
+        - packages/mcp/src
+        - packages/ssr/src
+        - packages/telescope/src
+    excludePaths:
+        - packages/*/vendor/*
+    reportUnmatchedIgnoredErrors: false
