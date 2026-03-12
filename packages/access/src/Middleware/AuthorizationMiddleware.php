@@ -10,6 +10,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Route;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\ErrorPageRendererInterface;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\Routing\AccessChecker;
@@ -18,6 +19,7 @@ final class AuthorizationMiddleware implements HttpMiddlewareInterface
 {
     public function __construct(
         private readonly AccessChecker $accessChecker,
+        private readonly ?ErrorPageRendererInterface $errorPageRenderer = null,
     ) {}
 
     public function process(Request $request, HttpHandlerInterface $next): Response
@@ -35,7 +37,7 @@ final class AuthorizationMiddleware implements HttpMiddlewareInterface
             error_log('[Waaseyaa] AuthorizationMiddleware: _account not set or invalid; denying access.');
 
             if ($isRenderRoute) {
-                return $this->renderHtmlError(403, 'Forbidden', 'No authenticated account available.', $request);
+                return $this->renderError(403, 'Forbidden', 'No authenticated account available.', $request);
             }
 
             return new JsonResponse([
@@ -71,7 +73,7 @@ final class AuthorizationMiddleware implements HttpMiddlewareInterface
 
         if ($result->isForbidden()) {
             if ($isRenderRoute) {
-                return $this->renderHtmlError(403, 'Forbidden', $result->reason ?? 'You do not have permission to access this page.', $request);
+                return $this->renderError(403, 'Forbidden', $result->reason ?? 'You do not have permission to access this page.', $request);
             }
 
             return new JsonResponse([
@@ -90,6 +92,18 @@ final class AuthorizationMiddleware implements HttpMiddlewareInterface
     private function isRenderRoute(Route $route): bool
     {
         return $route->getOption('_render') === true;
+    }
+
+    private function renderError(int $statusCode, string $title, string $detail, Request $request): Response
+    {
+        if ($this->errorPageRenderer !== null) {
+            $response = $this->errorPageRenderer->render($statusCode, $title, $detail, $request);
+            if ($response !== null) {
+                return $response;
+            }
+        }
+
+        return $this->renderHtmlError($statusCode, $title, $detail, $request);
     }
 
     private function renderHtmlError(int $statusCode, string $title, string $detail, Request $request): Response

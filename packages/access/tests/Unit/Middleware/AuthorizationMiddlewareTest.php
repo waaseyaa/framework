@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Route;
+use Waaseyaa\Access\ErrorPageRendererInterface;
 use Waaseyaa\Access\Middleware\AuthorizationMiddleware;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Routing\AccessChecker;
@@ -258,5 +259,118 @@ final class AuthorizationMiddlewareTest extends TestCase
 
         $this->assertSame(403, $response->getStatusCode());
         $this->assertStringContainsString('application/vnd.api+json', $response->headers->get('Content-Type'));
+    }
+
+    #[Test]
+    public function render_route_403_uses_error_page_renderer_when_available(): void
+    {
+        $route = new Route('/admin/settings');
+        $route->setOption('_permission', 'administer site');
+        $route->setOption('_render', true);
+
+        $renderer = new class implements ErrorPageRendererInterface {
+            public function render(int $statusCode, string $title, string $detail, Request $request): ?Response
+            {
+                return new Response("<h1>{$statusCode} {$title}</h1><p>{$detail}</p>", $statusCode, ['Content-Type' => 'text/html; charset=UTF-8']);
+            }
+        };
+
+        $account = new AnonymousUser();
+        $accessChecker = new AccessChecker();
+        $middleware = new AuthorizationMiddleware($accessChecker, $renderer);
+
+        $request = Request::create('/admin/settings');
+        $request->attributes->set('_account', $account);
+        $request->attributes->set('_route_object', $route);
+
+        $next = new class implements HttpHandlerInterface {
+            public function handle(Request $request): Response
+            {
+                return new Response('should not reach here');
+            }
+        };
+
+        $response = $middleware->process($request, $next);
+
+        $this->assertSame(403, $response->getStatusCode());
+        $this->assertStringContainsString('403 Forbidden', $response->getContent());
+        // Should NOT contain the hardcoded fallback styling.
+        $this->assertStringNotContainsString('#111827', $response->getContent());
+    }
+
+    #[Test]
+    public function render_route_403_falls_back_when_renderer_returns_null(): void
+    {
+        $route = new Route('/admin/settings');
+        $route->setOption('_permission', 'administer site');
+        $route->setOption('_render', true);
+
+        $renderer = new class implements ErrorPageRendererInterface {
+            public function render(int $statusCode, string $title, string $detail, Request $request): ?Response
+            {
+                return null;
+            }
+        };
+
+        $account = new AnonymousUser();
+        $accessChecker = new AccessChecker();
+        $middleware = new AuthorizationMiddleware($accessChecker, $renderer);
+
+        $request = Request::create('/admin/settings');
+        $request->attributes->set('_account', $account);
+        $request->attributes->set('_route_object', $route);
+
+        $next = new class implements HttpHandlerInterface {
+            public function handle(Request $request): Response
+            {
+                return new Response('should not reach here');
+            }
+        };
+
+        $response = $middleware->process($request, $next);
+
+        $this->assertSame(403, $response->getStatusCode());
+        // Falls back to hardcoded HTML with the dark background.
+        $this->assertStringContainsString('#111827', $response->getContent());
+        $this->assertStringContainsString('Forbidden', $response->getContent());
+    }
+
+    #[Test]
+    public function api_route_403_ignores_renderer(): void
+    {
+        $route = new Route('/api/admin');
+        $route->setOption('_permission', 'administer site');
+
+        $renderer = new class implements ErrorPageRendererInterface {
+            public bool $called = false;
+
+            public function render(int $statusCode, string $title, string $detail, Request $request): ?Response
+            {
+                $this->called = true;
+
+                return new Response('themed error');
+            }
+        };
+
+        $account = new AnonymousUser();
+        $accessChecker = new AccessChecker();
+        $middleware = new AuthorizationMiddleware($accessChecker, $renderer);
+
+        $request = Request::create('/api/admin');
+        $request->attributes->set('_account', $account);
+        $request->attributes->set('_route_object', $route);
+
+        $next = new class implements HttpHandlerInterface {
+            public function handle(Request $request): Response
+            {
+                return new Response('should not reach here');
+            }
+        };
+
+        $response = $middleware->process($request, $next);
+
+        $this->assertSame(403, $response->getStatusCode());
+        $this->assertStringContainsString('application/vnd.api+json', $response->headers->get('Content-Type'));
+        $this->assertFalse($renderer->called);
     }
 }

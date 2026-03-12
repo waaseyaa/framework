@@ -9,6 +9,7 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\Routing\RequestContext;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\ErrorPageRendererInterface;
 use Waaseyaa\Access\Gate\EntityAccessGate;
 use Waaseyaa\Access\Middleware\AuthorizationMiddleware;
 use Waaseyaa\Api\Controller\BroadcastController;
@@ -44,6 +45,7 @@ use Waaseyaa\Routing\Language\UrlPrefixNegotiator;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\SSR\ArrayViewModeConfig;
+use Waaseyaa\SSR\TwigErrorPageRenderer;
 use Waaseyaa\SSR\EntityRenderer;
 use Waaseyaa\SSR\FieldFormatterRegistry;
 use Waaseyaa\SSR\RenderController;
@@ -147,6 +149,9 @@ final class HttpKernel extends AbstractKernel
         $userStorage = $this->entityTypeManager->getStorage('user');
         $gate = new EntityAccessGate($this->accessHandler);
         $accessChecker = new AccessChecker(gate: $gate);
+        $twigEnv = SsrServiceProvider::getTwigEnvironment();
+        $errorPageRenderer = $twigEnv !== null ? new TwigErrorPageRenderer($twigEnv) : null;
+
         $pipeline = (new HttpPipeline())
             ->withMiddleware(new BearerAuthMiddleware(
                 $userStorage,
@@ -158,7 +163,7 @@ final class HttpKernel extends AbstractKernel
                 $this->shouldUseDevFallbackAccount() ? new DevAdminAccount() : null,
             ))
             ->withMiddleware(new CsrfMiddleware())
-            ->withMiddleware(new AuthorizationMiddleware($accessChecker));
+            ->withMiddleware(new AuthorizationMiddleware($accessChecker, $errorPageRenderer));
 
         try {
             $authResponse = $pipeline->handle(
