@@ -1,0 +1,29 @@
+{
+    "name": "waaseyaa/mail",
+    "description": "Transport-agnostic mail API for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=8.4",
+        "waaseyaa/foundation": "@dev"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5",
+        "twig/twig": "^3.0"
+    },
+    "suggest": {
+        "twig/twig": "Required for TwigMailRenderer template support"
+    },
+    "autoload": {
+        "psr-4": {
+            "Waaseyaa\\Mail\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Waaseyaa\\Mail\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
