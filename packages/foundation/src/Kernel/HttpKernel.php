@@ -51,7 +51,15 @@ final class HttpKernel extends AbstractKernel
 
     public function handle(): never
     {
-        $this->boot();
+        try {
+            $this->boot();
+        } catch (\Throwable $e) {
+            error_log(sprintf('[Waaseyaa] Boot failed: %s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine()));
+            ResponseSender::json(500, [
+                'jsonapi' => ['version' => '1.1'],
+                'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'Application failed to boot.']],
+            ]);
+        }
         $this->cacheConfigResolver = new CacheConfigResolver($this->config);
 
         $this->handleCors();
