@@ -1,0 +1,55 @@
+{% extends "layouts/base.html.twig" %}
+
+{% block title %}Codified Context Session — {{ session.sessionId[:12] }}{% endblock %}
+
+{% block body %}
+<div class="telescope-cc-session">
+    <h1>Session: {{ session.sessionId }}</h1>
+    <div class="session-meta">
+        <dl>
+            <dt>Repo Hash</dt><dd>{{ session.repoHash }}</dd>
+            <dt>Started</dt><dd>{{ session.startedAt }}</dd>
+            {% if session.endedAt %}
+                <dt>Duration</dt><dd>{{ (session.durationMs / 1000)|number_format(1) }}s</dd>
+            {% endif %}
+            <dt>Events</dt><dd>{{ session.eventCount }}</dd>
+        </dl>
+    </div>
+    {% if validation %}
+    <div class="drift-score">
+        <h2>Drift Score: {{ validation.driftScore }}/100</h2>
+        <div class="score-bar" style="width: {{ validation.driftScore }}%; background-color: {{ validation.driftScore >= 75 ? '#22c55e' : (validation.driftScore >= 50 ? '#eab308' : (validation.driftScore >= 25 ? '#f97316' : '#ef4444')) }}"></div>
+        <h3>Components</h3>
+        <ul>
+            <li>Semantic Alignment: {{ validation.components.semantic_alignment|number_format(1) }}/60</li>
+            <li>Structural Checks: {{ validation.components.structural_checks|number_format(1) }}/20</li>
+            <li>Contradiction Checks: {{ validation.components.contradiction_checks|number_format(1) }}/20</li>
+        </ul>
+        {% if validation.issues|length > 0 %}
+        <h3>Issues</h3>
+        <ul>
+            {% for issue in validation.issues %}
+                <li><strong>[{{ issue.severity }}]</strong> {{ issue.message }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        <p>Recommendation: <strong>{{ validation.recommendation }}</strong></p>
+    </div>
+    {% endif %}
+    {% if events|length > 0 %}
+    <h2>Event Stream</h2>
+    <table>
+        <thead><tr><th>Time</th><th>Type</th><th>Details</th></tr></thead>
+        <tbody>
+        {% for event in events %}
+            <tr>
+                <td>{{ event.createdAt }}</td>
+                <td>{{ event.eventType }}</td>
+                <td><pre>{{ event.data|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre></td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+{% endblock %}

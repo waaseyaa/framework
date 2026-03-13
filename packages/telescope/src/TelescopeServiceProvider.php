@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Telescope;
 
+use Waaseyaa\Telescope\CodifiedContext\CodifiedContextObserver;
 use Waaseyaa\Telescope\Recorder\CacheRecorder;
 use Waaseyaa\Telescope\Recorder\EventRecorder;
 use Waaseyaa\Telescope\Recorder\QueryRecorder;
@@ -24,6 +25,7 @@ final class TelescopeServiceProvider
     private ?EventRecorder $eventRecorder = null;
     private ?RequestRecorder $requestRecorder = null;
     private ?CacheRecorder $cacheRecorder = null;
+    private ?CodifiedContextObserver $ccObserver = null;
 
     /**
      * @param array<string, mixed> $config Telescope configuration.
@@ -118,6 +120,23 @@ final class TelescopeServiceProvider
         }
 
         return $this->cacheRecorder;
+    }
+
+    public function getCodifiedContextObserver(): ?CodifiedContextObserver
+    {
+        if (!$this->isEnabled()) {
+            return null;
+        }
+
+        if (!$this->isRecordingEnabled('codified_context')) {
+            return null;
+        }
+
+        if ($this->ccObserver === null) {
+            $this->ccObserver = new CodifiedContextObserver($this->store);
+        }
+
+        return $this->ccObserver;
     }
 
     private function isRecordingEnabled(string $recorder): bool

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Telescope\Tests\Unit;
 
+use Waaseyaa\Telescope\CodifiedContext\CodifiedContextObserver;
 use Waaseyaa\Telescope\Recorder\CacheRecorder;
 use Waaseyaa\Telescope\Recorder\EventRecorder;
 use Waaseyaa\Telescope\Recorder\QueryRecorder;
@@ -185,6 +186,33 @@ final class TelescopeServiceProviderTest extends TestCase
         $recorder = $provider->getRequestRecorder();
         $this->assertNotNull($recorder);
         $this->assertSame(['/health', '/api/broadcast/*'], $recorder->getIgnorePaths());
+    }
+
+    #[Test]
+    public function providesCodifiedContextObserverWhenEnabled(): void
+    {
+        $provider = new TelescopeServiceProvider();
+
+        $observer = $provider->getCodifiedContextObserver();
+        $this->assertInstanceOf(CodifiedContextObserver::class, $observer);
+    }
+
+    #[Test]
+    public function returnsNullCodifiedContextObserverWhenTelescopeDisabled(): void
+    {
+        $provider = new TelescopeServiceProvider(config: ['enabled' => false]);
+
+        $this->assertNull($provider->getCodifiedContextObserver());
+    }
+
+    #[Test]
+    public function returnsNullCodifiedContextObserverWhenCodifiedContextRecordingDisabled(): void
+    {
+        $provider = new TelescopeServiceProvider(config: [
+            'record' => ['codified_context' => false],
+        ]);
+
+        $this->assertNull($provider->getCodifiedContextObserver());
     }
 
     #[Test]
