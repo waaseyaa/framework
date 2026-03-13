@@ -167,6 +167,36 @@ final class RouteBuilderTest extends TestCase
     }
 
     #[Test]
+    public function csrfExemptSetsOption(): void
+    {
+        $route = RouteBuilder::create('/mcp')
+            ->controller('test')
+            ->csrfExempt()
+            ->build();
+
+        $this->assertFalse($route->getOption('_csrf'));
+    }
+
+    #[Test]
+    public function csrfExemptIsFluent(): void
+    {
+        $builder = RouteBuilder::create('/mcp');
+        $result = $builder->csrfExempt();
+
+        $this->assertSame($builder, $result);
+    }
+
+    #[Test]
+    public function routeWithoutCsrfExemptHasNoCsrfOption(): void
+    {
+        $route = RouteBuilder::create('/normal')
+            ->controller('test')
+            ->build();
+
+        $this->assertNull($route->getOption('_csrf'));
+    }
+
+    #[Test]
     public function createReturnsNewInstance(): void
     {
         $builder1 = RouteBuilder::create('/path1');

@@ -154,6 +154,22 @@ final class CsrfMiddlewareTest extends TestCase
     }
 
     #[Test]
+    public function postToMcpRouteWithCsrfExemptionPassesThrough(): void
+    {
+        $_SESSION['_csrf_token'] = 'valid-token';
+
+        $route = new Route('/mcp');
+        $route->setOption('_csrf', false);
+
+        $request = Request::create('/mcp', 'POST', [], [], [], [], '{"jsonrpc":"2.0","method":"initialize","id":1}');
+        $request->headers->set('Content-Type', 'application/json');
+        $request->attributes->set('_route_object', $route);
+
+        $response = $this->middleware->process($request, $this->passthrough);
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    #[Test]
     public function tokenStaticMethodReturnsConsistentToken(): void
     {
         $_SESSION = [];

@@ -127,6 +127,17 @@ final class RouteBuilder
     }
 
     /**
+     * Exempt this route from CSRF token validation.
+     *
+     * Use for routes that have their own authentication model (e.g., MCP, API keys).
+     */
+    public function csrfExempt(): self
+    {
+        $this->options['_csrf'] = false;
+        return $this;
+    }
+
+    /**
      * Mark route as a JSON:API route (enables JSON body parsing on POST/PATCH).
      */
     public function jsonApi(): self

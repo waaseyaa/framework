@@ -16,6 +16,7 @@ final readonly class McpRouteProvider
             RouteBuilder::create('/mcp')
                 ->controller('Waaseyaa\\Mcp\\McpEndpoint::handle')
                 ->methods('POST', 'GET')
+                ->csrfExempt()
                 ->build(),
         );
 

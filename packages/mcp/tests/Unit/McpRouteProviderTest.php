@@ -47,6 +47,20 @@ final class McpRouteProviderTest extends TestCase
     }
 
     #[Test]
+    public function mcpEndpointRouteIsCsrfExempt(): void
+    {
+        $router = new WaaseyaaRouter();
+        $provider = new McpRouteProvider();
+        $provider->registerRoutes($router);
+
+        $routes = $router->getRouteCollection();
+        $mcpRoute = $routes->get('mcp.endpoint');
+
+        $this->assertNotNull($mcpRoute, 'mcp.endpoint route should be registered');
+        $this->assertFalse($mcpRoute->getOption('_csrf'), 'MCP endpoint should be CSRF exempt');
+    }
+
+    #[Test]
     public function serverCardRouteIsPublic(): void
     {
         $router = new WaaseyaaRouter();
