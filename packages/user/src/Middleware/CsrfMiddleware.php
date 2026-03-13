@@ -17,6 +17,7 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
     private const TOKEN_FIELD_NAME = '_csrf_token';
     private const TOKEN_HEADER_NAME = 'X-CSRF-Token';
     private const STATE_CHANGING_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
+    private const CSRF_EXEMPT_CONTENT_TYPES = ['application/vnd.api+json'];
 
     public function process(Request $request, HttpHandlerInterface $next): Response
     {
@@ -102,6 +103,15 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
     {
         if (!in_array($request->getMethod(), self::STATE_CHANGING_METHODS, true)) {
             return false;
+        }
+
+        // JSON:API requests are not vulnerable to CSRF (browsers cannot send
+        // application/vnd.api+json from HTML forms), so exempt them.
+        $contentType = $request->headers->get('Content-Type', '');
+        foreach (self::CSRF_EXEMPT_CONTENT_TYPES as $exemptType) {
+            if (str_starts_with($contentType, $exemptType)) {
+                return false;
+            }
         }
 
         $route = $request->attributes->get('_route_object');

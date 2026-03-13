@@ -174,4 +174,64 @@ final class CsrfMiddlewareTest extends TestCase
 
         $this->assertNotSame($original, $regenerated);
     }
+
+    #[Test]
+    public function postWithJsonApiContentTypeSkipsCsrf(): void
+    {
+        $_SESSION['_csrf_token'] = 'valid-token';
+
+        $request = Request::create('/api/nodes', 'POST', [], [], [], [], '{"data":{}}');
+        $request->headers->set('Content-Type', 'application/vnd.api+json');
+        $response = $this->middleware->process($request, $this->passthrough);
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    #[Test]
+    public function putWithJsonApiContentTypeSkipsCsrf(): void
+    {
+        $_SESSION['_csrf_token'] = 'valid-token';
+
+        $request = Request::create('/api/nodes/1', 'PUT', [], [], [], [], '{"data":{}}');
+        $request->headers->set('Content-Type', 'application/vnd.api+json');
+        $response = $this->middleware->process($request, $this->passthrough);
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    #[Test]
+    public function deleteWithJsonApiContentTypeSkipsCsrf(): void
+    {
+        $_SESSION['_csrf_token'] = 'valid-token';
+
+        $request = Request::create('/api/nodes/1', 'DELETE');
+        $request->headers->set('Content-Type', 'application/vnd.api+json');
+        $response = $this->middleware->process($request, $this->passthrough);
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    #[Test]
+    public function postWithFormUrlencodedStillRequiresCsrf(): void
+    {
+        $_SESSION['_csrf_token'] = 'valid-token';
+
+        $request = Request::create('/submit', 'POST', ['field' => 'value']);
+        $request->headers->set('Content-Type', 'application/x-www-form-urlencoded');
+        $response = $this->middleware->process($request, $this->passthrough);
+
+        $this->assertSame(403, $response->getStatusCode());
+    }
+
+    #[Test]
+    public function postWithMultipartFormDataStillRequiresCsrf(): void
+    {
+        $_SESSION['_csrf_token'] = 'valid-token';
+
+        $request = Request::create('/upload', 'POST');
+        $request->headers->set('Content-Type', 'multipart/form-data; boundary=----WebKitFormBoundary');
+        $response = $this->middleware->process($request, $this->passthrough);
+
+        $this->assertSame(403, $response->getStatusCode());
+    }
 }
