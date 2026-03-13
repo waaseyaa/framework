@@ -95,5 +95,17 @@
   "field_system_path": "System path",
 
   "create_entity": "Create {type}",
-  "edit_entity": "Edit {type}"
+  "edit_entity": "Edit {type}",
+
+  "telescope_codified_context": "Codified Context",
+  "telescope_cc_sessions": "Sessions",
+  "telescope_cc_drift_score": "Drift Score",
+  "telescope_cc_severity": "Severity",
+  "telescope_cc_validation": "Validation Report",
+  "telescope_cc_events": "Event Stream",
+  "telescope_cc_heatmap": "Context Heatmap",
+  "telescope_cc_no_sessions": "No codified context sessions recorded yet.",
+  "telescope_cc_semantic": "Semantic Alignment",
+  "telescope_cc_structural": "Structural Checks",
+  "telescope_cc_contradictions": "Contradiction Checks"
 }
