@@ -27,7 +27,7 @@ use Waaseyaa\Taxonomy\Vocabulary;
 use Waaseyaa\User\User;
 use Waaseyaa\Validation\Constraint\NotEmpty;
 use Waaseyaa\Validation\Constraint\SafeMarkup;
-use Waaseyaa\Validation\EntityValidator;
+use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\Workflows\ContentModerationState;
 use Waaseyaa\Workflows\ContentModerator;
 use Waaseyaa\Workflows\Workflow;

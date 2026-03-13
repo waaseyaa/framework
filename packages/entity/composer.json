@@ -8,7 +8,8 @@
         {"type": "path", "url": "../plugin"},
         {"type": "path", "url": "../typed-data"},
         {"type": "path", "url": "../config"},
-        {"type": "path", "url": "../foundation"}
+        {"type": "path", "url": "../foundation"},
+        {"type": "path", "url": "../validation"}
     ],
     "require": {
         "php": ">=8.3",
@@ -17,8 +18,10 @@
         "waaseyaa/cache": "@dev",
         "waaseyaa/config": "@dev",
         "waaseyaa/foundation": "@dev",
+        "waaseyaa/validation": "@dev",
         "symfony/event-dispatcher": "^7.3",
-        "symfony/uid": "^7.3"
+        "symfony/uid": "^7.3",
+        "symfony/validator": "^7.3"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"

@@ -9,7 +9,7 @@ use Waaseyaa\Media\InMemoryFileRepository;
 use Waaseyaa\Media\Media;
 use Waaseyaa\Media\MediaType;
 use Waaseyaa\Validation\Constraint\NotEmpty;
-use Waaseyaa\Validation\EntityValidator;
+use Waaseyaa\Entity\Validation\EntityValidator;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;

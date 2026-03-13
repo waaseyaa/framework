@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Waaseyaa\Validation;
+namespace Waaseyaa\Entity\Validation;
 
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\FieldableInterface;

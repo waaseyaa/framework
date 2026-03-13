@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Waaseyaa\Validation\Tests\Unit;
+namespace Waaseyaa\Entity\Tests\Unit\Validation;
 
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\FieldableInterface;
 use Waaseyaa\Validation\Constraint\AllowedValues;
 use Waaseyaa\Validation\Constraint\NotEmpty;
-use Waaseyaa\Validation\EntityValidator;
+use Waaseyaa\Entity\Validation\EntityValidator;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Validator\ConstraintViolation;
 use Symfony\Component\Validator\ConstraintViolationList;

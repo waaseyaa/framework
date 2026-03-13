@@ -9,7 +9,7 @@ use Waaseyaa\Validation\Constraint\AllowedValues;
 use Waaseyaa\Validation\Constraint\NotEmpty;
 use Waaseyaa\Validation\Constraint\SafeMarkup;
 use Waaseyaa\Validation\ConstraintFactory;
-use Waaseyaa\Validation\EntityValidator;
+use Waaseyaa\Entity\Validation\EntityValidator;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Validator\Validation;

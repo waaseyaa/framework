@@ -5,7 +5,6 @@
     "license": "GPL-2.0-or-later",
     "repositories": [
         {"type": "path", "url": "../typed-data"},
-        {"type": "path", "url": "../entity"},
         {"type": "path", "url": "../plugin"},
         {"type": "path", "url": "../cache"},
         {"type": "path", "url": "../config"}
@@ -13,7 +12,6 @@
     "require": {
         "php": ">=8.3",
         "waaseyaa/typed-data": "@dev",
-        "waaseyaa/entity": "@dev",
         "symfony/validator": "^7.3"
     },
     "require-dev": {
