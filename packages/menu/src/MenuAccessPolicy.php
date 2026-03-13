@@ -27,7 +27,7 @@ final class MenuAccessPolicy implements AccessPolicyInterface
         return match ($operation) {
             'view' => $account->isAuthenticated()
                 ? AccessResult::allowed('Authenticated users may view menus.')
-                : AccessResult::neutral('Anonymous users cannot view menus.'),
+                : AccessResult::neutral('View access not granted to unauthenticated users.'),
             default => AccessResult::neutral("No opinion on '$operation' for menu entities."),
         };
     }

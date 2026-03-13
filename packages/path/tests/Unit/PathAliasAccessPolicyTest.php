@@ -58,6 +58,18 @@ final class PathAliasAccessPolicyTest extends TestCase
     }
 
     #[Test]
+    public function anonymous_user_can_view_path_aliases(): void
+    {
+        // Path aliases are publicly viewable — even unauthenticated users can resolve them.
+        $entity = $this->makeEntity();
+        $account = $this->makeAnonymousAccount();
+
+        $result = $this->policy->access($entity, 'view', $account);
+
+        $this->assertTrue($result->isAllowed());
+    }
+
+    #[Test]
     public function edit_requires_administer_url_aliases(): void
     {
         $entity = $this->makeEntity();
@@ -116,6 +128,16 @@ final class PathAliasAccessPolicyTest extends TestCase
             public function id(): int|string { return 1; }
             public function isAuthenticated(): bool { return true; }
             public function hasPermission(string $permission): bool { return in_array($permission, $this->permissions, true); }
+            public function getRoles(): array { return []; }
+        };
+    }
+
+    private function makeAnonymousAccount(): AccountInterface
+    {
+        return new class implements AccountInterface {
+            public function id(): int|string { return 0; }
+            public function isAuthenticated(): bool { return false; }
+            public function hasPermission(string $permission): bool { return false; }
             public function getRoles(): array { return []; }
         };
     }

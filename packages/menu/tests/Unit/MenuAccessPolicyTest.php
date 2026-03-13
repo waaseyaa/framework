@@ -72,6 +72,17 @@ final class MenuAccessPolicyTest extends TestCase
     }
 
     #[Test]
+    public function anonymous_user_cannot_view_menus(): void
+    {
+        $entity = $this->makeEntity('menu');
+        $account = $this->makeAnonymousAccount();
+
+        $result = $this->policy->access($entity, 'view', $account);
+
+        $this->assertFalse($result->isAllowed());
+    }
+
+    #[Test]
     public function edit_requires_permission(): void
     {
         $entity = $this->makeEntity('menu');
@@ -119,6 +130,16 @@ final class MenuAccessPolicyTest extends TestCase
             public function id(): int|string { return 1; }
             public function isAuthenticated(): bool { return true; }
             public function hasPermission(string $permission): bool { return in_array($permission, $this->permissions, true); }
+            public function getRoles(): array { return []; }
+        };
+    }
+
+    private function makeAnonymousAccount(): AccountInterface
+    {
+        return new class implements AccountInterface {
+            public function id(): int|string { return 0; }
+            public function isAuthenticated(): bool { return false; }
+            public function hasPermission(string $permission): bool { return false; }
             public function getRoles(): array { return []; }
         };
     }

@@ -92,6 +92,18 @@ final class RelationshipAccessPolicyTest extends TestCase
         $this->assertFalse($denied->isAllowed());
     }
 
+    #[Test]
+    public function anonymous_user_cannot_view_published_relationship(): void
+    {
+        // Anonymous users have no permissions, so access_content check fails.
+        $entity = $this->makeEntity(['status' => 1]);
+        $account = $this->makeAnonymousAccount();
+
+        $result = $this->policy->access($entity, 'view', $account);
+
+        $this->assertFalse($result->isAllowed());
+    }
+
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
@@ -118,6 +130,16 @@ final class RelationshipAccessPolicyTest extends TestCase
             public function id(): int|string { return 1; }
             public function isAuthenticated(): bool { return true; }
             public function hasPermission(string $permission): bool { return in_array($permission, $this->permissions, true); }
+            public function getRoles(): array { return []; }
+        };
+    }
+
+    private function makeAnonymousAccount(): AccountInterface
+    {
+        return new class implements AccountInterface {
+            public function id(): int|string { return 0; }
+            public function isAuthenticated(): bool { return false; }
+            public function hasPermission(string $permission): bool { return false; }
             public function getRoles(): array { return []; }
         };
     }
