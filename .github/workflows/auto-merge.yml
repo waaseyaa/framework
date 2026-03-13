@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       pr_number:
-        description: 'PR number to check for auto-merge'
+        description: 'PR number to check'
         required: true
         type: number
 
@@ -26,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Determine PR number
+      - name: Resolve PR number
         id: pr
         uses: actions/github-script@v7
         with:
@@ -37,26 +37,17 @@ jobs:
             } else if (context.payload.pull_request) {
               prNumber = context.payload.pull_request.number;
             } else if (context.payload.check_suite) {
-              // Find PRs associated with this check suite
               const { data: prs } = await github.rest.pulls.list({
                 ...context.repo,
                 state: 'open',
                 head: `${context.repo.owner}:${context.payload.check_suite.head_branch}`,
               });
-              if (prs.length === 0) {
-                core.info('No open PRs for this check suite');
-                return;
-              }
-              prNumber = prs[0].number;
+              prNumber = prs[0]?.number;
             }
-            if (!prNumber) {
-              core.info('Could not determine PR number');
-              return;
-            }
-            core.setOutput('number', prNumber);
+            if (prNumber) core.setOutput('number', prNumber);
+            else core.info('No PR found for this event');
 
-      - name: Check auto-merge eligibility
-        id: check
+      - name: Check eligibility and merge
         if: steps.pr.outputs.number
         uses: actions/github-script@v7
         with:
@@ -64,126 +55,98 @@ jobs:
             const prNumber = parseInt('${{ steps.pr.outputs.number }}');
             const { owner, repo } = context.repo;
 
-            // Get PR details
             const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: prNumber });
 
-            // Must have auto-merge-when-green label
-            const hasLabel = pr.labels.some(l => l.name === 'auto-merge-when-green');
-            if (!hasLabel) {
-              core.info(`PR #${prNumber} does not have auto-merge-when-green label`);
+            // Gate: label
+            if (!pr.labels.some(l => l.name === 'auto-merge-when-green')) {
+              core.info(`PR #${prNumber}: missing auto-merge-when-green label`);
               return;
             }
 
-            // Must be open
+            // Gate: open
             if (pr.state !== 'open') {
-              core.info(`PR #${prNumber} is not open`);
+              core.info(`PR #${prNumber}: not open`);
               return;
             }
 
-            // Must not have merge conflicts
+            // Gate: mergeable
             if (pr.mergeable === false) {
-              core.info(`PR #${prNumber} has merge conflicts`);
               await github.rest.issues.createComment({
                 owner, repo, issue_number: prNumber,
-                body: '⚠️ **Auto-merge blocked**: This PR has merge conflicts. Please resolve them and the auto-merge will retry.',
+                body: '**Auto-merge blocked**: merge conflicts detected. Resolve and push to retry.',
               });
               return;
             }
 
-            // Check all status checks
+            // Gate: required status checks
             const { data: checks } = await github.rest.checks.listForRef({
               owner, repo, ref: pr.head.sha,
             });
 
             const requiredChecks = [
-              'Lint', 'CS Fixer', 'PHPStan', 'PHPUnit',
-              'Manifest conformance', 'Ingestion defaults', 'Security defaults',
+              'ci/lint',
+              'ci/unit-tests',
+              'ci/playwright-smoke',
             ];
 
-            const checkResults = {};
-            for (const check of checks.check_runs) {
-              checkResults[check.name] = check.conclusion;
-            }
+            const results = {};
+            for (const c of checks.check_runs) results[c.name] = c.conclusion;
 
-            const failedChecks = [];
-            const pendingChecks = [];
-            for (const name of requiredChecks) {
-              if (!checkResults[name]) {
-                pendingChecks.push(name);
-              } else if (checkResults[name] !== 'success') {
-                failedChecks.push(`${name}: ${checkResults[name]}`);
-              }
-            }
+            const failed = requiredChecks.filter(n => results[n] && results[n] !== 'success');
+            const pending = requiredChecks.filter(n => !results[n]);
 
-            if (failedChecks.length > 0) {
-              core.info(`PR #${prNumber} has failed checks: ${failedChecks.join(', ')}`);
+            if (failed.length > 0) {
+              core.info(`PR #${prNumber}: failed checks — ${failed.join(', ')}`);
+              return;
+            }
+            if (pending.length > 0) {
+              core.info(`PR #${prNumber}: pending checks — ${pending.join(', ')}`);
               return;
             }
 
-            if (pendingChecks.length > 0) {
-              core.info(`PR #${prNumber} has pending checks: ${pendingChecks.join(', ')}. Will retry later.`);
-              return;
-            }
-
-            // Check PR references milestone and issue
+            // Gate: milestone
             if (!pr.milestone) {
-              core.info(`PR #${prNumber} has no milestone assigned`);
               await github.rest.issues.createComment({
                 owner, repo, issue_number: prNumber,
-                body: '⚠️ **Auto-merge blocked**: This PR has no milestone assigned. Please assign a milestone.',
+                body: '**Auto-merge blocked**: no milestone assigned.',
               });
               return;
             }
 
-            // All conditions met
-            core.setOutput('eligible', 'true');
-            core.setOutput('title', pr.title);
-            core.setOutput('sha', pr.head.sha);
-
-      - name: Merge PR
-        if: steps.check.outputs.eligible == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = parseInt('${{ steps.pr.outputs.number }}');
-            const { owner, repo } = context.repo;
-
+            // All gates passed — merge
             try {
               const { data: merge } = await github.rest.pulls.merge({
                 owner, repo, pull_number: prNumber,
                 merge_method: 'squash',
-                commit_title: `${{ steps.check.outputs.title }} (#${prNumber})`,
+                commit_title: `${pr.title} (#${prNumber})`,
               });
 
-              core.info(`PR #${prNumber} merged successfully: ${merge.sha}`);
-
-              // Post merge comment
+              const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
               await github.rest.issues.createComment({
                 owner, repo, issue_number: prNumber,
                 body: [
-                  '✅ **Auto-merged** by release automation.',
+                  '**Auto-merged** by release automation.',
                   '',
-                  `**Merge SHA:** \`${merge.sha}\``,
-                  `**Method:** squash`,
-                  `**CI Run:** ${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
+                  `| Detail | Value |`,
+                  `|---|---|`,
+                  `| Merge SHA | \`${merge.sha}\` |`,
+                  `| Method | squash |`,
+                  `| CI Run | [${context.runId}](${runUrl}) |`,
                   '',
-                  'All required status checks passed and merge conditions were satisfied.',
+                  'All required status checks passed.',
                 ].join('\n'),
               });
 
-              // Remove the label after successful merge
               try {
                 await github.rest.issues.removeLabel({
                   owner, repo, issue_number: prNumber,
                   name: 'auto-merge-when-green',
                 });
-              } catch (e) {
-                // Label may already be removed
-              }
+              } catch {}
             } catch (error) {
-              core.setFailed(`Failed to merge PR #${prNumber}: ${error.message}`);
+              core.setFailed(`Merge failed: ${error.message}`);
               await github.rest.issues.createComment({
                 owner, repo, issue_number: prNumber,
-                body: `❌ **Auto-merge failed**: ${error.message}\n\nPlease check the [workflow run](${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}) for details.`,
+                body: `**Auto-merge failed**: ${error.message}`,
               });
             }

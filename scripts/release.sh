@@ -1,83 +1,50 @@
 #!/usr/bin/env bash
+# Create an annotated tag, generate changelog, push tag, and optionally create a GitHub release.
+# Usage: scripts/release.sh <version>  (e.g., scripts/release.sh v1.0.1)
 set -euo pipefail
 
-VERSION="${1:?Usage: scripts/release.sh <version> (e.g., v1.0.1)}"
+VERSION="${1:?Usage: scripts/release.sh <version>}"
 
-# Validate version format
-if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "❌ Invalid version format: $VERSION (expected vX.Y.Z)"
-    exit 1
-fi
+[[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "ERROR: version must match vX.Y.Z"; exit 1; }
 
-echo "📦 Creating release $VERSION..."
+# Must be on main
+BRANCH=$(git branch --show-current)
+[ "$BRANCH" = "main" ] || { echo "ERROR: must be on main (currently $BRANCH)"; exit 1; }
 
-# Ensure we're on main and up to date
-CURRENT_BRANCH=$(git branch --show-current)
-if [ "$CURRENT_BRANCH" != "main" ]; then
-    echo "❌ Must be on main branch (currently on $CURRENT_BRANCH)"
-    exit 1
-fi
+# Must be clean and up to date
+git fetch origin main --quiet
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse origin/main)
+[ "$LOCAL" = "$REMOTE" ] || { echo "ERROR: local main differs from origin/main"; exit 1; }
 
-git fetch origin main
-LOCAL_SHA=$(git rev-parse HEAD)
-REMOTE_SHA=$(git rev-parse origin/main)
-if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
-    echo "❌ Local main is not up to date with origin/main"
-    echo "   Local:  $LOCAL_SHA"
-    echo "   Remote: $REMOTE_SHA"
-    exit 1
-fi
+# Tag must not exist
+git rev-parse "$VERSION" > /dev/null 2>&1 && { echo "ERROR: tag $VERSION already exists"; exit 1; }
 
-# Check if tag already exists
-if git rev-parse "$VERSION" > /dev/null 2>&1; then
-    echo "❌ Tag $VERSION already exists"
-    exit 1
-fi
-
-# Generate changelog from merged PRs since last tag
+# Changelog
 PREV_TAG=$(git tag --sort=-v:refname | head -1)
-echo "Generating changelog since $PREV_TAG..."
-
 CHANGELOG=""
-if command -v gh &> /dev/null; then
-    CHANGELOG=$(gh pr list --state merged --base main --search "merged:>=$(git log -1 --format=%ci "$PREV_TAG" 2>/dev/null | cut -d' ' -f1)" --json number,title --jq '.[] | "- #\(.number): \(.title)"' 2>/dev/null || echo "")
-fi
-
-if [ -z "$CHANGELOG" ]; then
+if [ -n "$PREV_TAG" ]; then
     CHANGELOG=$(git log "$PREV_TAG"..HEAD --oneline --no-merges | sed 's/^/- /')
 fi
+[ -z "$CHANGELOG" ] && CHANGELOG="- No changes since last tag"
 
+echo "=== Release $VERSION ==="
 echo ""
-echo "📋 Changelog:"
+echo "Changelog since $PREV_TAG:"
 echo "$CHANGELOG"
 echo ""
 
-# Create annotated tag
-git tag -a "$VERSION" -m "$(cat <<EOF
-Release $VERSION
+# Create + push annotated tag
+git tag -a "$VERSION" -m "Release $VERSION
 
-$CHANGELOG
-EOF
-)"
-
-echo "✅ Created tag $VERSION"
-
-# Push tag
+$CHANGELOG"
 git push origin "$VERSION"
-echo "✅ Pushed tag $VERSION"
+echo "Tag $VERSION pushed."
 
-# Create GitHub release if gh is available
-if command -v gh &> /dev/null; then
-    gh release create "$VERSION" \
-        --title "Release $VERSION" \
-        --notes "$CHANGELOG" \
-        --verify-tag
-    echo "✅ Created GitHub release $VERSION"
+# GitHub release (optional)
+if command -v gh > /dev/null 2>&1; then
+    gh release create "$VERSION" --title "Release $VERSION" --notes "$CHANGELOG" --verify-tag
+    echo "GitHub release created."
 else
-    echo "⚠️  gh CLI not available — create GitHub release manually"
+    echo "NOTICE: gh CLI not found — create GitHub release manually."
 fi
-
-echo ""
-echo "🎉 Release $VERSION complete!"
-echo "   Tag: $VERSION"
-echo "   Commit: $LOCAL_SHA"

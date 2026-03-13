@@ -4,15 +4,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      skip_staging:
-        description: 'Skip staging deployment'
-        required: false
-        default: 'false'
-        type: boolean
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-pipeline
   cancel-in-progress: false
 
 jobs:
@@ -24,6 +18,8 @@ jobs:
       deploy_sha: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -33,32 +29,28 @@ jobs:
           coverage: none
 
       - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
 
       - name: Deploy to staging
         run: |
-          echo "Deploying commit ${{ github.sha }} to staging..."
-          # Scripts handle actual deployment
           if [ -f scripts/deploy.sh ]; then
             bash scripts/deploy.sh staging
           else
-            echo "::warning::scripts/deploy.sh not found — skipping deployment"
-            echo "Manual deployment needed for commit ${{ github.sha }}"
+            echo "::warning::scripts/deploy.sh not found — recording metadata only"
           fi
 
       - name: Record deployment metadata
         run: |
           mkdir -p build/deploy
-          cat > build/deploy/staging-metadata.json << EOF
-          {
-            "environment": "staging",
-            "sha": "${{ github.sha }}",
-            "ref": "${{ github.ref }}",
-            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "actor": "${{ github.actor }}",
-            "run_id": "${{ github.run_id }}"
-          }
-          EOF
+          jq -n \
+            --arg env "staging" \
+            --arg sha "${{ github.sha }}" \
+            --arg ref "${{ github.ref }}" \
+            --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg actor "${{ github.actor }}" \
+            --arg run_id "${{ github.run_id }}" \
+            '{environment: $env, sha: $sha, ref: $ref, timestamp: $ts, actor: $actor, run_id: $run_id}' \
+            > build/deploy/staging-metadata.json
 
       - name: Upload deployment metadata
         uses: actions/upload-artifact@v4
@@ -91,29 +83,19 @@ jobs:
           cache: 'npm'
           cache-dependency-path: packages/admin/package-lock.json
 
-      - name: Install Playwright
-        run: cd packages/admin && npm ci && npx playwright install --with-deps chromium
+      - name: Install dependencies and Playwright
+        run: cd packages/admin && npm install --no-audit --no-fund && npx playwright install --with-deps chromium
 
-      - name: Start backend server
+      - name: Start PHP backend
         run: |
           php -S 127.0.0.1:8080 -t public/ > /tmp/php-server.log 2>&1 &
           for i in $(seq 1 30); do
-            curl -s http://127.0.0.1:8080/ > /dev/null 2>&1 && break
-            sleep 1
-          done
-
-      - name: Start Nuxt dev server
-        run: |
-          cd packages/admin && npm run dev -- --port 3000 &
-          for i in $(seq 1 60); do
-            curl -s http://localhost:3000/ > /dev/null 2>&1 && break
+            curl -sf http://127.0.0.1:8080/ > /dev/null 2>&1 && break
             sleep 1
           done
 
       - name: Run full Playwright suite
         run: cd packages/admin && npx playwright test --project=chromium
-        env:
-          PLAYWRIGHT_BASE_URL: http://localhost:3000
 
       - name: Upload Playwright artifacts
         uses: actions/upload-artifact@v4
@@ -125,6 +107,16 @@ jobs:
             packages/admin/playwright-report/
           retention-days: 90
 
+      - name: Upload server logs on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: staging-server-logs
+          path: |
+            /tmp/php-server.log
+            /tmp/nuxt-server.log
+          retention-days: 7
+
   promote-production:
     name: Promote to production
     runs-on: ubuntu-latest
@@ -132,6 +124,8 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -141,31 +135,28 @@ jobs:
           coverage: none
 
       - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
 
       - name: Deploy to production
         run: |
-          echo "Promoting commit ${{ github.sha }} to production..."
           if [ -f scripts/deploy.sh ]; then
             bash scripts/deploy.sh production
           else
-            echo "::warning::scripts/deploy.sh not found — skipping deployment"
-            echo "Manual deployment needed for commit ${{ github.sha }}"
+            echo "::warning::scripts/deploy.sh not found — recording metadata only"
           fi
 
       - name: Record deployment metadata
         run: |
           mkdir -p build/deploy
-          cat > build/deploy/production-metadata.json << EOF
-          {
-            "environment": "production",
-            "sha": "${{ github.sha }}",
-            "ref": "${{ github.ref }}",
-            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "actor": "${{ github.actor }}",
-            "run_id": "${{ github.run_id }}"
-          }
-          EOF
+          jq -n \
+            --arg env "production" \
+            --arg sha "${{ github.sha }}" \
+            --arg ref "${{ github.ref }}" \
+            --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg actor "${{ github.actor }}" \
+            --arg run_id "${{ github.run_id }}" \
+            '{environment: $env, sha: $sha, ref: $ref, timestamp: $ts, actor: $actor, run_id: $run_id}' \
+            > build/deploy/production-metadata.json
 
       - name: Upload deployment metadata
         uses: actions/upload-artifact@v4
@@ -198,29 +189,19 @@ jobs:
           cache: 'npm'
           cache-dependency-path: packages/admin/package-lock.json
 
-      - name: Install Playwright
-        run: cd packages/admin && npm ci && npx playwright install --with-deps chromium
+      - name: Install dependencies and Playwright
+        run: cd packages/admin && npm install --no-audit --no-fund && npx playwright install --with-deps chromium
 
-      - name: Start backend server
+      - name: Start PHP backend
         run: |
           php -S 127.0.0.1:8080 -t public/ > /tmp/php-server.log 2>&1 &
           for i in $(seq 1 30); do
-            curl -s http://127.0.0.1:8080/ > /dev/null 2>&1 && break
-            sleep 1
-          done
-
-      - name: Start Nuxt dev server
-        run: |
-          cd packages/admin && npm run dev -- --port 3000 &
-          for i in $(seq 1 60); do
-            curl -s http://localhost:3000/ > /dev/null 2>&1 && break
+            curl -sf http://127.0.0.1:8080/ > /dev/null 2>&1 && break
             sleep 1
           done
 
       - name: Run post-deploy smoke tests
-        run: cd packages/admin && npx playwright test --project=chromium --grep @smoke
-        env:
-          PLAYWRIGHT_BASE_URL: http://localhost:3000
+        run: cd packages/admin && npx playwright test --project=chromium
 
       - name: Upload smoke test artifacts
         uses: actions/upload-artifact@v4
@@ -232,16 +213,16 @@ jobs:
             packages/admin/playwright-report/
           retention-days: 90
 
-      - name: Trigger rollback on failure
+      - name: Attempt rollback on failure
         if: failure()
         run: |
-          echo "::error::Post-deploy smoke tests FAILED. Initiating rollback..."
+          echo "::error::Post-deploy smoke tests FAILED"
           PREV_TAG=$(git tag --sort=-v:refname | head -1)
-          echo "Would rollback to: $PREV_TAG"
-          if [ -f scripts/rollback.sh ]; then
+          if [ -n "$PREV_TAG" ] && [ -f scripts/rollback.sh ]; then
+            echo "Rolling back to $PREV_TAG..."
             bash scripts/rollback.sh "$PREV_TAG"
           else
-            echo "::error::scripts/rollback.sh not found — manual rollback required to $PREV_TAG"
+            echo "::error::Automatic rollback unavailable — manual intervention required"
           fi
 
       - name: Create incident issue on failure
@@ -250,23 +231,26 @@ jobs:
         with:
           script: |
             const { owner, repo } = context.repo;
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
             await github.rest.issues.create({
               owner, repo,
-              title: `[INCIDENT] Post-deploy smoke test failure — run ${context.runId}`,
+              title: `[INCIDENT] Post-deploy smoke failure — run ${context.runId}`,
               body: [
                 '## Incident: Post-deploy smoke test failure',
                 '',
-                `**Commit:** ${context.sha}`,
-                `**Run:** ${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
-                `**Triggered by:** ${context.actor}`,
+                `| Field | Value |`,
+                `|---|---|`,
+                `| Commit | \`${context.sha}\` |`,
+                `| Run | [${context.runId}](${runUrl}) |`,
+                `| Actor | @${context.actor} |`,
                 '',
-                'Post-deploy smoke tests failed after production deployment.',
-                'Automatic rollback was attempted. Check the workflow run for details.',
+                'Automatic rollback was attempted. Verify it succeeded.',
                 '',
-                '### Action Required',
-                '1. Verify rollback succeeded',
-                '2. Review Playwright artifacts in the workflow run',
-                '3. Fix the issue and re-deploy',
+                '### Checklist',
+                '- [ ] Verify rollback succeeded',
+                '- [ ] Review Playwright artifacts',
+                '- [ ] Root-cause the failure',
+                '- [ ] Deploy fix',
               ].join('\n'),
               labels: ['incident', 'production'],
             });

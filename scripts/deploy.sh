@@ -1,50 +1,39 @@
 #!/usr/bin/env bash
+# Deploy to staging or production.
+# Usage: scripts/deploy.sh <staging|production>
 set -euo pipefail
 
-ENVIRONMENT="${1:?Usage: scripts/deploy.sh <staging|production>}"
-
-if [[ "$ENVIRONMENT" != "staging" && "$ENVIRONMENT" != "production" ]]; then
-    echo "❌ Invalid environment: $ENVIRONMENT (must be staging or production)"
-    exit 1
-fi
+ENV="${1:?Usage: scripts/deploy.sh <staging|production>}"
+[[ "$ENV" =~ ^(staging|production)$ ]] || { echo "ERROR: environment must be staging or production"; exit 1; }
 
 SHA=$(git rev-parse HEAD)
-TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+TAG=$(git describe --tags --exact-match 2>/dev/null || echo "untagged")
 
-echo "🚀 Deploying to $ENVIRONMENT..."
-echo "   Commit: $SHA"
-echo "   Time:   $TIMESTAMP"
+echo "=== Deploy to $ENV ==="
+echo "  SHA: $SHA"
+echo "  Tag: $TAG"
+echo "  Time: $TS"
 
-# Record deployment metadata
+# Record metadata
 mkdir -p build/deploy
-cat > "build/deploy/${ENVIRONMENT}-metadata.json" <<EOF
-{
-  "environment": "$ENVIRONMENT",
-  "sha": "$SHA",
-  "timestamp": "$TIMESTAMP",
-  "branch": "$(git branch --show-current)",
-  "tag": "$(git describe --tags --exact-match 2>/dev/null || echo 'none')"
-}
-EOF
+jq -n \
+  --arg env "$ENV" \
+  --arg sha "$SHA" \
+  --arg tag "$TAG" \
+  --arg ts "$TS" \
+  --arg branch "$(git branch --show-current 2>/dev/null || echo detached)" \
+  '{environment: $env, sha: $sha, tag: $tag, timestamp: $ts, branch: $branch}' \
+  > "build/deploy/${ENV}-metadata.json"
 
-# Production safety check
-if [ "$ENVIRONMENT" = "production" ]; then
-    echo ""
-    echo "⚠️  Production deployment"
-    echo "   Ensure staging has been validated first."
-    echo ""
-fi
+# Build steps
+echo "Running composer install..."
+composer install --no-dev --optimize-autoloader --no-interaction 2>&1 || true
 
-# Placeholder for actual deployment commands
-# Replace with your deployment tool (Deployer, rsync, etc.)
-echo "📦 Running composer install --no-dev --optimize-autoloader..."
-composer install --no-dev --optimize-autoloader --no-interaction 2>/dev/null || true
-
-echo "📦 Building frontend assets..."
 if [ -d "packages/admin" ]; then
-    (cd packages/admin && npm ci --production 2>/dev/null && npm run build 2>/dev/null) || echo "⚠️  Frontend build skipped"
+    echo "Building frontend..."
+    (cd packages/admin && npm ci --ignore-scripts 2>/dev/null && npm run build 2>&1) || echo "WARNING: frontend build skipped"
 fi
 
-echo ""
-echo "✅ Deployment to $ENVIRONMENT complete"
-echo "   Metadata: build/deploy/${ENVIRONMENT}-metadata.json"
+echo "=== Deploy to $ENV complete ==="
+echo "Metadata: build/deploy/${ENV}-metadata.json"
