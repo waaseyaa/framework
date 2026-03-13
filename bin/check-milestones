@@ -54,7 +54,7 @@ fi
 # Active milestone summary
 echo ""
 echo "--- Active milestones ---"
-echo "$MILESTONES" | grep -oP '"title":\s*"\K[^"]+|"open_issues":\s*\K\d+|"closed_issues":\s*\K\d+' | paste - - - | while read -r title open closed; do
+echo "$MILESTONES" | grep -oP '"title":\s*"\K[^"]+|"open_issues":\s*\K\d+|"closed_issues":\s*\K\d+' | paste - - - | while IFS=$'\t' read -r title open closed; do
   total=$((open + closed))
   if [[ "$total" -gt 0 ]]; then
     pct=$((closed * 100 / total))
