@@ -4,7 +4,7 @@
   "title": "core.note",
   "description": "Waaseyaa built-in Note content type. Minimal, generic, stable.",
   "type": "object",
-  "required": ["title", "tenant_id"],
+  "required": ["title"],
   "additionalProperties": false,
   "properties": {
     "id": {
@@ -17,11 +17,6 @@
       "format": "uuid",
       "description": "Stable public identifier. Read-only.",
       "readOnly": true
-    },
-    "tenant_id": {
-      "type": "string",
-      "description": "Owning tenant identifier.",
-      "minLength": 1
     },
     "title": {
       "type": "string",

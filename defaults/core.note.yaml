@@ -23,7 +23,7 @@ entity_keys:
   id: id
   uuid: uuid
   label: title
-  owner: tenant_id
+  owner: ~  # v1.0 is single-tenant; multi-tenant owner key deferred to v2.0
 
 fields:
   id:
@@ -34,11 +34,6 @@ fields:
   uuid:
     type: uuid
     label: UUID
-    system: true
-    writable: false
-  tenant_id:
-    type: string
-    label: Tenant ID
     system: true
     writable: false
   title:
@@ -77,10 +72,6 @@ access_control:
     uuid:
       read: [tenant.member, tenant.admin, platform.admin]
       write: []
-    tenant_id:
-      read: [tenant.admin, platform.admin]
-      write: []
-
 lifecycle:
   deletable: false
   disableable: true
@@ -112,7 +103,6 @@ telemetry:
     - actor
     - action
     - entity_id
-    - tenant_id
     - timestamp
   retention_policy: 90d
   replay_metadata: true

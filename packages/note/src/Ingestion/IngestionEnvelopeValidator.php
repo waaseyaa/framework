@@ -96,13 +96,5 @@ final class IngestionEnvelopeValidator
             );
         }
 
-        $tenantId = $payload['tenant_id'] ?? null;
-        if (!is_string($tenantId) || trim($tenantId) === '') {
-            $errors[] = new ValidationError(
-                '/payload/tenant_id',
-                'SCHEMA_VIOLATION',
-                'payload.tenant_id is required and must be a non-empty string.',
-            );
-        }
     }
 }

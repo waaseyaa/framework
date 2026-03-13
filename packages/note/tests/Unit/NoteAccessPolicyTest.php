@@ -237,7 +237,6 @@ final class NoteAccessPolicyTest extends TestCase
         return [
             'id'         => ['id'],
             'uuid'       => ['uuid'],
-            'tenant_id'  => ['tenant_id'],
             'created_at' => ['created_at'],
             'updated_at' => ['updated_at'],
         ];

@@ -51,9 +51,15 @@ final class NoteSchemaTest extends TestCase
     }
 
     #[Test]
-    public function tenantIdIsRequired(): void
+    public function tenantIdIsNotRequired(): void
     {
-        $this->assertContains('tenant_id', $this->schema['required']);
+        $this->assertNotContains('tenant_id', $this->schema['required']);
+    }
+
+    #[Test]
+    public function tenantIdPropertyDoesNotExist(): void
+    {
+        $this->assertArrayNotHasKey('tenant_id', $this->schema['properties']);
     }
 
     #[Test]
@@ -87,7 +93,7 @@ final class NoteSchemaTest extends TestCase
     {
         $required = $this->schema['required'];
 
-        $validPayload = ['title' => 'My Note', 'tenant_id' => 'acme'];
+        $validPayload = ['title' => 'My Note'];
         foreach ($required as $field) {
             $this->assertArrayHasKey($field, $validPayload, "Valid payload must include required field '$field'");
         }
@@ -98,7 +104,7 @@ final class NoteSchemaTest extends TestCase
     {
         $required = $this->schema['required'];
 
-        $invalidPayload = ['tenant_id' => 'acme']; // no title
+        $invalidPayload = ['body' => 'No title here']; // no title
         $this->assertContains('title', $required);
         $this->assertArrayNotHasKey('title', $invalidPayload, 'Invalid payload must be missing title');
     }

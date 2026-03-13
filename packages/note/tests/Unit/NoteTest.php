@@ -15,7 +15,7 @@ final class NoteTest extends TestCase
     #[Test]
     public function newNoteIsNew(): void
     {
-        $note = new Note(['title' => 'Hello', 'tenant_id' => 'acme']);
+        $note = new Note(['title' => 'Hello']);
 
         $this->assertTrue($note->isNew());
     }
@@ -31,7 +31,7 @@ final class NoteTest extends TestCase
     #[Test]
     public function getTitleReturnsTitle(): void
     {
-        $note = new Note(['title' => 'My Note', 'tenant_id' => 'acme']);
+        $note = new Note(['title' => 'My Note']);
 
         $this->assertSame('My Note', $note->getTitle());
     }
@@ -39,25 +39,17 @@ final class NoteTest extends TestCase
     #[Test]
     public function setTitleUpdatesTitle(): void
     {
-        $note = new Note(['title' => 'Old', 'tenant_id' => 'acme']);
+        $note = new Note(['title' => 'Old']);
         $note->setTitle('New');
 
         $this->assertSame('New', $note->getTitle());
     }
 
     #[Test]
-    public function getTenantIdReturnsTenantId(): void
-    {
-        $note = new Note(['title' => 'Test', 'tenant_id' => 'acme']);
-
-        $this->assertSame('acme', $note->getTenantId());
-    }
-
-    #[Test]
     public function getBodyReturnsBodyOrEmptyString(): void
     {
-        $withBody = new Note(['title' => 'Test', 'tenant_id' => 'acme', 'body' => 'Content here.']);
-        $withoutBody = new Note(['title' => 'Test', 'tenant_id' => 'acme']);
+        $withBody = new Note(['title' => 'Test', 'body' => 'Content here.']);
+        $withoutBody = new Note(['title' => 'Test']);
 
         $this->assertSame('Content here.', $withBody->getBody());
         $this->assertSame('', $withoutBody->getBody());

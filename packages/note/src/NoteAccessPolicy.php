@@ -22,22 +22,15 @@ use Waaseyaa\Entity\EntityInterface;
  *   - DELETE          : unconditionally forbidden — core.note is non-deletable via API
  *
  * Field-level (open-by-default, Forbidden restricts):
- *   - System fields (id, uuid, tenant_id, created_at, updated_at):
+ *   - System fields (id, uuid, created_at, updated_at):
  *     edit forbidden for everyone except platform.admin.
  *   - User fields (title, body): neutral for all — no restriction.
  */
 #[PolicyAttribute(entityType: 'note')]
 final class NoteAccessPolicy implements AccessPolicyInterface, FieldAccessPolicyInterface
 {
-    /**
-     * Fields that are always read-only after creation for non-platform.admin roles.
-     * 'tenant_id' is settable on creation (identifying the owning tenant) but
-     * immutable on update — enforced via the isNew() check in fieldAccess().
-     */
+    /** Fields that are always read-only for non-platform.admin roles. */
     private const ALWAYS_READONLY_FIELDS = ['id', 'uuid', 'created_at', 'updated_at'];
-
-    /** Settable on creation, immutable on update for non-platform.admin roles. */
-    private const CREATE_ONLY_FIELDS = ['tenant_id'];
 
     public function appliesTo(string $entityTypeId): bool
     {
@@ -88,8 +81,7 @@ final class NoteAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
         AccountInterface $account,
     ): AccessResult {
         if ($operation === 'edit') {
-            $isSystemField = in_array($fieldName, self::ALWAYS_READONLY_FIELDS, true)
-                || (!$entity->isNew() && in_array($fieldName, self::CREATE_ONLY_FIELDS, true));
+            $isSystemField = in_array($fieldName, self::ALWAYS_READONLY_FIELDS, true);
 
             if ($isSystemField) {
                 if ($this->hasRole('platform.admin', $account)) {

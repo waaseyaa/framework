@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Tenant;
 
+/**
+ * @internal Not wired in v1.0 — reserved for v2.0 multi-tenant support.
+ */
 interface TenantResolverInterface
 {
     /**

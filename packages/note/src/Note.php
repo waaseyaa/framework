@@ -42,11 +42,6 @@ final class Note extends ContentEntityBase
         return $this;
     }
 
-    public function getTenantId(): string
-    {
-        return (string) ($this->get('tenant_id') ?? '');
-    }
-
     public function getBody(): string
     {
         return (string) ($this->get('body') ?? '');

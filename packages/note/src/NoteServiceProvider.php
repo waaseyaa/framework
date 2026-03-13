@@ -33,13 +33,6 @@ final class NoteServiceProvider extends ServiceProvider
                     'required' => false,
                     'weight' => 1,
                 ],
-                'tenant_id' => [
-                    'type' => 'string',
-                    'label' => 'Tenant ID',
-                    'description' => 'Owning tenant identifier.',
-                    'required' => true,
-                    'weight' => 2,
-                ],
             ],
         ));
     }

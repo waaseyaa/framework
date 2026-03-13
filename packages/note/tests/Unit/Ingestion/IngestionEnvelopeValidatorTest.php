@@ -34,7 +34,6 @@ final class IngestionEnvelopeValidatorTest extends TestCase
             'source'           => 'api:import-script',
             'ingested_at'      => '2026-03-07T12:00:00Z',
             'payload'          => [
-                'tenant_id' => 'acme',
                 'title'     => 'Imported Note',
                 'body'      => 'Content here.',
             ],
@@ -51,7 +50,6 @@ final class IngestionEnvelopeValidatorTest extends TestCase
             'source'           => 'api:test',
             'ingested_at'      => '2026-03-07T12:00:00Z',
             'payload'          => [
-                'tenant_id' => 'acme',
                 'title'     => 'A Title',
             ],
         ]);
@@ -69,7 +67,7 @@ final class IngestionEnvelopeValidatorTest extends TestCase
         $errors = $this->validator->validate([
             'source'      => 'api:test',
             'ingested_at' => '2026-03-07T12:00:00Z',
-            'payload'     => ['tenant_id' => 'acme', 'title' => 'T'],
+            'payload'     => ['title' => 'T'],
         ]);
 
         $this->assertErrorWithCode($errors, 'INVALID_ENVELOPE', '/envelope_version');
@@ -82,7 +80,7 @@ final class IngestionEnvelopeValidatorTest extends TestCase
             'envelope_version' => '99',
             'source'           => 'api:test',
             'ingested_at'      => '2026-03-07T12:00:00Z',
-            'payload'          => ['tenant_id' => 'acme', 'title' => 'T'],
+            'payload'          => ['title' => 'T'],
         ]);
 
         $this->assertErrorWithCode($errors, 'INVALID_ENVELOPE', '/envelope_version');
@@ -123,7 +121,7 @@ final class IngestionEnvelopeValidatorTest extends TestCase
         $errors = $this->validator->validate([
             'envelope_version' => '1',
             'ingested_at'      => '2026-03-07T12:00:00Z',
-            'payload'          => ['tenant_id' => 'acme', 'title' => 'T'],
+            'payload'          => ['title' => 'T'],
         ]);
 
         $this->assertErrorWithCode($errors, 'MISSING_PROVENANCE', '/source');
@@ -136,7 +134,7 @@ final class IngestionEnvelopeValidatorTest extends TestCase
             'envelope_version' => '1',
             'source'           => '   ',
             'ingested_at'      => '2026-03-07T12:00:00Z',
-            'payload'          => ['tenant_id' => 'acme', 'title' => 'T'],
+            'payload'          => ['title' => 'T'],
         ]);
 
         $this->assertErrorWithCode($errors, 'MISSING_PROVENANCE', '/source');
@@ -148,7 +146,7 @@ final class IngestionEnvelopeValidatorTest extends TestCase
         $errors = $this->validator->validate([
             'envelope_version' => '1',
             'source'           => 'api:test',
-            'payload'          => ['tenant_id' => 'acme', 'title' => 'T'],
+            'payload'          => ['title' => 'T'],
         ]);
 
         $this->assertErrorWithCode($errors, 'MISSING_PROVENANCE', '/ingested_at');
@@ -161,7 +159,7 @@ final class IngestionEnvelopeValidatorTest extends TestCase
             'envelope_version' => '1',
             'source'           => 'api:test',
             'ingested_at'      => '',
-            'payload'          => ['tenant_id' => 'acme', 'title' => 'T'],
+            'payload'          => ['title' => 'T'],
         ]);
 
         $this->assertErrorWithCode($errors, 'MISSING_PROVENANCE', '/ingested_at');
@@ -178,7 +176,7 @@ final class IngestionEnvelopeValidatorTest extends TestCase
             'envelope_version' => '1',
             'source'           => 'api:test',
             'ingested_at'      => '2026-03-07T12:00:00Z',
-            'payload'          => ['tenant_id' => 'acme'],
+            'payload'          => [],
         ]);
 
         $this->assertErrorWithCode($errors, 'SCHEMA_VIOLATION', '/payload/title');
@@ -191,36 +189,10 @@ final class IngestionEnvelopeValidatorTest extends TestCase
             'envelope_version' => '1',
             'source'           => 'api:test',
             'ingested_at'      => '2026-03-07T12:00:00Z',
-            'payload'          => ['tenant_id' => 'acme', 'title' => '  '],
+            'payload'          => ['title' => '  '],
         ]);
 
         $this->assertErrorWithCode($errors, 'SCHEMA_VIOLATION', '/payload/title');
-    }
-
-    #[Test]
-    public function missingTenantIdInPayloadProducesError(): void
-    {
-        $errors = $this->validator->validate([
-            'envelope_version' => '1',
-            'source'           => 'api:test',
-            'ingested_at'      => '2026-03-07T12:00:00Z',
-            'payload'          => ['title' => 'A Title'],
-        ]);
-
-        $this->assertErrorWithCode($errors, 'SCHEMA_VIOLATION', '/payload/tenant_id');
-    }
-
-    #[Test]
-    public function emptyTenantIdInPayloadProducesError(): void
-    {
-        $errors = $this->validator->validate([
-            'envelope_version' => '1',
-            'source'           => 'api:test',
-            'ingested_at'      => '2026-03-07T12:00:00Z',
-            'payload'          => ['title' => 'A Title', 'tenant_id' => ''],
-        ]);
-
-        $this->assertErrorWithCode($errors, 'SCHEMA_VIOLATION', '/payload/tenant_id');
     }
 
     // -----------------------------------------------------------------------

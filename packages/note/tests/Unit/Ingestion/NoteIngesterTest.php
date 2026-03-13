@@ -35,7 +35,6 @@ final class NoteIngesterTest extends TestCase
             'source'           => 'api:test',
             'ingested_at'      => '2026-03-07T12:00:00Z',
             'payload'          => [
-                'tenant_id' => 'acme',
                 'title'     => 'Test Note',
                 'body'      => 'Hello world.',
             ],
@@ -45,7 +44,6 @@ final class NoteIngesterTest extends TestCase
 
         $this->assertInstanceOf(Note::class, $note);
         $this->assertSame('Test Note', $note->getTitle());
-        $this->assertSame('acme', $note->getTenantId());
         $this->assertSame('Hello world.', $note->getBody());
     }
 
@@ -56,7 +54,7 @@ final class NoteIngesterTest extends TestCase
             'envelope_version' => '1',
             'source'           => 'api:test',
             'ingested_at'      => '2026-03-07T12:00:00Z',
-            'payload'          => ['tenant_id' => 'acme', 'title' => 'Saved Note'],
+            'payload'          => ['title' => 'Saved Note'],
         ]);
 
         $this->ingester->ingest($envelope);
@@ -71,7 +69,7 @@ final class NoteIngesterTest extends TestCase
             'envelope_version' => '1',
             'source'           => 'api:import-script',
             'ingested_at'      => '2026-03-07T12:00:00Z',
-            'payload'          => ['tenant_id' => 'acme', 'title' => 'Provenance Note'],
+            'payload'          => ['title' => 'Provenance Note'],
         ]);
 
         $note = $this->ingester->ingest($envelope);
@@ -87,7 +85,7 @@ final class NoteIngesterTest extends TestCase
             'envelope_version' => '1',
             'source'           => 'api:test',
             'ingested_at'      => '2026-03-07T12:00:00Z',
-            'payload'          => ['tenant_id' => 'acme', 'title' => 'No Body Note'],
+            'payload'          => ['title' => 'No Body Note'],
         ]);
 
         $note = $this->ingester->ingest($envelope);

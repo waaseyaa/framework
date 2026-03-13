@@ -410,7 +410,6 @@ final class PayloadValidatorTest extends TestCase
 
         $envelope = $this->makeEnvelope('core.note', [
             'title'     => 'Integration Test Note',
-            'tenant_id' => 'tenant-1',
             'body'      => 'This is a test.',
         ]);
 
@@ -431,7 +430,6 @@ final class PayloadValidatorTest extends TestCase
         $envelope = $this->makeEnvelope('core.note', [
             'id'    => 999,    // readOnly
             'title' => '',     // minLength 1
-            // missing tenant_id
         ]);
 
         $errors = $validator->validate($envelope);
@@ -439,7 +437,6 @@ final class PayloadValidatorTest extends TestCase
 
         $this->assertContains('id', $fields);
         $this->assertContains('title', $fields);
-        $this->assertContains('tenant_id', $fields);
     }
 
     // ------------------------------------------------------------------

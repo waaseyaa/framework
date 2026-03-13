@@ -54,7 +54,6 @@ final class NoteRbacIntegrationTest extends TestCase
             fieldDefinitions: [
                 'id'         => ['type' => 'integer', 'label' => 'ID'],
                 'uuid'       => ['type' => 'string',  'label' => 'UUID'],
-                'tenant_id'  => ['type' => 'string',  'label' => 'Tenant ID'],
                 'title'      => ['type' => 'string',  'label' => 'Title'],
                 'body'       => ['type' => 'string',  'label' => 'Body'],
                 'created_at' => ['type' => 'string',  'label' => 'Created At'],
@@ -88,7 +87,7 @@ final class NoteRbacIntegrationTest extends TestCase
         $controller = $this->buildController($user);
 
         $doc = $controller->store('note', [
-            'data' => ['type' => 'note', 'attributes' => ['title' => 'Nope', 'tenant_id' => 'acme']],
+            'data' => ['type' => 'note', 'attributes' => ['title' => 'Nope']],
         ]);
 
         $this->assertSame(403, $doc->statusCode);
@@ -131,7 +130,7 @@ final class NoteRbacIntegrationTest extends TestCase
         $controller = $this->buildController($user);
 
         $doc = $controller->store('note', [
-            'data' => ['type' => 'note', 'attributes' => ['title' => 'New Note', 'tenant_id' => 'acme']],
+            'data' => ['type' => 'note', 'attributes' => ['title' => 'New Note']],
         ]);
 
         $this->assertSame(201, $doc->statusCode);
@@ -174,7 +173,7 @@ final class NoteRbacIntegrationTest extends TestCase
         $controller = $this->buildController($user);
 
         $doc = $controller->store('note', [
-            'data' => ['type' => 'note', 'attributes' => ['title' => 'Platform Note', 'tenant_id' => 'sys']],
+            'data' => ['type' => 'note', 'attributes' => ['title' => 'Platform Note']],
         ]);
 
         $this->assertSame(201, $doc->statusCode);
@@ -215,7 +214,7 @@ final class NoteRbacIntegrationTest extends TestCase
         $controller = $this->buildController(new AnonymousUser());
 
         $doc = $controller->store('note', [
-            'data' => ['type' => 'note', 'attributes' => ['title' => 'Anon', 'tenant_id' => 'acme']],
+            'data' => ['type' => 'note', 'attributes' => ['title' => 'Anon']],
         ]);
 
         $this->assertSame(403, $doc->statusCode);
@@ -247,7 +246,7 @@ final class NoteRbacIntegrationTest extends TestCase
         $note = $this->seedNote('Field Test');
         $user = $this->makeUser(roles: ['tenant.admin']);
 
-        foreach (['id', 'uuid', 'tenant_id', 'created_at', 'updated_at'] as $field) {
+        foreach (['id', 'uuid', 'created_at', 'updated_at'] as $field) {
             $result = $this->accessHandler->checkFieldAccess($note, $field, 'edit', $user);
             $this->assertTrue($result->isForbidden(), "Expected '$field' edit to be forbidden for tenant.admin");
         }
@@ -259,7 +258,7 @@ final class NoteRbacIntegrationTest extends TestCase
         $note = $this->seedNote('Platform Field Test');
         $user = $this->makeUser(id: PHP_INT_MAX, roles: ['platform.admin']);
 
-        foreach (['id', 'uuid', 'tenant_id', 'created_at', 'updated_at'] as $field) {
+        foreach (['id', 'uuid', 'created_at', 'updated_at'] as $field) {
             $result = $this->accessHandler->checkFieldAccess($note, $field, 'edit', $user);
             $this->assertFalse($result->isForbidden(), "Expected '$field' edit to be allowed for platform.admin");
         }
@@ -301,9 +300,9 @@ final class NoteRbacIntegrationTest extends TestCase
         ]);
     }
 
-    private function seedNote(string $title, string $tenantId = 'acme'): Note
+    private function seedNote(string $title): Note
     {
-        $note = new Note(['title' => $title, 'tenant_id' => $tenantId]);
+        $note = new Note(['title' => $title]);
         $this->storage->save($note);
 
         return $note;

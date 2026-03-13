@@ -18,7 +18,6 @@ final class IngestionEnvelope
         public readonly string $source,
         public readonly string $ingestedAt,
         public readonly string $title,
-        public readonly string $tenantId,
         public readonly string $body,
     ) {}
 
@@ -33,7 +32,6 @@ final class IngestionEnvelope
             source:          trim((string) $raw['source']),
             ingestedAt:      trim((string) $raw['ingested_at']),
             title:           trim((string) $payload['title']),
-            tenantId:        trim((string) $payload['tenant_id']),
             body:            isset($payload['body']) ? trim((string) $payload['body']) : '',
         );
     }

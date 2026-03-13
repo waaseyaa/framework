@@ -93,7 +93,6 @@ final class NoteApiIntegrationTest extends TestCase
                 'type' => 'note',
                 'attributes' => [
                     'title' => 'My First Note',
-                    'tenant_id' => 'acme',
                     'body' => 'Hello, Waaseyaa.',
                 ],
             ],
@@ -197,9 +196,9 @@ final class NoteApiIntegrationTest extends TestCase
         ]);
     }
 
-    private function seedNote(string $title, string $tenantId = 'acme'): Note
+    private function seedNote(string $title): Note
     {
-        $note = new Note(['title' => $title, 'tenant_id' => $tenantId]);
+        $note = new Note(['title' => $title]);
         $this->storage->save($note);
 
         return $note;

@@ -19,7 +19,6 @@ final class NoteIngester
         /** @var Note $note */
         $note = $this->storage->create([
             'title'            => $envelope->title,
-            'tenant_id'        => $envelope->tenantId,
             'body'             => $envelope->body,
             'ingestion_source' => $envelope->source,
             'ingested_at'      => $envelope->ingestedAt,

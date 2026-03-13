@@ -49,7 +49,6 @@ final class NoteIngestionIntegrationTest extends TestCase
             'source'           => 'api:import-script',
             'ingested_at'      => '2026-03-07T12:00:00Z',
             'payload'          => [
-                'tenant_id' => 'acme',
                 'title'     => 'Imported Note',
                 'body'      => 'Content here.',
             ],
@@ -63,7 +62,6 @@ final class NoteIngestionIntegrationTest extends TestCase
 
         $this->assertInstanceOf(Note::class, $note);
         $this->assertSame('Imported Note', $note->getTitle());
-        $this->assertSame('acme', $note->getTenantId());
         $this->assertSame('Content here.', $note->getBody());
         $this->assertCount(1, $this->storage->saved);
     }
@@ -75,7 +73,7 @@ final class NoteIngestionIntegrationTest extends TestCase
             'envelope_version' => '1',
             'source'           => 'cli:batch-import',
             'ingested_at'      => '2026-03-07T09:30:00Z',
-            'payload'          => ['tenant_id' => 'beta', 'title' => 'CLI Import'],
+            'payload'          => ['title' => 'CLI Import'],
         ];
 
         $note = $this->ingester->ingest(IngestionEnvelope::fromValidated($raw));
@@ -91,7 +89,7 @@ final class NoteIngestionIntegrationTest extends TestCase
             'envelope_version' => '1',
             'source'           => 'api:test',
             'ingested_at'      => '2026-03-07T12:00:00Z',
-            'payload'          => ['tenant_id' => 'acme', 'title' => 'No Body'],
+            'payload'          => ['title' => 'No Body'],
         ];
 
         $note = $this->ingester->ingest(IngestionEnvelope::fromValidated($raw));
@@ -109,10 +107,10 @@ final class NoteIngestionIntegrationTest extends TestCase
         ];
 
         $this->ingester->ingest(IngestionEnvelope::fromValidated(
-            $base + ['payload' => ['tenant_id' => 'acme', 'title' => 'Note One']],
+            $base + ['payload' => ['title' => 'Note One']],
         ));
         $this->ingester->ingest(IngestionEnvelope::fromValidated(
-            $base + ['payload' => ['tenant_id' => 'acme', 'title' => 'Note Two']],
+            $base + ['payload' => ['title' => 'Note Two']],
         ));
 
         $this->assertCount(2, $this->storage->saved);
@@ -128,7 +126,7 @@ final class NoteIngestionIntegrationTest extends TestCase
         $errors = $this->validator->validate([
             'source'      => 'api:test',
             'ingested_at' => '2026-03-07T12:00:00Z',
-            'payload'     => ['tenant_id' => 'acme', 'title' => 'T'],
+            'payload'     => ['title' => 'T'],
         ]);
 
         $this->assertNotEmpty($errors);
@@ -142,7 +140,7 @@ final class NoteIngestionIntegrationTest extends TestCase
     {
         $errors = $this->validator->validate([
             'envelope_version' => '1',
-            'payload'          => ['tenant_id' => 'acme', 'title' => 'T'],
+            'payload'          => ['title' => 'T'],
         ]);
 
         $codes = array_map(static fn(ValidationError $e): string => $e->code, $errors);
@@ -157,7 +155,7 @@ final class NoteIngestionIntegrationTest extends TestCase
             'envelope_version' => '1',
             'source'           => 'api:test',
             'ingested_at'      => '2026-03-07T12:00:00Z',
-            'payload'          => ['tenant_id' => 'acme'],
+            'payload'          => [],
         ]);
 
         $codes = array_map(static fn(ValidationError $e): string => $e->code, $errors);
@@ -172,7 +170,7 @@ final class NoteIngestionIntegrationTest extends TestCase
             'envelope_version' => '1',
             'source'           => '',
             'ingested_at'      => '2026-03-07T12:00:00Z',
-            'payload'          => ['tenant_id' => 'acme', 'title' => 'T'],
+            'payload'          => ['title' => 'T'],
         ]);
 
         $this->assertNotEmpty($errors);
