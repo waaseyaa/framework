@@ -215,12 +215,14 @@ class NoteInMemoryStorage extends InMemoryEntityStorage
     private array $notes = [];
     private int $nextId = 1;
 
-    public function create(array $values = []): Note
+    /** @return Note */
+    public function create(array $values = []): EntityInterface
     {
         return new Note($values);
     }
 
-    public function load(int|string $id): ?Note
+    /** @return Note|null */
+    public function load(int|string $id): ?EntityInterface
     {
         return $this->notes[$id] ?? null;
     }
