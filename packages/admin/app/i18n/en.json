@@ -80,6 +80,8 @@
   "entity_type_path_alias": "Path Alias",
   "entity_type_workflow": "Workflow",
   "entity_type_pipeline": "Pipeline",
+  "entity_type_note": "Note",
+  "entity_type_relationship": "Relationship",
 
   "field_title": "Title",
   "field_machine_name": "Machine name",
