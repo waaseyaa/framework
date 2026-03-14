@@ -134,6 +134,10 @@
         "group": {
           "type": "string"
         },
+        "disabled": {
+          "type": "boolean",
+          "description": "If true, the entity type is visible but non-interactive in the admin UI"
+        },
         "capabilities": {
           "$ref": "#/$defs/CatalogCapabilities"
         }
