@@ -8,9 +8,11 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Route;
+use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 
+#[AsMiddleware(pipeline: 'http', priority: 20)]
 final class CsrfMiddleware implements HttpMiddlewareInterface
 {
     private const TOKEN_SESSION_KEY = '_csrf_token';

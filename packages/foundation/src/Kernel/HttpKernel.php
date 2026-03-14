@@ -16,6 +16,7 @@ use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Cache\CacheConfigResolver;
 use Waaseyaa\Cache\CacheFactory;
 use Waaseyaa\Cache\CacheConfiguration;
+use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Http\CorsHandler;
 use Waaseyaa\Foundation\Http\ResponseSender;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
@@ -140,18 +141,26 @@ final class HttpKernel extends AbstractKernel
         $twigEnv = SsrServiceProvider::getTwigEnvironment();
         $errorPageRenderer = $twigEnv !== null ? new TwigErrorPageRenderer($twigEnv) : null;
 
-        $pipeline = (new HttpPipeline())
-            ->withMiddleware(new BearerAuthMiddleware(
+        $middlewares = [
+            new BearerAuthMiddleware(
                 $userStorage,
                 (string) ($this->config['jwt_secret'] ?? ''),
                 is_array($this->config['api_keys'] ?? null) ? $this->config['api_keys'] : [],
-            ))
-            ->withMiddleware(new SessionMiddleware(
+            ),
+            new SessionMiddleware(
                 $userStorage,
                 $this->shouldUseDevFallbackAccount() ? new DevAdminAccount() : null,
-            ))
-            ->withMiddleware(new CsrfMiddleware())
-            ->withMiddleware(new AuthorizationMiddleware($accessChecker, $errorPageRenderer));
+            ),
+            new CsrfMiddleware(),
+            new AuthorizationMiddleware($accessChecker, $errorPageRenderer),
+        ];
+
+        usort($middlewares, fn (object $a, object $b) => $this->getMiddlewarePriority($b) <=> $this->getMiddlewarePriority($a));
+
+        $pipeline = new HttpPipeline();
+        foreach ($middlewares as $middleware) {
+            $pipeline = $pipeline->withMiddleware($middleware);
+        }
 
         try {
             $authResponse = $pipeline->handle(
@@ -192,6 +201,20 @@ final class HttpKernel extends AbstractKernel
             config: $this->config,
         );
         $controllerDispatcher->dispatch($method, $params, $httpRequest, $queryString, $broadcastStorage, $account);
+    }
+
+    private function getMiddlewarePriority(object $middleware): int
+    {
+        $reflection = new \ReflectionClass($middleware);
+        $attributes = $reflection->getAttributes(AsMiddleware::class);
+        if (empty($attributes)) {
+            return 0;
+        }
+        $instance = $attributes[0]->newInstance();
+        if ($instance->pipeline !== 'http') {
+            return 0;
+        }
+        return $instance->priority;
     }
 
     private function handleCors(): void
