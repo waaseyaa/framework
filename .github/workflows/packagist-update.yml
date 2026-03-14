@@ -1,0 +1,37 @@
+name: Trigger Packagist Update
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Packagist package name (e.g. waaseyaa/waaseyaa)'
+        required: true
+        default: 'waaseyaa/waaseyaa'
+      repo_url:
+        description: 'GitHub repo URL for the package'
+        required: true
+        default: 'https://github.com/waaseyaa/waaseyaa'
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Packagist crawl
+        env:
+          PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}
+          PACKAGE: ${{ github.event.inputs.package }}
+          REPO_URL: ${{ github.event.inputs.repo_url }}
+        run: |
+          USERNAME="${PACKAGE%%/*}"
+          RESPONSE=$(curl -s -o /tmp/packagist-response.json -w "%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"repository\":{\"url\":\"${REPO_URL}\"}}" \
+            "https://packagist.org/api/update-package?username=${USERNAME}&apiToken=${PACKAGIST_TOKEN}")
+          echo "HTTP status: $RESPONSE"
+          cat /tmp/packagist-response.json
+          if [ "$RESPONSE" != "202" ]; then
+            echo "::error::Packagist update failed with status $RESPONSE"
+            exit 1
+          fi
+          echo "Packagist update triggered successfully."
