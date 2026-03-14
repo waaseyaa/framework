@@ -1,6 +1,6 @@
 # Waaseyaa v1.0 — Release Notes
 
-**Release candidate branch:** `release/v1.0-rc`
+**Branch:** `release/v1.0-rc` → `main` (PR #379, pending merge approval)
 **Date:** 2026-03-13
 **Milestone:** [v1.0 Release](https://github.com/waaseyaa/framework/milestone/22)
 
@@ -81,9 +81,29 @@ spec drift scores, CLAUDE.md coverage gaps, and per-subsystem freshness indicato
 
 ---
 
+## Known issues
+
+- **#380** — Vue hydration mismatch on auth-protected pages (SSR/client timing).
+  Non-blocking — page corrects itself after hydration. Scheduled for v1.1.
+
+---
+
+## RC verification summary
+
+| Check | Result |
+|-------|--------|
+| PHP test suite (4352 tests) | ✅ Pass |
+| TypeScript test suite (78 tests) | ✅ Pass |
+| Admin SPA production build | ✅ 2.23 MB / 545 kB gzip |
+| Playwright MCP browser smoke (11 checks) | ✅ 10 pass / 0 fail / 1 warning |
+| Repository drift (main vs RC) | ✅ None |
+| Untracked/stray files | ✅ None |
+
+---
+
 ## Upgrade path
 
-This release candidate requires no schema migrations from v0.4.0. Run:
+This release requires no schema migrations from v0.4.0. Run:
 
 ```bash
 composer update

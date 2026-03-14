@@ -7,11 +7,34 @@ Waaseyaa follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [1.0.0] — Release Candidate (2026-03-13)
+## [1.0.0] — 2026-03-13
 
-This release candidate consolidates all v1.0 milestone work including eight
-pre-release review sprints. It represents the first stable, production-ready
-release of the Waaseyaa framework.
+This release consolidates all v1.0 milestone work including eight pre-release
+review sprints. It is the first stable, production-ready release of the
+Waaseyaa framework.
+
+### RC Verification (2026-03-13)
+
+Playwright MCP live browser smoke test passed on `release/v1.0-rc`:
+
+| Test | Result |
+|------|--------|
+| Dashboard renders (header, sidebar, language switcher) | ✅ |
+| Login page renders correctly | ✅ |
+| Auth middleware: unauthenticated `/` → `/login` | ✅ |
+| Auth middleware: all protected routes redirect | ✅ |
+| Login error handling shows alert | ✅ |
+| SSR homepage renders (dark theme, hero, cards) | ✅ |
+| SSR admin link → `http://localhost:3000` | ✅ |
+| SSR footer uses `<footer>` element | ✅ |
+| JSON:API `/api/node` returns valid response | ✅ |
+| SSR 404 page with path interpolation | ✅ |
+| Admin SPA production build (2.23 MB / 545 kB gzip) | ✅ |
+| PHP test suite (4352 tests) | ✅ |
+| TypeScript test suite (78 tests) | ✅ |
+
+**Known issue:** Vue hydration mismatch warning on auth-protected pages (#380,
+post-v1.0). Non-blocking — page corrects itself after hydration.
 
 ### Added
 
