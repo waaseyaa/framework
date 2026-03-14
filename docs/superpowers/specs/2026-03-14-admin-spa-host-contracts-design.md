@@ -72,8 +72,9 @@ export interface AdminSession {
 }
 
 export interface AdminAccount {
-  id: string
+  id: string            // Always string in the contract. PHP bridge serializes numeric UIDs as strings.
   name: string
+  email?: string        // Optional. Present when host provides it; omitted otherwise.
   roles: string[]
 }
 
@@ -90,6 +91,7 @@ export interface AdminTenant {
 export interface CatalogEntry {
   id: string
   label: string
+  keys?: Record<string, string>   // Entity key names (e.g., { id: 'nid', uuid: 'uuid' }). Optional for hosts that don't expose key metadata.
   group?: string
   disabled?: boolean
   capabilities: CatalogCapabilities
@@ -144,6 +146,7 @@ export interface SchemaProperty {
   description?: string
   format?: string
   readOnly?: boolean
+  default?: any
   enum?: string[]
   minimum?: number
   maximum?: number
@@ -156,6 +159,8 @@ export interface SchemaProperty {
   'x-enum-labels'?: Record<string, string>
   'x-target-type'?: string
   'x-access-restricted'?: boolean
+  'x-source-field'?: string
+  'x-list-display'?: boolean
 }
 
 export interface EntitySchema {
@@ -193,9 +198,49 @@ export interface AdminAuthConfig {
 
 export interface AdminTransportConfig {
   strategy: 'jsonapi' | 'custom'      // default: 'jsonapi'
-  baseUrl?: string                    // base path for the default JSON:API adapter
+  apiPath?: string                    // API path prefix for the default JSON:API adapter (e.g., '/api')
 }
 ```
+
+### Transport Errors
+
+```typescript
+export class TransportError extends Error {
+  constructor(
+    public readonly status: number,       // HTTP status code (404, 422, 500, etc.)
+    public readonly title: string,        // Human-readable error title
+    public readonly detail?: string,      // Optional detail message
+    public readonly source?: Record<string, string>,  // Optional pointer to offending field
+  ) {
+    super(title)
+    this.name = 'TransportError'
+  }
+}
+```
+
+Custom `TransportAdapter` implementations must throw `TransportError` for all error conditions. The SPA catches these and renders appropriate error UI based on `status`.
+
+### Auth Lifecycle
+
+`AuthAdapter.refreshSession?()` is called by the SPA in exactly one situation: when a `TransportAdapter` method throws a `TransportError` with `status: 401`. The SPA calls `refreshSession()` once. If it returns a valid `AdminSession`, the SPA retries the failed transport call. If it returns `null` or is not implemented, the SPA redirects to the login URL. There is no timer-based refresh.
+
+### Session vs Bootstrap: Source of Truth
+
+`AdminBootstrap.account` and `AdminBootstrap.tenant` are the **initial** values, set at boot time. `AdminSession` (returned by `AuthAdapter.getSession()` and `refreshSession()`) is the **runtime** source of truth. If a session refresh returns different account/tenant values, the SPA updates its runtime state from the session, not the original bootstrap. For the default `BootstrapAuthAdapter`, these are always the same object since there is no refresh.
+
+### Global Type Augmentation
+
+For inline bootstrap via `window.__WAASEYAA_ADMIN__`:
+
+```typescript
+declare global {
+  interface Window {
+    __WAASEYAA_ADMIN__?: AdminBootstrap
+  }
+}
+```
+
+This augmentation is included in `contracts/bootstrap.ts`.
 
 ### Runtime Interface (Nuxt plugin provides this)
 
@@ -261,7 +306,7 @@ app/
      - getSession() returns { account, tenant, features } from bootstrap (no fetch)
      - logout() calls logoutEndpoint via fetch
      - getLoginUrl(returnTo) returns auth.loginUrl + ?returnTo=...
-   - transport ← JsonApiTransportAdapter(resolvedBaseUrl + transport.baseUrl, tenant)
+   - transport ← JsonApiTransportAdapter(resolvedBaseUrl + transport.apiPath, tenant)
      - When tenant.scopingStrategy === 'header', injects X-Tenant-Id on every request
      - Uses fetch/ofetch directly (NOT Nuxt $fetch) for framework independence
 7. Build AdminRuntime and provide via nuxtApp.provide('admin', runtime)
@@ -296,15 +341,26 @@ app/
 `nuxt.config.ts` reads `NUXT_PUBLIC_BASE_URL` (default `/`). This sets:
 - Nuxt's `app.baseURL`
 - The bootstrap endpoint path: `<baseURL>/bootstrap`
-- The JSON:API adapter base: `<baseURL>` + `transport.baseUrl`
+- The JSON:API adapter base: `<baseURL>` + `transport.apiPath`
 
 Claudriel sets `NUXT_PUBLIC_BASE_URL=/admin/` and everything resolves.
+
+### Composables requiring minor updates
+
+**`useNavGroups.ts`** — Currently operates on `EntityTypeInfo` (with `keys`). Updated to accept `CatalogEntry[]` instead. The `keys` field is now optional on `CatalogEntry`, so `groupEntityTypes()` continues to work. The `ResolvedNavGroup` interface updates its item type from `EntityTypeInfo` to `CatalogEntry`.
+
+### Login page (`login.vue`)
+
+The existing `login.vue` page becomes the **embedded login form**. It is only reachable when `auth.strategy === 'embedded'`. When the strategy is `redirect`, the Nuxt plugin redirects to `auth.loginUrl` before the page can render. The page's form action changes from hardcoded `/api/auth/login` to `bootstrap.auth.loginEndpoint`.
+
+### Telescope & Codified Context
+
+`useCodifiedContext.ts` and the telescope pages (`telescope/codified-context/`) are **out of scope** for the transport adapter abstraction. These are Waaseyaa-internal developer tools, not host-facing admin features. They continue to use hardcoded `/api/telescope/*` endpoints. Tarball consumers that don't expose telescope endpoints simply won't navigate to those pages. A future version may add a `telescope` capability flag to the catalog, but this is not part of the v1.0 contract.
 
 ### What doesn't change
 
 - All widget components
 - `SchemaForm`, `SchemaField` (consume `EntitySchema`, same shape)
-- `useNavGroups` (pure grouping logic on `CatalogEntry[]`)
 - `useLanguage`, `useRealtime`
 - Page routes (file-based routing)
 - CSS/styling
@@ -354,7 +410,7 @@ waaseyaa-admin-v1.0.0.tar.gz
       │   ├── entry.*.js
       │   ├── *.css
       │   └── ...
-      ├── 200.html                    # SPA fallback for client-side routing
+      ├── 200.html                    # SPA fallback for static hosting (Netlify, Surge). PHP bridge ignores this — uses AdminSpaController instead.
       └── waaseyaa-admin.json         # Manifest: { "version": "1.0.0", "contract": "1.0" }
 ```
 
