@@ -11,7 +11,6 @@ const props = defineProps<{
 
 const { t } = useLanguage()
 const { hasCapability } = useAdmin()
-const canCreate = hasCapability(props.entityType, 'create')
 const canUpdate = hasCapability(props.entityType, 'update')
 const canDelete = hasCapability(props.entityType, 'delete')
 const config = useRuntimeConfig()
