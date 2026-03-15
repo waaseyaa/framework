@@ -1,14 +1,13 @@
 export default defineNuxtConfig({
   compatibilityDate: '2025-01-01',
   devtools: { enabled: true },
+  ssr: false,
 
-  experimental: {
-    viteEnvironmentApi: true,
-  },
   srcDir: 'app/',
 
   routeRules: {
     '/api/**': { proxy: 'http://localhost:8081/api/**' },
+    '/admin/**': { proxy: 'http://localhost:8081/admin/**' },
   },
 
   app: {

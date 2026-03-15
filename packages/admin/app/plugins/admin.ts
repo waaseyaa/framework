@@ -14,7 +14,7 @@ export default defineNuxtPlugin(async () => {
   if (import.meta.client && window.__WAASEYAA_ADMIN__) {
     bootstrap = window.__WAASEYAA_ADMIN__
   } else {
-    const response = await $fetch<AdminBootstrap>(`${baseUrl}/bootstrap`, {
+    const response = await $fetch<AdminBootstrap>(`${baseUrl}/admin/bootstrap`, {
       ignoreResponseError: true,
       onResponseError({ response: res }) {
         if (res.status === 401) {

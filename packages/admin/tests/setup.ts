@@ -7,7 +7,7 @@ import { registerEndpoint } from '@nuxt/test-utils/runtime'
 const defaultCaps = { list: true, get: true, create: true, update: true, delete: true, schema: true }
 
 // Register a mock bootstrap endpoint so the admin plugin can resolve
-registerEndpoint('/bootstrap', () => ({
+registerEndpoint('/admin/bootstrap', () => ({
   version: '1.0',
   auth: { strategy: 'embedded', loginEndpoint: '/api/auth/login' },
   account: { id: '1', name: 'Admin', roles: ['admin'] },
