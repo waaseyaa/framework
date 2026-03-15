@@ -5,7 +5,13 @@ const props = defineProps<{
   error: NuxtError
 }>()
 
-const { t } = useI18n()
+const messages: Record<string, string> = {
+  error_page_title: 'Error',
+  error_not_found: 'Page not found',
+  error_generic: 'Something went wrong',
+  error_page_back: 'Go back',
+}
+const t = (key: string) => messages[key] ?? key
 
 useHead({
   title: t('error_page_title'),
@@ -22,10 +28,10 @@ const message = computed(() =>
       <div class="error-icon" aria-hidden="true">
         {{ error.statusCode === 404 ? '404' : '!' }}
       </div>
-      <h1 class="error-title">{{ $t('error_page_title') }}</h1>
+      <h1 class="error-title">{{ t('error_page_title') }}</h1>
       <p class="error-message">{{ message }}</p>
       <NuxtLink to="/" class="error-back">
-        {{ $t('error_page_back') }}
+        {{ t('error_page_back') }}
       </NuxtLink>
     </div>
   </div>
