@@ -1,49 +1,60 @@
-export interface AuthUser {
-  id: number
-  name: string
-  email: string
-  roles: string[]
-}
+import type { AdminRuntime } from '../contracts/runtime'
+import type { AdminAccount } from '../contracts/auth'
+
+export type { AdminAccount }
 
 const STATE_KEY = 'waaseyaa.auth.user'
 const CHECKED_KEY = 'waaseyaa.auth.checked'
 
 export function useAuth() {
-  const currentUser = useState<AuthUser | null>(STATE_KEY, () => null)
+  const currentUser = useState<AdminAccount | null>(STATE_KEY, () => null)
   const authChecked = useState<boolean>(CHECKED_KEY, () => false)
   const isAuthenticated = computed(() => currentUser.value !== null)
 
-  async function fetchMe(): Promise<void> {
-    try {
-      const response = await $fetch<{ data: AuthUser }>('/api/user/me')
-      currentUser.value = response.data ?? null
-    }
-    catch {
-      currentUser.value = null
-    }
+  function getRuntime(): AdminRuntime {
+    const { $admin } = useNuxtApp() as { $admin: AdminRuntime }
+    return $admin
   }
 
   async function checkAuth(): Promise<void> {
-    if (authChecked.value) {
-      return
-    }
-    await fetchMe()
+    if (authChecked.value) return
+    const runtime = getRuntime()
+    const session = await runtime.auth.getSession()
+    currentUser.value = session?.account ?? null
     authChecked.value = true
   }
 
   async function login(username: string, password: string): Promise<void> {
-    const response = await $fetch<{ data: AuthUser }>('/api/auth/login', {
+    const runtime = getRuntime()
+    const strategy = runtime.bootstrap.auth.strategy
+
+    if (strategy === 'redirect') {
+      const returnTo = window.location.pathname
+      window.location.href = runtime.auth.getLoginUrl(returnTo)
+      return
+    }
+
+    // Embedded strategy — POST to loginEndpoint
+    const endpoint = runtime.bootstrap.auth.loginEndpoint
+    if (!endpoint) throw new Error('No loginEndpoint configured for embedded auth strategy')
+
+    const response = await fetch(endpoint, {
       method: 'POST',
-      body: { username, password },
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
     })
-    currentUser.value = response.data ?? null
+    if (!response.ok) throw new Error('Login failed')
+
+    const session = await runtime.auth.getSession()
+    currentUser.value = session?.account ?? null
   }
 
   async function logout(): Promise<void> {
-    await $fetch('/api/auth/logout', { method: 'POST' })
+    const runtime = getRuntime()
+    await runtime.auth.logout()
     currentUser.value = null
     authChecked.value = false
   }
 
-  return { currentUser, isAuthenticated, fetchMe, checkAuth, login, logout }
+  return { currentUser, isAuthenticated, checkAuth, login, logout }
 }

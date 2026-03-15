@@ -30,6 +30,8 @@ export default defineNuxtConfig({
       appName: process.env.NUXT_PUBLIC_APP_NAME ?? 'Waaseyaa',
       // Quickstart docs link used by onboarding prompt.
       docsUrl: process.env.NUXT_PUBLIC_DOCS_URL ?? 'https://github.com/jonesrussell/waaseyaa',
+      // Base URL for subpath mounting (e.g. "/admin"). Used by admin plugin for bootstrap resolution.
+      baseUrl: process.env.NUXT_PUBLIC_BASE_URL ?? '',
     },
   },
 })

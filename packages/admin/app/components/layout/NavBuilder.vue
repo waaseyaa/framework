@@ -1,28 +1,12 @@
 <script setup lang="ts">
 import { useLanguage } from '~/composables/useLanguage'
-import { groupEntityTypes, type EntityTypeInfo } from '~/composables/useNavGroups'
+import { useAdmin } from '~/composables/useAdmin'
+import { groupEntityTypes } from '~/composables/useNavGroups'
 
 const { t, entityLabel } = useLanguage()
+const { catalog } = useAdmin()
 
-const entityTypes = ref<EntityTypeInfo[]>([])
-const loadError = ref(false)
-
-onMounted(async () => {
-  try {
-    const response = await $fetch<{ data: EntityTypeInfo[] }>('/api/entity-types')
-    if (!Array.isArray(response.data)) {
-      console.error('[Waaseyaa] /api/entity-types returned unexpected shape:', response)
-      loadError.value = true
-      return
-    }
-    entityTypes.value = response.data
-  } catch (e: unknown) {
-    console.error('[Waaseyaa] Failed to load navigation entity types:', e)
-    loadError.value = true
-  }
-})
-
-const navGroups = computed(() => groupEntityTypes(entityTypes.value))
+const navGroups = computed(() => groupEntityTypes(catalog))
 </script>
 
 <template>
@@ -30,7 +14,6 @@ const navGroups = computed(() => groupEntityTypes(entityTypes.value))
     <NuxtLink to="/" class="nav-item">
       {{ t('dashboard') }}
     </NuxtLink>
-    <div v-if="loadError" class="nav-error">{{ t('error_nav') }}</div>
     <template v-for="group in navGroups" :key="group.key">
       <div class="nav-section">{{ t(group.labelKey, group.label) }}</div>
       <NuxtLink

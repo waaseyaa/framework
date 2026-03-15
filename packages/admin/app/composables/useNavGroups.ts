@@ -1,10 +1,8 @@
-export interface EntityTypeInfo {
-  id: string
-  label: string
-  keys: Record<string, string>
-  group?: string | null
-  disabled?: boolean
-}
+import type { CatalogEntry } from '../contracts/catalog'
+
+// Backward-compatible alias — existing components may import EntityTypeInfo.
+// Remove in a future major version.
+export type EntityTypeInfo = CatalogEntry
 
 type NonEmptyArray<T> = [T, ...T[]]
 
@@ -12,7 +10,7 @@ export interface ResolvedNavGroup {
   key: string
   label: string
   labelKey: string
-  entityTypes: NonEmptyArray<EntityTypeInfo>
+  entityTypes: NonEmptyArray<CatalogEntry>
 }
 
 export function humanize(key: string): string {
@@ -47,9 +45,9 @@ const defaultGroupById: Record<string, string> = {
   pipeline: 'workflows',
 }
 
-export function groupEntityTypes(entityTypes: EntityTypeInfo[]): ResolvedNavGroup[] {
-  const grouped = new Map<string, EntityTypeInfo[]>()
-  const ungrouped: EntityTypeInfo[] = []
+export function groupEntityTypes(entityTypes: CatalogEntry[]): ResolvedNavGroup[] {
+  const grouped = new Map<string, CatalogEntry[]>()
+  const ungrouped: CatalogEntry[] = []
 
   for (const et of entityTypes) {
     const key = et.group ?? defaultGroupById[et.id] ?? null
@@ -80,7 +78,7 @@ export function groupEntityTypes(entityTypes: EntityTypeInfo[]): ResolvedNavGrou
       key,
       label: humanize(key),
       labelKey: `nav_group_${key}`,
-      entityTypes: types as NonEmptyArray<EntityTypeInfo>,
+      entityTypes: types as NonEmptyArray<CatalogEntry>,
     })
   }
 
@@ -89,7 +87,7 @@ export function groupEntityTypes(entityTypes: EntityTypeInfo[]): ResolvedNavGrou
       key: 'other',
       label: 'Other',
       labelKey: 'nav_group_other',
-      entityTypes: ungrouped as NonEmptyArray<EntityTypeInfo>,
+      entityTypes: ungrouped as NonEmptyArray<CatalogEntry>,
     })
   }
 

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { useLanguage } from '~/composables/useLanguage'
+import { useAdmin } from '~/composables/useAdmin'
 
 const { t, locale, locales, setLocale } = useLanguage()
 const config = useRuntimeConfig()
-const appName = config.public.appName as string
+const { tenant } = useAdmin()
+const appName = tenant?.name ?? (config.public.appName as string)
 const sidebarOpen = ref(false)
 
 function toggleSidebar() {
