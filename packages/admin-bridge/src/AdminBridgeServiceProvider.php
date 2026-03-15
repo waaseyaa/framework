@@ -15,6 +15,13 @@ final class AdminBridgeServiceProvider extends ServiceProvider
         $this->singleton(CatalogBuilder::class, fn() =>
             new CatalogBuilder($this->resolve(\Waaseyaa\Entity\EntityTypeManagerInterface::class))
         );
+
+        $this->singleton(AdminAuthConfig::class, fn() => new AdminAuthConfig());
+        $this->singleton(AdminTransportConfig::class, fn() => new AdminTransportConfig());
+        $this->singleton(AdminTenant::class, fn() => new AdminTenant(
+            id: 'default',
+            name: getenv('NUXT_PUBLIC_APP_NAME') ?: 'Waaseyaa',
+        ));
     }
 
     public function routes(WaaseyaaRouter $router): void

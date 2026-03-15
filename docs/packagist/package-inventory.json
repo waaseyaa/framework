@@ -1,0 +1,1027 @@
+[
+  {
+    "name": "waaseyaa/access",
+    "path": "packages/access",
+    "description": "Access control and permission system for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Access\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/plugin": "@dev",
+      "waaseyaa/foundation": "@dev",
+      "waaseyaa/routing": "@dev",
+      "symfony/http-foundation": "^7.0"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/plugin": "@dev",
+      "waaseyaa/foundation": "@dev",
+      "waaseyaa/routing": "@dev"
+    },
+    "commit_count": 19,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/ai-agent",
+    "path": "packages/ai-agent",
+    "description": "AI agent orchestration and tool execution for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\AI\\Agent\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/ai-schema": "@dev",
+      "waaseyaa/access": "@dev"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/ai-schema": "@dev",
+      "waaseyaa/access": "@dev"
+    },
+    "commit_count": 8,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/ai-pipeline",
+    "path": "packages/ai-pipeline",
+    "description": "AI processing pipelines with queue-based execution for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\AI\\Pipeline\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/queue": "@dev",
+      "waaseyaa/ai-vector": "@dev"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/queue": "@dev",
+      "waaseyaa/ai-vector": "@dev"
+    },
+    "commit_count": 14,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/ai-schema",
+    "path": "packages/ai-schema",
+    "description": "AI-friendly schema definitions and entity metadata for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\AI\\Schema\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/entity": "@dev"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/entity": "@dev"
+    },
+    "commit_count": 9,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/ai-vector",
+    "path": "packages/ai-vector",
+    "description": "Vector embedding storage and similarity search for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\AI\\Vector\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/queue": "@dev",
+      "waaseyaa/api": "@dev",
+      "waaseyaa/access": "@dev",
+      "waaseyaa/workflows": "@dev"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/queue": "@dev",
+      "waaseyaa/api": "@dev",
+      "waaseyaa/access": "@dev",
+      "waaseyaa/workflows": "@dev"
+    },
+    "commit_count": 21,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/api",
+    "path": "packages/api",
+    "description": "RESTful JSON:API resource layer for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Api\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/foundation": "@dev",
+      "waaseyaa/routing": "@dev",
+      "waaseyaa/access": "@dev"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/foundation": "@dev",
+      "waaseyaa/routing": "@dev",
+      "waaseyaa/access": "@dev"
+    },
+    "commit_count": 33,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/cache",
+    "path": "packages/cache",
+    "description": "Cache bins with cache tag invalidation for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Cache\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "psr/cache": "^3.0",
+      "psr/simple-cache": "^3.0"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {},
+    "commit_count": 11,
+    "missing_fields": [],
+    "normalization_needed": false
+  },
+  {
+    "name": "waaseyaa/cli",
+    "path": "packages/cli",
+    "description": "Command-line interface and console commands for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\CLI\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/config": "@dev",
+      "waaseyaa/cache": "@dev",
+      "waaseyaa/user": "@dev",
+      "waaseyaa/access": "@dev",
+      "symfony/console": "^7.0"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/config": "@dev",
+      "waaseyaa/cache": "@dev",
+      "waaseyaa/user": "@dev",
+      "waaseyaa/access": "@dev"
+    },
+    "commit_count": 53,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/cms",
+    "path": "packages/cms",
+    "description": "Waaseyaa \u2014 complete headless CMS with admin and CLI.",
+    "type": "metapackage",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [],
+    "require": {
+      "waaseyaa/core": "^0.1",
+      "waaseyaa/node": "^0.1",
+      "waaseyaa/taxonomy": "^0.1",
+      "waaseyaa/media": "^0.1",
+      "waaseyaa/path": "^0.1",
+      "waaseyaa/menu": "^0.1",
+      "waaseyaa/workflows": "^0.1",
+      "waaseyaa/api": "^0.1",
+      "waaseyaa/cli": "^0.1"
+    },
+    "require_dev": {},
+    "dev_constraints": {},
+    "commit_count": 4,
+    "missing_fields": [],
+    "normalization_needed": false
+  },
+  {
+    "name": "waaseyaa/config",
+    "path": "packages/config",
+    "description": "Configuration management as YAML with package-aware ownership for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Config\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "symfony/event-dispatcher": "^7.0",
+      "symfony/yaml": "^7.0"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {},
+    "commit_count": 11,
+    "missing_fields": [],
+    "normalization_needed": false
+  },
+  {
+    "name": "waaseyaa/core",
+    "path": "packages/core",
+    "description": "Waaseyaa core engine \u2014 entities, fields, config, plugins, routing, access.",
+    "type": "metapackage",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [],
+    "require": {
+      "waaseyaa/foundation": "^0.1",
+      "waaseyaa/cache": "^0.1",
+      "waaseyaa/plugin": "^0.1",
+      "waaseyaa/typed-data": "^0.1",
+      "waaseyaa/config": "^0.1",
+      "waaseyaa/entity": "^0.1",
+      "waaseyaa/field": "^0.1",
+      "waaseyaa/i18n": "^0.1",
+      "waaseyaa/entity-storage": "^0.1",
+      "waaseyaa/database-legacy": "^0.1",
+      "waaseyaa/access": "^0.1",
+      "waaseyaa/user": "^0.1",
+      "waaseyaa/routing": "^0.1",
+      "waaseyaa/queue": "^0.1",
+      "waaseyaa/state": "^0.1",
+      "waaseyaa/testing": "^0.1",
+      "waaseyaa/telescope": "^0.1",
+      "waaseyaa/validation": "^0.1"
+    },
+    "require_dev": {},
+    "dev_constraints": {},
+    "commit_count": 15,
+    "missing_fields": [],
+    "normalization_needed": false
+  },
+  {
+    "name": "waaseyaa/database-legacy",
+    "path": "packages/database-legacy",
+    "description": "Database adapter wrapping Drupal DBAL. Interim until Doctrine migration.",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Database\\"
+    ],
+    "require": {
+      "php": ">=8.3"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {},
+    "commit_count": 10,
+    "missing_fields": [],
+    "normalization_needed": false
+  },
+  {
+    "name": "waaseyaa/entity",
+    "path": "packages/entity",
+    "description": "Entity type system \u2014 types, interfaces, lifecycle, queries. No storage.",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Entity\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/typed-data": "@dev",
+      "waaseyaa/plugin": "@dev",
+      "waaseyaa/cache": "@dev",
+      "waaseyaa/config": "@dev",
+      "waaseyaa/foundation": "@dev",
+      "waaseyaa/validation": "@dev",
+      "symfony/event-dispatcher": "^7.3",
+      "symfony/uid": "^7.3",
+      "symfony/validator": "^7.3"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/typed-data": "@dev",
+      "waaseyaa/plugin": "@dev",
+      "waaseyaa/cache": "@dev",
+      "waaseyaa/config": "@dev",
+      "waaseyaa/foundation": "@dev",
+      "waaseyaa/validation": "@dev"
+    },
+    "commit_count": 23,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/entity-storage",
+    "path": "packages/entity-storage",
+    "description": "Pluggable entity persistence. v0.1.0: SQL storage behind clean interfaces.",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\EntityStorage\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/field": "@dev",
+      "waaseyaa/cache": "@dev",
+      "waaseyaa/database-legacy": "@dev",
+      "symfony/event-dispatcher": "^7.3"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/field": "@dev",
+      "waaseyaa/cache": "@dev",
+      "waaseyaa/database-legacy": "@dev"
+    },
+    "commit_count": 16,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/field",
+    "path": "packages/field",
+    "description": "Field type system \u2014 pluggable field types, definitions, formatters for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Field\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/plugin": "@dev",
+      "waaseyaa/typed-data": "@dev"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/plugin": "@dev",
+      "waaseyaa/typed-data": "@dev"
+    },
+    "commit_count": 11,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/foundation",
+    "path": "packages/foundation",
+    "description": "Core framework primitives: service providers, domain events, results, error handling",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Foundation\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "doctrine/dbal": "^4.0",
+      "symfony/dependency-injection": "^7.0",
+      "symfony/event-dispatcher": "^7.0",
+      "symfony/http-foundation": "^7.0",
+      "symfony/messenger": "^7.0",
+      "symfony/uid": "^7.0",
+      "waaseyaa/queue": "@dev"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/queue": "@dev"
+    },
+    "commit_count": 104,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/full",
+    "path": "packages/full",
+    "description": "Waaseyaa full platform \u2014 CMS + AI + SSR + GraphQL.",
+    "type": "metapackage",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [],
+    "require": {
+      "waaseyaa/cms": "^0.1",
+      "waaseyaa/graphql": "^0.1",
+      "waaseyaa/ai-schema": "^0.1",
+      "waaseyaa/ai-agent": "^0.1",
+      "waaseyaa/ai-vector": "^0.1",
+      "waaseyaa/ai-pipeline": "^0.1",
+      "waaseyaa/ssr": "^0.1",
+      "waaseyaa/mcp": "^0.1"
+    },
+    "require_dev": {},
+    "dev_constraints": {},
+    "commit_count": 5,
+    "missing_fields": [],
+    "normalization_needed": false
+  },
+  {
+    "name": "waaseyaa/graphql",
+    "path": "packages/graphql",
+    "description": "GraphQL query and mutation layer for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\GraphQL\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/entity": "^0.1",
+      "waaseyaa/field": "^0.1",
+      "waaseyaa/access": "^0.1"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {},
+    "commit_count": 4,
+    "missing_fields": [],
+    "normalization_needed": false
+  },
+  {
+    "name": "waaseyaa/i18n",
+    "path": "packages/i18n",
+    "description": "Internationalization foundation: Language, LanguageManager, LanguageContext, FallbackChain",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\I18n\\"
+    ],
+    "require": {
+      "php": ">=8.3"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {},
+    "commit_count": 4,
+    "missing_fields": [],
+    "normalization_needed": false
+  },
+  {
+    "name": "waaseyaa/mail",
+    "path": "packages/mail",
+    "description": "Transport-agnostic mail API for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Mail\\"
+    ],
+    "require": {
+      "php": ">=8.4",
+      "waaseyaa/foundation": "@dev"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5",
+      "twig/twig": "^3.0"
+    },
+    "dev_constraints": {
+      "waaseyaa/foundation": "@dev"
+    },
+    "commit_count": 2,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/mcp",
+    "path": "packages/mcp",
+    "description": "Remote MCP server endpoint for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Mcp\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/ai-schema": "@dev",
+      "waaseyaa/ai-agent": "@dev",
+      "waaseyaa/routing": "@dev",
+      "waaseyaa/access": "@dev",
+      "waaseyaa/cache": "@dev",
+      "waaseyaa/api": "@dev",
+      "waaseyaa/ai-vector": "@dev",
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/workflows": "@dev"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/ai-schema": "@dev",
+      "waaseyaa/ai-agent": "@dev",
+      "waaseyaa/routing": "@dev",
+      "waaseyaa/access": "@dev",
+      "waaseyaa/cache": "@dev",
+      "waaseyaa/api": "@dev",
+      "waaseyaa/ai-vector": "@dev",
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/workflows": "@dev"
+    },
+    "commit_count": 24,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/media",
+    "path": "packages/media",
+    "description": "Media entity type and file management for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Media\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/entity": "@dev"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/entity": "@dev"
+    },
+    "commit_count": 13,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/menu",
+    "path": "packages/menu",
+    "description": "Menu and navigation link management for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Menu\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/entity": "@dev"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/entity": "@dev"
+    },
+    "commit_count": 14,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/node",
+    "path": "packages/node",
+    "description": "Content node entity type for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Node\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/access": "@dev"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/access": "@dev"
+    },
+    "commit_count": 12,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/note",
+    "path": "packages/note",
+    "description": "Default built-in Note content type for Waaseyaa (core.note)",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Note\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/access": "@dev"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/access": "@dev"
+    },
+    "commit_count": 6,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/path",
+    "path": "packages/path",
+    "description": "URL path aliases and routing integration for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Path\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/entity": "@dev"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/entity": "@dev"
+    },
+    "commit_count": 14,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/plugin",
+    "path": "packages/plugin",
+    "description": "Attribute-based plugin discovery and management for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Plugin\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/cache": "*"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {},
+    "commit_count": 10,
+    "missing_fields": [],
+    "normalization_needed": false
+  },
+  {
+    "name": "waaseyaa/queue",
+    "path": "packages/queue",
+    "description": "Asynchronous task queue and job processing for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Queue\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "symfony/messenger": "^7.3"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {},
+    "commit_count": 9,
+    "missing_fields": [],
+    "normalization_needed": false
+  },
+  {
+    "name": "waaseyaa/relationship",
+    "path": "packages/relationship",
+    "description": "Reusable relationship primitives for Waaseyaa applications",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Relationship\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/access": "@dev",
+      "waaseyaa/database-legacy": "@dev",
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/workflows": "@dev"
+    },
+    "require_dev": {},
+    "dev_constraints": {
+      "waaseyaa/access": "@dev",
+      "waaseyaa/database-legacy": "@dev",
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/workflows": "@dev"
+    },
+    "commit_count": 13,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/routing",
+    "path": "packages/routing",
+    "description": "HTTP routing and controller resolution for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Routing\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/access": "@dev",
+      "waaseyaa/i18n": "@dev",
+      "symfony/routing": "^7.3"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/access": "@dev",
+      "waaseyaa/i18n": "@dev"
+    },
+    "commit_count": 16,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/search",
+    "path": "packages/search",
+    "description": "Search provider interface and DTOs for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Search\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "twig/twig": "^3.0"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {},
+    "commit_count": 5,
+    "missing_fields": [],
+    "normalization_needed": false
+  },
+  {
+    "name": "waaseyaa/ssr",
+    "path": "packages/ssr",
+    "description": "Server-side rendering with Twig templates for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\SSR\\"
+    ],
+    "require": {
+      "php": ">=8.4",
+      "waaseyaa/access": "@dev",
+      "waaseyaa/cache": "@dev",
+      "waaseyaa/config": "@dev",
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/field": "@dev",
+      "waaseyaa/routing": "@dev",
+      "twig/twig": "^3.0"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/access": "@dev",
+      "waaseyaa/cache": "@dev",
+      "waaseyaa/config": "@dev",
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/field": "@dev",
+      "waaseyaa/routing": "@dev"
+    },
+    "commit_count": 33,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/state",
+    "path": "packages/state",
+    "description": "Key-value state storage for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\State\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/database-legacy": "@dev"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/database-legacy": "@dev"
+    },
+    "commit_count": 8,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/taxonomy",
+    "path": "packages/taxonomy",
+    "description": "Taxonomy vocabulary and term entity types for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Taxonomy\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/access": "@dev"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/access": "@dev"
+    },
+    "commit_count": 11,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/telescope",
+    "path": "packages/telescope",
+    "description": "Application observability and debugging for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Telescope\\"
+    ],
+    "require": {
+      "php": ">=8.3"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {},
+    "commit_count": 6,
+    "missing_fields": [],
+    "normalization_needed": false
+  },
+  {
+    "name": "waaseyaa/testing",
+    "path": "packages/testing",
+    "description": "Testing utilities for Waaseyaa \u2014 base test case, entity factories, and helper traits.",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Testing\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "phpunit/phpunit": "^10.5"
+    },
+    "require_dev": {},
+    "dev_constraints": {},
+    "commit_count": 6,
+    "missing_fields": [],
+    "normalization_needed": false
+  },
+  {
+    "name": "waaseyaa/typed-data",
+    "path": "packages/typed-data",
+    "description": "Type system with PHP-native facade for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\TypedData\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "symfony/validator": "^7.3"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {},
+    "commit_count": 10,
+    "missing_fields": [],
+    "normalization_needed": false
+  },
+  {
+    "name": "waaseyaa/user",
+    "path": "packages/user",
+    "description": "User entity, authentication, and session management for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\User\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/access": "@dev",
+      "waaseyaa/foundation": "@dev",
+      "symfony/http-foundation": "^7.0"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/entity": "@dev",
+      "waaseyaa/access": "@dev",
+      "waaseyaa/foundation": "@dev"
+    },
+    "commit_count": 23,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/validation",
+    "path": "packages/validation",
+    "description": "Data validation constraints and validators for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Validation\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/typed-data": "@dev",
+      "symfony/validator": "^7.3"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/typed-data": "@dev"
+    },
+    "commit_count": 8,
+    "missing_fields": [],
+    "normalization_needed": true
+  },
+  {
+    "name": "waaseyaa/workflows",
+    "path": "packages/workflows",
+    "description": "Content moderation and editorial workflow states for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "autoload_psr4_keys": [
+      "Waaseyaa\\Workflows\\"
+    ],
+    "require": {
+      "php": ">=8.3",
+      "waaseyaa/access": "@dev",
+      "waaseyaa/entity": "@dev"
+    },
+    "require_dev": {
+      "phpunit/phpunit": "^10.5"
+    },
+    "dev_constraints": {
+      "waaseyaa/access": "@dev",
+      "waaseyaa/entity": "@dev"
+    },
+    "commit_count": 16,
+    "missing_fields": [],
+    "normalization_needed": true
+  }
+]
