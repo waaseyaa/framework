@@ -387,4 +387,21 @@ final class SsrPageHandlerTest extends TestCase
         $this->assertSame('/about', $result['alias_path']);
         $this->assertSame('en', $manager->getCurrentLanguage()->id);
     }
+
+    #[Test]
+    public function homepage_root_path_negotiates_language(): void
+    {
+        // Bare '/' must flow through negotiation, not bypass it.
+        // With Accept-Language: oj, the homepage should activate oj.
+        [$handler, $manager] = $this->createHandlerWithManager();
+        $request = HttpRequest::create('/', 'GET', [], [], [], [
+            'HTTP_ACCEPT_LANGUAGE' => 'oj',
+        ]);
+
+        $result = $handler->resolveRenderLanguageAndAliasPath('/', $request);
+
+        $this->assertSame('oj', $result['langcode']);
+        $this->assertSame('/', $result['alias_path']);
+        $this->assertSame('oj', $manager->getCurrentLanguage()->id);
+    }
 }

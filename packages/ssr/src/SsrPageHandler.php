@@ -88,16 +88,14 @@ final class SsrPageHandler
             $cacheControlHeader = $this->cacheConfigResolver->cacheControlHeaderForRender($account, $cacheMaxAge);
 
             $normalizedPath = $path;
-            if ($normalizedPath === '' || $normalizedPath === '/') {
-                $response = (new RenderController($twig))->renderPath('/');
-                $headers = $response->headers;
-                $headers['Cache-Control'] = $cacheControlHeader;
-                return $this->htmlResult($response->statusCode, $response->content, $headers);
+            if ($normalizedPath === '') {
+                $normalizedPath = '/';
             }
             if (!str_starts_with($normalizedPath, '/')) {
                 $normalizedPath = '/' . $normalizedPath;
             }
 
+            // All paths (including '/') flow through language negotiation.
             $language = $this->resolveRenderLanguageAndAliasPath($normalizedPath, $httpRequest);
             $contentLangcode = $language['langcode'];
             $aliasLookupPath = $language['alias_path'];
