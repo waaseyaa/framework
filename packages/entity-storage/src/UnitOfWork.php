@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\EntityStorage;
 
-use Waaseyaa\Database\DatabaseInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Contracts\EventDispatcher\Event;
+use Waaseyaa\Database\DatabaseInterface;
 
 /**
  * Unit of Work with transaction support.

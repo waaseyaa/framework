@@ -1,38 +1,18 @@
 <script setup lang="ts">
 import { useLanguage } from '~/composables/useLanguage'
 import { useEntity } from '~/composables/useEntity'
-import type { EntityTypeInfo } from '~/composables/useNavGroups'
+import { useAdmin } from '~/composables/useAdmin'
 import OnboardingPrompt from '~/components/onboarding/OnboardingPrompt.vue'
 
 const { t, entityLabel } = useLanguage()
 const config = useRuntimeConfig()
+const { catalog } = useAdmin()
 useHead({ title: computed(() => `${t('dashboard')} | ${config.public.appName}`) })
 
-const entityTypes = ref<EntityTypeInfo[]>([])
-const loading = ref(true)
-const loadError = ref<string | null>(null)
 const onboardingReady = ref(false)
 const showOnboarding = ref(false)
 const onboardingError = ref<string | null>(null)
 const { list } = useEntity()
-
-onMounted(async () => {
-  try {
-    const response = await $fetch<{ data: EntityTypeInfo[] }>('/api/entity-types')
-    if (!Array.isArray(response.data)) {
-      console.error('[Waaseyaa] /api/entity-types returned unexpected shape:', response)
-      loadError.value = t('error_loading_types')
-      return
-    }
-    entityTypes.value = response.data
-  } catch (e: unknown) {
-    console.error('[Waaseyaa] Failed to load entity types for dashboard:', e)
-    const detail = (e as any)?.data?.errors?.[0]?.detail
-    loadError.value = detail ?? (e instanceof Error ? e.message : null) ?? t('error_loading_types')
-  } finally {
-    loading.value = false
-  }
-})
 
 onMounted(async () => {
   onboardingReady.value = false
@@ -66,12 +46,9 @@ onMounted(async () => {
 
     <IngestSummaryWidget />
 
-    <div v-if="loading" class="loading">{{ t('loading') }}</div>
-    <div v-else-if="loadError" class="error">{{ loadError }}</div>
-
-    <div v-else class="card-grid">
+    <div class="card-grid">
       <NuxtLink
-        v-for="et in entityTypes"
+        v-for="et in catalog"
         :key="et.id"
         :to="`/${et.id}`"
         class="card"

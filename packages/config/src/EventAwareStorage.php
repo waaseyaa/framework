@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config;
 
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Config\Event\ConfigEvent;
 use Waaseyaa\Config\Event\ConfigEvents;
-use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 /**
  * Storage decorator that dispatches config events and invalidates factory cache.

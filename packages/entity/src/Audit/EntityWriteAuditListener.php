@@ -44,11 +44,11 @@ final class EntityWriteAuditListener implements EventSubscriberInterface
             : '';
 
         $this->logger->append(new EntityAuditEntry(
-            actor:      $this->resolveActor($entity),
-            action:     $action,
-            entityId:   (string) ($entity->id() ?? ''),
+            actor: $this->resolveActor($entity),
+            action: $action,
+            entityId: (string) ($entity->id() ?? ''),
             entityType: $entity->getEntityTypeId(),
-            tenantId:   $tenantId,
+            tenantId: $tenantId,
         ));
     }
 
@@ -60,11 +60,11 @@ final class EntityWriteAuditListener implements EventSubscriberInterface
             : '';
 
         $this->logger->append(new EntityAuditEntry(
-            actor:      $this->resolveActor($entity),
-            action:     'delete',
-            entityId:   (string) ($entity->id() ?? ''),
+            actor: $this->resolveActor($entity),
+            action: 'delete',
+            entityId: (string) ($entity->id() ?? ''),
             entityType: $entity->getEntityTypeId(),
-            tenantId:   $tenantId,
+            tenantId: $tenantId,
         ));
     }
 

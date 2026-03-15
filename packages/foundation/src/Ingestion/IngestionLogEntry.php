@@ -35,12 +35,12 @@ final readonly class IngestionLogEntry
     public static function success(Envelope $envelope): self
     {
         return new self(
-            source:    $envelope->source,
-            type:      $envelope->type,
-            status:    'accepted',
-            traceId:   $envelope->traceId,
+            source: $envelope->source,
+            type: $envelope->type,
+            status: 'accepted',
+            traceId: $envelope->traceId,
             timestamp: $envelope->timestamp,
-            tenantId:  $envelope->tenantId,
+            tenantId: $envelope->tenantId,
         );
     }
 
@@ -54,12 +54,12 @@ final readonly class IngestionLogEntry
         array $errors,
     ): self {
         return new self(
-            source:  $source,
-            type:    $type,
-            status:  'rejected',
+            source: $source,
+            type: $type,
+            status: 'rejected',
             traceId: $traceId,
             timestamp: (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
-            errors:  $errors,
+            errors: $errors,
         );
     }
 
@@ -69,13 +69,13 @@ final readonly class IngestionLogEntry
     public static function payloadFailure(Envelope $envelope, array $errors): self
     {
         return new self(
-            source:    $envelope->source,
-            type:      $envelope->type,
-            status:    'rejected',
-            traceId:   $envelope->traceId,
+            source: $envelope->source,
+            type: $envelope->type,
+            status: 'rejected',
+            traceId: $envelope->traceId,
             timestamp: $envelope->timestamp,
-            tenantId:  $envelope->tenantId,
-            errors:    $errors,
+            tenantId: $envelope->tenantId,
+            errors: $errors,
         );
     }
 

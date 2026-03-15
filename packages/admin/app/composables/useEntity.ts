@@ -1,100 +1,38 @@
-export interface JsonApiResource {
-  type: string
-  id: string
-  attributes: Record<string, any>
-  relationships?: Record<string, any>
-  links?: Record<string, string>
-  meta?: Record<string, any>
-}
+import type { AdminRuntime } from '../contracts/runtime'
+import type { ListQuery, ListResult, EntityResource } from '../contracts/transport'
 
-export interface JsonApiDocument {
-  jsonapi: { version: string }
-  data: JsonApiResource | JsonApiResource[] | null
-  errors?: Array<{ status: string; title: string; detail?: string }>
-  meta?: Record<string, any>
-  links?: Record<string, string>
-}
+export type { EntityResource, ListResult, ListQuery }
+
+// Backward-compatible alias — existing components import JsonApiResource from useEntity.
+// This re-export prevents breakage during migration. Remove in a future major version.
+export type { EntityResource as JsonApiResource }
 
 export function useEntity() {
-  async function list(
-    type: string,
-    query: Record<string, any> = {},
-  ): Promise<{ data: JsonApiResource[]; meta: Record<string, any>; links: Record<string, string> }> {
-    const params = new URLSearchParams()
+  const { $admin } = useNuxtApp() as unknown as { $admin: AdminRuntime }
+  const transport = $admin.transport
 
-    if (query.page) {
-      const offset = typeof query.page.offset === 'number' ? query.page.offset : 0
-      const limit = typeof query.page.limit === 'number' ? query.page.limit : 25
-      params.set('page[offset]', String(offset))
-      params.set('page[limit]', String(limit))
-    }
-    if (query.sort) {
-      params.set('sort', query.sort)
-    }
-
-    const qs = params.toString()
-    const url = `/api/${type}${qs ? '?' + qs : ''}`
-
-    const response = await $fetch<JsonApiDocument>(url)
-    return {
-      data: (Array.isArray(response.data) ? response.data : []) as JsonApiResource[],
-      meta: response.meta ?? {},
-      links: response.links ?? {},
-    }
+  async function list(type: string, query?: ListQuery): Promise<ListResult> {
+    return transport.list(type, query)
   }
 
-  async function get(type: string, id: string): Promise<JsonApiResource> {
-    const response = await $fetch<JsonApiDocument>(`/api/${type}/${id}`)
-    return response.data as JsonApiResource
+  async function get(type: string, id: string): Promise<EntityResource> {
+    return transport.get(type, id)
   }
 
-  async function create(type: string, attributes: Record<string, any>): Promise<JsonApiResource> {
-    const response = await $fetch<JsonApiDocument>(`/api/${type}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/vnd.api+json' },
-      body: {
-        data: { type, attributes },
-      },
-    })
-    return response.data as JsonApiResource
+  async function create(type: string, attributes: Record<string, any>): Promise<EntityResource> {
+    return transport.create(type, attributes)
   }
 
-  async function update(
-    type: string,
-    id: string,
-    attributes: Record<string, any>,
-  ): Promise<JsonApiResource> {
-    const response = await $fetch<JsonApiDocument>(`/api/${type}/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/vnd.api+json' },
-      body: {
-        data: { type, id, attributes },
-      },
-    })
-    return response.data as JsonApiResource
+  async function update(type: string, id: string, attributes: Record<string, any>): Promise<EntityResource> {
+    return transport.update(type, id, attributes)
   }
 
   async function remove(type: string, id: string): Promise<void> {
-    await $fetch(`/api/${type}/${id}`, { method: 'DELETE' })
+    return transport.remove(type, id)
   }
 
-  async function search(
-    type: string,
-    labelField: string,
-    query: string,
-    limit: number = 10,
-  ): Promise<JsonApiResource[]> {
-    if (query.length < 2) return []
-
-    const params = new URLSearchParams()
-    params.set(`filter[${labelField}][operator]`, 'STARTS_WITH')
-    params.set(`filter[${labelField}][value]`, query)
-    params.set('page[limit]', String(limit))
-    params.set('sort', labelField)
-
-    const url = `/api/${type}?${params.toString()}`
-    const response = await $fetch<JsonApiDocument>(url)
-    return (Array.isArray(response.data) ? response.data : []) as JsonApiResource[]
+  async function search(type: string, labelField: string, query: string, limit: number = 10): Promise<EntityResource[]> {
+    return transport.search(type, labelField, query, limit)
   }
 
   return { list, get, create, update, remove, search }

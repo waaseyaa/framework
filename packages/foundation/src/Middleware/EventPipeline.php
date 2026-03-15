@@ -29,7 +29,7 @@ final class EventPipeline
 
         foreach (array_reverse($this->middleware) as $mw) {
             $next = $handler;
-            $handler = new class($mw, $next) implements EventHandlerInterface {
+            $handler = new class ($mw, $next) implements EventHandlerInterface {
                 public function __construct(
                     private readonly EventMiddlewareInterface $middleware,
                     private readonly EventHandlerInterface $next,

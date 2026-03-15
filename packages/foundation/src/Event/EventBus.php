@@ -23,7 +23,7 @@ final class EventBus
     {
         $this->eventStore?->append($event);
 
-        $syncHandler = new class($this->syncDispatcher) implements EventHandlerInterface {
+        $syncHandler = new class ($this->syncDispatcher) implements EventHandlerInterface {
             public function __construct(
                 private readonly EventDispatcherInterface $dispatcher,
             ) {}

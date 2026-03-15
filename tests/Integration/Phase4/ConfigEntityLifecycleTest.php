@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase4;
 
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Config\Config;
 use Waaseyaa\Config\ConfigFactory;
 use Waaseyaa\Config\ConfigManager;
@@ -11,8 +13,6 @@ use Waaseyaa\Config\Event\ConfigEvent;
 use Waaseyaa\Config\Event\ConfigEvents;
 use Waaseyaa\Config\Storage\FileStorage;
 use Waaseyaa\Config\Storage\MemoryStorage;
-use PHPUnit\Framework\TestCase;
-use Symfony\Component\EventDispatcher\EventDispatcher;
 
 /**
  * Config system integration tests.

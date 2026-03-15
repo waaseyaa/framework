@@ -4,16 +4,31 @@
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
-        {"type": "path", "url": "../entity"},
-        {"type": "path", "url": "../plugin"},
-        {"type": "path", "url": "../cache"},
-        {"type": "path", "url": "../typed-data"},
-        {"type": "path", "url": "../config"}
+        {
+            "type": "path",
+            "url": "../entity"
+        },
+        {
+            "type": "path",
+            "url": "../plugin"
+        },
+        {
+            "type": "path",
+            "url": "../cache"
+        },
+        {
+            "type": "path",
+            "url": "../typed-data"
+        },
+        {
+            "type": "path",
+            "url": "../config"
+        }
     ],
     "require": {
         "php": ">=8.3",
-        "waaseyaa/access": "@dev",
-        "waaseyaa/entity": "@dev"
+        "waaseyaa/access": "^0.1",
+        "waaseyaa/entity": "^0.1"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
@@ -30,7 +45,12 @@
     },
     "extra": {
         "waaseyaa": {
-            "providers": ["Waaseyaa\\Workflows\\WorkflowServiceProvider"]
+            "providers": [
+                "Waaseyaa\\Workflows\\WorkflowServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-develop/v1.1": "0.1.x-dev"
         }
     },
     "minimum-stability": "dev",

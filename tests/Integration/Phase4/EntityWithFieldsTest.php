@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase4;
 
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\PdoDatabase;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityConstants;
@@ -13,10 +15,6 @@ use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldItemList;
 use Waaseyaa\Field\FieldTypeManager;
-use Waaseyaa\Field\Item\IntegerItem;
-use Waaseyaa\Field\Item\StringItem;
-use PHPUnit\Framework\TestCase;
-use Symfony\Component\EventDispatcher\EventDispatcher;
 
 /**
  * End-to-end entity + field integration tests.

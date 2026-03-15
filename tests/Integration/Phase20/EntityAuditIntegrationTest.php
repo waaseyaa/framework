@@ -95,10 +95,18 @@ final class EntityAuditIntegrationTest extends TestCase
     public function cliAuditLogEntityTypeShowsEntries(): void
     {
         $this->auditLogger->append(new EntityAuditEntry(
-            actor: 'uid:1', action: 'create', entityId: '1', entityType: 'note', tenantId: 'acme',
+            actor: 'uid:1',
+            action: 'create',
+            entityId: '1',
+            entityType: 'note',
+            tenantId: 'acme',
         ));
         $this->auditLogger->append(new EntityAuditEntry(
-            actor: 'uid:2', action: 'update', entityId: '2', entityType: 'article', tenantId: 'acme',
+            actor: 'uid:2',
+            action: 'update',
+            entityId: '2',
+            entityType: 'article',
+            tenantId: 'acme',
         ));
 
         $tester = $this->runAuditCommand(['--entity-type' => 'note']);
@@ -113,10 +121,18 @@ final class EntityAuditIntegrationTest extends TestCase
     public function cliAuditLogEntityTypeShowsAllWhenNoFilter(): void
     {
         $this->auditLogger->append(new EntityAuditEntry(
-            actor: 'uid:1', action: 'create', entityId: '1', entityType: 'note', tenantId: 'acme',
+            actor: 'uid:1',
+            action: 'create',
+            entityId: '1',
+            entityType: 'note',
+            tenantId: 'acme',
         ));
         $this->auditLogger->append(new EntityAuditEntry(
-            actor: 'uid:2', action: 'delete', entityId: '2', entityType: 'article', tenantId: 'acme',
+            actor: 'uid:2',
+            action: 'delete',
+            entityId: '2',
+            entityType: 'article',
+            tenantId: 'acme',
         ));
 
         $tester = $this->runAuditCommand(['--entity-type' => '']);
@@ -139,7 +155,7 @@ final class EntityAuditIntegrationTest extends TestCase
     /** @param array<string, mixed> $values */
     private function makeNote(array $values, bool $isNew): EntityInterface
     {
-        return new class($values, $isNew) extends ContentEntityBase {
+        return new class ($values, $isNew) extends ContentEntityBase {
             private bool $new;
 
             public function __construct(array $values, bool $isNew)
@@ -148,7 +164,10 @@ final class EntityAuditIntegrationTest extends TestCase
                 $this->new = $isNew;
             }
 
-            public function isNew(): bool { return $this->new; }
+            public function isNew(): bool
+            {
+                return $this->new;
+            }
         };
     }
 

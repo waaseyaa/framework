@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase8;
 
+use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\AI\Pipeline\Pipeline;
 use Waaseyaa\AI\Pipeline\PipelineContext;
 use Waaseyaa\AI\Pipeline\PipelineDispatcher;
@@ -13,9 +16,6 @@ use Waaseyaa\AI\Pipeline\PipelineStepConfig;
 use Waaseyaa\AI\Pipeline\PipelineStepInterface;
 use Waaseyaa\AI\Pipeline\StepResult;
 use Waaseyaa\Queue\InMemoryQueue;
-use PHPUnit\Framework\Attributes\CoversNothing;
-use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\TestCase;
 
 /**
  * Pipeline execution with step chaining, halt, failure, and queue dispatch.

@@ -1,47 +1,29 @@
 <script setup lang="ts">
 import { useLanguage } from '~/composables/useLanguage'
 import { useSchema } from '~/composables/useSchema'
-import type { EntityTypeInfo } from '~/composables/useNavGroups'
+import { useAdmin } from '~/composables/useAdmin'
 
 const route = useRoute()
 const { t, entityLabel: translateEntityLabel } = useLanguage()
+const { catalog, getEntity, hasCapability } = useAdmin()
 
 const entityType = computed(() => route.params.entityType as string)
 const { schema, loading, error, fetch: fetchSchema } = useSchema(entityType.value)
-const typeInfo = ref<EntityTypeInfo | null>(null)
-const typeList = ref<EntityTypeInfo[]>([])
-const typeLoading = ref(false)
-const typeError = ref<string | null>(null)
+const canCreate = computed(() => hasCapability(entityType.value, 'create'))
+const typeInfo = computed(() => getEntity(entityType.value) ?? null)
 const actionLoading = ref(false)
 const actionError = ref<string | null>(null)
 const showDisableConfirm = ref(false)
 
 const isDefaultNote = computed(() => entityType.value === 'note')
 const typeDisabled = computed(() => typeInfo.value?.disabled ?? false)
-const enabledTypeCount = computed(() => typeList.value.filter((type) => !type.disabled).length)
+const enabledTypeCount = computed(() => catalog.filter((type) => !type.disabled).length)
 const showLifecycleControls = computed(() => isDefaultNote.value && typeInfo.value !== null)
 const showDisableWarning = computed(
   () => !typeDisabled.value && enabledTypeCount.value <= 1,
 )
 
-async function loadTypeInfo() {
-  typeLoading.value = true
-  typeError.value = null
-  try {
-    const response = await $fetch<{ data: EntityTypeInfo[] }>('/api/entity-types')
-    if (!Array.isArray(response.data)) {
-      typeError.value = t('error_loading_types')
-      return
-    }
-    typeList.value = response.data
-    typeInfo.value = response.data.find((type) => type.id === entityType.value) ?? null
-  } catch (e: any) {
-    typeError.value = e?.data?.errors?.[0]?.detail ?? e?.message ?? t('error_loading_types')
-  } finally {
-    typeLoading.value = false
-  }
-}
-
+// TODO: move to admin operations adapter
 async function disableType(force = false) {
   if (actionLoading.value) return
   actionLoading.value = true
@@ -49,7 +31,6 @@ async function disableType(force = false) {
   try {
     const query = force ? '?force=1' : ''
     await $fetch(`/api/entity-types/${entityType.value}/disable${query}`, { method: 'POST' })
-    await loadTypeInfo()
     showDisableConfirm.value = false
   } catch (e: any) {
     actionError.value = e?.data?.errors?.[0]?.detail ?? e?.message ?? t('error_generic')
@@ -58,13 +39,13 @@ async function disableType(force = false) {
   }
 }
 
+// TODO: move to admin operations adapter
 async function enableType() {
   if (actionLoading.value) return
   actionLoading.value = true
   actionError.value = null
   try {
     await $fetch(`/api/entity-types/${entityType.value}/enable`, { method: 'POST' })
-    await loadTypeInfo()
   } catch (e: any) {
     actionError.value = e?.data?.errors?.[0]?.detail ?? e?.message ?? t('error_generic')
   } finally {
@@ -74,7 +55,6 @@ async function enableType() {
 
 onMounted(async () => {
   await fetchSchema()
-  await loadTypeInfo()
 })
 const entityLabel = computed(() => translateEntityLabel(entityType.value, schema.value?.title ?? entityType.value))
 const config = useRuntimeConfig()
@@ -103,7 +83,7 @@ useHead({ title: computed(() => `${entityLabel.value} | ${config.public.appName}
           <button
             v-if="showLifecycleControls && !typeDisabled"
             class="btn btn-danger"
-            :disabled="typeLoading || actionLoading"
+            :disabled="actionLoading"
             @click="showDisableConfirm = true"
           >
             {{ t('disable_type') }}
@@ -111,18 +91,17 @@ useHead({ title: computed(() => `${entityLabel.value} | ${config.public.appName}
           <button
             v-else-if="showLifecycleControls && typeDisabled"
             class="btn"
-            :disabled="typeLoading || actionLoading"
+            :disabled="actionLoading"
             @click="enableType"
           >
             {{ t('enable_type') }}
           </button>
-          <NuxtLink :to="`/${entityType}/create`" class="btn btn-primary">
+          <NuxtLink v-if="canCreate" :to="`/${entityType}/create`" class="btn btn-primary">
             {{ t('create_new') }}
           </NuxtLink>
         </div>
       </div>
 
-      <div v-if="typeError" class="error">{{ typeError }}</div>
       <div v-if="actionError" class="error">{{ actionError }}</div>
 
       <SchemaList :entity-type="entityType" />

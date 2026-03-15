@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config;
 
-use Waaseyaa\Config\Event\ConfigEvent;
-use Waaseyaa\Config\Event\ConfigEvents;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 final class ConfigFactory implements ConfigFactoryInterface

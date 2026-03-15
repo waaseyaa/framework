@@ -1,8 +1,8 @@
-# Waaseyaa v1.0 — Release Notes
+# Waaseyaa v0.1.0-alpha — Release Notes
 
-**Branch:** `release/v1.0-rc` → `main` (PR #379, pending merge approval)
-**Date:** 2026-03-13
-**Milestone:** [v1.0 Release](https://github.com/waaseyaa/framework/milestone/22)
+**Tag:** `v0.1.0-alpha.4`
+**Date:** 2026-03-14
+**Status:** Alpha — API surface is unstable and may change between releases.
 
 ---
 
@@ -16,104 +16,97 @@ monorepo of 40 composable packages.
 
 ---
 
-## v1.0 Highlights
+## Alpha highlights
 
-### Production-ready authentication
+### Authentication
 
-The admin SPA now ships a complete login/logout flow backed by PHP session
-authentication. The `useAuth` composable deduplicates `GET /auth/me` calls across
-navigations, the global middleware runs client-side only (no SSR-time fetches), and
-logout performs a full PHP session destroy + ID regeneration to prevent session
-fixation.
+The admin SPA ships a login/logout flow backed by PHP session authentication.
+The `useAuth` composable deduplicates `GET /auth/me` calls across navigations,
+the global middleware runs client-side only (no SSR-time fetches), and logout
+performs a full PHP session destroy + ID regeneration to prevent session fixation.
 
 ### Access control on every entity type
 
-`menu`, `path_alias`, and `relationship` entity types now have registered access
-policies that gate read/write by role. All policies are covered by anonymous-account
-tests that verify public-facing entities behave correctly for unauthenticated users.
+`menu`, `path_alias`, and `relationship` entity types have registered access
+policies that gate read/write by role. All policies are covered by
+anonymous-account tests.
 
-### SSR rendering — complete and hardened
+### SSR rendering
 
-- `RenderController` gained `renderServerError()` with a `500.html.twig` template
-  fallback — the framework no longer leaks PHP exceptions to the browser on 5xx.
+- `RenderController` has `renderServerError()` with `500.html.twig` fallback.
 - `403.html.twig` and `500.html.twig` bundled into `packages/ssr/templates/`.
 - `useLanguage` uses `useCookie()` + `useState()` instead of `localStorage`,
   eliminating SSR hydration mismatches on language-aware pages.
-- The default homepage correctly links to the admin SPA dev server
-  (`http://localhost:3000`) instead of the PHP-served `/admin` route.
+
+### Admin SPA stabilization (alpha.4)
+
+- Fixed SsrPageHandler DI resolution — controllers can now receive dependencies
+  from registered service providers via a resolver closure (#407).
+- Bootstrap URL corrected to `/admin/bootstrap` with dev proxy rule (#408).
+- Admin runs as client-only SPA (`ssr: false`) — removed experimental
+  `viteEnvironmentApi` flag (#406).
+- Error page no longer depends on i18n plugin initialization (#409).
+- `composer dev` script sets `APP_ENV` and `WAASEYAA_DEV_FALLBACK_ACCOUNT`
+  automatically (#410).
+
+### Admin bridge package
+
+PHP bridge (`waaseyaa/admin-bridge`) provides bootstrap controller, value
+objects, and service provider for the admin SPA host contract. Published to
+Packagist via monorepo split.
+
+### i18n infrastructure
+
+`Translator` and `TranslationTwigExtension` with Twig dependency for
+server-side localization.
 
 ### Resilient boot failure handling
 
-`HttpKernel` catches exceptions thrown during the boot phase and returns a
-well-formed JSON:API error response with the correct `application/vnd.api+json`
-content type. Stack traces are written to the error log. Before this fix, a boot
-failure would produce a blank 500 page.
-
-### Comprehensive package documentation
-
-All 40 framework packages ship a `README.md` with accurate class names, interface
-lists, and usage examples that match the current source code.
-
-### Observability — Telescope integration
-
-The admin SPA includes a Telescope panel showing real-time codified context health:
-spec drift scores, CLAUDE.md coverage gaps, and per-subsystem freshness indicators.
+`HttpKernel` catches exceptions during boot and returns a well-formed JSON:API
+error response. Stack traces are written to the error log.
 
 ### Security fixes
 
-| CVE-class | Fix |
-|-----------|-----|
-| Stored XSS | `HtmlFormatter` now sanitizes output |
+| Category | Fix |
+|----------|-----|
+| Stored XSS | `HtmlFormatter` sanitizes output |
 | Session fixation | `session_destroy()` + `session_regenerate_id(true)` on logout |
-| CSRF bypass | JSON:API and MCP content types correctly exempted; all others enforced |
+| CSRF bypass | JSON:API and MCP content types correctly exempted |
 | Layer violations | Foundation→Path and Validation→Entity cross-layer imports removed |
-
----
-
-## Breaking changes from v0.x
-
-- HTTP 403 (not 404) is now returned for unpublished nodes accessed by
-  unauthenticated users. Update any client-side error handling that expected 404.
-- `ControllerDispatcher` no longer passes `null` values in the payload array.
-  Controllers that tested for key existence (vs. `isset()`) may need adjustment.
-- `session_destroy()` clears all session data on logout. If you stored non-auth
-  session state, migrate it to a cookie or database before calling logout.
 
 ---
 
 ## Known issues
 
 - **#380** — Vue hydration mismatch on auth-protected pages (SSR/client timing).
-  Non-blocking — page corrects itself after hydration. Scheduled for v1.1.
+  Non-blocking — page corrects itself after hydration.
+- Pre-existing frontend test gaps around error handling in `admin.ts` (silent
+  catch on network failures) — tracked for future improvement.
 
 ---
 
-## RC verification summary
+## Verification summary
 
 | Check | Result |
 |-------|--------|
-| PHP test suite (4352 tests) | ✅ Pass |
-| TypeScript test suite (78 tests) | ✅ Pass |
-| Admin SPA production build | ✅ 2.23 MB / 545 kB gzip |
-| Playwright MCP browser smoke (11 checks) | ✅ 10 pass / 0 fail / 1 warning |
-| Repository drift (main vs RC) | ✅ None |
-| Untracked/stray files | ✅ None |
+| PHP test suite (3,919 tests / 8,657 assertions) | Pass |
+| Frontend test suite (98 tests / 20 files) | Pass |
+| Admin SPA production build | Pass |
+| SSR resolver unit tests (3 new) | Pass |
 
 ---
 
-## Upgrade path
-
-This release requires no schema migrations from v0.4.0. Run:
+## Installation
 
 ```bash
-composer update
-./vendor/bin/phpunit --configuration phpunit.xml.dist
-cd packages/admin && npm install && npm test
+composer create-project waaseyaa/waaseyaa my-site
+cd my-site
+composer dev
 ```
 
 ---
 
-## What's next — v1.1
+## What's next
 
 - Relationship modeling refinements (inference contract, UI)
 - Ingestion source connectors and cross-source identity
@@ -121,9 +114,3 @@ cd packages/admin && npm install && npm test
 - Public extension SDK stabilization
 
 See [docs/specs/workflow.md](docs/specs/workflow.md) for the full roadmap.
-
----
-
-## Contributors
-
-Thank you to everyone who filed issues, reviewed PRs, and tested the RC.

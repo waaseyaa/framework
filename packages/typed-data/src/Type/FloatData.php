@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\TypedData\Type;
 
-use Waaseyaa\TypedData\DataDefinitionInterface;
-use Waaseyaa\TypedData\PrimitiveInterface;
 use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Symfony\Component\Validator\Validation;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Waaseyaa\TypedData\DataDefinitionInterface;
+use Waaseyaa\TypedData\PrimitiveInterface;
 
 final class FloatData implements PrimitiveInterface
 {

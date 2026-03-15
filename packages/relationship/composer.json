@@ -10,14 +10,19 @@
     },
     "require": {
         "php": ">=8.3",
-        "waaseyaa/access": "@dev",
-        "waaseyaa/database-legacy": "@dev",
-        "waaseyaa/entity": "@dev",
-        "waaseyaa/workflows": "@dev"
+        "waaseyaa/access": "^0.1",
+        "waaseyaa/database-legacy": "^0.1",
+        "waaseyaa/entity": "^0.1",
+        "waaseyaa/workflows": "^0.1"
     },
     "extra": {
         "waaseyaa": {
-            "providers": ["Waaseyaa\\Relationship\\RelationshipServiceProvider"]
+            "providers": [
+                "Waaseyaa\\Relationship\\RelationshipServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-develop/v1.1": "0.1.x-dev"
         }
     },
     "minimum-stability": "dev",

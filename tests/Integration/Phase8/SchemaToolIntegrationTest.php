@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase8;
 
+use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\AI\Schema\EntityJsonSchemaGenerator;
 use Waaseyaa\AI\Schema\Mcp\McpToolDefinition;
 use Waaseyaa\AI\Schema\Mcp\McpToolExecutor;
@@ -13,10 +17,6 @@ use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
-use PHPUnit\Framework\Attributes\CoversNothing;
-use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\TestCase;
-use Symfony\Component\EventDispatcher\EventDispatcher;
 
 /**
  * Schema generation + MCP tool execution with real entity storage.

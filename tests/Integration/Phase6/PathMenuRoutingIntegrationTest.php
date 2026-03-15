@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase6;
 
+use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Menu\Menu;
 use Waaseyaa\Menu\MenuLink;
 use Waaseyaa\Menu\MenuTreeBuilder;
 use Waaseyaa\Path\InMemoryPathAliasManager;
 use Waaseyaa\Path\PathAlias;
 use Waaseyaa\Path\PathProcessor;
-use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\Routing\RouteBuilder;
-use PHPUnit\Framework\Attributes\CoversNothing;
-use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\TestCase;
+use Waaseyaa\Routing\WaaseyaaRouter;
 
 /**
  * Integration tests for waaseyaa/path + waaseyaa/menu + waaseyaa/routing.

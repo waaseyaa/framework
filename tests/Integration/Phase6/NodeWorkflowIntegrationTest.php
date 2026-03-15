@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase6;
 
+use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\EntityAccessHandler;
-use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Node\Node;
 use Waaseyaa\Node\NodeAccessPolicy;
 use Waaseyaa\Node\NodeType;
@@ -14,11 +16,6 @@ use Waaseyaa\User\User;
 use Waaseyaa\Workflows\ContentModerationState;
 use Waaseyaa\Workflows\ContentModerator;
 use Waaseyaa\Workflows\Workflow;
-use Waaseyaa\Workflows\WorkflowState;
-use Waaseyaa\Workflows\WorkflowTransition;
-use PHPUnit\Framework\Attributes\CoversNothing;
-use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\TestCase;
 
 /**
  * Integration tests for waaseyaa/node + waaseyaa/workflows + waaseyaa/access.

@@ -216,7 +216,7 @@ final class User extends ContentEntityBase implements AccountInterface
     {
         $roles = array_values(array_filter(
             $this->getRoles(),
-            static fn (string $r): bool => $r !== $roleId,
+            static fn(string $r): bool => $r !== $roleId,
         ));
 
         return $this->set('roles', $roles);

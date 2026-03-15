@@ -7,7 +7,7 @@
     "prefer-stable": true,
     "require": {
         "php": ">=8.3",
-        "waaseyaa/database-legacy": "@dev"
+        "waaseyaa/database-legacy": "^0.1"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
@@ -26,6 +26,11 @@
     "autoload-dev": {
         "psr-4": {
             "Waaseyaa\\State\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-develop/v1.1": "0.1.x-dev"
         }
     }
 }

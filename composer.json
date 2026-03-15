@@ -3,6 +3,7 @@
     "description": "Waaseyaa monorepo — a modern, entity-first, AI-native CMS",
     "type": "project",
     "license": "GPL-2.0-or-later",
+    "version": "1.1.0",
     "repositories": [
         { "type": "path", "url": "packages/cache" },
         { "type": "path", "url": "packages/plugin" },
@@ -43,13 +44,15 @@
         { "type": "path", "url": "packages/i18n" },
         { "type": "path", "url": "packages/testing" },
         { "type": "path", "url": "packages/telescope" },
-        { "type": "path", "url": "packages/full" }
+        { "type": "path", "url": "packages/full" },
+        { "type": "path", "url": "packages/admin-bridge" }
     ],
     "require": {
         "php": ">=8.4",
         "symfony/console": "^7.0",
         "symfony/html-sanitizer": "^8.0",
         "waaseyaa/access": "@dev",
+        "waaseyaa/admin-bridge": "@dev",
         "waaseyaa/ai-agent": "@dev",
         "waaseyaa/ai-pipeline": "@dev",
         "waaseyaa/ai-schema": "@dev",
@@ -128,6 +131,7 @@
             "Waaseyaa\\AI\\Vector\\Tests\\": "packages/ai-vector/tests/",
             "Waaseyaa\\Testing\\Tests\\": "packages/testing/tests/",
             "Waaseyaa\\Telescope\\Tests\\": "packages/telescope/tests/",
+            "Waaseyaa\\AdminBridge\\Tests\\": "packages/admin-bridge/tests/",
             "Waaseyaa\\Tests\\": "tests/"
         }
     },
@@ -136,7 +140,7 @@
         "cs-fix": "php-cs-fixer fix",
         "dev": [
             "Composer\\Config::disableProcessTimeout",
-            "PHP_CLI_SERVER_WORKERS=4 php -S localhost:8081 -t public & npm run dev --prefix packages/admin && kill $!"
+            "APP_ENV=local WAASEYAA_DEV_FALLBACK_ACCOUNT=true PHP_CLI_SERVER_WORKERS=4 php -S localhost:8081 -t public & npm run dev --prefix packages/admin && kill $!"
         ],
         "phpstan": "phpstan analyse --memory-limit=512M"
     },

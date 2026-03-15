@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\EntityStorage;
 
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
@@ -11,7 +12,6 @@ use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * Entity repository implementation.

@@ -1,0 +1,196 @@
+name: Admin SPA
+
+on:
+  push:
+    branches: [main, 'develop/*']
+    tags: ['v*']
+    paths:
+      - 'packages/admin/**'
+      - 'packages/admin-bridge/**'
+      - '.github/workflows/admin.yml'
+  pull_request:
+    branches: [main, 'develop/*']
+    paths:
+      - 'packages/admin/**'
+      - 'packages/admin-bridge/**'
+      - '.github/workflows/admin.yml'
+
+concurrency:
+  group: admin-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: admin/contracts
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/admin
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: packages/admin/package-lock.json
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: TypeScript typecheck
+        run: npx nuxi typecheck
+
+      - name: Build contracts
+        run: npm run build:contracts
+
+      - name: Validate bootstrap JSON schema
+        run: |
+          cat > /tmp/bootstrap-test.json <<'PAYLOAD'
+          {
+            "version": "1.0",
+            "auth": { "strategy": "redirect", "loginUrl": "/login" },
+            "account": { "id": "1", "name": "Admin", "roles": ["admin"] },
+            "tenant": { "id": "default", "name": "Test", "scopingStrategy": "server" },
+            "transport": { "strategy": "jsonapi", "apiPath": "/api" },
+            "entities": []
+          }
+          PAYLOAD
+          npx --yes ajv-cli validate \
+            --spec=draft2020 \
+            --strict=false \
+            -s contracts/bootstrap.schema.json \
+            -d /tmp/bootstrap-test.json
+
+      - name: Run Vitest contract tests
+        run: npx vitest run --reporter=verbose
+
+      # PHP bridge tests run in ci/unit-tests (main CI workflow).
+      # Path repos don't resolve in PR detached HEAD checkouts,
+      # so we don't duplicate composer install here.
+
+      - name: Upload contracts build
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: contracts-dist
+          path: packages/admin/dist/
+          retention-days: 14
+
+  build:
+    name: admin/build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/admin
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: packages/admin/package-lock.json
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build Admin SPA
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: admin-build
+          path: packages/admin/.output/
+          retention-days: 14
+
+  integration:
+    name: admin/integration
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: false  # Placeholder — enable when Playwright smoke tests with mock host are ready
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: packages/admin/package-lock.json
+
+      - name: Install dependencies and Playwright
+        run: cd packages/admin && npm install --no-audit --no-fund && npx playwright install --with-deps chromium
+
+      - name: Run Playwright integration tests
+        run: cd packages/admin && npx playwright test
+
+  adapters:
+    name: admin/adapters
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/admin
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: packages/admin/package-lock.json
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run adapter unit tests
+        run: npx vitest run tests/unit/adapters/
+
+  release:
+    name: admin/release
+    runs-on: ubuntu-latest
+    needs: [contracts, adapters, build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    defaults:
+      run:
+        working-directory: packages/admin
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: packages/admin/package-lock.json
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Contract freeze check
+        run: |
+          # Verify contracts/bootstrap.schema.json matches the tagged version
+          # Fail if contract files have uncommitted changes
+          git diff --exit-code contracts/
+
+      - name: Build contracts
+        run: npm run build:contracts
+
+      - name: Tarball integrity check
+        run: |
+          # Pack and verify tarball contents
+          npm pack --dry-run 2>&1 | tee /dev/stderr
+
+      - name: Build Admin SPA
+        run: npm run build
+
+      # TODO: Publish step — enable when npm registry is configured
+      # - name: Publish to npm
+      #   run: npm publish --access public
+      #   env:
+      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

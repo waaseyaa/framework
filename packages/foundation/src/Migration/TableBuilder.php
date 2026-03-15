@@ -116,8 +116,20 @@ final class TableBuilder
     }
 
     /** @return list<ColumnDefinition> */
-    public function getColumns(): array { return $this->columns; }
-    public function getIndexes(): array { return $this->indexes; }
-    public function getUniqueIndexes(): array { return $this->uniqueIndexes; }
-    public function getPrimaryKey(): ?array { return $this->primaryKey; }
+    public function getColumns(): array
+    {
+        return $this->columns;
+    }
+    public function getIndexes(): array
+    {
+        return $this->indexes;
+    }
+    public function getUniqueIndexes(): array
+    {
+        return $this->uniqueIndexes;
+    }
+    public function getPrimaryKey(): ?array
+    {
+        return $this->primaryKey;
+    }
 }

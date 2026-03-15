@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase6;
 
+use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\EntityAccessHandler;
-use Waaseyaa\Database\PdoDatabase;
-use Waaseyaa\Entity\EntityType;
-use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
-use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Node\Node;
 use Waaseyaa\Node\NodeAccessPolicy;
 use Waaseyaa\Taxonomy\Term;
@@ -17,10 +15,6 @@ use Waaseyaa\Taxonomy\TermAccessPolicy;
 use Waaseyaa\Taxonomy\Vocabulary;
 use Waaseyaa\User\AnonymousUser;
 use Waaseyaa\User\User;
-use PHPUnit\Framework\Attributes\CoversNothing;
-use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\TestCase;
-use Symfony\Component\EventDispatcher\EventDispatcher;
 
 /**
  * Integration tests for waaseyaa/taxonomy + waaseyaa/node + waaseyaa/access.
@@ -221,7 +215,7 @@ final class TaxonomyNodeIntegrationTest extends TestCase
         // But we can resolve only the existing terms.
         $resolvedTerms = array_filter(
             $tagIds,
-            static fn (int $id): bool => isset($availableTerms[$id]),
+            static fn(int $id): bool => isset($availableTerms[$id]),
         );
         $this->assertCount(1, $resolvedTerms);
         $this->assertContains(1, $resolvedTerms);

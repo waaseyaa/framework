@@ -37,7 +37,7 @@ final class SqliteTelescopeStore implements TelescopeStoreInterface
         $entry = new TelescopeEntry(type: $type, data: $data);
 
         $stmt = $this->pdo->prepare(
-            'INSERT INTO telescope_entries (id, type, data, created_at) VALUES (:id, :type, :data, :created_at)'
+            'INSERT INTO telescope_entries (id, type, data, created_at) VALUES (:id, :type, :data, :created_at)',
         );
         $stmt->execute([
             'id' => $entry->id,
@@ -52,7 +52,7 @@ final class SqliteTelescopeStore implements TelescopeStoreInterface
         $this->ensureTable();
 
         $stmt = $this->pdo->prepare(
-            'SELECT id, type, data, created_at FROM telescope_entries WHERE type = :type ORDER BY created_at DESC LIMIT :limit OFFSET :offset'
+            'SELECT id, type, data, created_at FROM telescope_entries WHERE type = :type ORDER BY created_at DESC LIMIT :limit OFFSET :offset',
         );
         $stmt->bindValue('type', $type, \PDO::PARAM_STR);
         $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
@@ -72,7 +72,7 @@ final class SqliteTelescopeStore implements TelescopeStoreInterface
         $this->ensureTable();
 
         $stmt = $this->pdo->prepare(
-            'DELETE FROM telescope_entries WHERE created_at < :before'
+            'DELETE FROM telescope_entries WHERE created_at < :before',
         );
         $stmt->execute([
             'before' => $before->format('Y-m-d H:i:s.u'),
@@ -100,11 +100,11 @@ final class SqliteTelescopeStore implements TelescopeStoreInterface
                 type TEXT NOT NULL,
                 data TEXT NOT NULL,
                 created_at TEXT NOT NULL
-            )'
+            )',
         )->execute();
 
         $this->pdo->prepare(
-            'CREATE INDEX IF NOT EXISTS idx_telescope_type_created ON telescope_entries (type, created_at)'
+            'CREATE INDEX IF NOT EXISTS idx_telescope_type_created ON telescope_entries (type, created_at)',
         )->execute();
 
         $this->tableEnsured = true;

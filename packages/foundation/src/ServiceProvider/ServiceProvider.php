@@ -87,7 +87,7 @@ abstract class ServiceProvider implements ServiceProviderInterface
     /**
      * Resolve a binding registered via singleton() or bind().
      */
-    protected function resolve(string $abstract): mixed
+    public function resolve(string $abstract): mixed
     {
         if (isset($this->resolved[$abstract])) {
             return $this->resolved[$abstract];

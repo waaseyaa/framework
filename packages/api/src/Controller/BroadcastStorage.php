@@ -29,7 +29,7 @@ final class BroadcastStorage
             . 'event TEXT NOT NULL,'
             . 'data TEXT NOT NULL DEFAULT \'{}\','
             . 'created_at REAL NOT NULL'
-            . ')'
+            . ')',
         );
     }
 
@@ -39,7 +39,7 @@ final class BroadcastStorage
     public function push(string $channel, string $event, array $data): void
     {
         $stmt = $this->database->getPdo()->prepare(
-            'INSERT INTO _broadcast_log (channel, event, data, created_at) VALUES (?, ?, ?, ?)'
+            'INSERT INTO _broadcast_log (channel, event, data, created_at) VALUES (?, ?, ?, ?)',
         );
         $stmt->execute([$channel, $event, json_encode($data, JSON_THROW_ON_ERROR), microtime(true)]);
     }
@@ -88,7 +88,7 @@ final class BroadcastStorage
     {
         $cutoff = microtime(true) - $maxAgeSeconds;
         $stmt = $this->database->getPdo()->prepare(
-            'DELETE FROM _broadcast_log WHERE created_at < ?'
+            'DELETE FROM _broadcast_log WHERE created_at < ?',
         );
         $stmt->execute([$cutoff]);
     }

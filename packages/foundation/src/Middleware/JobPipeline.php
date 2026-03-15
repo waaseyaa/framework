@@ -29,7 +29,7 @@ final class JobPipeline
 
         foreach (array_reverse($this->middleware) as $mw) {
             $next = $handler;
-            $handler = new class($mw, $next) implements JobHandlerInterface {
+            $handler = new class ($mw, $next) implements JobHandlerInterface {
                 public function __construct(
                     private readonly JobMiddlewareInterface $middleware,
                     private readonly JobHandlerInterface $next,

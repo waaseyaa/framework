@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase7;
 
+use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\ResourceSerializer;
@@ -15,10 +19,6 @@ use Waaseyaa\Node\Node;
 use Waaseyaa\Node\NodeAccessPolicy;
 use Waaseyaa\User\AnonymousUser;
 use Waaseyaa\User\User;
-use PHPUnit\Framework\Attributes\CoversNothing;
-use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\TestCase;
-use Symfony\Component\EventDispatcher\EventDispatcher;
 
 /**
  * JSON:API operations with access control integration tests.

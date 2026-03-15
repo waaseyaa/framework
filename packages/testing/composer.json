@@ -1,6 +1,6 @@
 {
     "name": "waaseyaa/testing",
-    "description": "Testing utilities for Waaseyaa — base test case, entity factories, and helper traits.",
+    "description": "Testing utilities for Waaseyaa \u2014 base test case, entity factories, and helper traits.",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "require": {
@@ -18,5 +18,10 @@
         }
     },
     "minimum-stability": "dev",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "extra": {
+        "branch-alias": {
+            "dev-develop/v1.1": "0.1.x-dev"
+        }
+    }
 }

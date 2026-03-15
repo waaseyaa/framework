@@ -1,20 +1,32 @@
 <?php
+
 declare(strict_types=1);
+
 namespace Waaseyaa\Foundation\Discovery;
 
 final class PackageManifest
 {
     public function __construct(
-        /** @var string[] */ public readonly array $providers = [],
-        /** @var string[] */ public readonly array $commands = [],
-        /** @var string[] */ public readonly array $routes = [],
-        /** @var array<string, string> */ public readonly array $migrations = [],
-        /** @var array<string, string> */ public readonly array $fieldTypes = [],
-        /** @var array<string, class-string> */ public readonly array $formatters = [],
-        /** @var array<string, list<array{class: string, priority: int}>> */ public readonly array $listeners = [],
-        /** @var array<string, list<array{class: string, priority: int}>> */ public readonly array $middleware = [],
-        /** @var array<string, array{title: string, description?: string}> */ public readonly array $permissions = [],
-        /** @var array<class-string, string[]> */ public readonly array $policies = [],
+        /** @var string[] */
+        public readonly array $providers = [],
+        /** @var string[] */
+        public readonly array $commands = [],
+        /** @var string[] */
+        public readonly array $routes = [],
+        /** @var array<string, string> */
+        public readonly array $migrations = [],
+        /** @var array<string, string> */
+        public readonly array $fieldTypes = [],
+        /** @var array<string, class-string> */
+        public readonly array $formatters = [],
+        /** @var array<string, list<array{class: string, priority: int}>> */
+        public readonly array $listeners = [],
+        /** @var array<string, list<array{class: string, priority: int}>> */
+        public readonly array $middleware = [],
+        /** @var array<string, array{title: string, description?: string}> */
+        public readonly array $permissions = [],
+        /** @var array<class-string, string[]> */
+        public readonly array $policies = [],
     ) {}
 
     /**

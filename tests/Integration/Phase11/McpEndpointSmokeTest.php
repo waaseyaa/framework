@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase11;
 
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Schema\EntityJsonSchemaGenerator;
 use Waaseyaa\AI\Schema\Mcp\McpToolDefinition;
@@ -22,8 +24,6 @@ use Waaseyaa\Mcp\McpEndpoint;
 use Waaseyaa\Mcp\McpRouteProvider;
 use Waaseyaa\Mcp\McpServerCard;
 use Waaseyaa\Routing\WaaseyaaRouter;
-use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\TestCase;
 
 final class McpEndpointSmokeTest extends TestCase
 {
@@ -56,15 +56,24 @@ final class McpEndpointSmokeTest extends TestCase
         $toolExecutor = new McpToolExecutor($entityTypeManager);
 
         // Thin adapters to bridge final upstream classes to MCP interfaces.
-        $registry = new class($schemaRegistry) implements ToolRegistryInterface {
+        $registry = new class ($schemaRegistry) implements ToolRegistryInterface {
             public function __construct(private readonly SchemaRegistry $inner) {}
-            public function getTools(): array { return $this->inner->getTools(); }
-            public function getTool(string $name): ?McpToolDefinition { return $this->inner->getTool($name); }
+            public function getTools(): array
+            {
+                return $this->inner->getTools();
+            }
+            public function getTool(string $name): ?McpToolDefinition
+            {
+                return $this->inner->getTool($name);
+            }
         };
 
-        $executor = new class($toolExecutor) implements ToolExecutorInterface {
+        $executor = new class ($toolExecutor) implements ToolExecutorInterface {
             public function __construct(private readonly McpToolExecutor $inner) {}
-            public function execute(string $toolName, array $arguments): array { return $this->inner->execute($toolName, $arguments); }
+            public function execute(string $toolName, array $arguments): array
+            {
+                return $this->inner->execute($toolName, $arguments);
+            }
         };
 
         $account = $this->createMock(AccountInterface::class);

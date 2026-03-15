@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Field;
 
+use Symfony\Component\Validator\ConstraintViolationList;
+use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Waaseyaa\TypedData\DataDefinition;
 use Waaseyaa\TypedData\DataDefinitionInterface;
 use Waaseyaa\TypedData\TypedDataInterface;
-use Symfony\Component\Validator\ConstraintViolationList;
-use Symfony\Component\Validator\ConstraintViolationListInterface;
 
 /**
  * Simple typed data wrapper for a single property value within a field item.

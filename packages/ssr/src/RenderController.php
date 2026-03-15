@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\SSR;
 
-use Waaseyaa\Entity\EntityInterface;
 use Twig\Environment;
 use Twig\Error\LoaderError;
+use Waaseyaa\Entity\EntityInterface;
 
 final class RenderController
 {

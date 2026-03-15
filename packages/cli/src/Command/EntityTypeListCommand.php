@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Command;
 
-use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
 
 /**
  * Lists all registered entity type definitions.

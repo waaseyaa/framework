@@ -3,12 +3,16 @@ import { useSchema } from '~/composables/useSchema'
 import { useEntity, type JsonApiResource } from '~/composables/useEntity'
 import { useLanguage } from '~/composables/useLanguage'
 import { useRealtime } from '~/composables/useRealtime'
+import { useAdmin } from '~/composables/useAdmin'
 
 const props = defineProps<{
   entityType: string
 }>()
 
 const { t } = useLanguage()
+const { hasCapability } = useAdmin()
+const canUpdate = hasCapability(props.entityType, 'update')
+const canDelete = hasCapability(props.entityType, 'delete')
 const config = useRuntimeConfig()
 const realtimeEnabled = config.public.enableRealtime === '1'
 const { schema, loading: schemaLoading, fetch: fetchSchema, sortedProperties } = useSchema(props.entityType)
@@ -175,13 +179,14 @@ watch(messages, (msgs) => {
           </tr>
           <tr v-for="entity in entities" :key="entity.id">
             <td v-for="[fieldName, fieldSchema] in columns" :key="fieldName">
-              {{ formatCellValue(getCellValue(entity, fieldName, fieldSchema), fieldSchema) }}
+              {{ formatCellValue(getCellValue(entity, fieldName, fieldSchema as unknown as Record<string, unknown>), fieldSchema as unknown as Record<string, unknown>) }}
             </td>
             <td class="actions">
-              <NuxtLink :to="`/${entityType}/${entity.id}`" class="btn btn-sm">
+              <NuxtLink v-if="canUpdate" :to="`/${entityType}/${entity.id}`" class="btn btn-sm">
                 {{ t('edit') }}
               </NuxtLink>
               <button
+                v-if="canDelete"
                 class="btn btn-sm btn-danger"
                 :aria-label="t('delete') + ': ' + getEntityLabel(entity)"
                 @click="deleteEntity(entity)"

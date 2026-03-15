@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase8;
 
+use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\AI\Agent\AgentAction;
 use Waaseyaa\AI\Agent\AgentContext;
 use Waaseyaa\AI\Agent\AgentExecutor;
@@ -19,10 +23,6 @@ use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\User\User;
-use PHPUnit\Framework\Attributes\CoversNothing;
-use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\TestCase;
-use Symfony\Component\EventDispatcher\EventDispatcher;
 
 /**
  * Agent execution with audit logging, tool calls, and MCP server integration.
@@ -319,7 +319,7 @@ class ContentCreatorAgent implements AgentInterface
             actions: [
                 new AgentAction(
                     type: 'tool_call',
-                    description: "Called create_node tool",
+                    description: 'Called create_node tool',
                     data: ['tool' => 'create_node', 'title' => $title],
                 ),
             ],

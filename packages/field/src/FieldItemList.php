@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Field;
 
-use Waaseyaa\TypedData\DataDefinitionInterface;
-use Waaseyaa\TypedData\TypedDataInterface;
 use Symfony\Component\Validator\ConstraintViolationList;
 use Symfony\Component\Validator\ConstraintViolationListInterface;
+use Waaseyaa\TypedData\DataDefinitionInterface;
+use Waaseyaa\TypedData\TypedDataInterface;
 
 class FieldItemList implements FieldItemListInterface, \IteratorAggregate, \Countable
 {

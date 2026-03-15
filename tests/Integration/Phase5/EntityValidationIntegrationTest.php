@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase5;
 
+use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\Validator\Validation;
+use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\User\User;
 use Waaseyaa\Validation\Constraint\AllowedValues;
 use Waaseyaa\Validation\Constraint\NotEmpty;
 use Waaseyaa\Validation\Constraint\SafeMarkup;
 use Waaseyaa\Validation\ConstraintFactory;
-use Waaseyaa\Entity\Validation\EntityValidator;
-use PHPUnit\Framework\Attributes\CoversNothing;
-use PHPUnit\Framework\TestCase;
-use Symfony\Component\Validator\Validation;
 
 /**
  * Integration tests for waaseyaa/validation + waaseyaa/entity (User).

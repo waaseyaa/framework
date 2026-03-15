@@ -43,9 +43,9 @@ final class EnvelopeValidator
         $unknownFields = array_diff(array_keys($raw), self::ALLOWED_FIELDS);
         foreach ($unknownFields as $field) {
             $errors[] = new IngestionError(
-                code:    IngestionErrorCode::ENVELOPE_FIELD_UNKNOWN,
+                code: IngestionErrorCode::ENVELOPE_FIELD_UNKNOWN,
                 message: "Unknown field '{$field}'. Allowed fields: " . implode(', ', self::ALLOWED_FIELDS) . '.',
-                field:   (string) $field,
+                field: (string) $field,
                 traceId: $traceId,
             );
         }
@@ -54,9 +54,9 @@ final class EnvelopeValidator
         foreach (self::REQUIRED_FIELDS as $field) {
             if (!array_key_exists($field, $raw)) {
                 $errors[] = new IngestionError(
-                    code:    IngestionErrorCode::ENVELOPE_FIELD_MISSING,
+                    code: IngestionErrorCode::ENVELOPE_FIELD_MISSING,
                     message: "Required field '{$field}' is missing.",
-                    field:   $field,
+                    field: $field,
                     traceId: $traceId,
                 );
             }
@@ -79,11 +79,11 @@ final class EnvelopeValidator
         $traceId ??= (string) Uuid::v4();
 
         return new Envelope(
-            source:   (string) $raw['source'],
-            type:     (string) $raw['type'],
-            payload:  (array) $raw['payload'],
+            source: (string) $raw['source'],
+            type: (string) $raw['type'],
+            payload: (array) $raw['payload'],
             timestamp: (string) $raw['timestamp'],
-            traceId:  $traceId,
+            traceId: $traceId,
             tenantId: isset($raw['tenant_id']) ? (string) $raw['tenant_id'] : null,
             metadata: isset($raw['metadata']) && is_array($raw['metadata']) ? $raw['metadata'] : [],
         );
@@ -102,9 +102,9 @@ final class EnvelopeValidator
 
         if (!is_string($raw[$field])) {
             $errors[] = new IngestionError(
-                code:    IngestionErrorCode::ENVELOPE_FIELD_TYPE_INVALID,
+                code: IngestionErrorCode::ENVELOPE_FIELD_TYPE_INVALID,
                 message: "Field '{$field}' must be a string.",
-                field:   $field,
+                field: $field,
                 traceId: $traceId,
             );
             return;
@@ -112,9 +112,9 @@ final class EnvelopeValidator
 
         if ($minLength > 0 && strlen(trim($raw[$field])) < $minLength) {
             $errors[] = new IngestionError(
-                code:    IngestionErrorCode::ENVELOPE_FIELD_EMPTY,
+                code: IngestionErrorCode::ENVELOPE_FIELD_EMPTY,
                 message: "Field '{$field}' must be a non-empty string.",
-                field:   $field,
+                field: $field,
                 traceId: $traceId,
             );
         }
@@ -129,9 +129,9 @@ final class EnvelopeValidator
 
         if (!is_array($raw['payload'])) {
             $errors[] = new IngestionError(
-                code:    IngestionErrorCode::ENVELOPE_FIELD_TYPE_INVALID,
+                code: IngestionErrorCode::ENVELOPE_FIELD_TYPE_INVALID,
                 message: "Field 'payload' must be an object.",
-                field:   'payload',
+                field: 'payload',
                 traceId: $traceId,
             );
         }
@@ -146,9 +146,9 @@ final class EnvelopeValidator
 
         if (!is_string($raw['timestamp'])) {
             $errors[] = new IngestionError(
-                code:    IngestionErrorCode::ENVELOPE_TIMESTAMP_INVALID,
+                code: IngestionErrorCode::ENVELOPE_TIMESTAMP_INVALID,
                 message: "Field 'timestamp' must be an ISO 8601 date-time string.",
-                field:   'timestamp',
+                field: 'timestamp',
                 traceId: $traceId,
             );
             return;
@@ -163,9 +163,9 @@ final class EnvelopeValidator
 
         if ($parsed === false) {
             $errors[] = new IngestionError(
-                code:    IngestionErrorCode::ENVELOPE_TIMESTAMP_INVALID,
+                code: IngestionErrorCode::ENVELOPE_TIMESTAMP_INVALID,
                 message: "Field 'timestamp' is not a valid ISO 8601 date-time.",
-                field:   'timestamp',
+                field: 'timestamp',
                 traceId: $traceId,
             );
         }
@@ -180,9 +180,9 @@ final class EnvelopeValidator
 
         if (!is_string($raw['trace_id'])) {
             $errors[] = new IngestionError(
-                code:    IngestionErrorCode::ENVELOPE_TRACE_ID_INVALID,
+                code: IngestionErrorCode::ENVELOPE_TRACE_ID_INVALID,
                 message: "Field 'trace_id' must be a UUID string.",
-                field:   'trace_id',
+                field: 'trace_id',
                 traceId: $traceId,
             );
             return;
@@ -190,9 +190,9 @@ final class EnvelopeValidator
 
         if (!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/', $raw['trace_id'])) {
             $errors[] = new IngestionError(
-                code:    IngestionErrorCode::ENVELOPE_TRACE_ID_INVALID,
+                code: IngestionErrorCode::ENVELOPE_TRACE_ID_INVALID,
                 message: "Field 'trace_id' must be a valid lowercase UUID.",
-                field:   'trace_id',
+                field: 'trace_id',
                 traceId: $traceId,
             );
         }
@@ -207,9 +207,9 @@ final class EnvelopeValidator
 
         if (!is_array($raw['metadata'])) {
             $errors[] = new IngestionError(
-                code:    IngestionErrorCode::ENVELOPE_FIELD_TYPE_INVALID,
+                code: IngestionErrorCode::ENVELOPE_FIELD_TYPE_INVALID,
                 message: "Field 'metadata' must be an object.",
-                field:   'metadata',
+                field: 'metadata',
                 traceId: $traceId,
             );
         }

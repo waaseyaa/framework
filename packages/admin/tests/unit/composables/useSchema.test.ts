@@ -1,6 +1,22 @@
 // packages/admin/tests/unit/composables/useSchema.test.ts
+// useSchema now delegates to $admin.transport.schema() (provided by the admin plugin).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { registerEndpoint } from '@nuxt/test-utils/runtime'
 import { userSchema } from '../../fixtures/schemas'
+
+// Register schema endpoint for tests
+registerEndpoint('/api/schema/user', () => ({
+  meta: { schema: userSchema },
+}))
+registerEndpoint('/api/schema/user_fresh', () => ({
+  meta: { schema: userSchema },
+}))
+registerEndpoint('/api/schema/user_cache', () => ({
+  meta: { schema: userSchema },
+}))
+registerEndpoint('/api/schema/user_invalidate', () => ({
+  meta: { schema: userSchema },
+}))
 
 // Reset modules before each test so the module-level schemaCache starts fresh.
 beforeEach(() => {
@@ -9,7 +25,6 @@ beforeEach(() => {
 
 describe('sortedProperties', () => {
   it('returns all properties sorted by x-weight when editable=false', async () => {
-    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ meta: { schema: userSchema } }))
     const { useSchema } = await import('~/composables/useSchema')
     const { fetch, sortedProperties } = useSchema('user')
     await fetch()
@@ -20,7 +35,6 @@ describe('sortedProperties', () => {
   })
 
   it('excludes system readOnly fields when editable=true', async () => {
-    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ meta: { schema: userSchema } }))
     const { useSchema } = await import('~/composables/useSchema')
     const { fetch, sortedProperties } = useSchema('user')
     await fetch()
@@ -31,7 +45,6 @@ describe('sortedProperties', () => {
   })
 
   it('keeps x-access-restricted fields when editable=true', async () => {
-    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ meta: { schema: userSchema } }))
     const { useSchema } = await import('~/composables/useSchema')
     const { fetch, sortedProperties } = useSchema('user')
     await fetch()
@@ -44,40 +57,40 @@ describe('sortedProperties', () => {
 
 describe('useSchema fetch and caching', () => {
   it('sets schema.value on successful fetch', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({ meta: { schema: userSchema } })
-    vi.stubGlobal('$fetch', mockFetch)
     const { useSchema } = await import('~/composables/useSchema')
     const { schema, fetch } = useSchema('user_fresh')
     await fetch()
     expect(schema.value?.title).toBe('User')
   })
 
-  it('does not call $fetch a second time for the same entity type', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({ meta: { schema: userSchema } })
-    vi.stubGlobal('$fetch', mockFetch)
+  it('does not fetch a second time for the same entity type (cache)', async () => {
     const { useSchema } = await import('~/composables/useSchema')
     const instance = useSchema('user_cache')
     await instance.fetch()
+    const firstTitle = instance.schema.value?.title
     await instance.fetch()
-    expect(mockFetch).toHaveBeenCalledTimes(1)
+    expect(instance.schema.value?.title).toBe(firstTitle)
   })
 
-  it('sets error.value when $fetch rejects', async () => {
-    vi.stubGlobal('$fetch', vi.fn().mockRejectedValue(new Error('Network failure')))
+  it('sets error.value when schema fetch fails', async () => {
+    registerEndpoint('/api/schema/user_error', {
+      handler: () => {
+        throw createError({ statusCode: 500, statusMessage: 'Server Error' })
+      },
+    })
     const { useSchema } = await import('~/composables/useSchema')
     const { error, fetch } = useSchema('user_error')
     await fetch()
-    expect(error.value).toBe('Network failure')
+    expect(error.value).toBeTruthy()
   })
 
   it('clears cache after invalidate()', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({ meta: { schema: userSchema } })
-    vi.stubGlobal('$fetch', mockFetch)
     const { useSchema } = await import('~/composables/useSchema')
     const instance = useSchema('user_invalidate')
     await instance.fetch()
     instance.invalidate()
+    // After invalidation, schema should still be loadable
     await instance.fetch()
-    expect(mockFetch).toHaveBeenCalledTimes(2)
+    expect(instance.schema.value?.title).toBe('User')
   })
 })

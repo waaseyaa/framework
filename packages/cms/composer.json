@@ -1,6 +1,6 @@
 {
     "name": "waaseyaa/cms",
-    "description": "Waaseyaa — complete headless CMS with admin and CLI.",
+    "description": "Waaseyaa \u2014 complete headless CMS with admin and CLI.",
     "type": "metapackage",
     "license": "GPL-2.0-or-later",
     "require": {
@@ -14,5 +14,10 @@
         "waaseyaa/api": "^0.1",
         "waaseyaa/cli": "^0.1"
     },
-    "minimum-stability": "stable"
+    "minimum-stability": "stable",
+    "extra": {
+        "branch-alias": {
+            "dev-develop/v1.1": "0.1.x-dev"
+        }
+    }
 }

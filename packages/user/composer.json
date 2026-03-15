@@ -4,21 +4,48 @@
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
-        {"type": "path", "url": "../entity"},
-        {"type": "path", "url": "../plugin"},
-        {"type": "path", "url": "../cache"},
-        {"type": "path", "url": "../typed-data"},
-        {"type": "path", "url": "../field"},
-        {"type": "path", "url": "../access"},
-        {"type": "path", "url": "../config"},
-        {"type": "path", "url": "../foundation"},
-        {"type": "path", "url": "../queue"}
+        {
+            "type": "path",
+            "url": "../entity"
+        },
+        {
+            "type": "path",
+            "url": "../plugin"
+        },
+        {
+            "type": "path",
+            "url": "../cache"
+        },
+        {
+            "type": "path",
+            "url": "../typed-data"
+        },
+        {
+            "type": "path",
+            "url": "../field"
+        },
+        {
+            "type": "path",
+            "url": "../access"
+        },
+        {
+            "type": "path",
+            "url": "../config"
+        },
+        {
+            "type": "path",
+            "url": "../foundation"
+        },
+        {
+            "type": "path",
+            "url": "../queue"
+        }
     ],
     "require": {
         "php": ">=8.3",
-        "waaseyaa/entity": "@dev",
-        "waaseyaa/access": "@dev",
-        "waaseyaa/foundation": "@dev",
+        "waaseyaa/entity": "^0.1",
+        "waaseyaa/access": "^0.1",
+        "waaseyaa/foundation": "^0.1",
         "symfony/http-foundation": "^7.0"
     },
     "require-dev": {
@@ -36,7 +63,12 @@
     },
     "extra": {
         "waaseyaa": {
-            "providers": ["Waaseyaa\\User\\UserServiceProvider"]
+            "providers": [
+                "Waaseyaa\\User\\UserServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-develop/v1.1": "0.1.x-dev"
         }
     },
     "minimum-stability": "dev",

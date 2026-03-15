@@ -56,7 +56,8 @@ final class AuditLogCommand extends Command
         $entries = $this->lifecycleManager->readAuditLog($typeFilter, $tenantFilter !== '' ? $tenantFilter : null);
 
         if ($entries === []) {
-            $output->writeln($typeFilter !== ''
+            $output->writeln(
+                $typeFilter !== ''
                 ? sprintf('No audit entries found for entity type "%s".', $typeFilter)
                 : 'No audit entries found.',
             );
@@ -93,7 +94,8 @@ final class AuditLogCommand extends Command
         $entries = $this->entityAuditLogger->read($entityTypeFilter);
 
         if ($entries === []) {
-            $output->writeln($entityTypeFilter !== ''
+            $output->writeln(
+                $entityTypeFilter !== ''
                 ? sprintf('No entity audit entries found for type "%s".', $entityTypeFilter)
                 : 'No entity audit entries found.',
             );

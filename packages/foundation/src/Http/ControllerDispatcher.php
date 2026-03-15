@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Http;
 
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
-use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\AI\Vector\EmbeddingProviderFactory;
+use Waaseyaa\AI\Vector\SearchController;
+use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\Api\Controller\BroadcastController;
-use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Api\Controller\SchemaController;
+use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\JsonApiDocument;
 use Waaseyaa\Api\OpenApi\OpenApiGenerator;
@@ -20,14 +23,11 @@ use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Entity\EntityTypeIdNormalizer;
-use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeLifecycleManager;
+use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Mcp\McpController;
 use Waaseyaa\Media\File;
 use Waaseyaa\Media\LocalFileRepository;
-use Waaseyaa\AI\Vector\EmbeddingProviderFactory;
-use Waaseyaa\AI\Vector\SearchController;
-use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
-use Waaseyaa\Mcp\McpController;
 use Waaseyaa\SSR\SsrPageHandler;
 use Waaseyaa\User\Http\AuthController;
 
@@ -192,7 +192,9 @@ final class ControllerDispatcher
                     header('X-Accel-Buffering: no');
 
                     echo "event: connected\ndata: " . json_encode(['channels' => $channels], JSON_THROW_ON_ERROR) . "\n\n";
-                    if (ob_get_level() > 0) { ob_flush(); }
+                    if (ob_get_level() > 0) {
+                        ob_flush();
+                    }
                     flush();
 
                     $cursor = 0;
@@ -204,7 +206,9 @@ final class ControllerDispatcher
                         } catch (\Throwable $e) {
                             error_log(sprintf('[Waaseyaa] SSE poll error: %s', $e->getMessage()));
                             echo "event: error\ndata: " . json_encode(['message' => 'Broadcast poll failed'], JSON_THROW_ON_ERROR) . "\n\n";
-                            if (ob_get_level() > 0) { ob_flush(); }
+                            if (ob_get_level() > 0) {
+                                ob_flush();
+                            }
                             flush();
                             usleep(5_000_000);
                             continue;
@@ -221,14 +225,18 @@ final class ControllerDispatcher
                         }
 
                         if ($messages !== []) {
-                            if (ob_get_level() > 0) { ob_flush(); }
+                            if (ob_get_level() > 0) {
+                                ob_flush();
+                            }
                             flush();
                         }
 
                         $now = time();
                         if (($now - $lastKeepalive) >= 30) {
                             echo ": keepalive\n\n";
-                            if (ob_get_level() > 0) { ob_flush(); }
+                            if (ob_get_level() > 0) {
+                                ob_flush();
+                            }
                             flush();
                             $lastKeepalive = $now;
                             try {
@@ -439,7 +447,7 @@ final class ControllerDispatcher
                     if ($entityType !== 'relationship') {
                         $payload = $service->endpointPage($entityType, $resolvedId, $resolvedOptions);
                         [$dPayload, $dHeaders] = $this->discoveryHandler->prepareDiscoveryResponse(200, ['data' => $payload], $cacheKey, $account);
-                    ResponseSender::json(200, $dPayload, $dHeaders);
+                        ResponseSender::json(200, $dPayload, $dHeaders);
                     }
 
                     $values = $resolvedEntity->toArray();

@@ -7,11 +7,11 @@ namespace Waaseyaa\SSR;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Cache\CacheConfigResolver;
 use Waaseyaa\Database\PdoDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\I18n\Language;
 use Waaseyaa\I18n\LanguageManager;
 use Waaseyaa\Path\PathAliasResolver;
@@ -44,6 +44,8 @@ final class SsrPageHandler
         /** @var array<string, mixed> */
         private readonly array $config,
         private readonly ?object $manifest = null,
+        /** @var (\Closure(string): ?object)|null */
+        private readonly ?\Closure $serviceResolver = null,
     ) {}
 
     /**
@@ -325,6 +327,14 @@ final class SsrPageHandler
                 }
             }
 
+            if (!$matched && $type instanceof \ReflectionNamedType && !$type->isBuiltin() && $this->serviceResolver !== null) {
+                $resolved = ($this->serviceResolver)($type->getName());
+                if ($resolved !== null) {
+                    $args[] = $resolved;
+                    $matched = true;
+                }
+            }
+
             if (!$matched) {
                 if ($param->isDefaultValueAvailable()) {
                     $args[] = $param->getDefaultValue();
@@ -582,8 +592,7 @@ final class SsrPageHandler
         string $viewMode,
         bool $previewRequested,
         array $renderContext,
-    ): string
-    {
+    ): string {
         $workflowState = 'unknown';
         if (is_array($renderContext['workflow_visibility'] ?? null)) {
             $workflowStateCandidate = $renderContext['workflow_visibility']['state'] ?? null;

@@ -28,7 +28,7 @@ final class AllowedValuesValidator extends ConstraintValidator
             $this->context->buildViolation($constraint->message)
                 ->setParameter('{{ value }}', $this->formatValue($value))
                 ->setParameter('{{ choices }}', implode(', ', array_map(
-                    fn (mixed $v): string => $this->formatValue($v),
+                    fn(mixed $v): string => $this->formatValue($v),
                     $constraint->values,
                 )))
                 ->addViolation();

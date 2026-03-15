@@ -65,7 +65,7 @@ final class PdoDelete implements DeleteInterface
                 $parts[] = $field . ' IS NOT NULL';
             } elseif ($operator === 'IN' || $operator === 'NOT IN') {
                 if (!is_array($value)) {
-                    throw new \InvalidArgumentException("IN operator requires an array value.");
+                    throw new \InvalidArgumentException('IN operator requires an array value.');
                 }
                 $placeholders = implode(', ', array_fill(0, count($value), '?'));
                 $parts[] = $field . ' ' . $operator . ' (' . $placeholders . ')';

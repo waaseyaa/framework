@@ -12,8 +12,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
-const formData = inject<Ref<Record<string, any>>>('schemaFormData', undefined)
-const isEditMode = inject<Ref<boolean>>('schemaFormEditMode', undefined)
+const formData = inject<Ref<Record<string, any>> | undefined>('schemaFormData', undefined)
+const isEditMode = inject<Ref<boolean> | undefined>('schemaFormEditMode', undefined)
 
 if (import.meta.dev && (!formData || !isEditMode)) {
   console.warn('[MachineNameInput] Missing schemaFormData/schemaFormEditMode provider. Auto-generation disabled.')

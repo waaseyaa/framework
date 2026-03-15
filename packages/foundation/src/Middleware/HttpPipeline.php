@@ -29,7 +29,7 @@ final class HttpPipeline
 
         foreach (array_reverse($this->middleware) as $mw) {
             $next = $handler;
-            $handler = new class($mw, $next) implements HttpHandlerInterface {
+            $handler = new class ($mw, $next) implements HttpHandlerInterface {
                 public function __construct(
                     private readonly HttpMiddlewareInterface $middleware,
                     private readonly HttpHandlerInterface $next,

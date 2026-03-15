@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Routing;
 
+use Symfony\Component\Routing\Route;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Gate\GateInterface;
-use Symfony\Component\Routing\Route;
 
 /**
  * Checks route-level access for an account.

@@ -1,24 +1,42 @@
 {
     "name": "waaseyaa/entity",
-    "description": "Entity type system — types, interfaces, lifecycle, queries. No storage.",
+    "description": "Entity type system \u2014 types, interfaces, lifecycle, queries. No storage.",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
-        {"type": "path", "url": "../cache"},
-        {"type": "path", "url": "../plugin"},
-        {"type": "path", "url": "../typed-data"},
-        {"type": "path", "url": "../config"},
-        {"type": "path", "url": "../foundation"},
-        {"type": "path", "url": "../validation"}
+        {
+            "type": "path",
+            "url": "../cache"
+        },
+        {
+            "type": "path",
+            "url": "../plugin"
+        },
+        {
+            "type": "path",
+            "url": "../typed-data"
+        },
+        {
+            "type": "path",
+            "url": "../config"
+        },
+        {
+            "type": "path",
+            "url": "../foundation"
+        },
+        {
+            "type": "path",
+            "url": "../validation"
+        }
     ],
     "require": {
         "php": ">=8.3",
-        "waaseyaa/typed-data": "@dev",
-        "waaseyaa/plugin": "@dev",
-        "waaseyaa/cache": "@dev",
-        "waaseyaa/config": "@dev",
-        "waaseyaa/foundation": "@dev",
-        "waaseyaa/validation": "@dev",
+        "waaseyaa/typed-data": "^0.1",
+        "waaseyaa/plugin": "^0.1",
+        "waaseyaa/cache": "^0.1",
+        "waaseyaa/config": "^0.1",
+        "waaseyaa/foundation": "^0.1",
+        "waaseyaa/validation": "^0.1",
         "symfony/event-dispatcher": "^7.3",
         "symfony/uid": "^7.3",
         "symfony/validator": "^7.3"
@@ -37,5 +55,10 @@
         }
     },
     "minimum-stability": "dev",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "extra": {
+        "branch-alias": {
+            "dev-develop/v1.1": "0.1.x-dev"
+        }
+    }
 }

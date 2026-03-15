@@ -67,7 +67,7 @@ final class Pipeline extends ConfigEntityBase
     public function getSteps(): array
     {
         $steps = $this->steps;
-        usort($steps, static fn (PipelineStepConfig $a, PipelineStepConfig $b): int => $a->weight <=> $b->weight);
+        usort($steps, static fn(PipelineStepConfig $a, PipelineStepConfig $b): int => $a->weight <=> $b->weight);
 
         return $steps;
     }
@@ -90,7 +90,7 @@ final class Pipeline extends ConfigEntityBase
     {
         $this->steps = array_values(array_filter(
             $this->steps,
-            static fn (PipelineStepConfig $step): bool => $step->id !== $stepId,
+            static fn(PipelineStepConfig $step): bool => $step->id !== $stepId,
         ));
         $this->syncStepsToValues();
 
@@ -124,7 +124,7 @@ final class Pipeline extends ConfigEntityBase
         $config = parent::toConfig();
         $config['description'] = $this->description;
         $config['steps'] = array_map(
-            static fn (PipelineStepConfig $step): array => [
+            static fn(PipelineStepConfig $step): array => [
                 'id' => $step->id,
                 'plugin_id' => $step->pluginId,
                 'label' => $step->label,
@@ -143,7 +143,7 @@ final class Pipeline extends ConfigEntityBase
     private function syncStepsToValues(): void
     {
         $this->values['steps'] = array_map(
-            static fn (PipelineStepConfig $step): array => [
+            static fn(PipelineStepConfig $step): array => [
                 'id' => $step->id,
                 'plugin_id' => $step->pluginId,
                 'label' => $step->label,

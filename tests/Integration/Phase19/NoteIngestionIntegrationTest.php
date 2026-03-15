@@ -209,9 +209,15 @@ final class InMemoryNoteStorage implements EntityStorageInterface
         return $id;
     }
 
-    public function load(int|string $id): ?EntityInterface { return null; }
+    public function load(int|string $id): ?EntityInterface
+    {
+        return null;
+    }
 
-    public function loadMultiple(array $ids = []): array { return []; }
+    public function loadMultiple(array $ids = []): array
+    {
+        return [];
+    }
 
     public function delete(array $entities): void {}
 
@@ -220,5 +226,8 @@ final class InMemoryNoteStorage implements EntityStorageInterface
         throw new \LogicException('Not implemented in test double.');
     }
 
-    public function getEntityTypeId(): string { return 'note'; }
+    public function getEntityTypeId(): string
+    {
+        return 'note';
+    }
 }

@@ -4,6 +4,12 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase7;
 
+use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\Routing\Exception\ResourceNotFoundException;
+use Symfony\Component\Routing\RequestContext;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\JsonApiRouteProvider;
 use Waaseyaa\Api\ResourceSerializer;
@@ -12,12 +18,6 @@ use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Routing\WaaseyaaRouter;
-use PHPUnit\Framework\Attributes\CoversNothing;
-use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\TestCase;
-use Symfony\Component\EventDispatcher\EventDispatcher;
-use Symfony\Component\Routing\Exception\ResourceNotFoundException;
-use Symfony\Component\Routing\RequestContext;
 
 /**
  * End-to-end: routes + API controller + entity storage integration tests.

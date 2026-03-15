@@ -1,38 +1,8 @@
 import { ref, type Ref } from 'vue'
+import type { AdminRuntime } from '../contracts/runtime'
+import type { SchemaProperty, EntitySchema } from '../contracts/schema'
 
-export interface SchemaProperty {
-  type: string
-  description?: string
-  format?: string
-  readOnly?: boolean
-  enum?: string[]
-  minimum?: number
-  maximum?: number
-  maxLength?: number
-  'x-widget'?: string
-  'x-label'?: string
-  'x-description'?: string
-  'x-weight'?: number
-  'x-required'?: boolean
-  'x-enum-labels'?: Record<string, string>
-  'x-target-type'?: string
-  'x-access-restricted'?: boolean
-  'x-source-field'?: string
-  'x-list-display'?: boolean
-  default?: string | number | boolean
-}
-
-export interface EntitySchema {
-  $schema: string
-  title: string
-  description: string
-  type: string
-  'x-entity-type': string
-  'x-translatable': boolean
-  'x-revisionable': boolean
-  properties: Record<string, SchemaProperty>
-  required?: string[]
-}
+export type { SchemaProperty, EntitySchema }
 
 const schemaCache = new Map<string, EntitySchema>()
 
@@ -51,13 +21,11 @@ export function useSchema(entityType: string) {
     error.value = null
 
     try {
-      const response = await $fetch<{ meta: { schema: EntitySchema } }>(
-        `/api/schema/${entityType}`,
-      )
-      schema.value = response.meta.schema
+      const { $admin } = useNuxtApp() as unknown as { $admin: AdminRuntime }
+      schema.value = await $admin.transport.schema(entityType)
       schemaCache.set(entityType, schema.value)
     } catch (e: any) {
-      error.value = e.data?.errors?.[0]?.detail ?? e.message ?? 'Failed to load schema'
+      error.value = e.detail ?? e.message ?? 'Failed to load schema'
     } finally {
       loading.value = false
     }

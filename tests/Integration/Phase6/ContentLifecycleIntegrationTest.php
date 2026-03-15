@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase6;
 
+use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\Validator\Validation;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\Media\File;
 use Waaseyaa\Media\InMemoryFileRepository;
 use Waaseyaa\Media\Media;
@@ -27,14 +32,9 @@ use Waaseyaa\Taxonomy\Vocabulary;
 use Waaseyaa\User\User;
 use Waaseyaa\Validation\Constraint\NotEmpty;
 use Waaseyaa\Validation\Constraint\SafeMarkup;
-use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\Workflows\ContentModerationState;
 use Waaseyaa\Workflows\ContentModerator;
 use Waaseyaa\Workflows\Workflow;
-use PHPUnit\Framework\Attributes\CoversNothing;
-use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\TestCase;
-use Symfony\Component\Validator\Validation;
 
 /**
  * Full lifecycle integration test spanning most Layer 3 packages.

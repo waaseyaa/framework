@@ -37,4 +37,11 @@ storage/
 .playwright-mcp/
 mcp/node_modules/
 
+# Playwright test artifacts
+packages/admin/playwright-report/
+packages/admin/test-results/
+
+# Smoke test screenshots
+smoke-*.png
+
 

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase5;
 
+use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\InMemoryQueue;
 use Waaseyaa\Queue\Message\EntityMessage;
@@ -11,8 +13,6 @@ use Waaseyaa\Queue\Message\GenericMessage;
 use Waaseyaa\Queue\SyncQueue;
 use Waaseyaa\State\MemoryState;
 use Waaseyaa\State\StateInterface;
-use PHPUnit\Framework\Attributes\CoversNothing;
-use PHPUnit\Framework\TestCase;
 
 /**
  * Integration tests for waaseyaa/state + waaseyaa/queue.
@@ -70,7 +70,7 @@ final class StateQueueIntegrationTest extends TestCase
     {
         $processed = [];
 
-        $handler = new class($processed) implements HandlerInterface {
+        $handler = new class ($processed) implements HandlerInterface {
             /** @param GenericMessage[] $processed */
             public function __construct(private array &$processed) {}
 
@@ -103,7 +103,7 @@ final class StateQueueIntegrationTest extends TestCase
         $genericProcessed = [];
         $entityProcessed = [];
 
-        $genericHandler = new class($genericProcessed) implements HandlerInterface {
+        $genericHandler = new class ($genericProcessed) implements HandlerInterface {
             public function __construct(private array &$processed) {}
 
             public function handle(object $message): void
@@ -117,7 +117,7 @@ final class StateQueueIntegrationTest extends TestCase
             }
         };
 
-        $entityHandler = new class($entityProcessed) implements HandlerInterface {
+        $entityHandler = new class ($entityProcessed) implements HandlerInterface {
             public function __construct(private array &$processed) {}
 
             public function handle(object $message): void

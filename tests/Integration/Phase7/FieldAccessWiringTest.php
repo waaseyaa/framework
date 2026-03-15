@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\Phase7;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
@@ -21,7 +22,6 @@ use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
-use Symfony\Component\EventDispatcher\EventDispatcher;
 
 /**
  * Integration test: field-access wiring through controllers.
@@ -58,7 +58,7 @@ final class FieldAccessWiringTest extends TestCase
         $this->account = $this->createMock(AccountInterface::class);
 
         // Policy: forbid viewing 'secret', forbid editing 'status'.
-        $policy = new class () implements AccessPolicyInterface, FieldAccessPolicyInterface {
+        $policy = new class implements AccessPolicyInterface, FieldAccessPolicyInterface {
             public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
             {
                 return AccessResult::allowed();
@@ -161,7 +161,7 @@ final class FieldAccessWiringTest extends TestCase
     {
         // Entity-level policy that allows access, but implements no FieldAccessPolicyInterface.
         // This mirrors the real scenario: entity access granted, no field restrictions.
-        $entityPolicy = new class () implements AccessPolicyInterface {
+        $entityPolicy = new class implements AccessPolicyInterface {
             public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
             {
                 return AccessResult::allowed();

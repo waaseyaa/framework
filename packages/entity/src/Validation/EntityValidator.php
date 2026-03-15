@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Entity\Validation;
 
-use Waaseyaa\Entity\EntityInterface;
-use Waaseyaa\Entity\FieldableInterface;
 use Symfony\Component\Validator\ConstraintViolationList;
 use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\FieldableInterface;
 
 /**
  * Validates entity field values against provided constraints.

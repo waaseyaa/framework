@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config\Storage;
 
-use Waaseyaa\Config\StorageInterface;
 use Symfony\Component\Yaml\Yaml;
+use Waaseyaa\Config\StorageInterface;
 
 final class FileStorage implements StorageInterface
 {

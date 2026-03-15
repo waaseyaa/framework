@@ -272,7 +272,7 @@ final class PdoSelect implements SelectInterface
                 $parts[] = $field . ' IS NOT NULL';
             } elseif ($operator === 'IN' || $operator === 'NOT IN') {
                 if (!is_array($value)) {
-                    throw new \InvalidArgumentException("IN operator requires an array value.");
+                    throw new \InvalidArgumentException('IN operator requires an array value.');
                 }
                 $placeholders = implode(', ', array_fill(0, count($value), '?'));
                 $parts[] = $field . ' ' . $operator . ' (' . $placeholders . ')';
@@ -281,7 +281,7 @@ final class PdoSelect implements SelectInterface
                 }
             } elseif ($operator === 'BETWEEN') {
                 if (!is_array($value) || count($value) !== 2) {
-                    throw new \InvalidArgumentException("BETWEEN operator requires an array of exactly 2 values.");
+                    throw new \InvalidArgumentException('BETWEEN operator requires an array of exactly 2 values.');
                 }
                 $parts[] = $field . ' BETWEEN ? AND ?';
                 $this->params[] = $value[0];

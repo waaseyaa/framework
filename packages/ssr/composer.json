@@ -4,23 +4,47 @@
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
-        {"type": "path", "url": "../entity"},
-        {"type": "path", "url": "../routing"},
-        {"type": "path", "url": "../plugin"},
-        {"type": "path", "url": "../cache"},
-        {"type": "path", "url": "../typed-data"},
-        {"type": "path", "url": "../config"},
-        {"type": "path", "url": "../field"},
-        {"type": "path", "url": "../access"}
+        {
+            "type": "path",
+            "url": "../entity"
+        },
+        {
+            "type": "path",
+            "url": "../routing"
+        },
+        {
+            "type": "path",
+            "url": "../plugin"
+        },
+        {
+            "type": "path",
+            "url": "../cache"
+        },
+        {
+            "type": "path",
+            "url": "../typed-data"
+        },
+        {
+            "type": "path",
+            "url": "../config"
+        },
+        {
+            "type": "path",
+            "url": "../field"
+        },
+        {
+            "type": "path",
+            "url": "../access"
+        }
     ],
     "require": {
         "php": ">=8.4",
-        "waaseyaa/access": "@dev",
-        "waaseyaa/cache": "@dev",
-        "waaseyaa/config": "@dev",
-        "waaseyaa/entity": "@dev",
-        "waaseyaa/field": "@dev",
-        "waaseyaa/routing": "@dev",
+        "waaseyaa/access": "^0.1",
+        "waaseyaa/cache": "^0.1",
+        "waaseyaa/config": "^0.1",
+        "waaseyaa/entity": "^0.1",
+        "waaseyaa/field": "^0.1",
+        "waaseyaa/routing": "^0.1",
         "twig/twig": "^3.0"
     },
     "require-dev": {
@@ -38,7 +62,13 @@
     },
     "extra": {
         "waaseyaa": {
-            "providers": ["Waaseyaa\\SSR\\ThemeServiceProvider", "Waaseyaa\\SSR\\SsrServiceProvider"]
+            "providers": [
+                "Waaseyaa\\SSR\\ThemeServiceProvider",
+                "Waaseyaa\\SSR\\SsrServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-develop/v1.1": "0.1.x-dev"
         }
     },
     "minimum-stability": "dev",

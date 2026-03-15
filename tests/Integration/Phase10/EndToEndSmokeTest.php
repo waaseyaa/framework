@@ -4,6 +4,14 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase10;
 
+use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\EventDispatcher\EventDispatcher;
+use Twig\Environment;
+use Twig\Loader\ArrayLoader;
 use Waaseyaa\AI\Schema\EntityJsonSchemaGenerator;
 use Waaseyaa\AI\Schema\Mcp\McpToolDefinition;
 use Waaseyaa\AI\Schema\Mcp\McpToolGenerator;
@@ -21,25 +29,17 @@ use Waaseyaa\CLI\Command\InstallCommand;
 use Waaseyaa\CLI\Command\MigrateDefaultsCommand;
 use Waaseyaa\CLI\Command\TypeDisableCommand;
 use Waaseyaa\CLI\Command\TypeEnableCommand;
-use Waaseyaa\Entity\Audit\EntityAuditLogger;
-use Waaseyaa\Entity\EntityTypeLifecycleManager;
 use Waaseyaa\Config\ConfigManager;
 use Waaseyaa\Config\Storage\MemoryStorage;
+use Waaseyaa\Entity\Audit\EntityAuditLogger;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeLifecycleManager;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\SSR\ComponentMetadata;
 use Waaseyaa\SSR\ComponentRegistry;
 use Waaseyaa\SSR\ComponentRenderer;
 use Waaseyaa\SSR\SsrController;
 use Waaseyaa\SSR\SsrResponse;
-use PHPUnit\Framework\Attributes\CoversNothing;
-use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\TestCase;
-use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Tester\CommandTester;
-use Symfony\Component\EventDispatcher\EventDispatcher;
-use Twig\Environment;
-use Twig\Loader\ArrayLoader;
 
 /**
  * End-to-end smoke tests exercising the complete Waaseyaa stack.

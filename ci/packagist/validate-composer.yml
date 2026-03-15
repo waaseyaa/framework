@@ -1,0 +1,165 @@
+name: Validate subpackage composer.json files
+
+# Runs on every PR and push to develop/v* branches.
+# Validates all 40 subpackage composer.json files and produces a JSON report.
+# This is a GATE that must pass before the split-and-publish workflow can run.
+
+on:
+  pull_request:
+    paths:
+      - 'packages/**/composer.json'
+      - 'ci/packagist/**'
+  push:
+    branches:
+      - 'develop/**'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  validate-subpackages:
+    name: Validate composer.json (${{ matrix.package }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - access
+          - ai-agent
+          - ai-pipeline
+          - ai-schema
+          - ai-vector
+          - api
+          - cache
+          - cli
+          - cms
+          - config
+          - core
+          - database-legacy
+          - entity
+          - entity-storage
+          - field
+          - foundation
+          - full
+          - graphql
+          - i18n
+          - mail
+          - media
+          - menu
+          - mcp
+          - node
+          - note
+          - path
+          - plugin
+          - queue
+          - relationship
+          - routing
+          - search
+          - ssr
+          - state
+          - taxonomy
+          - telescope
+          - testing
+          - typed-data
+          - user
+          - validation
+          - workflows
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+
+      - name: Validate composer.json (strict)
+        id: validate
+        run: |
+          composer validate packages/${{ matrix.package }}/composer.json --strict
+          echo "status=pass" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Check required Packagist fields
+        run: |
+          FILE="packages/${{ matrix.package }}/composer.json"
+          MISSING=""
+          jq -e '.name' "$FILE" > /dev/null || MISSING="${MISSING}name,"
+          jq -e '.description' "$FILE" > /dev/null || MISSING="${MISSING}description,"
+          jq -e '.license' "$FILE" > /dev/null || MISSING="${MISSING}license,"
+          TYPE=$(jq -r '.type // "library"' "$FILE")
+          if [ "$TYPE" != "metapackage" ]; then
+            jq -e '.autoload' "$FILE" > /dev/null || MISSING="${MISSING}autoload,"
+          fi
+          if [ -n "$MISSING" ]; then
+            echo "MISSING required fields: ${MISSING%,}"
+            exit 1
+          fi
+          echo "All required fields present for ${{ matrix.package }}"
+
+      - name: Write result to JSON
+        run: |
+          mkdir -p /tmp/validation-results
+          STATUS="${{ steps.validate.outputs.status }}"
+          STATUS="${STATUS:-fail}"
+          jq -n \
+            --arg pkg "${{ matrix.package }}" \
+            --arg status "$STATUS" \
+            --arg time "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{package: $pkg, status: $status, validated_at: $time}' \
+            > /tmp/validation-results/${{ matrix.package }}.json
+
+      - name: Upload result
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-${{ matrix.package }}
+          path: /tmp/validation-results/${{ matrix.package }}.json
+
+  aggregate-results:
+    name: Aggregate validation report
+    runs-on: ubuntu-latest
+    needs: validate-subpackages
+    if: always()
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: validation-*
+          path: /tmp/validation-results
+          merge-multiple: true
+
+      - name: Generate summary report
+        run: |
+          echo "# Composer Validation Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Package | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          PASS=0
+          FAIL=0
+          for f in /tmp/validation-results/*.json; do
+            PKG=$(jq -r '.package' "$f")
+            STATUS=$(jq -r '.status' "$f")
+            if [ "$STATUS" = "pass" ]; then
+              echo "| $PKG | ✅ pass |" >> $GITHUB_STEP_SUMMARY
+              PASS=$((PASS+1))
+            else
+              echo "| $PKG | ❌ fail |" >> $GITHUB_STEP_SUMMARY
+              FAIL=$((FAIL+1))
+            fi
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Total:** ${PASS} pass, ${FAIL} fail" >> $GITHUB_STEP_SUMMARY
+          if [ "$FAIL" -gt 0 ]; then
+            echo "VALIDATION_FAILED: ${FAIL} packages did not pass"
+            exit 1
+          fi
+
+      - name: Upload consolidated report
+        uses: actions/upload-artifact@v4
+        with:
+          name: composer-validation-report
+          path: /tmp/validation-results/

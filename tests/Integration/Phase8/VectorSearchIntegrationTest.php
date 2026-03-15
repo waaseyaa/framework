@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase8;
 
+use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\AI\Vector\EntityEmbedder;
 use Waaseyaa\AI\Vector\InMemoryVectorStore;
 use Waaseyaa\AI\Vector\Testing\FakeEmbeddingProvider;
 use Waaseyaa\Node\Node;
 use Waaseyaa\Taxonomy\Term;
-use PHPUnit\Framework\Attributes\CoversNothing;
-use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\TestCase;
 
 /**
  * Entity embedding and similarity search with real entities.

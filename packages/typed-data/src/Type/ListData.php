@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Waaseyaa\TypedData\Type;
 
+use Symfony\Component\Validator\ConstraintViolationList;
+use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Waaseyaa\TypedData\DataDefinitionInterface;
 use Waaseyaa\TypedData\ListInterface;
 use Waaseyaa\TypedData\TypedDataInterface;
 use Waaseyaa\TypedData\TypedDataManagerInterface;
-use Symfony\Component\Validator\ConstraintViolationList;
-use Symfony\Component\Validator\ConstraintViolationListInterface;
 
 final class ListData implements ListInterface, \IteratorAggregate
 {

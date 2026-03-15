@@ -4,17 +4,16 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase3;
 
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Cache\Backend\MemoryBackend;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Cache\CacheFactory;
-use Waaseyaa\Cache\CacheTagsInvalidator;
 use Waaseyaa\Plugin\Attribute\WaaseyaaPlugin;
 use Waaseyaa\Plugin\DefaultPluginManager;
+use Waaseyaa\Plugin\Definition\PluginDefinition;
 use Waaseyaa\Plugin\Discovery\AttributeDiscovery;
 use Waaseyaa\Plugin\Discovery\PluginDiscoveryInterface;
-use Waaseyaa\Plugin\Definition\PluginDefinition;
 use Waaseyaa\Tests\Integration\Phase3\Fixtures\GreeterPlugin;
-use PHPUnit\Framework\TestCase;
 
 /**
  * Integration tests verifying waaseyaa/plugin works with waaseyaa/cache.

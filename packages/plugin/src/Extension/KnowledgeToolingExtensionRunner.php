@@ -99,4 +99,3 @@ final class KnowledgeToolingExtensionRunner
         return $rows;
     }
 }
-

@@ -29,10 +29,10 @@ final class IngestionEnvelope
 
         return new self(
             envelopeVersion: (string) $raw['envelope_version'],
-            source:          trim((string) $raw['source']),
-            ingestedAt:      trim((string) $raw['ingested_at']),
-            title:           trim((string) $payload['title']),
-            body:            isset($payload['body']) ? trim((string) $payload['body']) : '',
+            source: trim((string) $raw['source']),
+            ingestedAt: trim((string) $raw['ingested_at']),
+            title: trim((string) $payload['title']),
+            body: isset($payload['body']) ? trim((string) $payload['body']) : '',
         );
     }
 }

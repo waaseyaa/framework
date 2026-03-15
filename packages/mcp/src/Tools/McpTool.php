@@ -6,9 +6,9 @@ namespace Waaseyaa\Mcp\Tools;
 
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Api\ResourceSerializer;
 
 abstract class McpTool
 {

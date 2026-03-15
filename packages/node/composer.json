@@ -4,19 +4,43 @@
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
-        {"type": "path", "url": "../entity"},
-        {"type": "path", "url": "../plugin"},
-        {"type": "path", "url": "../cache"},
-        {"type": "path", "url": "../typed-data"},
-        {"type": "path", "url": "../access"},
-        {"type": "path", "url": "../user"},
-        {"type": "path", "url": "../config"},
-        {"type": "path", "url": "../field"}
+        {
+            "type": "path",
+            "url": "../entity"
+        },
+        {
+            "type": "path",
+            "url": "../plugin"
+        },
+        {
+            "type": "path",
+            "url": "../cache"
+        },
+        {
+            "type": "path",
+            "url": "../typed-data"
+        },
+        {
+            "type": "path",
+            "url": "../access"
+        },
+        {
+            "type": "path",
+            "url": "../user"
+        },
+        {
+            "type": "path",
+            "url": "../config"
+        },
+        {
+            "type": "path",
+            "url": "../field"
+        }
     ],
     "require": {
         "php": ">=8.3",
-        "waaseyaa/entity": "@dev",
-        "waaseyaa/access": "@dev"
+        "waaseyaa/entity": "^0.1",
+        "waaseyaa/access": "^0.1"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
@@ -33,7 +57,12 @@
     },
     "extra": {
         "waaseyaa": {
-            "providers": ["Waaseyaa\\Node\\NodeServiceProvider"]
+            "providers": [
+                "Waaseyaa\\Node\\NodeServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-develop/v1.1": "0.1.x-dev"
         }
     },
     "minimum-stability": "dev",

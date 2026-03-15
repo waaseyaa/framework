@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Mcp;
 
-use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\Routing\RouteBuilder;
+use Waaseyaa\Routing\WaaseyaaRouter;
 
 final readonly class McpRouteProvider
 {

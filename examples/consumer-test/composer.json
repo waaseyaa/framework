@@ -1,0 +1,38 @@
+{
+    "name": "test/waaseyaa-consumer-poc",
+    "description": "Minimal consumer project for Waaseyaa Packagist POC verification",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.3",
+        "waaseyaa/api": "@dev",
+        "waaseyaa/entity": "@dev",
+        "waaseyaa/foundation": "@dev"
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../../packages/api",
+            "options": {
+                "symlink": false
+            }
+        },
+        {
+            "type": "path",
+            "url": "../../packages/entity",
+            "options": {
+                "symlink": false
+            }
+        },
+        {
+            "type": "path",
+            "url": "../../packages/foundation",
+            "options": {
+                "symlink": false
+            }
+        }
+    ],
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "_comment": "POC ONLY — path repos simulate what Packagist will serve after monorepo split. Replace path repos with packagist.org entries once packages are registered."
+}

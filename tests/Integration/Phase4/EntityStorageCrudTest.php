@@ -4,18 +4,16 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase4;
 
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\PdoDatabase;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
-use Waaseyaa\Entity\Storage\EntityQueryInterface;
-use Waaseyaa\EntityStorage\SqlEntityQuery;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
-use PHPUnit\Framework\TestCase;
-use Symfony\Component\EventDispatcher\EventDispatcher;
 
 /**
  * Full CRUD lifecycle integration test through the entity storage stack.

@@ -5,29 +5,29 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Kernel;
 
 use Waaseyaa\Access\PermissionHandler;
-use Waaseyaa\Cache\Backend\DatabaseBackend;
-use Waaseyaa\Cache\CacheConfiguration;
-use Waaseyaa\Cache\CacheFactory;
 use Waaseyaa\AI\Vector\EmbeddingProviderFactory;
 use Waaseyaa\AI\Vector\SemanticIndexWarmer;
 use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
+use Waaseyaa\Cache\Backend\DatabaseBackend;
+use Waaseyaa\Cache\CacheConfiguration;
+use Waaseyaa\Cache\CacheFactory;
 use Waaseyaa\CLI\Command\AboutCommand;
 use Waaseyaa\CLI\Command\AuditLogCommand;
+use Waaseyaa\CLI\Command\BundleScaffoldCommand;
 use Waaseyaa\CLI\Command\CacheClearCommand;
 use Waaseyaa\CLI\Command\ConfigExportCommand;
 use Waaseyaa\CLI\Command\ConfigImportCommand;
-use Waaseyaa\CLI\Command\BundleScaffoldCommand;
 use Waaseyaa\CLI\Command\DebugContextCommand;
 use Waaseyaa\CLI\Command\EntityCreateCommand;
 use Waaseyaa\CLI\Command\EntityListCommand;
 use Waaseyaa\CLI\Command\EntityTypeListCommand;
 use Waaseyaa\CLI\Command\EventListCommand;
 use Waaseyaa\CLI\Command\ExtensionScaffoldCommand;
-use Waaseyaa\CLI\Command\HealthCheckCommand;
-use Waaseyaa\CLI\Command\HealthReportCommand;
 use Waaseyaa\CLI\Command\FixtureGenerateCommand;
 use Waaseyaa\CLI\Command\FixturePackRefreshCommand;
 use Waaseyaa\CLI\Command\FixtureScaffoldCommand;
+use Waaseyaa\CLI\Command\HealthCheckCommand;
+use Waaseyaa\CLI\Command\HealthReportCommand;
 use Waaseyaa\CLI\Command\IngestDashboardCommand;
 use Waaseyaa\CLI\Command\IngestRunCommand;
 use Waaseyaa\CLI\Command\InstallCommand;
@@ -59,7 +59,6 @@ use Waaseyaa\CLI\Command\Telescope\TelescopeListCommand;
 use Waaseyaa\CLI\Command\Telescope\TelescopePruneCommand;
 use Waaseyaa\CLI\Command\TypeDisableCommand;
 use Waaseyaa\CLI\Command\TypeEnableCommand;
-use Waaseyaa\Entity\EntityTypeIdNormalizer;
 use Waaseyaa\CLI\Command\UserCreateCommand;
 use Waaseyaa\CLI\Command\UserRoleCommand;
 use Waaseyaa\CLI\Command\WorkflowScaffoldCommand;
@@ -67,6 +66,7 @@ use Waaseyaa\CLI\WaaseyaaApplication;
 use Waaseyaa\Config\Cache\ConfigCacheCompiler;
 use Waaseyaa\Config\ConfigManager;
 use Waaseyaa\Config\Storage\FileStorage;
+use Waaseyaa\Entity\EntityTypeIdNormalizer;
 use Waaseyaa\Foundation\Diagnostic\HealthChecker;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
 use Waaseyaa\Foundation\Schema\DefaultsSchemaRegistry;
@@ -173,7 +173,10 @@ final class ConsoleKernel extends AbstractKernel
             new MakeTestCommand(),
             new AboutCommand(info: [
                 'name' => 'Waaseyaa',
-                'version' => '0.1.0',
+                'version' => (static function (): string {
+                    $pkg = \Composer\InstalledVersions::getRootPackage();
+                    return $pkg['pretty_version'];
+                })(),
                 'php' => PHP_VERSION,
                 'environment' => getenv('APP_ENV') ?: 'production',
             ]),

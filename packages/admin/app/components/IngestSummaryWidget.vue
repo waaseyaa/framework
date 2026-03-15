@@ -19,7 +19,7 @@ const hidden = ref(false)
 
 async function fetchCounts() {
   try {
-    const result = await list('ingest_log', { page: { limit: 1000 } })
+    const result = await list('ingest_log', { page: { offset: 0, limit: 1000 } })
     const fresh: Record<string, number> = {
       pending_review: 0,
       approved: 0,

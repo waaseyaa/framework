@@ -93,7 +93,7 @@ jobs:
           cache-dependency-path: packages/admin/package-lock.json
 
       - name: Install dependencies and Playwright
-        run: cd packages/admin && npm install --no-audit --no-fund && npx playwright install --with-deps chromium
+        run: cd packages/admin && npm install --no-audit --no-fund && npx playwright install --with-deps chromium firefox
 
       - name: Start PHP backend
         run: |
@@ -104,7 +104,7 @@ jobs:
           done
 
       - name: Run Playwright smoke tests
-        run: cd packages/admin && npx playwright test --project=chromium
+        run: cd packages/admin && npx playwright test --project=chromium --project=firefox
 
       - name: Upload Playwright artifacts
         uses: actions/upload-artifact@v4

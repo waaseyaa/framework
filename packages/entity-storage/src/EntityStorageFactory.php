@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\EntityStorage;
 
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * Factory for creating and caching entity storage instances.

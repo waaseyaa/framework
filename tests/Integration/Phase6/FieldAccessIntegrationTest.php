@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\Phase6;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
@@ -20,7 +21,6 @@ use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
-use Symfony\Component\EventDispatcher\EventDispatcher;
 
 /**
  * Integration test: full round-trip of field-level access control.
@@ -61,7 +61,7 @@ final class FieldAccessIntegrationTest extends TestCase
         $this->account = $this->createMock(AccountInterface::class);
 
         // Policy: forbid viewing 'internal_notes', forbid editing 'status'.
-        $policy = new class () implements AccessPolicyInterface, FieldAccessPolicyInterface {
+        $policy = new class implements AccessPolicyInterface, FieldAccessPolicyInterface {
             public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
             {
                 return AccessResult::allowed();
@@ -216,7 +216,7 @@ final class FieldAccessIntegrationTest extends TestCase
     public function noFieldPoliciesAllowsAllFieldsByDefault(): void
     {
         // Entity-level allow policy, but no FieldAccessPolicyInterface.
-        $entityOnlyPolicy = new class () implements AccessPolicyInterface {
+        $entityOnlyPolicy = new class implements AccessPolicyInterface {
             public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
             {
                 return AccessResult::allowed();

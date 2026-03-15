@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Routing\ParamConverter;
 
-use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Symfony\Component\Routing\Exception\ResourceNotFoundException;
 use Symfony\Component\Routing\Route;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
 
 /**
  * Converts route parameters to loaded entity objects.
@@ -62,7 +62,7 @@ final class EntityParamConverter
 
             if ($entity === null) {
                 throw new ResourceNotFoundException(
-                    sprintf('Entity "%s" with ID "%s" not found.', $entityTypeId, $rawId)
+                    sprintf('Entity "%s" with ID "%s" not found.', $entityTypeId, $rawId),
                 );
             }
 

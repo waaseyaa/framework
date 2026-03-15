@@ -1,12 +1,30 @@
 {
     "name": "@waaseyaa/admin",
-    "version": "0.1.0",
-    "private": true,
+    "version": "1.0.0",
     "type": "module",
-    "description": "Schema-driven admin SPA for Waaseyaa (Nuxt 3 + Vue 3)",
+    "description": "Schema-driven admin SPA for Waaseyaa with pluggable host contracts",
+    "exports": {
+        ".": {
+            "types": "./dist/contracts/index.d.ts",
+            "import": "./dist/contracts/index.js"
+        },
+        "./adapters": {
+            "types": "./dist/adapters/index.d.ts",
+            "import": "./dist/adapters/index.js"
+        },
+        "./nuxt": "./"
+    },
+    "files": [
+        "dist/contracts/",
+        "dist/adapters/",
+        "app/",
+        "nuxt.config.ts",
+        "tsconfig.json"
+    ],
     "scripts": {
         "dev": "nuxt dev",
         "build": "nuxt build",
+        "build:contracts": "tsc -p tsconfig.contracts.json",
         "generate": "nuxt generate",
         "preview": "nuxt preview",
         "postinstall": "nuxt prepare",

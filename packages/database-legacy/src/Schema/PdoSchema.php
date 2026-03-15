@@ -15,7 +15,7 @@ final class PdoSchema implements SchemaInterface
     public function tableExists(string $table): bool
     {
         $stmt = $this->pdo->prepare(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?"
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
         );
         $stmt->execute([$table]);
 
@@ -29,7 +29,7 @@ final class PdoSchema implements SchemaInterface
         }
 
         $stmt = $this->pdo->prepare(
-            'PRAGMA table_info(' . $this->quoteIdentifier($table) . ')'
+            'PRAGMA table_info(' . $this->quoteIdentifier($table) . ')',
         );
         $stmt->execute();
 
@@ -143,7 +143,7 @@ final class PdoSchema implements SchemaInterface
         // SQLite does not support adding a primary key to an existing table.
         throw new \RuntimeException(
             'SQLite does not support adding a primary key to an existing table. '
-            . 'Define the primary key when creating the table.'
+            . 'Define the primary key when creating the table.',
         );
     }
 

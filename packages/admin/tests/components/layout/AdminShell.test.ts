@@ -26,4 +26,16 @@ describe('AdminShell locale switcher', () => {
     expect(select.attributes('aria-label')).toBe('Langue')
     expect(wrapper.find('button.topbar-toggle').attributes('aria-label')).toBe('Basculer le menu')
   })
+
+  it('displays tenant name in the topbar brand', async () => {
+    const wrapper = await mountSuspended(AdminShell, {
+      slots: {
+        default: '<div>Body</div>',
+      },
+    })
+
+    const brand = wrapper.find('.topbar-brand')
+    // The bootstrap mock provides tenant name 'Waaseyaa'
+    expect(brand.text()).toBe('Waaseyaa')
+  })
 })

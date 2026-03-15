@@ -4,15 +4,14 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase5;
 
-use Waaseyaa\Access\AccessResult;
-use Waaseyaa\Routing\AccessChecker;
-use Waaseyaa\Routing\WaaseyaaRouter;
-use Waaseyaa\Routing\RouteBuilder;
-use Waaseyaa\Routing\RouteMatch;
-use Waaseyaa\User\AnonymousUser;
-use Waaseyaa\User\User;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Routing\AccessChecker;
+use Waaseyaa\Routing\RouteBuilder;
+use Waaseyaa\Routing\RouteMatch;
+use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\User\AnonymousUser;
+use Waaseyaa\User\User;
 
 /**
  * Integration tests for waaseyaa/routing + waaseyaa/access + waaseyaa/user.

@@ -1,6 +1,6 @@
 {
     "name": "waaseyaa/core",
-    "description": "Waaseyaa core engine — entities, fields, config, plugins, routing, access.",
+    "description": "Waaseyaa core engine \u2014 entities, fields, config, plugins, routing, access.",
     "type": "metapackage",
     "license": "GPL-2.0-or-later",
     "require": {
@@ -23,5 +23,10 @@
         "waaseyaa/telescope": "^0.1",
         "waaseyaa/validation": "^0.1"
     },
-    "minimum-stability": "stable"
+    "minimum-stability": "stable",
+    "extra": {
+        "branch-alias": {
+            "dev-develop/v1.1": "0.1.x-dev"
+        }
+    }
 }

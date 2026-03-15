@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Field;
 
+use Symfony\Component\Validator\ConstraintViolationList;
+use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Waaseyaa\Plugin\Definition\PluginDefinition;
 use Waaseyaa\Plugin\PluginBase;
 use Waaseyaa\TypedData\DataDefinitionInterface;
-use Symfony\Component\Validator\ConstraintViolationList;
-use Symfony\Component\Validator\ConstraintViolationListInterface;
 
 abstract class FieldItemBase extends PluginBase implements FieldItemInterface, FieldTypeInterface, \IteratorAggregate
 {

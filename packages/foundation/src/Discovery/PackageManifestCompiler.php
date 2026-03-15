@@ -1,5 +1,7 @@
 <?php
+
 declare(strict_types=1);
+
 namespace Waaseyaa\Foundation\Discovery;
 
 use Waaseyaa\Foundation\Attribute\AsEntityType;

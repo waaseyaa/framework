@@ -4,20 +4,41 @@
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
-        {"type": "path", "url": "../entity"},
-        {"type": "path", "url": "../plugin"},
-        {"type": "path", "url": "../cache"},
-        {"type": "path", "url": "../typed-data"},
-        {"type": "path", "url": "../config"},
-        {"type": "path", "url": "../foundation"},
-        {"type": "path", "url": "../routing"}
+        {
+            "type": "path",
+            "url": "../entity"
+        },
+        {
+            "type": "path",
+            "url": "../plugin"
+        },
+        {
+            "type": "path",
+            "url": "../cache"
+        },
+        {
+            "type": "path",
+            "url": "../typed-data"
+        },
+        {
+            "type": "path",
+            "url": "../config"
+        },
+        {
+            "type": "path",
+            "url": "../foundation"
+        },
+        {
+            "type": "path",
+            "url": "../routing"
+        }
     ],
     "require": {
         "php": ">=8.3",
-        "waaseyaa/entity": "@dev",
-        "waaseyaa/plugin": "@dev",
-        "waaseyaa/foundation": "@dev",
-        "waaseyaa/routing": "@dev",
+        "waaseyaa/entity": "^0.1",
+        "waaseyaa/plugin": "^0.1",
+        "waaseyaa/foundation": "^0.1",
+        "waaseyaa/routing": "^0.1",
         "symfony/http-foundation": "^7.0"
     },
     "require-dev": {
@@ -34,5 +55,10 @@
         }
     },
     "minimum-stability": "dev",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "extra": {
+        "branch-alias": {
+            "dev-develop/v1.1": "0.1.x-dev"
+        }
+    }
 }

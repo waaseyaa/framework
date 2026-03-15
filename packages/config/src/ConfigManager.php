@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config;
 
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Config\Event\ConfigEvent;
 use Waaseyaa\Config\Event\ConfigEvents;
-use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 final class ConfigManager implements ConfigManagerInterface
 {

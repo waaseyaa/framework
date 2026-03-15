@@ -73,7 +73,7 @@ final class TenantAssetResolver implements AssetManagerInterface
     public function getResolvers(): array
     {
         return array_map(
-            fn (array $entry): AssetManagerInterface => $entry['resolver'],
+            fn(array $entry): AssetManagerInterface => $entry['resolver'],
             $this->entries,
         );
     }

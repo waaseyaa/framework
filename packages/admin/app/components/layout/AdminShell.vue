@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { useLanguage } from '~/composables/useLanguage'
+import { useAdmin } from '~/composables/useAdmin'
 
 const { t, locale, locales, setLocale } = useLanguage()
 const config = useRuntimeConfig()
-const appName = config.public.appName as string
+const { tenant } = useAdmin()
+const appName = tenant?.name ?? (config.public.appName as string)
 const sidebarOpen = ref(false)
 
 function toggleSidebar() {
@@ -29,19 +31,21 @@ function onLocaleChange(event: Event) {
         <span class="topbar-toggle-icon">&#9776;</span>
       </button>
       <NuxtLink to="/" class="topbar-brand">{{ appName }}</NuxtLink>
-      <label class="topbar-locale">
-        <span class="sr-only">{{ t('language') }}</span>
-        <select
-          class="topbar-locale-select"
-          :value="locale"
-          :aria-label="t('language')"
-          @change="onLocaleChange"
-        >
-          <option v-for="code in locales" :key="code" :value="code">
-            {{ code.toUpperCase() }}
-          </option>
-        </select>
-      </label>
+      <ClientOnly>
+        <label class="topbar-locale">
+          <span class="sr-only">{{ t('language') }}</span>
+          <select
+            class="topbar-locale-select"
+            :value="locale"
+            :aria-label="t('language')"
+            @change="onLocaleChange"
+          >
+            <option v-for="code in locales" :key="code" :value="code">
+              {{ code.toUpperCase() }}
+            </option>
+          </select>
+        </label>
+      </ClientOnly>
     </header>
 
     <div class="admin-body">
@@ -52,7 +56,9 @@ function onLocaleChange(event: Event) {
         role="navigation"
         :aria-label="t('sidebar_nav')"
       >
-        <LayoutNavBuilder />
+        <ClientOnly>
+          <LayoutNavBuilder />
+        </ClientOnly>
       </aside>
       <main id="main-content" class="content" role="main">
         <slot />

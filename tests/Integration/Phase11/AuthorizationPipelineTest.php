@@ -1,5 +1,7 @@
 <?php
+
 declare(strict_types=1);
+
 namespace Waaseyaa\Tests\Integration\Phase11;
 
 use PHPUnit\Framework\Attributes\CoversNothing;

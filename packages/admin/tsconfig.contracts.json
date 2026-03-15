@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "declaration": true,
+    "declarationMap": true,
+    "outDir": "dist",
+    "rootDir": "app",
+    "strict": true,
+    "skipLibCheck": true
+  },
+  "include": ["app/contracts/**/*.ts", "app/adapters/**/*.ts"]
+}

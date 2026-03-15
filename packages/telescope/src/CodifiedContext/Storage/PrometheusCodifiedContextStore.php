@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Telescope\CodifiedContext\Storage;
 
-use Waaseyaa\Telescope\CodifiedContext\CodifiedContextEntry;
 use Waaseyaa\Telescope\Storage\TelescopeStoreInterface;
-use Waaseyaa\Telescope\TelescopeEntry;
 
 /**
  * Metrics-only adapter that tracks counters/gauges in-process.
@@ -28,8 +26,7 @@ final class PrometheusCodifiedContextStore implements CodifiedContextStoreInterf
 
     public function __construct(
         private readonly ?TelescopeStoreInterface $inner = null,
-    ) {
-    }
+    ) {}
 
     public function store(string $type, array $data): void
     {

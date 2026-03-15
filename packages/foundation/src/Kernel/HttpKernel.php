@@ -10,29 +10,31 @@ use Symfony\Component\Routing\RequestContext;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Gate\EntityAccessGate;
 use Waaseyaa\Access\Middleware\AuthorizationMiddleware;
+use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\Api\Controller\BroadcastStorage;
+use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Cache\Backend\DatabaseBackend;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Cache\CacheConfigResolver;
-use Waaseyaa\Cache\CacheFactory;
 use Waaseyaa\Cache\CacheConfiguration;
+use Waaseyaa\Cache\CacheFactory;
+use Waaseyaa\Foundation\Attribute\AsMiddleware;
+use Waaseyaa\Foundation\Http\ControllerDispatcher;
 use Waaseyaa\Foundation\Http\CorsHandler;
 use Waaseyaa\Foundation\Http\ResponseSender;
-use Waaseyaa\Api\Http\DiscoveryApiHandler;
-use Waaseyaa\Foundation\Http\ControllerDispatcher;
-use Waaseyaa\SSR\SsrPageHandler;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
 use Waaseyaa\Routing\AccessChecker;
 use Waaseyaa\Routing\WaaseyaaRouter;
-use Waaseyaa\SSR\TwigErrorPageRenderer;
 use Waaseyaa\SSR\RenderCache;
+use Waaseyaa\SSR\SsrPageHandler;
 use Waaseyaa\SSR\SsrServiceProvider;
-use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
+use Waaseyaa\SSR\TwigErrorPageRenderer;
+use Waaseyaa\User\DevAdminAccount;
 use Waaseyaa\User\Middleware\BearerAuthMiddleware;
 use Waaseyaa\User\Middleware\CsrfMiddleware;
-use Waaseyaa\User\DevAdminAccount;
 use Waaseyaa\User\Middleware\SessionMiddleware;
+
 /**
  * HTTP front controller kernel.
  *
@@ -106,6 +108,14 @@ final class HttpKernel extends AbstractKernel
             projectRoot: $this->projectRoot,
             config: $this->config,
             manifest: $this->manifest,
+            serviceResolver: function (string $className): ?object {
+                foreach ($this->providers as $provider) {
+                    if (isset($provider->getBindings()[$className])) {
+                        return $provider->resolve($className);
+                    }
+                }
+                return null;
+            },
         );
 
         // Router setup.
@@ -140,18 +150,26 @@ final class HttpKernel extends AbstractKernel
         $twigEnv = SsrServiceProvider::getTwigEnvironment();
         $errorPageRenderer = $twigEnv !== null ? new TwigErrorPageRenderer($twigEnv) : null;
 
-        $pipeline = (new HttpPipeline())
-            ->withMiddleware(new BearerAuthMiddleware(
+        $middlewares = [
+            new BearerAuthMiddleware(
                 $userStorage,
                 (string) ($this->config['jwt_secret'] ?? ''),
                 is_array($this->config['api_keys'] ?? null) ? $this->config['api_keys'] : [],
-            ))
-            ->withMiddleware(new SessionMiddleware(
+            ),
+            new SessionMiddleware(
                 $userStorage,
                 $this->shouldUseDevFallbackAccount() ? new DevAdminAccount() : null,
-            ))
-            ->withMiddleware(new CsrfMiddleware())
-            ->withMiddleware(new AuthorizationMiddleware($accessChecker, $errorPageRenderer));
+            ),
+            new CsrfMiddleware(),
+            new AuthorizationMiddleware($accessChecker, $errorPageRenderer),
+        ];
+
+        usort($middlewares, fn(object $a, object $b) => $this->getMiddlewarePriority($b) <=> $this->getMiddlewarePriority($a));
+
+        $pipeline = new HttpPipeline();
+        foreach ($middlewares as $middleware) {
+            $pipeline = $pipeline->withMiddleware($middleware);
+        }
 
         try {
             $authResponse = $pipeline->handle(
@@ -192,6 +210,20 @@ final class HttpKernel extends AbstractKernel
             config: $this->config,
         );
         $controllerDispatcher->dispatch($method, $params, $httpRequest, $queryString, $broadcastStorage, $account);
+    }
+
+    private function getMiddlewarePriority(object $middleware): int
+    {
+        $reflection = new \ReflectionClass($middleware);
+        $attributes = $reflection->getAttributes(AsMiddleware::class);
+        if (empty($attributes)) {
+            return 0;
+        }
+        $instance = $attributes[0]->newInstance();
+        if ($instance->pipeline !== 'http') {
+            return 0;
+        }
+        return $instance->priority;
     }
 
     private function handleCors(): void

@@ -108,8 +108,7 @@ final class SchemaPresenter
         ?EntityInterface $entity = null,
         ?EntityAccessHandler $accessHandler = null,
         ?AccountInterface $account = null,
-    ): array
-    {
+    ): array {
         $schema = [
             '$schema' => 'https://json-schema.org/draft-07/schema#',
             'title' => $entityType->getLabel(),

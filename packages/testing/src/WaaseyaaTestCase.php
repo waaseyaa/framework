@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Testing;
 
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Testing\Traits\CreatesApplication;
 use Waaseyaa\Testing\Traits\InteractsWithAuth;
 use Waaseyaa\Testing\Traits\InteractsWithEvents;
-use PHPUnit\Framework\TestCase;
 
 /**
  * Base test case for Waaseyaa tests.

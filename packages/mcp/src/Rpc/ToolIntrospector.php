@@ -12,8 +12,7 @@ final class ToolIntrospector
     public function __construct(
         private readonly ResponseFormatter $formatter,
         private readonly array $extensionRegistrations = [],
-    ) {
-    }
+    ) {}
 
     /**
      * @return array{

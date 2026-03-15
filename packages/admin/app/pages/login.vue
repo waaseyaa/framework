@@ -9,6 +9,17 @@ const password = ref('')
 const error = ref('')
 const loading = ref(false)
 
+// Check if $admin is available and what auth strategy is configured
+const nuxtApp = useNuxtApp()
+const admin = (nuxtApp as any).$admin
+const authStrategy = admin?.bootstrap?.auth?.strategy ?? 'embedded'
+
+// For redirect strategy, send user to external login
+if (import.meta.client && authStrategy === 'redirect' && admin?.auth) {
+  const returnTo = (useRoute().query.returnTo as string) || '/'
+  window.location.href = admin.auth.getLoginUrl(returnTo)
+}
+
 async function handleSubmit() {
   error.value = ''
   loading.value = true
@@ -27,7 +38,7 @@ async function handleSubmit() {
 
 <template>
   <div class="login-page">
-    <form class="login-form" @submit.prevent="handleSubmit">
+    <form v-if="authStrategy === 'embedded'" class="login-form" @submit.prevent="handleSubmit">
       <h1>Sign in</h1>
 
       <div v-if="error" class="login-error" role="alert">
@@ -57,9 +68,14 @@ async function handleSubmit() {
       >
 
       <button type="submit" :disabled="loading">
-        {{ loading ? 'Signing in…' : 'Sign in' }}
+        {{ loading ? 'Signing in\u2026' : 'Sign in' }}
       </button>
     </form>
+
+    <div v-else class="login-form">
+      <h1>Redirecting to login...</h1>
+      <p>If you are not redirected automatically, <a :href="admin?.auth?.getLoginUrl?.('/') ?? '/login'">click here</a>.</p>
+    </div>
   </div>
 </template>
 

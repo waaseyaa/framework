@@ -98,12 +98,12 @@ final class DefaultsSchemaRegistry implements SchemaRegistryInterface
         $stability  = (string) ($ext['stability'] ?? 'stable');
 
         return new SchemaEntry(
-            id:            $id,
-            version:       $version,
+            id: $id,
+            version: $version,
             compatibility: $compatibility,
-            schemaPath:    $file,
-            schemaKind:    $schemaKind,
-            stability:     $stability,
+            schemaPath: $file,
+            schemaKind: $schemaKind,
+            stability: $stability,
         );
     }
 }

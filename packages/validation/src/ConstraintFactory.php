@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Validation;
 
+use Symfony\Component\Validator\Constraints\Length;
 use Waaseyaa\Validation\Constraint\AllowedValues;
 use Waaseyaa\Validation\Constraint\EntityExists;
 use Waaseyaa\Validation\Constraint\NotEmpty;
 use Waaseyaa\Validation\Constraint\SafeMarkup;
 use Waaseyaa\Validation\Constraint\UniqueField;
-use Symfony\Component\Validator\Constraints\Length;
 
 /**
  * Factory for creating common validation constraints.

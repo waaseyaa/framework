@@ -58,8 +58,10 @@ final class InMemoryVectorStore implements VectorStoreInterface
         }
 
         // Sort by score descending.
-        usort($results, static fn(SimilarityResult $a, SimilarityResult $b): int =>
-            $b->score <=> $a->score
+        usort(
+            $results,
+            static fn(SimilarityResult $a, SimilarityResult $b): int =>
+            $b->score <=> $a->score,
         );
 
         return \array_slice($results, 0, $limit);

@@ -353,10 +353,22 @@ final class AiMcpIntegrationTest extends TestCase
 
 final class AnonymousTestAccount implements AccountInterface
 {
-    public function id(): int|string { return 0; }
-    public function hasPermission(string $permission): bool { return false; }
-    public function getRoles(): array { return ['anonymous']; }
-    public function isAuthenticated(): bool { return false; }
+    public function id(): int|string
+    {
+        return 0;
+    }
+    public function hasPermission(string $permission): bool
+    {
+        return false;
+    }
+    public function getRoles(): array
+    {
+        return ['anonymous'];
+    }
+    public function isAuthenticated(): bool
+    {
+        return false;
+    }
 }
 
 final class PublishedNodeViewPolicy implements AccessPolicyInterface

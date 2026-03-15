@@ -1,23 +1,13 @@
 export default defineNuxtConfig({
   compatibilityDate: '2025-01-01',
   devtools: { enabled: true },
+  ssr: false,
 
-  experimental: {
-    viteEnvironmentApi: true,
-  },
   srcDir: 'app/',
-
-  nitro: {
-    devProxy: {
-      '/api': {
-        target: 'http://localhost:8081/api',
-        changeOrigin: true,
-      },
-    },
-  },
 
   routeRules: {
     '/api/**': { proxy: 'http://localhost:8081/api/**' },
+    '/admin/**': { proxy: 'http://localhost:8081/admin/**' },
   },
 
   app: {
@@ -39,6 +29,8 @@ export default defineNuxtConfig({
       appName: process.env.NUXT_PUBLIC_APP_NAME ?? 'Waaseyaa',
       // Quickstart docs link used by onboarding prompt.
       docsUrl: process.env.NUXT_PUBLIC_DOCS_URL ?? 'https://github.com/jonesrussell/waaseyaa',
+      // Base URL for subpath mounting (e.g. "/admin"). Used by admin plugin for bootstrap resolution.
+      baseUrl: process.env.NUXT_PUBLIC_BASE_URL ?? '',
     },
   },
 })

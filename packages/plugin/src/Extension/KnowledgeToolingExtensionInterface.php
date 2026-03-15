@@ -26,4 +26,3 @@ interface KnowledgeToolingExtensionInterface extends PluginInspectionInterface
      */
     public function alterDiscoveryContext(array $context): array;
 }
-

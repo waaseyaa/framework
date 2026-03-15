@@ -33,9 +33,9 @@ final class PayloadValidator
 
         if ($entry === null) {
             return [new IngestionError(
-                code:    IngestionErrorCode::PAYLOAD_SCHEMA_NOT_FOUND,
+                code: IngestionErrorCode::PAYLOAD_SCHEMA_NOT_FOUND,
                 message: "No schema registered for type '{$envelope->type}'.",
-                field:   'type',
+                field: 'type',
                 traceId: $envelope->traceId,
             )];
         }
@@ -44,9 +44,9 @@ final class PayloadValidator
 
         if ($schema === null) {
             return [new IngestionError(
-                code:    IngestionErrorCode::PAYLOAD_SCHEMA_LOAD_FAILED,
+                code: IngestionErrorCode::PAYLOAD_SCHEMA_LOAD_FAILED,
                 message: "Failed to load schema for type '{$envelope->type}'.",
-                field:   'type',
+                field: 'type',
                 traceId: $envelope->traceId,
             )];
         }
@@ -90,9 +90,9 @@ final class PayloadValidator
         foreach ($properties as $name => $propSchema) {
             if (($propSchema['readOnly'] ?? false) === true && array_key_exists($name, $payload)) {
                 $errors[] = new IngestionError(
-                    code:    IngestionErrorCode::PAYLOAD_FIELD_READ_ONLY,
+                    code: IngestionErrorCode::PAYLOAD_FIELD_READ_ONLY,
                     message: "Field '{$name}' is read-only and must not be included in ingestion payloads.",
-                    field:   $name,
+                    field: $name,
                     traceId: $traceId,
                 );
             }
@@ -107,9 +107,9 @@ final class PayloadValidator
 
             if (!array_key_exists($field, $payload)) {
                 $errors[] = new IngestionError(
-                    code:    IngestionErrorCode::PAYLOAD_FIELD_MISSING,
+                    code: IngestionErrorCode::PAYLOAD_FIELD_MISSING,
                     message: "Required field '{$field}' is missing.",
-                    field:   $field,
+                    field: $field,
                     traceId: $traceId,
                 );
                 continue;
@@ -122,9 +122,9 @@ final class PayloadValidator
                 && strlen($payload[$field]) < (int) $fieldSchema['minLength']
             ) {
                 $errors[] = new IngestionError(
-                    code:    IngestionErrorCode::PAYLOAD_FIELD_TOO_SHORT,
+                    code: IngestionErrorCode::PAYLOAD_FIELD_TOO_SHORT,
                     message: "Field '{$field}' must have at least {$fieldSchema['minLength']} character(s).",
-                    field:   $field,
+                    field: $field,
                     traceId: $traceId,
                 );
             }
@@ -138,9 +138,9 @@ final class PayloadValidator
             if ($propSchema === null) {
                 if ($additionalProperties === false) {
                     $errors[] = new IngestionError(
-                        code:    IngestionErrorCode::PAYLOAD_FIELD_UNKNOWN,
+                        code: IngestionErrorCode::PAYLOAD_FIELD_UNKNOWN,
                         message: "Unknown field '{$name}'. Not defined in schema.",
-                        field:   $name,
+                        field: $name,
                         traceId: $traceId,
                     );
                 }
@@ -182,9 +182,9 @@ final class PayloadValidator
 
         if (!$typeValid) {
             $errors[] = new IngestionError(
-                code:    IngestionErrorCode::PAYLOAD_FIELD_TYPE_INVALID,
+                code: IngestionErrorCode::PAYLOAD_FIELD_TYPE_INVALID,
                 message: "Field '{$name}' must be of type '{$expectedType}'.",
-                field:   $name,
+                field: $name,
                 traceId: $traceId,
             );
             return;
@@ -194,18 +194,18 @@ final class PayloadValidator
         if ($expectedType === 'string' && is_string($value)) {
             if (isset($propSchema['minLength']) && strlen($value) < (int) $propSchema['minLength']) {
                 $errors[] = new IngestionError(
-                    code:    IngestionErrorCode::PAYLOAD_FIELD_TOO_SHORT,
+                    code: IngestionErrorCode::PAYLOAD_FIELD_TOO_SHORT,
                     message: "Field '{$name}' must have at least {$propSchema['minLength']} character(s).",
-                    field:   $name,
+                    field: $name,
                     traceId: $traceId,
                 );
             }
 
             if (isset($propSchema['maxLength']) && strlen($value) > (int) $propSchema['maxLength']) {
                 $errors[] = new IngestionError(
-                    code:    IngestionErrorCode::PAYLOAD_FIELD_TOO_LONG,
+                    code: IngestionErrorCode::PAYLOAD_FIELD_TOO_LONG,
                     message: "Field '{$name}' must have at most {$propSchema['maxLength']} character(s).",
-                    field:   $name,
+                    field: $name,
                     traceId: $traceId,
                 );
             }

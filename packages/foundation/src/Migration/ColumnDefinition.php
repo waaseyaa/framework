@@ -36,8 +36,20 @@ final class ColumnDefinition
         return $this;
     }
 
-    public function isNullable(): bool { return $this->isNullable; }
-    public function hasDefaultValue(): bool { return $this->hasDefault; }
-    public function getDefaultValue(): mixed { return $this->defaultValue; }
-    public function isUnique(): bool { return $this->isUnique; }
+    public function isNullable(): bool
+    {
+        return $this->isNullable;
+    }
+    public function hasDefaultValue(): bool
+    {
+        return $this->hasDefault;
+    }
+    public function getDefaultValue(): mixed
+    {
+        return $this->defaultValue;
+    }
+    public function isUnique(): bool
+    {
+        return $this->isUnique;
+    }
 }

@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase9;
 
-use Waaseyaa\SSR\Attribute\Component;
-use Waaseyaa\SSR\ComponentRegistry;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\SSR\Attribute\Component;
+use Waaseyaa\SSR\ComponentRegistry;
 
 /**
  * Integration tests for component discovery from classes.

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase5;
 
+use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
@@ -14,8 +16,6 @@ use Waaseyaa\User\AnonymousUser;
 use Waaseyaa\User\Role;
 use Waaseyaa\User\User;
 use Waaseyaa\User\UserSession;
-use PHPUnit\Framework\Attributes\CoversNothing;
-use PHPUnit\Framework\TestCase;
 
 /**
  * Integration tests for waaseyaa/user + waaseyaa/access interaction.

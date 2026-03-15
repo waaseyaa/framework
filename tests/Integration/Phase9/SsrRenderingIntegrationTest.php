@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase9;
 
+use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
+use Twig\Environment;
+use Twig\Loader\ArrayLoader;
 use Waaseyaa\SSR\Attribute\Component;
 use Waaseyaa\SSR\ComponentMetadata;
 use Waaseyaa\SSR\ComponentRegistry;
 use Waaseyaa\SSR\ComponentRenderer;
 use Waaseyaa\SSR\SsrController;
 use Waaseyaa\SSR\SsrResponse;
-use PHPUnit\Framework\Attributes\CoversNothing;
-use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\TestCase;
-use Twig\Environment;
-use Twig\Loader\ArrayLoader;
 
 /**
  * Integration tests for SSR rendering pipeline with real Twig.

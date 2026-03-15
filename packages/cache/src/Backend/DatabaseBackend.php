@@ -35,7 +35,7 @@ final class DatabaseBackend implements TagAwareCacheInterface
         $this->ensureTable();
 
         $stmt = $this->pdo->prepare(
-            "SELECT cid, data, expire, created, tags, valid FROM {$this->bin} WHERE cid = :cid"
+            "SELECT cid, data, expire, created, tags, valid FROM {$this->bin} WHERE cid = :cid",
         );
         $stmt->execute([':cid' => $cid]);
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
@@ -58,7 +58,7 @@ final class DatabaseBackend implements TagAwareCacheInterface
 
         $placeholders = implode(',', array_fill(0, count($cids), '?'));
         $stmt = $this->pdo->prepare(
-            "SELECT cid, data, expire, created, tags, valid FROM {$this->bin} WHERE cid IN ({$placeholders})"
+            "SELECT cid, data, expire, created, tags, valid FROM {$this->bin} WHERE cid IN ({$placeholders})",
         );
         $stmt->execute(array_values($cids));
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -85,7 +85,7 @@ final class DatabaseBackend implements TagAwareCacheInterface
         $now = time();
 
         $stmt = $this->pdo->prepare(
-            "INSERT OR REPLACE INTO {$this->bin} (cid, data, expire, created, tags, valid) VALUES (:cid, :data, :expire, :created, :tags, :valid)"
+            "INSERT OR REPLACE INTO {$this->bin} (cid, data, expire, created, tags, valid) VALUES (:cid, :data, :expire, :created, :tags, :valid)",
         );
         $stmt->execute([
             ':cid' => $cid,
@@ -201,7 +201,7 @@ final class DatabaseBackend implements TagAwareCacheInterface
                 created INTEGER NOT NULL DEFAULT 0,
                 tags TEXT NOT NULL DEFAULT '',
                 valid INTEGER NOT NULL DEFAULT 1
-            )"
+            )",
         )->execute();
 
         $this->tableInitialized = true;

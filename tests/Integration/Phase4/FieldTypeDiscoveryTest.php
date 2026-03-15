@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase4;
 
-use Waaseyaa\Field\Attribute\FieldType;
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Field\FieldDefinition;
-use Waaseyaa\Field\FieldItemBase;
 use Waaseyaa\Field\FieldItemList;
 use Waaseyaa\Field\FieldTypeManager;
 use Waaseyaa\Field\Item\BooleanItem;
@@ -15,8 +14,6 @@ use Waaseyaa\Field\Item\FloatItem;
 use Waaseyaa\Field\Item\IntegerItem;
 use Waaseyaa\Field\Item\StringItem;
 use Waaseyaa\Field\Item\TextItem;
-use Waaseyaa\Plugin\Definition\PluginDefinition;
-use PHPUnit\Framework\TestCase;
 
 /**
  * Field type system integration tests.

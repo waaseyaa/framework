@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase7;
 
-use Waaseyaa\Api\OpenApi\OpenApiGenerator;
-use Waaseyaa\Api\Tests\Fixtures\TestEntity;
-use Waaseyaa\Entity\EntityType;
-use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\Node\Node;
-use Waaseyaa\Taxonomy\Term;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\Api\OpenApi\OpenApiGenerator;
+use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Node\Node;
+use Waaseyaa\Taxonomy\Term;
 
 /**
  * OpenAPI spec generation integration tests with real entity types.

@@ -1,6 +1,6 @@
 {
     "name": "waaseyaa/full",
-    "description": "Waaseyaa full platform — CMS + AI + SSR + GraphQL.",
+    "description": "Waaseyaa full platform \u2014 CMS + AI + SSR + GraphQL.",
     "type": "metapackage",
     "license": "GPL-2.0-or-later",
     "require": {
@@ -13,5 +13,10 @@
         "waaseyaa/ssr": "^0.1",
         "waaseyaa/mcp": "^0.1"
     },
-    "minimum-stability": "stable"
+    "minimum-stability": "stable",
+    "extra": {
+        "branch-alias": {
+            "dev-develop/v1.1": "0.1.x-dev"
+        }
+    }
 }

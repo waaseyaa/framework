@@ -28,8 +28,8 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Mcp\McpController;
-use Waaseyaa\Relationship\RelationshipDiscoveryService;
 use Waaseyaa\Relationship\Relationship;
+use Waaseyaa\Relationship\RelationshipDiscoveryService;
 use Waaseyaa\Relationship\RelationshipSchemaManager;
 use Waaseyaa\Relationship\RelationshipTraversalService;
 use Waaseyaa\Tests\Support\WorkflowFixturePack;
@@ -236,10 +236,22 @@ final class DiscoveryFixtureConsumersIntegrationTest extends TestCase
 
 final class DiscoveryFixtureAnonymousAccount implements AccountInterface
 {
-    public function id(): int|string { return 0; }
-    public function hasPermission(string $permission): bool { return false; }
-    public function getRoles(): array { return ['anonymous']; }
-    public function isAuthenticated(): bool { return false; }
+    public function id(): int|string
+    {
+        return 0;
+    }
+    public function hasPermission(string $permission): bool
+    {
+        return false;
+    }
+    public function getRoles(): array
+    {
+        return ['anonymous'];
+    }
+    public function isAuthenticated(): bool
+    {
+        return false;
+    }
 }
 
 final class DiscoveryFixtureNodeViewPolicy implements AccessPolicyInterface

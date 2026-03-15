@@ -20,35 +20,19 @@ final class NullBackend implements CacheBackendInterface
         return [];
     }
 
-    public function set(string $cid, mixed $data, int $expire = self::PERMANENT, array $tags = []): void
-    {
-    }
+    public function set(string $cid, mixed $data, int $expire = self::PERMANENT, array $tags = []): void {}
 
-    public function delete(string $cid): void
-    {
-    }
+    public function delete(string $cid): void {}
 
-    public function deleteMultiple(array $cids): void
-    {
-    }
+    public function deleteMultiple(array $cids): void {}
 
-    public function deleteAll(): void
-    {
-    }
+    public function deleteAll(): void {}
 
-    public function invalidate(string $cid): void
-    {
-    }
+    public function invalidate(string $cid): void {}
 
-    public function invalidateMultiple(array $cids): void
-    {
-    }
+    public function invalidateMultiple(array $cids): void {}
 
-    public function invalidateAll(): void
-    {
-    }
+    public function invalidateAll(): void {}
 
-    public function removeBin(): void
-    {
-    }
+    public function removeBin(): void {}
 }

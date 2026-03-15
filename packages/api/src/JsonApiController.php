@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Api;
 
-use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Query\PaginationLinks;

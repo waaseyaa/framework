@@ -162,22 +162,52 @@ final class AccessVisibilityConsistencyIntegrationTest extends TestCase
 
 final class PublicAuditAccount implements AccountInterface
 {
-    public function id(): int|string { return 0; }
-    public function hasPermission(string $permission): bool { return false; }
-    public function getRoles(): array { return ['anonymous']; }
-    public function isAuthenticated(): bool { return false; }
+    public function id(): int|string
+    {
+        return 0;
+    }
+    public function hasPermission(string $permission): bool
+    {
+        return false;
+    }
+    public function getRoles(): array
+    {
+        return ['anonymous'];
+    }
+    public function isAuthenticated(): bool
+    {
+        return false;
+    }
 }
 
 final class AllowAllNodePolicy implements AccessPolicyInterface
 {
-    public function appliesTo(string $entityTypeId): bool { return $entityTypeId === 'node'; }
-    public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult { return AccessResult::allowed('audit'); }
-    public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult { return AccessResult::allowed('audit'); }
+    public function appliesTo(string $entityTypeId): bool
+    {
+        return $entityTypeId === 'node';
+    }
+    public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+    {
+        return AccessResult::allowed('audit');
+    }
+    public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+    {
+        return AccessResult::allowed('audit');
+    }
 }
 
 final class AllowAllRelationshipPolicy implements AccessPolicyInterface
 {
-    public function appliesTo(string $entityTypeId): bool { return $entityTypeId === 'relationship'; }
-    public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult { return AccessResult::allowed('audit'); }
-    public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult { return AccessResult::allowed('audit'); }
+    public function appliesTo(string $entityTypeId): bool
+    {
+        return $entityTypeId === 'relationship';
+    }
+    public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+    {
+        return AccessResult::allowed('audit');
+    }
+    public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+    {
+        return AccessResult::allowed('audit');
+    }
 }

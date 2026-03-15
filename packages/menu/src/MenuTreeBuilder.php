@@ -25,7 +25,7 @@ final class MenuTreeBuilder
         }
 
         // Sort links by weight (ascending), preserving relative order for equal weights.
-        usort($links, static fn (MenuLink $a, MenuLink $b): int => $a->getWeight() <=> $b->getWeight());
+        usort($links, static fn(MenuLink $a, MenuLink $b): int => $a->getWeight() <=> $b->getWeight());
 
         // Create tree elements indexed by link ID.
         /** @var array<int|string, MenuTreeElement> $elements */

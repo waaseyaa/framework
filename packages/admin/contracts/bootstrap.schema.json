@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://waaseyaa.com/schemas/admin-bootstrap.json",
+  "title": "AdminBootstrap",
+  "description": "Bootstrap payload for the Waaseyaa admin SPA (window.__WAASEYAA_ADMIN__)",
+  "type": "object",
+  "required": ["version", "auth", "account", "tenant", "transport", "entities"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Contract version — must match ADMIN_CONTRACT_VERSION"
+    },
+    "auth": {
+      "$ref": "#/$defs/AdminAuthConfig"
+    },
+    "account": {
+      "$ref": "#/$defs/AdminAccount"
+    },
+    "tenant": {
+      "$ref": "#/$defs/AdminTenant"
+    },
+    "transport": {
+      "$ref": "#/$defs/AdminTransportConfig"
+    },
+    "entities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/CatalogEntry"
+      },
+      "description": "Entity types available to the admin UI"
+    },
+    "features": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "boolean"
+      },
+      "description": "Optional feature flags"
+    }
+  },
+  "$defs": {
+    "AdminAuthConfig": {
+      "type": "object",
+      "required": ["strategy"],
+      "additionalProperties": false,
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "enum": ["redirect", "embedded"]
+        },
+        "loginUrl": {
+          "type": "string"
+        },
+        "loginEndpoint": {
+          "type": "string"
+        },
+        "logoutEndpoint": {
+          "type": "string"
+        }
+      }
+    },
+    "AdminAccount": {
+      "type": "object",
+      "required": ["id", "name", "roles"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "AdminTenant": {
+      "type": "object",
+      "required": ["id", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "scopingStrategy": {
+          "type": "string",
+          "enum": ["server", "header"],
+          "default": "server"
+        }
+      }
+    },
+    "AdminTransportConfig": {
+      "type": "object",
+      "required": ["strategy"],
+      "additionalProperties": false,
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "enum": ["jsonapi", "custom"]
+        },
+        "apiPath": {
+          "type": "string"
+        }
+      }
+    },
+    "CatalogEntry": {
+      "type": "object",
+      "required": ["id", "label", "capabilities"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "keys": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "group": {
+          "type": "string"
+        },
+        "disabled": {
+          "type": "boolean",
+          "description": "If true, the entity type is visible but non-interactive in the admin UI"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/CatalogCapabilities"
+        }
+      }
+    },
+    "CatalogCapabilities": {
+      "type": "object",
+      "required": ["list", "get", "create", "update", "delete", "schema"],
+      "additionalProperties": false,
+      "properties": {
+        "list": {
+          "type": "boolean"
+        },
+        "get": {
+          "type": "boolean"
+        },
+        "create": {
+          "type": "boolean"
+        },
+        "update": {
+          "type": "boolean"
+        },
+        "delete": {
+          "type": "boolean"
+        },
+        "schema": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
