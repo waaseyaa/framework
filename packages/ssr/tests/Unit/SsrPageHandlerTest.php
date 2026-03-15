@@ -417,4 +417,59 @@ final class SsrPageHandlerTest extends TestCase
         $this->assertSame('oj', $result['langcode']);
         $this->assertSame('oj', $manager->getCurrentLanguage()->id);
     }
+
+    #[Test]
+    public function accept_language_fallback_when_no_prefix(): void
+    {
+        [$handler, $manager] = $this->createHandlerWithManager();
+        // No URL prefix, but Accept-Language header specifies oj.
+        $request = HttpRequest::create('/about', 'GET', [], [], [], [
+            'HTTP_ACCEPT_LANGUAGE' => 'oj',
+        ]);
+
+        $result = $handler->resolveRenderLanguageAndAliasPath('/about', $request);
+
+        $this->assertSame('oj', $result['langcode']);
+        $this->assertSame('/about', $result['alias_path']);
+        $this->assertSame('oj', $manager->getCurrentLanguage()->id);
+    }
+
+    #[Test]
+    public function url_prefix_detection_oj_homepage(): void
+    {
+        [$handler, $manager] = $this->createHandlerWithManager();
+        $request = HttpRequest::create('/oj/');
+
+        $result = $handler->resolveRenderLanguageAndAliasPath('/oj/', $request);
+
+        $this->assertSame('oj', $result['langcode']);
+        $this->assertSame('/', $result['alias_path']);
+        $this->assertSame('oj', $manager->getCurrentLanguage()->id);
+    }
+
+    #[Test]
+    public function invalid_prefix_falls_through_to_default(): void
+    {
+        [$handler] = $this->createHandlerWithManager();
+        $request = HttpRequest::create('/xx/about');
+
+        $result = $handler->resolveRenderLanguageAndAliasPath('/xx/about', $request);
+
+        // xx is not a registered language — no prefix detected, default en.
+        $this->assertSame('en', $result['langcode']);
+        $this->assertSame('/xx/about', $result['alias_path']);
+    }
+
+    #[Test]
+    public function default_language_no_prefix(): void
+    {
+        [$handler, $manager] = $this->createHandlerWithManager();
+        $request = HttpRequest::create('/about');
+
+        $result = $handler->resolveRenderLanguageAndAliasPath('/about', $request);
+
+        $this->assertSame('en', $result['langcode']);
+        $this->assertSame('/about', $result['alias_path']);
+        $this->assertSame('en', $manager->getCurrentLanguage()->id);
+    }
 }
