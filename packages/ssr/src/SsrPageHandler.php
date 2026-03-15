@@ -14,6 +14,7 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\I18n\Language;
 use Waaseyaa\I18n\LanguageManager;
+use Waaseyaa\I18n\LanguageManagerInterface;
 use Waaseyaa\Path\PathAliasResolver;
 use Waaseyaa\Relationship\RelationshipDiscoveryService;
 use Waaseyaa\Relationship\RelationshipTraversalService;
@@ -450,7 +451,7 @@ final class SsrPageHandler
      */
     public function resolveRenderLanguageAndAliasPath(string $path, HttpRequest $request): array
     {
-        $manager = $this->buildLanguageManager();
+        $manager = $this->resolveLanguageManager();
         $availableLanguages = array_keys($manager->getLanguages());
 
         $headers = [];
@@ -475,6 +476,25 @@ final class SsrPageHandler
             'langcode' => $langcode,
             'alias_path' => $aliasPath,
         ];
+    }
+
+    /**
+     * Resolve the app-level LanguageManager via serviceResolver.
+     * Throws if no manager is registered — apps must provide one.
+     */
+    private function resolveLanguageManager(): LanguageManagerInterface
+    {
+        if ($this->serviceResolver !== null) {
+            $manager = ($this->serviceResolver)(LanguageManagerInterface::class);
+            if ($manager instanceof LanguageManagerInterface) {
+                return $manager;
+            }
+        }
+
+        throw new \RuntimeException(
+            'LanguageManagerInterface not registered. '
+            . 'Register via I18nServiceProvider or provide via serviceResolver.',
+        );
     }
 
     public function buildLanguageManager(): LanguageManager

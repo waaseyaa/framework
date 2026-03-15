@@ -13,12 +13,15 @@ use Waaseyaa\Cache\CacheConfigResolver;
 use Waaseyaa\Database\PdoDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
+use Waaseyaa\I18n\Language;
+use Waaseyaa\I18n\LanguageManager;
+use Waaseyaa\I18n\LanguageManagerInterface;
 use Waaseyaa\SSR\SsrPageHandler;
 
 #[CoversClass(SsrPageHandler::class)]
 final class SsrPageHandlerTest extends TestCase
 {
-    private function createHandler(array $config = []): SsrPageHandler
+    private function createHandler(array $config = [], ?\Closure $serviceResolver = null): SsrPageHandler
     {
         $entityTypeManager = new EntityTypeManager(new EventDispatcher());
         $database = PdoDatabase::createSqlite();
@@ -33,7 +36,36 @@ final class SsrPageHandlerTest extends TestCase
             discoveryHandler: $discoveryHandler,
             projectRoot: '/tmp/test-project',
             config: $config,
+            serviceResolver: $serviceResolver,
         );
+    }
+
+    /**
+     * Create a handler with an app-level LanguageManager injected via serviceResolver.
+     * Returns [$handler, $manager] so tests can assert state on the shared manager.
+     *
+     * @param list<Language> $languages
+     * @return array{SsrPageHandler, LanguageManager}
+     */
+    private function createHandlerWithManager(array $languages = []): array
+    {
+        if ($languages === []) {
+            $languages = [
+                new Language('en', 'English', isDefault: true),
+                new Language('oj', 'Anishinaabemowin'),
+            ];
+        }
+
+        $manager = new LanguageManager($languages);
+
+        $serviceResolver = static function (string $className) use ($manager): ?object {
+            if ($className === LanguageManagerInterface::class) {
+                return $manager;
+            }
+            return null;
+        };
+
+        return [$this->createHandler(serviceResolver: $serviceResolver), $manager];
     }
 
     #[Test]
@@ -250,13 +282,9 @@ final class SsrPageHandlerTest extends TestCase
     #[Test]
     public function render_language_resolution_uses_url_prefix(): void
     {
-        $handler = $this->createHandler([
-            'i18n' => [
-                'languages' => [
-                    ['id' => 'en', 'label' => 'English', 'is_default' => true],
-                    ['id' => 'fr', 'label' => 'French'],
-                ],
-            ],
+        [$handler] = $this->createHandlerWithManager([
+            new Language('en', 'English', isDefault: true),
+            new Language('fr', 'French'),
         ]);
         $request = HttpRequest::create('/fr/about');
         $result = $handler->resolveRenderLanguageAndAliasPath('/fr/about', $request);
@@ -268,11 +296,26 @@ final class SsrPageHandlerTest extends TestCase
     #[Test]
     public function render_language_resolution_defaults_to_english(): void
     {
-        $handler = $this->createHandler();
+        [$handler] = $this->createHandlerWithManager();
         $request = HttpRequest::create('/about');
         $result = $handler->resolveRenderLanguageAndAliasPath('/about', $request);
 
         $this->assertSame('en', $result['langcode']);
         $this->assertSame('/about', $result['alias_path']);
+    }
+
+    // --- i18n refactor: unified LanguageManager tests ---
+
+    #[Test]
+    public function resolve_language_manager_throws_when_no_app_manager(): void
+    {
+        // Handler created without serviceResolver — no app-level LanguageManager available.
+        $handler = $this->createHandler();
+        $request = HttpRequest::create('/about');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('LanguageManagerInterface not registered');
+
+        $handler->resolveRenderLanguageAndAliasPath('/about', $request);
     }
 }
