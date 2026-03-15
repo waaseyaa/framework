@@ -12,6 +12,8 @@ use Waaseyaa\Cache\CacheConfigResolver;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\I18n\Language;
+use Waaseyaa\I18n\LanguageManager;
 use Waaseyaa\I18n\LanguageManagerInterface;
 use Waaseyaa\Path\PathAliasResolver;
 use Waaseyaa\Relationship\RelationshipDiscoveryService;
