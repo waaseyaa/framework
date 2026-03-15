@@ -66,21 +66,9 @@ jobs:
       - name: Run Vitest contract tests
         run: npx vitest run --reporter=verbose
 
-      - name: Set up PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.3'
-          coverage: none
-
-      - name: Install Composer dependencies
-        if: hashFiles('packages/admin-bridge/composer.json') != ''
-        run: composer update --no-interaction --no-progress --prefer-dist
-        working-directory: .
-
-      - name: Run PHP payload tests
-        if: hashFiles('packages/admin-bridge/composer.json') != ''
-        run: ./vendor/bin/phpunit packages/admin-bridge/tests/
-        working-directory: .
+      # PHP bridge tests run in ci/unit-tests (main CI workflow).
+      # Path repos don't resolve in PR detached HEAD checkouts,
+      # so we don't duplicate composer install here.
 
       - name: Upload contracts build
         uses: actions/upload-artifact@v4
