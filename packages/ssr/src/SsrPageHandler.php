@@ -12,8 +12,6 @@ use Waaseyaa\Cache\CacheConfigResolver;
 use Waaseyaa\Database\PdoDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\I18n\Language;
-use Waaseyaa\I18n\LanguageManager;
 use Waaseyaa\I18n\LanguageManagerInterface;
 use Waaseyaa\Path\PathAliasResolver;
 use Waaseyaa\Relationship\RelationshipDiscoveryService;
@@ -495,81 +493,6 @@ final class SsrPageHandler
             'LanguageManagerInterface not registered. '
             . 'Register via I18nServiceProvider or provide via serviceResolver.',
         );
-    }
-
-    public function buildLanguageManager(): LanguageManager
-    {
-        $configured = $this->config['i18n']['languages'] ?? null;
-        if (!is_array($configured) || $configured === []) {
-            return new LanguageManager([new Language(id: 'en', label: 'English', isDefault: true)]);
-        }
-
-        $languages = [];
-        foreach ($configured as $candidate) {
-            if (!is_array($candidate)) {
-                continue;
-            }
-
-            $id = isset($candidate['id']) && is_string($candidate['id']) ? trim($candidate['id']) : '';
-            if ($id === '') {
-                continue;
-            }
-
-            $label = isset($candidate['label']) && is_string($candidate['label']) && trim($candidate['label']) !== ''
-                ? trim($candidate['label'])
-                : strtoupper($id);
-            $direction = isset($candidate['direction']) && is_string($candidate['direction']) && in_array($candidate['direction'], ['ltr', 'rtl'], true)
-                ? $candidate['direction']
-                : 'ltr';
-            $weight = isset($candidate['weight']) && is_numeric($candidate['weight']) ? (int) $candidate['weight'] : 0;
-            $isDefault = ($candidate['is_default'] ?? false) === true;
-
-            $languages[] = new Language(
-                id: $id,
-                label: $label,
-                direction: $direction,
-                weight: $weight,
-                isDefault: $isDefault,
-            );
-        }
-
-        if ($languages === []) {
-            return new LanguageManager([new Language(id: 'en', label: 'English', isDefault: true)]);
-        }
-
-        $defaultCount = count(array_filter($languages, static fn(Language $language): bool => $language->isDefault));
-        if ($defaultCount === 0) {
-            $first = $languages[0];
-            $languages[0] = new Language(
-                id: $first->id,
-                label: $first->label,
-                direction: $first->direction,
-                weight: $first->weight,
-                isDefault: true,
-            );
-        }
-        if ($defaultCount > 1) {
-            $seenDefault = false;
-            foreach ($languages as $index => $language) {
-                if (!$language->isDefault) {
-                    continue;
-                }
-                if (!$seenDefault) {
-                    $seenDefault = true;
-                    continue;
-                }
-
-                $languages[$index] = new Language(
-                    id: $language->id,
-                    label: $language->label,
-                    direction: $language->direction,
-                    weight: $language->weight,
-                    isDefault: false,
-                );
-            }
-        }
-
-        return new LanguageManager($languages);
     }
 
     /**

@@ -109,54 +109,6 @@ final class SsrPageHandlerTest extends TestCase
     }
 
     #[Test]
-    public function build_language_manager_defaults_to_english(): void
-    {
-        $handler = $this->createHandler();
-        $manager = $handler->buildLanguageManager();
-        $languages = $manager->getLanguages();
-
-        $this->assertArrayHasKey('en', $languages);
-        $this->assertTrue($languages['en']->isDefault);
-    }
-
-    #[Test]
-    public function build_language_manager_uses_configured_languages(): void
-    {
-        $handler = $this->createHandler([
-            'i18n' => [
-                'languages' => [
-                    ['id' => 'fr', 'label' => 'French', 'is_default' => true],
-                    ['id' => 'de', 'label' => 'German'],
-                ],
-            ],
-        ]);
-        $manager = $handler->buildLanguageManager();
-        $languages = $manager->getLanguages();
-
-        $this->assertArrayHasKey('fr', $languages);
-        $this->assertArrayHasKey('de', $languages);
-        $this->assertTrue($languages['fr']->isDefault);
-        $this->assertFalse($languages['de']->isDefault);
-    }
-
-    #[Test]
-    public function build_language_manager_assigns_default_when_none_configured(): void
-    {
-        $handler = $this->createHandler([
-            'i18n' => [
-                'languages' => [
-                    ['id' => 'fr', 'label' => 'French'],
-                    ['id' => 'de', 'label' => 'German'],
-                ],
-            ],
-        ]);
-        $manager = $handler->buildLanguageManager();
-        $languages = $manager->getLanguages();
-
-        $this->assertTrue($languages['fr']->isDefault);
-    }
-
-    #[Test]
     public function detect_language_prefix_from_path_finds_known_language(): void
     {
         $handler = $this->createHandler();
