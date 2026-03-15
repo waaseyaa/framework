@@ -1,6 +1,6 @@
 # Waaseyaa
 
-**Current stable:** v1.0.0-final · **Development:** v1.1.0-dev
+**Latest:** v0.1.0-alpha.4
 
 A modern, entity-first, AI-native content management system built on PHP 8.3+ and Symfony 7.
 
@@ -130,9 +130,9 @@ For semantic index warm-ups tied to deterministic read-path validation:
 bin/waaseyaa semantic:warm --type node --json
 ```
 
-## v1.2 Tooling Workflows
+## Developer Tooling
 
-Waaseyaa includes deterministic developer tooling added in v1.2:
+Waaseyaa includes deterministic developer tooling:
 
 ```bash
 # Scaffold config payloads
@@ -158,8 +158,7 @@ For consolidated upgrade and operations runbooks, see:
 ## Project Stats
 
 - **29** implementation packages + 3 meta-packages + 1 admin SPA
-- **227** source files, ~15,000 lines of PHP
-- **2,162** tests with **5,429** assertions
+- **3,919** PHP tests with **8,657** assertions + **98** frontend tests
 - **0** dependencies on Drupal core
 
 ## Key Design Principles
