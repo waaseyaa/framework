@@ -36,17 +36,6 @@ final class EntityTypeBuilder
         ]));
     }
 
-    public function buildInputType(EntityTypeInterface $entityType): InputObjectType
-    {
-        $typeName = self::toPascalCase($entityType->id()) . 'Input';
-
-        /** @var InputObjectType */
-        return $this->registry->getOrCreate($typeName, fn(): InputObjectType => new InputObjectType([
-            'name' => $typeName,
-            'fields' => fn(): array => $this->buildInputFields($entityType),
-        ]));
-    }
-
     public function buildCreateInputType(EntityTypeInterface $entityType): InputObjectType
     {
         $typeName = self::toPascalCase($entityType->id()) . 'CreateInput';

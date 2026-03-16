@@ -9,7 +9,7 @@ use GraphQL\Type\Definition\ListOfType;
 use GraphQL\Type\Definition\NonNull;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
@@ -29,7 +29,7 @@ use Waaseyaa\GraphQL\Schema\SchemaFactory;
  * These tests verify that SchemaFactory produces correct query fields,
  * mutation fields, type mappings, and input types for registered entity types.
  */
-#[CoversClass(SchemaFactory::class)]
+#[CoversNothing]
 final class SchemaValidationTest extends TestCase
 {
     private EntityTypeManager $entityTypeManager;
