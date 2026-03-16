@@ -23,6 +23,8 @@ jobs:
           - { local: 'packages/queue', remote: 'queue' }
           - { local: 'packages/state', remote: 'state' }
           - { local: 'packages/validation', remote: 'validation' }
+          - { local: 'packages/mail', remote: 'mail' }
+          - { local: 'packages/github', remote: 'github' }
           # Layer 1: Core Data
           - { local: 'packages/entity', remote: 'entity' }
           - { local: 'packages/entity-storage', remote: 'entity-storage' }

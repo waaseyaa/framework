@@ -10,6 +10,9 @@
         <testsuite name="Unit">
             <directory>packages/*/tests/Unit</directory>
         </testsuite>
+        <testsuite name="GitHub">
+            <directory>packages/github/tests</directory>
+        </testsuite>
         <testsuite name="Integration">
             <directory>packages/*/tests/Integration</directory>
             <directory>tests/Integration</directory>

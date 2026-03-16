@@ -46,7 +46,8 @@
         { "type": "path", "url": "packages/telescope" },
         { "type": "path", "url": "packages/full" },
         { "type": "path", "url": "packages/admin-bridge" },
-        { "type": "path", "url": "packages/admin-surface" }
+        { "type": "path", "url": "packages/admin-surface" },
+        { "type": "path", "url": "packages/github" }
     ],
     "require": {
         "php": ">=8.4",
@@ -68,6 +69,7 @@
         "waaseyaa/entity-storage": "@dev",
         "waaseyaa/field": "@dev",
         "waaseyaa/foundation": "@dev",
+        "waaseyaa/github": "@dev",
         "waaseyaa/i18n": "@dev",
         "waaseyaa/mail": "@dev",
         "waaseyaa/mcp": "@dev",
@@ -106,6 +108,8 @@
             "Waaseyaa\\Entity\\Tests\\": "packages/entity/tests/",
             "Waaseyaa\\Field\\Tests\\": "packages/field/tests/",
             "Waaseyaa\\Foundation\\Tests\\": "packages/foundation/tests/",
+            "Waaseyaa\\GitHub\\": "packages/github/src/",
+            "Waaseyaa\\GitHub\\Tests\\": "packages/github/tests/",
             "Waaseyaa\\I18n\\Tests\\": "packages/i18n/tests/",
             "Waaseyaa\\Database\\Tests\\": "packages/database-legacy/tests/",
             "Waaseyaa\\EntityStorage\\Tests\\": "packages/entity-storage/tests/",
