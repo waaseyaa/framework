@@ -62,7 +62,8 @@ final class SchemaFactory
 
             $objectType = $entityTypeBuilder->buildObjectType($entityType);
             $listResultType = $entityTypeBuilder->buildListResultType($entityType);
-            $inputType = $entityTypeBuilder->buildInputType($entityType);
+            $createInputType = $entityTypeBuilder->buildCreateInputType($entityType);
+            $updateInputType = $entityTypeBuilder->buildUpdateInputType($entityType);
 
             // Query: single entity by ID
             $queryFields[$camelCase] = [
@@ -89,7 +90,7 @@ final class SchemaFactory
             $mutationFields['create' . $pascalCase] = [
                 'type' => $objectType,
                 'args' => [
-                    'input' => Type::nonNull($inputType),
+                    'input' => Type::nonNull($createInputType),
                 ],
                 'resolve' => fn(mixed $root, array $args): array => $this->entityResolver->resolveCreate($typeId, $args['input']),
             ];
@@ -99,7 +100,7 @@ final class SchemaFactory
                 'type' => $objectType,
                 'args' => [
                     'id' => Type::nonNull(Type::id()),
-                    'input' => Type::nonNull($inputType),
+                    'input' => Type::nonNull($updateInputType),
                 ],
                 'resolve' => fn(mixed $root, array $args): array => $this->entityResolver->resolveUpdate($typeId, $args['id'], $args['input']),
             ];

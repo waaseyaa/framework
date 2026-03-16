@@ -236,6 +236,45 @@ final class SchemaValidationTest extends TestCase
         self::assertSame('=', $operatorField->defaultValue);
     }
 
+    #[Test]
+    public function createAndUpdateInputTypesAreSeparate(): void
+    {
+        $schema = $this->buildSchema();
+
+        $mutationType = $schema->getMutationType();
+        $createField = $mutationType->getField('createArticle');
+        $updateField = $mutationType->getField('updateArticle');
+
+        // Get input types (unwrap NonNull)
+        $createInputType = $createField->getArg('input')->getType();
+        if ($createInputType instanceof NonNull) {
+            $createInputType = $createInputType->getWrappedType();
+        }
+        $updateInputType = $updateField->getArg('input')->getType();
+        if ($updateInputType instanceof NonNull) {
+            $updateInputType = $updateInputType->getWrappedType();
+        }
+
+        // They should be different types
+        self::assertInstanceOf(InputObjectType::class, $createInputType);
+        self::assertInstanceOf(InputObjectType::class, $updateInputType);
+        self::assertSame('ArticleCreateInput', $createInputType->name);
+        self::assertSame('ArticleUpdateInput', $updateInputType->name);
+
+        // Create input: required fields (title) are NonNull
+        $createTitle = $createInputType->getField('title');
+        self::assertInstanceOf(NonNull::class, $createTitle->getType());
+
+        // Update input: all fields nullable (PATCH semantics)
+        $updateTitle = $updateInputType->getField('title');
+        self::assertNotInstanceOf(NonNull::class, $updateTitle->getType());
+
+        // Both should have the same non-key, non-readOnly fields
+        $createFieldNames = array_keys($createInputType->getFields());
+        $updateFieldNames = array_keys($updateInputType->getFields());
+        self::assertSame($createFieldNames, $updateFieldNames);
+    }
+
     /**
      * Unwrap NonNull wrappers to get the named type.
      */

@@ -47,6 +47,28 @@ final class EntityTypeBuilder
         ]));
     }
 
+    public function buildCreateInputType(EntityTypeInterface $entityType): InputObjectType
+    {
+        $typeName = self::toPascalCase($entityType->id()) . 'CreateInput';
+
+        /** @var InputObjectType */
+        return $this->registry->getOrCreate($typeName, fn(): InputObjectType => new InputObjectType([
+            'name' => $typeName,
+            'fields' => fn(): array => $this->buildInputFields($entityType, forCreate: true),
+        ]));
+    }
+
+    public function buildUpdateInputType(EntityTypeInterface $entityType): InputObjectType
+    {
+        $typeName = self::toPascalCase($entityType->id()) . 'UpdateInput';
+
+        /** @var InputObjectType */
+        return $this->registry->getOrCreate($typeName, fn(): InputObjectType => new InputObjectType([
+            'name' => $typeName,
+            'fields' => fn(): array => $this->buildInputFields($entityType, forCreate: false),
+        ]));
+    }
+
     public function buildListResultType(EntityTypeInterface $entityType): ObjectType
     {
         $typeName = self::toPascalCase($entityType->id()) . 'ListResult';
@@ -179,7 +201,7 @@ final class EntityTypeBuilder
     /**
      * @return array<string, array<string, mixed>>
      */
-    private function buildInputFields(EntityTypeInterface $entityType): array
+    private function buildInputFields(EntityTypeInterface $entityType, bool $forCreate = true): array
     {
         $fields = [];
         $keys = $entityType->getKeys();
@@ -202,7 +224,7 @@ final class EntityTypeBuilder
             $isRequired = !empty($def['required']);
 
             $graphqlType = $this->fieldTypeMapper->toInputType($fieldType, $isMultiple);
-            if ($isRequired) {
+            if ($isRequired && $forCreate) {
                 $graphqlType = Type::nonNull($graphqlType);
             }
 
