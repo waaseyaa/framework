@@ -118,6 +118,7 @@ mutation DeleteCommitment($id: ID!) {
 **Notes:**
 - `person_uuid` stays as a plain string for v1. Nested resolution (`commitment { person { name } }`) requires an `entity_reference` field definition — scoped as a future enhancement.
 - Input type names depend on entity type IDs. If Claudriel's entity type ID is `commitment`, the input type is `CommitmentInput`. Verify actual IDs during schema validation (C2).
+- Once W3 lands (separate create/update input types), mutation examples here will need updating to `CommitmentCreateInput` / `CommitmentUpdateInput`. The current examples assume a single shared input type.
 
 ## 4. Frontend Composable Architecture
 
