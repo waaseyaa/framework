@@ -30,7 +30,6 @@ jobs:
 
       - name: Run CS Fixer (dry-run)
         run: composer cs-check
-        continue-on-error: true
 
       - name: Run PHPStan
         run: composer phpstan

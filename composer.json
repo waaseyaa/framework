@@ -52,7 +52,7 @@
     "require": {
         "php": ">=8.4",
         "symfony/console": "^7.0",
-        "symfony/html-sanitizer": "^8.0",
+        "symfony/html-sanitizer": "^7.0",
         "waaseyaa/access": "@dev",
         "waaseyaa/admin-bridge": "@dev",
         "waaseyaa/admin-surface": "@dev",
