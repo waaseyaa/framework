@@ -28,6 +28,16 @@ final class EntityResolver
     ) {}
 
     /**
+     * Resolve a list query with filter, sort, and pagination.
+     *
+     * **_data blob limitation:** Filters and sorts operate at the SQL query level
+     * via QueryApplier. Fields stored in the `_data` JSON blob column are NOT
+     * queryable at the SQL level — they exist only as serialized JSON and cannot
+     * participate in WHERE or ORDER BY clauses. For fields that need filtering or
+     * sorting in GraphQL (or JSON:API) queries, they must be promoted to real
+     * schema columns in the entity type's SqlSchemaHandler. This is an inherent
+     * limitation of the _data blob storage strategy, not a bug.
+     *
      * @param array<string, mixed> $args GraphQL list query arguments
      * @return array{items: list<array<string, mixed>>, total: int}
      */
@@ -194,6 +204,15 @@ final class EntityResolver
     }
 
     /**
+     * Parse GraphQL filter arguments into QueryFilter objects.
+     *
+     * **_data blob limitation:** These filters are applied as SQL WHERE conditions
+     * via QueryApplier. Only fields with dedicated schema columns (defined in
+     * SqlSchemaHandler) can be filtered. Fields stored in the `_data` JSON blob
+     * will produce SQL errors or empty results when used as filter targets.
+     * To make a field filterable, promote it to a real column in the entity
+     * type's schema definition.
+     *
      * @return list<QueryFilter>
      */
     private function parseFilters(array $args): array
