@@ -30,17 +30,33 @@ GraphQL solves all of these in one stroke by pushing filtering/sorting/paginatio
 
 ## 3. Target GraphQL Queries
 
+### Waaseyaa GraphQL conventions
+
+Before the queries: Waaseyaa's auto-generated GraphQL layer uses these conventions:
+
+- **Filter:** `[FilterInput!]` array where each element has `{ field: String!, value: String!, operator: String }` (operator defaults to `=`)
+- **Sort:** `String` using JSON:API convention — field name for ascending, `-` prefix for descending (e.g. `"-updated_at"`)
+- **List results:** Wrapped in `{Type}ListResult { items: [Type]!, total: Int! }`
+- **Delete results:** Returns `DeleteResult { deleted: Boolean! }`
+- **Input types:** Named `{PascalCase}Input`, generated from entity field definitions. Fields marked `required` in the entity type get `NonNull` wrappers.
+
 ### Commitments list
 
 ```graphql
 query CommitmentsList($status: String, $tenantId: String) {
   commitmentList(
-    filter: { status: $status, tenant_id: $tenantId }
-    sort: { field: "updated_at", direction: DESC }
+    filter: [
+      { field: "status", value: $status }
+      { field: "tenant_id", value: $tenantId }
+    ]
+    sort: "-updated_at"
     limit: 50
   ) {
-    uuid, title, status, confidence, due_date
-    person_uuid, source, created_at, updated_at
+    items {
+      uuid, title, status, confidence, due_date
+      person_uuid, source, created_at, updated_at
+    }
+    total
   }
 }
 ```
@@ -62,11 +78,17 @@ query Commitment($id: ID!) {
 ```graphql
 query PeopleList($tenantId: String, $tier: String) {
   personList(
-    filter: { tenant_id: $tenantId, tier: $tier }
-    sort: { field: "last_interaction_at", direction: DESC }
+    filter: [
+      { field: "tenant_id", value: $tenantId }
+      { field: "tier", value: $tier }
+    ]
+    sort: "-last_interaction_at"
   ) {
-    uuid, name, email, tier, source
-    latest_summary, last_interaction_at, last_inbox_category
+    items {
+      uuid, name, email, tier, source
+      latest_summary, last_interaction_at, last_inbox_category
+    }
+    total
   }
 }
 ```
@@ -87,11 +109,15 @@ mutation UpdateCommitment($id: ID!, $input: CommitmentInput!) {
 }
 
 mutation DeleteCommitment($id: ID!) {
-  deleteCommitment(id: $id)
+  deleteCommitment(id: $id) {
+    deleted
+  }
 }
 ```
 
-**Note:** `person_uuid` stays as a plain string for v1. Nested resolution (`commitment { person { name } }`) requires an `entity_reference` field definition — scoped as a future enhancement.
+**Notes:**
+- `person_uuid` stays as a plain string for v1. Nested resolution (`commitment { person { name } }`) requires an `entity_reference` field definition — scoped as a future enhancement.
+- Input type names depend on entity type IDs. If Claudriel's entity type ID is `commitment`, the input type is `CommitmentInput`. Verify actual IDs during schema validation (C2).
 
 ## 4. Frontend Composable Architecture
 
@@ -128,17 +154,23 @@ export async function graphqlFetch<T>(
 ### Composables per data path
 
 ```typescript
+// Shared list result shape matching Waaseyaa's {Type}ListResult
+interface ListResult<T> {
+  items: T[];
+  total: number;
+}
+
 // app/composables/useCommitmentsQuery.ts
 export function useCommitmentsQuery(filter: { status?: string; tenantId?: string }) {
   return useAsyncData('commitments', () =>
-    graphqlFetch<{ commitmentList: Commitment[] }>(COMMITMENTS_LIST_QUERY, filter)
+    graphqlFetch<{ commitmentList: ListResult<Commitment> }>(COMMITMENTS_LIST_QUERY, filter)
   );
 }
 
 // app/composables/usePeopleQuery.ts
 export function usePeopleQuery(filter: { tenantId?: string; tier?: string }) {
   return useAsyncData('people', () =>
-    graphqlFetch<{ personList: Person[] }>(PEOPLE_LIST_QUERY, filter)
+    graphqlFetch<{ personList: ListResult<Person> }>(PEOPLE_LIST_QUERY, filter)
   );
 }
 ```
@@ -190,17 +222,18 @@ Rollback-safe: if GraphQL has issues, flip back to the adapter path.
 
 ## 6. Schema Validation & Gap Analysis
 
-Seven items to validate before any Claudriel code changes:
+Eight items to validate before any Claudriel code changes:
 
 | # | Item | Risk | Notes |
 |---|------|------|-------|
-| 1 | `tenant_id` is filterable | HIGH | Must be a declared field, not a `_data` blob value |
-| 2 | `last_interaction_at` is sortable | HIGH | Must be a schema column for SQL-level sorting |
-| 3 | `confidence` maps to GraphQL Float | MEDIUM | Commitment must define it with a float field type |
-| 4 | Update input types have all-optional fields | MEDIUM | PATCH semantics require nullable inputs |
-| 5 | `person_uuid` as entity reference (future) | LOW | Not needed for v1, flag for later |
-| 6 | Tenant context as implicit filter (future) | LOW | Future enhancement, not a blocker |
-| 7 | Pagination arguments (`limit`/`offset`) exist as `Int` | LOW | Confirm on all `*List` queries with correct defaults |
+| 1 | `tenant_id` is filterable | HIGH | Must be a declared schema column, not a `_data` blob value. `QueryApplier` generates SQL `WHERE` clauses via `SqlEntityQuery::condition()` — fields in `_data` cannot be filtered at the SQL level. If stored in `_data`, requires schema migration to promote to a real column. |
+| 2 | `last_interaction_at` is sortable | HIGH | Same constraint — `QueryApplier` sorts at SQL level. Fields in `_data` blob are invisible to `ORDER BY`. Must be a schema column. |
+| 3 | `confidence` maps to GraphQL Float | MEDIUM | Commitment must define it with a float field type in its field definitions. |
+| 4 | Update input types support partial updates | HIGH | Waaseyaa's `buildInputFields()` wraps fields marked `required` in the entity type with `Type::nonNull()`. This means `updateCommitment(input: { title: "..." })` would fail if `title` is required — you can't omit it. Either Waaseyaa needs separate create/update input types, or Claudriel's required fields need review. This is a likely Waaseyaa change (W3). |
+| 5 | `person_uuid` as entity reference (future) | LOW | Not needed for v1, flag for later. |
+| 6 | Tenant context as implicit filter (future) | LOW | Future enhancement, not a blocker. |
+| 7 | Pagination arguments (`limit`/`offset`) exist as `Int` | LOW | Confirm on all `*List` queries with correct defaults when omitted. |
+| 8 | Partial GraphQL responses | LOW | GraphQL can return both `data` and `errors` simultaneously. The `graphqlFetch()` helper currently throws on any errors. Decide whether to support partial success or treat any error as total failure. |
 
 **Validation method:** PHPUnit integration test that boots the Claudriel kernel, generates the GraphQL schema, and asserts expected query/mutation fields exist with correct types. Becomes a regression guard for the schema contract.
 
@@ -212,7 +245,7 @@ Seven items to validate before any Claudriel code changes:
 |---|-------|------------|-------------|
 | W1 | Schema validation test harness | — | Integration test that boots a test kernel, generates GraphQL schema, asserts field/type presence. Reusable for any app. |
 | W2 | Validate filter/sort on `_data` blob fields | W1 | Confirm whether `QueryApplier` can filter/sort on fields stored in `_data` vs schema columns. Document the limitation if not. |
-| W3 | Validate nullable input types for PATCH semantics | W1 | Confirm auto-generated mutation input types have all-optional fields for update operations. Fix if not. |
+| W3 | Separate create/update input types for PATCH semantics | W1 | `buildInputFields()` wraps `required` fields with `NonNull`, breaking partial updates. Either generate separate `{Type}CreateInput` (with NonNull) and `{Type}UpdateInput` (all nullable), or make all input fields nullable and validate required-ness in the resolver. |
 | W4 | Validate pagination arguments on list queries | W1 | Confirm `limit`/`offset` exist as `Int` on all `*List` queries, with correct defaults when omitted. |
 | W5 | Tag v0.1.0-alpha.10 | W2, W3, W4 | Release including GraphQL package + any fixes from validation. |
 
