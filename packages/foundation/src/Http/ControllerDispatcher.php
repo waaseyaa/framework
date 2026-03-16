@@ -529,6 +529,17 @@ final class ControllerDispatcher
                     ResponseSender::json(200, $mcp->handleRpc($rpc));
                 })(),
 
+                $controller === 'graphql.endpoint' => (function () use ($method, $httpRequest, $account, $queryString): never {
+                    $endpoint = new \Waaseyaa\GraphQL\GraphQlEndpoint(
+                        entityTypeManager: $this->entityTypeManager,
+                        accessHandler: $this->accessHandler,
+                        account: $account,
+                    );
+                    parse_str($queryString, $queryParams);
+                    $result = $endpoint->handle($method, $httpRequest->getContent(), $queryParams);
+                    ResponseSender::json($result['statusCode'], $result['body']);
+                })(),
+
                 $controller === 'render.page' => (function () use ($params, $query, $account, $httpRequest): never {
                     $requestedViewMode = is_string($query['view_mode'] ?? null)
                         ? trim((string) $query['view_mode'])

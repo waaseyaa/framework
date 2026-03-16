@@ -1,0 +1,50 @@
+{
+    "name": "waaseyaa/graphql",
+    "description": "GraphQL endpoint for Waaseyaa — auto-generated schema from entity types",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "repositories": [
+        { "type": "path", "url": "../routing" },
+        { "type": "path", "url": "../access" },
+        { "type": "path", "url": "../entity" },
+        { "type": "path", "url": "../entity-storage" },
+        { "type": "path", "url": "../field" },
+        { "type": "path", "url": "../api" },
+        { "type": "path", "url": "../plugin" },
+        { "type": "path", "url": "../cache" },
+        { "type": "path", "url": "../typed-data" },
+        { "type": "path", "url": "../config" },
+        { "type": "path", "url": "../database-legacy" },
+        { "type": "path", "url": "../foundation" }
+    ],
+    "require": {
+        "php": ">=8.4",
+        "webonyx/graphql-php": "^15.0",
+        "waaseyaa/entity": "@dev",
+        "waaseyaa/field": "@dev",
+        "waaseyaa/access": "@dev",
+        "waaseyaa/routing": "@dev",
+        "waaseyaa/api": "@dev"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Waaseyaa\\GraphQL\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Waaseyaa\\GraphQL\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.1.x-dev",
+            "dev-develop/v1.1": "0.1.x-dev"
+        }
+    }
+}
