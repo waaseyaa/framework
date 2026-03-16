@@ -18,7 +18,7 @@ parameters:
         - packages/entity/src
         - packages/field/src
         - packages/foundation/src
-        - packages/graphql/src
+
         - packages/i18n/src
         - packages/mail/src
         - packages/mcp/src

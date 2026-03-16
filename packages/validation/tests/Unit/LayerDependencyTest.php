@@ -44,7 +44,7 @@ final class LayerDependencyTest extends TestCase
         'waaseyaa/mcp',
         'waaseyaa/ssr',
         'waaseyaa/telescope',
-        'waaseyaa/graphql',
+
     ];
 
     #[Test]

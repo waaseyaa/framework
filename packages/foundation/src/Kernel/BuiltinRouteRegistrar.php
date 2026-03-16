@@ -145,6 +145,9 @@ final class BuiltinRouteRegistrar
                 ->build(),
         );
 
+        $graphQlRouteProvider = new \Waaseyaa\GraphQL\GraphQlRouteProvider();
+        $graphQlRouteProvider->registerRoutes($router);
+
         $router->addRoute(
             'api.user.me',
             RouteBuilder::create('/api/user/me')

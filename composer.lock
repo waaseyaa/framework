@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "4e6f28c2168d268418203f05620b018b",
+    "content-hash": "c0943ff3ab1eb161f1db0e5ed6aab146",
     "packages": [
         {
             "name": "doctrine/dbal",
@@ -162,20 +162,20 @@
         },
         {
             "name": "league/uri",
-            "version": "7.8.0",
+            "version": "7.8.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/thephpleague/uri.git",
-                "reference": "4436c6ec8d458e4244448b069cc572d088230b76"
+                "reference": "08cf38e3924d4f56238125547b5720496fac8fd4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/thephpleague/uri/zipball/4436c6ec8d458e4244448b069cc572d088230b76",
-                "reference": "4436c6ec8d458e4244448b069cc572d088230b76",
+                "url": "https://api.github.com/repos/thephpleague/uri/zipball/08cf38e3924d4f56238125547b5720496fac8fd4",
+                "reference": "08cf38e3924d4f56238125547b5720496fac8fd4",
                 "shasum": ""
             },
             "require": {
-                "league/uri-interfaces": "^7.8",
+                "league/uri-interfaces": "^7.8.1",
                 "php": "^8.1",
                 "psr/http-factory": "^1"
             },
@@ -248,7 +248,7 @@
                 "docs": "https://uri.thephpleague.com",
                 "forum": "https://thephpleague.slack.com",
                 "issues": "https://github.com/thephpleague/uri-src/issues",
-                "source": "https://github.com/thephpleague/uri/tree/7.8.0"
+                "source": "https://github.com/thephpleague/uri/tree/7.8.1"
             },
             "funding": [
                 {
@@ -256,20 +256,20 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-01-14T17:24:56+00:00"
+            "time": "2026-03-15T20:22:25+00:00"
         },
         {
             "name": "league/uri-interfaces",
-            "version": "7.8.0",
+            "version": "7.8.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/thephpleague/uri-interfaces.git",
-                "reference": "c5c5cd056110fc8afaba29fa6b72a43ced42acd4"
+                "reference": "85d5c77c5d6d3af6c54db4a78246364908f3c928"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/thephpleague/uri-interfaces/zipball/c5c5cd056110fc8afaba29fa6b72a43ced42acd4",
-                "reference": "c5c5cd056110fc8afaba29fa6b72a43ced42acd4",
+                "url": "https://api.github.com/repos/thephpleague/uri-interfaces/zipball/85d5c77c5d6d3af6c54db4a78246364908f3c928",
+                "reference": "85d5c77c5d6d3af6c54db4a78246364908f3c928",
                 "shasum": ""
             },
             "require": {
@@ -332,7 +332,7 @@
                 "docs": "https://uri.thephpleague.com",
                 "forum": "https://thephpleague.slack.com",
                 "issues": "https://github.com/thephpleague/uri-src/issues",
-                "source": "https://github.com/thephpleague/uri-interfaces/tree/7.8.0"
+                "source": "https://github.com/thephpleague/uri-interfaces/tree/7.8.1"
             },
             "funding": [
                 {
@@ -340,7 +340,74 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-01-15T06:54:53+00:00"
+            "time": "2026-03-08T20:05:35+00:00"
+        },
+        {
+            "name": "masterminds/html5",
+            "version": "2.10.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/Masterminds/html5-php.git",
+                "reference": "fcf91eb64359852f00d921887b219479b4f21251"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Masterminds/html5-php/zipball/fcf91eb64359852f00d921887b219479b4f21251",
+                "reference": "fcf91eb64359852f00d921887b219479b4f21251",
+                "shasum": ""
+            },
+            "require": {
+                "ext-dom": "*",
+                "php": ">=5.3.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^4.8.35 || ^5.7.21 || ^6 || ^7 || ^8 || ^9"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "2.7-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Masterminds\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Matt Butcher",
+                    "email": "technosophos@gmail.com"
+                },
+                {
+                    "name": "Matt Farina",
+                    "email": "matt@mattfarina.com"
+                },
+                {
+                    "name": "Asmir Mustafic",
+                    "email": "goetas@gmail.com"
+                }
+            ],
+            "description": "An HTML5 parser and serializer.",
+            "homepage": "http://masterminds.github.io/html5-php",
+            "keywords": [
+                "HTML5",
+                "dom",
+                "html",
+                "parser",
+                "querypath",
+                "serializer",
+                "xml"
+            ],
+            "support": {
+                "issues": "https://github.com/Masterminds/html5-php/issues",
+                "source": "https://github.com/Masterminds/html5-php/tree/2.10.0"
+            },
+            "time": "2025-07-25T09:04:22+00:00"
         },
         {
             "name": "psr/cache",
@@ -1240,22 +1307,24 @@
         },
         {
             "name": "symfony/html-sanitizer",
-            "version": "v8.0.7",
+            "version": "v7.4.7",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/html-sanitizer.git",
-                "reference": "555b37caeee3d07af33471e02377d5ff561f8ac2"
+                "reference": "e4df2abd9391ce3263baa1aea9e993f6da74a3c7"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/html-sanitizer/zipball/555b37caeee3d07af33471e02377d5ff561f8ac2",
-                "reference": "555b37caeee3d07af33471e02377d5ff561f8ac2",
+                "url": "https://api.github.com/repos/symfony/html-sanitizer/zipball/e4df2abd9391ce3263baa1aea9e993f6da74a3c7",
+                "reference": "e4df2abd9391ce3263baa1aea9e993f6da74a3c7",
                 "shasum": ""
             },
             "require": {
                 "ext-dom": "*",
                 "league/uri": "^6.5|^7.0",
-                "php": ">=8.4"
+                "masterminds/html5": "^2.7.2",
+                "php": ">=8.2",
+                "symfony/deprecation-contracts": "^2.5|^3"
             },
             "type": "library",
             "autoload": {
@@ -1288,7 +1357,7 @@
                 "sanitizer"
             ],
             "support": {
-                "source": "https://github.com/symfony/html-sanitizer/tree/v8.0.7"
+                "source": "https://github.com/symfony/html-sanitizer/tree/v7.4.7"
             },
             "funding": [
                 {
@@ -1308,7 +1377,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-03-06T13:17:40+00:00"
+            "time": "2026-03-06T13:15:18+00:00"
         },
         {
             "name": "symfony/http-foundation",
@@ -2747,14 +2816,14 @@
         },
         {
             "name": "waaseyaa/access",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/access",
-                "reference": "c228a74a9a24ece19a983120f628e5bf7213da7f"
+                "reference": "fd3bf06a196156a490092b895f9dfcd1cee4ffb9"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "symfony/http-foundation": "^7.0",
                 "waaseyaa/entity": "^0.1",
                 "waaseyaa/foundation": "^0.1",
@@ -2767,6 +2836,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -2789,15 +2859,15 @@
             }
         },
         {
-            "name": "waaseyaa/admin-bridge",
-            "version": "dev-develop/v1.1",
+            "name": "waaseyaa/admin-surface",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
-                "url": "packages/admin-bridge",
-                "reference": "570ce612b49a2d44230a1080d4f7c6341b149a4d"
+                "url": "packages/admin-surface",
+                "reference": "8159ff756ecb7fcc43b2dd53963fa38a458b9322"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "waaseyaa/access": "@dev",
                 "waaseyaa/entity": "@dev",
                 "waaseyaa/foundation": "@dev",
@@ -2810,58 +2880,11 @@
             "extra": {
                 "waaseyaa": {
                     "providers": [
-                        "Waaseyaa\\AdminBridge\\AdminBridgeServiceProvider"
-                    ]
-                },
-                "branch-alias": {
-                    "dev-develop/v1.1": "0.1.x-dev"
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Waaseyaa\\AdminBridge\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Waaseyaa\\AdminBridge\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "PHP bridge for mounting the Waaseyaa Admin SPA",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "waaseyaa/admin-surface",
-            "version": "dev-develop/v1.1",
-            "dist": {
-                "type": "path",
-                "url": "packages/admin-surface",
-                "reference": "219bca323e15ff2840cb0d220ea23ea7f151a2d0"
-            },
-            "require": {
-                "php": ">=8.3",
-                "waaseyaa/access": "@dev",
-                "waaseyaa/entity": "@dev",
-                "waaseyaa/foundation": "@dev",
-                "waaseyaa/routing": "@dev",
-                "waaseyaa/user": "@dev"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "extra": {
-                "waaseyaa": {
-                    "providers": [
                         "Waaseyaa\\AdminSurface\\AdminSurfaceServiceProvider"
                     ]
                 },
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -2885,14 +2908,14 @@
         },
         {
             "name": "waaseyaa/ai-agent",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-agent",
-                "reference": "d98bd16f508450e8078c5c0b255972b3e0ed2c5b"
+                "reference": "8d066d6b4156efb734fad9900fac28ced43857ac"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "waaseyaa/access": "^0.1",
                 "waaseyaa/ai-schema": "^0.1"
             },
@@ -2902,6 +2925,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -2925,14 +2949,14 @@
         },
         {
             "name": "waaseyaa/ai-pipeline",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-pipeline",
-                "reference": "22824eec20ab3db13bbc70799850a468923ea45f"
+                "reference": "1b5980ff3b37147c4d1a3c542f3f1c8e647c000e"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "waaseyaa/ai-vector": "^0.1",
                 "waaseyaa/entity": "^0.1",
                 "waaseyaa/queue": "^0.1"
@@ -2948,6 +2972,7 @@
                     ]
                 },
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -2971,14 +2996,14 @@
         },
         {
             "name": "waaseyaa/ai-schema",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-schema",
-                "reference": "441c8a4be6620234d30ea1db695132320ce9d80d"
+                "reference": "15deb722db6cc77fa1d3f3465807334f2eb81f1a"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "waaseyaa/entity": "^0.1"
             },
             "require-dev": {
@@ -2987,6 +3012,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3010,14 +3036,14 @@
         },
         {
             "name": "waaseyaa/ai-vector",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/ai-vector",
-                "reference": "d7f3f40a5336f29e8700b1ae2a4aaf9cbb29086e"
+                "reference": "52b5748ec30496aee3241e551eb1bfb0d83705a3"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "waaseyaa/access": "^0.1",
                 "waaseyaa/api": "^0.1",
                 "waaseyaa/entity": "^0.1",
@@ -3030,6 +3056,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3053,14 +3080,14 @@
         },
         {
             "name": "waaseyaa/api",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/api",
-                "reference": "3323fc95d432b749b7b9cc8c3db824fd4dd24606"
+                "reference": "cb5468fdcf7671c2c11cc029fb81938e224d5448"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "waaseyaa/access": "^0.1",
                 "waaseyaa/entity": "^0.1",
                 "waaseyaa/foundation": "^0.1",
@@ -3072,6 +3099,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3095,14 +3123,14 @@
         },
         {
             "name": "waaseyaa/cache",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/cache",
-                "reference": "c8bee2c15cb67d0e5879a208a1a8c5951e6f2a4e"
+                "reference": "fc42e826917e653dda318d043ee1ba11bcbcc43b"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "psr/cache": "^3.0",
                 "psr/simple-cache": "^3.0"
             },
@@ -3116,6 +3144,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3139,14 +3168,14 @@
         },
         {
             "name": "waaseyaa/cli",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
-                "reference": "958315129c8ef6d69a3168e380a9412311d45459"
+                "reference": "bb77cafa78b9369204132afb1db40a250ad6beca"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "symfony/console": "^7.0",
                 "waaseyaa/access": "^0.1",
                 "waaseyaa/cache": "^0.1",
@@ -3160,6 +3189,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3183,14 +3213,14 @@
         },
         {
             "name": "waaseyaa/config",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/config",
-                "reference": "cce61e0c63c233f3ce9ffa462fc91c7f29a60ffc"
+                "reference": "d6977f52b6962f9b78150b76d283e5cb438f6c5e"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "symfony/event-dispatcher": "^7.0",
                 "symfony/yaml": "^7.0"
             },
@@ -3200,6 +3230,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3223,14 +3254,14 @@
         },
         {
             "name": "waaseyaa/database-legacy",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/database-legacy",
-                "reference": "34ebbbb4bc4f6a83aa5a5c73eef88c7c9d67058d"
+                "reference": "9a38062b6491b11c3a3a574d9ce1552a6d351931"
             },
             "require": {
-                "php": ">=8.3"
+                "php": ">=8.4"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -3238,6 +3269,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3261,14 +3293,14 @@
         },
         {
             "name": "waaseyaa/entity",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/entity",
-                "reference": "699efd2585980d3f321fd13f0ac60ff1d59afd3d"
+                "reference": "425eaf6877549a1b891f97689958141cb734627b"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "symfony/event-dispatcher": "^7.3",
                 "symfony/uid": "^7.3",
                 "symfony/validator": "^7.3",
@@ -3285,6 +3317,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3308,14 +3341,14 @@
         },
         {
             "name": "waaseyaa/entity-storage",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/entity-storage",
-                "reference": "3d737f6188fe1502165925caea7cfc8f57c50d91"
+                "reference": "371e8674912009f646c20adbfa9d06a195c54450"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "symfony/event-dispatcher": "^7.3",
                 "waaseyaa/cache": "^0.1",
                 "waaseyaa/database-legacy": "^0.1",
@@ -3328,6 +3361,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3351,14 +3385,14 @@
         },
         {
             "name": "waaseyaa/field",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/field",
-                "reference": "75bb54cacabf8b7900e6efbd40d27d1507d6e6ca"
+                "reference": "a294c1ba3bdc8b3c990aaea58ae4d9217f400ac7"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "waaseyaa/entity": "^0.1",
                 "waaseyaa/plugin": "^0.1",
                 "waaseyaa/typed-data": "^0.1"
@@ -3369,6 +3403,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3392,15 +3427,15 @@
         },
         {
             "name": "waaseyaa/foundation",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/foundation",
-                "reference": "1e2bb60bde7797848bf2e258041ae1eb449b29ab"
+                "reference": "98c6e961e4fa379397cd6bf0b8895aeee6933c5f"
             },
             "require": {
                 "doctrine/dbal": "^4.0",
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "symfony/dependency-injection": "^7.0",
                 "symfony/event-dispatcher": "^7.0",
                 "symfony/http-foundation": "^7.0",
@@ -3414,6 +3449,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3436,15 +3472,90 @@
             }
         },
         {
+            "name": "waaseyaa/github",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/github",
+                "reference": "d7ef994f8ece644d6ae9a46b9866dabc98196e22"
+            },
+            "require": {
+                "php": ">=8.4"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\GitHub\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\GitHub\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "GitHub API client for issues, milestones, and pull requests",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/graphql",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/graphql",
+                "reference": "8117a151a24bc2c22bf4e988f506a2d42a654adf"
+            },
+            "require": {
+                "php": ">=8.4",
+                "waaseyaa/access": "@dev",
+                "waaseyaa/api": "@dev",
+                "waaseyaa/entity": "@dev",
+                "waaseyaa/field": "@dev",
+                "waaseyaa/routing": "@dev",
+                "webonyx/graphql-php": "^15.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev",
+                    "dev-develop/v1.1": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\GraphQL\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\GraphQL\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "GraphQL endpoint for Waaseyaa — auto-generated schema from entity types",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
             "name": "waaseyaa/i18n",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/i18n",
-                "reference": "df5768fe3bd47f3d0b4bfbe91944cd5323b9c891"
+                "reference": "f4ed833cb85371bb3ee73a77fdeebd56a46cd89d"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "twig/twig": "^3.0"
             },
             "require-dev": {
@@ -3453,6 +3564,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3476,11 +3588,11 @@
         },
         {
             "name": "waaseyaa/mail",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/mail",
-                "reference": "471b51b90d4f4f816d09ba17ec9bba128733b236"
+                "reference": "38858cfe0ce774f2306dbef7e16bc64730fe4475"
             },
             "require": {
                 "php": ">=8.4",
@@ -3496,6 +3608,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3519,14 +3632,14 @@
         },
         {
             "name": "waaseyaa/mcp",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/mcp",
-                "reference": "adb4b06f5921f3478a645fbbe33d674124fc47f2"
+                "reference": "bb42f193bfdf76ef20450e7d2c18b62e946336bd"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "waaseyaa/access": "^0.1",
                 "waaseyaa/ai-agent": "^0.1",
                 "waaseyaa/ai-schema": "^0.1",
@@ -3543,6 +3656,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3566,14 +3680,14 @@
         },
         {
             "name": "waaseyaa/media",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/media",
-                "reference": "28d6331a2aa430c9fa975547d28560e767391699"
+                "reference": "644dc399989f40a1b7c298844f85db16282e9f9b"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "waaseyaa/entity": "^0.1"
             },
             "require-dev": {
@@ -3587,6 +3701,7 @@
                     ]
                 },
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3610,14 +3725,14 @@
         },
         {
             "name": "waaseyaa/menu",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/menu",
-                "reference": "b92b5aea161a6c416621f3d666171715fda7c932"
+                "reference": "f95df3b95f8dec5e69026e998cf67233325a4e3b"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "waaseyaa/entity": "^0.1"
             },
             "require-dev": {
@@ -3631,6 +3746,7 @@
                     ]
                 },
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3654,14 +3770,14 @@
         },
         {
             "name": "waaseyaa/node",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/node",
-                "reference": "1694b1af6e178312147ac7cf1013ba5eb7927e98"
+                "reference": "b99df05e1683c30fbf64b694f43a1857eec98ee4"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "waaseyaa/access": "^0.1",
                 "waaseyaa/entity": "^0.1"
             },
@@ -3676,6 +3792,7 @@
                     ]
                 },
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3699,14 +3816,14 @@
         },
         {
             "name": "waaseyaa/note",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/note",
-                "reference": "79ae125da320a7afdd2fda2baef85b42e4db2ef8"
+                "reference": "4091b9d849e902bfca7febadba9cdbd037ed5f1c"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "waaseyaa/access": "^0.1",
                 "waaseyaa/entity": "^0.1"
             },
@@ -3721,6 +3838,7 @@
                     ]
                 },
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3744,14 +3862,14 @@
         },
         {
             "name": "waaseyaa/path",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/path",
-                "reference": "b319711c802ebdfc85b57acfb3e5940fe7ed11be"
+                "reference": "4255efb9a0cb81a2781065e12a95d2474f646f2a"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "waaseyaa/entity": "^0.1"
             },
             "require-dev": {
@@ -3765,6 +3883,7 @@
                     ]
                 },
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3788,14 +3907,14 @@
         },
         {
             "name": "waaseyaa/plugin",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/plugin",
-                "reference": "be494647601c066ce146fd9be31e9e6dbb42b1db"
+                "reference": "33cc09e8c304e104fd21f3bd11f96dc2f9e5756b"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "waaseyaa/cache": "*"
             },
             "require-dev": {
@@ -3804,6 +3923,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3827,14 +3947,14 @@
         },
         {
             "name": "waaseyaa/queue",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/queue",
-                "reference": "f0df0a0ac2878ae0275b9919749ac38c1c64e803"
+                "reference": "4b6cffddd8befc3d60ea47e2073b600ac94df684"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "symfony/messenger": "^7.3"
             },
             "require-dev": {
@@ -3843,6 +3963,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3866,14 +3987,14 @@
         },
         {
             "name": "waaseyaa/relationship",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/relationship",
-                "reference": "d3dac1f95e32c2462b40af2895abc51620acabb1"
+                "reference": "f9be8fe8e28456c0963cc67edfa780787f8f3d8f"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "waaseyaa/access": "^0.1",
                 "waaseyaa/database-legacy": "^0.1",
                 "waaseyaa/entity": "^0.1",
@@ -3887,6 +4008,7 @@
                     ]
                 },
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3905,14 +4027,14 @@
         },
         {
             "name": "waaseyaa/routing",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/routing",
-                "reference": "61def63b5e6609eb9780291b15bd897086b8b338"
+                "reference": "c5104cad9760cb5d0ace671c2b25cadab018cbc6"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "symfony/routing": "^7.3",
                 "waaseyaa/access": "^0.1",
                 "waaseyaa/entity": "^0.1",
@@ -3924,6 +4046,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3947,14 +4070,14 @@
         },
         {
             "name": "waaseyaa/search",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/search",
-                "reference": "205b3c0fbe9231e9a2e65f5b34dad748a7be6594"
+                "reference": "81d79a73e426d8ca418780ce3837c03d557fd205"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "twig/twig": "^3.0"
             },
             "require-dev": {
@@ -3963,6 +4086,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -3986,11 +4110,11 @@
         },
         {
             "name": "waaseyaa/ssr",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/ssr",
-                "reference": "0e72c8b55cdc3c4be37caeef354dde2a63984bd6"
+                "reference": "68167847a0a3679b35479c8585cae8aadb57a3bb"
             },
             "require": {
                 "php": ">=8.4",
@@ -4014,6 +4138,7 @@
                     ]
                 },
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -4037,14 +4162,14 @@
         },
         {
             "name": "waaseyaa/state",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/state",
-                "reference": "f5223f96491e4a07477db6c756b7cd7fad639027"
+                "reference": "c6181040b0aa059739655c3c2cf14203cdc1f66d"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "waaseyaa/database-legacy": "^0.1"
             },
             "require-dev": {
@@ -4053,6 +4178,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -4076,14 +4202,14 @@
         },
         {
             "name": "waaseyaa/taxonomy",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/taxonomy",
-                "reference": "a001a8c19f40bd799b81a3bc1fe62d88eb67bbbf"
+                "reference": "ee43f9d92f1d7502b374912532da26a70f485f05"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "waaseyaa/access": "^0.1",
                 "waaseyaa/entity": "^0.1"
             },
@@ -4098,6 +4224,7 @@
                     ]
                 },
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -4121,14 +4248,14 @@
         },
         {
             "name": "waaseyaa/telescope",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/telescope",
-                "reference": "65963b09cd1458dafc4363faeea7ca15653090e9"
+                "reference": "67db1bf614f24aab3fd46dfe6cd4ebb1040f7165"
             },
             "require": {
-                "php": ">=8.3"
+                "php": ">=8.4"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -4136,6 +4263,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -4159,14 +4287,14 @@
         },
         {
             "name": "waaseyaa/typed-data",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/typed-data",
-                "reference": "63056337f2c0e35ab37ddd5a2697df4504578c62"
+                "reference": "dc1e7bd63530436a61caadac23121005dc39613a"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "symfony/validator": "^7.3"
             },
             "require-dev": {
@@ -4175,6 +4303,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -4198,14 +4327,14 @@
         },
         {
             "name": "waaseyaa/user",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/user",
-                "reference": "d40f39f4f3f5832e38036743ac009feb63247c09"
+                "reference": "645475870a06b34f19705ac6589123ae782f567d"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "symfony/http-foundation": "^7.0",
                 "waaseyaa/access": "^0.1",
                 "waaseyaa/entity": "^0.1",
@@ -4222,6 +4351,7 @@
                     ]
                 },
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -4245,14 +4375,14 @@
         },
         {
             "name": "waaseyaa/validation",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/validation",
-                "reference": "310efa9f55ab7ecbf7e14f1918df80e02ccec809"
+                "reference": "8d4790e84fc6525a29c66674948e18c23015b4f0"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "symfony/validator": "^7.3",
                 "waaseyaa/typed-data": "^0.1"
             },
@@ -4262,6 +4392,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -4285,14 +4416,14 @@
         },
         {
             "name": "waaseyaa/workflows",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/workflows",
-                "reference": "e2ad082166bd36c093eb7221f6263124f3fe1335"
+                "reference": "e6be01227f7c88aaff5c822a37ec874610adaff1"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "waaseyaa/access": "^0.1",
                 "waaseyaa/entity": "^0.1"
             },
@@ -4307,6 +4438,7 @@
                     ]
                 },
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -4327,6 +4459,85 @@
             "transport-options": {
                 "relative": true
             }
+        },
+        {
+            "name": "webonyx/graphql-php",
+            "version": "v15.31.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/webonyx/graphql-php.git",
+                "reference": "8b446b55a30680f105eb5c4d25ccbc015926d398"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/webonyx/graphql-php/zipball/8b446b55a30680f105eb5c4d25ccbc015926d398",
+                "reference": "8b446b55a30680f105eb5c4d25ccbc015926d398",
+                "shasum": ""
+            },
+            "require": {
+                "ext-json": "*",
+                "ext-mbstring": "*",
+                "php": "^7.4 || ^8"
+            },
+            "require-dev": {
+                "amphp/amp": "^2.6",
+                "amphp/http-server": "^2.1",
+                "dms/phpunit-arraysubset-asserts": "dev-master",
+                "ergebnis/composer-normalize": "^2.28",
+                "friendsofphp/php-cs-fixer": "3.94.2",
+                "mll-lab/php-cs-fixer-config": "5.13.0",
+                "nyholm/psr7": "^1.5",
+                "phpbench/phpbench": "^1.2",
+                "phpstan/extension-installer": "^1.1",
+                "phpstan/phpstan": "2.1.40",
+                "phpstan/phpstan-phpunit": "2.0.16",
+                "phpstan/phpstan-strict-rules": "2.0.10",
+                "phpunit/phpunit": "^9.5 || ^10.5.21 || ^11",
+                "psr/http-message": "^1 || ^2",
+                "react/http": "^1.6",
+                "react/promise": "^2.0 || ^3.0",
+                "rector/rector": "^2.0",
+                "symfony/polyfill-php81": "^1.23",
+                "symfony/var-exporter": "^5 || ^6 || ^7 || ^8",
+                "thecodingmachine/safe": "^1.3 || ^2 || ^3",
+                "ticketswap/phpstan-error-formatter": "1.2.6"
+            },
+            "suggest": {
+                "amphp/http-server": "To leverage async resolving with webserver on AMPHP platform",
+                "psr/http-message": "To use standard GraphQL server",
+                "react/promise": "To leverage async resolving on React PHP platform"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "GraphQL\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "A PHP port of GraphQL reference implementation",
+            "homepage": "https://github.com/webonyx/graphql-php",
+            "keywords": [
+                "api",
+                "graphql"
+            ],
+            "support": {
+                "issues": "https://github.com/webonyx/graphql-php/issues",
+                "source": "https://github.com/webonyx/graphql-php/tree/v15.31.1"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/spawnia",
+                    "type": "github"
+                },
+                {
+                    "url": "https://opencollective.com/webonyx-graphql-php",
+                    "type": "open_collective"
+                }
+            ],
+            "time": "2026-03-16T15:32:01+00:00"
         }
     ],
     "packages-dev": [
@@ -7662,19 +7873,20 @@
         },
         {
             "name": "waaseyaa/testing",
-            "version": "dev-develop/v1.1",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/testing",
-                "reference": "f36f0435103a8c2be6b78fb6a07f278cf732ce44"
+                "reference": "206cd547140bf44e04441f063055cf0744b63842"
             },
             "require": {
-                "php": ">=8.3",
+                "php": ">=8.4",
                 "phpunit/phpunit": "^10.5"
             },
             "type": "library",
             "extra": {
                 "branch-alias": {
+                    "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 }
             },
@@ -7701,7 +7913,6 @@
     "minimum-stability": "dev",
     "stability-flags": {
         "waaseyaa/access": 20,
-        "waaseyaa/admin-bridge": 20,
         "waaseyaa/admin-surface": 20,
         "waaseyaa/ai-agent": 20,
         "waaseyaa/ai-pipeline": 20,
@@ -7716,6 +7927,8 @@
         "waaseyaa/entity-storage": 20,
         "waaseyaa/field": 20,
         "waaseyaa/foundation": 20,
+        "waaseyaa/github": 20,
+        "waaseyaa/graphql": 20,
         "waaseyaa/i18n": 20,
         "waaseyaa/mail": 20,
         "waaseyaa/mcp": 20,

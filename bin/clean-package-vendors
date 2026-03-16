@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Remove per-package vendor directories installed by individual composer.json files.
+# These are gitignored and only needed when running package-level tests in isolation.
+# Re-create with: cd packages/<name> && composer install
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+PACKAGES_DIR="${SCRIPT_DIR}/packages"
+
+removed=0
+for vendor_dir in "${PACKAGES_DIR}"/*/vendor; do
+    if [ -d "$vendor_dir" ]; then
+        pkg=$(basename "$(dirname "$vendor_dir")")
+        rm -rf "$vendor_dir"
+        echo "Removed packages/${pkg}/vendor/"
+        removed=$((removed + 1))
+    fi
+done
+
+if [ "$removed" -eq 0 ]; then
+    echo "No per-package vendor directories found."
+else
+    echo "Removed ${removed} vendor directories."
+fi

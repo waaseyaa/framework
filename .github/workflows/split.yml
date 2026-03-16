@@ -51,7 +51,6 @@ jobs:
           - { local: 'packages/ai-pipeline', remote: 'ai-pipeline' }
           - { local: 'packages/ai-vector', remote: 'ai-vector' }
           # Layer 6: Interfaces
-          - { local: 'packages/admin-bridge', remote: 'admin-bridge' }
           - { local: 'packages/cli', remote: 'cli' }
           - { local: 'packages/mcp', remote: 'mcp' }
           - { local: 'packages/ssr', remote: 'ssr' }
@@ -61,7 +60,6 @@ jobs:
           - { local: 'packages/cms', remote: 'cms' }
           - { local: 'packages/core', remote: 'core' }
           - { local: 'packages/full', remote: 'full' }
-          - { local: 'packages/graphql', remote: 'graphql' }
 
     steps:
       - uses: actions/checkout@v4

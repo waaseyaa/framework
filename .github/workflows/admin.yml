@@ -6,13 +6,11 @@ on:
     tags: ['v*']
     paths:
       - 'packages/admin/**'
-      - 'packages/admin-bridge/**'
       - '.github/workflows/admin.yml'
   pull_request:
     branches: [main, 'develop/*']
     paths:
       - 'packages/admin/**'
-      - 'packages/admin-bridge/**'
       - '.github/workflows/admin.yml'
 
 concurrency:

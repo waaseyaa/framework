@@ -28,7 +28,7 @@
         { "type": "path", "url": "packages/relationship" },
         { "type": "path", "url": "packages/workflows" },
         { "type": "path", "url": "packages/api" },
-        { "type": "path", "url": "packages/graphql" },
+
         { "type": "path", "url": "packages/ai-schema" },
         { "type": "path", "url": "packages/ai-agent" },
         { "type": "path", "url": "packages/ai-vector" },
@@ -38,6 +38,7 @@
         { "type": "path", "url": "packages/core" },
         { "type": "path", "url": "packages/cms" },
         { "type": "path", "url": "packages/mcp" },
+        { "type": "path", "url": "packages/graphql" },
         { "type": "path", "url": "packages/foundation" },
         { "type": "path", "url": "packages/mail" },
         { "type": "path", "url": "packages/search" },
@@ -45,7 +46,6 @@
         { "type": "path", "url": "packages/testing" },
         { "type": "path", "url": "packages/telescope" },
         { "type": "path", "url": "packages/full" },
-        { "type": "path", "url": "packages/admin-bridge" },
         { "type": "path", "url": "packages/admin-surface" },
         { "type": "path", "url": "packages/github" }
     ],
@@ -54,7 +54,6 @@
         "symfony/console": "^7.0",
         "symfony/html-sanitizer": "^7.0",
         "waaseyaa/access": "@dev",
-        "waaseyaa/admin-bridge": "@dev",
         "waaseyaa/admin-surface": "@dev",
         "waaseyaa/ai-agent": "@dev",
         "waaseyaa/ai-pipeline": "@dev",
@@ -70,6 +69,7 @@
         "waaseyaa/field": "@dev",
         "waaseyaa/foundation": "@dev",
         "waaseyaa/github": "@dev",
+        "waaseyaa/graphql": "@dev",
         "waaseyaa/i18n": "@dev",
         "waaseyaa/mail": "@dev",
         "waaseyaa/mcp": "@dev",
@@ -122,6 +122,7 @@
             "Waaseyaa\\Queue\\Tests\\": "packages/queue/tests/",
             "Waaseyaa\\State\\Tests\\": "packages/state/tests/",
             "Waaseyaa\\Mcp\\Tests\\": "packages/mcp/tests/",
+            "Waaseyaa\\GraphQL\\Tests\\": "packages/graphql/tests/",
             "Waaseyaa\\Mail\\Tests\\": "packages/mail/tests/",
             "Waaseyaa\\Media\\Tests\\": "packages/media/tests/",
             "Waaseyaa\\Menu\\Tests\\": "packages/menu/tests/",
@@ -141,7 +142,6 @@
             "Waaseyaa\\AI\\Vector\\Tests\\": "packages/ai-vector/tests/",
             "Waaseyaa\\Testing\\Tests\\": "packages/testing/tests/",
             "Waaseyaa\\Telescope\\Tests\\": "packages/telescope/tests/",
-            "Waaseyaa\\AdminBridge\\Tests\\": "packages/admin-bridge/tests/",
             "Waaseyaa\\AdminSurface\\Tests\\": "packages/admin-surface/tests/",
             "Waaseyaa\\Tests\\": "tests/"
         }

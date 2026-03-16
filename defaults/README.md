@@ -7,7 +7,7 @@ schemas, and configuration.
 
 - Files in this directory are **immutable via API** — they cannot be deleted through the platform API.
 - They may be **disabled per tenant** via admin UI or CLI, with an audit log entry.
-- Every manifest must include a `project_versioning` block (see `VERSIONING.md`).
+- Every manifest must include a `project_versioning` block (see `docs/VERSIONING.md`).
 - Do not place package-specific defaults here; this is for platform-wide built-ins only.
 
 ## Contents

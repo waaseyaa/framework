@@ -10,6 +10,7 @@ packages/*/composer.lock
 # PHPUnit
 .phpunit.result.cache
 packages/*/.phpunit.result.cache
+packages/*/.phpunit.cache/
 
 # PHP CS Fixer
 .php-cs-fixer.cache
@@ -43,5 +44,3 @@ packages/admin/test-results/
 
 # Smoke test screenshots
 smoke-*.png
-
-
