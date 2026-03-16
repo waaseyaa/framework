@@ -28,6 +28,9 @@ use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Kernel\BuiltinRouteRegistrar;
 use Waaseyaa\Foundation\Kernel\EventListenerRegistrar;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
+use Waaseyaa\I18n\Language;
+use Waaseyaa\I18n\LanguageManager;
+use Waaseyaa\I18n\LanguageManagerInterface;
 use Waaseyaa\User\AnonymousUser;
 use Waaseyaa\User\DevAdminAccount;
 
@@ -702,6 +705,27 @@ final class HttpKernelTest extends TestCase
         $discoveryHandler = new DiscoveryApiHandler($entityTypeManager, $database);
         $cacheConfigResolver = new CacheConfigResolver($config);
 
+        // Build a LanguageManager from config or default to English-only.
+        $languageDefs = $config['i18n']['languages'] ?? [
+            ['id' => 'en', 'label' => 'English', 'is_default' => true],
+        ];
+        $languages = array_map(
+            static fn(array $def) => new Language(
+                id: $def['id'],
+                label: $def['label'],
+                isDefault: $def['is_default'] ?? false,
+            ),
+            $languageDefs,
+        );
+        $manager = new LanguageManager($languages);
+
+        $serviceResolver = static function (string $className) use ($manager): ?object {
+            if ($className === LanguageManagerInterface::class) {
+                return $manager;
+            }
+            return null;
+        };
+
         return new SsrPageHandler(
             entityTypeManager: $entityTypeManager,
             database: $database,
@@ -710,6 +734,7 @@ final class HttpKernelTest extends TestCase
             discoveryHandler: $discoveryHandler,
             projectRoot: '/tmp/test-project',
             config: $config,
+            serviceResolver: $serviceResolver,
         );
     }
 }
