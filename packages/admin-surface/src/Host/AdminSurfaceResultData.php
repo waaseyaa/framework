@@ -22,8 +22,7 @@ final readonly class AdminSurfaceResultData
         public mixed $data = null,
         public ?array $error = null,
         public array $meta = [],
-    ) {
-    }
+    ) {}
 
     /**
      * @param mixed                $data
@@ -42,7 +41,7 @@ final readonly class AdminSurfaceResultData
                 'status' => $status,
                 'title' => $title,
                 'detail' => $detail,
-            ], fn ($v) => $v !== null),
+            ], fn($v) => $v !== null),
         );
     }
 
@@ -56,6 +55,6 @@ final readonly class AdminSurfaceResultData
             'data' => $this->data,
             'error' => $this->error,
             'meta' => $this->meta ?: null,
-        ], fn ($v) => $v !== null);
+        ], fn($v) => $v !== null);
     }
 }

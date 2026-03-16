@@ -29,8 +29,7 @@ final class EntityDefinition
     public function __construct(
         private readonly string $id,
         private readonly string $label,
-    ) {
-    }
+    ) {}
 
     public function group(string $group): self
     {
@@ -90,8 +89,8 @@ final class EntityDefinition
             'id' => $this->id,
             'label' => $this->label,
             'group' => $this->group,
-            'fields' => array_map(fn (FieldDefinition $f) => $f->toArray(), $this->fields),
-            'actions' => array_map(fn (ActionDefinition $a) => $a->toArray(), $this->actions),
+            'fields' => array_map(fn(FieldDefinition $f) => $f->toArray(), $this->fields),
+            'actions' => array_map(fn(ActionDefinition $a) => $a->toArray(), $this->actions),
             'capabilities' => [
                 'list' => $this->canList,
                 'get' => $this->canGet,
@@ -100,6 +99,6 @@ final class EntityDefinition
                 'delete' => $this->canDelete,
                 'schema' => $this->canSchema,
             ],
-        ], fn ($v) => $v !== null);
+        ], fn($v) => $v !== null);
     }
 }

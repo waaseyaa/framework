@@ -30,8 +30,7 @@ final readonly class AdminSurfaceSessionData
         public string $tenantId = 'default',
         public string $tenantName = 'Default',
         public array $features = [],
-    ) {
-    }
+    ) {}
 
     /**
      * @return array<string, mixed>

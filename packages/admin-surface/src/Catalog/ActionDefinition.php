@@ -17,8 +17,7 @@ final class ActionDefinition
         private string $scope = 'entity',
         private ?string $confirmation = null,
         private bool $dangerous = false,
-    ) {
-    }
+    ) {}
 
     public function collection(): self
     {
@@ -49,6 +48,6 @@ final class ActionDefinition
             'scope' => $this->scope,
             'confirmation' => $this->confirmation,
             'dangerous' => $this->dangerous ?: null,
-        ], fn ($v) => $v !== null);
+        ], fn($v) => $v !== null);
     }
 }

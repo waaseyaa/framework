@@ -35,7 +35,7 @@ final class CatalogBuilder
     public function build(): array
     {
         return array_map(
-            fn (EntityDefinition $e) => $e->toArray(),
+            fn(EntityDefinition $e) => $e->toArray(),
             $this->entities,
         );
     }

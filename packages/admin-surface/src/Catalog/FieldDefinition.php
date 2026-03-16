@@ -23,8 +23,7 @@ final class FieldDefinition
         private bool $required = false,
         private bool $readOnly = false,
         private bool $accessRestricted = false,
-    ) {
-    }
+    ) {}
 
     public function widget(string $widget): self
     {
@@ -80,6 +79,6 @@ final class FieldDefinition
             'readOnly' => $this->readOnly ?: null,
             'accessRestricted' => $this->accessRestricted ?: null,
             'options' => $this->options ?: null,
-        ], fn ($v) => $v !== null);
+        ], fn($v) => $v !== null);
     }
 }

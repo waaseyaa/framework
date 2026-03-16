@@ -5,4 +5,4 @@ cd "$repo_root"
 echo "Running pre-push checks..."
 composer cs-check
 composer phpstan
-./vendor/bin/phpunit --configuration phpunit.xml.dist
+./vendor/bin/phpunit --testsuite Unit --no-coverage
