@@ -1,4 +1,0 @@
-Total messages: 15 (Errors: 1, Warnings: 6)
-Returning 1 messages for level "error"
-
-[ERROR] Hydration completed but contains mismatches. @ http://localhost:3000/_nuxt/@fs/home/jones/dev/waaseyaa/packages/admin/node_modules/@vue/runtime-core/dist/runtime-core.esm-bundler.js?v=a745af5f:1872
