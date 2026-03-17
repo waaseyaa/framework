@@ -57,9 +57,9 @@ final class MigrationLoader
 
 1. Iterates `$manifest->migrations` (the `[packageName => path]` map) — loads each package's migration files
 2. Checks `$basePath . '/migrations'` — if the directory exists, loads those files under the synthetic package key `'app'`
-3. Each `.php` file must `return new class extends Migration { ... }`
+3. Each `.php` file must `return new class extends Migration { ... }`. The loader validates the return value — if a file returns something other than a `Migration` instance, it throws a `\RuntimeException` with the filename.
 4. Files are sorted alphabetically within each package (timestamp prefix gives natural ordering)
-5. The migration "name" is the filename without `.php` extension (e.g., `20260317_143000_add_social_posts`)
+5. The migration "name" is `{package}:{filename}` (e.g., `waaseyaa/node:20260317_143000_create_node_table`, `app:20260317_143000_add_social_posts`). This namespacing prevents collisions when different packages have migration files with the same filename.
 6. App migrations implicitly run after all package migrations — the loader places `'app'` last in the dependency graph
 
 No caching — scans on every call. Migrations run infrequently and directories are small.
@@ -83,40 +83,44 @@ Modify `Migrator::run()` and `Migrator::rollback()` to wrap each migration execu
 
 ```php
 // In run():
-$this->connection->transactional(function () use ($migration, $schema) {
+$this->connection->transactional(function () use ($migration, $schema, $name, $package, $batch) {
     $migration->up($schema);
+    $this->repository->record($name, $package, $batch);
 });
-$this->repository->record($name, $package, $batch);
 
 // In rollback():
-$this->connection->transactional(function () use ($migration, $schema) {
+$this->connection->transactional(function () use ($migration, $schema, $name) {
     $migration->down($schema);
+    $this->repository->remove($name);
 });
-$this->repository->remove($name);
 ```
 
-If a migration fails, the transaction rolls back (where the engine supports it) and the migration is not recorded/removed in the repository.
+The `record()`/`remove()` calls are **inside** the transaction. If `up()` fails, neither the schema change nor the tracking record are committed. If `record()` fails after a successful `up()`, the entire transaction rolls back — preventing the state where a schema change is applied but not tracked.
 
-**Engine caveat:** SQLite fully supports DDL transactions. MySQL/Postgres have implicit commits on some DDL statements. Document this honestly — wrapping is still beneficial for non-DDL parts and consistent error handling.
+**Engine caveat:** SQLite and Postgres fully support DDL transactions. MySQL implicitly commits on all DDL statements — wrapping is still beneficial for non-DDL parts and consistent error handling, but DDL cannot be rolled back on MySQL.
 
 ### 4. Kernel integration
 
-New `bootMigrations()` method in `AbstractKernel::boot()`, called between `bootDatabase()` and `bootEntityTypeManager()`:
+New `bootMigrations()` method in `AbstractKernel::boot()`, called after `compileManifest()` (which produces the `PackageManifest` that `MigrationLoader` requires):
 
 ```
-bootDatabase()          → creates PdoDatabase (existing)
-bootMigrations()        → wires migration components (new)
-bootEntityTypeManager() → creates entity tables (existing)
+bootDatabase()              → creates PdoDatabase (existing)
+bootEntityTypeManager()     → creates entity tables (existing)
+compileManifest()           → produces PackageManifest (existing)
+bootMigrations()            → wires migration components (new)
+discoverAndRegisterProviders() → ... (existing)
 ```
 
 `bootMigrations()` does:
 
 1. Creates a Doctrine DBAL `Connection` wrapping the same SQLite file
 2. Creates `MigrationRepository`, calls `createTable()` (idempotent — `CREATE TABLE IF NOT EXISTS`)
-3. Creates `MigrationLoader` with `$basePath` and the package manifest
+3. Creates `MigrationLoader` with `$basePath` and `$this->manifest`
 4. Creates `Migrator` with the `Connection` and `MigrationRepository`
 5. Stores `Migrator` and `MigrationLoader` as accessible properties for CLI commands
 6. Does **not** auto-run migrations
+
+**Ordering note:** `bootMigrations()` runs after `bootEntityTypeManager()`, which means entity tables are created via `ensureTable()` before migrations run. This is correct — `ensureTable()` is idempotent and handles initial table creation, while migrations handle subsequent schema evolution (adding columns, modifying tables, creating non-entity tables). A migration that adds a column to an entity table will find the table already exists.
 
 ### 5. CLI commands
 
@@ -136,7 +140,8 @@ Three new commands in `packages/cli/src/Command/`:
 
 **`MigrateStatusCommand`** (`migrate:status`)
 - Loads migrations via `MigrationLoader::loadAll()`
-- Runs `Migrator::status()`
+- Runs `Migrator::status()` — currently returns `{pending: list<string>, completed: list<string>}`
+- Extend `Migrator::status()` to return richer data: query the repository for batch number and package per completed migration
 - Outputs a table: migration name, package, status (Pending/Ran), batch number
 
 All three receive `Migrator` and `MigrationLoader` from the kernel.
