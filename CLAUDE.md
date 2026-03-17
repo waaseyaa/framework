@@ -178,6 +178,9 @@ Design docs in `docs/plans/` are session artifacts (implementation history). Spe
 - **`discoverAccessPolicies()` constructor heuristic**: `ConfigEntityAccessPolicy` takes `array $entityTypeIds` as a required constructor parameter (from `#[PolicyAttribute]`). The reflection-based heuristic in `AbstractKernel::discoverAccessPolicies()` that passes entity types to constructors with required params exists for this reason — do not remove it.
 - **`toMachineName()` can return empty string**: Labels with only special characters (e.g. `"!!!"`) produce empty machine names after regex replacement and trim. `JsonApiController::store()` guards against this with a 422 response. Any caller of `toMachineName()` must validate the result.
 - **Kernel boot flag ordering**: `AbstractKernel::boot()` sets `$this->booted = true` *after* all initialization steps succeed. Setting it before would create a zombie state where boot failure prevents retry. If adding new boot steps, add them before the flag assignment.
+- **Migration system boot order**: `bootMigrations()` runs after `compileManifest()` (requires `PackageManifest`) and before `discoverAndRegisterProviders()`. It creates its own DBAL `Connection` separate from `PdoDatabase` — two connections to the same SQLite file, which is fine for single-threaded CLI.
+- **`MakeMigrationCommand` requires `$projectRoot`**: Constructor changed from no-arg to `(string $projectRoot)`. ConsoleKernel must pass `$this->projectRoot`. The `--package` flag is not yet implemented (see #464).
+- **Migration CLI commands take `\Closure` providers**: `MigrateCommand`, `MigrateRollbackCommand`, `MigrateStatusCommand` all accept `(Migrator, \Closure $migrationsProvider)`. The closure defers filesystem scanning until the command runs. In ConsoleKernel: `fn () => $this->migrationLoader->loadAll()`.
 
 ## Testing
 - Integration tests in `tests/Integration/PhaseN/` — one directory per implementation phase
