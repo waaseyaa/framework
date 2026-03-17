@@ -36,6 +36,9 @@ use Waaseyaa\CLI\Command\Make\MakeJobCommand;
 use Waaseyaa\CLI\Command\Make\MakeListenerCommand;
 use Waaseyaa\CLI\Command\Make\MakeMigrationCommand;
 use Waaseyaa\CLI\Command\Make\MakePolicyCommand;
+use Waaseyaa\CLI\Command\MigrateCommand;
+use Waaseyaa\CLI\Command\MigrateRollbackCommand;
+use Waaseyaa\CLI\Command\MigrateStatusCommand;
 use Waaseyaa\CLI\Command\Make\MakeProviderCommand;
 use Waaseyaa\CLI\Command\Make\MakeTestCommand;
 use Waaseyaa\CLI\Command\MakeEntityTypeCommand;
@@ -167,7 +170,7 @@ final class ConsoleKernel extends AbstractKernel
             new MakeEntityCommand(),
             new MakeJobCommand(),
             new MakeListenerCommand(),
-            new MakeMigrationCommand(),
+            new MakeMigrationCommand($this->projectRoot),
             new MakePolicyCommand(),
             new MakeProviderCommand(),
             new MakeTestCommand(),
@@ -214,6 +217,13 @@ final class ConsoleKernel extends AbstractKernel
             new TelescopeClearCommand(),
             new TelescopeListCommand(),
             new TelescopePruneCommand(),
+        ]);
+
+        $migrationsProvider = fn () => $this->migrationLoader->loadAll();
+        $app->registerCommands([
+            new MigrateCommand($this->migrator, $migrationsProvider),
+            new MigrateRollbackCommand($this->migrator, $migrationsProvider),
+            new MigrateStatusCommand($this->migrator, $migrationsProvider),
         ]);
 
         foreach ($this->providers as $provider) {

@@ -15,10 +15,14 @@ use Waaseyaa\Entity\EntityTypeLifecycleManager;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
+use Doctrine\DBAL\DriverManager;
 use Waaseyaa\Foundation\Diagnostic\DiagnosticCode;
 use Waaseyaa\Foundation\Diagnostic\DiagnosticEmitter;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
+use Waaseyaa\Foundation\Migration\MigrationLoader;
+use Waaseyaa\Foundation\Migration\MigrationRepository;
+use Waaseyaa\Foundation\Migration\Migrator;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Plugin\Attribute\WaaseyaaPlugin;
 use Waaseyaa\Plugin\DefaultPluginManager;
@@ -34,6 +38,8 @@ abstract class AbstractKernel
     protected EntityAccessHandler $accessHandler;
     protected EntityTypeLifecycleManager $lifecycleManager;
     protected EntityAuditLogger $entityAuditLogger;
+    protected Migrator $migrator;
+    protected MigrationLoader $migrationLoader;
 
     /** @var array<string, mixed> */
     protected array $config = [];
@@ -75,6 +81,7 @@ abstract class AbstractKernel
         $this->bootDatabase();
         $this->bootEntityTypeManager();
         $this->compileManifest();
+        $this->bootMigrations();
         $this->discoverAndRegisterProviders();
         $this->loadAppEntityTypes();
         $this->validateContentTypes();
@@ -117,6 +124,25 @@ abstract class AbstractKernel
             storagePath: $this->projectRoot . '/storage',
         );
         $this->manifest = $compiler->load();
+    }
+
+    protected function bootMigrations(): void
+    {
+        $dbPath = $this->config['database'] ?? null;
+        if ($dbPath === null) {
+            $dbPath = getenv('WAASEYAA_DB') ?: $this->projectRoot . '/waaseyaa.sqlite';
+        }
+
+        $connection = DriverManager::getConnection([
+            'driver' => 'pdo_sqlite',
+            'path' => $dbPath,
+        ]);
+
+        $repository = new MigrationRepository($connection);
+        $repository->createTable();
+
+        $this->migrationLoader = new MigrationLoader($this->projectRoot, $this->manifest);
+        $this->migrator = new Migrator($connection, $repository);
     }
 
     protected function discoverAndRegisterProviders(): void
@@ -387,6 +413,16 @@ abstract class AbstractKernel
     public function getEventDispatcher(): EventDispatcherInterface
     {
         return $this->dispatcher;
+    }
+
+    public function getMigrator(): Migrator
+    {
+        return $this->migrator;
+    }
+
+    public function getMigrationLoader(): MigrationLoader
+    {
+        return $this->migrationLoader;
     }
 
     /**
