@@ -128,6 +128,15 @@ final class SchemaBuilderTest extends TestCase
     }
 
     #[Test]
+    public function getConnectionReturnsTheDbalConnection(): void
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $schema = new SchemaBuilder($connection);
+
+        $this->assertSame($connection, $schema->getConnection());
+    }
+
+    #[Test]
     public function table_prefix_applied(): void
     {
         $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);

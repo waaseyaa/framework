@@ -16,6 +16,12 @@ use Symfony\Component\Console\Output\OutputInterface;
 )]
 final class MakeMigrationCommand extends AbstractMakeCommand
 {
+    public function __construct(
+        private readonly string $projectRoot,
+    ) {
+        parent::__construct();
+    }
+
     protected function configure(): void
     {
         $this
@@ -37,14 +43,18 @@ final class MakeMigrationCommand extends AbstractMakeCommand
             'table' => $table,
         ]);
 
-        $output->write($rendered);
+        $timestamp = date('Ymd_His');
+        $filename = "{$timestamp}_{$name}.php";
 
-        $info = sprintf('Migration: %s', $name);
-        if ($input->getOption('package') !== null) {
-            $info .= sprintf(' (package: %s)', $input->getOption('package'));
+        $targetDir = $this->projectRoot . '/migrations';
+        if (!is_dir($targetDir)) {
+            mkdir($targetDir, 0777, true);
         }
-        $output->writeln('');
-        $output->writeln('// ' . $info);
+
+        $targetPath = $targetDir . '/' . $filename;
+        file_put_contents($targetPath, $rendered);
+
+        $output->writeln("Created: migrations/{$filename}");
 
         return self::SUCCESS;
     }

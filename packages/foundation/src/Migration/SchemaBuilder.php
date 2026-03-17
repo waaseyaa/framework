@@ -105,6 +105,11 @@ final class SchemaBuilder
         return false;
     }
 
+    public function getConnection(): Connection
+    {
+        return $this->connection;
+    }
+
     private function hasColumnNamed(TableBuilder $builder, string $name): bool
     {
         foreach ($builder->getColumns() as $col) {
