@@ -52,6 +52,8 @@ final class ControllerDispatcher
         private readonly string $projectRoot,
         /** @var array<string, mixed> */
         private readonly array $config,
+        /** @var array<string, array{args?: array<string, mixed>, resolve?: callable}> */
+        private readonly array $graphqlMutationOverrides = [],
     ) {}
 
     /**
@@ -535,6 +537,9 @@ final class ControllerDispatcher
                         accessHandler: $this->accessHandler,
                         account: $account,
                     );
+                    if ($this->graphqlMutationOverrides !== []) {
+                        $endpoint = $endpoint->withMutationOverrides($this->graphqlMutationOverrides);
+                    }
                     parse_str($queryString, $queryParams);
                     $result = $endpoint->handle($method, $httpRequest->getContent(), $queryParams);
                     ResponseSender::json($result['statusCode'], $result['body']);

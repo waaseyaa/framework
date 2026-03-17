@@ -212,6 +212,14 @@ final class HttpKernel extends AbstractKernel
             ResponseSender::json(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'Account resolution failed.']]]);
         }
 
+        // Collect GraphQL mutation overrides from providers.
+        $gqlOverrides = [];
+        foreach ($this->providers as $provider) {
+            foreach ($provider->graphqlMutationOverrides() as $name => $override) {
+                $gqlOverrides[$name] = $override;
+            }
+        }
+
         // Dispatch.
         $controllerDispatcher = new ControllerDispatcher(
             entityTypeManager: $this->entityTypeManager,
@@ -223,6 +231,7 @@ final class HttpKernel extends AbstractKernel
             mcpReadCache: $this->mcpReadCache,
             projectRoot: $this->projectRoot,
             config: $this->config,
+            graphqlMutationOverrides: $gqlOverrides,
         );
         $controllerDispatcher->dispatch($method, $params, $httpRequest, $queryString, $broadcastStorage, $account);
     }
