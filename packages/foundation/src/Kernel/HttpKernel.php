@@ -172,6 +172,13 @@ final class HttpKernel extends AbstractKernel
             new AuthorizationMiddleware($accessChecker, $errorPageRenderer),
         ];
 
+        // Collect middleware contributed by service providers.
+        foreach ($this->providers as $provider) {
+            foreach ($provider->middleware() as $mw) {
+                $middlewares[] = $mw;
+            }
+        }
+
         usort($middlewares, fn(object $a, object $b) => $this->getMiddlewarePriority($b) <=> $this->getMiddlewarePriority($a));
 
         $pipeline = new HttpPipeline();

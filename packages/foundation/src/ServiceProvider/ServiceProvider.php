@@ -45,6 +45,18 @@ abstract class ServiceProvider implements ServiceProviderInterface
         return [];
     }
 
+    /**
+     * Return HTTP middleware instances to register with the kernel pipeline.
+     *
+     * Use #[AsMiddleware] on each class to set pipeline and priority.
+     *
+     * @return list<\Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface>
+     */
+    public function middleware(): array
+    {
+        return [];
+    }
+
     public function provides(): array
     {
         return [];
