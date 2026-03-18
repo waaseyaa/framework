@@ -53,7 +53,10 @@ abstract class ServiceProvider implements ServiceProviderInterface
      *
      * @return array<string, array{args?: array<string, mixed>, resolve?: callable}>
      */
-    public function graphqlMutationOverrides(): array
+    /**
+     * @return array<string, array{args?: array<string, mixed>, resolve?: callable}>
+     */
+    public function graphqlMutationOverrides(\Waaseyaa\Entity\EntityTypeManager $entityTypeManager): array
     {
         return [];
     }
@@ -65,7 +68,7 @@ abstract class ServiceProvider implements ServiceProviderInterface
      *
      * @return list<\Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface>
      */
-    public function middleware(): array
+    public function middleware(\Waaseyaa\Entity\EntityTypeManager $entityTypeManager): array
     {
         return [];
     }

@@ -174,7 +174,7 @@ final class HttpKernel extends AbstractKernel
 
         // Collect middleware contributed by service providers.
         foreach ($this->providers as $provider) {
-            foreach ($provider->middleware() as $mw) {
+            foreach ($provider->middleware($this->entityTypeManager) as $mw) {
                 $middlewares[] = $mw;
             }
         }
@@ -215,7 +215,7 @@ final class HttpKernel extends AbstractKernel
         // Collect GraphQL mutation overrides from providers.
         $gqlOverrides = [];
         foreach ($this->providers as $provider) {
-            foreach ($provider->graphqlMutationOverrides() as $name => $override) {
+            foreach ($provider->graphqlMutationOverrides($this->entityTypeManager) as $name => $override) {
                 $gqlOverrides[$name] = $override;
             }
         }
