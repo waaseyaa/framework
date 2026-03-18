@@ -6,7 +6,7 @@ namespace Waaseyaa\Tests\Integration\Phase4;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityType;
@@ -26,7 +26,7 @@ use Waaseyaa\Field\FieldTypeManager;
  */
 final class EntityWithFieldsTest extends TestCase
 {
-    private PdoDatabase $database;
+    private DBALDatabase $database;
     private EntityType $entityType;
     private EventDispatcher $eventDispatcher;
     private SqlEntityStorage $storage;
@@ -34,7 +34,7 @@ final class EntityWithFieldsTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->database = PdoDatabase::createSqlite();
+        $this->database = DBALDatabase::createSqlite();
         $this->eventDispatcher = new EventDispatcher();
 
         $this->entityType = new EntityType(

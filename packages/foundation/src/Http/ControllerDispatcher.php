@@ -43,7 +43,7 @@ final class ControllerDispatcher
 {
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
-        private readonly \Waaseyaa\Database\PdoDatabase $database,
+        private readonly \Waaseyaa\Database\DatabaseInterface $database,
         private readonly EntityAccessHandler $accessHandler,
         private readonly EntityTypeLifecycleManager $lifecycleManager,
         private readonly DiscoveryApiHandler $discoveryHandler,
@@ -286,7 +286,8 @@ final class ControllerDispatcher
                     }
 
                     $provider = EmbeddingProviderFactory::fromConfig($this->config);
-                    $embeddingStorage = new SqliteEmbeddingStorage($this->database->getPdo());
+                    assert($this->database instanceof \Waaseyaa\Database\DBALDatabase);
+                    $embeddingStorage = new SqliteEmbeddingStorage($this->database->getConnection()->getNativeConnection());
                     $controller = new SearchController(
                         entityTypeManager: $this->entityTypeManager,
                         serializer: $serializer,
@@ -498,7 +499,8 @@ final class ControllerDispatcher
 
                 $controller === 'mcp.endpoint' => (function () use ($method, $httpRequest, $account, $serializer): never {
                     $embeddingProvider = EmbeddingProviderFactory::fromConfig($this->config);
-                    $embeddingStorage = new SqliteEmbeddingStorage($this->database->getPdo());
+                    assert($this->database instanceof \Waaseyaa\Database\DBALDatabase);
+                    $embeddingStorage = new SqliteEmbeddingStorage($this->database->getConnection()->getNativeConnection());
                     $mcp = new McpController(
                         entityTypeManager: $this->entityTypeManager,
                         serializer: $serializer,

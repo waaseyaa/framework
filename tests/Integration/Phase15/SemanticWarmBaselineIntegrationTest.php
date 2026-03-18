@@ -23,7 +23,7 @@ use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\AI\Vector\Testing\FakeEmbeddingProvider;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -41,7 +41,7 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
 {
     private const string BASELINE_ARTIFACT = __DIR__ . '/../../Baselines/performance_regression_v1.1.json';
 
-    private PdoDatabase $database;
+    private DBALDatabase $database;
     private EntityTypeManager $entityTypeManager;
     private ResourceSerializer $serializer;
     private EntityAccessHandler $accessHandler;
@@ -53,7 +53,7 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->database = PdoDatabase::createSqlite();
+        $this->database = DBALDatabase::createSqlite();
         $dispatcher = new EventDispatcher();
 
         $this->entityTypeManager = new EntityTypeManager(
@@ -102,7 +102,7 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
             new BaselineRelationshipViewPolicy(),
         ]);
         $this->account = new BaselineAnonymousAccount();
-        $this->embeddingStorage = new SqliteEmbeddingStorage($this->database->getPdo());
+        $this->embeddingStorage = new SqliteEmbeddingStorage($this->database->getConnection()->getNativeConnection());
 
         $this->seedFixtureCorpus();
     }

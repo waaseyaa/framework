@@ -20,7 +20,7 @@ use Waaseyaa\AI\Vector\SearchController;
 use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -37,7 +37,7 @@ final class AccessVisibilityConsistencyIntegrationTest extends TestCase
     #[Test]
     public function reviewStateIsHiddenAcrossSearchMcpAndRelationshipBrowseEvenWhenStatusIsTruthy(): void
     {
-        $database = PdoDatabase::createSqlite();
+        $database = DBALDatabase::createSqlite();
         $dispatcher = new EventDispatcher();
 
         $manager = new EntityTypeManager(
@@ -114,7 +114,7 @@ final class AccessVisibilityConsistencyIntegrationTest extends TestCase
         ]);
         $account = new PublicAuditAccount();
         $serializer = new ResourceSerializer($manager);
-        $embeddingStorage = new SqliteEmbeddingStorage($database->getPdo());
+        $embeddingStorage = new SqliteEmbeddingStorage($database->getConnection()->getNativeConnection());
 
         $search = new SearchController(
             entityTypeManager: $manager,

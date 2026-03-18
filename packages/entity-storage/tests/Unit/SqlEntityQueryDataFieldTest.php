@@ -7,7 +7,7 @@ namespace Waaseyaa\EntityStorage\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\SqlEntityQuery;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
@@ -22,7 +22,7 @@ final class SqlEntityQueryDataFieldTest extends TestCase
 
     protected function setUp(): void
     {
-        $database = PdoDatabase::createSqlite();
+        $database = DBALDatabase::createSqlite();
         $entityType = new EntityType(
             id: 'person',
             label: 'Person',

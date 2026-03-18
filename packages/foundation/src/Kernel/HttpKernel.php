@@ -77,17 +77,24 @@ final class HttpKernel extends AbstractKernel
         $broadcastStorage = new BroadcastStorage($this->database);
         $listenerRegistrar = new EventListenerRegistrar($this->dispatcher);
         $listenerRegistrar->registerBroadcastListeners($broadcastStorage);
+
+        // Escape hatch: components that still require raw PDO (cache, embeddings).
+        // These will be migrated to DBAL Connection in a future PR.
+        assert($this->database instanceof \Waaseyaa\Database\DBALDatabase);
+        $pdo = $this->database->getConnection()->getNativeConnection();
+        assert($pdo instanceof \PDO);
+
         $cacheConfig = new CacheConfiguration();
         $cacheConfig->setFactoryForBin('render', fn(): DatabaseBackend => new DatabaseBackend(
-            $this->database->getPdo(),
+            $pdo,
             'cache_render',
         ));
         $cacheConfig->setFactoryForBin('discovery', fn(): DatabaseBackend => new DatabaseBackend(
-            $this->database->getPdo(),
+            $pdo,
             'cache_discovery',
         ));
         $cacheConfig->setFactoryForBin('mcp_read', fn(): DatabaseBackend => new DatabaseBackend(
-            $this->database->getPdo(),
+            $pdo,
             'cache_mcp_read',
         ));
         $cacheFactory = new CacheFactory($cacheConfig);
@@ -97,7 +104,7 @@ final class HttpKernel extends AbstractKernel
         $listenerRegistrar->registerRenderCacheListeners($this->renderCache);
         $listenerRegistrar->registerDiscoveryCacheListeners($this->discoveryCache);
         $listenerRegistrar->registerMcpReadCacheListeners($this->mcpReadCache);
-        $listenerRegistrar->registerEmbeddingLifecycleListeners(new SqliteEmbeddingStorage($this->database->getPdo()), $this->config);
+        $listenerRegistrar->registerEmbeddingLifecycleListeners(new SqliteEmbeddingStorage($pdo), $this->config);
         $this->discoveryHandler = new DiscoveryApiHandler($this->entityTypeManager, $this->database, $this->discoveryCache);
         $this->ssrPageHandler = new SsrPageHandler(
             entityTypeManager: $this->entityTypeManager,

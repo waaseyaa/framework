@@ -158,7 +158,7 @@ final class DiscoveryApiHandlerTest extends TestCase
     {
         $handler = new DiscoveryApiHandler(
             new EntityTypeManager(new EventDispatcher()),
-            \Waaseyaa\Database\PdoDatabase::createSqlite(),
+            \Waaseyaa\Database\DBALDatabase::createSqlite(),
             null,
         );
         $this->assertNull($handler->getDiscoveryCachedResponse('some_key', new AnonymousUser()));
@@ -185,7 +185,7 @@ final class DiscoveryApiHandlerTest extends TestCase
     {
         return new DiscoveryApiHandler(
             new EntityTypeManager(new EventDispatcher()),
-            \Waaseyaa\Database\PdoDatabase::createSqlite(),
+            \Waaseyaa\Database\DBALDatabase::createSqlite(),
         );
     }
 }

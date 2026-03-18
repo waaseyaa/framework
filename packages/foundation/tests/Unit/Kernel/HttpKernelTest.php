@@ -16,7 +16,7 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Cache\CacheConfigResolver;
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\CorsHandler;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
@@ -401,7 +401,7 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function parses_relationship_types_from_comma_separated_query_string(): void
     {
-        $handler = new DiscoveryApiHandler(new EntityTypeManager(new EventDispatcher()), PdoDatabase::createSqlite());
+        $handler = new DiscoveryApiHandler(new EntityTypeManager(new EventDispatcher()), DBALDatabase::createSqlite());
         $types = $handler->parseRelationshipTypesQuery('references, influences, ,references');
         $this->assertSame(['references', 'influences', 'references'], $types);
     }
@@ -409,7 +409,7 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function parses_relationship_types_from_array_query_value(): void
     {
-        $handler = new DiscoveryApiHandler(new EntityTypeManager(new EventDispatcher()), PdoDatabase::createSqlite());
+        $handler = new DiscoveryApiHandler(new EntityTypeManager(new EventDispatcher()), DBALDatabase::createSqlite());
         $types = $handler->parseRelationshipTypesQuery(['references', 'influences', 'references', '', 123]);
         $this->assertSame(['references', 'influences'], $types);
     }
@@ -417,7 +417,7 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function discovery_cache_key_is_deterministic_for_equivalent_option_order(): void
     {
-        $handler = new DiscoveryApiHandler(new EntityTypeManager(new EventDispatcher()), PdoDatabase::createSqlite());
+        $handler = new DiscoveryApiHandler(new EntityTypeManager(new EventDispatcher()), DBALDatabase::createSqlite());
 
         $keyA = $handler->buildDiscoveryCacheKey('timeline', 'node', '1', [
             'status' => 'published',
@@ -440,7 +440,7 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function discovery_cache_key_changes_when_filter_values_change(): void
     {
-        $handler = new DiscoveryApiHandler(new EntityTypeManager(new EventDispatcher()), PdoDatabase::createSqlite());
+        $handler = new DiscoveryApiHandler(new EntityTypeManager(new EventDispatcher()), DBALDatabase::createSqlite());
 
         $keyA = $handler->buildDiscoveryCacheKey('hub', 'node', '1', ['status' => 'published', 'limit' => 10]);
         $keyB = $handler->buildDiscoveryCacheKey('hub', 'node', '1', ['status' => 'published', 'limit' => 20]);
@@ -451,7 +451,7 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function discovery_payload_contract_meta_is_added_when_missing(): void
     {
-        $handler = new DiscoveryApiHandler(new EntityTypeManager(new EventDispatcher()), PdoDatabase::createSqlite());
+        $handler = new DiscoveryApiHandler(new EntityTypeManager(new EventDispatcher()), DBALDatabase::createSqlite());
         $payload = $handler->withDiscoveryContractMeta(['data' => ['source' => ['type' => 'node', 'id' => '1']]]);
 
         $this->assertSame('v1.0', $payload['meta']['contract_version']);
@@ -462,7 +462,7 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function discovery_payload_contract_meta_preserves_existing_surface(): void
     {
-        $handler = new DiscoveryApiHandler(new EntityTypeManager(new EventDispatcher()), PdoDatabase::createSqlite());
+        $handler = new DiscoveryApiHandler(new EntityTypeManager(new EventDispatcher()), DBALDatabase::createSqlite());
         $payload = $handler->withDiscoveryContractMeta([
             'data' => [],
             'meta' => ['surface' => 'custom_surface', 'count' => 3],
@@ -477,7 +477,7 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function discovery_cache_tags_include_surface_entity_and_filters(): void
     {
-        $handler = new DiscoveryApiHandler(new EntityTypeManager(new EventDispatcher()), PdoDatabase::createSqlite());
+        $handler = new DiscoveryApiHandler(new EntityTypeManager(new EventDispatcher()), DBALDatabase::createSqlite());
         $tags = $handler->buildDiscoveryCacheTags([
             'data' => [
                 'data' => [
@@ -747,7 +747,7 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function discovery_cache_tags_include_related_entities_for_invalidation_coverage(): void
     {
-        $handler = new DiscoveryApiHandler(new EntityTypeManager(new EventDispatcher()), PdoDatabase::createSqlite());
+        $handler = new DiscoveryApiHandler(new EntityTypeManager(new EventDispatcher()), DBALDatabase::createSqlite());
         $tags = $handler->buildDiscoveryCacheTags([
             'data' => [
                 'source' => ['type' => 'node', 'id' => '1'],
@@ -778,7 +778,7 @@ final class HttpKernelTest extends TestCase
         array $config = [],
     ): ControllerDispatcher {
         $entityTypeManager = new EntityTypeManager(new EventDispatcher());
-        $database = PdoDatabase::createSqlite();
+        $database = DBALDatabase::createSqlite();
         $discoveryHandler = new DiscoveryApiHandler($entityTypeManager, $database);
         $cacheConfigResolver = new CacheConfigResolver($config);
         $ssrPageHandler = new SsrPageHandler(
@@ -807,7 +807,7 @@ final class HttpKernelTest extends TestCase
     private function createSsrPageHandler(array $config = []): SsrPageHandler
     {
         $entityTypeManager = new EntityTypeManager(new EventDispatcher());
-        $database = PdoDatabase::createSqlite();
+        $database = DBALDatabase::createSqlite();
         $discoveryHandler = new DiscoveryApiHandler($entityTypeManager, $database);
         $cacheConfigResolver = new CacheConfigResolver($config);
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\EntityStorage\Tests\Unit\Driver;
 
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
@@ -18,12 +18,12 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(SqlStorageDriver::class)]
 final class SqlStorageDriverTest extends TestCase
 {
-    private PdoDatabase $database;
+    private DBALDatabase $database;
     private SqlStorageDriver $driver;
 
     protected function setUp(): void
     {
-        $this->database = PdoDatabase::createSqlite();
+        $this->database = DBALDatabase::createSqlite();
         $resolver = new SingleConnectionResolver($this->database);
 
         // Create the test entity type first so we can resolve the id key.

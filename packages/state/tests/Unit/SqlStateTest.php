@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace Waaseyaa\State\Tests\Unit;
 
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\State\SqlState;
 use Waaseyaa\State\StateInterface;
 use PHPUnit\Framework\TestCase;
 
 final class SqlStateTest extends TestCase
 {
-    private PdoDatabase $database;
+    private DBALDatabase $database;
     private SqlState $state;
 
     protected function setUp(): void
     {
-        $this->database = PdoDatabase::createSqlite(':memory:');
+        $this->database = DBALDatabase::createSqlite(':memory:');
         $this->state = new SqlState($this->database);
     }
 

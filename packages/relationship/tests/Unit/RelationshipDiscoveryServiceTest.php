@@ -11,7 +11,7 @@ require_once __DIR__ . '/../../src/RelationshipDiscoveryService.php';
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -27,7 +27,7 @@ final class RelationshipDiscoveryServiceTest extends TestCase
     #[Test]
     public function topicHubReturnsDeterministicPaginatedItemsAndFacets(): void
     {
-        $database = PdoDatabase::createSqlite();
+        $database = DBALDatabase::createSqlite();
         $this->createRelationshipTable($database);
 
         $this->insertRelationship($database, 1, 'references', 'node', '1', 'node', '2', 1);
@@ -114,7 +114,7 @@ final class RelationshipDiscoveryServiceTest extends TestCase
     #[Test]
     public function clusterPageGroupsAndOrdersClustersDeterministically(): void
     {
-        $database = PdoDatabase::createSqlite();
+        $database = DBALDatabase::createSqlite();
         $this->createRelationshipTable($database);
 
         $this->insertRelationship($database, 1, 'references', 'node', '1', 'node', '2', 1);
@@ -196,7 +196,7 @@ final class RelationshipDiscoveryServiceTest extends TestCase
     #[Test]
     public function timelineRespectsDirectionAndTemporalWindowFilters(): void
     {
-        $database = PdoDatabase::createSqlite();
+        $database = DBALDatabase::createSqlite();
         $this->createRelationshipTable($database);
 
         $this->insertTemporalRelationship($database, 1, 'references', 'node', '1', 'node', '2', 1, 100, 200);
@@ -274,7 +274,7 @@ final class RelationshipDiscoveryServiceTest extends TestCase
     #[Test]
     public function timelineDeterministicTieBreaksApplyForEqualStartDates(): void
     {
-        $database = PdoDatabase::createSqlite();
+        $database = DBALDatabase::createSqlite();
         $this->createRelationshipTable($database);
 
         $this->insertTemporalRelationship($database, 1, 'influences', 'node', '1', 'node', '2', 1, 500, null);
@@ -327,7 +327,7 @@ final class RelationshipDiscoveryServiceTest extends TestCase
     #[Test]
     public function endpointPageAndRelationshipEntityPageExposeDirectionalEdgeContext(): void
     {
-        $database = PdoDatabase::createSqlite();
+        $database = DBALDatabase::createSqlite();
         $this->createRelationshipTable($database);
 
         $this->insertTemporalRelationship($database, 1, 'references', 'node', '1', 'node', '2', 1, 200, 260);
@@ -398,9 +398,9 @@ final class RelationshipDiscoveryServiceTest extends TestCase
         $this->assertSame('2', $relationshipPage['to_endpoint']['endpoint']['id']);
     }
 
-    private function createRelationshipTable(PdoDatabase $database): void
+    private function createRelationshipTable(DBALDatabase $database): void
     {
-        $database->getPdo()->exec(<<<SQL
+        $database->getConnection()->getNativeConnection()->exec(<<<SQL
 CREATE TABLE relationship (
   rid INTEGER PRIMARY KEY,
   relationship_type TEXT NOT NULL,
@@ -419,7 +419,7 @@ SQL);
     }
 
     private function insertRelationship(
-        PdoDatabase $database,
+        DBALDatabase $database,
         int $rid,
         string $relationshipType,
         string $fromType,
@@ -435,7 +435,7 @@ SQL);
     }
 
     private function insertTemporalRelationship(
-        PdoDatabase $database,
+        DBALDatabase $database,
         int $rid,
         string $relationshipType,
         string $fromType,

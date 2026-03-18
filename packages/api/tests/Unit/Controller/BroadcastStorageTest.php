@@ -8,17 +8,17 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Api\Controller\BroadcastStorage;
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 
 #[CoversClass(BroadcastStorage::class)]
 final class BroadcastStorageTest extends TestCase
 {
-    private PdoDatabase $database;
+    private DBALDatabase $database;
     private BroadcastStorage $storage;
 
     protected function setUp(): void
     {
-        $this->database = PdoDatabase::createSqlite();
+        $this->database = DBALDatabase::createSqlite();
         $this->storage = new BroadcastStorage($this->database);
     }
 

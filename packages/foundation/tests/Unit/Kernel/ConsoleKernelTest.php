@@ -64,7 +64,7 @@ final class ConsoleKernelTest extends TestCase
     public function handle_returns_one_when_boot_fails(): void
     {
         // No config, no vendor dir, and an unwritable SQLite path will cause
-        // PdoDatabase::createSqlite() to throw when given a non-existent directory path.
+        // DBALDatabase::createSqlite() to throw when given a non-existent directory path.
         $badRoot = '/nonexistent/path/that/cannot/be/created';
         $kernel = new ConsoleKernel($badRoot);
 

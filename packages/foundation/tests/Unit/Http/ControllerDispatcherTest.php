@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Cache\CacheConfigResolver;
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeLifecycleManager;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\ControllerDispatcher;
@@ -25,7 +25,7 @@ final class ControllerDispatcherTest extends TestCase
         array $config = [],
     ): ControllerDispatcher {
         $entityTypeManager = new EntityTypeManager(new EventDispatcher());
-        $database = PdoDatabase::createSqlite();
+        $database = DBALDatabase::createSqlite();
         $discoveryHandler = new DiscoveryApiHandler($entityTypeManager, $database);
         $cacheConfigResolver = new CacheConfigResolver($config);
         $ssrPageHandler = new SsrPageHandler(

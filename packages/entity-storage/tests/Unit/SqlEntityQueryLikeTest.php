@@ -7,7 +7,7 @@ namespace Waaseyaa\EntityStorage\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\SqlEntityQuery;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
@@ -18,12 +18,12 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 #[CoversClass(SqlEntityQuery::class)]
 final class SqlEntityQueryLikeTest extends TestCase
 {
-    private PdoDatabase $database;
+    private DBALDatabase $database;
     private SqlEntityStorage $storage;
 
     protected function setUp(): void
     {
-        $this->database = PdoDatabase::createSqlite();
+        $this->database = DBALDatabase::createSqlite();
         $entityType = new EntityType(
             id: 'article',
             label: 'Article',

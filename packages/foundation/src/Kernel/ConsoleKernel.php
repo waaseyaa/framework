@@ -117,9 +117,15 @@ final class ConsoleKernel extends AbstractKernel
         $syncStorage = new FileStorage($configDir);
         $configManager = new ConfigManager($activeStorage, $syncStorage, $this->dispatcher);
 
+        // Escape hatch: components that still require raw PDO (cache, embeddings).
+        // These will be migrated to DBAL Connection in a future PR.
+        assert($this->database instanceof \Waaseyaa\Database\DBALDatabase);
+        $pdo = $this->database->getConnection()->getNativeConnection();
+        assert($pdo instanceof \PDO);
+
         $cacheConfig = new CacheConfiguration();
         $cacheConfig->setFactoryForBin('render', fn(): DatabaseBackend => new DatabaseBackend(
-            $this->database->getPdo(),
+            $pdo,
             'cache_render',
         ));
         $cacheFactory = new CacheFactory($cacheConfig);
@@ -129,7 +135,7 @@ final class ConsoleKernel extends AbstractKernel
             basePath: $this->projectRoot,
             storagePath: $this->projectRoot . '/storage',
         );
-        $embeddingStorage = new SqliteEmbeddingStorage($this->database->getPdo());
+        $embeddingStorage = new SqliteEmbeddingStorage($pdo);
         $embeddingProvider = EmbeddingProviderFactory::fromConfig($this->config);
         $semanticWarmer = new SemanticIndexWarmer(
             entityTypeManager: $this->entityTypeManager,
