@@ -7,7 +7,7 @@ namespace Waaseyaa\Foundation\Tests\Unit\Diagnostic;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
@@ -19,12 +19,12 @@ use Waaseyaa\Foundation\Diagnostic\HealthCheckResult;
 #[CoversClass(HealthCheckResult::class)]
 final class HealthCheckerTest extends TestCase
 {
-    private PdoDatabase $database;
+    private DBALDatabase $database;
     private string $projectRoot;
 
     protected function setUp(): void
     {
-        $this->database = PdoDatabase::createSqlite();
+        $this->database = DBALDatabase::createSqlite();
         $this->projectRoot = sys_get_temp_dir() . '/waaseyaa_health_test_' . uniqid();
         mkdir($this->projectRoot . '/storage/framework', 0755, true);
     }

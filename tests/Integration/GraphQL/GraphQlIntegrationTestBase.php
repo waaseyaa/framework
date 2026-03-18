@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -25,7 +25,7 @@ use Waaseyaa\Tests\Integration\GraphQL\Policy\RestrictFieldPolicy;
 
 abstract class GraphQlIntegrationTestBase extends TestCase
 {
-    protected PdoDatabase $database;
+    protected DBALDatabase $database;
     protected EntityTypeManager $entityTypeManager;
     protected GraphQlEndpoint $endpoint;
     protected EntityAccessHandler $accessHandler;
@@ -37,7 +37,7 @@ abstract class GraphQlIntegrationTestBase extends TestCase
     {
         SchemaFactory::resetCache();
 
-        $this->database = PdoDatabase::createSqlite();
+        $this->database = DBALDatabase::createSqlite();
         $eventDispatcher = new EventDispatcher();
 
         $articleType = new EntityType(

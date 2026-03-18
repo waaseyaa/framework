@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Api\Controller;
 
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\DBALDatabase;
 
 /**
  * PDO-backed message queue for SSE broadcasting.
@@ -12,17 +13,26 @@ use Waaseyaa\Database\PdoDatabase;
  * Provides a durable store that decouples the HTTP request that triggers an
  * entity event from the long-lived SSE connection that delivers it. The SSE
  * loop polls this table for new rows since its last cursor.
+ *
+ * Uses raw PDO escape hatch via DBALDatabase::getConnection()->getNativeConnection().
+ * This will be migrated to DBAL Connection API in a future PR.
  */
 final class BroadcastStorage
 {
-    public function __construct(private readonly PdoDatabase $database)
+    private readonly \PDO $pdo;
+
+    public function __construct(DatabaseInterface $database)
     {
+        assert($database instanceof DBALDatabase);
+        $nativeConn = $database->getConnection()->getNativeConnection();
+        assert($nativeConn instanceof \PDO);
+        $this->pdo = $nativeConn;
         $this->ensureTable();
     }
 
     private function ensureTable(): void
     {
-        $this->database->getPdo()->exec(
+        $this->pdo->exec(
             'CREATE TABLE IF NOT EXISTS _broadcast_log ('
             . 'id INTEGER PRIMARY KEY AUTOINCREMENT,'
             . 'channel TEXT NOT NULL,'
@@ -38,7 +48,7 @@ final class BroadcastStorage
      */
     public function push(string $channel, string $event, array $data): void
     {
-        $stmt = $this->database->getPdo()->prepare(
+        $stmt = $this->pdo->prepare(
             'INSERT INTO _broadcast_log (channel, event, data, created_at) VALUES (?, ?, ?, ?)',
         );
         $stmt->execute([$channel, $event, json_encode($data, JSON_THROW_ON_ERROR), microtime(true)]);
@@ -64,7 +74,7 @@ final class BroadcastStorage
 
         $sql .= ' ORDER BY id ASC LIMIT 100';
 
-        $stmt = $this->database->getPdo()->prepare($sql);
+        $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
 
         $messages = [];
@@ -87,7 +97,7 @@ final class BroadcastStorage
     public function prune(int $maxAgeSeconds = 300): void
     {
         $cutoff = microtime(true) - $maxAgeSeconds;
-        $stmt = $this->database->getPdo()->prepare(
+        $stmt = $this->pdo->prepare(
             'DELETE FROM _broadcast_log WHERE created_at < ?',
         );
         $stmt->execute([$cutoff]);

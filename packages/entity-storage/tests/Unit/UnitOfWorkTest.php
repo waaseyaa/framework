@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\EntityStorage\Tests\Unit;
 
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
@@ -18,13 +18,13 @@ use Symfony\Contracts\EventDispatcher\Event;
 #[CoversClass(UnitOfWork::class)]
 final class UnitOfWorkTest extends TestCase
 {
-    private PdoDatabase $database;
+    private DBALDatabase $database;
     private EventDispatcher $eventDispatcher;
     private UnitOfWork $unitOfWork;
 
     protected function setUp(): void
     {
-        $this->database = PdoDatabase::createSqlite();
+        $this->database = DBALDatabase::createSqlite();
         $this->eventDispatcher = new EventDispatcher();
         $this->unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher);
 

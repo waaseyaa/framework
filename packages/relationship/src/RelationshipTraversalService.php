@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Relationship;
 
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Workflows\WorkflowVisibility;
 
@@ -12,7 +12,7 @@ final class RelationshipTraversalService
 {
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
-        private readonly PdoDatabase $database,
+        private readonly DatabaseInterface $database,
         private readonly WorkflowVisibility $workflowVisibility = new WorkflowVisibility(),
     ) {}
 

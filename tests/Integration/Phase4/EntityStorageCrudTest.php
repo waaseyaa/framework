@@ -6,7 +6,7 @@ namespace Waaseyaa\Tests\Integration\Phase4;
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityType;
@@ -23,14 +23,14 @@ use Waaseyaa\EntityStorage\SqlSchemaHandler;
  */
 final class EntityStorageCrudTest extends TestCase
 {
-    private PdoDatabase $database;
+    private DBALDatabase $database;
     private EntityType $entityType;
     private EventDispatcher $eventDispatcher;
     private SqlEntityStorage $storage;
 
     protected function setUp(): void
     {
-        $this->database = PdoDatabase::createSqlite();
+        $this->database = DBALDatabase::createSqlite();
 
         $this->entityType = new EntityType(
             id: 'article',

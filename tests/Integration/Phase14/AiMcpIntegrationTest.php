@@ -19,7 +19,7 @@ use Waaseyaa\AI\Vector\SearchController;
 use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -32,7 +32,7 @@ use Waaseyaa\Tests\Support\WorkflowFixturePack;
 #[CoversNothing]
 final class AiMcpIntegrationTest extends TestCase
 {
-    private PdoDatabase $database;
+    private DBALDatabase $database;
     private EntityTypeManager $entityTypeManager;
     private SqliteEmbeddingStorage $embeddingStorage;
     private InMemoryQueue $queue;
@@ -43,7 +43,7 @@ final class AiMcpIntegrationTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->database = PdoDatabase::createSqlite();
+        $this->database = DBALDatabase::createSqlite();
         $dispatcher = new EventDispatcher();
 
         $this->entityTypeManager = new EntityTypeManager(
@@ -81,7 +81,7 @@ final class AiMcpIntegrationTest extends TestCase
             ],
         ));
 
-        $this->embeddingStorage = new SqliteEmbeddingStorage($this->database->getPdo());
+        $this->embeddingStorage = new SqliteEmbeddingStorage($this->database->getConnection()->getNativeConnection());
         $this->queue = new InMemoryQueue();
         $this->account = new AnonymousTestAccount();
         $this->accessHandler = new EntityAccessHandler([new PublishedNodeViewPolicy(), new PublishedRelationshipViewPolicy()]);

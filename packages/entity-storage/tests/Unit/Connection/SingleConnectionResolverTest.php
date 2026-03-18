@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\EntityStorage\Tests\Unit\Connection;
 
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\EntityStorage\Connection\ConnectionResolverInterface;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -17,7 +17,7 @@ final class SingleConnectionResolverTest extends TestCase
     #[Test]
     public function implementsInterface(): void
     {
-        $db = PdoDatabase::createSqlite();
+        $db = DBALDatabase::createSqlite();
         $resolver = new SingleConnectionResolver($db);
 
         $this->assertInstanceOf(ConnectionResolverInterface::class, $resolver);
@@ -26,7 +26,7 @@ final class SingleConnectionResolverTest extends TestCase
     #[Test]
     public function connectionAlwaysReturnsSameInstance(): void
     {
-        $db = PdoDatabase::createSqlite();
+        $db = DBALDatabase::createSqlite();
         $resolver = new SingleConnectionResolver($db);
 
         $this->assertSame($db, $resolver->connection());
@@ -38,7 +38,7 @@ final class SingleConnectionResolverTest extends TestCase
     #[Test]
     public function getDefaultConnectionNameReturnsDefault(): void
     {
-        $db = PdoDatabase::createSqlite();
+        $db = DBALDatabase::createSqlite();
         $resolver = new SingleConnectionResolver($db);
 
         $this->assertSame('default', $resolver->getDefaultConnectionName());

@@ -6,7 +6,7 @@ namespace Waaseyaa\Api\Http;
 
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Cache\CacheBackendInterface;
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Cache\DiscoveryCachePrimitives;
@@ -25,7 +25,7 @@ final class DiscoveryApiHandler
 {
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
-        private readonly PdoDatabase $database,
+        private readonly DatabaseInterface $database,
         private readonly ?CacheBackendInterface $discoveryCache = null,
     ) {}
 

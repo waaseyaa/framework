@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Diagnostic;
 
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
@@ -28,7 +28,7 @@ final class HealthChecker implements HealthCheckerInterface
 
     public function __construct(
         private readonly BootDiagnosticReport $bootReport,
-        private readonly PdoDatabase $database,
+        private readonly DatabaseInterface $database,
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly string $projectRoot,
     ) {}
@@ -296,9 +296,11 @@ final class HealthChecker implements HealthCheckerInterface
     private function typesCompatible(string $expected, string $actual): bool
     {
         // SQLite normalizes varchar→TEXT, serial→INTEGER, int→INTEGER.
+        // DBAL may produce CLOB instead of TEXT for string columns.
         $normalMap = [
             'TEXT' => 'TEXT',
             'VARCHAR' => 'TEXT',
+            'CLOB' => 'TEXT',
             'INTEGER' => 'INTEGER',
             'SERIAL' => 'INTEGER',
             'REAL' => 'REAL',

@@ -12,7 +12,7 @@ use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Cache\CacheConfigResolver;
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\SSR\SsrPageHandler;
 
@@ -50,7 +50,7 @@ final class SsrPageHandlerResolverTest extends TestCase
     private function createHandler(?\Closure $serviceResolver = null): SsrPageHandler
     {
         $entityTypeManager = new EntityTypeManager(new EventDispatcher());
-        $database = PdoDatabase::createSqlite();
+        $database = DBALDatabase::createSqlite();
         $discoveryHandler = new DiscoveryApiHandler($entityTypeManager, $database);
         $cacheConfigResolver = new CacheConfigResolver([]);
 

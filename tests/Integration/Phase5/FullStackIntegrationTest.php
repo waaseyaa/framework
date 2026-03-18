@@ -13,7 +13,7 @@ use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\PermissionHandler;
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
@@ -45,7 +45,7 @@ use Waaseyaa\Validation\Constraint\SafeMarkup;
 #[CoversNothing]
 final class FullStackIntegrationTest extends TestCase
 {
-    private PdoDatabase $database;
+    private DBALDatabase $database;
     private EventDispatcher $eventDispatcher;
     private EntityTypeManager $entityTypeManager;
     private SqlEntityStorage $articleStorage;
@@ -60,7 +60,7 @@ final class FullStackIntegrationTest extends TestCase
     protected function setUp(): void
     {
         // ---- Database layer ----
-        $this->database = PdoDatabase::createSqlite();
+        $this->database = DBALDatabase::createSqlite();
         $this->eventDispatcher = new EventDispatcher();
 
         // ---- Entity type for "article" ----

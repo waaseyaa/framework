@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\EntityStorage\Tests\Unit;
 
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
@@ -15,12 +15,12 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(SqlSchemaHandler::class)]
 final class TranslationStorageTest extends TestCase
 {
-    private PdoDatabase $database;
+    private DBALDatabase $database;
     private EntityType $entityType;
 
     protected function setUp(): void
     {
-        $this->database = PdoDatabase::createSqlite();
+        $this->database = DBALDatabase::createSqlite();
         $this->entityType = new EntityType(
             id: 'test_entity',
             label: 'Test Entity',

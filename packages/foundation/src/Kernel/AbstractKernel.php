@@ -7,7 +7,8 @@ namespace Waaseyaa\Foundation\Kernel;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\EntityAccessHandler;
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\Audit\EntityAuditLogger;
 use Waaseyaa\Entity\Audit\EntityWriteAuditListener;
 use Waaseyaa\Entity\EntityTypeInterface;
@@ -15,7 +16,6 @@ use Waaseyaa\Entity\EntityTypeLifecycleManager;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
-use Doctrine\DBAL\DriverManager;
 use Waaseyaa\Foundation\Diagnostic\DiagnosticCode;
 use Waaseyaa\Foundation\Diagnostic\DiagnosticEmitter;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
@@ -32,7 +32,7 @@ use Waaseyaa\Plugin\Extension\KnowledgeToolingExtensionRunner;
 abstract class AbstractKernel
 {
     protected EventDispatcherInterface $dispatcher;
-    protected PdoDatabase $database;
+    protected DatabaseInterface $database;
     protected EntityTypeManager $entityTypeManager;
     protected PackageManifest $manifest;
     protected EntityAccessHandler $accessHandler;
@@ -94,7 +94,7 @@ abstract class AbstractKernel
 
     protected function bootDatabase(): void
     {
-        $this->database = PdoDatabase::createSqlite($this->resolveDatabasePath());
+        $this->database = DBALDatabase::createSqlite($this->resolveDatabasePath());
     }
 
     private function resolveDatabasePath(): string
@@ -132,10 +132,9 @@ abstract class AbstractKernel
 
     protected function bootMigrations(): void
     {
-        $connection = DriverManager::getConnection([
-            'driver' => 'pdo_sqlite',
-            'path' => $this->resolveDatabasePath(),
-        ]);
+        // Reuse the DBAL connection from bootDatabase() instead of creating a second one.
+        assert($this->database instanceof DBALDatabase);
+        $connection = $this->database->getConnection();
 
         $repository = new MigrationRepository($connection);
         $repository->createTable();
@@ -404,7 +403,7 @@ abstract class AbstractKernel
         return $this->entityTypeManager;
     }
 
-    public function getDatabase(): PdoDatabase
+    public function getDatabase(): DatabaseInterface
     {
         return $this->database;
     }

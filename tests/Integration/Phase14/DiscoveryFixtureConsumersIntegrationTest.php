@@ -21,7 +21,7 @@ use Waaseyaa\AI\Vector\SearchController;
 use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -37,7 +37,7 @@ use Waaseyaa\Tests\Support\WorkflowFixturePack;
 #[CoversNothing]
 final class DiscoveryFixtureConsumersIntegrationTest extends TestCase
 {
-    private PdoDatabase $database;
+    private DBALDatabase $database;
     private EntityTypeManager $entityTypeManager;
     private ResourceSerializer $serializer;
     private EntityAccessHandler $accessHandler;
@@ -49,7 +49,7 @@ final class DiscoveryFixtureConsumersIntegrationTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->database = PdoDatabase::createSqlite();
+        $this->database = DBALDatabase::createSqlite();
         $dispatcher = new EventDispatcher();
         $this->entityTypeManager = new EntityTypeManager(
             $dispatcher,
@@ -96,7 +96,7 @@ final class DiscoveryFixtureConsumersIntegrationTest extends TestCase
             new DiscoveryFixtureRelationshipViewPolicy(),
         ]);
         $this->account = new DiscoveryFixtureAnonymousAccount();
-        $this->embeddingStorage = new SqliteEmbeddingStorage($this->database->getPdo());
+        $this->embeddingStorage = new SqliteEmbeddingStorage($this->database->getConnection()->getNativeConnection());
         $this->seedFixtureCorpus();
     }
 

@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Relationship;
 
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DatabaseInterface;
 
 final class RelationshipSchemaManager
 {
     public function __construct(
-        private readonly PdoDatabase $database,
+        private readonly DatabaseInterface $database,
     ) {}
 
     public function ensure(): void

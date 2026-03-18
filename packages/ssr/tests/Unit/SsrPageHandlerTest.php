@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Waaseyaa\Cache\CacheConfigResolver;
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\I18n\Language;
@@ -24,7 +24,7 @@ final class SsrPageHandlerTest extends TestCase
     private function createHandler(array $config = [], ?\Closure $serviceResolver = null): SsrPageHandler
     {
         $entityTypeManager = new EntityTypeManager(new EventDispatcher());
-        $database = PdoDatabase::createSqlite();
+        $database = DBALDatabase::createSqlite();
         $discoveryHandler = new DiscoveryApiHandler($entityTypeManager, $database);
         $cacheConfigResolver = new CacheConfigResolver($config);
 

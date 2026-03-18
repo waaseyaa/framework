@@ -9,7 +9,7 @@ require_once __DIR__ . '/../../src/RelationshipTraversalService.php';
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -23,7 +23,7 @@ final class RelationshipTraversalServiceTest extends TestCase
 {
     public function testBrowsePublishedExcludesEdgesToUnpublishedNodeEndpoints(): void
     {
-        $database = PdoDatabase::createSqlite();
+        $database = DBALDatabase::createSqlite();
         $this->createRelationshipTable($database);
 
         $this->insertRelationship($database, 1, 'node', '1', 'node', '2', 1);
@@ -81,7 +81,7 @@ final class RelationshipTraversalServiceTest extends TestCase
 
     public function testBrowseAllIncludesMixedStateEndpointsDeterministically(): void
     {
-        $database = PdoDatabase::createSqlite();
+        $database = DBALDatabase::createSqlite();
         $this->createRelationshipTable($database);
 
         $this->insertRelationship($database, 1, 'node', '1', 'node', '2', 1);
@@ -139,7 +139,7 @@ final class RelationshipTraversalServiceTest extends TestCase
 
     public function testBrowseCachesRepeatedRelatedEntitySummaryLoadsAcrossDirections(): void
     {
-        $database = PdoDatabase::createSqlite();
+        $database = DBALDatabase::createSqlite();
         $this->createRelationshipTable($database);
 
         $this->insertRelationship($database, 1, 'node', '1', 'node', '2', 1);
@@ -198,9 +198,9 @@ final class RelationshipTraversalServiceTest extends TestCase
         $this->assertSame(1, $nodeStorage->loadCalls);
     }
 
-    private function createRelationshipTable(PdoDatabase $database): void
+    private function createRelationshipTable(DBALDatabase $database): void
     {
-        $database->getPdo()->exec(<<<SQL
+        $database->getConnection()->getNativeConnection()->exec(<<<SQL
 CREATE TABLE relationship (
   rid INTEGER PRIMARY KEY,
   relationship_type TEXT NOT NULL,
@@ -219,7 +219,7 @@ SQL);
     }
 
     private function insertRelationship(
-        PdoDatabase $database,
+        DBALDatabase $database,
         int $rid,
         string $fromType,
         string $fromId,

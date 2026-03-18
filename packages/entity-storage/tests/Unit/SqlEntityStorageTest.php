@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\EntityStorage\Tests\Unit;
 
-use Waaseyaa\Database\PdoDatabase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\Event\EntityEvent;
@@ -18,14 +18,14 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 
 final class SqlEntityStorageTest extends TestCase
 {
-    private PdoDatabase $database;
+    private DBALDatabase $database;
     private EntityType $entityType;
     private EventDispatcher $eventDispatcher;
     private SqlEntityStorage $storage;
 
     protected function setUp(): void
     {
-        $this->database = PdoDatabase::createSqlite();
+        $this->database = DBALDatabase::createSqlite();
         $this->entityType = new EntityType(
             id: 'test_entity',
             label: 'Test Entity',
