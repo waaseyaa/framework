@@ -291,21 +291,6 @@ parameters:
 			path: packages/cli/src/Ingestion/ValidationDiagnosticEmitter.php
 
 		-
-			message: "#^Call to function array_is_list\\(\\) with array\\<string, mixed\\> will always evaluate to false\\.$#"
-			count: 2
-			path: packages/database-legacy/src/Query/PdoInsert.php
-
-		-
-			message: "#^Empty array passed to foreach\\.$#"
-			count: 1
-			path: packages/database-legacy/src/Query/PdoSelect.php
-
-		-
-			message: "#^Match arm is unreachable because previous comparison is always true\\.$#"
-			count: 3
-			path: packages/database-legacy/src/Query/PdoSelect.php
-
-		-
 			message: "#^Method Psr\\\\EventDispatcher\\\\EventDispatcherInterface\\:\\:dispatch\\(\\) invoked with 2 parameters, 1 required\\.$#"
 			count: 4
 			path: packages/entity-storage/src/EntityRepository.php
