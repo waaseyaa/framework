@@ -20,6 +20,7 @@ final class GraphQlRouteProvider
                 ->controller('graphql.endpoint')
                 ->allowAll()
                 ->methods('GET', 'POST')
+                ->csrfExempt()
                 ->build(),
         );
     }

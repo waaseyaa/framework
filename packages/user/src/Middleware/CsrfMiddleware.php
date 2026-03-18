@@ -19,7 +19,7 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
     private const TOKEN_FIELD_NAME = '_csrf_token';
     private const TOKEN_HEADER_NAME = 'X-CSRF-Token';
     private const STATE_CHANGING_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
-    private const CSRF_EXEMPT_CONTENT_TYPES = ['application/vnd.api+json'];
+    private const CSRF_EXEMPT_CONTENT_TYPES = ['application/vnd.api+json', 'application/json'];
 
     public function process(Request $request, HttpHandlerInterface $next): Response
     {

@@ -37,10 +37,27 @@ final class NodeServiceProviderTest extends TestCase
 
         $fields = $provider->getEntityTypes()[0]->getFieldDefinitions();
 
+        $this->assertArrayHasKey('title', $fields);
+        $this->assertSame('string', $fields['title']['type']);
+        $this->assertTrue($fields['title']['required']);
+
+        $this->assertArrayHasKey('type', $fields);
+        $this->assertSame('string', $fields['type']['type']);
+        $this->assertTrue($fields['type']['required']);
+        $this->assertTrue($fields['type']['readOnly']);
+
+        $this->assertArrayHasKey('slug', $fields);
+        $this->assertSame('string', $fields['slug']['type']);
+        $this->assertTrue($fields['slug']['required']);
+
         $this->assertArrayHasKey('status', $fields);
         $this->assertArrayHasKey('promote', $fields);
         $this->assertArrayHasKey('sticky', $fields);
+
         $this->assertArrayHasKey('uid', $fields);
+        $this->assertSame('user', $fields['uid']['target_entity_type_id']);
+        $this->assertArrayNotHasKey('settings', $fields['uid']);
+
         $this->assertArrayHasKey('created', $fields);
         $this->assertArrayHasKey('changed', $fields);
     }

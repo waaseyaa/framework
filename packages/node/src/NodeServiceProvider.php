@@ -18,6 +18,28 @@ final class NodeServiceProvider extends ServiceProvider
             keys: ['id' => 'nid', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
             group: 'content',
             fieldDefinitions: [
+                'title' => [
+                    'type' => 'string',
+                    'label' => 'Title',
+                    'description' => 'The title of the content.',
+                    'required' => true,
+                    'weight' => 0,
+                ],
+                'type' => [
+                    'type' => 'string',
+                    'label' => 'Content type',
+                    'description' => 'The bundle (content type) of this node.',
+                    'required' => true,
+                    'readOnly' => true,
+                    'weight' => 1,
+                ],
+                'slug' => [
+                    'type' => 'string',
+                    'label' => 'Slug',
+                    'description' => 'The URL-friendly identifier for this content.',
+                    'required' => true,
+                    'weight' => 2,
+                ],
                 'status' => [
                     'type' => 'boolean',
                     'label' => 'Published',
@@ -43,7 +65,7 @@ final class NodeServiceProvider extends ServiceProvider
                     'type' => 'entity_reference',
                     'label' => 'Author',
                     'description' => 'The user who authored this content.',
-                    'settings' => ['target_type' => 'user'],
+                    'target_entity_type_id' => 'user',
                     'weight' => 20,
                 ],
                 'created' => [

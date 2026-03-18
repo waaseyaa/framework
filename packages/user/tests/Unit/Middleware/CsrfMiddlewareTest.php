@@ -250,4 +250,16 @@ final class CsrfMiddlewareTest extends TestCase
 
         $this->assertSame(403, $response->getStatusCode());
     }
+
+    #[Test]
+    public function postWithJsonContentTypeSkipsCsrf(): void
+    {
+        $_SESSION['_csrf_token'] = 'valid-token';
+
+        $request = Request::create('/graphql', 'POST', [], [], [], [], '{"query":"{ nodes { id } }"}');
+        $request->headers->set('Content-Type', 'application/json');
+        $response = $this->middleware->process($request, $this->passthrough);
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
 }
