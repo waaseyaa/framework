@@ -216,12 +216,17 @@ final class EntityResolver
         if (isset($args['filter']) && is_array($args['filter'])) {
             foreach ($args['filter'] as $f) {
                 if (!is_array($f) || !isset($f['field'], $f['value'])) {
-                    continue;
+                    throw new UserError("Invalid filter: each entry must have 'field' and 'value' keys.");
+                }
+                $op = isset($f['operator']) ? strtoupper((string) $f['operator']) : '=';
+                $allowed = ['=', '!=', '<', '>', '<=', '>=', 'LIKE', 'NOT LIKE', 'IN', 'NOT IN'];
+                if (!in_array($op, $allowed, true)) {
+                    throw new UserError("Invalid filter operator: '{$f['operator']}'");
                 }
                 $filters[] = new QueryFilter(
                     field: (string) $f['field'],
                     value: $f['value'],
-                    operator: isset($f['operator']) ? (string) $f['operator'] : '=',
+                    operator: $op,
                 );
             }
         }
