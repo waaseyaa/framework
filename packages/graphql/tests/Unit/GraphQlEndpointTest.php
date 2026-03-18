@@ -18,12 +18,13 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 #[CoversClass(GraphQlEndpoint::class)]
 final class GraphQlEndpointTest extends TestCase
 {
+    private EntityTypeManager $entityTypeManager;
     private GraphQlEndpoint $endpoint;
 
     protected function setUp(): void
     {
-        $entityTypeManager = new EntityTypeManager(new EventDispatcher());
-        $entityTypeManager->registerCoreEntityType(new EntityType(
+        $this->entityTypeManager = new EntityTypeManager(new EventDispatcher());
+        $this->entityTypeManager->registerCoreEntityType(new EntityType(
             id: 'page',
             label: 'Page',
             class: EntityBase::class,
@@ -35,10 +36,23 @@ final class GraphQlEndpointTest extends TestCase
             ],
         ));
 
+        // Authenticated user (id !== 0) by default.
+        $authenticatedAccount = $this->createStub(AccountInterface::class);
+        $authenticatedAccount->method('id')->willReturn(1);
+
         $this->endpoint = new GraphQlEndpoint(
-            entityTypeManager: $entityTypeManager,
+            entityTypeManager: $this->entityTypeManager,
             accessHandler: new EntityAccessHandler([]),
-            account: $this->createStub(AccountInterface::class),
+            account: $authenticatedAccount,
+        );
+    }
+
+    private function createEndpointWithAccount(AccountInterface $account): GraphQlEndpoint
+    {
+        return new GraphQlEndpoint(
+            entityTypeManager: $this->entityTypeManager,
+            accessHandler: new EntityAccessHandler([]),
+            account: $account,
         );
     }
 
@@ -123,5 +137,38 @@ final class GraphQlEndpointTest extends TestCase
         self::assertSame(200, $result['statusCode']);
         // Page won't exist (no storage), so data.page should be null
         self::assertNull($result['body']['data']['page']);
+    }
+
+    #[Test]
+    public function anonymousUserCannotIntrospectSchema(): void
+    {
+        $anonymousAccount = $this->createStub(AccountInterface::class);
+        $anonymousAccount->method('id')->willReturn(0);
+        $endpoint = $this->createEndpointWithAccount($anonymousAccount);
+
+        $result = $endpoint->handle(
+            'POST',
+            json_encode(['query' => '{ __schema { queryType { name } } }']),
+        );
+
+        self::assertSame(200, $result['statusCode']);
+        self::assertNotEmpty($result['body']['errors']);
+        self::assertStringContainsString(
+            'introspection',
+            strtolower($result['body']['errors'][0]['message']),
+        );
+    }
+
+    #[Test]
+    public function authenticatedUserCanIntrospectSchema(): void
+    {
+        $result = $this->endpoint->handle(
+            'POST',
+            json_encode(['query' => '{ __schema { queryType { name } } }']),
+        );
+
+        self::assertSame(200, $result['statusCode']);
+        self::assertSame('Query', $result['body']['data']['__schema']['queryType']['name']);
+        self::assertArrayNotHasKey('errors', $result['body']);
     }
 }

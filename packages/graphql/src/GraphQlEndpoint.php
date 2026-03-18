@@ -6,6 +6,8 @@ namespace Waaseyaa\GraphQL;
 
 use GraphQL\Error\DebugFlag;
 use GraphQL\GraphQL;
+use GraphQL\Validator\DocumentValidator;
+use GraphQL\Validator\Rules\DisableIntrospection;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -95,12 +97,22 @@ final class GraphQlEndpoint
 
         $schema = $schemaFactory->build();
 
+        // Disable introspection for anonymous users (id === 0).
+        $validationRules = null;
+        if ($this->account->id() === 0) {
+            $validationRules = array_merge(
+                DocumentValidator::defaultRules(),
+                [new DisableIntrospection(DisableIntrospection::ENABLED)],
+            );
+        }
+
         try {
             $result = GraphQL::executeQuery(
                 schema: $schema,
                 source: $query,
                 variableValues: $variables,
                 operationName: $operationName,
+                validationRules: $validationRules,
             );
 
             return [
