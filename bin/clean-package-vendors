@@ -8,18 +8,33 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PACKAGES_DIR="${SCRIPT_DIR}/packages"
 
-removed=0
+found=0
+total_kb=0
 for vendor_dir in "${PACKAGES_DIR}"/*/vendor; do
     if [ -d "$vendor_dir" ]; then
         pkg=$(basename "$(dirname "$vendor_dir")")
-        rm -rf "$vendor_dir"
-        echo "Removed packages/${pkg}/vendor/"
-        removed=$((removed + 1))
+        size_kb=$(du -sk "$vendor_dir" 2>/dev/null | cut -f1)
+        size_mb=$(awk "BEGIN {printf \"%.1f\", ${size_kb}/1024}")
+        echo "  packages/${pkg}/vendor/ — ${size_mb} MB"
+        total_kb=$((total_kb + size_kb))
+        found=$((found + 1))
     fi
 done
 
-if [ "$removed" -eq 0 ]; then
+if [ "$found" -eq 0 ]; then
     echo "No per-package vendor directories found."
-else
-    echo "Removed ${removed} vendor directories."
+    exit 0
 fi
+
+total_mb=$(awk "BEGIN {printf \"%.1f\", ${total_kb}/1024}")
+echo ""
+echo "Found ${found} vendor directories totaling ${total_mb} MB."
+echo "Removing..."
+
+for vendor_dir in "${PACKAGES_DIR}"/*/vendor; do
+    if [ -d "$vendor_dir" ]; then
+        rm -rf "$vendor_dir"
+    fi
+done
+
+echo "Done. Freed ${total_mb} MB."
