@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Tests\Unit\Command\Make;
 
 use Waaseyaa\CLI\Command\Make\MakeMigrationCommand;
+use Waaseyaa\Foundation\Discovery\PackageManifest;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -83,6 +84,74 @@ final class MakeMigrationCommandTest extends TestCase
         $content = file_get_contents($files[0]);
         $this->assertStringContainsString('posts', $content);
         $this->assertStringContainsString('extends Migration', $content);
+    }
+
+    #[Test]
+    public function it_writes_to_package_migration_directory(): void
+    {
+        $packageMigDir = $this->tempDir . '/packages/node/migrations';
+        $manifest = new PackageManifest(
+            providers: [],
+            commands: [],
+            routes: [],
+            migrations: ['waaseyaa/node' => $packageMigDir],
+            fieldTypes: [],
+            listeners: [],
+            middleware: [],
+        );
+
+        $command = new MakeMigrationCommand($this->tempDir, $manifest);
+        $tester = new CommandTester($command);
+        $tester->execute([
+            'name' => 'add_body_field',
+            '--table' => 'node',
+            '--package' => 'waaseyaa/node',
+        ]);
+
+        $this->assertSame(Command::SUCCESS, $tester->getStatusCode());
+        $this->assertDirectoryExists($packageMigDir);
+
+        $files = glob($packageMigDir . '/*.php');
+        $this->assertCount(1, $files);
+        $this->assertStringContainsString('add_body_field', $files[0]);
+    }
+
+    #[Test]
+    public function it_fails_for_unknown_package(): void
+    {
+        $manifest = new PackageManifest(
+            providers: [],
+            commands: [],
+            routes: [],
+            migrations: [],
+            fieldTypes: [],
+            listeners: [],
+            middleware: [],
+        );
+
+        $command = new MakeMigrationCommand($this->tempDir, $manifest);
+        $tester = new CommandTester($command);
+        $tester->execute([
+            'name' => 'test_migration',
+            '--package' => 'waaseyaa/nonexistent',
+        ]);
+
+        $this->assertSame(Command::FAILURE, $tester->getStatusCode());
+        $this->assertStringContainsString('no registered migration directory', $tester->getDisplay());
+    }
+
+    #[Test]
+    public function it_fails_when_package_flag_used_without_manifest(): void
+    {
+        $command = new MakeMigrationCommand($this->tempDir);
+        $tester = new CommandTester($command);
+        $tester->execute([
+            'name' => 'test_migration',
+            '--package' => 'waaseyaa/node',
+        ]);
+
+        $this->assertSame(Command::FAILURE, $tester->getStatusCode());
+        $this->assertStringContainsString('PackageManifest not available', $tester->getDisplay());
     }
 
     private function createTester(): CommandTester

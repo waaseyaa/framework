@@ -171,7 +171,7 @@ final class ConsoleKernel extends AbstractKernel
             new MakeEntityCommand(),
             new MakeJobCommand(),
             new MakeListenerCommand(),
-            new MakeMigrationCommand($this->projectRoot),
+            new MakeMigrationCommand($this->projectRoot, $this->manifest),
             new MakePolicyCommand(),
             new MakeProviderCommand(),
             new MakeTestCommand(),
