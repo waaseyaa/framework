@@ -182,9 +182,13 @@ Design docs in `docs/plans/` are session artifacts (implementation history). Spe
 - **Migration system boot order**: `bootMigrations()` runs after `compileManifest()` (requires `PackageManifest`) and before `discoverAndRegisterProviders()`. It creates its own DBAL `Connection` separate from `PdoDatabase` — two connections to the same SQLite file, which is fine for single-threaded CLI.
 - **`MakeMigrationCommand` requires `$projectRoot`**: Constructor changed from no-arg to `(string $projectRoot)`. ConsoleKernel must pass `$this->projectRoot`. The `--package` flag is not yet implemented (see #464).
 - **Migration CLI commands take `\Closure` providers**: `MigrateCommand`, `MigrateRollbackCommand`, `MigrateStatusCommand` all accept `(Migrator, \Closure $migrationsProvider)`. The closure defers filesystem scanning until the command runs. In ConsoleKernel: `fn () => $this->migrationLoader->loadAll()`.
+- **Entity types without `uuid` key are config entities**: `SqlEntityStorage::save()` requires explicit non-empty string IDs for entities whose `EntityType` keys lack `'uuid' => 'uuid'`. Content entities with auto-increment IDs must include the uuid key even if they don't use UUIDs.
+- **`entity_reference` field definitions need `target_entity_type_id`**: `EntityTypeBuilder` looks for `target_entity_type_id` or `targetEntityTypeId` in field definitions, not `target`. Using the wrong key causes silent fallback to String type with no reference resolution.
+- **GraphQL reference fields keep storage field names**: A field defined as `author_id` with type `entity_reference` produces a GraphQL field named `author_id` (not `author`). It resolves to the nested entity object but the field name includes the `_id` suffix.
 
 ## Testing
 - Integration tests in `tests/Integration/PhaseN/` — one directory per implementation phase
+- GraphQL integration tests in `tests/Integration/GraphQL/` — full-stack tests with real SQLite via `PdoDatabase::createSqlite()`
 - Unit tests in `packages/*/tests/Unit/`
 - Use `CommandTester` from Symfony Console for CLI command tests
 - Use `ArrayLoader` for Twig tests (no filesystem needed)
