@@ -34,7 +34,7 @@ final class TaxonomyServiceProvider extends ServiceProvider
                     'type' => 'entity_reference',
                     'label' => 'Parent term',
                     'description' => 'The parent term for hierarchical vocabularies.',
-                    'settings' => ['target_type' => 'taxonomy_term'],
+                    'target_entity_type_id' => 'taxonomy_term',
                     'weight' => 15,
                 ],
                 'status' => [

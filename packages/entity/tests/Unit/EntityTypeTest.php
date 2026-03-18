@@ -117,7 +117,7 @@ class EntityTypeTest extends TestCase
             'uid' => [
                 'type' => 'entity_reference',
                 'label' => 'Author',
-                'settings' => ['target_type' => 'user'],
+                'target_entity_type_id' => 'user',
                 'weight' => 20,
             ],
         ];

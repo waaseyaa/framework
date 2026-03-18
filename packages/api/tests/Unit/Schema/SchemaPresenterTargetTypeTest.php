@@ -28,7 +28,7 @@ final class SchemaPresenterTargetTypeTest extends TestCase
             'author' => [
                 'type' => 'entity_reference',
                 'label' => 'Author',
-                'settings' => ['target_type' => 'user'],
+                'target_entity_type_id' => 'user',
             ],
         ]);
 
