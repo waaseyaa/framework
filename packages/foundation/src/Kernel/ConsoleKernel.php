@@ -57,6 +57,7 @@ use Waaseyaa\CLI\Command\SchemaCheckCommand;
 use Waaseyaa\CLI\Command\SchemaListCommand;
 use Waaseyaa\CLI\Command\SemanticRefreshCommand;
 use Waaseyaa\CLI\Command\SemanticWarmCommand;
+use Waaseyaa\CLI\Command\ServeCommand;
 use Waaseyaa\CLI\Command\Telescope\TelescopeClearCommand;
 use Waaseyaa\CLI\Command\Telescope\TelescopeListCommand;
 use Waaseyaa\CLI\Command\Telescope\TelescopePruneCommand;
@@ -174,6 +175,7 @@ final class ConsoleKernel extends AbstractKernel
             new MakePolicyCommand(),
             new MakeProviderCommand(),
             new MakeTestCommand(),
+            new ServeCommand(),
             new AboutCommand(info: [
                 'name' => 'Waaseyaa',
                 'version' => (static function (): string {
