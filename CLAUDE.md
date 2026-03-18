@@ -29,6 +29,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `public/index.php`, `packages/*/src/Middleware/*` | `waaseyaa:middleware-pipeline` | `docs/specs/middleware-pipeline.md` |
 | `packages/note/*` | — | `docs/specs/ingestion-defaults.md` |
 | `packages/relationship/*` | — | `docs/specs/relationship-modeling.md`, `docs/specs/relationship-inference-contract.md` |
+| `packages/graphql/*` | — | — |
 | `packages/search/*` | — | — |
 | `packages/ssr/*` | — | — |
 | `packages/telescope/*` | — | — |
@@ -59,7 +60,7 @@ Use `waaseyaa_search_specs` MCP tool to find specs affected by a change when the
 | 3 | Services | workflows, search |
 | 4 | API | api, routing |
 | 5 | AI | ai-schema, ai-agent, ai-pipeline, ai-vector |
-| 6 | Interfaces | cli, admin, admin-surface, mcp, ssr, telescope |
+| 6 | Interfaces | cli, admin, admin-surface, graphql, mcp, ssr, telescope |
 
 **Rule:** Packages can only import from their own layer or lower. Upward communication via DomainEvents.
 
