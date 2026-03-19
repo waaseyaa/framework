@@ -40,6 +40,8 @@ jobs:
           - { local: 'packages/menu', remote: 'menu' }
           - { local: 'packages/note', remote: 'note' }
           - { local: 'packages/relationship', remote: 'relationship' }
+          # Layer 2: Services
+          - { local: 'packages/auth', remote: 'auth' }
           # Layer 3: Services
           - { local: 'packages/workflows', remote: 'workflows' }
           # Layer 4: API
