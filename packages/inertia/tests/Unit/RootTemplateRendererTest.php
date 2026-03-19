@@ -48,7 +48,7 @@ final class RootTemplateRendererTest extends TestCase
     public function testCustomTemplateCallback(): void
     {
         $renderer = new RootTemplateRenderer(
-            template: fn (string $pageJson) => "<html><body><div id=\"app\"></div>{$pageJson}</body></html>",
+            template: fn(string $pageJson) => "<html><body><div id=\"app\"></div>{$pageJson}</body></html>",
         );
         $pageObject = [
             'component' => 'Test',

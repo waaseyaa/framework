@@ -16,7 +16,7 @@ final class PropResolverTest extends TestCase
         $resolver = new PropResolver();
         $props = [
             'static' => 'value',
-            'lazy' => fn () => 'computed',
+            'lazy' => fn() => 'computed',
         ];
 
         $resolved = $resolver->resolve($props);
@@ -30,7 +30,7 @@ final class PropResolverTest extends TestCase
         $resolver = new PropResolver();
         $props = [
             'always' => 'here',
-            'optional' => PropResolver::optional(fn () => 'expensive'),
+            'optional' => PropResolver::optional(fn() => 'expensive'),
         ];
 
         $resolved = $resolver->resolve($props);
@@ -44,7 +44,7 @@ final class PropResolverTest extends TestCase
         $resolver = new PropResolver();
         $props = [
             'always' => 'here',
-            'optional' => PropResolver::optional(fn () => 'expensive'),
+            'optional' => PropResolver::optional(fn() => 'expensive'),
         ];
 
         $resolved = $resolver->resolve($props, only: ['always', 'optional']);

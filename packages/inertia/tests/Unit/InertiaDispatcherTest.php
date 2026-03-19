@@ -48,7 +48,7 @@ final class InertiaDispatcherTest extends TestCase
 
     public function testControllerPatternWithSharedProps(): void
     {
-        Inertia::share('auth', fn () => ['user' => ['name' => 'Alice']]);
+        Inertia::share('auth', fn() => ['user' => ['name' => 'Alice']]);
 
         $response = Inertia::render('Dashboard', ['stats' => 42]);
         $page = $response->toPageObject();
