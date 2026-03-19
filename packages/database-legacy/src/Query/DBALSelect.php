@@ -13,6 +13,8 @@ final class DBALSelect implements SelectInterface
 {
     private readonly QueryBuilder $qb;
 
+    private readonly Connection $connection;
+
     private string $tableAlias;
 
     private bool $isCountQuery = false;
@@ -24,6 +26,7 @@ final class DBALSelect implements SelectInterface
         string $table,
         string $alias = '',
     ) {
+        $this->connection = $connection;
         $this->qb = $connection->createQueryBuilder();
         $rawAlias = $alias !== '' ? $alias : $table;
         $this->tableAlias = $connection->quoteIdentifier($rawAlias);
@@ -33,12 +36,13 @@ final class DBALSelect implements SelectInterface
     public function fields(string $tableAlias, array $fields = []): static
     {
         $this->hasExplicitFields = true;
+        $quoted = $this->connection->quoteIdentifier($tableAlias);
 
         if (empty($fields)) {
-            $this->qb->addSelect($tableAlias . '.*');
+            $this->qb->addSelect($quoted . '.*');
         } else {
             foreach ($fields as $field) {
-                $this->qb->addSelect($tableAlias . '.' . $field);
+                $this->qb->addSelect($quoted . '.' . $field);
             }
         }
 
@@ -48,8 +52,9 @@ final class DBALSelect implements SelectInterface
     public function addField(string $tableAlias, string $field, string $alias = ''): static
     {
         $this->hasExplicitFields = true;
+        $quoted = $this->connection->quoteIdentifier($tableAlias);
 
-        $col = $tableAlias . '.' . $field;
+        $col = $quoted . '.' . $field;
         if ($alias !== '') {
             $col .= ' AS ' . $alias;
         }
