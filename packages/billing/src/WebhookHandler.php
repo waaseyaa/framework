@@ -8,8 +8,7 @@ final class WebhookHandler
 {
     public function __construct(
         private readonly StripeClientInterface $stripe,
-    ) {
-    }
+    ) {}
 
     /**
      * Process a Stripe webhook event.

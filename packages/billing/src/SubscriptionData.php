@@ -15,8 +15,7 @@ final readonly class SubscriptionData
         public int $quantity,
         public ?int $trialEndsAt,
         public ?int $endsAt,
-    ) {
-    }
+    ) {}
 
     public function isActive(): bool
     {

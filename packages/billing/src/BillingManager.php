@@ -25,8 +25,7 @@ final class BillingManager
         private readonly string $cancelUrl,
         private readonly string $portalReturnUrl,
         private readonly int $foundingMemberCap = 100,
-    ) {
-    }
+    ) {}
 
     /**
      * Create a Stripe Checkout Session for a subscription.
