@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e0ca5c2f520863f931fab0a67f874fa7",
+    "content-hash": "89cf2040653b1f52fd2b7a4c7347fd82",
     "packages": [
         {
             "name": "doctrine/dbal",
@@ -3117,6 +3117,52 @@
                 "GPL-2.0-or-later"
             ],
             "description": "RESTful JSON:API resource layer for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/auth",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/auth",
+                "reference": "ec0ce7245c6cbe96eeb39ae90ce5298d666dda92"
+            },
+            "require": {
+                "php": ">=8.4",
+                "waaseyaa/foundation": "@dev",
+                "waaseyaa/mail": "@dev",
+                "waaseyaa/user": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "extra": {
+                "waaseyaa": {
+                    "providers": [
+                        "Waaseyaa\\Auth\\AuthServiceProvider"
+                    ]
+                },
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Auth\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Auth\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Headless authentication for Waaseyaa — login, registration, 2FA, password reset",
             "transport-options": {
                 "relative": true
             }
@@ -8002,6 +8048,7 @@
         "waaseyaa/ai-schema": 20,
         "waaseyaa/ai-vector": 20,
         "waaseyaa/api": 20,
+        "waaseyaa/auth": 20,
         "waaseyaa/cache": 20,
         "waaseyaa/cli": 20,
         "waaseyaa/config": 20,

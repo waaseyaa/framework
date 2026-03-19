@@ -49,7 +49,8 @@
         { "type": "path", "url": "packages/admin-surface" },
         { "type": "path", "url": "packages/github" },
         { "type": "path", "url": "packages/ingestion" },
-        { "type": "path", "url": "packages/inertia" }
+        { "type": "path", "url": "packages/inertia" },
+        { "type": "path", "url": "packages/auth" }
     ],
     "require": {
         "php": ">=8.4",
@@ -62,6 +63,7 @@
         "waaseyaa/ai-schema": "@dev",
         "waaseyaa/ai-vector": "@dev",
         "waaseyaa/api": "@dev",
+        "waaseyaa/auth": "@dev",
         "waaseyaa/cache": "@dev",
         "waaseyaa/cli": "@dev",
         "waaseyaa/config": "@dev",
@@ -149,6 +151,7 @@
             "Waaseyaa\\Testing\\Tests\\": "packages/testing/tests/",
             "Waaseyaa\\Telescope\\Tests\\": "packages/telescope/tests/",
             "Waaseyaa\\AdminSurface\\Tests\\": "packages/admin-surface/tests/",
+            "Waaseyaa\\Auth\\Tests\\": "packages/auth/tests/",
             "Waaseyaa\\Tests\\": "tests/"
         }
     },
