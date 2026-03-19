@@ -49,7 +49,7 @@ final class DBALUpdate implements UpdateInterface
         }
 
         // Simple path: all conditions are '=' operators.
-        return $this->connection->update($this->table, $this->fields, $this->simpleCriteria());
+        return $this->connection->update($this->connection->quoteIdentifier($this->table), $this->fields, $this->simpleCriteria());
     }
 
     private function hasComplexConditions(): bool
@@ -78,7 +78,7 @@ final class DBALUpdate implements UpdateInterface
 
     private function executeWithQueryBuilder(): int
     {
-        $qb = $this->connection->createQueryBuilder()->update($this->table);
+        $qb = $this->connection->createQueryBuilder()->update($this->connection->quoteIdentifier($this->table));
 
         foreach ($this->fields as $col => $val) {
             $qb->set($col, $qb->createNamedParameter($val));

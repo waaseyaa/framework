@@ -26,7 +26,7 @@ final class DBALSelect implements SelectInterface
     ) {
         $this->qb = $connection->createQueryBuilder();
         $this->tableAlias = $alias !== '' ? $alias : $table;
-        $this->qb->from($table, $this->tableAlias);
+        $this->qb->from($connection->quoteIdentifier($table), $this->tableAlias);
     }
 
     public function fields(string $tableAlias, array $fields = []): static

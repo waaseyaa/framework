@@ -35,7 +35,7 @@ final class DBALDelete implements DeleteInterface
         }
 
         // Simple path: all conditions are '=' operators.
-        return $this->connection->delete($this->table, $this->simpleCriteria());
+        return $this->connection->delete($this->connection->quoteIdentifier($this->table), $this->simpleCriteria());
     }
 
     private function hasComplexConditions(): bool
@@ -64,7 +64,7 @@ final class DBALDelete implements DeleteInterface
 
     private function executeWithQueryBuilder(): int
     {
-        $qb = $this->connection->createQueryBuilder()->delete($this->table);
+        $qb = $this->connection->createQueryBuilder()->delete($this->connection->quoteIdentifier($this->table));
         $this->applyConditions($qb);
 
         return $qb->executeStatement();

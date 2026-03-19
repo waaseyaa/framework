@@ -60,7 +60,7 @@ final class DBALInsert implements InsertInterface
                     $params[$field] = $values[$field] ?? null;
                 }
             }
-            $this->connection->insert($this->table, $params);
+            $this->connection->insert($this->connection->quoteIdentifier($this->table), $params);
         }
 
         return $this->connection->lastInsertId();
