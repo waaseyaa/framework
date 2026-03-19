@@ -100,6 +100,32 @@ final class ControllerDispatcher
             if ($result instanceof \Waaseyaa\SSR\SsrResponse) {
                 ResponseSender::html($result->statusCode, $result->content, $result->headers);
             }
+            if ($result instanceof \Waaseyaa\Inertia\InertiaResponse) {
+                $pageObject = $result->toPageObject();
+                $pageObject['url'] = $httpRequest->getRequestUri();
+
+                if ($httpRequest->headers->get('X-Inertia') === 'true') {
+                    ResponseSender::json(200, $pageObject, [
+                        'X-Inertia' => 'true',
+                        'Vary' => 'X-Inertia',
+                    ]);
+                }
+
+                $renderer = new \Waaseyaa\Inertia\RootTemplateRenderer();
+                ResponseSender::html(200, $renderer->render($pageObject));
+            }
+            if ($result instanceof \Symfony\Component\HttpFoundation\RedirectResponse
+                && $httpRequest->headers->get('X-Inertia') === 'true'
+                && in_array($httpRequest->getMethod(), ['PUT', 'PATCH', 'DELETE'], true)
+            ) {
+                $result->setStatusCode(303);
+                $result->send();
+                exit;
+            }
+            if ($result instanceof \Symfony\Component\HttpFoundation\Response) {
+                $result->send();
+                exit;
+            }
             if (is_array($result)) {
                 ResponseSender::json($result['statusCode'] ?? 200, $result['body'] ?? $result);
             }

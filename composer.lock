@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "a3e6487c84f1f117de6937f75b8eaef8",
+    "content-hash": "e0ca5c2f520863f931fab0a67f874fa7",
     "packages": [
         {
             "name": "doctrine/dbal",
@@ -3258,9 +3258,10 @@
             "dist": {
                 "type": "path",
                 "url": "packages/database-legacy",
-                "reference": "9a38062b6491b11c3a3a574d9ce1552a6d351931"
+                "reference": "5c2fe650f3622008fcaac12ddfc6d8d6fdd512e7"
             },
             "require": {
+                "doctrine/dbal": "^4.0",
                 "php": ">=8.4"
             },
             "require-dev": {
@@ -3473,7 +3474,7 @@
         },
         {
             "name": "waaseyaa/github",
-            "version": "dev-feat/batch-b-cleanup-475-476-477",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/github",
@@ -3582,6 +3583,50 @@
                 "GPL-2.0-or-later"
             ],
             "description": "Internationalization foundation: Language, LanguageManager, LanguageContext, FallbackChain",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/inertia",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/inertia",
+                "reference": "cedb1ef76cc94f0ffda392f61876ddf1560ce216"
+            },
+            "require": {
+                "php": ">=8.4",
+                "waaseyaa/foundation": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "extra": {
+                "waaseyaa": {
+                    "providers": [
+                        "Waaseyaa\\Inertia\\InertiaServiceProvider"
+                    ]
+                },
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Inertia\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Inertia\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Server-side Inertia.js v3 protocol adapter for Waaseyaa",
             "transport-options": {
                 "relative": true
             }
@@ -7968,6 +8013,7 @@
         "waaseyaa/github": 20,
         "waaseyaa/graphql": 20,
         "waaseyaa/i18n": 20,
+        "waaseyaa/inertia": 20,
         "waaseyaa/ingestion": 20,
         "waaseyaa/mail": 20,
         "waaseyaa/mcp": 20,

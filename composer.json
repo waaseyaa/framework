@@ -48,7 +48,8 @@
         { "type": "path", "url": "packages/full" },
         { "type": "path", "url": "packages/admin-surface" },
         { "type": "path", "url": "packages/github" },
-        { "type": "path", "url": "packages/ingestion" }
+        { "type": "path", "url": "packages/ingestion" },
+        { "type": "path", "url": "packages/inertia" }
     ],
     "require": {
         "php": ">=8.4",
@@ -71,6 +72,7 @@
         "waaseyaa/foundation": "@dev",
         "waaseyaa/github": "@dev",
         "waaseyaa/graphql": "@dev",
+        "waaseyaa/inertia": "@dev",
         "waaseyaa/ingestion": "@dev",
         "waaseyaa/i18n": "@dev",
         "waaseyaa/mail": "@dev",
@@ -125,6 +127,7 @@
             "Waaseyaa\\State\\Tests\\": "packages/state/tests/",
             "Waaseyaa\\Mcp\\Tests\\": "packages/mcp/tests/",
             "Waaseyaa\\GraphQL\\Tests\\": "packages/graphql/tests/",
+            "Waaseyaa\\Inertia\\Tests\\": "packages/inertia/tests/",
             "Waaseyaa\\Ingestion\\Tests\\": "packages/ingestion/tests/",
             "Waaseyaa\\Mail\\Tests\\": "packages/mail/tests/",
             "Waaseyaa\\Media\\Tests\\": "packages/media/tests/",
