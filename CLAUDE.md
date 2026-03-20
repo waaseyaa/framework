@@ -202,3 +202,17 @@ Design docs in `docs/plans/` are session artifacts (implementation history). Spe
 ## Environment
 - `WAASEYAA_DB` — SQLite database path (default: `./waaseyaa.sqlite`)
 - `WAASEYAA_CONFIG_DIR` — config sync directory (default: `./config/sync`)
+
+## Architectural Boundaries
+
+Waaseyaa is the **framework layer**. It owns the entity system, storage engine, field types, ingestion envelope contract, GraphQL/REST API, access control, and SSR rendering.
+
+**Waaseyaa does NOT own:**
+- Minoo-specific entity types (those belong in Minoo's src/Entity/)
+- Content classification or routing (that's North Cloud)
+- Map UX, dialect logic, or community-specific features (that's Minoo)
+
+**Import rules:**
+- Waaseyaa must not import from Minoo — the dependency flows one way (Minoo → Waaseyaa)
+- Waaseyaa must not reference North Cloud services or APIs
+- Waaseyaa defines the ingestion envelope contract that external tools (Python harvesters) must follow
