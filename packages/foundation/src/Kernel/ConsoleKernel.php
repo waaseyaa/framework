@@ -58,6 +58,7 @@ use Waaseyaa\CLI\Command\SchemaListCommand;
 use Waaseyaa\CLI\Command\SemanticRefreshCommand;
 use Waaseyaa\CLI\Command\SemanticWarmCommand;
 use Waaseyaa\CLI\Command\ServeCommand;
+use Waaseyaa\CLI\Command\SyncRulesCommand;
 use Waaseyaa\CLI\Command\Telescope\TelescopeClearCommand;
 use Waaseyaa\CLI\Command\Telescope\TelescopeListCommand;
 use Waaseyaa\CLI\Command\Telescope\TelescopePruneCommand;
@@ -225,6 +226,10 @@ final class ConsoleKernel extends AbstractKernel
             new TelescopeClearCommand(),
             new TelescopeListCommand(),
             new TelescopePruneCommand(),
+            new SyncRulesCommand(
+                $this->projectRoot . '/vendor/waaseyaa/foundation/.claude/rules',
+                $this->projectRoot . '/.claude/rules',
+            ),
         ]);
 
         $migrationsProvider = fn () => $this->migrationLoader->loadAll();
