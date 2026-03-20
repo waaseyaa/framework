@@ -1,10 +1,10 @@
 // packages/admin/e2e/navigation.spec.ts
 import { test, expect } from '@playwright/test'
-import { mockEntityTypesRoute, mockUserMeRoute } from './fixtures/routes'
+import { mockAdminBootstrapRoutes, mockEntityTypesRoute } from './fixtures/routes'
 
 test.describe('Navigation', () => {
   test.beforeEach(async ({ page }) => {
-    await mockUserMeRoute(page)
+    await mockAdminBootstrapRoutes(page)
     await mockEntityTypesRoute(page)
     await page.goto('/')
   })

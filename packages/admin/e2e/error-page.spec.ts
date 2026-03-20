@@ -1,10 +1,10 @@
 // packages/admin/e2e/error-page.spec.ts
 import { test, expect } from '@playwright/test'
-import { mockUserMeRoute } from './fixtures/routes'
+import { mockAdminBootstrapRoutes } from './fixtures/routes'
 
 test.describe('Error page', () => {
   test.beforeEach(async ({ page }) => {
-    await mockUserMeRoute(page)
+    await mockAdminBootstrapRoutes(page)
   })
 
   test('shows branded 404 message on unknown route', async ({ page }) => {

@@ -1,6 +1,6 @@
 // packages/admin/e2e/telescope-codified-context.spec.ts
 import { test, expect } from '@playwright/test'
-import { mockUserMeRoute } from './fixtures/routes'
+import { mockAdminBootstrapRoutes } from './fixtures/routes'
 
 const mockSessions = [
   {
@@ -79,7 +79,7 @@ async function mockAllRoutes(page: import('@playwright/test').Page) {
 
 test.describe('Telescope: Codified Context', () => {
   test.beforeEach(async ({ page }) => {
-    await mockUserMeRoute(page)
+    await mockAdminBootstrapRoutes(page)
     await mockAllRoutes(page)
   })
 

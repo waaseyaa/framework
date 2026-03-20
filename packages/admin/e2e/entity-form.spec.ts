@@ -1,15 +1,15 @@
 // packages/admin/e2e/entity-form.spec.ts
 import { test, expect } from '@playwright/test'
 import {
+  mockAdminBootstrapRoutes,
   mockEntityTypesRoute,
   mockSchemaRoute,
   mockEntityCreateRoute,
-  mockUserMeRoute,
 } from './fixtures/routes'
 
 test.describe('Entity create form', () => {
   test.beforeEach(async ({ page }) => {
-    await mockUserMeRoute(page)
+    await mockAdminBootstrapRoutes(page)
     await mockEntityTypesRoute(page)
     await mockSchemaRoute(page, 'user')
     await mockEntityCreateRoute(page, 'user')

@@ -25,17 +25,15 @@ No CSS framework. Styles are defined in `packages/admin/app/components/layout/Ad
 Configured in `packages/admin/nuxt.config.ts`:
 
 ```ts
-nitro: {
-  devProxy: {
-    '/api': { target: 'http://localhost:8081/api', changeOrigin: true },
-  },
-},
+const backendUrl = process.env.NUXT_BACKEND_URL ?? 'http://127.0.0.1:8080'
+
 routeRules: {
-  '/api/**': { proxy: 'http://localhost:8081/api/**' },
+  '/api/**': { proxy: `${backendUrl}/api/**` },
+  '/admin/**': { proxy: `${backendUrl}/admin/**` },
 },
 ```
 
-All `/api/*` requests proxy to the PHP backend at `http://localhost:8081`. The PHP backend is served by the built-in PHP server with `public/index.php` as the front controller.
+All `/api/*` and `/admin/*` requests proxy to the PHP backend defined by `NUXT_BACKEND_URL`. The default is `http://127.0.0.1:8080`, matching the repo's PHP dev server and CI workflows. The PHP backend is served by the built-in PHP server with `public/index.php` as the front controller.
 
 ## Composables
 

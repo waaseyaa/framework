@@ -1,10 +1,10 @@
 // packages/admin/e2e/type-lifecycle.spec.ts
 import { test, expect } from '@playwright/test'
-import { mockSchemaRoute, mockEntityListRoute, mockUserMeRoute } from './fixtures/routes'
+import { mockAdminBootstrapRoutes, mockSchemaRoute, mockEntityListRoute } from './fixtures/routes'
 
 test.describe('Content type lifecycle', () => {
   test.beforeEach(async ({ page }) => {
-    await mockUserMeRoute(page)
+    await mockAdminBootstrapRoutes(page)
   })
 
   test('warns before disabling the last enabled type', async ({ page }) => {

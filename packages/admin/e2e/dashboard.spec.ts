@@ -1,10 +1,10 @@
 // packages/admin/e2e/dashboard.spec.ts
 import { test, expect } from '@playwright/test'
-import { mockEntityTypesRoute, mockUserMeRoute } from './fixtures/routes'
+import { mockAdminBootstrapRoutes, mockEntityTypesRoute } from './fixtures/routes'
 
 test.describe('Dashboard', () => {
   test.beforeEach(async ({ page }) => {
-    await mockUserMeRoute(page)
+    await mockAdminBootstrapRoutes(page)
     await mockEntityTypesRoute(page)
   })
 

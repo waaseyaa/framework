@@ -1,6 +1,6 @@
 // packages/admin/e2e/auth-hydration.spec.ts
 import { test, expect } from '@playwright/test'
-import { mockUserMeRoute, mockEntityTypesRoute } from './fixtures/routes'
+import { mockAdminBootstrapRoutes, mockEntityTypesRoute } from './fixtures/routes'
 
 test.describe('Auth hydration', () => {
   test('no hydration warnings on authenticated page load', async ({ page }) => {
@@ -9,7 +9,7 @@ test.describe('Auth hydration', () => {
       if (msg.type() === 'warning') warnings.push(msg.text())
     })
 
-    await mockUserMeRoute(page)
+    await mockAdminBootstrapRoutes(page)
     await mockEntityTypesRoute(page)
     await page.goto('/')
     await page.waitForLoadState('load')
