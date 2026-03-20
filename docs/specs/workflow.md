@@ -7,7 +7,7 @@ The Waaseyaa Framework and Minoo (the flagship consumer app) version independent
 - **Framework versions** represent platform contract stability (ingestion envelope, schema registry, ACL substrate, operator diagnostics, CI gates).
 - **App versions** (Minoo etc.) represent product feature maturity.
 - The framework is the platform; apps are consumers. App versioning is constrained by framework releases, not the reverse.
-- The framework is pre-v1. Previous labels such as `v1.6` represented sprint identifiers, not semantic versions. No official v1.0 has been cut. Pre-v1 minor versions may increment indefinitely (v0.7 → v0.8 → v0.9 → v0.10 → …). v1.0 is cut only when platform contracts are formally locked.
+- The framework passed v1.0 after platform contracts (ingestion envelope, schema registry, ACL, versioning, CI gates) were stabilized through v0.7–v0.12. Post-v1.0 milestones follow semantic intent: minor versions add capabilities (search, revisions, workspaces), v2.0 introduces breaking schema changes.
 
 ## Framework Milestones
 
@@ -19,19 +19,42 @@ The Waaseyaa Framework and Minoo (the flagship consumer app) version independent
 | v0.10 | Admin SPA polish, bug fixes, smoke test coverage | Closed |
 | v0.11 | Ingestion pipeline defaults — envelope schema, validation, error format, logging, CI enforcement | Closed |
 | v0.12 | Operator diagnostics & health — CLI health commands, runtime diagnostics, schema drift detection, ingestion health | Closed |
-| v1.0 | Platform contracts locked. Ingestion, schema registry, ACL, versioning, and CI — stable and semver-committed | Future |
+| v1.0 | Platform contracts locked — ingestion, schema registry, ACL, versioning, CI stable | Closed |
+| v1.1 | Post-v1.0 stabilization and cleanup | Closed |
+| v1.2 | Continued stabilization | Closed |
+| v1.3 | GraphQL & cleanup | Closed |
+| v1.4 | Remove database-legacy & unify under DBAL | Closed |
+| v1.5 | Admin Surface Completion — complete admin-surface package: controllers, host contract, catalog API | Open |
+| v1.6 | Search Provider — implement concrete `SearchProviderInterface` (SQLite FTS5); independent with no milestone dependencies | Open |
+| v1.7 | Revision System — implement `RevisionableInterface` + `RevisionableStorageInterface`; depends on: v1.4 (DBAL unification) | Open |
+| v1.8 | Projects & Workspaces — framework-level project/workspace model and kernel isolation boundaries; depends on: v1.4 (DBAL unification) | Open |
+| v1.9 | Production Queue Backend — add Redis or database-backed queue driver for production async | Open |
+| v2.0 | Schema Evolution — auto-ALTER tables on field definition changes and generate migrations; depends on: v1.7 (Revision System) | Open |
 
 **Update this table whenever milestones are added, closed, or redescribed.**
 
 ## Milestone Narrative Arc
 
+**Pre-v1 (platform foundation):**
 - v0.7 — make the platform usable
 - v0.8 — define the platform contract
 - v0.9 — expand the platform contract (tenant onboarding, security)
 - v0.10 — polish the admin experience
 - v0.11 — ingestion pipeline foundation
 - v0.12 — operator diagnostics and health
+
+**v1.x (platform capabilities):**
 - v1.0 — lock the platform contract
+- v1.1–v1.3 — stabilization, GraphQL, cleanup
+- v1.4 — unify storage under DBAL
+- v1.5 — complete the admin surface
+- v1.6 — add search (SQLite FTS5)
+- v1.7 — add revision tracking
+- v1.8 — multi-project/workspace support
+- v1.9 — production-grade queue backend
+
+**v2.x (breaking changes):**
+- v2.0 — automatic schema evolution (field-definition diffing, migration generation)
 
 ## The 5 Workflow Rules
 
