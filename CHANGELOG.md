@@ -7,6 +7,15 @@ Waaseyaa follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [v0.1.0-alpha.36] — 2026-03-20
+
+### Added
+
+- `ServiceProvider::setKernelResolver()` — kernel-level fallback resolver for
+  cross-layer DI. Singleton closures can now resolve `EntityTypeManager`,
+  `DatabaseInterface`, `EventDispatcherInterface`, and cross-provider bindings
+  without manual wiring. Set automatically by `AbstractKernel` during boot.
+
 ## [v0.1.0-alpha.35] — 2026-03-20
 
 ### Fixed
