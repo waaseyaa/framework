@@ -1,11 +1,11 @@
 # Changelog
 
-All notable changes to Waaseyaa are documented in this file.
+All notable changes to this project will be documented in this file.
 
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
-Waaseyaa follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
----
+## [Unreleased]
 
 ## [v0.1.0-alpha.36] — 2026-03-20
 
@@ -73,6 +73,17 @@ post-v1.0). Non-blocking — page corrects itself after hydration.
   closes #329).
 - **Package READMEs** — every one of the 40 framework packages now ships a
   `README.md` with accurate class names and usage examples (PR #378, closes #333).
+- **Admin SPA stabilization** — fixed SsrPageHandler DI resolution for
+  service-provider-registered controllers (#407), corrected bootstrap URL to
+  `/admin/bootstrap` with dev proxy rule (#408), switched admin to client-only
+  SPA (`ssr: false`) removing experimental `viteEnvironmentApi` flag (#406),
+  fixed error page i18n plugin dependency (#409), `composer dev` auto-sets
+  `APP_ENV` and `WAASEYAA_DEV_FALLBACK_ACCOUNT` (#410).
+- **Admin bridge package** (`waaseyaa/admin-bridge`) — PHP bridge providing
+  bootstrap controller, value objects, and service provider for the admin SPA
+  host contract, published to Packagist via monorepo split.
+- **i18n infrastructure** — `Translator` and `TranslationTwigExtension` with
+  Twig dependency for server-side localization.
 - **Telescope codified context observability** — real-time spec/CLAUDE.md diff
   view, context health scores, and drift detection in the admin SPA (#353).
 - **SSR `InteractsWithRenderer` test trait** — assertion helpers for template
