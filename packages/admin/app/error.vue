@@ -5,13 +5,7 @@ const props = defineProps<{
   error: NuxtError
 }>()
 
-const messages: Record<string, string> = {
-  error_page_title: 'Error',
-  error_not_found: 'Page not found',
-  error_generic: 'Something went wrong',
-  error_page_back: 'Go back',
-}
-const t = (key: string) => messages[key] ?? key
+const { t } = useLanguage()
 
 useHead({
   title: t('error_page_title'),
@@ -21,7 +15,7 @@ const message = computed(() => {
   if (props.error.statusCode === 404) {
     return t('error_not_found')
   }
-  return props.error.message || t('error_generic')
+  return props.error.message?.trim() || t('error_generic')
 })
 </script>
 

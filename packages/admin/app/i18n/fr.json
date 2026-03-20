@@ -23,6 +23,8 @@
   "next": "Suivant",
   "error_generic": "Une erreur est survenue.",
   "error_not_found": "Introuvable.",
+  "error_page_title": "Une erreur est survenue",
+  "error_page_back": "Retour au tableau de bord",
   "error_loading_schema": "Échec du chargement du schéma.",
   "error_loading_types": "Échec du chargement des types d'entité.",
   "error_loading_entities": "Échec du chargement des entités.",
