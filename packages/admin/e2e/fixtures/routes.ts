@@ -4,9 +4,11 @@ import { entityTypes } from '../../tests/fixtures/entityTypes'
 import { userSchema, noteSchema } from '../../tests/fixtures/schemas'
 import type { EntitySchema } from '~/composables/useSchema'
 
+const DEV_ADMIN_ID = String(Number.MAX_SAFE_INTEGER)
+
 export async function mockAdminBootstrapRoutes(page: Page) {
   const session = {
-    account: { id: '1', name: 'dev-admin', email: '', roles: ['admin'] },
+    account: { id: DEV_ADMIN_ID, name: 'dev-admin', email: '', roles: ['admin'] },
     tenant: { id: 'default', name: 'Waaseyaa' },
     policies: [],
     features: {},
@@ -50,7 +52,7 @@ export async function mockAdminBootstrapRoutes(page: Page) {
     route.fulfill({
       json: {
         jsonapi: { version: '1.1' },
-        data: { id: '1', name: 'dev-admin', email: '', roles: ['admin'] },
+        data: { id: DEV_ADMIN_ID, name: 'dev-admin', email: '', roles: ['admin'] },
       },
     }),
   )
