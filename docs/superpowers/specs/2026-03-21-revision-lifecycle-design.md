@@ -8,6 +8,60 @@
 
 Defines the lifecycle rules for revision-capable entities in Waaseyaa. This is a framework capability — consumer apps opt in per entity type via `revisionable: true`. The design separates revision history tracking from content moderation (draft/published), which belongs in the `workflows` package.
 
+## Prerequisite Interface Changes
+
+These changes to existing interfaces are required before implementation:
+
+### EntityTypeInterface / EntityType
+
+Add `revisionDefault` property:
+
+```php
+// EntityTypeInterface — new method
+public function getRevisionDefault(): bool;
+
+// EntityType constructor — new parameter
+new EntityType(
+    // ... existing params ...
+    revisionable: true,
+    revisionDefault: true,  // NEW: whether saves create revisions by default
+);
+```
+
+### RevisionableInterface
+
+Extend with mutation methods for per-save override:
+
+```php
+interface RevisionableInterface
+{
+    public function getRevisionId(): int|null;          // narrowed from int|string|null
+    public function isDefaultRevision(): bool;
+    public function isLatestRevision(): bool;
+    public function setNewRevision(bool $value): void;  // NEW
+    public function isNewRevision(): ?bool;             // NEW: null = not set (use type default)
+    public function setRevisionLog(?string $log): void; // NEW
+    public function getRevisionLog(): ?string;          // NEW
+}
+```
+
+### RevisionableStorageInterface
+
+All methods that identify revisions require both `entityId` and `revisionId` because revision IDs are unique per entity (composite PK), not globally unique:
+
+```php
+interface RevisionableStorageInterface extends EntityStorageInterface
+{
+    public function loadRevision(int|string $entityId, int $revisionId): ?EntityInterface;
+    public function loadMultipleRevisions(int|string $entityId, array $revisionIds): array;
+    public function deleteRevision(int|string $entityId, int $revisionId): void;
+    public function getLatestRevisionId(int|string $entityId): ?int;
+    public function getRevisionIds(int|string $entityId): array;  // NEW: returns int[], ascending
+}
+```
+
+**Breaking change:** `loadRevision`, `loadMultipleRevisions`, and `deleteRevision` gain an `$entityId` parameter. `getLatestRevisionId` return type narrowed to `?int`. These interfaces have zero implementations, so the break is safe.
+
 ## Design Decisions
 
 | Decision | Choice | Rationale |
@@ -24,7 +78,7 @@ Defines the lifecycle rules for revision-capable entities in Waaseyaa. This is a
 | State | Meaning |
 |---|---|
 | **default** | The revision returned by `find($entityId)`. Exactly one per entity, always. |
-| **non-default** | Historical. Loadable via `loadRevision($revisionId)` but never returned by default queries. |
+| **non-default** | Historical. Loadable via `loadRevision($entityId, $revisionId)` but never returned by default queries. |
 
 The default flag is not stored as a boolean on each revision row. Instead, the base table holds a `revision_id` foreign key pointing to the current default revision. This avoids multi-row consistency problems.
 
@@ -83,11 +137,11 @@ The storage layer **must** enforce all of these. Application code cannot violate
 
 1. **Single default.** Every revisionable entity has exactly one default revision at all times. No zero, no two.
 2. **Monotonic IDs.** Revision IDs are monotonically increasing integers per entity, starting at 1. Gaps are allowed (after deletion), reuse is forbidden.
-3. **Immutable history.** Field values and metadata (`revision_created`, `revision_log`) in non-default revisions are immutable. Only the current default revision may be updated in place (when `newRevision = false`).
+3. **Immutable history.** Field values and metadata (`revision_created`, `revision_log`) in non-default revisions are immutable. Only the current default revision may be updated in place (when `newRevision = false`). In-place updates modify field values only — `revision_created` and `revision_log` are preserved even on the default revision.
 4. **Atomic pointer update.** Creating a new revision and updating the default pointer happen in a single transaction. No intermediate state where the pointer is stale.
 5. **Timestamp fidelity.** `revision_created` is set once when the revision row is inserted, never updated.
 6. **Log fidelity.** `revision_log` is set once at creation. Rollback auto-annotates; the annotation is part of the created value, not a later mutation.
-7. **Default resolution.** `find($entityId)` returns the entity hydrated from the default revision. `loadRevision($revisionId)` returns any revision. `findBy()` queries operate on default revisions only.
+7. **Default resolution.** `find($entityId)` returns the entity hydrated from the default revision. `loadRevision($entityId, $revisionId)` returns any revision. `findBy()` queries operate on default revisions only.
 8. **Protected default.** The default revision cannot be deleted. To remove it, delete the entity (which cascades all revisions).
 9. **Type gating.** Calling revision methods on a non-revisionable entity type throws `\LogicException`. The storage layer checks `entityType->isRevisionable()`.
 10. **Rollback is creation.** Rollback produces a new revision. It never mutates or reorders existing revision rows.
@@ -101,12 +155,13 @@ The storage layer **must** enforce all of these. Application code cannot violate
 | Revision table management | Separate `{entity_table}_revision` table holding all revision rows. Base table holds current field values + `revision_id` pointer. |
 | Atomic save | `save()` wraps revision-row INSERT + base-table UPDATE (pointer) in a transaction. |
 | Revision ID generation | `MAX(revision_id) + 1` within the transaction, scoped to the entity ID. |
-| Rollback | `rollback($entityId, $targetRevisionId)` loads target revision, creates new revision with those values, sets log annotation, updates pointer. Single transaction. |
-| Load semantics | `find($id)` reads base table (default). `loadRevision($revId)` reads revision table. `loadMultipleRevisions($ids)` batch reads from revision table. |
-| Retrieval helpers | `getLatestRevisionId($entityId)` returns MAX revision_id for entity. `getRevisionIds($entityId)` returns all revision IDs in ascending order. |
-| Delete revision | `deleteRevision($revId)` removes row from revision table. Throws if revision is current default. |
+| Rollback | `rollback($entityId, $targetRevisionId)` lives on `EntityRepository` (not storage interface). Loads target revision, creates new revision with those values, sets log annotation, updates pointer. Single transaction. |
+| Load semantics | `find($id)` reads base table (default). `loadRevision($entityId, $revId)` reads revision table. `loadMultipleRevisions($entityId, $ids)` batch reads from revision table. |
+| Retrieval helpers | `getLatestRevisionId($entityId)` returns MAX revision_id (int) for entity. `getRevisionIds($entityId)` returns all revision IDs as `int[]` in ascending order. |
+| Delete revision | `deleteRevision($entityId, $revId)` removes row from revision table. Throws if revision is current default. |
 | Delete entity | Cascade — delete all revision rows, then base row. |
 | Concurrency | v1.7: last-write-wins. No optimistic locking. |
+| Event timing | `REVISION_CREATED` and `REVISION_REVERTED` fire **after** the transaction commits. Listeners must not assume they can roll back the revision. |
 
 ### Schema shape
 
@@ -207,12 +262,13 @@ default → rev 4 (same pointer, updated values)
 
 The implementation issue must deliver:
 
-1. **`RevisionableEntityTrait`** — implements `RevisionableInterface` on entity classes (`getRevisionId()`, `isDefaultRevision()`, `isLatestRevision()`, `setNewRevision()`, `isNewRevision()`)
+0. **Interface changes** — apply all changes from the "Prerequisite Interface Changes" section above: extend `EntityTypeInterface`/`EntityType` with `revisionDefault`, extend `RevisionableInterface` with mutation methods, update `RevisionableStorageInterface` signatures to require `$entityId`
+1. **`RevisionableEntityTrait`** — implements `RevisionableInterface` on entity classes (`getRevisionId()`, `isDefaultRevision()`, `isLatestRevision()`, `setNewRevision()`, `isNewRevision()`, `setRevisionLog()`, `getRevisionLog()`)
 2. **`SqlRevisionableStorageDriver`** (or extension of `SqlStorageDriver`) — implements `RevisionableStorageInterface` with the schema and transaction semantics defined above
-3. **`EntityRepository` revision awareness** — delegates to revisionable driver when `entityType->isRevisionable()`, dispatches revision events
+3. **`EntityRepository` revision awareness** — delegates to revisionable driver when `entityType->isRevisionable()`, dispatches revision events. Owns the `rollback($entityId, int $targetRevisionId): EntityInterface` method (orchestrates load → copy → save → event)
 4. **`SqlSchemaHandler` revision table creation** — auto-creates `{table}_revision` when entity type is revisionable
 5. **Two new events**: `EntityEvents::REVISION_CREATED` and `EntityEvents::REVISION_REVERTED`
-6. **Migration path** — `TableBuilder::revisionColumns()` already exists; add a migration helper for creating revision tables from existing base tables
+6. **Migration path** — `TableBuilder::revisionColumns()` already exists; add a migration helper for creating revision tables from existing base tables. **Data migration for existing rows:** when enabling revisions on an entity type with existing data, the migration must (a) create the `{table}_revision` table, (b) seed a revision 1 row for each existing base row by copying current field values, (c) add `revision_id = 1` to each base row. This is a one-time data migration, not an ongoing concern.
 
 ## Non-goals for v1.7
 
