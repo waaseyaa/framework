@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\Tests\Integration\DBAL;
 
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\DBALDatabase;
 
 /**
  * Kernel boot tests verifying DBAL-only boot path (#460).

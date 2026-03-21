@@ -189,9 +189,18 @@ final class Fts5SearchIntegrationTest extends TestCase
                 private readonly array $metadata,
             ) {}
 
-            public function getSearchDocumentId(): string { return $this->id; }
-            public function toSearchDocument(): array { return $this->document; }
-            public function toSearchMetadata(): array { return $this->metadata; }
+            public function getSearchDocumentId(): string
+            {
+                return $this->id;
+            }
+            public function toSearchDocument(): array
+            {
+                return $this->document;
+            }
+            public function toSearchMetadata(): array
+            {
+                return $this->metadata;
+            }
         });
     }
 

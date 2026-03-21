@@ -154,7 +154,7 @@ final class EntityTypeBuilder
             if ($type === null) {
                 throw new \RuntimeException(
                     "GraphQL schema error: entity reference field targets type '{$targetTypeName}' "
-                    . "which is not registered."
+                    . 'which is not registered.',
                 );
             }
 

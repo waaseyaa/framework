@@ -36,14 +36,14 @@ use Waaseyaa\CLI\Command\Make\MakeJobCommand;
 use Waaseyaa\CLI\Command\Make\MakeListenerCommand;
 use Waaseyaa\CLI\Command\Make\MakeMigrationCommand;
 use Waaseyaa\CLI\Command\Make\MakePolicyCommand;
-use Waaseyaa\CLI\Command\MigrateCommand;
-use Waaseyaa\CLI\Command\MigrateRollbackCommand;
-use Waaseyaa\CLI\Command\MigrateStatusCommand;
 use Waaseyaa\CLI\Command\Make\MakeProviderCommand;
 use Waaseyaa\CLI\Command\Make\MakeTestCommand;
 use Waaseyaa\CLI\Command\MakeEntityTypeCommand;
 use Waaseyaa\CLI\Command\MakePluginCommand;
+use Waaseyaa\CLI\Command\MigrateCommand;
 use Waaseyaa\CLI\Command\MigrateDefaultsCommand;
+use Waaseyaa\CLI\Command\MigrateRollbackCommand;
+use Waaseyaa\CLI\Command\MigrateStatusCommand;
 use Waaseyaa\CLI\Command\Optimize\OptimizeClearCommand;
 use Waaseyaa\CLI\Command\Optimize\OptimizeCommand;
 use Waaseyaa\CLI\Command\Optimize\OptimizeConfigCommand;
@@ -227,7 +227,7 @@ final class ConsoleKernel extends AbstractKernel
             new TelescopePruneCommand(),
         ]);
 
-        $migrationsProvider = fn () => $this->migrationLoader->loadAll();
+        $migrationsProvider = fn() => $this->migrationLoader->loadAll();
         $app->registerCommands([
             new MigrateCommand($this->migrator, $migrationsProvider),
             new MigrateRollbackCommand($this->migrator, $migrationsProvider),

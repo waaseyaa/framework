@@ -61,7 +61,7 @@ final class Fts5SearchIndexer implements SearchIndexerInterface
 
             $this->database->query(
                 'INSERT INTO search_index (document_id, title, body) VALUES (?, ?, ?)',
-                [$documentId, $document['title'] ?? '', $document['body'] ?? '']
+                [$documentId, $document['title'] ?? '', $document['body'] ?? ''],
             );
 
             $this->database->insert('search_metadata')
@@ -104,7 +104,7 @@ final class Fts5SearchIndexer implements SearchIndexerInterface
         $tx = $this->database->transaction();
 
         try {
-            $this->database->query("DELETE FROM search_index");
+            $this->database->query('DELETE FROM search_index');
             $this->database->delete('search_metadata')->execute();
             $tx->commit();
         } catch (\Throwable $e) {

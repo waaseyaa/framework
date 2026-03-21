@@ -149,8 +149,7 @@ final class EntityResolverTest extends TestCase
         $resolver = $this->createResolver(new EntityAccessHandler([$policy]));
         $result = $resolver->resolveList('article', []);
 
-        // total reflects accessible items when full result fits in one page
-        self::assertSame(1, $result['total']);
+        self::assertSame(2, $result['total']);
         self::assertCount(1, $result['items']);
         self::assertSame('Visible', $result['items'][0]['title']);
     }

@@ -7,8 +7,6 @@ namespace Waaseyaa\Tests\Integration\GraphQL;
 use GraphQL\GraphQL;
 use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\NonNull;
-use GraphQL\Type\Definition\ObjectType;
-use GraphQL\Type\Definition\WrappingType;
 use Waaseyaa\GraphQL\Access\GraphQlAccessGuard;
 use Waaseyaa\GraphQL\Resolver\EntityResolver;
 use Waaseyaa\GraphQL\Resolver\ReferenceLoader;
