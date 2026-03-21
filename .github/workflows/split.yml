@@ -44,6 +44,7 @@ jobs:
           - { local: 'packages/auth', remote: 'auth' }
           - { local: 'packages/billing', remote: 'billing' }
           # Layer 3: Services
+          - { local: 'packages/search', remote: 'search' }
           - { local: 'packages/workflows', remote: 'workflows' }
           # Layer 4: API
           - { local: 'packages/api', remote: 'api' }
