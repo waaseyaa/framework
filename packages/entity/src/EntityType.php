@@ -31,6 +31,7 @@ final readonly class EntityType implements EntityTypeInterface
         private string $storageClass = '',
         private array $keys = [],
         private bool $revisionable = false,
+        private bool $revisionDefault = false,
         private bool $translatable = false,
         private ?string $bundleEntityType = null,
         private array $constraints = [],
@@ -68,6 +69,11 @@ final readonly class EntityType implements EntityTypeInterface
     public function isRevisionable(): bool
     {
         return $this->revisionable;
+    }
+
+    public function getRevisionDefault(): bool
+    {
+        return $this->revisionDefault;
     }
 
     public function isTranslatable(): bool

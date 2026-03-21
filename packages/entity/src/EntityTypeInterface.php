@@ -20,6 +20,8 @@ interface EntityTypeInterface
 
     public function isRevisionable(): bool;
 
+    public function getRevisionDefault(): bool;
+
     public function isTranslatable(): bool;
 
     public function getBundleEntityType(): ?string;

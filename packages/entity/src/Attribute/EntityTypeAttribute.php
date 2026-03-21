@@ -42,6 +42,7 @@ class EntityTypeAttribute extends WaaseyaaPlugin
         public readonly string $storageClass = '',
         public readonly array $keys = [],
         public readonly bool $revisionable = false,
+        public readonly bool $revisionDefault = false,
         public readonly bool $translatable = false,
     ) {
         parent::__construct(

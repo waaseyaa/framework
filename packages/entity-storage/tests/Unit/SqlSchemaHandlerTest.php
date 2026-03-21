@@ -139,6 +139,114 @@ final class SqlSchemaHandlerTest extends TestCase
         $this->assertSame('Article', $row['name']);
     }
 
+    public function testEnsureRevisionTableCreatesTableWithCompositePk(): void
+    {
+        $entityType = new EntityType(
+            id: 'node',
+            label: 'Content',
+            class: TestStorageEntity::class,
+            keys: ['id' => 'nid', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
+            revisionable: true,
+            revisionDefault: true,
+        );
+
+        $db = DBALDatabase::createSqlite();
+        $handler = new SqlSchemaHandler($entityType, $db);
+        $handler->ensureTable();
+        $handler->ensureRevisionTable();
+
+        $schema = $db->schema();
+        $this->assertTrue($schema->tableExists('node_revision'));
+        $this->assertTrue($schema->fieldExists('node_revision', 'entity_id'));
+        $this->assertTrue($schema->fieldExists('node_revision', 'revision_id'));
+        $this->assertTrue($schema->fieldExists('node_revision', 'revision_created'));
+        $this->assertTrue($schema->fieldExists('node_revision', 'revision_log'));
+        $this->assertTrue($schema->fieldExists('node_revision', '_data'));
+    }
+
+    public function testEnsureRevisionTableIsIdempotent(): void
+    {
+        $entityType = new EntityType(
+            id: 'node',
+            label: 'Content',
+            class: TestStorageEntity::class,
+            keys: ['id' => 'nid', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
+            revisionable: true,
+        );
+
+        $db = DBALDatabase::createSqlite();
+        $handler = new SqlSchemaHandler($entityType, $db);
+        $handler->ensureTable();
+        $handler->ensureRevisionTable();
+        $handler->ensureRevisionTable(); // second call should be a no-op
+
+        $this->assertTrue($db->schema()->tableExists('node_revision'));
+    }
+
+    public function testEnsureTableAddsRevisionIdColumnForRevisionableTypes(): void
+    {
+        $entityType = new EntityType(
+            id: 'node',
+            label: 'Content',
+            class: TestStorageEntity::class,
+            keys: ['id' => 'nid', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
+            revisionable: true,
+        );
+
+        $db = DBALDatabase::createSqlite();
+        $handler = new SqlSchemaHandler($entityType, $db);
+        $handler->ensureTable();
+
+        $this->assertTrue($db->schema()->fieldExists('node', 'revision_id'));
+    }
+
+    public function testSeedRevisionsCreatesRevision1ForExistingRows(): void
+    {
+        $entityType = new EntityType(
+            id: 'node',
+            label: 'Content',
+            class: TestStorageEntity::class,
+            keys: ['id' => 'nid', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
+            revisionable: true,
+        );
+
+        $db = DBALDatabase::createSqlite();
+        $handler = new SqlSchemaHandler($entityType, $db);
+        $handler->ensureTable();
+        $handler->ensureRevisionTable();
+
+        // Insert an existing row without a revision.
+        $db->insert('node')
+            ->fields(['nid', 'uuid', 'title', 'bundle', 'langcode', '_data'])
+            ->values(['nid' => '1', 'uuid' => 'abc', 'title' => 'Existing', 'bundle' => 'page', 'langcode' => 'en', '_data' => '{}'])
+            ->execute();
+
+        $handler->seedRevisions();
+
+        // Verify revision 1 was created.
+        $result = $db->query('SELECT * FROM node_revision WHERE entity_id = ? AND revision_id = 1', ['1']);
+        $revRow = null;
+        foreach ($result as $row) {
+            $revRow = (array) $row;
+            break;
+        }
+        $this->assertNotNull($revRow);
+        $this->assertSame('Existing', $revRow['title']);
+
+        // Verify base table pointer updated.
+        $result = $db->query('SELECT revision_id FROM node WHERE nid = ?', ['1']);
+        foreach ($result as $row) {
+            $this->assertSame(1, (int) ((array) $row)['revision_id']);
+        }
+
+        // Verify idempotent — second call is a no-op.
+        $handler->seedRevisions();
+        $result = $db->query('SELECT COUNT(*) as cnt FROM node_revision WHERE entity_id = ?', ['1']);
+        foreach ($result as $row) {
+            $this->assertSame(1, (int) ((array) $row)['cnt']);
+        }
+    }
+
     private function ensureConfigTable(): void
     {
         $configType = new EntityType(

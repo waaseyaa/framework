@@ -79,6 +79,91 @@ final class SqlSchemaHandler
     }
 
     /**
+     * Ensures the revision table exists for revisionable entity types.
+     *
+     * The revision table stores snapshots of all field values for each revision.
+     * Primary key is composite (entity_id, revision_id).
+     */
+    public function ensureRevisionTable(): void
+    {
+        $schema = $this->database->schema();
+        $revisionTableName = $this->getRevisionTableName();
+
+        if ($schema->tableExists($revisionTableName)) {
+            return;
+        }
+
+        $spec = $this->buildRevisionTableSpec();
+        $schema->createTable($revisionTableName, $spec);
+    }
+
+    /**
+     * Returns the revision table name for this entity type.
+     */
+    public function getRevisionTableName(): string
+    {
+        return $this->tableName . '_revision';
+    }
+
+    /**
+     * Seed revision 1 for all existing rows in the base table.
+     *
+     * Used when enabling revisions on an entity type with existing data.
+     * Must run after ensureRevisionTable().
+     */
+    public function seedRevisions(): void
+    {
+        $db = $this->database;
+        $keys = $this->entityType->getKeys();
+        $idKey = $keys['id'] ?? 'id';
+        $revisionKey = $keys['revision'] ?? 'revision_id';
+        $revisionTable = $this->getRevisionTableName();
+
+        $result = $db->select($this->tableName)
+            ->fields($this->tableName)
+            ->execute();
+
+        foreach ($result as $row) {
+            $row = (array) $row;
+            $entityId = (string) $row[$idKey];
+
+            // Skip if revision already exists.
+            $existing = $db->query(
+                "SELECT 1 FROM {$revisionTable} WHERE entity_id = ? AND revision_id = 1",
+                [$entityId],
+            );
+            $found = false;
+            foreach ($existing as $_) {
+                $found = true;
+                break;
+            }
+            if ($found) {
+                continue;
+            }
+
+            $revRow = ['entity_id' => $entityId, 'revision_id' => 1];
+            $revRow['revision_created'] = date('Y-m-d H:i:s');
+            $revRow['revision_log'] = 'Seeded from existing data';
+            foreach ($row as $col => $val) {
+                if ($col === $idKey || $col === $revisionKey) {
+                    continue;
+                }
+                $revRow[$col] = $val;
+            }
+
+            $db->insert($revisionTable)
+                ->fields(array_keys($revRow))
+                ->values($revRow)
+                ->execute();
+
+            $db->update($this->tableName)
+                ->fields([$revisionKey => 1])
+                ->condition($idKey, $entityId)
+                ->execute();
+        }
+    }
+
+    /**
      * Adds additional field columns to an existing entity table.
      *
      * @param array<string, array<string, mixed>> $fieldSchemas
@@ -174,6 +259,16 @@ final class SqlSchemaHandler
             'not null' => true,
             'default' => 'en',
         ];
+
+        // Revision pointer column (revisionable entity types only).
+        if ($this->entityType->isRevisionable()) {
+            $revisionKey = $keys['revision'] ?? 'revision_id';
+            $fields[$revisionKey] = [
+                'type' => 'int',
+                'not null' => false,
+                'default' => null,
+            ];
+        }
 
         // Data blob for extra/dynamic fields (JSON-encoded).
         $fields['_data'] = [
@@ -281,6 +376,92 @@ final class SqlSchemaHandler
                 $translationTableName . '_langcode' => ['langcode'],
                 $translationTableName . '_status' => ['translation_status'],
             ],
+        ];
+    }
+
+    /**
+     * Builds the revision table specification.
+     *
+     * Mirrors the base table field columns plus revision metadata.
+     * PK is composite (entity_id, revision_id).
+     *
+     * @return array<string, mixed>
+     */
+    private function buildRevisionTableSpec(): array
+    {
+        $keys = $this->entityType->getKeys();
+        $fields = [];
+
+        // Entity ID foreign key.
+        $fields['entity_id'] = [
+            'type' => 'varchar',
+            'length' => 128,
+            'not null' => true,
+        ];
+
+        // Revision ID — monotonic integer per entity.
+        $fields['revision_id'] = [
+            'type' => 'int',
+            'not null' => true,
+        ];
+
+        // Revision metadata.
+        $fields['revision_created'] = [
+            'type' => 'varchar',
+            'length' => 32,
+            'not null' => true,
+        ];
+
+        $fields['revision_log'] = [
+            'type' => 'text',
+            'not null' => false,
+        ];
+
+        // Mirror base table field columns.
+        $labelKey = $keys['label'] ?? 'label';
+        $fields[$labelKey] = [
+            'type' => 'varchar',
+            'length' => 255,
+            'not null' => true,
+            'default' => '',
+        ];
+
+        $bundleKey = $keys['bundle'] ?? 'bundle';
+        $fields[$bundleKey] = [
+            'type' => 'varchar',
+            'length' => 128,
+            'not null' => true,
+            'default' => '',
+        ];
+
+        $langcodeKey = $keys['langcode'] ?? 'langcode';
+        $fields[$langcodeKey] = [
+            'type' => 'varchar',
+            'length' => 12,
+            'not null' => true,
+            'default' => 'en',
+        ];
+
+        if (isset($keys['uuid'])) {
+            $fields[$keys['uuid']] = [
+                'type' => 'varchar',
+                'length' => 128,
+                'not null' => true,
+                'default' => '',
+            ];
+        }
+
+        // Data blob for extra fields.
+        $fields['_data'] = [
+            'type' => 'text',
+            'not null' => true,
+            'default' => '{}',
+        ];
+
+        return [
+            'fields' => $fields,
+            'primary key' => ['entity_id', 'revision_id'],
+            'indexes' => [],
         ];
     }
 }

@@ -12,4 +12,6 @@ enum EntityEvents: string
     case POST_DELETE = 'waaseyaa.entity.post_delete';
     case POST_LOAD = 'waaseyaa.entity.post_load';
     case PRE_CREATE = 'waaseyaa.entity.pre_create';
+    case REVISION_CREATED = 'waaseyaa.entity.revision_created';
+    case REVISION_REVERTED = 'waaseyaa.entity.revision_reverted';
 }
