@@ -2,7 +2,7 @@
 # Reports milestone drift for Claude session-start awareness.
 # Always exits 0 — this is a warning surface, not a CI gate.
 
-REPO="jonesrussell/waaseyaa"
+REPO="waaseyaa/framework"
 WARNINGS=0
 
 echo "=== Milestone drift check ==="
