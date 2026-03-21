@@ -231,7 +231,7 @@ final class EntityRepository implements EntityRepositoryInterface
         $targetRow = $this->revisionDriver->readRevision($entityId, $targetRevisionId);
         if ($targetRow === null) {
             throw new \InvalidArgumentException(
-                "Revision {$targetRevisionId} does not exist for entity {$entityId}."
+                "Revision {$targetRevisionId} does not exist for entity {$entityId}.",
             );
         }
 
@@ -282,7 +282,7 @@ final class EntityRepository implements EntityRepositoryInterface
             // Invariant #9: type gating.
             if ($entity instanceof RevisionableInterface && $entity->isNewRevision() === true) {
                 throw new \LogicException(
-                    'Cannot create revision for non-revisionable entity type ' . $this->entityType->id()
+                    'Cannot create revision for non-revisionable entity type ' . $this->entityType->id(),
                 );
             }
             return false;
