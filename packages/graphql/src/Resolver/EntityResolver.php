@@ -85,17 +85,6 @@ final class EntityResolver
             $items[] = $data;
         }
 
-        // When the full result set fits in one page, use the exact accessible count
-        // instead of the raw DB count which ignores access filtering.
-        $fetched = count($entities);
-        $accessible = count($items);
-        if ($fetched > 0 && $fetched < $limit && $offset === 0) {
-            $total = $accessible;
-        } elseif ($fetched > 0 && $accessible < $fetched) {
-            // Paginated: scale total proportionally based on this page's access ratio
-            $total = (int) round($total * ($accessible / $fetched));
-        }
-
         return ['items' => $items, 'total' => $total];
     }
 
