@@ -16,8 +16,21 @@ const actionError = ref<string | null>(null)
 const showDisableConfirm = ref(false)
 
 const isDefaultNote = computed(() => entityType.value === 'note')
-const typeDisabled = computed(() => typeInfo.value?.disabled ?? false)
-const enabledTypeCount = computed(() => catalog.filter((type) => !type.disabled).length)
+const localDisabledOverride = ref<boolean | null>(null)
+
+// Reset local override when navigating between entity types (Nuxt reuses the component)
+watch(entityType, () => {
+  localDisabledOverride.value = null
+})
+const typeDisabled = computed(() => localDisabledOverride.value ?? typeInfo.value?.disabled ?? false)
+const enabledTypeCount = computed(() => {
+  return catalog.filter((type) => {
+    if (type.id === entityType.value && localDisabledOverride.value !== null) {
+      return !localDisabledOverride.value
+    }
+    return !type.disabled
+  }).length
+})
 const showLifecycleControls = computed(() => isDefaultNote.value && typeInfo.value !== null)
 const showDisableWarning = computed(
   () => !typeDisabled.value && enabledTypeCount.value <= 1,
@@ -31,6 +44,7 @@ async function disableType(force = false) {
   try {
     const query = force ? '?force=1' : ''
     await $fetch(`/api/entity-types/${entityType.value}/disable${query}`, { method: 'POST' })
+    localDisabledOverride.value = true
     showDisableConfirm.value = false
   } catch (e: any) {
     actionError.value = e?.data?.errors?.[0]?.detail ?? e?.message ?? t('error_generic')
@@ -46,6 +60,7 @@ async function enableType() {
   actionError.value = null
   try {
     await $fetch(`/api/entity-types/${entityType.value}/enable`, { method: 'POST' })
+    localDisabledOverride.value = false
   } catch (e: any) {
     actionError.value = e?.data?.errors?.[0]?.detail ?? e?.message ?? t('error_generic')
   } finally {

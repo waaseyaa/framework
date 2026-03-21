@@ -33,7 +33,7 @@ interface SurfaceListResult {
 export class AdminSurfaceTransportAdapter implements TransportAdapter {
   constructor(
     private readonly basePath: string,
-    private readonly fetchFn: typeof fetch = fetch,
+    private readonly fetchFn: typeof fetch = (...args) => fetch(...args),
   ) {}
 
   async list(type: string, query?: ListQuery): Promise<ListResult> {

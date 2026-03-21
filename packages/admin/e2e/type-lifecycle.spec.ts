@@ -8,35 +8,41 @@ test.describe('Content type lifecycle', () => {
   })
 
   test('warns before disabling the last enabled type', async ({ page }) => {
-    let noteDisabled = false
+    // Override the catalog so note is the only enabled content type.
+    // The surface catalog route registered here takes precedence over the
+    // one from mockAdminBootstrapRoutes (Playwright runs handlers in LIFO order).
+    const lifecycleCatalog = [
+      { id: 'note', label: 'Note', group: 'content', fields: [], actions: [], capabilities: { list: true, get: true, create: true, update: true, delete: true, schema: true } },
+      { id: 'node', label: 'Content', group: 'content', disabled: true, fields: [], actions: [], capabilities: { list: true, get: true, create: true, update: true, delete: true, schema: true } },
+    ]
 
-    await page.route('**/api/entity-types', (route) =>
+    await page.route('**/admin/surface/catalog', (route) =>
+      route.fulfill({
+        json: { ok: true, data: { entities: lifecycleCatalog } },
+      }),
+    )
+
+    // Also override bootstrap entities for consistency
+    await page.route('**/admin/bootstrap', (route) =>
       route.fulfill({
         json: {
-          data: [
-            {
-              id: 'note',
-              label: 'Note',
-              keys: { id: 'id', label: 'title' },
-              group: 'content',
-              disabled: noteDisabled,
-            },
-            {
-              id: 'node',
-              label: 'Content',
-              keys: { id: 'id', label: 'title' },
-              group: 'content',
-              disabled: true,
-            },
-          ],
+          version: '1.0',
+          auth: { strategy: 'embedded', loginEndpoint: '/api/auth/login' },
+          account: { id: String(Number.MAX_SAFE_INTEGER), name: 'dev-admin', roles: ['admin'] },
+          tenant: { id: 'default', name: 'Waaseyaa', scopingStrategy: 'server' },
+          transport: { strategy: 'jsonapi', apiPath: '/api' },
+          entities: lifecycleCatalog.map(({ id, label, group, disabled, capabilities }) => ({
+            id, label, group, disabled, capabilities,
+          })),
+          features: {},
         },
       }),
     )
 
-    await page.route('**/api/entity-types/note/disable?force=1', (route) => {
-      noteDisabled = true
-      route.fulfill({ json: { data: { id: 'note', disabled: true } } })
-    })
+    // Mock the disable endpoint
+    await page.route('**/api/entity-types/note/disable*', (route) =>
+      route.fulfill({ json: { data: { id: 'note', disabled: true } } }),
+    )
 
     await mockSchemaRoute(page, 'note')
     await mockEntityListRoute(page, 'note')

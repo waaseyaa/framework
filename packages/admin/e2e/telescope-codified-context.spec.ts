@@ -92,8 +92,10 @@ test.describe('Telescope: Codified Context', () => {
 
   test('shows severity badges with correct values', async ({ page }) => {
     await page.goto('/telescope/codified-context')
-    await expect(page.getByText('low')).toBeVisible()
-    await expect(page.getByText('high')).toBeVisible()
+    // Scope to main content to avoid matching sidebar nav items (e.g. "Workflows" contains "low")
+    const main = page.locator('main')
+    await expect(main.getByText('low', { exact: true })).toBeVisible()
+    await expect(main.getByText('high', { exact: true })).toBeVisible()
   })
 
   test('shows drift score in session list', async ({ page }) => {

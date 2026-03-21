@@ -18,6 +18,7 @@ interface SurfaceCatalogEntry {
   id: string
   label: string
   group?: string
+  disabled?: boolean
   fields: unknown[]
   actions: unknown[]
   capabilities: { list: boolean; get: boolean; create: boolean; update: boolean; delete: boolean; schema: boolean }
@@ -64,6 +65,7 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
       id: entry.id,
       label: entry.label,
       group: entry.group,
+      disabled: entry.disabled,
       capabilities: entry.capabilities,
     }))
 

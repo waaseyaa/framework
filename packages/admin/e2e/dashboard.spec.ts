@@ -35,6 +35,13 @@ test.describe('Dashboard', () => {
   })
 
   test('shows onboarding prompt when no custom types exist', async ({ page }) => {
+    // Surface transport: GET /admin/surface/node_type
+    await page.route('**/admin/surface/node_type**', (route) =>
+      route.fulfill({
+        json: { ok: true, data: { entities: [], total: 0, offset: 0, limit: 25 } },
+      }),
+    )
+    // Legacy JSON API fallback
     await page.route('**/api/node_type**', (route) =>
       route.fulfill({
         json: { jsonapi: { version: '1.0' }, data: [], meta: { total: 0 }, links: {} },

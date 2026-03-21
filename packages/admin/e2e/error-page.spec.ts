@@ -8,14 +8,17 @@ test.describe('Error page', () => {
   })
 
   test('shows branded 404 message on unknown route', async ({ page }) => {
-    await page.goto('/this-route-does-not-exist-404')
+    // Use a multi-segment path that doesn't match any dynamic route pattern
+    await page.goto('/no/such/deep/route')
     await expect(
       page.getByText("The page you're looking for doesn't exist."),
     ).toBeVisible()
   })
 
   test('shows "Back to dashboard" link', async ({ page }) => {
-    await page.goto('/this-route-does-not-exist-404')
+    // Use a 3+ segment path that doesn't match any dynamic route pattern
+    // (single-segment paths match [entityType] catch-all and show entity error state instead)
+    await page.goto('/no/such/deep/route')
     await expect(page.getByRole('link', { name: 'Back to dashboard' })).toBeVisible()
   })
 

@@ -66,12 +66,27 @@ export async function mockEntityTypesRoute(page: Page) {
 
 export async function mockSchemaRoute(page: Page, entityType = 'user', schema?: EntitySchema) {
   const resolved = schema ?? (entityType === 'note' ? noteSchema : userSchema)
+  // Surface transport: POST /admin/surface/{type}/action/schema
+  await page.route(`**/admin/surface/${entityType}/action/schema`, (route) =>
+    route.fulfill({ json: { ok: true, data: resolved } }),
+  )
+  // Legacy JSON API fallback
   await page.route(`**/api/schema/${entityType}`, (route) =>
     route.fulfill({ json: { meta: { schema: resolved } } }),
   )
 }
 
 export async function mockEntityListRoute(page: Page, entityType = 'user') {
+  // Surface transport: GET /admin/surface/{type}
+  await page.route(`**/admin/surface/${entityType}`, (route) => {
+    if (route.request().method() === 'GET') {
+      return route.fulfill({
+        json: { ok: true, data: { entities: [], total: 0, offset: 0, limit: 25 } },
+      })
+    }
+    return route.fallback()
+  })
+  // Legacy JSON API fallback
   await page.route(`**/api/${entityType}`, (route) =>
     route.fulfill({
       json: {
@@ -85,6 +100,13 @@ export async function mockEntityListRoute(page: Page, entityType = 'user') {
 }
 
 export async function mockEntityCreateRoute(page: Page, entityType = 'user') {
+  // Surface transport: POST /admin/surface/{type}/action/create
+  await page.route(`**/admin/surface/${entityType}/action/create`, (route) =>
+    route.fulfill({
+      json: { ok: true, data: { type: entityType, id: '99', attributes: {} } },
+    }),
+  )
+  // Legacy JSON API fallback
   await page.route(`**/api/${entityType}`, async (route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({
@@ -94,8 +116,6 @@ export async function mockEntityCreateRoute(page: Page, entityType = 'user') {
         },
       })
     } else {
-      // Fall through to other registered route handlers (e.g. mockEntityListRoute)
-      // rather than hitting the real server.
       await route.fallback()
     }
   })

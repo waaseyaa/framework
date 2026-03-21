@@ -16,4 +16,5 @@ export const entityTypes: CatalogEntry[] = [
   { id: 'menu_link', label: 'Menu Link', keys: { id: 'id', label: 'title' }, capabilities: defaultCaps },
   { id: 'workflow', label: 'Workflow', keys: { id: 'id', label: 'label' }, capabilities: defaultCaps },
   { id: 'pipeline', label: 'Pipeline', keys: { id: 'id', label: 'label' }, capabilities: defaultCaps },
+  { id: 'note', label: 'Note', keys: { id: 'id', label: 'title' }, capabilities: defaultCaps },
 ]
