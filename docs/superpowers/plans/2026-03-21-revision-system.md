@@ -465,6 +465,54 @@ public function ensure_table_adds_revision_id_column_for_revisionable_types(): v
 
     $this->assertTrue($db->schema()->fieldExists('node', 'revision_id'));
 }
+
+#[Test]
+public function seed_revisions_creates_revision_1_for_existing_rows(): void
+{
+    $entityType = new EntityType(
+        id: 'node',
+        label: 'Content',
+        class: TestStorageEntity::class,
+        keys: ['id' => 'nid', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
+        revisionable: true,
+    );
+
+    $db = DBALDatabase::createSqlite();
+    $handler = new SqlSchemaHandler($entityType, $db);
+    $handler->ensureTable();
+    $handler->ensureRevisionTable();
+
+    // Insert an existing row without a revision.
+    $db->insert('node')
+        ->fields(['nid', 'uuid', 'title', 'bundle', 'label', 'langcode', '_data'])
+        ->values(['nid' => '1', 'uuid' => 'abc', 'title' => 'Existing', 'bundle' => 'page', 'label' => 'Existing', 'langcode' => 'en', '_data' => '{}'])
+        ->execute();
+
+    $handler->seedRevisions();
+
+    // Verify revision 1 was created.
+    $result = $db->query('SELECT * FROM node_revision WHERE entity_id = ? AND revision_id = 1', ['1']);
+    $revRow = null;
+    foreach ($result as $row) {
+        $revRow = (array) $row;
+        break;
+    }
+    $this->assertNotNull($revRow);
+    $this->assertSame('Existing', $revRow['title'] ?? $revRow['label']);
+
+    // Verify base table pointer updated.
+    $result = $db->query('SELECT revision_id FROM node WHERE nid = ?', ['1']);
+    foreach ($result as $row) {
+        $this->assertSame(1, (int) ((array) $row)['revision_id']);
+    }
+
+    // Verify idempotent — second call is a no-op.
+    $handler->seedRevisions();
+    $result = $db->query('SELECT COUNT(*) as cnt FROM node_revision WHERE entity_id = ?', ['1']);
+    foreach ($result as $row) {
+        $this->assertSame(1, (int) ((array) $row)['cnt']);
+    }
+}
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -1337,6 +1385,8 @@ public function __construct(
     private readonly EntityTypeInterface $entityType,
     private readonly EntityStorageDriverInterface $driver,
     private readonly EventDispatcherInterface $eventDispatcher,
+    // Concrete type is intentional — RevisionableStorageDriver is framework-internal,
+    // not a pluggable extension point. Matches SqlStorageDriver usage pattern.
     private readonly ?RevisionableStorageDriver $revisionDriver = null,
     private readonly ?DatabaseInterface $database = null,
 ) {}
