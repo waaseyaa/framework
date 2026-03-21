@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace Waaseyaa\EntityStorage;
 
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Entity\ContentEntityInterface;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
+use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 
 /**
  * Entity repository implementation.
@@ -28,6 +32,8 @@ final class EntityRepository implements EntityRepositoryInterface
         private readonly EntityTypeInterface $entityType,
         private readonly EntityStorageDriverInterface $driver,
         private readonly EventDispatcherInterface $eventDispatcher,
+        private readonly ?RevisionableStorageDriver $revisionDriver = null,
+        private readonly ?DatabaseInterface $database = null,
     ) {}
 
     /**
@@ -96,7 +102,39 @@ final class EntityRepository implements EntityRepositoryInterface
         $values = $entity->toArray();
         $id = (string) ($entity->id() ?? '');
 
-        $this->driver->write($entityTypeId, $id, $values);
+        // Determine if we should create a new revision.
+        $createRevision = $this->shouldCreateRevision($entity, $isNew);
+
+        // Wrap revision + base table writes in a transaction (invariant #4).
+        $transaction = $this->database?->transaction();
+        try {
+            if ($createRevision && $this->revisionDriver !== null) {
+                $log = ($entity instanceof RevisionableInterface) ? $entity->getRevisionLog() : null;
+
+                $revisionId = $this->revisionDriver->writeRevision($id, $values, $log);
+
+                // Set revision_id on the entity values for the base table.
+                $values['revision_id'] = $revisionId;
+
+                // Update entity's internal revision_id.
+                if ($entity instanceof ContentEntityInterface) {
+                    $revisionKey = $this->entityType->getKeys()['revision'] ?? 'revision_id';
+                    $entity->set($revisionKey, $revisionId);
+                }
+            } elseif (!$createRevision && !$isNew && $this->revisionDriver !== null && $entity instanceof RevisionableInterface) {
+                // In-place update of current revision.
+                $currentRevisionId = $entity->getRevisionId();
+                if ($currentRevisionId !== null) {
+                    $this->revisionDriver->updateRevision($id, $currentRevisionId, $values);
+                }
+            }
+
+            $this->driver->write($entityTypeId, $id, $values);
+            $transaction?->commit();
+        } catch (\Throwable $e) {
+            $transaction?->rollBack();
+            throw $e;
+        }
 
         // Mark entity as no longer new.
         if ($isNew && method_exists($entity, 'enforceIsNew')) {
@@ -111,6 +149,14 @@ final class EntityRepository implements EntityRepositoryInterface
             EntityEvents::POST_SAVE->value,
         );
 
+        // Dispatch REVISION_CREATED if a revision was created.
+        if ($createRevision && $this->revisionDriver !== null) {
+            $this->eventDispatcher->dispatch(
+                new EntityEvent($entity),
+                EntityEvents::REVISION_CREATED->value,
+            );
+        }
+
         return $result;
     }
 
@@ -124,6 +170,11 @@ final class EntityRepository implements EntityRepositoryInterface
             new EntityEvent($entity),
             EntityEvents::PRE_DELETE->value,
         );
+
+        // Delete all revisions first (if revisionable).
+        if ($this->revisionDriver !== null && $this->entityType->isRevisionable()) {
+            $this->revisionDriver->deleteAllRevisions($id);
+        }
 
         $this->driver->remove($entityTypeId, $id);
 
@@ -142,6 +193,116 @@ final class EntityRepository implements EntityRepositoryInterface
     public function count(array $criteria = []): int
     {
         return $this->driver->count($this->entityType->id(), $criteria);
+    }
+
+    public function loadRevision(string $entityId, int $revisionId): ?EntityInterface
+    {
+        if ($this->revisionDriver === null) {
+            throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
+        }
+
+        $row = $this->revisionDriver->readRevision($entityId, $revisionId);
+        if ($row === null) {
+            return null;
+        }
+
+        // Inject the entity ID back (revision table uses entity_id, not the id key).
+        $keys = $this->entityType->getKeys();
+        $idKey = $keys['id'] ?? 'id';
+        $row[$idKey] = $row['entity_id'];
+
+        // Determine if this revision is the current default.
+        $baseRow = $this->driver->read($this->entityType->id(), $entityId);
+        $currentRevId = $baseRow !== null ? (int) ($baseRow['revision_id'] ?? 0) : 0;
+        $latestRevId = $this->revisionDriver->getLatestRevisionId($entityId);
+        $row['is_default_revision'] = ($revisionId === $currentRevId);
+        $row['is_latest_revision'] = ($revisionId === $latestRevId);
+
+        return $this->hydrate($row);
+    }
+
+    public function rollback(string $entityId, int $targetRevisionId): EntityInterface
+    {
+        if ($this->revisionDriver === null) {
+            throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
+        }
+
+        // Load the target revision.
+        $targetRow = $this->revisionDriver->readRevision($entityId, $targetRevisionId);
+        if ($targetRow === null) {
+            throw new \InvalidArgumentException(
+                "Revision {$targetRevisionId} does not exist for entity {$entityId}."
+            );
+        }
+
+        // Remove revision metadata from the row — we're creating a new revision.
+        unset($targetRow['revision_id'], $targetRow['revision_created'], $targetRow['revision_log'], $targetRow['entity_id']);
+
+        // Wrap in transaction (invariant #4: atomic pointer update).
+        $transaction = $this->database?->transaction();
+        try {
+            $log = "Reverted to revision {$targetRevisionId}";
+            $newRevisionId = $this->revisionDriver->writeRevision($entityId, $targetRow, $log);
+
+            // Update the base table pointer.
+            $keys = $this->entityType->getKeys();
+            $idKey = $keys['id'] ?? 'id';
+            $targetRow[$idKey] = $entityId;
+            $targetRow['revision_id'] = $newRevisionId;
+            $this->driver->write($this->entityType->id(), $entityId, $targetRow);
+
+            $transaction?->commit();
+        } catch (\Throwable $e) {
+            $transaction?->rollBack();
+            throw $e;
+        }
+
+        // Load the new entity via loadRevision to include revision metadata.
+        $entity = $this->loadRevision($entityId, $newRevisionId);
+
+        // Dispatch REVISION_CREATED (rollback creates a revision) then REVISION_REVERTED.
+        $this->eventDispatcher->dispatch(
+            new EntityEvent($entity),
+            EntityEvents::REVISION_CREATED->value,
+        );
+        $this->eventDispatcher->dispatch(
+            new EntityEvent($entity),
+            EntityEvents::REVISION_REVERTED->value,
+        );
+
+        return $entity;
+    }
+
+    /**
+     * Determine if a new revision should be created for this save.
+     */
+    private function shouldCreateRevision(EntityInterface $entity, bool $isNew): bool
+    {
+        if (!$this->entityType->isRevisionable()) {
+            // Invariant #9: type gating.
+            if ($entity instanceof RevisionableInterface && $entity->isNewRevision() === true) {
+                throw new \LogicException(
+                    'Cannot create revision for non-revisionable entity type ' . $this->entityType->id()
+                );
+            }
+            return false;
+        }
+
+        // First save always creates revision 1.
+        if ($isNew) {
+            return true;
+        }
+
+        // Caller override takes precedence.
+        if ($entity instanceof RevisionableInterface) {
+            $override = $entity->isNewRevision();
+            if ($override !== null) {
+                return $override;
+            }
+        }
+
+        // Fall back to entity type default.
+        return $this->entityType->getRevisionDefault();
     }
 
     /**

@@ -67,4 +67,26 @@ interface EntityRepositoryInterface
      * @param array<string, mixed> $criteria Field => value pairs to match.
      */
     public function count(array $criteria = []): int;
+
+    /**
+     * Load a specific revision of an entity.
+     *
+     * @param string $entityId The entity ID.
+     * @param int $revisionId The revision ID.
+     * @return EntityInterface|null The entity hydrated from the revision, or null.
+     */
+    public function loadRevision(string $entityId, int $revisionId): ?EntityInterface;
+
+    /**
+     * Rollback an entity to a previous revision (copy-forward).
+     *
+     * Creates a new revision with the target revision's field values
+     * and auto-annotates the revision log.
+     *
+     * @param string $entityId The entity ID.
+     * @param int $targetRevisionId The revision to copy values from.
+     * @return EntityInterface The entity hydrated from the new revision.
+     * @throws \InvalidArgumentException If the target revision does not exist.
+     */
+    public function rollback(string $entityId, int $targetRevisionId): EntityInterface;
 }
