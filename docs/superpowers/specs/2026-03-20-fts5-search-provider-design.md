@@ -58,6 +58,8 @@ interface SearchIndexerInterface
 
 Write-side contract. The FTS5 implementation manages both the FTS5 virtual table and the companion metadata table.
 
+**FTS5 upsert semantics:** FTS5 virtual tables do not support `INSERT OR REPLACE`. `Fts5SearchIndexer::index()` must delete any existing row with the same `document_id` before inserting the new one. Both the FTS5 delete+insert and the metadata upsert must be wrapped in a single transaction.
+
 ## Database Schema
 
 ### search_index (FTS5 virtual table)
@@ -85,6 +87,8 @@ CREATE TABLE search_metadata (
     source_name TEXT NOT NULL DEFAULT '',
     quality_score INTEGER NOT NULL DEFAULT 0,
     topics TEXT NOT NULL DEFAULT '[]',
+    url TEXT NOT NULL DEFAULT '',
+    og_image TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
     schema_version TEXT NOT NULL
 );
@@ -117,7 +121,7 @@ SELECT m.*, si.rank
 FROM search_index si
 JOIN search_metadata m ON m.document_id = si.document_id
 WHERE search_index MATCH :query
-  AND m.entity_type = :contentType
+  AND m.content_type = :contentType
   AND m.quality_score >= :minQuality
 ORDER BY si.rank
 LIMIT :limit OFFSET :offset
@@ -145,10 +149,11 @@ User queries are passed through FTS5 query escaping — double-quote terms, stri
 An event subscriber listens for entity lifecycle events:
 
 ```
-entity.insert → if entity implements SearchIndexableInterface → indexer->index($entity)
-entity.update → same
-entity.delete → indexer->remove($documentId)
+waaseyaa.entity.post_save   → if entity implements SearchIndexableInterface → indexer->index($entity)
+waaseyaa.entity.post_delete → if entity implements SearchIndexableInterface → indexer->remove($documentId)
 ```
+
+The system uses a single `POST_SAVE` event for both creates and updates (use `$event->entity->isNew()` to distinguish if needed). Event constants are defined in `EntityEvents`.
 
 The subscriber lives in the search package, registered via service provider. It checks `instanceof SearchIndexableInterface` — entities that don't implement it are ignored with zero overhead.
 
@@ -197,9 +202,9 @@ The existing `SearchTwigExtension` already works — it takes `SearchProviderInt
 | `id` | `document_id` |
 | `title` | FTS5 `title` column |
 | `score` | FTS5 `rank` (normalized) |
-| `highlight` | FTS5 `snippet()` function for contextual excerpts |
-| `url` | metadata if present, empty string default |
-| `ogImage` | metadata if present, empty string default |
+| `highlight` | FTS5 `snippet(search_index, 2, '<b>', '</b>', '…', 32)` — excerpts from `body` (column index 2) |
+| `url` | metadata `url` column, empty string default |
+| `ogImage` | metadata `og_image` column, empty string default |
 | `crawledAt` | `created_at` from metadata |
 | `contentType` | metadata `content_type` |
 | `topics` | metadata `topics` (JSON decoded) |
