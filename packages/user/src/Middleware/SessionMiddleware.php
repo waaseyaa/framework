@@ -32,7 +32,7 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         }
 
         $existingAccount = $request->attributes->get('_account');
-        if ($existingAccount instanceof AccountInterface) {
+        if ($existingAccount instanceof AccountInterface && $existingAccount->isAuthenticated()) {
             return $next->handle($request);
         }
 
