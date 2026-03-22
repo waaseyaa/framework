@@ -15,3 +15,31 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          TAG="${{ github.ref_name }}"
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${TAG}$" | head -1)
+
+          if [ -z "$PREV_TAG" ]; then
+            CHANGELOG="Initial release"
+          else
+            CHANGELOG=$(git log --oneline "${PREV_TAG}..${TAG}" 2>/dev/null || echo "No changes recorded")
+          fi
+
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG="No changes recorded"
+          fi
+
+          # Truncate to 1900 chars for Discord readability
+          if [ ${#CHANGELOG} -gt 1900 ]; then
+            CHANGELOG="${CHANGELOG:0:1897}..."
+          fi
+
+          {
+            echo "CHANGELOG<<CHANGELOG_EOF"
+            echo "$CHANGELOG"
+            echo "CHANGELOG_EOF"
+            echo "PREV_TAG=${PREV_TAG:-none}"
+          } >> "$GITHUB_ENV"
