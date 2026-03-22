@@ -572,10 +572,16 @@ final class ControllerDispatcher
                 })(),
 
                 $controller === 'graphql.endpoint' => (function () use ($method, $httpRequest, $account, $queryString): never {
+                    // Prefer the middleware-resolved session account over the
+                    // route-level $account, which is AnonymousUser on allowAll() routes.
+                    $resolvedAccount = $httpRequest->attributes->get('_account');
+                    $graphqlAccount = ($resolvedAccount instanceof \Waaseyaa\Access\AccountInterface && $resolvedAccount->isAuthenticated())
+                        ? $resolvedAccount
+                        : $account;
                     $endpoint = new \Waaseyaa\GraphQL\GraphQlEndpoint(
                         entityTypeManager: $this->entityTypeManager,
                         accessHandler: $this->accessHandler,
-                        account: $account,
+                        account: $graphqlAccount,
                     );
                     if ($this->graphqlMutationOverrides !== []) {
                         $endpoint = $endpoint->withMutationOverrides($this->graphqlMutationOverrides);
