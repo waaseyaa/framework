@@ -72,6 +72,7 @@ use Waaseyaa\Config\Cache\ConfigCacheCompiler;
 use Waaseyaa\Config\ConfigManager;
 use Waaseyaa\Config\Storage\FileStorage;
 use Waaseyaa\Entity\EntityTypeIdNormalizer;
+use Waaseyaa\Foundation\Discovery\StaleManifestException;
 use Waaseyaa\Foundation\Diagnostic\HealthChecker;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
 use Waaseyaa\Foundation\Schema\DefaultsSchemaRegistry;
@@ -81,8 +82,18 @@ final class ConsoleKernel extends AbstractKernel
 {
     public function handle(): int
     {
+        if ($this->shouldUseMinimalConsole()) {
+            return $this->runMinimalConsole();
+        }
+
         try {
             $this->boot();
+        } catch (StaleManifestException $e) {
+            fwrite(STDERR, sprintf(
+                "[Waaseyaa] %s\n",
+                $e->getMessage(),
+            ));
+            return 1;
         } catch (\Throwable $e) {
             fwrite(STDERR, sprintf(
                 "[Waaseyaa] Bootstrap failed: %s\n  in %s:%d\n",
@@ -245,6 +256,44 @@ final class ConsoleKernel extends AbstractKernel
                 $app->registerCommands($pluginCommands);
             }
         }
+
+        return $app->run();
+    }
+
+    private function shouldUseMinimalConsole(): bool
+    {
+        return $this->requestedCommandName() === 'optimize:manifest';
+    }
+
+    private function requestedCommandName(): ?string
+    {
+        $argv = $_SERVER['argv'] ?? [];
+
+        foreach (array_slice($argv, 1) as $arg) {
+            if (!is_string($arg)) {
+                continue;
+            }
+
+            if ($arg === '' || str_starts_with($arg, '-')) {
+                continue;
+            }
+
+            return $arg;
+        }
+
+        return null;
+    }
+
+    private function runMinimalConsole(): int
+    {
+        $app = new WaaseyaaApplication();
+        $app->setAutoExit(false);
+        $app->registerCommands([
+            new OptimizeManifestCommand(new PackageManifestCompiler(
+                basePath: $this->projectRoot,
+                storagePath: $this->projectRoot . '/storage',
+            )),
+        ]);
 
         return $app->run();
     }

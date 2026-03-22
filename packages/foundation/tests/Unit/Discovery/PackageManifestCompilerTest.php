@@ -4,6 +4,7 @@ namespace Waaseyaa\Foundation\Tests\Unit\Discovery;
 
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
+use Waaseyaa\Foundation\Discovery\StaleManifestException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -92,7 +93,7 @@ final class PackageManifestCompilerTest extends TestCase
         mkdir($storagePath . '/framework', 0o755, true);
 
         $data = [
-            'providers' => ['CachedProvider'],
+            'providers' => [\stdClass::class],
             'commands' => [],
             'routes' => [],
             'migrations' => [],
@@ -111,7 +112,38 @@ final class PackageManifestCompilerTest extends TestCase
         $compiler = new PackageManifestCompiler($this->tempDir, $storagePath);
         $manifest = $compiler->load();
 
-        $this->assertSame(['CachedProvider'], $manifest->providers);
+        $this->assertSame([\stdClass::class], $manifest->providers);
+    }
+
+    #[Test]
+    public function load_throws_stale_manifest_exception_when_cached_provider_class_is_missing(): void
+    {
+        $storagePath = $this->tempDir . '/storage';
+        mkdir($storagePath . '/framework', 0o755, true);
+
+        $data = [
+            'providers' => ['App\\Provider\\MissingProvider'],
+            'commands' => [],
+            'routes' => [],
+            'migrations' => [],
+            'field_types' => [],
+            'listeners' => [],
+            'middleware' => [],
+            'permissions' => [],
+            'policies' => [],
+        ];
+
+        file_put_contents(
+            $storagePath . '/framework/packages.php',
+            '<?php return ' . var_export($data, true) . ';' . "\n",
+        );
+
+        $compiler = new PackageManifestCompiler($this->tempDir, $storagePath);
+
+        $this->expectException(StaleManifestException::class);
+        $this->expectExceptionMessage('App\\Provider\\MissingProvider');
+
+        $compiler->load();
     }
 
     #[Test]

@@ -216,8 +216,12 @@ final class PackageManifestCompiler
             try {
                 $data = require $cachePath;
                 if (is_array($data)) {
-                    return PackageManifest::fromArray($data);
+                    $manifest = PackageManifest::fromArray($data);
+                    $this->assertProvidersExist($manifest, $cachePath);
+                    return $manifest;
                 }
+            } catch (StaleManifestException $e) {
+                throw $e;
             } catch (\Throwable) {
                 // Corrupt cache — recompile
             }
@@ -278,6 +282,18 @@ final class PackageManifestCompiler
         }
 
         return $this->filterDiscoveryClasses($candidates);
+    }
+
+    private function assertProvidersExist(PackageManifest $manifest, string $cachePath): void
+    {
+        $missingProviders = array_values(array_filter(
+            $manifest->providers,
+            static fn(string $providerClass): bool => !class_exists($providerClass),
+        ));
+
+        if ($missingProviders !== []) {
+            throw new StaleManifestException($missingProviders, $cachePath);
+        }
     }
 
     /**

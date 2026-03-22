@@ -115,4 +115,52 @@ final class ConsoleKernelTest extends TestCase
         $this->assertDirectoryExists($customSyncDir);
         $this->assertDirectoryExists($this->projectRoot . '/config/active');
     }
+
+    #[Test]
+    public function handle_allows_optimize_manifest_when_cached_manifest_is_stale(): void
+    {
+        mkdir($this->projectRoot . '/storage/framework', 0755, true);
+        $this->writeStaleManifestCache();
+
+        $_SERVER['argv'] = ['waaseyaa', 'optimize:manifest', '--no-ansi'];
+
+        $kernel = new ConsoleKernel($this->projectRoot);
+        $exitCode = $kernel->handle();
+
+        $this->assertSame(0, $exitCode);
+    }
+
+    #[Test]
+    public function handle_fails_fast_for_non_recovery_commands_when_cached_manifest_is_stale(): void
+    {
+        mkdir($this->projectRoot . '/storage/framework', 0755, true);
+        $this->writeStaleManifestCache();
+
+        $_SERVER['argv'] = ['waaseyaa', 'route:list', '--no-ansi'];
+
+        $kernel = new ConsoleKernel($this->projectRoot);
+        $exitCode = $kernel->handle();
+
+        $this->assertSame(1, $exitCode);
+    }
+
+    private function writeStaleManifestCache(): void
+    {
+        $data = [
+            'providers' => ['App\\Provider\\MissingProvider'],
+            'commands' => [],
+            'routes' => [],
+            'migrations' => [],
+            'field_types' => [],
+            'listeners' => [],
+            'middleware' => [],
+            'permissions' => [],
+            'policies' => [],
+        ];
+
+        file_put_contents(
+            $this->projectRoot . '/storage/framework/packages.php',
+            '<?php return ' . var_export($data, true) . ';' . "\n",
+        );
+    }
 }
