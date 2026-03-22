@@ -20,7 +20,17 @@ jobs:
         id: changelog
         run: |
           TAG="${{ github.ref_name }}"
-          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${TAG}$" | head -1)
+          TAG_SHA=$(git rev-parse "${TAG}")
+
+          # Walk back through tags to find the first one pointing to a different commit
+          PREV_TAG=""
+          while IFS= read -r candidate; do
+            candidate_sha=$(git rev-parse "$candidate" 2>/dev/null)
+            if [[ "$candidate_sha" != "$TAG_SHA" ]]; then
+              PREV_TAG="$candidate"
+              break
+            fi
+          done < <(git tag --sort=-version:refname | grep -v "^${TAG}$")
 
           if [ -z "$PREV_TAG" ]; then
             CHANGELOG="Initial release"
