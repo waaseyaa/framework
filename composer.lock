@@ -4,20 +4,20 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "6ff28ecd4a1922ef391ac09f7f73242a",
+    "content-hash": "fd232b448ebf3369ff25b0d4f3b52910",
     "packages": [
         {
             "name": "doctrine/dbal",
-            "version": "4.4.2",
+            "version": "4.4.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/doctrine/dbal.git",
-                "reference": "476f7f0fa6ea4aa5364926db7fabdf6049075722"
+                "reference": "61e730f1658814821a85f2402c945f3883407dec"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/doctrine/dbal/zipball/476f7f0fa6ea4aa5364926db7fabdf6049075722",
-                "reference": "476f7f0fa6ea4aa5364926db7fabdf6049075722",
+                "url": "https://api.github.com/repos/doctrine/dbal/zipball/61e730f1658814821a85f2402c945f3883407dec",
+                "reference": "61e730f1658814821a85f2402c945f3883407dec",
                 "shasum": ""
             },
             "require": {
@@ -94,7 +94,7 @@
             ],
             "support": {
                 "issues": "https://github.com/doctrine/dbal/issues",
-                "source": "https://github.com/doctrine/dbal/tree/4.4.2"
+                "source": "https://github.com/doctrine/dbal/tree/4.4.3"
             },
             "funding": [
                 {
@@ -110,7 +110,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-02-26T12:12:19+00:00"
+            "time": "2026-03-20T08:52:12+00:00"
         },
         {
             "name": "doctrine/deprecations",
@@ -159,6 +159,70 @@
                 "source": "https://github.com/doctrine/deprecations/tree/1.1.6"
             },
             "time": "2026-02-07T07:09:04+00:00"
+        },
+        {
+            "name": "dragonmantank/cron-expression",
+            "version": "v3.6.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/dragonmantank/cron-expression.git",
+                "reference": "d61a8a9604ec1f8c3d150d09db6ce98b32675013"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/dragonmantank/cron-expression/zipball/d61a8a9604ec1f8c3d150d09db6ce98b32675013",
+                "reference": "d61a8a9604ec1f8c3d150d09db6ce98b32675013",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.2|^8.3|^8.4|^8.5"
+            },
+            "replace": {
+                "mtdowling/cron-expression": "^1.0"
+            },
+            "require-dev": {
+                "phpstan/extension-installer": "^1.4.3",
+                "phpstan/phpstan": "^1.12.32|^2.1.31",
+                "phpunit/phpunit": "^8.5.48|^9.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "3.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Cron\\": "src/Cron/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Chris Tankersley",
+                    "email": "chris@ctankersley.com",
+                    "homepage": "https://github.com/dragonmantank"
+                }
+            ],
+            "description": "CRON for PHP: Calculate the next or previous run date and determine if a CRON expression is due",
+            "keywords": [
+                "cron",
+                "schedule"
+            ],
+            "support": {
+                "issues": "https://github.com/dragonmantank/cron-expression/issues",
+                "source": "https://github.com/dragonmantank/cron-expression/tree/v3.6.0"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/dragonmantank",
+                    "type": "github"
+                }
+            ],
+            "time": "2025-10-31T18:51:33+00:00"
         },
         {
             "name": "league/uri",
@@ -2796,16 +2860,16 @@
         },
         {
             "name": "twig/twig",
-            "version": "v3.23.0",
+            "version": "v3.24.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/twigphp/Twig.git",
-                "reference": "a64dc5d2cc7d6cafb9347f6cd802d0d06d0351c9"
+                "reference": "a6769aefb305efef849dc25c9fd1653358c148f0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/twigphp/Twig/zipball/a64dc5d2cc7d6cafb9347f6cd802d0d06d0351c9",
-                "reference": "a64dc5d2cc7d6cafb9347f6cd802d0d06d0351c9",
+                "url": "https://api.github.com/repos/twigphp/Twig/zipball/a6769aefb305efef849dc25c9fd1653358c148f0",
+                "reference": "a6769aefb305efef849dc25c9fd1653358c148f0",
                 "shasum": ""
             },
             "require": {
@@ -2815,7 +2879,8 @@
                 "symfony/polyfill-mbstring": "^1.3"
             },
             "require-dev": {
-                "phpstan/phpstan": "^2.0",
+                "php-cs-fixer/shim": "^3.0@stable",
+                "phpstan/phpstan": "^2.0@stable",
                 "psr/container": "^1.0|^2.0",
                 "symfony/phpunit-bridge": "^5.4.9|^6.4|^7.0"
             },
@@ -2859,7 +2924,7 @@
             ],
             "support": {
                 "issues": "https://github.com/twigphp/Twig/issues",
-                "source": "https://github.com/twigphp/Twig/tree/v3.23.0"
+                "source": "https://github.com/twigphp/Twig/tree/v3.24.0"
             },
             "funding": [
                 {
@@ -2871,7 +2936,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-01-23T21:00:41+00:00"
+            "time": "2026-03-17T21:31:11+00:00"
         },
         {
             "name": "waaseyaa/access",
@@ -2879,15 +2944,15 @@
             "dist": {
                 "type": "path",
                 "url": "packages/access",
-                "reference": "fd3bf06a196156a490092b895f9dfcd1cee4ffb9"
+                "reference": "6af78cef0fa681054b3d52dd4dba5d347b5b7112"
             },
             "require": {
                 "php": ">=8.4",
                 "symfony/http-foundation": "^7.0",
+                "symfony/routing": "^7.0",
                 "waaseyaa/entity": "^0.1",
                 "waaseyaa/foundation": "^0.1",
-                "waaseyaa/plugin": "^0.1",
-                "waaseyaa/routing": "^0.1"
+                "waaseyaa/plugin": "^0.1"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -3186,7 +3251,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/auth",
-                "reference": "ec0ce7245c6cbe96eeb39ae90ce5298d666dda92"
+                "reference": "aec699a918960b313a4760fb4c7938e74b7e9a2f"
             },
             "require": {
                 "php": ">=8.4",
@@ -3200,6 +3265,7 @@
             "type": "library",
             "extra": {
                 "waaseyaa": {
+                    "layer": 6,
                     "providers": [
                         "Waaseyaa\\Auth\\AuthServiceProvider"
                     ]
@@ -3232,7 +3298,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/billing",
-                "reference": "6ec4b43ca6044b9c1599d765981c3c7253c0b456"
+                "reference": "d0fe745c8cbfa43994c26a4484f83038c07e6f6d"
             },
             "require": {
                 "php": ">=8.4",
@@ -3245,6 +3311,7 @@
             "type": "library",
             "extra": {
                 "waaseyaa": {
+                    "layer": 6,
                     "providers": [
                         "Waaseyaa\\Billing\\BillingServiceProvider"
                     ]
@@ -3624,16 +3691,21 @@
         },
         {
             "name": "waaseyaa/github",
-            "version": "dev-main",
+            "version": "dev-feat/queue-scheduling-notifications",
             "dist": {
                 "type": "path",
                 "url": "packages/github",
-                "reference": "d7ef994f8ece644d6ae9a46b9866dabc98196e22"
+                "reference": "c9a2820a3c8098b91524d81066f2d579e8969cfa"
             },
             "require": {
                 "php": ">=8.4"
             },
             "type": "library",
+            "extra": {
+                "waaseyaa": {
+                    "layer": 6
+                }
+            },
             "autoload": {
                 "psr-4": {
                     "Waaseyaa\\GitHub\\": "src/"
@@ -3743,7 +3815,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/inertia",
-                "reference": "cedb1ef76cc94f0ffda392f61876ddf1560ce216"
+                "reference": "42535efeb061922fdfe09288ac485f2b06d8728c"
             },
             "require": {
                 "php": ">=8.4",
@@ -3755,6 +3827,7 @@
             "type": "library",
             "extra": {
                 "waaseyaa": {
+                    "layer": 6,
                     "providers": [
                         "Waaseyaa\\Inertia\\InertiaServiceProvider"
                     ]
@@ -3787,7 +3860,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ingestion",
-                "reference": "938e80c2229b632b813d3aabf4b5e640ab7b286b"
+                "reference": "706425f3b625ff8771cbc2795146b827b8c684ce"
             },
             "require": {
                 "php": ">=8.4"
@@ -3797,6 +3870,9 @@
             },
             "type": "library",
             "extra": {
+                "waaseyaa": {
+                    "layer": 0
+                },
                 "branch-alias": {
                     "dev-main": "0.1.x-dev"
                 }
@@ -4094,6 +4170,55 @@
             }
         },
         {
+            "name": "waaseyaa/notification",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/notification",
+                "reference": "61f6471d322102d206996d579cfbdb96413a5f24"
+            },
+            "require": {
+                "php": ">=8.4",
+                "waaseyaa/database-legacy": "^0.1",
+                "waaseyaa/entity": "^0.1",
+                "waaseyaa/entity-storage": "^0.1",
+                "waaseyaa/foundation": "^0.1",
+                "waaseyaa/mail": "^0.1",
+                "waaseyaa/queue": "^0.1"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev"
+                },
+                "waaseyaa": {
+                    "providers": [
+                        "Waaseyaa\\Notification\\NotificationServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Notification\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Notification\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Multi-channel notification system for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
             "name": "waaseyaa/path",
             "version": "dev-main",
             "dist": {
@@ -4184,11 +4309,13 @@
             "dist": {
                 "type": "path",
                 "url": "packages/queue",
-                "reference": "4b6cffddd8befc3d60ea47e2073b600ac94df684"
+                "reference": "24b656459b87b34811bbc07092b564ed5feef4e9"
             },
             "require": {
                 "php": ">=8.4",
-                "symfony/messenger": "^7.3"
+                "symfony/messenger": "^7.3",
+                "waaseyaa/database-legacy": "^0.1",
+                "waaseyaa/foundation": "^0.1"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -4198,6 +4325,11 @@
                 "branch-alias": {
                     "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
+                },
+                "waaseyaa": {
+                    "providers": [
+                        "Waaseyaa\\Queue\\QueueServiceProvider"
+                    ]
                 }
             },
             "autoload": {
@@ -4224,14 +4356,13 @@
             "dist": {
                 "type": "path",
                 "url": "packages/relationship",
-                "reference": "f9be8fe8e28456c0963cc67edfa780787f8f3d8f"
+                "reference": "b01cb17cfd4bcf783443154734e319b4f7316c31"
             },
             "require": {
                 "php": ">=8.4",
                 "waaseyaa/access": "^0.1",
                 "waaseyaa/database-legacy": "^0.1",
-                "waaseyaa/entity": "^0.1",
-                "waaseyaa/workflows": "^0.1"
+                "waaseyaa/entity": "^0.1"
             },
             "type": "library",
             "extra": {
@@ -4302,16 +4433,67 @@
             }
         },
         {
+            "name": "waaseyaa/scheduler",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/scheduler",
+                "reference": "ae2de67c9bd82e97d4f950234f7b5e50f68fc633"
+            },
+            "require": {
+                "dragonmantank/cron-expression": "^3.0",
+                "php": ">=8.4",
+                "waaseyaa/database-legacy": "^0.1",
+                "waaseyaa/foundation": "^0.1",
+                "waaseyaa/queue": "^0.1"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev"
+                },
+                "waaseyaa": {
+                    "providers": [
+                        "Waaseyaa\\Scheduler\\SchedulerServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Scheduler\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Scheduler\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Task scheduling with cron expression support for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
             "name": "waaseyaa/search",
             "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/search",
-                "reference": "81d79a73e426d8ca418780ce3837c03d557fd205"
+                "reference": "35abb94fbc7e3bd4266f6f19db4b548053dd6590"
             },
             "require": {
                 "php": ">=8.4",
-                "twig/twig": "^3.0"
+                "symfony/event-dispatcher": "^7.0",
+                "twig/twig": "^3.0",
+                "waaseyaa/database-legacy": "@dev",
+                "waaseyaa/entity": "@dev",
+                "waaseyaa/foundation": "@dev"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -4321,6 +4503,11 @@
                 "branch-alias": {
                     "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
+                },
+                "waaseyaa": {
+                    "providers": [
+                        "Waaseyaa\\Search\\SearchServiceProvider"
+                    ]
                 }
             },
             "autoload": {
@@ -4653,12 +4840,13 @@
             "dist": {
                 "type": "path",
                 "url": "packages/workflows",
-                "reference": "e6be01227f7c88aaff5c822a37ec874610adaff1"
+                "reference": "9e367f2d8f308c14d98b36be162d4b855e968cc7"
             },
             "require": {
                 "php": ">=8.4",
                 "waaseyaa/access": "^0.1",
-                "waaseyaa/entity": "^0.1"
+                "waaseyaa/entity": "^0.1",
+                "waaseyaa/relationship": "^0.1"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -4695,16 +4883,16 @@
         },
         {
             "name": "webonyx/graphql-php",
-            "version": "v15.31.1",
+            "version": "v15.31.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/webonyx/graphql-php.git",
-                "reference": "8b446b55a30680f105eb5c4d25ccbc015926d398"
+                "reference": "b2c3b02f9151afeba7ab79580e89992ac0ad4fec"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/webonyx/graphql-php/zipball/8b446b55a30680f105eb5c4d25ccbc015926d398",
-                "reference": "8b446b55a30680f105eb5c4d25ccbc015926d398",
+                "url": "https://api.github.com/repos/webonyx/graphql-php/zipball/b2c3b02f9151afeba7ab79580e89992ac0ad4fec",
+                "reference": "b2c3b02f9151afeba7ab79580e89992ac0ad4fec",
                 "shasum": ""
             },
             "require": {
@@ -4722,7 +4910,7 @@
                 "nyholm/psr7": "^1.5",
                 "phpbench/phpbench": "^1.2",
                 "phpstan/extension-installer": "^1.1",
-                "phpstan/phpstan": "2.1.40",
+                "phpstan/phpstan": "2.1.42",
                 "phpstan/phpstan-phpunit": "2.0.16",
                 "phpstan/phpstan-strict-rules": "2.0.10",
                 "phpunit/phpunit": "^9.5 || ^10.5.21 || ^11",
@@ -4758,7 +4946,7 @@
             ],
             "support": {
                 "issues": "https://github.com/webonyx/graphql-php/issues",
-                "source": "https://github.com/webonyx/graphql-php/tree/v15.31.1"
+                "source": "https://github.com/webonyx/graphql-php/tree/v15.31.2"
             },
             "funding": [
                 {
@@ -4770,7 +4958,7 @@
                     "type": "open_collective"
                 }
             ],
-            "time": "2026-03-16T15:32:01+00:00"
+            "time": "2026-03-23T07:32:52+00:00"
         }
     ],
     "packages-dev": [
@@ -8173,11 +8361,13 @@
         "waaseyaa/menu": 20,
         "waaseyaa/node": 20,
         "waaseyaa/note": 20,
+        "waaseyaa/notification": 20,
         "waaseyaa/path": 20,
         "waaseyaa/plugin": 20,
         "waaseyaa/queue": 20,
         "waaseyaa/relationship": 20,
         "waaseyaa/routing": 20,
+        "waaseyaa/scheduler": 20,
         "waaseyaa/search": 20,
         "waaseyaa/ssr": 20,
         "waaseyaa/state": 20,

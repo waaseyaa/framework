@@ -1,0 +1,48 @@
+{
+    "name": "waaseyaa/notification",
+    "description": "Multi-channel notification system for Waaseyaa",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "repositories": [
+        { "type": "path", "url": "../foundation" },
+        { "type": "path", "url": "../queue" },
+        { "type": "path", "url": "../mail" },
+        { "type": "path", "url": "../entity" },
+        { "type": "path", "url": "../entity-storage" },
+        { "type": "path", "url": "../database-legacy" }
+    ],
+    "require": {
+        "php": ">=8.4",
+        "waaseyaa/foundation": "^0.1",
+        "waaseyaa/queue": "^0.1",
+        "waaseyaa/mail": "^0.1",
+        "waaseyaa/entity": "^0.1",
+        "waaseyaa/entity-storage": "^0.1",
+        "waaseyaa/database-legacy": "^0.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Waaseyaa\\Notification\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Waaseyaa\\Notification\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.1.x-dev"
+        },
+        "waaseyaa": {
+            "providers": [
+                "Waaseyaa\\Notification\\NotificationServiceProvider"
+            ]
+        }
+    }
+}
