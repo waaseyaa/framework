@@ -14,7 +14,7 @@ use Waaseyaa\Access\ErrorPageRendererInterface;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
-use Waaseyaa\Routing\AccessChecker;
+use Waaseyaa\Access\AccessChecker;
 
 #[AsMiddleware(pipeline: 'http', priority: 10)]
 final class AuthorizationMiddleware implements HttpMiddlewareInterface

@@ -7,7 +7,7 @@ namespace Waaseyaa\Routing\Tests\Unit;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Gate\GateInterface;
-use Waaseyaa\Routing\AccessChecker;
+use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\Routing\Attribute\GateAttribute;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;

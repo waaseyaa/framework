@@ -6,14 +6,13 @@ namespace Waaseyaa\Relationship;
 
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Workflows\WorkflowVisibility;
 
 final class RelationshipTraversalService
 {
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly DatabaseInterface $database,
-        private readonly WorkflowVisibility $workflowVisibility = new WorkflowVisibility(),
+        private readonly ?VisibilityFilterInterface $visibilityFilter = null,
     ) {}
 
     /**
@@ -370,7 +369,7 @@ final class RelationshipTraversalService
      */
     private function isEntityPublic(string $entityType, array $values): bool
     {
-        return $this->workflowVisibility->isEntityPublic($entityType, $values);
+        return $this->visibilityFilter?->isEntityPublic($entityType, $values) ?? true;
     }
 
     private function normalizeDirection(mixed $direction): string

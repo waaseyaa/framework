@@ -19,7 +19,7 @@ use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
-use Waaseyaa\Routing\AccessChecker;
+use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\User\Middleware\SessionMiddleware;
 use Waaseyaa\User\User;
 

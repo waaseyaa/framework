@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Relationship\Tests\Unit;
 
 require_once __DIR__ . '/../../src/Relationship.php';
+require_once __DIR__ . '/../../src/VisibilityFilterInterface.php';
 require_once __DIR__ . '/../../src/RelationshipTraversalService.php';
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -17,6 +18,7 @@ use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Relationship\Relationship;
 use Waaseyaa\Relationship\RelationshipTraversalService;
+use Waaseyaa\Relationship\VisibilityFilterInterface;
 
 #[CoversClass(RelationshipTraversalService::class)]
 final class RelationshipTraversalServiceTest extends TestCase
@@ -70,7 +72,8 @@ final class RelationshipTraversalServiceTest extends TestCase
             'node' => $nodeStorage,
         ]);
 
-        $service = new RelationshipTraversalService($manager, $database);
+        $visibilityFilter = new TraversalVisibilityFilter();
+        $service = new RelationshipTraversalService($manager, $database, $visibilityFilter);
 
         $result = $service->browse('node', 1, ['status' => 'published']);
 
@@ -191,7 +194,8 @@ final class RelationshipTraversalServiceTest extends TestCase
             'node' => $nodeStorage,
         ]);
 
-        $service = new RelationshipTraversalService($manager, $database);
+        $visibilityFilter = new TraversalVisibilityFilter();
+        $service = new RelationshipTraversalService($manager, $database, $visibilityFilter);
         $result = $service->browse('node', 1, ['status' => 'published']);
 
         $this->assertSame(3, $result['counts']['total']);
@@ -383,6 +387,23 @@ final class TraversalEntityStorage implements EntityStorageInterface
     public function getEntityTypeId(): string
     {
         return 'node';
+    }
+}
+
+final class TraversalVisibilityFilter implements VisibilityFilterInterface
+{
+    public function isEntityPublic(string $entityType, array $values): bool
+    {
+        if ($entityType === 'node') {
+            $state = $values['workflow_state'] ?? null;
+            if ($state !== null) {
+                return $state === 'published';
+            }
+
+            return (int) ($values['status'] ?? 0) === 1;
+        }
+
+        return true;
     }
 }
 

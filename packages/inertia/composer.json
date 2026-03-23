@@ -21,6 +21,7 @@
     },
     "extra": {
         "waaseyaa": {
+            "layer": 6,
             "providers": ["Waaseyaa\\Inertia\\InertiaServiceProvider"]
         },
         "branch-alias": { "dev-main": "0.1.x-dev" }

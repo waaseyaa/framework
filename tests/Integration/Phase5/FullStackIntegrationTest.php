@@ -23,7 +23,7 @@ use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Queue\InMemoryQueue;
 use Waaseyaa\Queue\Message\EntityMessage;
-use Waaseyaa\Routing\AccessChecker;
+use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\Routing\ParamConverter\EntityParamConverter;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
