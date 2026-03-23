@@ -608,6 +608,12 @@ final class ControllerDispatcher
                     ResponseSender::json($document->statusCode, $document->toArray());
                 })(),
 
+                str_contains($controller, 'ApiDiscoveryController') => (function () use ($account): never {
+                    $discoveryController = new \Waaseyaa\Api\ApiDiscoveryController($this->entityTypeManager);
+                    $result = $discoveryController->discover();
+                    ResponseSender::json(200, ['jsonapi' => ['version' => '1.1'], ...$result]);
+                })(),
+
                 str_contains($controller, 'JsonApiController') => (function () use ($serializer, $account, $params, $query, $body, $method): never {
                     $jsonApiController = new JsonApiController($this->entityTypeManager, $serializer, $this->accessHandler, $account);
                     $entityTypeId = $params['_entity_type'];
