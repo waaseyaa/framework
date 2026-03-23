@@ -57,7 +57,7 @@ final class EntityAuditLogger
                 /** @var array<string, mixed> $entry */
                 $entry = json_decode($line, true, 512, JSON_THROW_ON_ERROR);
 
-                if ($entityTypeFilter === '' || $entry['entity_type'] === $entityTypeFilter) {
+                if ($entityTypeFilter === '' || $entry[EntityAuditKey::EntityType->value] === $entityTypeFilter) {
                     $entries[] = $entry;
                 }
             } catch (\JsonException) {
@@ -85,7 +85,7 @@ final class EntityAuditLogger
 
         foreach ($entries as $entry) {
             try {
-                $ts = new \DateTimeImmutable((string) ($entry['timestamp'] ?? ''));
+                $ts = new \DateTimeImmutable((string) ($entry[EntityAuditKey::Timestamp->value] ?? ''));
 
                 if ($ts >= $cutoff) {
                     $kept[] = $entry;

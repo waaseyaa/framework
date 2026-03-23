@@ -34,24 +34,24 @@ final class EntityAuditEntry
     public function toArray(): array
     {
         $entry = [
-            'actor'       => $this->actor,
-            'action'      => $this->action,
-            'entity_id'   => $this->entityId,
-            'entity_type' => $this->entityType,
-            'tenant_id'   => $this->tenantId,
-            'timestamp'   => $this->timestamp,
+            EntityAuditKey::Actor->value      => $this->actor,
+            EntityAuditKey::Action->value     => $this->action,
+            EntityAuditKey::EntityId->value   => $this->entityId,
+            EntityAuditKey::EntityType->value => $this->entityType,
+            EntityAuditKey::TenantId->value   => $this->tenantId,
+            EntityAuditKey::Timestamp->value  => $this->timestamp,
         ];
 
         if ($this->envelopeVersion !== null) {
-            $entry['envelope_version'] = $this->envelopeVersion;
+            $entry[EntityAuditKey::EnvelopeVersion->value] = $this->envelopeVersion;
         }
 
         if ($this->ingestSource !== null) {
-            $entry['ingest_source'] = $this->ingestSource;
+            $entry[EntityAuditKey::IngestSource->value] = $this->ingestSource;
         }
 
         if ($this->ingestedAt !== null) {
-            $entry['ingested_at'] = $this->ingestedAt;
+            $entry[EntityAuditKey::IngestedAt->value] = $this->ingestedAt;
         }
 
         return $entry;

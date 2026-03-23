@@ -115,9 +115,9 @@ final class EntityTypeLifecycleManager
             try {
                 /** @var array{entity_type_id: string, action: string, actor_id: string, timestamp: string, tenant_id?: string} $entry */
                 $entry = json_decode($line, true, 512, JSON_THROW_ON_ERROR);
-                $entryTenant = isset($entry['tenant_id']) ? (string) $entry['tenant_id'] : null;
+                $entryTenant = isset($entry[Audit\LifecycleAuditKey::TenantId->value]) ? (string) $entry[Audit\LifecycleAuditKey::TenantId->value] : null;
 
-                $typeMatch = $entityTypeFilter === '' || $entry['entity_type_id'] === $entityTypeFilter;
+                $typeMatch = $entityTypeFilter === '' || $entry[Audit\LifecycleAuditKey::EntityTypeId->value] === $entityTypeFilter;
                 $tenantMatch = $tenantId === null || $entryTenant === $tenantId;
 
                 if ($typeMatch && $tenantMatch) {
@@ -166,15 +166,15 @@ final class EntityTypeLifecycleManager
         $this->ensureDirectory(dirname($file));
 
         $payload = [
-            'entity_type_id' => $entityTypeId,
-            'action'         => $action,
-            'actor_id'       => (string) $actorId,
-            'timestamp'      => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
+            Audit\LifecycleAuditKey::EntityTypeId->value => $entityTypeId,
+            Audit\LifecycleAuditKey::Action->value       => $action,
+            Audit\LifecycleAuditKey::ActorId->value      => (string) $actorId,
+            Audit\LifecycleAuditKey::Timestamp->value    => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
         ];
 
         $tenantId = $this->normalizeTenantId($tenantId);
         if ($tenantId !== null) {
-            $payload['tenant_id'] = $tenantId;
+            $payload[Audit\LifecycleAuditKey::TenantId->value] = $tenantId;
         }
 
         $entry = json_encode($payload, JSON_THROW_ON_ERROR);
