@@ -50,12 +50,6 @@ final class Worker
             $raw = $this->transport->pop($queue);
 
             if ($raw === null) {
-                if ($options->maxJobs > 0 || $options->maxTime > 0) {
-                    // In bounded mode, sleep briefly then check conditions
-                    sleep($options->sleep);
-                    continue;
-                }
-                // In daemon mode, sleep and continue
                 sleep($options->sleep);
                 continue;
             }
