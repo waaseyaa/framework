@@ -56,7 +56,7 @@ final class HttpKernel extends AbstractKernel
         try {
             $this->boot();
         } catch (\Throwable $e) {
-            error_log(sprintf("[Waaseyaa] Boot failed: %s in %s:%d\n%s", $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString()));
+            $this->logger->critical(sprintf("Boot failed: %s in %s:%d\n%s", $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString()));
             ResponseSender::json(500, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'Application failed to boot.']],
@@ -121,7 +121,7 @@ final class HttpKernel extends AbstractKernel
                         try {
                             return $provider->resolve($className);
                         } catch (\Throwable $e) {
-                            error_log(sprintf('[Waaseyaa] Failed to resolve %s: %s', $className, $e->getMessage()));
+                            $this->logger->error(sprintf('Failed to resolve %s: %s', $className, $e->getMessage()));
                             return null;
                         }
                     }
@@ -147,7 +147,7 @@ final class HttpKernel extends AbstractKernel
         } catch (\Symfony\Component\Routing\Exception\MethodNotAllowedException) {
             ResponseSender::json(405, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '405', 'title' => 'Method Not Allowed', 'detail' => "Method {$method} is not allowed for this route."]]]);
         } catch (\Throwable $e) {
-            error_log(sprintf("[Waaseyaa] Routing error: %s in %s:%d\n%s", $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString()));
+            $this->logger->critical(sprintf("Routing error: %s in %s:%d\n%s", $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString()));
             ResponseSender::json(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'A routing error occurred.']]]);
         }
 
@@ -204,7 +204,7 @@ final class HttpKernel extends AbstractKernel
                 },
             );
         } catch (\Throwable $e) {
-            error_log(sprintf("[Waaseyaa] Authorization pipeline error: %s in %s:%d\n%s", $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString()));
+            $this->logger->critical(sprintf("Authorization pipeline error: %s in %s:%d\n%s", $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString()));
             ResponseSender::json(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'An authorization error occurred.']]]);
         }
 
@@ -215,7 +215,7 @@ final class HttpKernel extends AbstractKernel
 
         $account = $httpRequest->attributes->get('_account');
         if (!$account instanceof AccountInterface) {
-            error_log('[Waaseyaa] _account attribute missing or invalid after authorization pipeline.');
+            $this->logger->error('_account attribute missing or invalid after authorization pipeline.');
             ResponseSender::json(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'Account resolution failed.']]]);
         }
 

@@ -4,15 +4,21 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Vector;
 
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
+
 final class SqliteEmbeddingStorage implements EmbeddingStorageInterface
 {
     private bool $schemaReady = false;
+    private readonly LoggerInterface $logger;
 
     public function __construct(
         private readonly \PDO $pdo,
         private readonly string $table = 'embeddings',
+        ?LoggerInterface $logger = null,
     ) {
         $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+        $this->logger = $logger ?? new NullLogger();
     }
 
     public function store(string $entityType, string $id, array $vector): void
@@ -71,8 +77,8 @@ final class SqliteEmbeddingStorage implements EmbeddingStorageInterface
         usort($results, static fn(array $a, array $b): int => $b['score'] <=> $a['score']);
 
         if ($dimensionMismatches > 0) {
-            error_log(sprintf(
-                '[Waaseyaa] Embedding dimension mismatch: skipped %d row(s) for entity type "%s".',
+            $this->logger->warning(sprintf(
+                'Embedding dimension mismatch: skipped %d row(s) for entity type "%s".',
                 $dimensionMismatches,
                 $entityType,
             ));

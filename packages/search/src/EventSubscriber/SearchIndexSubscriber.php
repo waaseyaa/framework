@@ -7,14 +7,21 @@ namespace Waaseyaa\Search\EventSubscriber;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Search\SearchIndexableInterface;
 use Waaseyaa\Search\SearchIndexerInterface;
 
 final class SearchIndexSubscriber implements EventSubscriberInterface
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly SearchIndexerInterface $indexer,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public static function getSubscribedEvents(): array
     {
@@ -35,7 +42,7 @@ final class SearchIndexSubscriber implements EventSubscriberInterface
         try {
             $this->indexer->index($entity);
         } catch (\Throwable $e) {
-            error_log("Search indexing failed for {$entity->getSearchDocumentId()}: {$e->getMessage()}");
+            $this->logger->error(sprintf('Search indexing failed for %s: %s', $entity->getSearchDocumentId(), $e->getMessage()));
         }
     }
 
@@ -50,7 +57,7 @@ final class SearchIndexSubscriber implements EventSubscriberInterface
         try {
             $this->indexer->remove($entity->getSearchDocumentId());
         } catch (\Throwable $e) {
-            error_log("Search index removal failed for {$entity->getSearchDocumentId()}: {$e->getMessage()}");
+            $this->logger->error(sprintf('Search index removal failed for %s: %s', $entity->getSearchDocumentId(), $e->getMessage()));
         }
     }
 }

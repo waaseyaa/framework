@@ -13,6 +13,8 @@ use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 
 /**
  * SQL-based entity storage implementation.
@@ -36,15 +38,19 @@ final class SqlEntityStorage implements EntityStorageInterface
     /** @var array<string, bool> Column existence cache (column name => exists in table). */
     private array $columnCache = [];
 
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly EntityTypeInterface $entityType,
         private readonly DatabaseInterface $database,
         private readonly EventDispatcherInterface $eventDispatcher,
+        ?LoggerInterface $logger = null,
     ) {
         $this->tableName = $this->entityType->id();
         $keys = $this->entityType->getKeys();
         $this->idKey = $keys['id'] ?? 'id';
         $this->entityKeys = $keys;
+        $this->logger = $logger ?? new NullLogger();
     }
 
     public function create(array $values = []): EntityInterface
@@ -259,7 +265,7 @@ final class SqlEntityStorage implements EntityStorageInterface
             try {
                 $extra = json_decode((string) $row['_data'], associative: true, flags: \JSON_THROW_ON_ERROR);
             } catch (\JsonException $e) {
-                error_log(sprintf('Corrupt _data JSON for %s entity %s: %s', $this->tableName, $row[$this->idKey] ?? '?', $e->getMessage()));
+                $this->logger->warning(sprintf('Corrupt _data JSON for %s entity %s: %s', $this->tableName, $row[$this->idKey] ?? '?', $e->getMessage()));
                 $extra = [];
             }
             unset($row['_data']);

@@ -6,16 +6,22 @@ namespace Waaseyaa\Mcp\Cache;
 
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Cache\CacheBackendInterface;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 
 final class ReadCache
 {
     private const string CONTRACT_VERSION = 'v1.0';
     private const int MAX_AGE = 120;
+    private readonly LoggerInterface $logger;
 
     public function __construct(
         private readonly AccountInterface $account,
         private readonly ?CacheBackendInterface $backend = null,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     /**
      * @param array<string, mixed> $arguments
@@ -108,7 +114,7 @@ final class ReadCache
         try {
             $this->backend->set($cacheKey, $result, $expire, $tags);
         } catch (\Throwable $e) {
-            error_log(sprintf('[Waaseyaa] Failed to write MCP read cache: %s', $e->getMessage()));
+            $this->logger->warning(sprintf('Failed to write MCP read cache: %s', $e->getMessage()));
         }
     }
 

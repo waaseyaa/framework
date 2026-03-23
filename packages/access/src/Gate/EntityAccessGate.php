@@ -7,6 +7,8 @@ namespace Waaseyaa\Access\Gate;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 
 /**
  * Adapter that bridges GateInterface to EntityAccessHandler.
@@ -18,15 +20,20 @@ use Waaseyaa\Entity\EntityInterface;
  */
 final class EntityAccessGate implements GateInterface
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly EntityAccessHandler $handler,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function allows(string $ability, mixed $subject, ?object $user = null): bool
     {
         if (!$user instanceof AccountInterface) {
-            error_log(sprintf(
-                '[Waaseyaa] EntityAccessGate: expected AccountInterface, got %s for ability "%s".',
+            $this->logger->warning(sprintf(
+                'EntityAccessGate: expected AccountInterface, got %s for ability "%s".',
                 get_debug_type($user),
                 $ability,
             ));
@@ -37,8 +44,8 @@ final class EntityAccessGate implements GateInterface
             try {
                 return $this->handler->check($subject, $ability, $user)->isAllowed();
             } catch (\Throwable $e) {
-                error_log(sprintf(
-                    '[Waaseyaa] EntityAccessGate: policy check threw %s for ability "%s" on %s: %s',
+                $this->logger->error(sprintf(
+                    'EntityAccessGate: policy check threw %s for ability "%s" on %s: %s',
                     $e::class,
                     $ability,
                     $subject->getEntityTypeId(),
@@ -55,8 +62,8 @@ final class EntityAccessGate implements GateInterface
             try {
                 return $this->handler->checkCreateAccess($subject, '', $user)->isAllowed();
             } catch (\Throwable $e) {
-                error_log(sprintf(
-                    '[Waaseyaa] EntityAccessGate: create access check threw %s for ability "%s" on "%s": %s',
+                $this->logger->error(sprintf(
+                    'EntityAccessGate: create access check threw %s for ability "%s" on "%s": %s',
                     $e::class,
                     $ability,
                     $subject,
@@ -67,8 +74,8 @@ final class EntityAccessGate implements GateInterface
         }
 
         // This adapter only handles EntityInterface and string-typed create checks.
-        error_log(sprintf(
-            '[Waaseyaa] EntityAccessGate: unsupported subject type %s for ability "%s"; denying.',
+        $this->logger->warning(sprintf(
+            'EntityAccessGate: unsupported subject type %s for ability "%s"; denying.',
             get_debug_type($subject),
             $ability,
         ));

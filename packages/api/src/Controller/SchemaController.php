@@ -10,6 +10,8 @@ use Waaseyaa\Api\JsonApiDocument;
 use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 
 /**
  * Returns JSON Schema representations of entity types.
@@ -19,12 +21,17 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
  */
 final class SchemaController
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly SchemaPresenter $schemaPresenter,
         private readonly ?EntityAccessHandler $accessHandler = null,
         private readonly ?AccountInterface $account = null,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     /**
      * GET /api/schema/{entity_type} — return JSON Schema for the given entity type.
@@ -46,8 +53,8 @@ final class SchemaController
             try {
                 $entity = new $class([]);
             } catch (\Throwable $e) {
-                error_log(sprintf(
-                    '[Waaseyaa] SchemaController: failed to create prototype entity for %s (%s): %s',
+                $this->logger->warning(sprintf(
+                    'SchemaController: failed to create prototype entity for %s (%s): %s',
                     $entityTypeId,
                     $class,
                     $e->getMessage(),

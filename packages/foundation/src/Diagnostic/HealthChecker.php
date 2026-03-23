@@ -9,6 +9,8 @@ use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Foundation\Ingestion\IngestionLogger;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 
 /**
  * Runs all operator health checks and returns structured results.
@@ -26,12 +28,17 @@ final class HealthChecker implements HealthCheckerInterface
     /** Maximum ingestion log entries before warning (roughly 10k entries). */
     private const int LOG_SIZE_WARN_THRESHOLD = 10000;
 
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly BootDiagnosticReport $bootReport,
         private readonly DatabaseInterface $database,
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly string $projectRoot,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     /** @return list<HealthCheckResult> */
     public function runAll(): array
@@ -178,7 +185,7 @@ final class HealthChecker implements HealthCheckerInterface
 
             if (!$schema->tableExists($tableName)) {
                 // Table doesn't exist yet (lazy creation) — not drift, just uninitialized.
-                error_log(sprintf('[Waaseyaa] Schema drift: skipping %s — table %s does not exist (lazy creation)', $id, $tableName));
+                $this->logger->info(sprintf('Schema drift: skipping %s — table %s does not exist (lazy creation)', $id, $tableName));
                 continue;
             }
 

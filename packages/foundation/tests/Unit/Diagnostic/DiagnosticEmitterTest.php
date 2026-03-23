@@ -130,41 +130,34 @@ final class DiagnosticEmitterTest extends TestCase
     }
 
     #[Test]
-    public function emitWritesToErrorLog(): void
+    public function emitWritesToLogger(): void
     {
-        $emitter = new DiagnosticEmitter();
-
-        // Capture error_log output by redirecting to a temp file.
-        $logFile = sys_get_temp_dir() . '/waaseyaa_diag_test_' . uniqid() . '.log';
-        ini_set('error_log', $logFile);
+        $lines = [];
+        $logger = new \Waaseyaa\Foundation\Log\ErrorLogHandler(static function (string $line) use (&$lines): void {
+            $lines[] = $line;
+        });
+        $emitter = new DiagnosticEmitter($logger);
 
         $emitter->emit(DiagnosticCode::NAMESPACE_RESERVED, 'core.foo blocked.', []);
 
-        ini_restore('error_log');
-
-        $contents = file_get_contents($logFile) ?: '';
-        @unlink($logFile);
-
+        $contents = implode("\n", $lines);
         $this->assertStringContainsString('NAMESPACE_RESERVED', $contents);
     }
 
     #[Test]
     public function emitLogLineIsValidJson(): void
     {
-        $emitter = new DiagnosticEmitter();
-
-        $logFile = sys_get_temp_dir() . '/waaseyaa_diag_test_' . uniqid() . '.log';
-        ini_set('error_log', $logFile);
+        $lines = [];
+        $logger = new \Waaseyaa\Foundation\Log\ErrorLogHandler(static function (string $line) use (&$lines): void {
+            $lines[] = $line;
+        });
+        $emitter = new DiagnosticEmitter($logger);
 
         $emitter->emit(DiagnosticCode::DEFAULT_TYPE_DISABLED, 'All disabled.', ['count' => 2]);
 
-        ini_restore('error_log');
+        $raw = $lines[0] ?? '';
 
-        $raw = file_get_contents($logFile) ?: '';
-        @unlink($logFile);
-
-        // error_log prepends a timestamp like "[DD-Mon-YYYY HH:MM:SS UTC] ".
-        // Extract the JSON part after the first ']'.
+        // ErrorLogHandler formats as "[level] message". Extract the JSON part.
         $jsonStart = strpos($raw, '{');
         $this->assertNotFalse($jsonStart, 'Log line should contain a JSON object');
 

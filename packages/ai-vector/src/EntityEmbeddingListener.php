@@ -5,18 +5,25 @@ declare(strict_types=1);
 namespace Waaseyaa\AI\Vector;
 
 use Waaseyaa\Entity\Event\EntityEvent;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Queue\Message\GenericMessage;
 use Waaseyaa\Queue\QueueInterface;
 use Waaseyaa\Workflows\WorkflowVisibility;
 
 final class EntityEmbeddingListener
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly ?QueueInterface $queue = null,
         private readonly ?EmbeddingStorageInterface $storage = null,
         private readonly ?EmbeddingProviderInterface $embeddingProvider = null,
         private readonly WorkflowVisibility $workflowVisibility = new WorkflowVisibility(),
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function onPostSave(EntityEvent $event): void
     {
@@ -40,8 +47,8 @@ final class EntityEmbeddingListener
                 $vector = $this->embeddingProvider->embed($this->buildEmbeddingText($event));
                 $this->storage->store($entityType, $entityIdString, $vector);
             } catch (\Throwable $exception) {
-                error_log(sprintf(
-                    '[Waaseyaa] Embedding update failed for %s:%s: %s',
+                $this->logger->error(sprintf(
+                    'Embedding update failed for %s:%s: %s',
                     $entityType,
                     $entityIdString,
                     $exception->getMessage(),

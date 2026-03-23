@@ -9,6 +9,8 @@ use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\User\AnonymousUser;
@@ -16,6 +18,8 @@ use Waaseyaa\User\AnonymousUser;
 #[AsMiddleware(pipeline: 'http', priority: 40)]
 final class BearerAuthMiddleware implements HttpMiddlewareInterface
 {
+    private readonly LoggerInterface $logger;
+
     /**
      * @param array<string, int|string> $apiKeys Raw API key => user ID mapping.
      */
@@ -23,7 +27,10 @@ final class BearerAuthMiddleware implements HttpMiddlewareInterface
         private readonly EntityStorageInterface $userStorage,
         private readonly string $jwtSecret = '',
         private readonly array $apiKeys = [],
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function process(Request $request, HttpHandlerInterface $next): Response
     {
@@ -58,7 +65,7 @@ final class BearerAuthMiddleware implements HttpMiddlewareInterface
         try {
             $account = $this->userStorage->load($uid);
         } catch (\Throwable $e) {
-            error_log(sprintf('[Waaseyaa] BearerAuthMiddleware: failed to load user %s: %s', $uid, $e->getMessage()));
+            $this->logger->warning(sprintf('BearerAuthMiddleware: failed to load user %s: %s', $uid, $e->getMessage()));
             return null;
         }
 

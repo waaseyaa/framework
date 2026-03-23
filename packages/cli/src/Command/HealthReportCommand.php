@@ -13,6 +13,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface;
 use Waaseyaa\Foundation\Diagnostic\HealthCheckResult;
 use Waaseyaa\Foundation\Ingestion\IngestionLogger;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 
 #[AsCommand(
     name: 'health:report',
@@ -20,10 +22,14 @@ use Waaseyaa\Foundation\Ingestion\IngestionLogger;
 )]
 final class HealthReportCommand extends Command
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly HealthCheckerInterface $checker,
         private readonly string $projectRoot,
+        ?LoggerInterface $logger = null,
     ) {
+        $this->logger = $logger ?? new NullLogger();
         parent::__construct();
     }
 
@@ -144,7 +150,7 @@ final class HealthReportCommand extends Command
         try {
             $entries = $logger->read();
         } catch (\Throwable $e) {
-            error_log(sprintf('[Waaseyaa] Failed to read ingestion log: %s', $e->getMessage()));
+            $this->logger->warning(sprintf('Failed to read ingestion log: %s', $e->getMessage()));
             return [];
         }
 

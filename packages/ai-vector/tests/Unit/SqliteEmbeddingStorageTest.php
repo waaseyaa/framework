@@ -63,27 +63,18 @@ final class SqliteEmbeddingStorageTest extends TestCase
     #[Test]
     public function logsDimensionMismatchForObservability(): void
     {
-        $logFile = tempnam(sys_get_temp_dir(), 'waaseyaa_ai_vector_log_');
-        $this->assertNotFalse($logFile);
-        if (!is_string($logFile)) {
-            return;
-        }
+        $lines = [];
+        $logger = new \Waaseyaa\Foundation\Log\ErrorLogHandler(static function (string $line) use (&$lines): void {
+            $lines[] = $line;
+        });
+        $storage = new SqliteEmbeddingStorage($this->pdo, logger: $logger);
 
-        $previousLog = ini_get('error_log');
-        ini_set('error_log', $logFile);
+        $storage->store('node', '1', [1.0, 0.0, 0.0]);
+        $storage->store('node', '2', [0.5, 0.5]);
+        $storage->findSimilar([1.0, 0.0], 'node', 10);
 
-        try {
-            $this->storage->store('node', '1', [1.0, 0.0, 0.0]);
-            $this->storage->store('node', '2', [0.5, 0.5]);
-            $this->storage->findSimilar([1.0, 0.0], 'node', 10);
-
-            $logContents = file_get_contents($logFile);
-            $this->assertIsString($logContents);
-            $this->assertStringContainsString('Embedding dimension mismatch', $logContents);
-        } finally {
-            ini_set('error_log', is_string($previousLog) ? $previousLog : '');
-            @unlink($logFile);
-        }
+        $logContents = implode("\n", $lines);
+        $this->assertStringContainsString('Embedding dimension mismatch', $logContents);
     }
 
     #[Test]

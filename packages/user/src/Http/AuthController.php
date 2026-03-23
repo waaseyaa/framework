@@ -6,6 +6,8 @@ namespace Waaseyaa\User\Http;
 
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\User\User;
 
 /**
@@ -13,6 +15,13 @@ use Waaseyaa\User\User;
  */
 final class AuthController
 {
+    private readonly LoggerInterface $logger;
+
+    public function __construct(?LoggerInterface $logger = null)
+    {
+        $this->logger = $logger ?? new NullLogger();
+    }
+
     /**
      * Returns the current user's data or a 401 payload for anonymous users.
      *
@@ -22,7 +31,7 @@ final class AuthController
     {
         if (!$account->isAuthenticated()) {
             if (\PHP_SAPI === 'cli-server') {
-                error_log('[Waaseyaa] Admin endpoint returned 401. For local development, set APP_ENV=local and WAASEYAA_DEV_FALLBACK_ACCOUNT=true (or use `composer dev` which sets both automatically).');
+                $this->logger->info('Admin endpoint returned 401. For local development, set APP_ENV=local and WAASEYAA_DEV_FALLBACK_ACCOUNT=true (or use `composer dev` which sets both automatically).');
             }
 
             return [
