@@ -335,4 +335,57 @@ final class AccessCheckerTest extends TestCase
         // AND logic: public = allowed AND _permission = forbidden => forbidden
         $this->assertTrue($result->isForbidden());
     }
+
+    #[Test]
+    public function sessionOptionTrueAllowsWhenSessionActive(): void
+    {
+        // Start a session for this test
+        if (session_status() !== \PHP_SESSION_ACTIVE) {
+            @session_start();
+        }
+
+        $route = new Route('/chat');
+        $route->setOption('_session', true);
+
+        $account = $this->createMock(AccountInterface::class);
+        $result = $this->checker->check($route, $account);
+
+        $this->assertTrue($result->isAllowed());
+    }
+
+    #[Test]
+    public function sessionOptionWithRequiredKeysAllowsWhenPresent(): void
+    {
+        if (session_status() !== \PHP_SESSION_ACTIVE) {
+            @session_start();
+        }
+        $_SESSION['nickname'] = 'guest42';
+
+        $route = new Route('/chat');
+        $route->setOption('_session', ['nickname']);
+
+        $account = $this->createMock(AccountInterface::class);
+        $result = $this->checker->check($route, $account);
+
+        $this->assertTrue($result->isAllowed());
+
+        unset($_SESSION['nickname']);
+    }
+
+    #[Test]
+    public function sessionOptionWithRequiredKeysDeniesWhenMissing(): void
+    {
+        if (session_status() !== \PHP_SESSION_ACTIVE) {
+            @session_start();
+        }
+        unset($_SESSION['nickname']);
+
+        $route = new Route('/chat');
+        $route->setOption('_session', ['nickname']);
+
+        $account = $this->createMock(AccountInterface::class);
+        $result = $this->checker->check($route, $account);
+
+        $this->assertTrue($result->isForbidden());
+    }
 }

@@ -109,6 +109,20 @@ final class RouteBuilder
     }
 
     /**
+     * Require an active PHP session (without requiring a Waaseyaa user account).
+     *
+     * Use for routes where guests/anonymous users need session state
+     * (e.g., chat nicknames, wizard progress) but don't need authentication.
+     *
+     * @param list<string> $requiredKeys Session keys that must be present.
+     */
+    public function requireSession(array $requiredKeys = []): self
+    {
+        $this->options['_session'] = $requiredKeys === [] ? true : $requiredKeys;
+        return $this;
+    }
+
+    /**
      * Allow all users (marks route as public).
      */
     public function allowAll(): self
