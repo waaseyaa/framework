@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Tests\Support\WorkflowFixturePack;
 use Waaseyaa\Workflows\EditorialTransitionAccessResolver;
-use Waaseyaa\Workflows\EditorialWorkflowStateMachine;
+use Waaseyaa\Workflows\EditorialWorkflowPreset;
 
 #[CoversNothing]
 final class WorkflowFixturePackIntegrationTest extends TestCase
@@ -30,8 +30,8 @@ final class WorkflowFixturePackIntegrationTest extends TestCase
     #[Test]
     public function transitionAccessScenariosCoverRoleAndPermissionPaths(): void
     {
-        $stateMachine = new EditorialWorkflowStateMachine();
-        $resolver = new EditorialTransitionAccessResolver($stateMachine);
+        $workflow = EditorialWorkflowPreset::create();
+        $resolver = new EditorialTransitionAccessResolver($workflow);
 
         foreach (WorkflowFixturePack::transitionAccessScenarios() as $scenario) {
             $account = new FixtureScenarioAccount($scenario['permissions'], $scenario['roles']);
@@ -53,15 +53,13 @@ final class WorkflowFixturePackIntegrationTest extends TestCase
     #[Test]
     public function invalidTransitionScenariosRemainRejected(): void
     {
-        $stateMachine = new EditorialWorkflowStateMachine();
+        $workflow = EditorialWorkflowPreset::create();
 
         foreach (WorkflowFixturePack::invalidTransitionScenarios() as $scenario) {
-            try {
-                $stateMachine->assertTransitionAllowed($scenario['from'], $scenario['to']);
-                $this->fail(sprintf('Expected runtime exception for scenario: %s', $scenario['name']));
-            } catch (\RuntimeException $exception) {
-                $this->assertStringContainsString('Invalid workflow transition', $exception->getMessage());
-            }
+            $this->assertFalse(
+                $workflow->isTransitionAllowed($scenario['from'], $scenario['to']),
+                sprintf('Expected transition to be rejected for scenario: %s', $scenario['name']),
+            );
         }
     }
 
