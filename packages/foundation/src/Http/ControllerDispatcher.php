@@ -318,6 +318,17 @@ final class ControllerDispatcher
                         ]);
                     }
 
+                    if (!class_exists(SqliteEmbeddingStorage::class)) {
+                        ResponseSender::json(501, [
+                            'jsonapi' => ['version' => '1.1'],
+                            'errors' => [[
+                                'status' => '501',
+                                'title' => 'Not Implemented',
+                                'detail' => 'Semantic search requires the waaseyaa/ai-vector package.',
+                            ]],
+                        ]);
+                    }
+
                     $provider = EmbeddingProviderFactory::fromConfig($this->config);
                     assert($this->database instanceof \Waaseyaa\Database\DBALDatabase);
                     $embeddingStorage = new SqliteEmbeddingStorage($this->database->getConnection()->getNativeConnection());
@@ -531,6 +542,17 @@ final class ControllerDispatcher
                 })(),
 
                 $controller === 'mcp.endpoint' => (function () use ($method, $httpRequest, $account, $serializer): never {
+                    if (!class_exists(SqliteEmbeddingStorage::class)) {
+                        ResponseSender::json(501, [
+                            'jsonapi' => ['version' => '1.1'],
+                            'errors' => [[
+                                'status' => '501',
+                                'title' => 'Not Implemented',
+                                'detail' => 'MCP endpoint requires the waaseyaa/ai-vector package.',
+                            ]],
+                        ]);
+                    }
+
                     $embeddingProvider = EmbeddingProviderFactory::fromConfig($this->config);
                     assert($this->database instanceof \Waaseyaa\Database\DBALDatabase);
                     $embeddingStorage = new SqliteEmbeddingStorage($this->database->getConnection()->getNativeConnection());

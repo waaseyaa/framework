@@ -104,7 +104,9 @@ final class HttpKernel extends AbstractKernel
         $listenerRegistrar->registerRenderCacheListeners($this->renderCache);
         $listenerRegistrar->registerDiscoveryCacheListeners($this->discoveryCache);
         $listenerRegistrar->registerMcpReadCacheListeners($this->mcpReadCache);
-        $listenerRegistrar->registerEmbeddingLifecycleListeners(new SqliteEmbeddingStorage($pdo), $this->config);
+        if (class_exists(SqliteEmbeddingStorage::class)) {
+            $listenerRegistrar->registerEmbeddingLifecycleListeners(new SqliteEmbeddingStorage($pdo), $this->config);
+        }
         $this->discoveryHandler = new DiscoveryApiHandler($this->entityTypeManager, $this->database, $this->discoveryCache);
         $this->ssrPageHandler = new SsrPageHandler(
             entityTypeManager: $this->entityTypeManager,

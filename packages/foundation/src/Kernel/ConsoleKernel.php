@@ -147,13 +147,16 @@ final class ConsoleKernel extends AbstractKernel
             basePath: $this->projectRoot,
             storagePath: $this->projectRoot . '/storage',
         );
-        $embeddingStorage = new SqliteEmbeddingStorage($pdo);
-        $embeddingProvider = EmbeddingProviderFactory::fromConfig($this->config);
-        $semanticWarmer = new SemanticIndexWarmer(
-            entityTypeManager: $this->entityTypeManager,
-            embeddingStorage: $embeddingStorage,
-            embeddingProvider: $embeddingProvider,
-        );
+        $semanticWarmer = null;
+        if (class_exists(SqliteEmbeddingStorage::class)) {
+            $embeddingStorage = new SqliteEmbeddingStorage($pdo);
+            $embeddingProvider = EmbeddingProviderFactory::fromConfig($this->config);
+            $semanticWarmer = new SemanticIndexWarmer(
+                entityTypeManager: $this->entityTypeManager,
+                embeddingStorage: $embeddingStorage,
+                embeddingProvider: $embeddingProvider,
+            );
+        }
         $schemaRegistry = new DefaultsSchemaRegistry($this->projectRoot . '/defaults');
         $healthChecker = new HealthChecker(
             bootReport: $this->getBootReport(),
@@ -214,8 +217,10 @@ final class ConsoleKernel extends AbstractKernel
             new HealthCheckCommand($healthChecker),
             new HealthReportCommand($healthChecker, $this->projectRoot),
             new PermissionListCommand($permissionHandler),
-            new SemanticWarmCommand($semanticWarmer),
-            new SemanticRefreshCommand($semanticWarmer),
+            ...($semanticWarmer !== null ? [
+                new SemanticWarmCommand($semanticWarmer),
+                new SemanticRefreshCommand($semanticWarmer),
+            ] : []),
             new FixtureScaffoldCommand(),
             new FixtureGenerateCommand(),
             new FixturePackRefreshCommand(),
