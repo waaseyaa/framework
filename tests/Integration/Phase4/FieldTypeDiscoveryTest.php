@@ -37,7 +37,7 @@ final class FieldTypeDiscoveryTest extends TestCase
 
     // ---- Discovery tests ----
 
-    public function testAllSixBuiltInFieldTypesAreDiscovered(): void
+    public function testAllBuiltInFieldTypesAreDiscovered(): void
     {
         $definitions = $this->fieldTypeManager->getDefinitions();
 
@@ -48,6 +48,15 @@ final class FieldTypeDiscoveryTest extends TestCase
             'float',
             'text',
             'entity_reference',
+            'datetime',
+            'date',
+            'file',
+            'image',
+            'link',
+            'email',
+            'decimal',
+            'list',
+            'computed',
         ];
 
         foreach ($expectedTypes as $type) {
@@ -59,9 +68,9 @@ final class FieldTypeDiscoveryTest extends TestCase
         }
 
         $this->assertCount(
-            6,
+            15,
             $definitions,
-            'Exactly 6 built-in field types should be discovered',
+            'All 15 built-in field types should be discovered',
         );
     }
 
