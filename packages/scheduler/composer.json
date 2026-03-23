@@ -1,6 +1,6 @@
 {
-    "name": "waaseyaa/queue",
-    "description": "Asynchronous task queue and job processing for Waaseyaa",
+    "name": "waaseyaa/scheduler",
+    "description": "Task scheduling with cron expression support for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
@@ -10,13 +10,18 @@
         },
         {
             "type": "path",
+            "url": "../queue"
+        },
+        {
+            "type": "path",
             "url": "../database-legacy"
         }
     ],
     "require": {
         "php": ">=8.4",
-        "symfony/messenger": "^7.3",
+        "dragonmantank/cron-expression": "^3.0",
         "waaseyaa/foundation": "^0.1",
+        "waaseyaa/queue": "^0.1",
         "waaseyaa/database-legacy": "^0.1"
     },
     "require-dev": {
@@ -24,24 +29,23 @@
     },
     "autoload": {
         "psr-4": {
-            "Waaseyaa\\Queue\\": "src/"
+            "Waaseyaa\\Scheduler\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Waaseyaa\\Queue\\Tests\\": "tests/"
+            "Waaseyaa\\Scheduler\\Tests\\": "tests/"
         }
     },
     "minimum-stability": "dev",
     "prefer-stable": true,
     "extra": {
         "branch-alias": {
-            "dev-main": "0.1.x-dev",
-            "dev-develop/v1.1": "0.1.x-dev"
+            "dev-main": "0.1.x-dev"
         },
         "waaseyaa": {
             "providers": [
-                "Waaseyaa\\Queue\\QueueServiceProvider"
+                "Waaseyaa\\Scheduler\\SchedulerServiceProvider"
             ]
         }
     }

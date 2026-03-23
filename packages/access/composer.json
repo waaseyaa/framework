@@ -27,7 +27,7 @@
         {
             "type": "path",
             "url": "../foundation"
-        },
+        }
     ],
     "require": {
         "php": ">=8.4",
