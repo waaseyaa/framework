@@ -7,9 +7,6 @@
         "php": ">=8.4",
         "deployer/deployer": "^7.0"
     },
-    "autoload": {
-        "files": ["recipe/waaseyaa.php"]
-    },
     "extra": {
         "branch-alias": {
             "dev-main": "0.1.x-dev"
