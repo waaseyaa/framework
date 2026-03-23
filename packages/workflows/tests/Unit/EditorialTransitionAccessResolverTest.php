@@ -8,13 +8,14 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Workflows\EditorialTransitionAccessResolver;
+use Waaseyaa\Workflows\EditorialWorkflowPreset;
 
 #[CoversClass(EditorialTransitionAccessResolver::class)]
 final class EditorialTransitionAccessResolverTest extends TestCase
 {
     public function testAllowsAuthorizedReviewerPublishTransition(): void
     {
-        $resolver = new EditorialTransitionAccessResolver();
+        $resolver = new EditorialTransitionAccessResolver(EditorialWorkflowPreset::create());
         $account = new ResolverTestAccount(
             id: 7,
             permissions: ['publish article content'],
@@ -29,7 +30,7 @@ final class EditorialTransitionAccessResolverTest extends TestCase
 
     public function testDeniesTransitionWhenPermissionMissing(): void
     {
-        $resolver = new EditorialTransitionAccessResolver();
+        $resolver = new EditorialTransitionAccessResolver(EditorialWorkflowPreset::create());
         $account = new ResolverTestAccount(
             id: 7,
             permissions: [],
@@ -44,7 +45,7 @@ final class EditorialTransitionAccessResolverTest extends TestCase
 
     public function testDeniesTransitionWhenRoleNotAuthorized(): void
     {
-        $resolver = new EditorialTransitionAccessResolver();
+        $resolver = new EditorialTransitionAccessResolver(EditorialWorkflowPreset::create());
         $account = new ResolverTestAccount(
             id: 7,
             permissions: ['archive article content'],
@@ -59,7 +60,7 @@ final class EditorialTransitionAccessResolverTest extends TestCase
 
     public function testAllowsPermissionOnlyModeWithoutRecognizedRoles(): void
     {
-        $resolver = new EditorialTransitionAccessResolver();
+        $resolver = new EditorialTransitionAccessResolver(EditorialWorkflowPreset::create());
         $account = new ResolverTestAccount(
             id: 7,
             permissions: ['publish article content'],
@@ -73,7 +74,7 @@ final class EditorialTransitionAccessResolverTest extends TestCase
 
     public function testDeniesIllegalTransitionWithStableReason(): void
     {
-        $resolver = new EditorialTransitionAccessResolver();
+        $resolver = new EditorialTransitionAccessResolver(EditorialWorkflowPreset::create());
         $account = new ResolverTestAccount(
             id: 7,
             permissions: ['publish article content'],

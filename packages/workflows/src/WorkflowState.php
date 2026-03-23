@@ -17,5 +17,6 @@ final readonly class WorkflowState
         public string $id,
         public string $label,
         public int $weight = 0,
+        public array $metadata = [],
     ) {}
 }

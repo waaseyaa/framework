@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\FieldableInterface;
+use Waaseyaa\Workflows\EditorialWorkflowPreset;
 use Waaseyaa\Workflows\EditorialWorkflowService;
 
 #[CoversClass(EditorialWorkflowService::class)]
@@ -23,6 +24,7 @@ final class EditorialWorkflowServiceTest extends TestCase
 
         $service = new EditorialWorkflowService(
             coreBundles: ['article'],
+            workflow: EditorialWorkflowPreset::create(),
             clock: static fn(): int => 1700000000,
         );
         $account = new TestAccount(99, ['submit article for review']);
@@ -57,6 +59,7 @@ final class EditorialWorkflowServiceTest extends TestCase
 
         $service = new EditorialWorkflowService(
             coreBundles: ['article'],
+            workflow: EditorialWorkflowPreset::create(),
             clock: static fn(): int => 1700000000,
         );
         $account = new TestAccount(10, ['archive article content']);
@@ -75,7 +78,7 @@ final class EditorialWorkflowServiceTest extends TestCase
             'status' => 0,
         ]);
 
-        $service = new EditorialWorkflowService(coreBundles: ['article']);
+        $service = new EditorialWorkflowService(coreBundles: ['article'], workflow: EditorialWorkflowPreset::create());
         $account = new TestAccount(1, ['administer nodes']);
 
         $this->expectException(\RuntimeException::class);
@@ -91,7 +94,7 @@ final class EditorialWorkflowServiceTest extends TestCase
             'status' => 0,
         ]);
 
-        $service = new EditorialWorkflowService(coreBundles: ['article']);
+        $service = new EditorialWorkflowService(coreBundles: ['article'], workflow: EditorialWorkflowPreset::create());
         $account = new TestAccount(1, []);
 
         $this->expectException(\RuntimeException::class);
@@ -107,7 +110,7 @@ final class EditorialWorkflowServiceTest extends TestCase
             'status' => 1,
         ]);
 
-        $service = new EditorialWorkflowService(coreBundles: ['article']);
+        $service = new EditorialWorkflowService(coreBundles: ['article'], workflow: EditorialWorkflowPreset::create());
         $account = new TestAccount(
             id: 1,
             permissions: ['archive article content'],
@@ -127,7 +130,7 @@ final class EditorialWorkflowServiceTest extends TestCase
             'status' => 0,
         ]);
 
-        $service = new EditorialWorkflowService(coreBundles: ['article']);
+        $service = new EditorialWorkflowService(coreBundles: ['article'], workflow: EditorialWorkflowPreset::create());
         $metadata = $service->getAvailableTransitionMetadata($node);
 
         $this->assertCount(2, $metadata);

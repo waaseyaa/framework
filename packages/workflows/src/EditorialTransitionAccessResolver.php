@@ -32,7 +32,7 @@ final class EditorialTransitionAccessResolver
     ];
 
     public function __construct(
-        private readonly EditorialWorkflowStateMachine $stateMachine = new EditorialWorkflowStateMachine(),
+        private readonly Workflow $workflow = new Workflow(),
     ) {}
 
     /**
@@ -40,13 +40,37 @@ final class EditorialTransitionAccessResolver
      */
     public function transition(string $fromState, string $toState): array
     {
-        return $this->stateMachine->assertTransitionAllowed($fromState, $toState);
+        if (!$this->workflow->hasState($fromState)) {
+            throw new \InvalidArgumentException(sprintf('Unknown workflow state: "%s".', $fromState));
+        }
+        if (!$this->workflow->hasState($toState)) {
+            throw new \InvalidArgumentException(sprintf('Unknown workflow state: "%s".', $toState));
+        }
+
+        // Find the matching transition in the workflow
+        foreach ($this->workflow->getTransitions() as $transition) {
+            if ($transition->to === $toState && \in_array($fromState, $transition->from, true)) {
+                return [
+                    'id' => $transition->id,
+                    'label' => $transition->label,
+                    'from' => $transition->from,
+                    'to' => $transition->to,
+                    'permission' => EditorialWorkflowPreset::TRANSITION_PERMISSIONS[$transition->id] ?? '',
+                ];
+            }
+        }
+
+        throw new \RuntimeException(sprintf(
+            'Invalid workflow transition: %s -> %s.',
+            $fromState,
+            $toState,
+        ));
     }
 
     public function canTransition(string $bundle, string $fromState, string $toState, AccountInterface $account): AccessResult
     {
         try {
-            $transition = $this->stateMachine->assertTransitionAllowed($fromState, $toState);
+            $transition = $this->transition($fromState, $toState);
         } catch (\InvalidArgumentException | \RuntimeException $exception) {
             return AccessResult::forbidden($exception->getMessage());
         }

@@ -14,7 +14,7 @@ use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Mcp\Tools\DiscoveryTools;
 use Waaseyaa\Mcp\Tools\McpTool;
-use Waaseyaa\Workflows\EditorialWorkflowStateMachine;
+use Waaseyaa\Workflows\EditorialWorkflowPreset;
 use Waaseyaa\Workflows\WorkflowVisibility;
 
 #[CoversClass(DiscoveryTools::class)]
@@ -79,7 +79,7 @@ final class DiscoveryToolsTest extends TestCase
             account: $this->anonymousAccount(),
             embeddingStorage: $embeddingStorage,
             embeddingProvider: null,
-            workflowVisibility: new WorkflowVisibility(new EditorialWorkflowStateMachine()),
+            workflowVisibility: new WorkflowVisibility(EditorialWorkflowPreset::create()),
         );
     }
 

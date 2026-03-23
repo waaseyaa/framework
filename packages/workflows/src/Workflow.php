@@ -54,6 +54,7 @@ final class Workflow extends ConfigEntityBase
                         id: (string) $stateId,
                         label: (string) ($stateData['label'] ?? $stateId),
                         weight: (int) ($stateData['weight'] ?? 0),
+                        metadata: (array) ($stateData['metadata'] ?? []),
                     );
                 }
             }
@@ -245,10 +246,14 @@ final class Workflow extends ConfigEntityBase
     {
         $states = [];
         foreach ($this->states as $state) {
-            $states[$state->id] = [
+            $entry = [
                 'label' => $state->label,
                 'weight' => $state->weight,
             ];
+            if ($state->metadata !== []) {
+                $entry['metadata'] = $state->metadata;
+            }
+            $states[$state->id] = $entry;
         }
         $this->values['states'] = $states;
     }
@@ -280,10 +285,14 @@ final class Workflow extends ConfigEntityBase
         // Serialize states to plain arrays.
         $states = [];
         foreach ($this->states as $state) {
-            $states[$state->id] = [
+            $entry = [
                 'label' => $state->label,
                 'weight' => $state->weight,
             ];
+            if ($state->metadata !== []) {
+                $entry['metadata'] = $state->metadata;
+            }
+            $states[$state->id] = $entry;
         }
         $config['states'] = $states;
 
