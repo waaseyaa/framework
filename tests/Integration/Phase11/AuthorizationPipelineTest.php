@@ -11,6 +11,7 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Route;
+use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\Access\Middleware\AuthorizationMiddleware;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
@@ -19,7 +20,6 @@ use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
-use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\User\Middleware\SessionMiddleware;
 use Waaseyaa\User\User;
 

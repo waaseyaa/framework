@@ -12,6 +12,8 @@ use Waaseyaa\Cache\CacheConfigResolver;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\I18n\LanguageManagerInterface;
 use Waaseyaa\Path\PathAliasResolver;
 use Waaseyaa\Relationship\RelationshipDiscoveryService;
@@ -19,8 +21,6 @@ use Waaseyaa\Relationship\RelationshipTraversalService;
 use Waaseyaa\Routing\Language\AcceptHeaderNegotiator;
 use Waaseyaa\Routing\Language\LanguageNegotiator;
 use Waaseyaa\Routing\Language\UrlPrefixNegotiator;
-use Waaseyaa\Foundation\Log\LoggerInterface;
-use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Workflows\EditorialVisibilityResolver;
 
 /**

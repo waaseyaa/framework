@@ -128,11 +128,11 @@ final class NativeSession implements SessionInterface
 
     public function getBag(string $name): SessionBagInterface
     {
-        throw new \RuntimeException("NativeSession does not support session bags. Use get()/set() directly.");
+        throw new \RuntimeException('NativeSession does not support session bags. Use get()/set() directly.');
     }
 
     public function getMetadataBag(): \Symfony\Component\HttpFoundation\Session\Storage\MetadataBag
     {
-        throw new \RuntimeException("NativeSession does not support MetadataBag.");
+        throw new \RuntimeException('NativeSession does not support MetadataBag.');
     }
 }

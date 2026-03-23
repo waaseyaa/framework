@@ -19,7 +19,7 @@ final class RequestLoggingMiddleware implements HttpMiddlewareInterface
      */
     public function __construct(?\Closure $logger = null)
     {
-        $this->logger = $logger ?? static fn (string $message): bool => error_log($message);
+        $this->logger = $logger ?? static fn(string $message): bool => error_log($message);
     }
 
     public function process(Request $request, HttpHandlerInterface $next): Response

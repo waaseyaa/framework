@@ -51,7 +51,7 @@ final class SendNotificationHandler implements HandlerInterface
 
     private function buildNotifiable(SendNotificationJob $job): NotifiableInterface
     {
-        return new class($job->notifiableType, $job->notifiableId) implements NotifiableInterface {
+        return new class ($job->notifiableType, $job->notifiableId) implements NotifiableInterface {
             public function __construct(
                 private readonly string $type,
                 private readonly string $id,
@@ -79,7 +79,7 @@ final class SendNotificationHandler implements HandlerInterface
 
     private function buildNotification(SendNotificationJob $job): NotificationInterface
     {
-        return new class($job->channels, $job->notificationData) implements NotificationInterface {
+        return new class ($job->channels, $job->notificationData) implements NotificationInterface {
             public function __construct(
                 private readonly array $channels,
                 private readonly array $data,

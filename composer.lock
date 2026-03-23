@@ -3691,7 +3691,7 @@
         },
         {
             "name": "waaseyaa/github",
-            "version": "dev-feat/queue-scheduling-notifications",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/github",

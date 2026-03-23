@@ -9,6 +9,7 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Route;
+use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\ErrorPageRendererInterface;
 use Waaseyaa\Access\RedirectValidator;
@@ -17,7 +18,6 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
-use Waaseyaa\Access\AccessChecker;
 
 #[AsMiddleware(pipeline: 'http', priority: 10)]
 final class AuthorizationMiddleware implements HttpMiddlewareInterface
