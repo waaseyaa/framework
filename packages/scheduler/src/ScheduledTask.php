@@ -18,6 +18,11 @@ final class ScheduledTask
         public readonly ?string $timezone = null,
         public readonly ?string $description = null,
     ) {
+        if (!CronExpression::isValidExpression($this->expression)) {
+            throw new \InvalidArgumentException(
+                sprintf('Invalid cron expression "%s" for scheduled task "%s".', $this->expression, $this->name),
+            );
+        }
         $this->cronExpression = new CronExpression($this->expression);
     }
 
