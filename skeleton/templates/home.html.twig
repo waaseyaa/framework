@@ -131,7 +131,7 @@
       var rtlSet = new Set((el.getAttribute('data-rtl') || '').split(','));
       var first = all[0];
       var rest = all.slice(1);
-      var queue = [];
+      var queue = shuffle(rest.slice());
       var delay = 2400;
 
       function shuffle(arr) {
