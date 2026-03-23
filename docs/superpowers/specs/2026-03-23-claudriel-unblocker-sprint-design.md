@@ -22,13 +22,17 @@ Four waaseyaa changes to unblock Claudriel's workflow state machine, AI agent st
 - Single static method: `create(): Workflow` — returns a `Workflow` config entity pre-populated with the 4 editorial states and 6 transitions
 - `normalizeState()` and `statusForState()` move here as static utility methods (editorial-specific, not generic)
 
-**`EditorialWorkflowService` rewired to `ContentModerator`:**
-- Constructor: `__construct(ContentModerator $moderator, ...)`
-- `transitionNode()` delegates to `$moderator->transition()` instead of `EditorialWorkflowStateMachine` directly
-- The `editorial` workflow registered via `ContentModerator::addWorkflow(EditorialWorkflowPreset::create())`
+**`EditorialWorkflowService` rewired to use `Workflow` entity:**
+- Constructor changes: replace `EditorialWorkflowStateMachine` dependency with `Workflow` (the preset's output)
+- `transitionNode()` uses `Workflow::isTransitionAllowed()` for validation, then continues to handle field mutation (`workflow_state`, `status`, `workflow_last_transition`), audit trail (`workflow_audit`), and access checks (`EditorialTransitionAccessResolver`) itself — these are editorial-specific concerns that `ContentModerator` does not own
+- The `Workflow` instance is created via `EditorialWorkflowPreset::create()` and injected by the service provider
+
+**`EditorialTransitionAccessResolver` updated:**
+- Replace `EditorialWorkflowStateMachine` dependency with `Workflow` — uses `Workflow::getTransitions()` for permission lookups instead of the deleted class
 
 **`WorkflowState` gains optional metadata:**
 - Add optional `metadata` array to `WorkflowState` (e.g., `['legacy_status' => 1]`) so the editorial preset can carry its status mapping without hardcoding it in the generic class
+- Backward-compatible deserialization: `$data['metadata'] ?? []` when hydrating from cached/stored configs
 
 **Tests:**
 - `EditorialWorkflowStateMachineTest` → `EditorialWorkflowPresetTest`, verify factory creates correct `Workflow`
@@ -36,6 +40,10 @@ Four waaseyaa changes to unblock Claudriel's workflow state machine, AI agent st
 - `EditorialWorkflowServiceTest` updated to use `ContentModerator`
 
 **Unchanged:** `Workflow`, `ContentModerator`, `WorkflowTransition`, `ContentModerationState`.
+
+**Additional files:**
+- `packages/workflows/src/EditorialTransitionAccessResolver.php` (modify — replace StateMachine dependency with Workflow)
+- `packages/workflows/tests/Unit/EditorialTransitionAccessResolverTest.php` (modify)
 
 ## Section 2: Tool Registry (#607)
 
@@ -47,10 +55,11 @@ Four waaseyaa changes to unblock Claudriel's workflow state machine, AI agent st
 
 ### Design
 
-**`ToolRegistryInterface`** (new, in ai-schema):
+**`ToolRegistryInterface`** (new, in ai-schema — definition-layer, no execution):
 ```php
 interface ToolRegistryInterface {
     public function register(McpToolDefinition $tool, callable $executor): void;
+    public function has(string $name): bool;
     public function getTools(): array;        // McpToolDefinition[]
     public function getTool(string $name): ?McpToolDefinition;
     public function execute(string $name, array $arguments): array;
@@ -59,12 +68,15 @@ interface ToolRegistryInterface {
 
 Each tool carries its own executor callable — no routing by naming convention.
 
-**`ToolRegistry`** (new, in ai-schema) implements `ToolRegistryInterface`:
+**`ToolRegistry`** (new, in ai-agent — execution lives here, not in the schema package):
+- Implements `ToolRegistryInterface`
 - Simple map: `$tools[name] => McpToolDefinition`, `$executors[name] => callable`
 - `execute()` looks up the callable and invokes it, wraps exceptions in MCP error format
+- Throws `\InvalidArgumentException` when tool name not found
 
 **`SchemaRegistry` populates `ToolRegistry`:**
-- On init, iterates `McpToolGenerator::generateAll()` and registers each with a callable delegating to `McpToolExecutor::execute()`
+- `SchemaRegistry` gains a `registerEntityTools(ToolRegistryInterface $registry): void` method
+- Iterates `McpToolGenerator::generateAll()` and registers each with a callable delegating to `McpToolExecutor::execute()`
 - `SchemaRegistry` retains schema responsibilities but is no longer the tool lookup
 
 **`McpServer` and `AgentExecutor` switch to `ToolRegistryInterface`:**
@@ -113,7 +125,7 @@ interface ProviderInterface {
 
 **`AgentExecutor` gains multi-turn tool loop:**
 - New method: `executeWithProvider(AgentInterface $agent, AgentContext $context, ProviderInterface $provider): AgentResult`
-- Loop: send message → if `stop_reason === 'tool_use'` → execute tools via `ToolRegistryInterface` → append tool results → send again → repeat until `end_turn` or max iterations
+- Loop: send message → if `stop_reason === 'tool_use'` → execute tools via `ToolRegistryInterface` → append tool results → send again → repeat until `end_turn` or max iterations (default 25, configurable via `AgentContext::$maxIterations`). Throws `MaxIterationsException` if exceeded
 - Each tool call logged to audit log
 - Final text content assembled into `AgentResult`
 
@@ -193,20 +205,22 @@ return new StreamedResponse(function () use ($executor, $agent, $context, $provi
 ### #604
 - `packages/workflows/src/EditorialWorkflowPreset.php` (new, replaces EditorialWorkflowStateMachine)
 - `packages/workflows/src/EditorialWorkflowStateMachine.php` (delete)
-- `packages/workflows/src/EditorialWorkflowService.php` (modify — rewire to ContentModerator)
+- `packages/workflows/src/EditorialWorkflowService.php` (modify — rewire to Workflow entity)
+- `packages/workflows/src/EditorialTransitionAccessResolver.php` (modify — replace StateMachine dep with Workflow)
 - `packages/workflows/src/WorkflowState.php` (modify — add metadata)
 - `packages/workflows/tests/Unit/EditorialWorkflowPresetTest.php` (new, replaces StateMachineTest)
 - `packages/workflows/tests/Unit/EditorialWorkflowServiceTest.php` (modify)
+- `packages/workflows/tests/Unit/EditorialTransitionAccessResolverTest.php` (modify)
 
 ### #607
-- `packages/ai-schema/src/Mcp/ToolRegistryInterface.php` (new)
-- `packages/ai-schema/src/Mcp/ToolRegistry.php` (new)
-- `packages/ai-schema/src/Mcp/SchemaRegistry.php` (modify — populate ToolRegistry)
+- `packages/ai-schema/src/Mcp/ToolRegistryInterface.php` (new — interface only, in schema layer)
+- `packages/ai-agent/src/ToolRegistry.php` (new — implementation with execute(), in agent layer)
+- `packages/ai-schema/src/SchemaRegistry.php` (modify — add registerEntityTools method)
 - `packages/ai-agent/src/McpServer.php` (modify — use ToolRegistryInterface)
 - `packages/ai-agent/src/AgentExecutor.php` (modify — use ToolRegistryInterface)
 - `packages/ai-agent/tests/Unit/McpServerTest.php` (modify)
 - `packages/ai-agent/tests/Unit/AgentExecutorTest.php` (modify)
-- `packages/ai-schema/tests/Unit/Mcp/ToolRegistryTest.php` (new)
+- `packages/ai-agent/tests/Unit/ToolRegistryTest.php` (new)
 
 ### #606
 - `packages/ai-agent/src/ProviderInterface.php` (new)
