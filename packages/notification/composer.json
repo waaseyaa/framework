@@ -7,8 +7,6 @@
         { "type": "path", "url": "../foundation" },
         { "type": "path", "url": "../queue" },
         { "type": "path", "url": "../mail" },
-        { "type": "path", "url": "../entity" },
-        { "type": "path", "url": "../entity-storage" },
         { "type": "path", "url": "../database-legacy" }
     ],
     "require": {
@@ -16,8 +14,6 @@
         "waaseyaa/foundation": "^0.1",
         "waaseyaa/queue": "^0.1",
         "waaseyaa/mail": "^0.1",
-        "waaseyaa/entity": "^0.1",
-        "waaseyaa/entity-storage": "^0.1",
         "waaseyaa/database-legacy": "^0.1"
     },
     "require-dev": {
