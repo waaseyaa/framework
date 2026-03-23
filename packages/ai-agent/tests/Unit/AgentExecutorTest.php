@@ -8,9 +8,14 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Agent\AgentContext;
 use Waaseyaa\AI\Agent\AgentExecutor;
 use Waaseyaa\AI\Agent\AgentResult;
-use Waaseyaa\AI\Schema\Mcp\McpToolExecutor;
-use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\AI\Agent\ToolRegistry;
+use Waaseyaa\AI\Agent\Provider\MaxIterationsException;
+use Waaseyaa\AI\Agent\Provider\MessageRequest;
+use Waaseyaa\AI\Agent\Provider\MessageResponse;
+use Waaseyaa\AI\Agent\Provider\ProviderInterface;
+use Waaseyaa\AI\Agent\Provider\StreamChunk;
+use Waaseyaa\AI\Agent\Provider\StreamingProviderInterface;
+use Waaseyaa\AI\Schema\Mcp\McpToolDefinition;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
@@ -18,24 +23,12 @@ use PHPUnit\Framework\TestCase;
 final class AgentExecutorTest extends TestCase
 {
     private AgentExecutor $executor;
-    private EntityTypeManagerInterface&\PHPUnit\Framework\MockObject\MockObject $entityTypeManager;
-    private EntityStorageInterface&\PHPUnit\Framework\MockObject\MockObject $storage;
+    private ToolRegistry $registry;
 
     protected function setUp(): void
     {
-        $this->entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
-        $this->storage = $this->createMock(EntityStorageInterface::class);
-
-        $this->entityTypeManager
-            ->method('hasDefinition')
-            ->willReturnCallback(fn (string $id) => $id === 'node');
-
-        $this->entityTypeManager
-            ->method('getStorage')
-            ->willReturn($this->storage);
-
-        $toolExecutor = new McpToolExecutor($this->entityTypeManager);
-        $this->executor = new AgentExecutor($toolExecutor);
+        $this->registry = new ToolRegistry();
+        $this->executor = new AgentExecutor($this->registry);
     }
 
     private function createContext(int $accountId = 1, array $parameters = []): AgentContext
@@ -162,17 +155,12 @@ final class AgentExecutorTest extends TestCase
 
     public function testToolExecution(): void
     {
-        $entity = $this->createMock(\Waaseyaa\Entity\EntityInterface::class);
-        $entity->method('id')->willReturn('123');
-        $entity->method('toArray')->willReturn(['title' => 'Test']);
-
-        $this->storage
-            ->method('create')
-            ->willReturn($entity);
-
-        $this->storage
-            ->method('save')
-            ->willReturn(1);
+        $this->registry->register(
+            new McpToolDefinition(name: 'create_node', description: 'Create node', inputSchema: []),
+            fn (array $args) => [
+                'content' => [['type' => 'text', 'text' => \json_encode(['created' => true], \JSON_THROW_ON_ERROR)]],
+            ],
+        );
 
         $context = $this->createContext(10);
         $result = $this->executor->executeTool('create_node', ['attributes' => ['title' => 'Test']], $context);
@@ -190,7 +178,7 @@ final class AgentExecutorTest extends TestCase
         self::assertSame('create_node', $log[0]->data['tool']);
     }
 
-    public function testToolExecutionWithUnknownEntityType(): void
+    public function testToolExecutionWithUnknownTool(): void
     {
         $context = $this->createContext(1);
         $result = $this->executor->executeTool('create_unknown', ['attributes' => []], $context);
@@ -205,10 +193,8 @@ final class AgentExecutorTest extends TestCase
     public function testToolExecutionWithInvalidTool(): void
     {
         $context = $this->createContext(1);
-        // An invalid tool name triggers an exception in McpToolExecutor
         $result = $this->executor->executeTool('totally_invalid', [], $context);
 
-        // The executor should catch the exception and return error
         self::assertArrayHasKey('content', $result);
 
         $log = $this->executor->getAuditLog();
@@ -235,5 +221,151 @@ final class AgentExecutorTest extends TestCase
     public function testAuditLogStartsEmpty(): void
     {
         self::assertSame([], $this->executor->getAuditLog());
+    }
+
+    // --- Provider tests (Task 10) ---
+
+    public function testExecuteWithProviderSingleTurnNoTools(): void
+    {
+        $registry = new ToolRegistry();
+        $executor = new AgentExecutor($registry);
+
+        $provider = new class implements ProviderInterface {
+            public function sendMessage(MessageRequest $request): MessageResponse
+            {
+                return new MessageResponse(
+                    content: [['type' => 'text', 'text' => 'Hello from Claude']],
+                    stopReason: 'end_turn',
+                    usage: ['input_tokens' => 10, 'output_tokens' => 5],
+                );
+            }
+        };
+
+        $agent = new TestAgent(AgentResult::success('prepared'));
+        $context = new AgentContext(account: new TestAccount());
+
+        $result = $executor->executeWithProvider($agent, $context, $provider);
+
+        $this->assertTrue($result->success);
+        $this->assertStringContainsString('Hello from Claude', $result->message);
+    }
+
+    public function testExecuteWithProviderMultiTurnToolLoop(): void
+    {
+        $registry = new ToolRegistry();
+        $registry->register(
+            new McpToolDefinition(name: 'read_node', description: 'Read', inputSchema: []),
+            fn (array $args) => [
+                'content' => [['type' => 'text', 'text' => '{"id": 1, "title": "Found"}']],
+            ],
+        );
+
+        $executor = new AgentExecutor($registry);
+
+        $callCount = 0;
+        $provider = new class ($callCount) implements ProviderInterface {
+            public function __construct(private int &$callCount) {}
+
+            public function sendMessage(MessageRequest $request): MessageResponse
+            {
+                $this->callCount++;
+                if ($this->callCount === 1) {
+                    return new MessageResponse(
+                        content: [
+                            ['type' => 'tool_use', 'id' => 'tu_1', 'name' => 'read_node', 'input' => ['id' => '1']],
+                        ],
+                        stopReason: 'tool_use',
+                    );
+                }
+                return new MessageResponse(
+                    content: [['type' => 'text', 'text' => 'I found the node.']],
+                    stopReason: 'end_turn',
+                );
+            }
+        };
+
+        $agent = new TestAgent(AgentResult::success('prepared'));
+        $context = new AgentContext(account: new TestAccount());
+
+        $result = $executor->executeWithProvider($agent, $context, $provider);
+
+        $this->assertTrue($result->success);
+        $this->assertSame(2, $callCount);
+    }
+
+    public function testExecuteWithProviderRespectsMaxIterations(): void
+    {
+        $registry = new ToolRegistry();
+        $registry->register(
+            new McpToolDefinition(name: 'loop_tool', description: 'Loops', inputSchema: []),
+            fn (array $args) => ['content' => [['type' => 'text', 'text' => 'ok']]],
+        );
+
+        $executor = new AgentExecutor($registry);
+
+        $provider = new class implements ProviderInterface {
+            public function sendMessage(MessageRequest $request): MessageResponse
+            {
+                return new MessageResponse(
+                    content: [['type' => 'tool_use', 'id' => 'tu_1', 'name' => 'loop_tool', 'input' => []]],
+                    stopReason: 'tool_use',
+                );
+            }
+        };
+
+        $agent = new TestAgent(AgentResult::success('prepared'));
+        $context = new AgentContext(account: new TestAccount(), maxIterations: 3);
+
+        $this->expectException(MaxIterationsException::class);
+
+        $executor->executeWithProvider($agent, $context, $provider);
+    }
+
+    // --- Streaming tests (Task 13) ---
+
+    public function testStreamWithProviderForwardsChunks(): void
+    {
+        $registry = new ToolRegistry();
+        $executor = new AgentExecutor($registry);
+
+        $provider = new class implements StreamingProviderInterface {
+            public function sendMessage(MessageRequest $request): MessageResponse
+            {
+                return new MessageResponse(
+                    content: [['type' => 'text', 'text' => 'Hello world']],
+                    stopReason: 'end_turn',
+                );
+            }
+
+            public function streamMessage(MessageRequest $request, callable $onChunk): MessageResponse
+            {
+                $onChunk(new StreamChunk(type: 'text_delta', text: 'Hello'));
+                $onChunk(new StreamChunk(type: 'text_delta', text: ' world'));
+                $onChunk(new StreamChunk(type: 'message_stop'));
+
+                return new MessageResponse(
+                    content: [['type' => 'text', 'text' => 'Hello world']],
+                    stopReason: 'end_turn',
+                );
+            }
+        };
+
+        $receivedChunks = [];
+        $agent = new TestAgent(AgentResult::success('prepared'));
+        $context = new AgentContext(account: new TestAccount());
+
+        $result = $executor->streamWithProvider(
+            $agent,
+            $context,
+            $provider,
+            function (StreamChunk $chunk) use (&$receivedChunks): void {
+                $receivedChunks[] = $chunk;
+            },
+        );
+
+        $this->assertTrue($result->success);
+        $this->assertCount(3, $receivedChunks);
+        $this->assertSame('Hello', $receivedChunks[0]->text);
+        $this->assertSame(' world', $receivedChunks[1]->text);
     }
 }

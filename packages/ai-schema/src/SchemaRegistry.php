@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Schema;
 
+use Waaseyaa\AI\Agent\ToolRegistryInterface;
 use Waaseyaa\AI\Schema\Mcp\McpToolDefinition;
+use Waaseyaa\AI\Schema\Mcp\McpToolExecutor;
 use Waaseyaa\AI\Schema\Mcp\McpToolGenerator;
 
 /**
@@ -67,5 +69,19 @@ final class SchemaRegistry
         }
 
         return null;
+    }
+
+    /**
+     * Register all auto-generated entity CRUD tools into a tool registry.
+     */
+    public function registerEntityTools(ToolRegistryInterface $registry, McpToolExecutor $executor): void
+    {
+        foreach ($this->getTools() as $tool) {
+            $toolName = $tool->name;
+            $registry->register(
+                $tool,
+                static fn (array $arguments) => $executor->execute($toolName, $arguments),
+            );
+        }
     }
 }

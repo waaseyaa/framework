@@ -19,6 +19,13 @@ final class TestAgent implements AgentInterface
     private ?\Throwable $executeException = null;
     private ?\Throwable $dryRunException = null;
 
+    public function __construct(?AgentResult $defaultResult = null)
+    {
+        if ($defaultResult !== null) {
+            $this->executeResult = $defaultResult;
+        }
+    }
+
     public function execute(AgentContext $context): AgentResult
     {
         if ($this->executeException !== null) {

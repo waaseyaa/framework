@@ -4,11 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Agent;
 
-use Waaseyaa\AI\Schema\Mcp\McpToolExecutor;
-use Waaseyaa\AI\Schema\SchemaRegistry;
-
 /**
- * Lightweight MCP server adapter that exposes tools from SchemaRegistry.
+ * Lightweight MCP server adapter that exposes tools from a ToolRegistry.
  *
  * Implements the tools/list and tools/call portions of the Model Context
  * Protocol. This is a thin adapter, not a full protocol server (no
@@ -17,8 +14,7 @@ use Waaseyaa\AI\Schema\SchemaRegistry;
 final class McpServer
 {
     public function __construct(
-        private readonly SchemaRegistry $registry,
-        private readonly McpToolExecutor $executor,
+        private readonly ToolRegistryInterface $registry,
     ) {}
 
     /**
@@ -29,11 +25,9 @@ final class McpServer
     public function listTools(): array
     {
         $tools = [];
-
         foreach ($this->registry->getTools() as $tool) {
             $tools[] = $tool->toArray();
         }
-
         return ['tools' => $tools];
     }
 
@@ -46,9 +40,7 @@ final class McpServer
      */
     public function callTool(string $name, array $arguments): array
     {
-        $tool = $this->registry->getTool($name);
-
-        if ($tool === null) {
+        if (!$this->registry->has($name)) {
             return [
                 'content' => [
                     [
@@ -63,6 +55,6 @@ final class McpServer
             ];
         }
 
-        return $this->executor->execute($name, $arguments);
+        return $this->registry->execute($name, $arguments);
     }
 }

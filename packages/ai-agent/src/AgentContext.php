@@ -18,10 +18,12 @@ final readonly class AgentContext
      * @param AccountInterface $account The user the agent acts as
      * @param array<string, mixed> $parameters Agent-specific parameters
      * @param bool $dryRun Whether this is a dry run
+     * @param int $maxIterations Maximum tool loop iterations for provider execution
      */
     public function __construct(
         public AccountInterface $account,
         public array $parameters = [],
         public bool $dryRun = false,
+        public int $maxIterations = 25,
     ) {}
 }

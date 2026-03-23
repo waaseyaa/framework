@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Agent;
 
-use Waaseyaa\AI\Schema\Mcp\McpToolExecutor;
+use Waaseyaa\AI\Agent\Provider\MaxIterationsException;
+use Waaseyaa\AI\Agent\Provider\MessageRequest;
+use Waaseyaa\AI\Agent\Provider\ProviderInterface;
+use Waaseyaa\AI\Agent\Provider\StreamingProviderInterface;
 
 /**
  * Executes agents with safety guarantees and audit logging.
@@ -19,7 +22,7 @@ final class AgentExecutor
     private array $auditLog = [];
 
     public function __construct(
-        private readonly McpToolExecutor $toolExecutor,
+        private readonly ToolRegistryInterface $toolRegistry,
     ) {}
 
     /**
@@ -119,7 +122,7 @@ final class AgentExecutor
         $accountId = (int) $context->account->id();
 
         try {
-            $result = $this->toolExecutor->execute($toolName, $arguments);
+            $result = $this->toolRegistry->execute($toolName, $arguments);
             $isError = $result['isError'] ?? false;
 
             $this->auditLog[] = new AgentAuditLog(
@@ -164,6 +167,191 @@ final class AgentExecutor
     }
 
     /**
+     * Execute an agent with an LLM provider, handling multi-turn tool loops.
+     */
+    public function executeWithProvider(
+        AgentInterface $agent,
+        AgentContext $context,
+        ProviderInterface $provider,
+    ): AgentResult {
+        $agentId = $this->getAgentId($agent);
+        $accountId = (int) $context->account->id();
+
+        // Let the agent prepare the initial request
+        $agentResult = $agent->execute($context);
+
+        $messages = $context->parameters['messages'] ?? [
+            ['role' => 'user', 'content' => $agentResult->message],
+        ];
+        $system = $context->parameters['system'] ?? null;
+        $tools = $this->buildToolDefinitions();
+
+        $iteration = 0;
+
+        while (true) {
+            $iteration++;
+            if ($iteration > $context->maxIterations) {
+                throw new MaxIterationsException($context->maxIterations);
+            }
+
+            $request = new MessageRequest(
+                messages: $messages,
+                system: $system,
+                tools: $tools,
+                maxTokens: (int) ($context->parameters['max_tokens'] ?? 4096),
+            );
+
+            $response = $provider->sendMessage($request);
+
+            // Append assistant response to conversation
+            $messages[] = ['role' => 'assistant', 'content' => $response->content];
+
+            if ($response->stopReason !== 'tool_use') {
+                break;
+            }
+
+            // Execute tool calls
+            $toolResults = [];
+            foreach ($response->getToolUseBlocks() as $toolUseBlock) {
+                $toolResult = $this->toolRegistry->execute($toolUseBlock->name, $toolUseBlock->input);
+                $isError = $toolResult['isError'] ?? false;
+                $resultText = $toolResult['content'][0]['text'] ?? '';
+
+                $this->auditLog[] = new AgentAuditLog(
+                    agentId: $agentId,
+                    accountId: $accountId,
+                    action: 'tool_call',
+                    success: !$isError,
+                    message: "Tool call: {$toolUseBlock->name}",
+                    data: ['tool' => $toolUseBlock->name, 'arguments' => $toolUseBlock->input],
+                    timestamp: \time(),
+                );
+
+                $toolResults[] = [
+                    'type' => 'tool_result',
+                    'tool_use_id' => $toolUseBlock->id,
+                    'content' => $resultText,
+                    'is_error' => $isError,
+                ];
+            }
+
+            $messages[] = ['role' => 'user', 'content' => $toolResults];
+        }
+
+        $finalText = $response->getText();
+
+        $result = AgentResult::success(
+            message: $finalText,
+            data: ['usage' => $response->usage, 'iterations' => $iteration],
+        );
+
+        $this->auditLog[] = new AgentAuditLog(
+            agentId: $agentId,
+            accountId: $accountId,
+            action: 'execute_with_provider',
+            success: true,
+            message: $finalText,
+            data: $result->data,
+            timestamp: \time(),
+        );
+
+        return $result;
+    }
+
+    /**
+     * Execute an agent with a streaming provider, forwarding chunks in real time.
+     *
+     * @param callable(StreamChunk): void $onChunk
+     */
+    public function streamWithProvider(
+        AgentInterface $agent,
+        AgentContext $context,
+        StreamingProviderInterface $provider,
+        callable $onChunk,
+    ): AgentResult {
+        $agentId = $this->getAgentId($agent);
+        $accountId = (int) $context->account->id();
+
+        $agentResult = $agent->execute($context);
+
+        $messages = $context->parameters['messages'] ?? [
+            ['role' => 'user', 'content' => $agentResult->message],
+        ];
+        $system = $context->parameters['system'] ?? null;
+        $tools = $this->buildToolDefinitions();
+
+        $iteration = 0;
+
+        while (true) {
+            $iteration++;
+            if ($iteration > $context->maxIterations) {
+                throw new MaxIterationsException($context->maxIterations);
+            }
+
+            $request = new MessageRequest(
+                messages: $messages,
+                system: $system,
+                tools: $tools,
+                maxTokens: (int) ($context->parameters['max_tokens'] ?? 4096),
+            );
+
+            $response = $provider->streamMessage($request, $onChunk);
+
+            $messages[] = ['role' => 'assistant', 'content' => $response->content];
+
+            if ($response->stopReason !== 'tool_use') {
+                break;
+            }
+
+            // Execute tool calls synchronously between streaming rounds
+            $toolResults = [];
+            foreach ($response->getToolUseBlocks() as $toolUseBlock) {
+                $toolResult = $this->toolRegistry->execute($toolUseBlock->name, $toolUseBlock->input);
+                $isError = $toolResult['isError'] ?? false;
+                $resultText = $toolResult['content'][0]['text'] ?? '';
+
+                $this->auditLog[] = new AgentAuditLog(
+                    agentId: $agentId,
+                    accountId: $accountId,
+                    action: 'tool_call',
+                    success: !$isError,
+                    message: "Tool call: {$toolUseBlock->name}",
+                    data: ['tool' => $toolUseBlock->name, 'arguments' => $toolUseBlock->input],
+                    timestamp: \time(),
+                );
+
+                $toolResults[] = [
+                    'type' => 'tool_result',
+                    'tool_use_id' => $toolUseBlock->id,
+                    'content' => $resultText,
+                    'is_error' => $isError,
+                ];
+            }
+
+            $messages[] = ['role' => 'user', 'content' => $toolResults];
+        }
+
+        $finalText = $response->getText();
+
+        $result = AgentResult::success(
+            message: $finalText,
+            data: ['usage' => $response->usage, 'iterations' => $iteration],
+        );
+
+        $this->auditLog[] = new AgentAuditLog(
+            agentId: $agentId,
+            accountId: $accountId,
+            action: 'stream_with_provider',
+            success: true,
+            message: $finalText,
+            data: $result->data,
+            timestamp: \time(),
+        );
+
+        return $result;
+    }
+
+    /**
      * Get the audit log.
      *
      * @return AgentAuditLog[]
@@ -171,6 +359,24 @@ final class AgentExecutor
     public function getAuditLog(): array
     {
         return $this->auditLog;
+    }
+
+    /**
+     * Build tool definitions array for the Anthropic API.
+     *
+     * @return array<int, array{name: string, description: string, input_schema: array<string, mixed>}>
+     */
+    private function buildToolDefinitions(): array
+    {
+        $tools = [];
+        foreach ($this->toolRegistry->getTools() as $tool) {
+            $tools[] = [
+                'name' => $tool->name,
+                'description' => $tool->description,
+                'input_schema' => $tool->inputSchema,
+            ];
+        }
+        return $tools;
     }
 
     /**

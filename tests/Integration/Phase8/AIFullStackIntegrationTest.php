@@ -14,6 +14,7 @@ use Waaseyaa\AI\Agent\AgentExecutor;
 use Waaseyaa\AI\Agent\AgentInterface;
 use Waaseyaa\AI\Agent\AgentResult;
 use Waaseyaa\AI\Agent\McpServer;
+use Waaseyaa\AI\Agent\ToolRegistry;
 use Waaseyaa\AI\Pipeline\Pipeline;
 use Waaseyaa\AI\Pipeline\PipelineContext;
 use Waaseyaa\AI\Pipeline\PipelineExecutor;
@@ -85,8 +86,10 @@ final class AIFullStackIntegrationTest extends TestCase
         $this->registry = new SchemaRegistry($schemaGen, $toolGen);
 
         // AI agent layer.
-        $this->agentExecutor = new AgentExecutor($this->toolExecutor);
-        $this->mcpServer = new McpServer($this->registry, $this->toolExecutor);
+        $toolRegistry = new ToolRegistry();
+        $this->registry->registerEntityTools($toolRegistry, $this->toolExecutor);
+        $this->agentExecutor = new AgentExecutor($toolRegistry);
+        $this->mcpServer = new McpServer($toolRegistry);
 
         // AI vector layer.
         $this->embeddingProvider = new FakeEmbeddingProvider(128);

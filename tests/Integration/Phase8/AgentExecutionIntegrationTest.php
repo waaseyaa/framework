@@ -14,6 +14,7 @@ use Waaseyaa\AI\Agent\AgentExecutor;
 use Waaseyaa\AI\Agent\AgentInterface;
 use Waaseyaa\AI\Agent\AgentResult;
 use Waaseyaa\AI\Agent\McpServer;
+use Waaseyaa\AI\Agent\ToolRegistry;
 use Waaseyaa\AI\Schema\EntityJsonSchemaGenerator;
 use Waaseyaa\AI\Schema\Mcp\McpToolExecutor;
 use Waaseyaa\AI\Schema\Mcp\McpToolGenerator;
@@ -63,11 +64,14 @@ final class AgentExecutionIntegrationTest extends TestCase
         ));
 
         $this->toolExecutor = new McpToolExecutor($this->entityTypeManager);
-        $this->agentExecutor = new AgentExecutor($this->toolExecutor);
 
         $schemaGen = new EntityJsonSchemaGenerator($this->entityTypeManager);
         $toolGen = new McpToolGenerator($this->entityTypeManager);
         $this->registry = new SchemaRegistry($schemaGen, $toolGen);
+
+        $toolRegistry = new ToolRegistry();
+        $this->registry->registerEntityTools($toolRegistry, $this->toolExecutor);
+        $this->agentExecutor = new AgentExecutor($toolRegistry);
 
         $this->adminUser = new User([
             'uid' => 1,
@@ -182,7 +186,9 @@ final class AgentExecutionIntegrationTest extends TestCase
     #[Test]
     public function mcpServerListToolsAndCallToolWithRealStorage(): void
     {
-        $server = new McpServer($this->registry, $this->toolExecutor);
+        $toolRegistry = new ToolRegistry();
+        $this->registry->registerEntityTools($toolRegistry, $this->toolExecutor);
+        $server = new McpServer($toolRegistry);
 
         // List tools.
         $toolList = $server->listTools();
