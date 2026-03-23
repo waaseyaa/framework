@@ -30,6 +30,9 @@ Four waaseyaa changes to unblock Claudriel's workflow state machine, AI agent st
 **`EditorialTransitionAccessResolver` updated:**
 - Replace `EditorialWorkflowStateMachine` dependency with `Workflow` — uses `Workflow::getTransitions()` for permission lookups instead of the deleted class
 
+**Permission strings in transitions:**
+- `WorkflowTransition` already has `id`, `label`, `from`, `to`, `weight`. Permission patterns (e.g., "publish {bundle} content") are editorial-specific metadata — they stay in `EditorialTransitionAccessResolver` as a mapping from transition ID to permission pattern, not in the generic `WorkflowTransition` class
+
 **`WorkflowState` gains optional metadata:**
 - Add optional `metadata` array to `WorkflowState` (e.g., `['legacy_status' => 1]`) so the editorial preset can carry its status mapping without hardcoding it in the generic class
 - Backward-compatible deserialization: `$data['metadata'] ?? []` when hydrating from cached/stored configs
@@ -37,7 +40,7 @@ Four waaseyaa changes to unblock Claudriel's workflow state machine, AI agent st
 **Tests:**
 - `EditorialWorkflowStateMachineTest` → `EditorialWorkflowPresetTest`, verify factory creates correct `Workflow`
 - New test: custom `Workflow` with non-editorial states (commitment lifecycle)
-- `EditorialWorkflowServiceTest` updated to use `ContentModerator`
+- `EditorialWorkflowServiceTest` updated to use `Workflow` entity
 
 **Unchanged:** `Workflow`, `ContentModerator`, `WorkflowTransition`, `ContentModerationState`.
 
@@ -55,7 +58,7 @@ Four waaseyaa changes to unblock Claudriel's workflow state machine, AI agent st
 
 ### Design
 
-**`ToolRegistryInterface`** (new, in ai-schema — definition-layer, no execution):
+**`ToolRegistryInterface`** (new, in ai-agent — consumers are McpServer and AgentExecutor, both in ai-agent):
 ```php
 interface ToolRegistryInterface {
     public function register(McpToolDefinition $tool, callable $executor): void;
@@ -213,7 +216,7 @@ return new StreamedResponse(function () use ($executor, $agent, $context, $provi
 - `packages/workflows/tests/Unit/EditorialTransitionAccessResolverTest.php` (modify)
 
 ### #607
-- `packages/ai-schema/src/Mcp/ToolRegistryInterface.php` (new — interface only, in schema layer)
+- `packages/ai-agent/src/ToolRegistryInterface.php` (new)
 - `packages/ai-agent/src/ToolRegistry.php` (new — implementation with execute(), in agent layer)
 - `packages/ai-schema/src/SchemaRegistry.php` (modify — add registerEntityTools method)
 - `packages/ai-agent/src/McpServer.php` (modify — use ToolRegistryInterface)
@@ -230,6 +233,8 @@ return new StreamedResponse(function () use ($executor, $agent, $context, $provi
 - `packages/ai-agent/src/ToolUseBlock.php` (new)
 - `packages/ai-agent/src/ToolResultBlock.php` (new)
 - `packages/ai-agent/src/RateLimitException.php` (new)
+- `packages/ai-agent/src/MaxIterationsException.php` (new)
+- `packages/ai-agent/src/AgentContext.php` (modify — add $maxIterations property, default 25)
 - `packages/ai-agent/src/AgentExecutor.php` (modify — add executeWithProvider)
 - `packages/ai-agent/tests/Unit/AnthropicProviderTest.php` (new)
 - `packages/ai-agent/tests/Unit/AgentExecutorTest.php` (modify)
