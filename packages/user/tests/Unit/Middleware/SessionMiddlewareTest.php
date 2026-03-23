@@ -15,6 +15,7 @@ use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\User\AnonymousUser;
 use Waaseyaa\User\DevAdminAccount;
 use Waaseyaa\User\Middleware\SessionMiddleware;
+use Waaseyaa\User\Session\NativeSession;
 use Waaseyaa\User\User;
 
 #[CoversClass(SessionMiddleware::class)]
@@ -300,5 +301,54 @@ final class SessionMiddlewareTest extends TestCase
         $middleware->process($request, $next);
 
         $this->assertSame($existing, $capturedAccount);
+    }
+
+    #[Test]
+    public function attaches_native_session_to_request(): void
+    {
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $middleware = new SessionMiddleware($storage);
+        $request = Request::create('/test');
+
+        $capturedSession = null;
+        $next = new class($capturedSession) implements HttpHandlerInterface {
+            public function __construct(private mixed &$ref) {}
+
+            public function handle(Request $request): Response
+            {
+                $this->ref = $request->hasSession() ? $request->getSession() : null;
+                return new Response('ok');
+            }
+        };
+
+        $middleware->process($request, $next);
+
+        $this->assertInstanceOf(NativeSession::class, $capturedSession);
+    }
+
+    #[Test]
+    public function does_not_replace_existing_session(): void
+    {
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $middleware = new SessionMiddleware($storage);
+        $request = Request::create('/test');
+
+        $existingSession = new NativeSession();
+        $request->setSession($existingSession);
+
+        $capturedSession = null;
+        $next = new class($capturedSession) implements HttpHandlerInterface {
+            public function __construct(private mixed &$ref) {}
+
+            public function handle(Request $request): Response
+            {
+                $this->ref = $request->getSession();
+                return new Response('ok');
+            }
+        };
+
+        $middleware->process($request, $next);
+
+        $this->assertSame($existingSession, $capturedSession);
     }
 }

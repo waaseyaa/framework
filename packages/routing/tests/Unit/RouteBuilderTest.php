@@ -210,4 +210,24 @@ final class RouteBuilderTest extends TestCase
         $this->assertSame('/path1', $route1->getPath());
         $this->assertSame('/path2', $route2->getPath());
     }
+
+    #[Test]
+    public function requireSessionSetsOptionTrue(): void
+    {
+        $route = RouteBuilder::create('/chat')
+            ->requireSession()
+            ->build();
+
+        $this->assertTrue($route->getOption('_session'));
+    }
+
+    #[Test]
+    public function requireSessionWithKeysSetsOptionArray(): void
+    {
+        $route = RouteBuilder::create('/chat')
+            ->requireSession(['nickname'])
+            ->build();
+
+        $this->assertSame(['nickname'], $route->getOption('_session'));
+    }
 }

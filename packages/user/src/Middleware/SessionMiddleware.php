@@ -7,6 +7,7 @@ namespace Waaseyaa\User\Middleware;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\User\Session\NativeSession;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
@@ -29,6 +30,13 @@ final class SessionMiddleware implements HttpMiddlewareInterface
     {
         if (session_status() !== \PHP_SESSION_ACTIVE && !$request->attributes->has('_session')) {
             session_start();
+        }
+
+        // Attach a session to the Request so controllers can use
+        // $request->getSession(). NativeSession reads/writes $_SESSION
+        // directly, preserving compatibility with AuthManager.
+        if (!$request->hasSession()) {
+            $request->setSession(new NativeSession());
         }
 
         $existingAccount = $request->attributes->get('_account');

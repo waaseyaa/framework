@@ -15,6 +15,7 @@ use Waaseyaa\Access\Gate\GateInterface;
  * Routes can declare access requirements via options:
  *   - '_public' => true — always allow access (no authentication required)
  *   - '_authenticated' => true — require a non-anonymous identity (returns 401 if not authenticated)
+ *   - '_session' => true|['key1','key2'] — require active session, optionally with specific keys
  *   - '_permission' => 'administer site' — require a specific permission
  *   - '_role' => 'administrator' — require a specific role (or comma-separated list)
  *   - '_gate' => ['ability' => 'config.export', 'subject' => null] — require a gate ability
@@ -57,6 +58,22 @@ final class AccessChecker
             $hasRequirement = true;
             if (!$account->isAuthenticated()) {
                 return AccessResult::unauthenticated('Authentication is required to access this resource.');
+            }
+        }
+
+        // Check _session option (requires active session, optionally with specific keys).
+        $sessionOption = $route->getOption('_session');
+        if ($sessionOption !== null) {
+            $hasRequirement = true;
+            if (session_status() !== \PHP_SESSION_ACTIVE) {
+                $result = $result->andIf(AccessResult::forbidden('An active session is required to access this resource.'));
+            } elseif (is_array($sessionOption)) {
+                foreach ($sessionOption as $key) {
+                    if (!isset($_SESSION[$key])) {
+                        $result = $result->andIf(AccessResult::forbidden(sprintf('Session key "%s" is required.', $key)));
+                        break;
+                    }
+                }
             }
         }
 
