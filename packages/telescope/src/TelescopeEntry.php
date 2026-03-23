@@ -45,9 +45,21 @@ final class TelescopeEntry
     {
         return new self(
             type: $row['type'],
-            data: is_string($row['data']) ? json_decode($row['data'], true, 512, JSON_THROW_ON_ERROR) : $row['data'],
+            data: is_string($row['data']) ? self::decodeData($row['data']) : $row['data'],
             id: $row['id'],
             createdAt: new \DateTimeImmutable($row['created_at']),
         );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function decodeData(string $json): array
+    {
+        try {
+            return json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return ['_raw' => $json, '_error' => 'Failed to decode telescope entry data'];
+        }
     }
 }
