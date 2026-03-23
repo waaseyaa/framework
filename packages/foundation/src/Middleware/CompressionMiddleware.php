@@ -42,6 +42,7 @@ final class CompressionMiddleware implements HttpMiddlewareInterface
         $response->setContent($compressed);
         $response->headers->set('Content-Encoding', 'gzip');
         $response->headers->set('Content-Length', (string) strlen($compressed));
+        $response->headers->set('Vary', 'Accept-Encoding');
         $response->headers->remove('Transfer-Encoding');
 
         return $response;
