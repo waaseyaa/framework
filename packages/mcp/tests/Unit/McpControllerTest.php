@@ -36,7 +36,6 @@ final class McpControllerTest extends TestCase
         $this->assertSame('v1.0', $manifest['server']['version']);
         $toolNames = array_map(static fn(array $tool): string => $tool['name'], $manifest['tools']);
         $this->assertContains('search_entities', $toolNames);
-        $this->assertContains('search_teachings', $toolNames);
         $this->assertContains('ai_discover', $toolNames);
         $this->assertContains('get_entity', $toolNames);
         $this->assertContains('list_entity_types', $toolNames);
@@ -61,7 +60,7 @@ final class McpControllerTest extends TestCase
 
         $this->assertSame('2.0', $response['jsonrpc']);
         $this->assertSame(1, $response['id']);
-        $this->assertCount(12, $response['result']['tools']);
+        $this->assertCount(11, $response['result']['tools']);
     }
 
     #[Test]
@@ -104,27 +103,6 @@ final class McpControllerTest extends TestCase
     }
 
     #[Test]
-    public function toolsIntrospectNormalizesLegacyAliasToCanonicalTool(): void
-    {
-        $controller = $this->createController();
-        $response = $controller->handleRpc([
-            'jsonrpc' => '2.0',
-            'id' => 3,
-            'method' => 'tools/introspect',
-            'params' => [
-                'name' => 'search_teachings',
-            ],
-        ]);
-
-        $this->assertSame('search_teachings', $response['result']['tool']['requested']);
-        $this->assertSame('search_entities', $response['result']['tool']['canonical']);
-        $this->assertTrue($response['result']['tool']['is_alias']);
-        $this->assertSame('search_entities', $response['result']['contract']['stable_meta']['tool']);
-        $this->assertSame('search_teachings', $response['result']['contract']['stable_meta']['tool_invoked']);
-        $this->assertSame('search_teachings', $response['result']['contract']['stable_meta']['deprecated_alias']);
-    }
-
-    #[Test]
     public function toolsIntrospectReturnsInvalidParamsForUnknownTool(): void
     {
         $controller = $this->createController();
@@ -148,7 +126,7 @@ final class McpControllerTest extends TestCase
             [
                 'id' => 'external_discovery_pack',
                 'label' => 'External Discovery Pack',
-                'tools' => ['ai_discover', 'search_teachings'],
+                'tools' => ['ai_discover', 'search_entities'],
                 'hooks' => ['before_tool_call', 'after_tool_result_meta'],
             ],
             [
@@ -579,20 +557,6 @@ final class McpControllerTest extends TestCase
         $this->assertSame('search_entities', $canonicalPayload['meta']['tool']);
         $this->assertSame('search_entities', $canonicalPayload['meta']['tool_invoked']);
 
-        $legacy = $controller->handleRpc([
-            'jsonrpc' => '2.0',
-            'id' => 28,
-            'method' => 'tools/call',
-            'params' => [
-                'name' => 'search_teachings',
-                'arguments' => ['query' => 'Editorial', 'type' => 'node', 'limit' => 5],
-            ],
-        ]);
-        $legacyPayload = $this->decodeToolPayload($legacy);
-        $this->assertSame('v1.0', $legacyPayload['meta']['contract_version']);
-        $this->assertSame('search_entities', $legacyPayload['meta']['tool']);
-        $this->assertSame('search_teachings', $legacyPayload['meta']['tool_invoked']);
-        $this->assertSame('search_teachings', $legacyPayload['meta']['deprecated_alias']);
     }
 
     #[Test]

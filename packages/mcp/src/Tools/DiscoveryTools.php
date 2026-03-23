@@ -63,18 +63,6 @@ final class DiscoveryTools extends McpTool
      * @param array<string, mixed> $arguments
      * @return array<string, mixed>
      */
-    public function searchTeachings(array $arguments): array
-    {
-        $result = $this->searchEntities($arguments);
-        $result['meta']['deprecated_alias'] = 'search_teachings';
-
-        return $result;
-    }
-
-    /**
-     * @param array<string, mixed> $arguments
-     * @return array<string, mixed>
-     */
     public function aiDiscover(array $arguments): array
     {
         $query = is_string($arguments['query'] ?? null) ? trim($arguments['query']) : '';

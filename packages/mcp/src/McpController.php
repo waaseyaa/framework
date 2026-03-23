@@ -101,7 +101,6 @@ final class McpController
             ],
             'tools' => [
                 ['name' => 'search_entities', 'description' => 'Stable semantic/keyword search contract for entities'],
-                ['name' => 'search_teachings', 'description' => 'Deprecated alias of search_entities (kept for backward compatibility)'],
                 ['name' => 'ai_discover', 'description' => 'Blend semantic search and graph context for deterministic discovery recommendations'],
                 ['name' => 'get_entity', 'description' => 'Fetch a single entity by type and ID'],
                 ['name' => 'list_entity_types', 'description' => 'List available entity types and schemas'],
@@ -234,7 +233,6 @@ final class McpController
         try {
             $result = match ($tool) {
                 'search_entities' => $this->discoveryTools->searchEntities($arguments),
-                'search_teachings' => $this->discoveryTools->searchTeachings($arguments),
                 'ai_discover' => $this->discoveryTools->aiDiscover($arguments),
                 'get_entity' => $this->entityTools->getEntity($arguments),
                 'list_entity_types' => $this->entityTools->listEntityTypes(),
