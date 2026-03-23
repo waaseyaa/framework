@@ -95,6 +95,8 @@ final class EditorialWorkflowService
             ];
         }
 
+        usort($metadata, static fn(array $a, array $b): int => strcmp($a['id'], $b['id']));
+
         return $metadata;
     }
 
