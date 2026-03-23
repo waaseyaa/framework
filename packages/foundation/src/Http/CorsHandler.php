@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Http;
 
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
+
 /**
  * Handles CORS preflight and header resolution.
  *
@@ -13,13 +16,18 @@ namespace Waaseyaa\Foundation\Http;
  */
 final class CorsHandler
 {
+    private readonly LoggerInterface $logger;
+
     /**
      * @param list<string> $allowedOrigins
      */
     public function __construct(
         private readonly array $allowedOrigins = ['http://localhost:3000', 'http://127.0.0.1:3000'],
         private readonly bool $allowDevLocalhostPorts = false,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     /**
      * @return list<string>
@@ -37,8 +45,8 @@ final class CorsHandler
         }
 
         if ($origin !== '') {
-            error_log(sprintf(
-                '[Waaseyaa] CORS: origin "%s" not in allowed list (%s). '
+            $this->logger->warning(sprintf(
+                'CORS: origin "%s" not in allowed list (%s). '
                 . 'If using Nuxt dev server on a non-standard port, update cors_origins in config/waaseyaa.php.',
                 $origin,
                 implode(', ', $this->allowedOrigins),

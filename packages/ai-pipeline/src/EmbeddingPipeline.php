@@ -8,9 +8,13 @@ use Waaseyaa\AI\Vector\EmbeddingProviderFactory;
 use Waaseyaa\AI\Vector\EmbeddingProviderInterface;
 use Waaseyaa\AI\Vector\EmbeddingStorageInterface;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 
 final class EmbeddingPipeline
 {
+    private readonly LoggerInterface $logger;
+
     /**
      * @param array<string, mixed> $config
      */
@@ -18,7 +22,10 @@ final class EmbeddingPipeline
         private readonly EmbeddingStorageInterface $storage,
         private readonly array $config = [],
         private readonly ?EmbeddingProviderInterface $provider = null,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function processEntity(EntityInterface $entity): void
     {
@@ -29,7 +36,7 @@ final class EmbeddingPipeline
 
         $provider = $this->provider ?? $this->resolveProvider();
         if ($provider === null) {
-            error_log('[Waaseyaa] EmbeddingPipeline: no embedding provider configured; skipping.');
+            $this->logger->info('EmbeddingPipeline: no embedding provider configured; skipping.');
             return;
         }
 

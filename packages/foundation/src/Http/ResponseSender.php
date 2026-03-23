@@ -4,8 +4,23 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Http;
 
+use Waaseyaa\Foundation\Log\ErrorLogHandler;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+
 final class ResponseSender
 {
+    private static ?LoggerInterface $logger = null;
+
+    public static function setLogger(LoggerInterface $logger): void
+    {
+        self::$logger = $logger;
+    }
+
+    private static function logger(): LoggerInterface
+    {
+        return self::$logger ??= new ErrorLogHandler();
+    }
+
     /**
      * Send a JSON:API response and terminate.
      *
@@ -25,7 +40,7 @@ final class ResponseSender
         try {
             echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
         } catch (\JsonException $e) {
-            error_log(sprintf('[Waaseyaa] JSON encoding failed in sendJson: %s', $e->getMessage()));
+            self::logger()->error(sprintf('JSON encoding failed in sendJson: %s', $e->getMessage()));
             echo '{"jsonapi":{"version":"1.1"},"errors":[{"status":"500","title":"Internal Server Error","detail":"Response encoding failed."}]}';
         }
         exit;

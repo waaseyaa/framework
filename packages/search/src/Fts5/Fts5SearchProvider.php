@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\Search\Fts5;
 
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Search\FacetBucket;
 use Waaseyaa\Search\SearchFacet;
 use Waaseyaa\Search\SearchFilters;
@@ -17,11 +19,15 @@ use Waaseyaa\Search\SearchResult;
 final class Fts5SearchProvider implements SearchProviderInterface
 {
     private const ALLOWED_SORT_COLUMNS = ['created_at', 'quality_score', 'entity_type', 'content_type'];
+    private readonly LoggerInterface $logger;
 
     public function __construct(
         private readonly DatabaseInterface $database,
         private readonly SearchIndexerInterface $indexer,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function search(SearchRequest $request): SearchResult
     {
@@ -99,7 +105,7 @@ final class Fts5SearchProvider implements SearchProviderInterface
         }
 
         if ($staleDetected) {
-            error_log('Search index contains stale documents. Run search:reindex to rebuild.');
+            $this->logger->warning('Search index contains stale documents. Run search:reindex to rebuild.');
         }
 
         // Facets — run on the full filtered result set (not just the page)

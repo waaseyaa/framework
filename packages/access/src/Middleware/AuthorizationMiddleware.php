@@ -12,6 +12,8 @@ use Symfony\Component\Routing\Route;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\ErrorPageRendererInterface;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\Access\AccessChecker;
@@ -19,10 +21,15 @@ use Waaseyaa\Access\AccessChecker;
 #[AsMiddleware(pipeline: 'http', priority: 10)]
 final class AuthorizationMiddleware implements HttpMiddlewareInterface
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly AccessChecker $accessChecker,
         private readonly ?ErrorPageRendererInterface $errorPageRenderer = null,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function process(Request $request, HttpHandlerInterface $next): Response
     {
@@ -36,7 +43,7 @@ final class AuthorizationMiddleware implements HttpMiddlewareInterface
         $isRenderRoute = $this->isRenderRoute($route);
 
         if (!$account instanceof AccountInterface) {
-            error_log('[Waaseyaa] AuthorizationMiddleware: _account not set or invalid; denying access.');
+            $this->logger->warning('AuthorizationMiddleware: _account not set or invalid; denying access.');
 
             if ($isRenderRoute) {
                 return $this->renderError(403, 'Forbidden', 'No authenticated account available.', $request);

@@ -20,6 +20,8 @@ use Waaseyaa\Foundation\Diagnostic\DiagnosticCode;
 use Waaseyaa\Foundation\Diagnostic\DiagnosticEmitter;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
+use Waaseyaa\Foundation\Log\ErrorLogHandler;
+use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Migration\MigrationLoader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
@@ -49,10 +51,14 @@ abstract class AbstractKernel
 
     private ?KnowledgeToolingExtensionRunner $knowledgeExtensionRunner = null;
     private bool $booted = false;
+    protected readonly LoggerInterface $logger;
 
     public function __construct(
         protected readonly string $projectRoot,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new ErrorLogHandler();
+    }
 
     /**
      * Boot the kernel. Idempotent — safe to call multiple times.
@@ -148,13 +154,13 @@ abstract class AbstractKernel
         // Instantiate providers from manifest
         foreach ($this->manifest->providers as $providerClass) {
             if (!class_exists($providerClass)) {
-                error_log(sprintf('[Waaseyaa] Provider class not found: %s', $providerClass));
+                $this->logger->warning(sprintf('Provider class not found: %s', $providerClass));
                 continue;
             }
 
             $provider = new $providerClass();
             if (!$provider instanceof ServiceProvider) {
-                error_log(sprintf('[Waaseyaa] Class %s is not a ServiceProvider', $providerClass));
+                $this->logger->warning(sprintf('Class %s is not a ServiceProvider', $providerClass));
                 continue;
             }
 
@@ -192,8 +198,8 @@ abstract class AbstractKernel
                 try {
                     $this->entityTypeManager->registerEntityType($entityType);
                 } catch (\RuntimeException | \InvalidArgumentException $e) {
-                    error_log(sprintf(
-                        '[Waaseyaa] Failed to register entity type "%s" from %s: %s',
+                    $this->logger->error(sprintf(
+                        'Failed to register entity type "%s" from %s: %s',
                         $entityType->id(),
                         $provider::class,
                         $e->getMessage(),
@@ -210,8 +216,8 @@ abstract class AbstractKernel
 
         foreach ($types as $index => $typeData) {
             if (!$typeData instanceof \Waaseyaa\Entity\EntityTypeInterface) {
-                error_log(sprintf(
-                    '[Waaseyaa] config/entity-types.php item at index %s is not an EntityTypeInterface (got %s).',
+                $this->logger->warning(sprintf(
+                    'config/entity-types.php item at index %s is not an EntityTypeInterface (got %s).',
                     $index,
                     get_debug_type($typeData),
                 ));
@@ -221,8 +227,8 @@ abstract class AbstractKernel
             try {
                 $this->entityTypeManager->registerEntityType($typeData);
             } catch (\RuntimeException | \InvalidArgumentException $e) {
-                error_log(sprintf(
-                    '[Waaseyaa] Failed to register app entity type "%s": %s',
+                $this->logger->error(sprintf(
+                    'Failed to register app entity type "%s": %s',
                     $typeData->id(),
                     $e->getMessage(),
                 ));
@@ -281,8 +287,8 @@ abstract class AbstractKernel
         $policies = [];
         foreach ($this->manifest->policies as $class => $entityTypes) {
             if (!class_exists($class)) {
-                error_log(sprintf(
-                    '[Waaseyaa] Access policy class not found: %s (covering entity types: %s). '
+                $this->logger->warning(sprintf(
+                    'Access policy class not found: %s (covering entity types: %s). '
                     . 'Run "composer dump-autoload --optimize" to update the classmap.',
                     $class,
                     implode(', ', $entityTypes),
@@ -301,8 +307,8 @@ abstract class AbstractKernel
                     $policies[] = new $class();
                 }
             } catch (\Throwable $e) {
-                error_log(sprintf(
-                    '[Waaseyaa] Failed to instantiate access policy %s: %s',
+                $this->logger->error(sprintf(
+                    'Failed to instantiate access policy %s: %s',
                     $class,
                     $e->getMessage(),
                 ));
@@ -360,7 +366,7 @@ abstract class AbstractKernel
             $manager = new DefaultPluginManager($discovery);
             $this->knowledgeExtensionRunner = KnowledgeToolingExtensionRunner::fromPluginManager($manager);
         } catch (\Throwable $e) {
-            error_log(sprintf('[Waaseyaa] Failed to boot knowledge extension runner: %s', $e->getMessage()));
+            $this->logger->warning(sprintf('Failed to boot knowledge extension runner: %s', $e->getMessage()));
             $this->knowledgeExtensionRunner = new KnowledgeToolingExtensionRunner([]);
         }
     }

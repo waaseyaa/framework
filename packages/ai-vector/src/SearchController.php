@@ -11,6 +11,8 @@ use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Workflows\WorkflowVisibility;
 
 final class SearchController
@@ -22,6 +24,8 @@ final class SearchController
     private const float DEFAULT_SEMANTIC_WEIGHT = 1.0;
     private const float DEFAULT_GRAPH_WEIGHT = 0.001;
 
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly ResourceSerializer $serializer,
@@ -30,7 +34,10 @@ final class SearchController
         private readonly ?EntityAccessHandler $accessHandler = null,
         private readonly ?AccountInterface $account = null,
         private readonly WorkflowVisibility $workflowVisibility = new WorkflowVisibility(),
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function search(string $query, string $entityTypeId, int $limit = 10): JsonApiDocument
     {
@@ -258,8 +265,8 @@ final class SearchController
         try {
             $queryVector = $this->embeddingProvider?->embed($query) ?? [];
         } catch (\Throwable $exception) {
-            error_log(sprintf(
-                '[Waaseyaa] Semantic search provider error; falling back to keyword mode: %s',
+            $this->logger->warning(sprintf(
+                'Semantic search provider error; falling back to keyword mode: %s',
                 $exception->getMessage(),
             ));
             return ['ids' => [], 'scores' => [], 'fallback_reason' => 'embedding_provider_error'];

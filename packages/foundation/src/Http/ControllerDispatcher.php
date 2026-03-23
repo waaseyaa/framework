@@ -14,6 +14,8 @@ use Waaseyaa\AI\Vector\SearchController;
 use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\Api\Controller\BroadcastController;
 use Waaseyaa\Api\Controller\BroadcastStorage;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Api\Controller\SchemaController;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Api\JsonApiController;
@@ -41,6 +43,8 @@ use Waaseyaa\User\Http\AuthController;
  */
 final class ControllerDispatcher
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
         private readonly \Waaseyaa\Database\DatabaseInterface $database,
@@ -54,7 +58,10 @@ final class ControllerDispatcher
         private readonly array $config,
         /** @var array<string, array{args?: array<string, mixed>, resolve?: callable}> */
         private readonly array $graphqlMutationOverrides = [],
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     /**
      * Dispatch the matched route to its controller.
@@ -244,7 +251,7 @@ final class ControllerDispatcher
                         try {
                             $messages = $broadcastStorage->poll($cursor, $channels);
                         } catch (\Throwable $e) {
-                            error_log(sprintf('[Waaseyaa] SSE poll error: %s', $e->getMessage()));
+                            $this->logger->error(sprintf('SSE poll error: %s', $e->getMessage()));
                             echo "event: error\ndata: " . json_encode(['message' => 'Broadcast poll failed'], JSON_THROW_ON_ERROR) . "\n\n";
                             if (ob_get_level() > 0) {
                                 ob_flush();
@@ -260,7 +267,7 @@ final class ControllerDispatcher
                                 $frame = "event: {$msg['event']}\ndata: " . json_encode($msg, JSON_THROW_ON_ERROR) . "\n\n";
                                 echo $frame;
                             } catch (\JsonException $e) {
-                                error_log(sprintf('[Waaseyaa] SSE json_encode error for event %s: %s', $msg['event'] ?? 'unknown', $e->getMessage()));
+                                $this->logger->error(sprintf('SSE json_encode error for event %s: %s', $msg['event'] ?? 'unknown', $e->getMessage()));
                             }
                         }
 
@@ -282,7 +289,7 @@ final class ControllerDispatcher
                             try {
                                 $broadcastStorage->prune(300);
                             } catch (\Throwable $e) {
-                                error_log(sprintf('[Waaseyaa] SSE prune error: %s', $e->getMessage()));
+                                $this->logger->warning(sprintf('SSE prune error: %s', $e->getMessage()));
                             }
                         }
 
@@ -702,12 +709,12 @@ final class ControllerDispatcher
                 })(),
 
                 default => (function () use ($controller): never {
-                    error_log(sprintf('[Waaseyaa] Unknown controller: %s', $controller));
+                    $this->logger->error(sprintf('Unknown controller: %s', $controller));
                     ResponseSender::json(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'Unknown route handler.']]]);
                 })(),
             };
         } catch (\Throwable $e) {
-            error_log(sprintf("[Waaseyaa] Unhandled exception: %s in %s:%d\n%s", $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString()));
+            $this->logger->critical(sprintf("Unhandled exception: %s in %s:%d\n%s", $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString()));
             ResponseSender::json(500, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [[
@@ -816,7 +823,7 @@ final class ControllerDispatcher
         try {
             $uploadedFile->move($targetDir, basename($relativePath));
         } catch (\Throwable $e) {
-            error_log(sprintf('[Waaseyaa] Upload move failed: %s', $e->getMessage()));
+            $this->logger->error(sprintf('Upload move failed: %s', $e->getMessage()));
             ResponseSender::json(500, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [[

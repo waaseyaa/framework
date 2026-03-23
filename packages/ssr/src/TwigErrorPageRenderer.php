@@ -8,12 +8,19 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Twig\Environment;
 use Waaseyaa\Access\ErrorPageRendererInterface;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 
 final class TwigErrorPageRenderer implements ErrorPageRendererInterface
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly Environment $twig,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function render(int $statusCode, string $title, string $detail, Request $request): ?Response
     {
@@ -31,7 +38,7 @@ final class TwigErrorPageRenderer implements ErrorPageRendererInterface
                 'request_path' => $request->getPathInfo(),
             ]);
         } catch (\Throwable $e) {
-            error_log(sprintf('[Waaseyaa] TwigErrorPageRenderer failed for %s: %s', $template, $e->getMessage()));
+            $this->logger->error(sprintf('TwigErrorPageRenderer failed for %s: %s', $template, $e->getMessage()));
 
             return null;
         }

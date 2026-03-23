@@ -7,6 +7,8 @@ namespace Waaseyaa\GraphQL\Schema;
 use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 
 /**
  * Maps Waaseyaa field types to GraphQL scalar/object types.
@@ -15,9 +17,15 @@ use GraphQL\Type\Definition\Type;
  */
 final class FieldTypeMapper
 {
+    private readonly LoggerInterface $logger;
     private ?ObjectType $textType = null;
     private ?InputObjectType $textInputType = null;
     private ?InputObjectType $entityReferenceInputType = null;
+
+    public function __construct(?LoggerInterface $logger = null)
+    {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function toOutputType(string $fieldType, bool $isMultiple): Type
     {
@@ -30,7 +38,7 @@ final class FieldTypeMapper
             'text', 'text_long' => $this->getTextType(),
             default => (function () use ($fieldType, &$known): Type {
                 $known = false;
-                error_log("GraphQL: unknown field type '{$fieldType}', falling back to String");
+                $this->logger->warning(sprintf('GraphQL: unknown field type "%s", falling back to String', $fieldType));
 
                 return Type::string();
             })(),

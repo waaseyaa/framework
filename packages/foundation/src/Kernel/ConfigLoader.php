@@ -4,8 +4,23 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Kernel;
 
+use Waaseyaa\Foundation\Log\ErrorLogHandler;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+
 final class ConfigLoader
 {
+    private static ?LoggerInterface $logger = null;
+
+    public static function setLogger(LoggerInterface $logger): void
+    {
+        self::$logger = $logger;
+    }
+
+    private static function logger(): LoggerInterface
+    {
+        return self::$logger ??= new ErrorLogHandler();
+    }
+
     /**
      * Load configuration from a PHP file that returns an array.
      *
@@ -31,8 +46,8 @@ final class ConfigLoader
         }
 
         if (!is_array($data)) {
-            error_log(sprintf(
-                '[Waaseyaa] Config file %s did not return an array (got %s), treating as empty.',
+            self::logger()->warning(sprintf(
+                'Config file %s did not return an array (got %s), treating as empty.',
                 $path,
                 get_debug_type($data),
             ));

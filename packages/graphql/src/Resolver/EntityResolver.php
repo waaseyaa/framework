@@ -12,6 +12,8 @@ use Waaseyaa\Api\Query\QuerySort;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\FieldableInterface;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\GraphQL\Access\GraphQlAccessGuard;
 
 /**
@@ -25,10 +27,15 @@ final class EntityResolver
     private const DEFAULT_LIMIT = 50;
     private const MAX_LIMIT = 100;
 
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly GraphQlAccessGuard $guard,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     /**
      * Resolve a list query with filter, sort, and pagination.
@@ -98,7 +105,7 @@ final class EntityResolver
             return null;
         }
         if (!$this->guard->canView($entity)) {
-            error_log("GraphQL: view access denied for {$entityTypeId}/{$id}");
+            $this->logger->info(sprintf('GraphQL: view access denied for %s/%s', $entityTypeId, (string) $id));
 
             return null;
         }

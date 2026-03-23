@@ -6,6 +6,8 @@ namespace Waaseyaa\Foundation\Kernel;
 
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\AI\Vector\EmbeddingProviderFactory;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\AI\Vector\EntityEmbeddingCleanupListener;
 use Waaseyaa\AI\Vector\EntityEmbeddingListener;
 use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
@@ -24,13 +26,19 @@ use Waaseyaa\SSR\RenderCache;
  */
 final class EventListenerRegistrar
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly EventDispatcherInterface $dispatcher,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function registerBroadcastListeners(BroadcastStorage $broadcastStorage): void
     {
-        $this->dispatcher->addListener('waaseyaa.entity.post_save', function (object $event) use ($broadcastStorage): void {
+        $logger = $this->logger;
+        $this->dispatcher->addListener('waaseyaa.entity.post_save', static function (object $event) use ($broadcastStorage, $logger): void {
             try {
                 $entity = $event->entity;
                 $broadcastStorage->push(
@@ -39,11 +47,11 @@ final class EventListenerRegistrar
                     ['entityType' => $entity->getEntityTypeId(), 'id' => (string) ($entity->uuid() ?: $entity->id())],
                 );
             } catch (\Throwable $e) {
-                error_log(sprintf('[Waaseyaa] Failed to broadcast entity.saved: %s', $e->getMessage()));
+                $logger->warning(sprintf('Failed to broadcast entity.saved: %s', $e->getMessage()));
             }
         });
 
-        $this->dispatcher->addListener('waaseyaa.entity.post_delete', function (object $event) use ($broadcastStorage): void {
+        $this->dispatcher->addListener('waaseyaa.entity.post_delete', static function (object $event) use ($broadcastStorage, $logger): void {
             try {
                 $entity = $event->entity;
                 $broadcastStorage->push(
@@ -52,7 +60,7 @@ final class EventListenerRegistrar
                     ['entityType' => $entity->getEntityTypeId(), 'id' => (string) ($entity->uuid() ?: $entity->id())],
                 );
             } catch (\Throwable $e) {
-                error_log(sprintf('[Waaseyaa] Failed to broadcast entity.deleted: %s', $e->getMessage()));
+                $logger->warning(sprintf('Failed to broadcast entity.deleted: %s', $e->getMessage()));
             }
         });
     }
@@ -83,7 +91,8 @@ final class EventListenerRegistrar
 
     public function registerDiscoveryCacheListeners(CacheBackendInterface $cache): void
     {
-        $invalidate = static function (EntityEvent $event) use ($cache): void {
+        $logger = $this->logger;
+        $invalidate = static function (EntityEvent $event) use ($cache, $logger): void {
             try {
                 if ($cache instanceof TagAwareCacheInterface) {
                     $entityType = strtolower($event->entity->getEntityTypeId());
@@ -107,7 +116,7 @@ final class EventListenerRegistrar
 
                 $cache->deleteAll();
             } catch (\Throwable $e) {
-                error_log(sprintf('[Waaseyaa] Failed to clear discovery cache: %s', $e->getMessage()));
+                $logger->warning(sprintf('Failed to clear discovery cache: %s', $e->getMessage()));
             }
         };
 
@@ -121,7 +130,8 @@ final class EventListenerRegistrar
 
     public function registerMcpReadCacheListeners(CacheBackendInterface $cache): void
     {
-        $invalidate = static function (EntityEvent $event) use ($cache): void {
+        $logger = $this->logger;
+        $invalidate = static function (EntityEvent $event) use ($cache, $logger): void {
             try {
                 if ($cache instanceof TagAwareCacheInterface) {
                     $entityType = strtolower($event->entity->getEntityTypeId());
@@ -139,7 +149,7 @@ final class EventListenerRegistrar
 
                 $cache->deleteAll();
             } catch (\Throwable $e) {
-                error_log(sprintf('[Waaseyaa] Failed to clear MCP read cache: %s', $e->getMessage()));
+                $logger->warning(sprintf('Failed to clear MCP read cache: %s', $e->getMessage()));
             }
         };
 

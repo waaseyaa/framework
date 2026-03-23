@@ -11,6 +11,8 @@ use GraphQL\Validator\Rules\DisableIntrospection;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\GraphQL\Access\GraphQlAccessGuard;
 use Waaseyaa\GraphQL\Resolver\EntityResolver;
 use Waaseyaa\GraphQL\Resolver\ReferenceLoader;
@@ -26,13 +28,17 @@ final class GraphQlEndpoint
 {
     /** @var array<string, array{args?: array<string, mixed>, resolve?: callable}> */
     private array $mutationOverrides = [];
+    private readonly LoggerInterface $logger;
 
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly EntityAccessHandler $accessHandler,
         private readonly AccountInterface $account,
         private readonly int $maxDepth = 3,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     /**
      * Register mutation overrides (extra args, custom resolvers).
@@ -120,7 +126,7 @@ final class GraphQlEndpoint
                 'body' => $result->toArray(DebugFlag::NONE),
             ];
         } catch (\Exception $e) {
-            error_log('GraphQL execution error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+            $this->logger->error('GraphQL execution error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
 
             return [
                 'statusCode' => 500,

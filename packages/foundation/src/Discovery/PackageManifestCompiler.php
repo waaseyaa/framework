@@ -8,16 +8,23 @@ use Waaseyaa\Foundation\Attribute\AsEntityType;
 use Waaseyaa\Foundation\Attribute\AsFieldType;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Event\Attribute\Listener;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 
 final class PackageManifestCompiler
 {
     private const POLICY_ATTRIBUTE = 'Waaseyaa\\Access\\Gate\\PolicyAttribute';
     private const FORMATTER_ATTRIBUTE = 'Waaseyaa\\SSR\\Attribute\\AsFormatter';
 
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly string $basePath,
         private readonly string $storagePath,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     /**
      * Compile the package manifest from composer metadata and attribute scanning.
@@ -93,7 +100,7 @@ final class PackageManifestCompiler
                     }
                 }
             } catch (\Throwable $e) {
-                error_log(sprintf('[Waaseyaa] Failed to read root composer.json: %s', $e->getMessage()));
+                $this->logger->warning(sprintf('Failed to read root composer.json: %s', $e->getMessage()));
             }
         }
 
@@ -273,8 +280,8 @@ final class PackageManifestCompiler
 
         if ($candidates === []) {
             // No classmap entries and no app classes — full PSR-4 fallback.
-            error_log(
-                '[Waaseyaa] PackageManifestCompiler: no discoverable classes found. '
+            $this->logger->warning(
+                'PackageManifestCompiler: no discoverable classes found. '
                 . 'Falling back to full PSR-4 directory scanning. '
                 . 'Run "composer dump-autoload --optimize" for faster, reliable discovery.',
             );
@@ -377,8 +384,8 @@ final class PackageManifestCompiler
         try {
             $psr4Map = require $psr4Path;
         } catch (\Throwable $e) {
-            error_log(
-                '[Waaseyaa] PackageManifestCompiler: failed to load PSR-4 map: ' . $e->getMessage(),
+            $this->logger->error(
+                'PackageManifestCompiler: failed to load PSR-4 map: ' . $e->getMessage(),
             );
             return [];
         }

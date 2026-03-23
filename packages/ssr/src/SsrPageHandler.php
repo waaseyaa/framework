@@ -19,6 +19,8 @@ use Waaseyaa\Relationship\RelationshipTraversalService;
 use Waaseyaa\Routing\Language\AcceptHeaderNegotiator;
 use Waaseyaa\Routing\Language\LanguageNegotiator;
 use Waaseyaa\Routing\Language\UrlPrefixNegotiator;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Workflows\EditorialVisibilityResolver;
 
 /**
@@ -33,6 +35,8 @@ final class SsrPageHandler
     private const string DISCOVERY_CONTRACT_VERSION = 'v1.0';
     private const string DISCOVERY_CONTRACT_STABILITY = 'stable';
 
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
         private readonly DatabaseInterface $database,
@@ -45,7 +49,10 @@ final class SsrPageHandler
         private readonly ?object $manifest = null,
         /** @var (\Closure(string): ?object)|null */
         private readonly ?\Closure $serviceResolver = null,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     /**
      * Render a page for the given path.
@@ -69,7 +76,7 @@ final class SsrPageHandler
             try {
                 $twig = SsrServiceProvider::createTwigEnvironment($this->projectRoot, $this->config);
             } catch (\Throwable $e) {
-                error_log(sprintf('[Waaseyaa] Twig environment initialization failed: %s', $e->getMessage()));
+                $this->logger->error(sprintf('Twig environment initialization failed: %s', $e->getMessage()));
                 return $this->jsonResult(500, [
                     'jsonapi' => ['version' => '1.1'],
                     'errors' => [[
@@ -215,7 +222,7 @@ final class SsrPageHandler
             $headers['Cache-Control'] = $cacheControlHeader;
             return $this->htmlResult($response->statusCode, $response->content, $headers);
         } catch (\Throwable $e) {
-            error_log(sprintf('[Waaseyaa] Render pipeline failed: %s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine()));
+            $this->logger->error(sprintf('Render pipeline failed: %s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine()));
             return $this->jsonResult(500, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [[
@@ -261,8 +268,8 @@ final class SsrPageHandler
             $isRenderRoute = $route instanceof \Symfony\Component\Routing\Route
                 && $route->getOption('_render') === true;
             if (!$isRenderRoute) {
-                error_log(sprintf(
-                    '[Waaseyaa] Controller %s::%s returned SsrResponse on a non-render route. '
+                $this->logger->warning(sprintf(
+                    'Controller %s::%s returned SsrResponse on a non-render route. '
                     . 'Add ->render() to the RouteBuilder chain to fix SSR dispatch.',
                     $class,
                     $method,
@@ -445,7 +452,7 @@ final class SsrPageHandler
             ];
         } catch (\Throwable $e) {
             // Relationship navigation is additive and should not break render paths.
-            error_log(sprintf('[Waaseyaa] Relationship render context failed: %s', $e->getMessage()));
+            $this->logger->warning(sprintf('Relationship render context failed: %s', $e->getMessage()));
             return [];
         }
     }
