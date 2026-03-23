@@ -154,17 +154,16 @@ final class AiMcpIntegrationTest extends TestCase
         $manifest = $mcp->manifest();
         $toolNames = array_column($manifest['tools'], 'name');
         $this->assertContains('search_entities', $toolNames);
-        $this->assertContains('search_teachings', $toolNames);
         $this->assertContains('get_entity', $toolNames);
         $this->assertContains('list_entity_types', $toolNames);
 
-        // 6) MCP tool call search_teachings returns JSON:API list.
+        // 6) MCP tool call search_entities returns JSON:API list.
         $searchRpc = $mcp->handleRpc([
             'jsonrpc' => '2.0',
             'id' => 1,
             'method' => 'tools/call',
             'params' => [
-                'name' => 'search_teachings',
+                'name' => 'search_entities',
                 'arguments' => ['query' => 'teaching A', 'type' => 'node', 'limit' => 5],
             ],
         ]);

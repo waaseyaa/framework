@@ -59,7 +59,7 @@ final class ResponseFormatter
 
     public function canonicalToolName(string $tool): string
     {
-        return $tool === 'search_teachings' ? 'search_entities' : $tool;
+        return $tool;
     }
 
     /**

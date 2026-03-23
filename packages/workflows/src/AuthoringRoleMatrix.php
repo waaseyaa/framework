@@ -4,66 +4,65 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Workflows;
 
+/**
+ * Configurable authoring role matrix.
+ *
+ * Generates bundle-scoped permission sets from role definitions.
+ * Applications define their own roles and permission templates;
+ * the framework handles bundle expansion.
+ *
+ * Permission templates use `{bundle}` as a placeholder that gets
+ * expanded for each bundle in the matrix.
+ *
+ * Example role definition:
+ *   [
+ *       'label' => 'Contributor',
+ *       'permissions' => ['access content'],
+ *       'bundle_permissions' => [
+ *           'create {bundle} content',
+ *           'edit own {bundle} content',
+ *       ],
+ *   ]
+ */
 final class AuthoringRoleMatrix
 {
     /**
-     * @param list<string> $coreBundles
+     * @param list<string> $bundles Content bundles to expand permissions for
+     * @param array<string, array{label: string, permissions?: list<string>, bundle_permissions?: list<string>}> $roles
+     *   Role definitions keyed by role ID. Each role has:
+     *   - label: Human-readable name
+     *   - permissions: (optional) Static permissions not scoped to bundles
+     *   - bundle_permissions: (optional) Templates with {bundle} placeholder
      */
     public function __construct(
-        private readonly array $coreBundles,
+        private readonly array $bundles,
+        private readonly array $roles,
     ) {}
 
     /**
-     * @return array<string, array<string, mixed>>
+     * @return array<string, array{label: string, permissions: list<string>}>
      */
     public function matrix(): array
     {
-        $contributorPermissions = ['access content', 'view own unpublished content'];
-        foreach ($this->coreBundles as $bundle) {
-            $contributorPermissions[] = "create {$bundle} content";
-            $contributorPermissions[] = "edit own {$bundle} content";
-            $contributorPermissions[] = "delete own {$bundle} content";
-            $contributorPermissions[] = "submit {$bundle} for review";
+        $matrix = [];
+
+        foreach ($this->roles as $roleId => $definition) {
+            $permissions = $definition['permissions'] ?? [];
+            $bundleTemplates = $definition['bundle_permissions'] ?? [];
+
+            foreach ($this->bundles as $bundle) {
+                foreach ($bundleTemplates as $template) {
+                    $permissions[] = str_replace('{bundle}', $bundle, $template);
+                }
+            }
+
+            $matrix[$roleId] = [
+                'label' => $definition['label'],
+                'permissions' => array_values(array_unique($permissions)),
+            ];
         }
 
-        $editorPermissions = $contributorPermissions;
-        foreach ($this->coreBundles as $bundle) {
-            $editorPermissions[] = "edit any {$bundle} content";
-            $editorPermissions[] = "delete any {$bundle} content";
-            $editorPermissions[] = "publish {$bundle} content";
-            $editorPermissions[] = "return {$bundle} to draft";
-            $editorPermissions[] = "revert {$bundle} to draft";
-            $editorPermissions[] = "archive {$bundle} content";
-            $editorPermissions[] = "restore {$bundle} content";
-        }
-        array_push($editorPermissions, 'create relationship content', 'edit any relationship content', 'delete any relationship content');
-
-        $reviewerPermissions = ['access content'];
-        foreach ($this->coreBundles as $bundle) {
-            $reviewerPermissions[] = "view {$bundle} moderation queue";
-            $reviewerPermissions[] = "publish {$bundle} content";
-            $reviewerPermissions[] = "return {$bundle} to draft";
-            $reviewerPermissions[] = "revert {$bundle} to draft";
-        }
-
-        return [
-            'contributor' => [
-                'label' => 'Contributor',
-                'permissions' => array_values(array_unique($contributorPermissions)),
-            ],
-            'editor' => [
-                'label' => 'Editor',
-                'permissions' => array_values(array_unique($editorPermissions)),
-            ],
-            'reviewer' => [
-                'label' => 'Reviewer',
-                'permissions' => array_values(array_unique($reviewerPermissions)),
-            ],
-            'administrator' => [
-                'label' => 'Administrator',
-                'permissions' => ['administer nodes'],
-            ],
-        ];
+        return $matrix;
     }
 
     /**

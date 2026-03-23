@@ -46,7 +46,6 @@ final class ReadCache
     {
         return in_array($tool, [
             'search_entities',
-            'search_teachings',
             'ai_discover',
             'traverse_relationships',
             'get_related_entities',

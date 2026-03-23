@@ -22,17 +22,6 @@ use Waaseyaa\Workflows\WorkflowVisibility;
 final class DiscoveryToolsTest extends TestCase
 {
     #[Test]
-    public function searchTeachingsAddsDeprecatedAliasMeta(): void
-    {
-        $tools = $this->createDiscoveryTools();
-
-        $result = $tools->searchTeachings(['query' => 'test']);
-
-        self::assertSame('search_teachings', $result['meta']['deprecated_alias']);
-        self::assertSame('search_entities', $result['meta']['tool']);
-    }
-
-    #[Test]
     public function searchEntitiesSetsToolMeta(): void
     {
         $tools = $this->createDiscoveryTools();

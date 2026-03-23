@@ -31,7 +31,7 @@ final class IngestRunCommand extends Command
         $this
             ->addOption('input', 'i', InputOption::VALUE_REQUIRED, 'Input file path (.json, .txt, .md)')
             ->addOption('format', 'f', InputOption::VALUE_REQUIRED, 'Input format: auto|structured|unstructured', 'auto')
-            ->addOption('default-bundle', null, InputOption::VALUE_REQUIRED, 'Default bundle for mapped nodes', 'teaching')
+            ->addOption('default-bundle', null, InputOption::VALUE_REQUIRED, 'Default bundle for mapped nodes', 'node')
             ->addOption('default-workflow-state', null, InputOption::VALUE_REQUIRED, 'Default workflow state', 'draft')
             ->addOption('author-id', null, InputOption::VALUE_REQUIRED, 'Mapped author UID', '1')
             ->addOption('timestamp', null, InputOption::VALUE_REQUIRED, 'Deterministic ingest timestamp', '1735689600')

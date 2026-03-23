@@ -62,28 +62,12 @@ final class ResponseFormatterTest extends TestCase
     }
 
     #[Test]
-    public function withStableContractMetaResolvesDeprecatedAlias(): void
-    {
-        $result = ['data' => 'test'];
-        $enriched = $this->formatter->withStableContractMeta($result, 'search_teachings');
-
-        self::assertSame('search_teachings', $enriched['meta']['tool_invoked']);
-        self::assertSame('search_entities', $enriched['meta']['tool']);
-    }
-
-    #[Test]
     public function withStableContractMetaPreservesExistingToolMeta(): void
     {
         $result = ['meta' => ['tool' => 'custom_tool']];
         $enriched = $this->formatter->withStableContractMeta($result, 'get_entity');
 
         self::assertSame('custom_tool', $enriched['meta']['tool']);
-    }
-
-    #[Test]
-    public function canonicalToolNameResolvesDeprecatedAlias(): void
-    {
-        self::assertSame('search_entities', $this->formatter->canonicalToolName('search_teachings'));
     }
 
     #[Test]
