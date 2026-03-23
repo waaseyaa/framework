@@ -5,61 +5,35 @@ declare(strict_types=1);
 namespace Waaseyaa\AI\Agent\Tests\Unit;
 
 use Waaseyaa\AI\Agent\McpServer;
-use Waaseyaa\AI\Schema\EntityJsonSchemaGenerator;
+use Waaseyaa\AI\Agent\ToolRegistry;
 use Waaseyaa\AI\Schema\Mcp\McpToolDefinition;
-use Waaseyaa\AI\Schema\Mcp\McpToolExecutor;
-use Waaseyaa\AI\Schema\Mcp\McpToolGenerator;
-use Waaseyaa\AI\Schema\SchemaRegistry;
-use Waaseyaa\Entity\EntityTypeInterface;
-use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(McpServer::class)]
 final class McpServerTest extends TestCase
 {
-    private EntityTypeManagerInterface&\PHPUnit\Framework\MockObject\MockObject $entityTypeManager;
-    private McpServer $server;
-
-    protected function setUp(): void
-    {
-        $this->entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
-
-        $schemaGenerator = new EntityJsonSchemaGenerator($this->entityTypeManager);
-        $toolGenerator = new McpToolGenerator($this->entityTypeManager);
-        $registry = new SchemaRegistry($schemaGenerator, $toolGenerator);
-
-        $executor = new McpToolExecutor($this->entityTypeManager);
-        $this->server = new McpServer($registry, $executor);
-    }
-
     public function testListToolsReturnsToolsFromRegistry(): void
     {
-        $nodeType = $this->createMock(EntityTypeInterface::class);
-        $nodeType->method('getLabel')->willReturn('Node');
+        $registry = new ToolRegistry();
+        $registry->register(
+            new McpToolDefinition(name: 'create_node', description: 'Create a node', inputSchema: ['type' => 'object']),
+            fn (array $args) => ['content' => [['type' => 'text', 'text' => 'created']]],
+        );
+        $registry->register(
+            new McpToolDefinition(name: 'read_node', description: 'Read a node', inputSchema: ['type' => 'object']),
+            fn (array $args) => ['content' => [['type' => 'text', 'text' => 'read']]],
+        );
 
-        $this->entityTypeManager
-            ->method('getDefinitions')
-            ->willReturn(['node' => $nodeType]);
-
-        $this->entityTypeManager
-            ->method('getDefinition')
-            ->with('node')
-            ->willReturn($nodeType);
-
-        $result = $this->server->listTools();
+        $server = new McpServer($registry);
+        $result = $server->listTools();
 
         self::assertArrayHasKey('tools', $result);
-        // 5 tools per entity type: create, read, update, delete, query
-        self::assertCount(5, $result['tools']);
+        self::assertCount(2, $result['tools']);
 
         $toolNames = array_column($result['tools'], 'name');
         self::assertContains('create_node', $toolNames);
         self::assertContains('read_node', $toolNames);
-        self::assertContains('update_node', $toolNames);
-        self::assertContains('delete_node', $toolNames);
-        self::assertContains('query_node', $toolNames);
 
         // Each tool should have name, description, and inputSchema
         foreach ($result['tools'] as $tool) {
@@ -71,49 +45,28 @@ final class McpServerTest extends TestCase
 
     public function testListToolsEmptyRegistry(): void
     {
-        $this->entityTypeManager
-            ->method('getDefinitions')
-            ->willReturn([]);
+        $registry = new ToolRegistry();
+        $server = new McpServer($registry);
 
-        $result = $this->server->listTools();
+        $result = $server->listTools();
 
         self::assertSame(['tools' => []], $result);
     }
 
-    public function testCallToolDelegatesToExecutor(): void
+    public function testCallToolDelegatesToRegistry(): void
     {
-        $nodeType = $this->createMock(EntityTypeInterface::class);
-        $nodeType->method('getLabel')->willReturn('Node');
+        $registry = new ToolRegistry();
+        $registry->register(
+            new McpToolDefinition(name: 'create_node', description: 'Create', inputSchema: []),
+            fn (array $args) => [
+                'content' => [['type' => 'text', 'text' => \json_encode(['operation' => 'create', 'entity_type' => 'node'], \JSON_THROW_ON_ERROR)]],
+            ],
+        );
 
-        $this->entityTypeManager
-            ->method('getDefinitions')
-            ->willReturn(['node' => $nodeType]);
-
-        $this->entityTypeManager
-            ->method('getDefinition')
-            ->with('node')
-            ->willReturn($nodeType);
-
-        $this->entityTypeManager
-            ->method('hasDefinition')
-            ->willReturnCallback(fn (string $id) => $id === 'node');
-
-        $entity = $this->createMock(\Waaseyaa\Entity\EntityInterface::class);
-        $entity->method('id')->willReturn('1');
-        $entity->method('toArray')->willReturn(['title' => 'Test']);
-
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->method('create')->willReturn($entity);
-        $storage->method('save')->willReturn(1);
-
-        $this->entityTypeManager
-            ->method('getStorage')
-            ->willReturn($storage);
-
-        $result = $this->server->callTool('create_node', ['attributes' => ['title' => 'Test']]);
+        $server = new McpServer($registry);
+        $result = $server->callTool('create_node', ['attributes' => ['title' => 'Test']]);
 
         self::assertArrayHasKey('content', $result);
-        self::assertArrayNotHasKey('isError', $result);
         self::assertCount(1, $result['content']);
         self::assertSame('text', $result['content'][0]['type']);
 
@@ -124,11 +77,10 @@ final class McpServerTest extends TestCase
 
     public function testCallToolWithUnknownToolReturnsError(): void
     {
-        $this->entityTypeManager
-            ->method('getDefinitions')
-            ->willReturn([]);
+        $registry = new ToolRegistry();
+        $server = new McpServer($registry);
 
-        $result = $this->server->callTool('nonexistent_tool', []);
+        $result = $server->callTool('nonexistent_tool', []);
 
         self::assertTrue($result['isError']);
         self::assertCount(1, $result['content']);
@@ -140,31 +92,14 @@ final class McpServerTest extends TestCase
 
     public function testCallToolWithExecutorError(): void
     {
-        $nodeType = $this->createMock(EntityTypeInterface::class);
-        $nodeType->method('getLabel')->willReturn('Node');
+        $registry = new ToolRegistry();
+        $registry->register(
+            new McpToolDefinition(name: 'fail_tool', description: 'Fails', inputSchema: []),
+            fn (array $args) => throw new \RuntimeException('Tool execution failed'),
+        );
 
-        $this->entityTypeManager
-            ->method('getDefinitions')
-            ->willReturn(['node' => $nodeType]);
-
-        $this->entityTypeManager
-            ->method('getDefinition')
-            ->with('node')
-            ->willReturn($nodeType);
-
-        $this->entityTypeManager
-            ->method('hasDefinition')
-            ->willReturnCallback(fn (string $id) => $id === 'node');
-
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->method('load')->willReturn(null);
-
-        $this->entityTypeManager
-            ->method('getStorage')
-            ->willReturn($storage);
-
-        // read_node with ID 999 - entity not found
-        $result = $this->server->callTool('read_node', ['id' => 999]);
+        $server = new McpServer($registry);
+        $result = $server->callTool('fail_tool', []);
 
         self::assertTrue($result['isError']);
     }

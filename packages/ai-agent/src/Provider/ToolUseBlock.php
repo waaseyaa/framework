@@ -1,0 +1,17 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Waaseyaa\AI\Agent\Provider;
+
+final readonly class ToolUseBlock
+{
+    /**
+     * @param array<string, mixed> $input
+     */
+    public function __construct(
+        public string $id,
+        public string $name,
+        public array $input,
+    ) {}
+}
