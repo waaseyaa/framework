@@ -11,6 +11,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Route;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\ErrorPageRendererInterface;
+use Waaseyaa\Access\RedirectValidator;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
@@ -22,13 +23,16 @@ use Waaseyaa\Access\AccessChecker;
 final class AuthorizationMiddleware implements HttpMiddlewareInterface
 {
     private readonly LoggerInterface $logger;
+    private readonly RedirectValidator $redirectValidator;
 
     public function __construct(
         private readonly AccessChecker $accessChecker,
         private readonly ?ErrorPageRendererInterface $errorPageRenderer = null,
         ?LoggerInterface $logger = null,
+        ?RedirectValidator $redirectValidator = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        $this->redirectValidator = $redirectValidator ?? new RedirectValidator();
     }
 
     public function process(Request $request, HttpHandlerInterface $next): Response
@@ -56,14 +60,18 @@ final class AuthorizationMiddleware implements HttpMiddlewareInterface
                     'title' => 'Forbidden',
                     'detail' => 'No authenticated account available.',
                 ]],
-            ], 403, ['Content-Type' => 'application/vnd.api+json']);
+            ], 403, [
+                'Content-Type' => 'application/vnd.api+json',
+                'Cache-Control' => 'no-store',
+            ]);
         }
 
         $result = $this->accessChecker->check($route, $account);
 
         if ($result->isUnauthenticated()) {
             if ($isRenderRoute) {
-                $loginUrl = '/login?redirect=' . urlencode($request->getPathInfo());
+                $redirectTarget = $this->redirectValidator->sanitize($request->getPathInfo());
+                $loginUrl = '/login?redirect=' . urlencode($redirectTarget);
                 return new RedirectResponse($loginUrl, 302);
             }
 
@@ -77,6 +85,7 @@ final class AuthorizationMiddleware implements HttpMiddlewareInterface
             ], 401, [
                 'Content-Type' => 'application/vnd.api+json',
                 'WWW-Authenticate' => 'Bearer realm="Waaseyaa API"',
+                'Cache-Control' => 'no-store',
             ]);
         }
 
@@ -92,7 +101,10 @@ final class AuthorizationMiddleware implements HttpMiddlewareInterface
                     'title' => 'Forbidden',
                     'detail' => $result->reason,
                 ]],
-            ], 403, ['Content-Type' => 'application/vnd.api+json']);
+            ], 403, [
+                'Content-Type' => 'application/vnd.api+json',
+                'Cache-Control' => 'no-store',
+            ]);
         }
 
         return $next->handle($request);
@@ -117,21 +129,32 @@ final class AuthorizationMiddleware implements HttpMiddlewareInterface
 
     private function renderHtmlError(int $statusCode, string $title, string $detail, Request $request): Response
     {
-        $loginLink = $statusCode === 403
-            ? sprintf('<p><a href="/login?redirect=%s">Sign in</a> with a different account.</p>', urlencode($request->getPathInfo()))
-            : '';
+        $esc = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+
+        $loginLink = '';
+        if ($statusCode === 403) {
+            $redirectTarget = $this->redirectValidator->sanitize($request->getPathInfo());
+            $loginHref = $esc('/login?redirect=' . urlencode($redirectTarget));
+            $loginLink = sprintf('<p><a href="%s">Sign in</a> with a different account.</p>', $loginHref);
+        }
+
+        $escapedTitle = $esc($title);
+        $escapedDetail = $esc($detail);
 
         $html = <<<HTML
         <!DOCTYPE html>
         <html lang="en">
         <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{$statusCode} {$title}</title>
+        <title>{$statusCode} {$escapedTitle}</title>
         <style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#111827;color:#F3F4F6}
         .box{text-align:center;max-width:420px;padding:2rem}.code{font-size:4rem;font-weight:700;color:#F59E0B;margin:0}.msg{color:#9CA3AF;margin:1rem 0;line-height:1.6}
         a{color:#F59E0B;text-decoration:none}a:hover{text-decoration:underline}</style></head>
-        <body><div class="box"><p class="code">{$statusCode}</p><h1>{$title}</h1><p class="msg">{$detail}</p>{$loginLink}</div></body></html>
+        <body><div class="box"><p class="code">{$statusCode}</p><h1>{$escapedTitle}</h1><p class="msg">{$escapedDetail}</p>{$loginLink}</div></body></html>
         HTML;
 
-        return new Response($html, $statusCode, ['Content-Type' => 'text/html; charset=UTF-8']);
+        return new Response($html, $statusCode, [
+            'Content-Type' => 'text/html; charset=UTF-8',
+            'Cache-Control' => 'no-store',
+        ]);
     }
 }

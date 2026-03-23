@@ -73,7 +73,12 @@ final class OllamaEmbeddingProvider implements EmbeddingInterface
             throw new \RuntimeException('Failed to call Ollama embeddings endpoint.');
         }
 
-        $decoded = json_decode($raw, true);
+        try {
+            $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            throw new \RuntimeException('Invalid JSON from Ollama embeddings endpoint: ' . $e->getMessage());
+        }
+
         if (!is_array($decoded)) {
             throw new \RuntimeException('Invalid JSON from Ollama embeddings endpoint.');
         }

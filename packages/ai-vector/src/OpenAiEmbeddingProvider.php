@@ -82,7 +82,12 @@ final class OpenAiEmbeddingProvider implements EmbeddingInterface
             throw new \RuntimeException('Failed to call OpenAI embeddings endpoint.');
         }
 
-        $decoded = json_decode($raw, true);
+        try {
+            $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            throw new \RuntimeException('Invalid JSON from OpenAI embeddings endpoint: ' . $e->getMessage());
+        }
+
         if (!is_array($decoded)) {
             throw new \RuntimeException('Invalid JSON from OpenAI embeddings endpoint.');
         }

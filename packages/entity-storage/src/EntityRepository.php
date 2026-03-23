@@ -323,7 +323,11 @@ final class EntityRepository implements EntityRepositoryInterface
 
         // Merge extra data from the _data JSON column back into values.
         if (isset($row['_data'])) {
-            $extra = json_decode((string) $row['_data'], associative: true) ?: [];
+            try {
+                $extra = json_decode((string) $row['_data'], associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
+            } catch (\JsonException) {
+                $extra = [];
+            }
             unset($row['_data']);
             $row = array_merge($row, $extra);
         }
