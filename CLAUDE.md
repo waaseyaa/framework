@@ -35,6 +35,8 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/telescope/*` | — | — |
 | `packages/workflows/*` | — | — |
 | `packages/mail/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md` |
+| `packages/scheduler/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md` |
+| `packages/notification/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md` |
 | `packages/cms/*`, `packages/core/*`, `packages/full/*` | — (metapackages) | — |
 
 | GitHub issues, milestones, new features, roadmap | — | `docs/specs/workflow.md`, `docs/specs/v1.5-verification-gate-contract.md`, `docs/specs/v1.6-verification-gate-contract.md` |
@@ -54,10 +56,10 @@ Use `waaseyaa_search_specs` MCP tool to find specs affected by a change when the
 
 | Layer | Name | Packages |
 |---|---|---|
-| 0 | Foundation | foundation, cache, plugin, typed-data, database-legacy, testing, i18n, queue, state, validation, mail |
+| 0 | Foundation | foundation, cache, plugin, typed-data, database-legacy, testing, i18n, queue, scheduler, state, validation, mail |
 | 1 | Core Data | entity, entity-storage, access, user, config, field |
 | 2 | Content Types | node, taxonomy, media, path, menu, note, relationship |
-| 3 | Services | workflows, search |
+| 3 | Services | workflows, search, notification |
 | 4 | API | api, routing |
 | 5 | AI | ai-schema, ai-agent, ai-pipeline, ai-vector |
 | 6 | Interfaces | cli, admin, admin-surface, graphql, mcp, ssr, telescope |
