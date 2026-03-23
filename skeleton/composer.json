@@ -35,7 +35,8 @@
     },
     "scripts": {
         "post-create-project-cmd": [
-            "chmod +x bin/waaseyaa"
+            "chmod +x bin/waaseyaa",
+            "php bin/post-create-setup.php"
         ]
     },
     "minimum-stability": "dev",
