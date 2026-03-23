@@ -9,6 +9,7 @@ use Waaseyaa\Entity\FieldableInterface;
 
 final class EditorialWorkflowService
 {
+    private readonly Workflow $workflow;
     private readonly EditorialTransitionAccessResolver $transitionAccessResolver;
 
     /**
@@ -16,10 +17,11 @@ final class EditorialWorkflowService
      */
     public function __construct(
         private readonly array $coreBundles,
-        private readonly Workflow $workflow = new Workflow(),
+        ?Workflow $workflow = null,
         ?EditorialTransitionAccessResolver $transitionAccessResolver = null,
         private readonly ?\Closure $clock = null,
     ) {
+        $this->workflow = $workflow ?? EditorialWorkflowPreset::create();
         $this->transitionAccessResolver = $transitionAccessResolver ?? new EditorialTransitionAccessResolver($this->workflow);
     }
 

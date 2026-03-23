@@ -6,9 +6,6 @@ namespace Waaseyaa\Workflows;
 
 final class WorkflowVisibility
 {
-    public function __construct(
-        private readonly Workflow $workflow = new Workflow(),
-    ) {}
 
     /**
      * @param array<string, mixed> $values
@@ -34,7 +31,7 @@ final class WorkflowVisibility
      */
     public function isNodePublic(array $values): bool
     {
-        return $this->nodeState($values) === 'published';
+        return $this->nodeState($values) === EditorialWorkflowPreset::STATE_PUBLISHED;
     }
 
     /**

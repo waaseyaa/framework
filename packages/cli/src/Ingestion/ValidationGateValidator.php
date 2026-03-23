@@ -12,10 +12,14 @@ final class ValidationGateValidator
 {
     private const int MIN_PUBLISHED_BODY_TOKENS = 5;
 
+    private readonly Workflow $workflow;
+
     public function __construct(
-        private readonly Workflow $workflow = new Workflow(),
+        ?Workflow $workflow = null,
         private readonly WorkflowVisibility $visibility = new WorkflowVisibility(),
-    ) {}
+    ) {
+        $this->workflow = $workflow ?? EditorialWorkflowPreset::create();
+    }
 
     /**
      * @param array<string, array<string, mixed>> $nodes
@@ -61,7 +65,7 @@ final class ValidationGateValidator
             }
 
             $nodePublic[$key] = $this->visibility->isNodePublic($node);
-            if ($state === 'published') {
+            if ($state === EditorialWorkflowPreset::STATE_PUBLISHED) {
                 $body = trim((string) ($node['body'] ?? ''));
                 if ($body === '') {
                     $violations[] = [

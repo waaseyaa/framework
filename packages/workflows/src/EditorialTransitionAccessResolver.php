@@ -31,9 +31,13 @@ final class EditorialTransitionAccessResolver
         'restore' => ['editor', 'administrator'],
     ];
 
+    private readonly Workflow $workflow;
+
     public function __construct(
-        private readonly Workflow $workflow = new Workflow(),
-    ) {}
+        ?Workflow $workflow = null,
+    ) {
+        $this->workflow = $workflow ?? EditorialWorkflowPreset::create();
+    }
 
     /**
      * @return array{id: string, label: string, from: list<string>, to: string, permission: string}

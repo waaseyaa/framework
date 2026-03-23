@@ -14,6 +14,11 @@ namespace Waaseyaa\Workflows;
  */
 final class EditorialWorkflowPreset
 {
+    public const string STATE_DRAFT = 'draft';
+    public const string STATE_REVIEW = 'review';
+    public const string STATE_PUBLISHED = 'published';
+    public const string STATE_ARCHIVED = 'archived';
+
     /**
      * Permission patterns keyed by transition ID.
      * Used by EditorialTransitionAccessResolver.
@@ -83,19 +88,19 @@ final class EditorialWorkflowPreset
         }
 
         if (\is_bool($status)) {
-            return $status ? 'published' : 'draft';
+            return $status ? self::STATE_PUBLISHED : self::STATE_DRAFT;
         }
         if (\is_numeric($status)) {
-            return ((int) $status) === 1 ? 'published' : 'draft';
+            return ((int) $status) === 1 ? self::STATE_PUBLISHED : self::STATE_DRAFT;
         }
         if (\is_string($status)) {
             $normalized = strtolower(trim($status));
             if (\in_array($normalized, ['1', 'true'], true)) {
-                return 'published';
+                return self::STATE_PUBLISHED;
             }
         }
 
-        return 'draft';
+        return self::STATE_DRAFT;
     }
 
     /**
@@ -103,6 +108,6 @@ final class EditorialWorkflowPreset
      */
     public static function statusForState(string $state): int
     {
-        return $state === 'published' ? 1 : 0;
+        return $state === self::STATE_PUBLISHED ? 1 : 0;
     }
 }

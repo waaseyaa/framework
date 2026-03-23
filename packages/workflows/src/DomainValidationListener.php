@@ -10,6 +10,8 @@ use Waaseyaa\Entity\FieldableInterface;
 
 final class DomainValidationListener
 {
+    private readonly Workflow $workflow;
+
     /**
      * @param list<string> $workflowBundles
      * @param list<string> $temporalBundles
@@ -20,8 +22,10 @@ final class DomainValidationListener
         private readonly array $workflowBundles,
         private readonly array $temporalBundles = [],
         private readonly array $uniqueTitleBundles = [],
-        private readonly Workflow $workflow = new Workflow(),
-    ) {}
+        ?Workflow $workflow = null,
+    ) {
+        $this->workflow = $workflow ?? EditorialWorkflowPreset::create();
+    }
 
     public function __invoke(EntityEvent $event): void
     {

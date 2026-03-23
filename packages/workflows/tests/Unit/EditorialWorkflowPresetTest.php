@@ -109,4 +109,11 @@ final class EditorialWorkflowPresetTest extends TestCase
         $this->assertFalse($workflow->isTransitionAllowed('pending', 'completed'));
         $this->assertCount(4, $workflow->getStates());
     }
+
+    public function testNormalizeStateWithStringStatus(): void
+    {
+        $this->assertSame('published', EditorialWorkflowPreset::normalizeState(null, '1'));
+        $this->assertSame('published', EditorialWorkflowPreset::normalizeState(null, 'true'));
+        $this->assertSame('draft', EditorialWorkflowPreset::normalizeState(null, 'random'));
+    }
 }
