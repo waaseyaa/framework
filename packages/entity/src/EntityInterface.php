@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Entity;
 
+/**
+ * @method mixed get(string $name)
+ * @method static set(string $name, mixed $value)
+ */
 interface EntityInterface
 {
     public function id(): int|string|null;
