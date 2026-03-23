@@ -1,6 +1,26 @@
 parameters:
 	ignoreErrors:
 		-
+			message: "#^Parameter \\#2 \\$onChunk of method Waaseyaa\\\\AI\\\\Agent\\\\Provider\\\\StreamingProviderInterface\\:\\:streamMessage\\(\\) expects callable\\(Waaseyaa\\\\AI\\\\Agent\\\\Provider\\\\StreamChunk\\)\\: void, callable\\(Waaseyaa\\\\AI\\\\Agent\\\\StreamChunk\\)\\: void given\\.$#"
+			count: 1
+			path: packages/ai-agent/src/AgentExecutor.php
+
+		-
+			message: "#^Parameter \\$onChunk of method Waaseyaa\\\\AI\\\\Agent\\\\AgentExecutor\\:\\:streamWithProvider\\(\\) has invalid type Waaseyaa\\\\AI\\\\Agent\\\\StreamChunk\\.$#"
+			count: 1
+			path: packages/ai-agent/src/AgentExecutor.php
+
+		-
+			message: "#^Anonymous function has an unused use \\$contentBlocks\\.$#"
+			count: 1
+			path: packages/ai-agent/src/Provider/AnthropicProvider.php
+
+		-
+			message: "#^Default value of the parameter \\#3 \\$usage \\(array\\{\\}\\) of method Waaseyaa\\\\AI\\\\Agent\\\\Provider\\\\MessageResponse\\:\\:__construct\\(\\) is incompatible with type array\\{input_tokens\\: int, output_tokens\\: int, cache_creation_input_tokens\\?\\: int, cache_read_input_tokens\\?\\: int\\}\\.$#"
+			count: 1
+			path: packages/ai-agent/src/Provider/MessageResponse.php
+
+		-
 			message: "#^Offset 'id' on array\\{id\\: string, score\\: float\\} on left side of \\?\\? always exists and is not nullable\\.$#"
 			count: 1
 			path: packages/ai-vector/src/SearchController.php
@@ -166,16 +186,6 @@ parameters:
 			path: packages/cli/src/Command/TypeDisableCommand.php
 
 		-
-			message: "#^Call to an undefined method Waaseyaa\\\\Entity\\\\EntityInterface\\:\\:get\\(\\)\\.$#"
-			count: 1
-			path: packages/cli/src/Command/UserRoleCommand.php
-
-		-
-			message: "#^Call to an undefined method Waaseyaa\\\\Entity\\\\EntityInterface\\:\\:set\\(\\)\\.$#"
-			count: 1
-			path: packages/cli/src/Command/UserRoleCommand.php
-
-		-
 			message: "#^Offset 'confidence' on array\\{suggestion_id\\: string, title\\: string, body\\: string, confidence\\: float, source_item_index\\: int, tags\\?\\: non\\-empty\\-array\\<int, string\\>, provenance\\: string, explainability\\: array\\{primary_cue\\: string, supporting_cues\\: array\\<int, string\\>, inference_edges_used\\: array\\<int, string\\>, validation_signals\\: array\\<int, string\\>\\}\\} on left side of \\?\\? always exists and is not nullable\\.$#"
 			count: 2
 			path: packages/cli/src/Ingestion/AuthoringAssistBuilder.php
@@ -292,18 +302,8 @@ parameters:
 
 		-
 			message: "#^Method Psr\\\\EventDispatcher\\\\EventDispatcherInterface\\:\\:dispatch\\(\\) invoked with 2 parameters, 1 required\\.$#"
-			count: 4
+			count: 7
 			path: packages/entity-storage/src/EntityRepository.php
-
-		-
-			message: "#^Call to an undefined method Waaseyaa\\\\Entity\\\\EntityInterface\\:\\:get\\(\\)\\.$#"
-			count: 1
-			path: packages/entity-storage/src/SqlEntityStorage.php
-
-		-
-			message: "#^Call to an undefined method Waaseyaa\\\\Entity\\\\EntityInterface\\:\\:set\\(\\)\\.$#"
-			count: 2
-			path: packages/entity-storage/src/SqlEntityStorage.php
 
 		-
 			message: "#^Method Psr\\\\EventDispatcher\\\\EventDispatcherInterface\\:\\:dispatch\\(\\) invoked with 2 parameters, 1 required\\.$#"
@@ -361,12 +361,22 @@ parameters:
 			path: packages/foundation/src/Discovery/PackageManifestCompiler.php
 
 		-
+			message: "#^Anonymous function has an unused use \\$account\\.$#"
+			count: 1
+			path: packages/foundation/src/Http/ControllerDispatcher.php
+
+		-
 			message: "#^Expression on left side of \\?\\? is not nullable\\.$#"
 			count: 1
 			path: packages/foundation/src/Http/ControllerDispatcher.php
 
 		-
 			message: "#^Offset 'event' on array\\{id\\: int, channel\\: string, event\\: string, data\\: array, created_at\\: float\\} on left side of \\?\\? always exists and is not nullable\\.$#"
+			count: 1
+			path: packages/foundation/src/Http/ControllerDispatcher.php
+
+		-
+			message: "#^Parameter \\#2 \\$data of static method Waaseyaa\\\\Foundation\\\\Http\\\\ResponseSender\\:\\:json\\(\\) expects array\\<string, mixed\\>, mixed given\\.$#"
 			count: 1
 			path: packages/foundation/src/Http/ControllerDispatcher.php
 
@@ -421,19 +431,9 @@ parameters:
 			path: packages/foundation/src/ServiceProvider/ContainerCompiler.php
 
 		-
-			message: "#^Call to an undefined method Waaseyaa\\\\Entity\\\\EntityInterface\\:\\:get\\(\\)\\.$#"
+			message: "#^Class Waaseyaa\\\\Workflows\\\\WorkflowVisibility does not have a constructor and must be instantiated without any parameters\\.$#"
 			count: 1
-			path: packages/mcp/src/Tools/DiscoveryTools.php
-
-		-
-			message: "#^Call to an undefined method Waaseyaa\\\\Entity\\\\EntityInterface\\:\\:get\\(\\)\\.$#"
-			count: 2
-			path: packages/mcp/src/Tools/McpTool.php
-
-		-
-			message: "#^Call to an undefined method Waaseyaa\\\\Entity\\\\EntityInterface\\:\\:get\\(\\)\\.$#"
-			count: 10
-			path: packages/mcp/src/Tools/TraversalTools.php
+			path: packages/mcp/src/McpController.php
 
 		-
 			message: "#^Offset 'inverse' on array\\{relationship\\: Waaseyaa\\\\Entity\\\\EntityInterface, related_entity_type\\: string, related_entity_id\\: string, direction\\: string, inverse\\: bool\\} on left side of \\?\\? always exists and is not nullable\\.$#"
@@ -529,3 +529,8 @@ parameters:
 			message: "#^Strict comparison using \\=\\=\\= between non\\-empty\\-array\\<int, string\\> and array\\{\\} will always evaluate to false\\.$#"
 			count: 1
 			path: packages/ssr/src/SsrPageHandler.php
+
+		-
+			message: "#^Property Waaseyaa\\\\Workflows\\\\EditorialVisibilityResolver\\:\\:\\$workflow is never read, only written\\.$#"
+			count: 1
+			path: packages/workflows/src/EditorialVisibilityResolver.php
