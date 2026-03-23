@@ -14,7 +14,7 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Mcp\Tools\EditorialTools;
 use Waaseyaa\Mcp\Tools\McpTool;
 use Waaseyaa\Workflows\EditorialTransitionAccessResolver;
-use Waaseyaa\Workflows\EditorialWorkflowStateMachine;
+use Waaseyaa\Workflows\EditorialWorkflowPreset;
 
 #[CoversClass(EditorialTools::class)]
 #[CoversClass(McpTool::class)]
@@ -103,15 +103,15 @@ final class EditorialToolsTest extends TestCase
         $manager = $this->createMock(EntityTypeManagerInterface::class);
         $manager->method('hasDefinition')->willReturn($hasDefinition);
 
-        $stateMachine = new EditorialWorkflowStateMachine();
+        $workflow = EditorialWorkflowPreset::create();
 
         return new EditorialTools(
             entityTypeManager: $manager,
             serializer: new ResourceSerializer($manager),
             accessHandler: new EntityAccessHandler([]),
             account: $this->anonymousAccount(),
-            editorialStateMachine: $stateMachine,
-            editorialTransitionResolver: new EditorialTransitionAccessResolver($stateMachine),
+            editorialWorkflow: $workflow,
+            editorialTransitionResolver: new EditorialTransitionAccessResolver($workflow),
         );
     }
 

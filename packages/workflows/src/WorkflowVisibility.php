@@ -6,9 +6,6 @@ namespace Waaseyaa\Workflows;
 
 final class WorkflowVisibility
 {
-    public function __construct(
-        private readonly EditorialWorkflowStateMachine $stateMachine = new EditorialWorkflowStateMachine(),
-    ) {}
 
     /**
      * @param array<string, mixed> $values
@@ -23,7 +20,7 @@ final class WorkflowVisibility
             }
         }
 
-        return $this->stateMachine->normalizeState(
+        return EditorialWorkflowPreset::normalizeState(
             workflowState: $values['workflow_state'] ?? null,
             status: $status,
         );
@@ -34,7 +31,7 @@ final class WorkflowVisibility
      */
     public function isNodePublic(array $values): bool
     {
-        return $this->nodeState($values) === EditorialWorkflowStateMachine::STATE_PUBLISHED;
+        return $this->nodeState($values) === EditorialWorkflowPreset::STATE_PUBLISHED;
     }
 
     /**

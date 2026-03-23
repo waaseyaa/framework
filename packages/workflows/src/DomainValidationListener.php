@@ -10,6 +10,8 @@ use Waaseyaa\Entity\FieldableInterface;
 
 final class DomainValidationListener
 {
+    private readonly Workflow $workflow;
+
     /**
      * @param list<string> $workflowBundles
      * @param list<string> $temporalBundles
@@ -20,8 +22,10 @@ final class DomainValidationListener
         private readonly array $workflowBundles,
         private readonly array $temporalBundles = [],
         private readonly array $uniqueTitleBundles = [],
-        private readonly EditorialWorkflowStateMachine $stateMachine = new EditorialWorkflowStateMachine(),
-    ) {}
+        ?Workflow $workflow = null,
+    ) {
+        $this->workflow = $workflow ?? EditorialWorkflowPreset::create();
+    }
 
     public function __invoke(EntityEvent $event): void
     {
@@ -43,11 +47,11 @@ final class DomainValidationListener
             return;
         }
 
-        $workflowState = $this->stateMachine->normalizeState(
+        $workflowState = EditorialWorkflowPreset::normalizeState(
             workflowState: $values['workflow_state'] ?? null,
             status: $values['status'] ?? 0,
         );
-        if (!$this->stateMachine->isKnownState($workflowState)) {
+        if (!$this->workflow->hasState($workflowState)) {
             throw new \InvalidArgumentException(sprintf(
                 'Validation failed for node bundle "%s": invalid workflow_state "%s".',
                 $bundle,
@@ -56,7 +60,7 @@ final class DomainValidationListener
         }
         if ($entity instanceof FieldableInterface) {
             $entity->set('workflow_state', $workflowState);
-            $entity->set('status', $this->stateMachine->statusForState($workflowState));
+            $entity->set('status', EditorialWorkflowPreset::statusForState($workflowState));
         }
 
         if ($entityId !== null) {
@@ -104,7 +108,7 @@ final class DomainValidationListener
         }
 
         $previousValues = $existing->toArray();
-        $previousState = $this->stateMachine->normalizeState(
+        $previousState = EditorialWorkflowPreset::normalizeState(
             workflowState: $previousValues['workflow_state'] ?? null,
             status: $previousValues['status'] ?? 0,
         );
@@ -112,9 +116,7 @@ final class DomainValidationListener
             return;
         }
 
-        try {
-            $this->stateMachine->assertTransitionAllowed($previousState, $nextState);
-        } catch (\InvalidArgumentException | \RuntimeException) {
+        if (!$this->workflow->isTransitionAllowed($previousState, $nextState)) {
             throw new \InvalidArgumentException(sprintf(
                 'Validation failed for node bundle "%s": invalid workflow transition %s -> %s.',
                 $bundle,

@@ -20,7 +20,8 @@ use Waaseyaa\Mcp\Tools\EntityTools;
 use Waaseyaa\Mcp\Tools\TraversalTools;
 use Waaseyaa\Relationship\RelationshipTraversalService;
 use Waaseyaa\Workflows\EditorialTransitionAccessResolver;
-use Waaseyaa\Workflows\EditorialWorkflowStateMachine;
+use Waaseyaa\Workflows\EditorialWorkflowPreset;
+use Waaseyaa\Workflows\Workflow;
 use Waaseyaa\Workflows\WorkflowVisibility;
 
 final class McpController
@@ -34,7 +35,7 @@ final class McpController
     private readonly DiscoveryTools $discoveryTools;
     private readonly TraversalTools $traversalTools;
     private readonly EditorialTools $editorialTools;
-    private readonly EditorialWorkflowStateMachine $editorialStateMachine;
+    private readonly Workflow $editorialWorkflow;
     private readonly EditorialTransitionAccessResolver $editorialTransitionResolver;
     private readonly WorkflowVisibility $workflowVisibility;
 
@@ -58,9 +59,9 @@ final class McpController
             accessHandler: $this->accessHandler,
             account: $this->account,
         );
-        $this->editorialStateMachine = new EditorialWorkflowStateMachine();
-        $this->editorialTransitionResolver = new EditorialTransitionAccessResolver($this->editorialStateMachine);
-        $this->workflowVisibility = new WorkflowVisibility($this->editorialStateMachine);
+        $this->editorialWorkflow = EditorialWorkflowPreset::create();
+        $this->editorialTransitionResolver = new EditorialTransitionAccessResolver($this->editorialWorkflow);
+        $this->workflowVisibility = new WorkflowVisibility($this->editorialWorkflow);
         $this->discoveryTools = new DiscoveryTools(
             entityTypeManager: $this->entityTypeManager,
             serializer: $this->serializer,
@@ -82,7 +83,7 @@ final class McpController
             serializer: $this->serializer,
             accessHandler: $this->accessHandler,
             account: $this->account,
-            editorialStateMachine: $this->editorialStateMachine,
+            editorialWorkflow: $this->editorialWorkflow,
             editorialTransitionResolver: $this->editorialTransitionResolver,
         );
     }

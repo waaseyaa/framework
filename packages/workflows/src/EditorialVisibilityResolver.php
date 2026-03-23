@@ -10,9 +10,13 @@ use Waaseyaa\Entity\EntityInterface;
 
 final class EditorialVisibilityResolver
 {
+    private readonly Workflow $workflow;
+
     public function __construct(
-        private readonly EditorialWorkflowStateMachine $stateMachine = new EditorialWorkflowStateMachine(),
-    ) {}
+        ?Workflow $workflow = null,
+    ) {
+        $this->workflow = $workflow ?? EditorialWorkflowPreset::create();
+    }
 
     public function canRender(EntityInterface $entity, AccountInterface $account, bool $previewRequested = false): AccessResult
     {
@@ -21,7 +25,7 @@ final class EditorialVisibilityResolver
         }
 
         $state = $this->stateForEntity($entity);
-        if ($state === EditorialWorkflowStateMachine::STATE_PUBLISHED) {
+        if ($state === EditorialWorkflowPreset::STATE_PUBLISHED) {
             return AccessResult::allowed('Published node is publicly visible.');
         }
 
@@ -79,7 +83,7 @@ final class EditorialVisibilityResolver
 
         return [
             'state' => $state,
-            'is_public' => $state === EditorialWorkflowStateMachine::STATE_PUBLISHED,
+            'is_public' => $state === EditorialWorkflowPreset::STATE_PUBLISHED,
             'preview_requested' => $previewRequested,
         ];
     }
@@ -88,7 +92,7 @@ final class EditorialVisibilityResolver
     {
         $values = $entity->toArray();
 
-        return $this->stateMachine->normalizeState(
+        return EditorialWorkflowPreset::normalizeState(
             workflowState: $values['workflow_state'] ?? null,
             status: $values['status'] ?? 0,
         );

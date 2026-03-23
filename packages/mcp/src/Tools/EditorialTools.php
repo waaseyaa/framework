@@ -11,8 +11,9 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\FieldableInterface;
 use Waaseyaa\Workflows\EditorialTransitionAccessResolver;
+use Waaseyaa\Workflows\EditorialWorkflowPreset;
 use Waaseyaa\Workflows\EditorialWorkflowService;
-use Waaseyaa\Workflows\EditorialWorkflowStateMachine;
+use Waaseyaa\Workflows\Workflow;
 
 final class EditorialTools extends McpTool
 {
@@ -21,7 +22,7 @@ final class EditorialTools extends McpTool
         ResourceSerializer $serializer,
         EntityAccessHandler $accessHandler,
         AccountInterface $account,
-        private readonly EditorialWorkflowStateMachine $editorialStateMachine,
+        private readonly Workflow $editorialWorkflow,
         private readonly EditorialTransitionAccessResolver $editorialTransitionResolver,
     ) {
         parent::__construct($entityTypeManager, $serializer, $accessHandler, $account);
@@ -94,7 +95,7 @@ final class EditorialTools extends McpTool
      */
     public function publish(array $arguments): array
     {
-        $arguments['to_state'] = EditorialWorkflowStateMachine::STATE_PUBLISHED;
+        $arguments['to_state'] = 'published';
 
         return $this->transition($arguments);
     }
@@ -105,7 +106,7 @@ final class EditorialTools extends McpTool
      */
     public function archive(array $arguments): array
     {
-        $arguments['to_state'] = EditorialWorkflowStateMachine::STATE_ARCHIVED;
+        $arguments['to_state'] = 'archived';
 
         return $this->transition($arguments);
     }
@@ -116,7 +117,7 @@ final class EditorialTools extends McpTool
         if ($state === '') {
             throw new \InvalidArgumentException(sprintf('Editorial tool requires non-empty "%s".', $name));
         }
-        if (!$this->editorialStateMachine->isKnownState($state)) {
+        if (!$this->editorialWorkflow->hasState($state)) {
             throw new \InvalidArgumentException(sprintf('Unknown editorial workflow state: "%s".', $state));
         }
 
@@ -186,11 +187,11 @@ final class EditorialTools extends McpTool
                 : 'Update access denied for editorial operation.';
         }
 
-        $currentState = $this->editorialStateMachine->normalizeState(
+        $currentState = EditorialWorkflowPreset::normalizeState(
             workflowState: $entity->get('workflow_state'),
             status: $entity->get('status'),
         );
-        if (!$this->editorialStateMachine->isKnownState($currentState)) {
+        if (!$this->editorialWorkflow->hasState($currentState)) {
             $violations[] = sprintf('Unknown current workflow state: "%s".', $currentState);
         }
 
@@ -220,7 +221,7 @@ final class EditorialTools extends McpTool
             'type' => $entity->getEntityTypeId(),
             'id' => (string) $entity->id(),
             'bundle' => $bundle,
-            'workflow_state' => $this->editorialStateMachine->normalizeState(
+            'workflow_state' => EditorialWorkflowPreset::normalizeState(
                 workflowState: $entity->get('workflow_state'),
                 status: $entity->get('status'),
             ),
@@ -234,7 +235,7 @@ final class EditorialTools extends McpTool
     {
         return new EditorialWorkflowService(
             coreBundles: [$bundle],
-            stateMachine: $this->editorialStateMachine,
+            workflow: $this->editorialWorkflow,
             transitionAccessResolver: $this->editorialTransitionResolver,
         );
     }

@@ -4,17 +4,22 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Ingestion;
 
-use Waaseyaa\Workflows\EditorialWorkflowStateMachine;
+use Waaseyaa\Workflows\EditorialWorkflowPreset;
+use Waaseyaa\Workflows\Workflow;
 use Waaseyaa\Workflows\WorkflowVisibility;
 
 final class ValidationGateValidator
 {
     private const int MIN_PUBLISHED_BODY_TOKENS = 5;
 
+    private readonly Workflow $workflow;
+
     public function __construct(
-        private readonly EditorialWorkflowStateMachine $stateMachine = new EditorialWorkflowStateMachine(),
+        ?Workflow $workflow = null,
         private readonly WorkflowVisibility $visibility = new WorkflowVisibility(),
-    ) {}
+    ) {
+        $this->workflow = $workflow ?? EditorialWorkflowPreset::create();
+    }
 
     /**
      * @param array<string, array<string, mixed>> $nodes
@@ -30,14 +35,14 @@ final class ValidationGateValidator
         $nodePublic = [];
         foreach ($sortedNodes as $key => $node) {
             $state = strtolower(trim((string) ($node['workflow_state'] ?? '')));
-            if (!$this->stateMachine->isKnownState($state)) {
+            if (!$this->workflow->hasState($state)) {
                 $violations[] = [
                     'code' => 'validation.workflow.unknown_state',
                     'location' => '/nodes/' . $key . '/workflow_state',
                     'item_index' => null,
                     'node_key' => $key,
                     'value' => $state,
-                    'expected' => $this->stateMachine->states(),
+                    'expected' => array_keys($this->workflow->getStates()),
                     'remediation' => 'Use a supported workflow_state before ingestion.',
                 ];
                 $nodePublic[$key] = false;
@@ -45,7 +50,7 @@ final class ValidationGateValidator
             }
 
             $status = $this->normalizeStatus($node['status'] ?? 0);
-            $expectedStatus = $this->stateMachine->statusForState($state);
+            $expectedStatus = EditorialWorkflowPreset::statusForState($state);
             if ($status !== $expectedStatus) {
                 $violations[] = [
                     'code' => 'validation.workflow.status_state_mismatch',
@@ -60,7 +65,7 @@ final class ValidationGateValidator
             }
 
             $nodePublic[$key] = $this->visibility->isNodePublic($node);
-            if ($state === EditorialWorkflowStateMachine::STATE_PUBLISHED) {
+            if ($state === EditorialWorkflowPreset::STATE_PUBLISHED) {
                 $body = trim((string) ($node['body'] ?? ''));
                 if ($body === '') {
                     $violations[] = [

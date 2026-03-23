@@ -9,6 +9,7 @@ use Waaseyaa\Entity\FieldableInterface;
 
 final class EditorialWorkflowService
 {
+    private readonly Workflow $workflow;
     private readonly EditorialTransitionAccessResolver $transitionAccessResolver;
 
     /**
@@ -16,11 +17,12 @@ final class EditorialWorkflowService
      */
     public function __construct(
         private readonly array $coreBundles,
-        private readonly EditorialWorkflowStateMachine $stateMachine = new EditorialWorkflowStateMachine(),
+        ?Workflow $workflow = null,
         ?EditorialTransitionAccessResolver $transitionAccessResolver = null,
         private readonly ?\Closure $clock = null,
     ) {
-        $this->transitionAccessResolver = $transitionAccessResolver ?? new EditorialTransitionAccessResolver($this->stateMachine);
+        $this->workflow = $workflow ?? EditorialWorkflowPreset::create();
+        $this->transitionAccessResolver = $transitionAccessResolver ?? new EditorialTransitionAccessResolver($this->workflow);
     }
 
     /**
@@ -50,7 +52,7 @@ final class EditorialWorkflowService
         $requiredPermission = $this->transitionAccessResolver->requiredPermission($bundle, $from, $to);
 
         $node->set('workflow_state', $to);
-        $node->set('status', $this->stateMachine->statusForState($to));
+        $node->set('status', EditorialWorkflowPreset::statusForState($to));
         $node->set('workflow_last_transition', [
             'id' => $transition['id'],
             'label' => $transition['label'],
@@ -81,15 +83,15 @@ final class EditorialWorkflowService
         $bundle = (string) ($node->get('type') ?? '');
         $from = $this->stateFromNode($node);
 
-        $transitions = $this->stateMachine->availableTransitions($from);
+        $validTransitions = $this->workflow->getValidTransitions($from);
         $metadata = [];
-        foreach ($transitions as $transition) {
+        foreach ($validTransitions as $transition) {
             $metadata[] = [
-                'id' => $transition['id'],
-                'label' => $transition['label'],
-                'from' => $transition['from'],
-                'to' => $transition['to'],
-                'required_permission' => $this->transitionAccessResolver->requiredPermission($bundle, $from, $transition['to']),
+                'id' => $transition->id,
+                'label' => $transition->label,
+                'from' => $transition->from,
+                'to' => $transition->to,
+                'required_permission' => $this->transitionAccessResolver->requiredPermission($bundle, $from, $transition->to),
             ];
         }
 
@@ -103,7 +105,7 @@ final class EditorialWorkflowService
 
     private function stateFromNode(FieldableInterface $node): string
     {
-        return $this->stateMachine->normalizeState(
+        return EditorialWorkflowPreset::normalizeState(
             workflowState: $node->get('workflow_state'),
             status: $node->get('status'),
         );
