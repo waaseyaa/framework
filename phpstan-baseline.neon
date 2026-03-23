@@ -1,6 +1,11 @@
 parameters:
 	ignoreErrors:
 		-
+			message: "#^Offset 'ability' on array\\{ability\\: string, subject\\?\\: mixed\\} on left side of \\?\\? always exists and is not nullable\\.$#"
+			count: 1
+			path: packages/access/src/AccessChecker.php
+
+		-
 			message: "#^Parameter \\#2 \\$onChunk of method Waaseyaa\\\\AI\\\\Agent\\\\Provider\\\\StreamingProviderInterface\\:\\:streamMessage\\(\\) expects callable\\(Waaseyaa\\\\AI\\\\Agent\\\\Provider\\\\StreamChunk\\)\\: void, callable\\(Waaseyaa\\\\AI\\\\Agent\\\\StreamChunk\\)\\: void given\\.$#"
 			count: 1
 			path: packages/ai-agent/src/AgentExecutor.php
@@ -496,11 +501,6 @@ parameters:
 			path: packages/relationship/src/RelationshipDiscoveryService.php
 
 		-
-			message: "#^Offset 'ability' on array\\{ability\\: string, subject\\?\\: mixed\\} on left side of \\?\\? always exists and is not nullable\\.$#"
-			count: 1
-			path: packages/routing/src/AccessChecker.php
-
-		-
 			message: "#^Strict comparison using \\=\\=\\= between non\\-empty\\-array\\<int, string\\> and array\\{\\} will always evaluate to false\\.$#"
 			count: 1
 			path: packages/routing/src/Language/UrlPrefixNegotiator.php
@@ -529,6 +529,11 @@ parameters:
 			message: "#^Strict comparison using \\=\\=\\= between non\\-empty\\-array\\<int, string\\> and array\\{\\} will always evaluate to false\\.$#"
 			count: 1
 			path: packages/ssr/src/SsrPageHandler.php
+
+		-
+			message: "#^Offset 'permissions' on array\\{label\\: string, permissions\\: array\\<int, string\\>\\} on left side of \\?\\? always exists and is not nullable\\.$#"
+			count: 1
+			path: packages/workflows/src/AuthoringRoleMatrix.php
 
 		-
 			message: "#^Property Waaseyaa\\\\Workflows\\\\EditorialVisibilityResolver\\:\\:\\$workflow is never read, only written\\.$#"
