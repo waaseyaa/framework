@@ -80,7 +80,7 @@ final class SchemaRegistry
             $toolName = $tool->name;
             $registry->register(
                 $tool,
-                static fn (array $arguments) => $executor->execute($toolName, $arguments),
+                static fn(array $arguments) => $executor->execute($toolName, $arguments),
             );
         }
     }

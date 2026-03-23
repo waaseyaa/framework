@@ -6,7 +6,6 @@ namespace Waaseyaa\Workflows;
 
 final class WorkflowVisibility
 {
-
     /**
      * @param array<string, mixed> $values
      */
