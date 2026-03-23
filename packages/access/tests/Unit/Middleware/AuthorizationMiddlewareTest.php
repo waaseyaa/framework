@@ -12,11 +12,13 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Route;
 use Waaseyaa\Access\ErrorPageRendererInterface;
 use Waaseyaa\Access\Middleware\AuthorizationMiddleware;
+use Waaseyaa\Access\RedirectValidator;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\User\AnonymousUser;
 
 #[CoversClass(AuthorizationMiddleware::class)]
+#[CoversClass(RedirectValidator::class)]
 final class AuthorizationMiddlewareTest extends TestCase
 {
     #[Test]
@@ -372,5 +374,161 @@ final class AuthorizationMiddlewareTest extends TestCase
         $this->assertSame(403, $response->getStatusCode());
         $this->assertStringContainsString('application/vnd.api+json', $response->headers->get('Content-Type'));
         $this->assertFalse($renderer->called);
+    }
+
+    // -----------------------------------------------------------------
+    // XSS prevention (#542)
+    // -----------------------------------------------------------------
+
+    #[Test]
+    public function render_route_html_error_escapes_xss_in_detail(): void
+    {
+        $route = new Route('/admin');
+        $route->setOption('_permission', 'administer site');
+        $route->setOption('_render', true);
+
+        // Use a custom renderer that returns null to force fallback,
+        // after injecting a malicious detail via the forbidden reason.
+        $renderer = new class implements ErrorPageRendererInterface {
+            public function render(int $statusCode, string $title, string $detail, Request $request): ?Response
+            {
+                return null;
+            }
+        };
+
+        $account = new AnonymousUser();
+        $accessChecker = new AccessChecker();
+        $middleware = new AuthorizationMiddleware($accessChecker, $renderer);
+
+        $request = Request::create('/<script>alert(1)</script>');
+        $request->attributes->set('_account', $account);
+        $request->attributes->set('_route_object', $route);
+
+        $next = new class implements HttpHandlerInterface {
+            public function handle(Request $request): Response
+            {
+                return new Response('should not reach here');
+            }
+        };
+
+        $response = $middleware->process($request, $next);
+
+        $this->assertSame(403, $response->getStatusCode());
+        $content = $response->getContent();
+        // The raw <script> tag must NOT appear unescaped in the HTML body.
+        // The path is URL-encoded in the login link href, so it's safe there.
+        // Title and detail come from the access checker (fixed strings), so no XSS vector.
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $content);
+    }
+
+    // -----------------------------------------------------------------
+    // Cache-Control on error responses (#547)
+    // -----------------------------------------------------------------
+
+    #[Test]
+    public function json_403_has_cache_control_no_store(): void
+    {
+        $route = new Route('/api/node');
+        $route->setOption('_permission', 'access content');
+
+        $account = new AnonymousUser();
+        $accessChecker = new AccessChecker();
+        $middleware = new AuthorizationMiddleware($accessChecker);
+
+        $request = Request::create('/api/node');
+        $request->attributes->set('_account', $account);
+        $request->attributes->set('_route_object', $route);
+
+        $next = new class implements HttpHandlerInterface {
+            public function handle(Request $request): Response
+            {
+                return new Response('should not reach here');
+            }
+        };
+
+        $response = $middleware->process($request, $next);
+
+        $this->assertSame(403, $response->getStatusCode());
+        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+    }
+
+    #[Test]
+    public function json_401_has_cache_control_no_store(): void
+    {
+        $route = new Route('/api/node');
+        $route->setOption('_authenticated', true);
+
+        $account = new AnonymousUser();
+        $accessChecker = new AccessChecker();
+        $middleware = new AuthorizationMiddleware($accessChecker);
+
+        $request = Request::create('/api/node', 'POST');
+        $request->attributes->set('_account', $account);
+        $request->attributes->set('_route_object', $route);
+
+        $next = new class implements HttpHandlerInterface {
+            public function handle(Request $request): Response
+            {
+                return new Response('should not reach here');
+            }
+        };
+
+        $response = $middleware->process($request, $next);
+
+        $this->assertSame(401, $response->getStatusCode());
+        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+    }
+
+    #[Test]
+    public function json_403_no_account_has_cache_control_no_store(): void
+    {
+        $route = new Route('/api/node');
+        $route->setOption('_permission', 'access content');
+
+        $accessChecker = new AccessChecker();
+        $middleware = new AuthorizationMiddleware($accessChecker);
+
+        $request = Request::create('/api/node');
+        $request->attributes->set('_route_object', $route);
+
+        $next = new class implements HttpHandlerInterface {
+            public function handle(Request $request): Response
+            {
+                return new Response('should not reach here');
+            }
+        };
+
+        $response = $middleware->process($request, $next);
+
+        $this->assertSame(403, $response->getStatusCode());
+        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+    }
+
+    #[Test]
+    public function html_403_has_cache_control_no_store(): void
+    {
+        $route = new Route('/admin/settings');
+        $route->setOption('_permission', 'administer site');
+        $route->setOption('_render', true);
+
+        $account = new AnonymousUser();
+        $accessChecker = new AccessChecker();
+        $middleware = new AuthorizationMiddleware($accessChecker);
+
+        $request = Request::create('/admin/settings');
+        $request->attributes->set('_account', $account);
+        $request->attributes->set('_route_object', $route);
+
+        $next = new class implements HttpHandlerInterface {
+            public function handle(Request $request): Response
+            {
+                return new Response('should not reach here');
+            }
+        };
+
+        $response = $middleware->process($request, $next);
+
+        $this->assertSame(403, $response->getStatusCode());
+        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
     }
 }

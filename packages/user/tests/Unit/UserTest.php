@@ -242,6 +242,21 @@ final class UserTest extends TestCase
         $this->assertTrue($user->hasPermission('administer site'));
     }
 
+    public function testAdministratorRoleGrantsAllPermissions(): void
+    {
+        $user = new User(['roles' => ['administrator']]);
+        // Should have any permission even without explicit grants.
+        $this->assertTrue($user->hasPermission('edit content'));
+        $this->assertTrue($user->hasPermission('delete users'));
+        $this->assertTrue($user->hasPermission('any arbitrary permission'));
+    }
+
+    public function testNonAdministratorDoesNotGetImplicitPermissions(): void
+    {
+        $user = new User(['roles' => ['editor']]);
+        $this->assertFalse($user->hasPermission('delete users'));
+    }
+
     // -----------------------------------------------------------------
     // Authentication status
     // -----------------------------------------------------------------

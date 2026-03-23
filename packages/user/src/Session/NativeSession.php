@@ -21,7 +21,24 @@ final class NativeSession implements SessionInterface
         if (session_status() === PHP_SESSION_ACTIVE) {
             return true;
         }
+
+        session_set_cookie_params([
+            'httponly' => true,
+            'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+            'samesite' => 'Lax',
+        ]);
+
         return session_start();
+    }
+
+    /**
+     * Returns the current session cookie parameters.
+     *
+     * @return array<string, mixed>
+     */
+    public function getCookieParams(): array
+    {
+        return session_get_cookie_params();
     }
 
     public function getId(): string

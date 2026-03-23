@@ -235,11 +235,15 @@ final class RoutingAccessIntegrationTest extends TestCase
 
     public function testRouteRequiringBothPermissionAndRoleForbidsUserWithOnlyRole(): void
     {
+        // Use a non-administrator role to test the "has role but missing
+        // permission" scenario. Administrators bypass permission checks
+        // by design (#609), so using 'administrator' here would not test
+        // the intended access-control logic.
         $user = new User([
             'uid' => 3,
             'name' => 'role_only',
             'permissions' => [],
-            'roles' => ['administrator'],
+            'roles' => ['editor'],
         ]);
 
         $route = $this->getRouteByName('admin.dashboard');

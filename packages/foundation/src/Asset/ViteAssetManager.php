@@ -108,7 +108,12 @@ final class ViteAssetManager implements AssetManagerInterface
             return [];
         }
 
-        $manifest = json_decode($contents, true);
+        try {
+            $manifest = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            $this->manifests[$bundle] = [];
+            return [];
+        }
         if (!is_array($manifest)) {
             $this->manifests[$bundle] = [];
             return [];

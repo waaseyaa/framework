@@ -45,7 +45,7 @@ final class TelescopeEntry
     {
         return new self(
             type: $row['type'],
-            data: is_string($row['data']) ? json_decode($row['data'], true) : $row['data'],
+            data: is_string($row['data']) ? json_decode($row['data'], true, 512, JSON_THROW_ON_ERROR) : $row['data'],
             id: $row['id'],
             createdAt: new \DateTimeImmutable($row['created_at']),
         );

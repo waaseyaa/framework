@@ -103,4 +103,15 @@ final class NativeSessionTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->session->getMetadataBag();
     }
+
+    #[Test]
+    public function getCookieParamsReturnsArray(): void
+    {
+        $params = $this->session->getCookieParams();
+        $this->assertIsArray($params);
+        // session_get_cookie_params() always has these keys.
+        $this->assertArrayHasKey('lifetime', $params);
+        $this->assertArrayHasKey('path', $params);
+        $this->assertArrayHasKey('httponly', $params);
+    }
 }

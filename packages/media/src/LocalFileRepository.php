@@ -59,7 +59,11 @@ final class LocalFileRepository implements FileRepositoryInterface
             return null;
         }
 
-        $data = json_decode($raw, true);
+        try {
+            $data = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return null;
+        }
         if (!is_array($data)) {
             return null;
         }
@@ -102,7 +106,11 @@ final class LocalFileRepository implements FileRepositoryInterface
                 continue;
             }
 
-            $data = json_decode($raw, true);
+            try {
+                $data = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+            } catch (\JsonException) {
+                continue;
+            }
             if (!is_array($data) || !isset($data['ownerId']) || (int) $data['ownerId'] !== $ownerId) {
                 continue;
             }

@@ -41,7 +41,11 @@ final class ProviderDiscovery
             return [];
         }
 
-        $installed = json_decode(file_get_contents($installedPath), true);
+        try {
+            $installed = json_decode(file_get_contents($installedPath), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return [];
+        }
 
         return $this->discoverFromArray($installed);
     }

@@ -75,13 +75,24 @@ final class User extends ContentEntityBase implements AccountInterface
     }
 
     /**
+     * The role ID that grants all permissions by default.
+     */
+    private const ADMINISTRATOR_ROLE = 'administrator';
+
+    /**
      * {@inheritdoc}
      *
      * Checks whether the given permission exists in the user's
-     * flat permissions array.
+     * flat permissions array. Administrators have all permissions
+     * by default.
      */
     public function hasPermission(string $permission): bool
     {
+        // Administrators have all permissions.
+        if (\in_array(self::ADMINISTRATOR_ROLE, $this->getRoles(), true)) {
+            return true;
+        }
+
         $permissions = $this->get('permissions');
 
         return \is_array($permissions) && \in_array($permission, $permissions, true);

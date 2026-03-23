@@ -22,9 +22,16 @@ final class AuthManager
 
     /**
      * Log in a user by setting the session.
+     *
+     * Regenerates the session ID to prevent session fixation attacks.
      */
     public function login(User $user): void
     {
+        // Prevent session fixation: regenerate ID and destroy old session.
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_regenerate_id(true);
+        }
+
         $_SESSION['waaseyaa_uid'] = $user->id();
     }
 
