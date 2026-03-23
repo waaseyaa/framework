@@ -640,6 +640,9 @@ final class DiscoveryTestEntity implements EntityInterface
         return false;
     }
 
+    public function get(string $name): mixed { return null; }
+    public function set(string $name, mixed $value): static { return $this; }
+
     public function toArray(): array
     {
         return [

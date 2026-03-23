@@ -51,6 +51,8 @@ final readonly class CleanupTestEntity implements EntityInterface
     public function getEntityTypeId(): string { return $this->entityTypeId; }
     public function bundle(): string { return 'default'; }
     public function isNew(): bool { return false; }
+    public function get(string $name): mixed { return null; }
+    public function set(string $name, mixed $value): static { throw new \LogicException('Readonly'); }
     public function toArray(): array { return []; }
     public function language(): string { return 'en'; }
 }

@@ -323,6 +323,8 @@ final readonly class RenderControllerEntity implements \Waaseyaa\Entity\EntityIn
     public function getEntityTypeId(): string { return $this->entityTypeId; }
     public function bundle(): string { return (string) ($this->values['bundle'] ?? $this->entityTypeId); }
     public function isNew(): bool { return false; }
+    public function get(string $name): mixed { return $this->values[$name] ?? null; }
+    public function set(string $name, mixed $value): static { throw new \LogicException('Readonly'); }
     public function toArray(): array { return $this->values; }
     public function language(): string { return 'en'; }
 }

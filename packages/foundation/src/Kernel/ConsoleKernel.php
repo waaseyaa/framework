@@ -72,9 +72,9 @@ use Waaseyaa\Config\Cache\ConfigCacheCompiler;
 use Waaseyaa\Config\ConfigManager;
 use Waaseyaa\Config\Storage\FileStorage;
 use Waaseyaa\Entity\EntityTypeIdNormalizer;
-use Waaseyaa\Foundation\Discovery\StaleManifestException;
 use Waaseyaa\Foundation\Diagnostic\HealthChecker;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
+use Waaseyaa\Foundation\Discovery\StaleManifestException;
 use Waaseyaa\Foundation\Schema\DefaultsSchemaRegistry;
 use Waaseyaa\Routing\WaaseyaaRouter;
 

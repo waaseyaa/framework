@@ -189,7 +189,7 @@ final class RevisionableStorageDriver
             $row = (array) $row;
             if ((int) ($row['revision_id'] ?? 0) === $revisionId) {
                 throw new \LogicException(
-                    "Cannot delete the default revision {$revisionId} for entity {$entityId}. Delete the entity instead."
+                    "Cannot delete the default revision {$revisionId} for entity {$entityId}. Delete the entity instead.",
                 );
             }
         }

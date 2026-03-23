@@ -18,6 +18,10 @@ interface EntityInterface
 
     public function isNew(): bool;
 
+    public function get(string $name): mixed;
+
+    public function set(string $name, mixed $value): static;
+
     public function toArray(): array;
 
     public function language(): string;

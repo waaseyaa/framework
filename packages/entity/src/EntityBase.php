@@ -115,6 +115,18 @@ abstract class EntityBase implements EntityInterface
         return $this;
     }
 
+    public function get(string $name): mixed
+    {
+        return $this->values[$name] ?? null;
+    }
+
+    public function set(string $name, mixed $value): static
+    {
+        $this->values[$name] = $value;
+
+        return $this;
+    }
+
     public function toArray(): array
     {
         return $this->values;

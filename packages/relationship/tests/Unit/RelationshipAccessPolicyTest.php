@@ -118,6 +118,8 @@ final class RelationshipAccessPolicyTest extends TestCase
             public function getEntityTypeId(): string { return 'relationship'; }
             public function bundle(): string { return 'default'; }
             public function isNew(): bool { return false; }
+            public function get(string $name): mixed { return $this->values[$name] ?? null; }
+            public function set(string $name, mixed $value): static { throw new \LogicException('Readonly'); }
             public function toArray(): array { return $this->values; }
             public function language(): string { return 'en'; }
         };

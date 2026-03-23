@@ -142,6 +142,9 @@ final readonly class RendererTestEntity implements EntityInterface
         return false;
     }
 
+    public function get(string $name): mixed { return $this->values[$name] ?? null; }
+    public function set(string $name, mixed $value): static { throw new \LogicException('Readonly'); }
+
     public function toArray(): array
     {
         return $this->values;

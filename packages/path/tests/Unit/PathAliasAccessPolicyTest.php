@@ -116,6 +116,8 @@ final class PathAliasAccessPolicyTest extends TestCase
             public function getEntityTypeId(): string { return 'path_alias'; }
             public function bundle(): string { return 'default'; }
             public function isNew(): bool { return false; }
+            public function get(string $name): mixed { return null; }
+            public function set(string $name, mixed $value): static { return $this; }
             public function toArray(): array { return []; }
             public function language(): string { return 'en'; }
         };
