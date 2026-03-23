@@ -255,7 +255,11 @@ final class AnthropicProvider implements StreamingProviderInterface
 
                     // Process inline for text deltas (low latency)
                     if (\str_starts_with($line, 'data: ')) {
-                        $decoded = \json_decode(\substr($line, 6), true);
+                        try {
+                            $decoded = \json_decode(\substr($line, 6), true, 512, \JSON_THROW_ON_ERROR);
+                        } catch (\JsonException) {
+                            return \strlen($data);
+                        }
                         if (($decoded['type'] ?? '') === 'content_block_delta'
                             && ($decoded['delta']['type'] ?? '') === 'text_delta') {
                             $text = $decoded['delta']['text'] ?? '';
@@ -274,7 +278,41 @@ final class AnthropicProvider implements StreamingProviderInterface
         \curl_close($ch);
 
         if ($httpCode >= 400) {
-            throw new \RuntimeException("Anthropic API streaming error: HTTP {$httpCode}");
+            $errorMessage = "HTTP {$httpCode}";
+            // Try to extract error from SSE lines
+            foreach ($allLines as $line) {
+                if (\str_starts_with($line, 'data: ')) {
+                    try {
+                        $errorData = \json_decode(\substr($line, 6), true, 512, \JSON_THROW_ON_ERROR);
+                        if (isset($errorData['error']['message'])) {
+                            $errorMessage = $errorData['error']['message'];
+                            break;
+                        }
+                    } catch (\JsonException) {
+                        continue;
+                    }
+                }
+            }
+
+            if ($httpCode === 429) {
+                $retryAfter = 60;
+                // Try to find retry-after in error data
+                foreach ($allLines as $line) {
+                    if (\str_starts_with($line, 'data: ')) {
+                        try {
+                            $d = \json_decode(\substr($line, 6), true, 512, \JSON_THROW_ON_ERROR);
+                            if (isset($d['error']['retry_after'])) {
+                                $retryAfter = (int) $d['error']['retry_after'];
+                            }
+                        } catch (\JsonException) {
+                            continue;
+                        }
+                    }
+                }
+                throw new RateLimitException($retryAfter, $errorMessage);
+            }
+
+            throw new \RuntimeException("Anthropic API error: {$errorMessage}");
         }
 
         // Parse all events for tool use blocks and final state.

@@ -11,4 +11,17 @@ final readonly class ToolResultBlock
         public string $content,
         public bool $isError = false,
     ) {}
+
+    /**
+     * @return array{type: string, tool_use_id: string, content: string, is_error: bool}
+     */
+    public function toArray(): array
+    {
+        return [
+            'type' => 'tool_result',
+            'tool_use_id' => $this->toolUseId,
+            'content' => $this->content,
+            'is_error' => $this->isError,
+        ];
+    }
 }

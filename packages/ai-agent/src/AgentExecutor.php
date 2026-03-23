@@ -177,85 +177,105 @@ final class AgentExecutor
         $agentId = $this->getAgentId($agent);
         $accountId = (int) $context->account->id();
 
-        // Let the agent prepare the initial request
-        $agentResult = $agent->execute($context);
+        try {
+            // Let the agent prepare the initial request
+            $agentResult = $agent->execute($context);
 
-        $messages = $context->parameters['messages'] ?? [
-            ['role' => 'user', 'content' => $agentResult->message],
-        ];
-        $system = $context->parameters['system'] ?? null;
-        $tools = $this->buildToolDefinitions();
+            $messages = $context->parameters['messages'] ?? [
+                ['role' => 'user', 'content' => $agentResult->message],
+            ];
+            $system = $context->parameters['system'] ?? null;
+            $tools = $this->buildToolDefinitions();
 
-        $iteration = 0;
+            $iteration = 0;
 
-        while (true) {
-            $iteration++;
-            if ($iteration > $context->maxIterations) {
-                throw new MaxIterationsException($context->maxIterations);
-            }
+            while (true) {
+                $iteration++;
+                if ($iteration > $context->maxIterations) {
+                    throw new MaxIterationsException($context->maxIterations);
+                }
 
-            $request = new MessageRequest(
-                messages: $messages,
-                system: $system,
-                tools: $tools,
-                maxTokens: (int) ($context->parameters['max_tokens'] ?? 4096),
-            );
-
-            $response = $provider->sendMessage($request);
-
-            // Append assistant response to conversation
-            $messages[] = ['role' => 'assistant', 'content' => $response->content];
-
-            if ($response->stopReason !== 'tool_use') {
-                break;
-            }
-
-            // Execute tool calls
-            $toolResults = [];
-            foreach ($response->getToolUseBlocks() as $toolUseBlock) {
-                $toolResult = $this->toolRegistry->execute($toolUseBlock->name, $toolUseBlock->input);
-                $isError = $toolResult['isError'] ?? false;
-                $resultText = $toolResult['content'][0]['text'] ?? '';
-
-                $this->auditLog[] = new AgentAuditLog(
-                    agentId: $agentId,
-                    accountId: $accountId,
-                    action: 'tool_call',
-                    success: !$isError,
-                    message: "Tool call: {$toolUseBlock->name}",
-                    data: ['tool' => $toolUseBlock->name, 'arguments' => $toolUseBlock->input],
-                    timestamp: \time(),
+                $request = new MessageRequest(
+                    messages: $messages,
+                    system: $system,
+                    tools: $tools,
+                    maxTokens: (int) ($context->parameters['max_tokens'] ?? 4096),
                 );
 
-                $toolResults[] = [
-                    'type' => 'tool_result',
-                    'tool_use_id' => $toolUseBlock->id,
-                    'content' => $resultText,
-                    'is_error' => $isError,
-                ];
+                $response = $provider->sendMessage($request);
+
+                // Append assistant response to conversation
+                $messages[] = ['role' => 'assistant', 'content' => $response->content];
+
+                if ($response->stopReason !== 'tool_use') {
+                    break;
+                }
+
+                // Execute tool calls
+                $toolResults = [];
+                foreach ($response->getToolUseBlocks() as $toolUseBlock) {
+                    $toolResult = $this->toolRegistry->execute($toolUseBlock->name, $toolUseBlock->input);
+                    $isError = $toolResult['isError'] ?? false;
+                    $resultText = $toolResult['content'][0]['text'] ?? '';
+
+                    $this->auditLog[] = new AgentAuditLog(
+                        agentId: $agentId,
+                        accountId: $accountId,
+                        action: 'tool_call',
+                        success: !$isError,
+                        message: "Tool call: {$toolUseBlock->name}",
+                        data: ['tool' => $toolUseBlock->name, 'arguments' => $toolUseBlock->input],
+                        timestamp: \time(),
+                    );
+
+                    $toolResults[] = (new Provider\ToolResultBlock(
+                        toolUseId: $toolUseBlock->id,
+                        content: $resultText,
+                        isError: $isError,
+                    ))->toArray();
+                }
+
+                $messages[] = ['role' => 'user', 'content' => $toolResults];
             }
 
-            $messages[] = ['role' => 'user', 'content' => $toolResults];
+            $finalText = $response->getText();
+
+            $result = AgentResult::success(
+                message: $finalText,
+                data: ['usage' => $response->usage, 'iterations' => $iteration],
+            );
+
+            $this->auditLog[] = new AgentAuditLog(
+                agentId: $agentId,
+                accountId: $accountId,
+                action: 'execute_with_provider',
+                success: true,
+                message: $finalText,
+                data: $result->data,
+                timestamp: \time(),
+            );
+
+            return $result;
+        } catch (MaxIterationsException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            $result = AgentResult::failure(
+                message: "Agent execution failed: {$e->getMessage()}",
+                data: ['exception' => $e::class],
+            );
+
+            $this->auditLog[] = new AgentAuditLog(
+                agentId: $agentId,
+                accountId: $accountId,
+                action: 'execute_with_provider',
+                success: false,
+                message: $result->message,
+                data: $result->data,
+                timestamp: \time(),
+            );
+
+            return $result;
         }
-
-        $finalText = $response->getText();
-
-        $result = AgentResult::success(
-            message: $finalText,
-            data: ['usage' => $response->usage, 'iterations' => $iteration],
-        );
-
-        $this->auditLog[] = new AgentAuditLog(
-            agentId: $agentId,
-            accountId: $accountId,
-            action: 'execute_with_provider',
-            success: true,
-            message: $finalText,
-            data: $result->data,
-            timestamp: \time(),
-        );
-
-        return $result;
     }
 
     /**
@@ -272,83 +292,103 @@ final class AgentExecutor
         $agentId = $this->getAgentId($agent);
         $accountId = (int) $context->account->id();
 
-        $agentResult = $agent->execute($context);
+        try {
+            $agentResult = $agent->execute($context);
 
-        $messages = $context->parameters['messages'] ?? [
-            ['role' => 'user', 'content' => $agentResult->message],
-        ];
-        $system = $context->parameters['system'] ?? null;
-        $tools = $this->buildToolDefinitions();
+            $messages = $context->parameters['messages'] ?? [
+                ['role' => 'user', 'content' => $agentResult->message],
+            ];
+            $system = $context->parameters['system'] ?? null;
+            $tools = $this->buildToolDefinitions();
 
-        $iteration = 0;
+            $iteration = 0;
 
-        while (true) {
-            $iteration++;
-            if ($iteration > $context->maxIterations) {
-                throw new MaxIterationsException($context->maxIterations);
-            }
+            while (true) {
+                $iteration++;
+                if ($iteration > $context->maxIterations) {
+                    throw new MaxIterationsException($context->maxIterations);
+                }
 
-            $request = new MessageRequest(
-                messages: $messages,
-                system: $system,
-                tools: $tools,
-                maxTokens: (int) ($context->parameters['max_tokens'] ?? 4096),
-            );
-
-            $response = $provider->streamMessage($request, $onChunk);
-
-            $messages[] = ['role' => 'assistant', 'content' => $response->content];
-
-            if ($response->stopReason !== 'tool_use') {
-                break;
-            }
-
-            // Execute tool calls synchronously between streaming rounds
-            $toolResults = [];
-            foreach ($response->getToolUseBlocks() as $toolUseBlock) {
-                $toolResult = $this->toolRegistry->execute($toolUseBlock->name, $toolUseBlock->input);
-                $isError = $toolResult['isError'] ?? false;
-                $resultText = $toolResult['content'][0]['text'] ?? '';
-
-                $this->auditLog[] = new AgentAuditLog(
-                    agentId: $agentId,
-                    accountId: $accountId,
-                    action: 'tool_call',
-                    success: !$isError,
-                    message: "Tool call: {$toolUseBlock->name}",
-                    data: ['tool' => $toolUseBlock->name, 'arguments' => $toolUseBlock->input],
-                    timestamp: \time(),
+                $request = new MessageRequest(
+                    messages: $messages,
+                    system: $system,
+                    tools: $tools,
+                    maxTokens: (int) ($context->parameters['max_tokens'] ?? 4096),
                 );
 
-                $toolResults[] = [
-                    'type' => 'tool_result',
-                    'tool_use_id' => $toolUseBlock->id,
-                    'content' => $resultText,
-                    'is_error' => $isError,
-                ];
+                $response = $provider->streamMessage($request, $onChunk);
+
+                $messages[] = ['role' => 'assistant', 'content' => $response->content];
+
+                if ($response->stopReason !== 'tool_use') {
+                    break;
+                }
+
+                // Execute tool calls synchronously between streaming rounds
+                $toolResults = [];
+                foreach ($response->getToolUseBlocks() as $toolUseBlock) {
+                    $toolResult = $this->toolRegistry->execute($toolUseBlock->name, $toolUseBlock->input);
+                    $isError = $toolResult['isError'] ?? false;
+                    $resultText = $toolResult['content'][0]['text'] ?? '';
+
+                    $this->auditLog[] = new AgentAuditLog(
+                        agentId: $agentId,
+                        accountId: $accountId,
+                        action: 'tool_call',
+                        success: !$isError,
+                        message: "Tool call: {$toolUseBlock->name}",
+                        data: ['tool' => $toolUseBlock->name, 'arguments' => $toolUseBlock->input],
+                        timestamp: \time(),
+                    );
+
+                    $toolResults[] = (new Provider\ToolResultBlock(
+                        toolUseId: $toolUseBlock->id,
+                        content: $resultText,
+                        isError: $isError,
+                    ))->toArray();
+                }
+
+                $messages[] = ['role' => 'user', 'content' => $toolResults];
             }
 
-            $messages[] = ['role' => 'user', 'content' => $toolResults];
+            $finalText = $response->getText();
+
+            $result = AgentResult::success(
+                message: $finalText,
+                data: ['usage' => $response->usage, 'iterations' => $iteration],
+            );
+
+            $this->auditLog[] = new AgentAuditLog(
+                agentId: $agentId,
+                accountId: $accountId,
+                action: 'stream_with_provider',
+                success: true,
+                message: $finalText,
+                data: $result->data,
+                timestamp: \time(),
+            );
+
+            return $result;
+        } catch (MaxIterationsException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            $result = AgentResult::failure(
+                message: "Agent execution failed: {$e->getMessage()}",
+                data: ['exception' => $e::class],
+            );
+
+            $this->auditLog[] = new AgentAuditLog(
+                agentId: $agentId,
+                accountId: $accountId,
+                action: 'stream_with_provider',
+                success: false,
+                message: $result->message,
+                data: $result->data,
+                timestamp: \time(),
+            );
+
+            return $result;
         }
-
-        $finalText = $response->getText();
-
-        $result = AgentResult::success(
-            message: $finalText,
-            data: ['usage' => $response->usage, 'iterations' => $iteration],
-        );
-
-        $this->auditLog[] = new AgentAuditLog(
-            agentId: $agentId,
-            accountId: $accountId,
-            action: 'stream_with_provider',
-            success: true,
-            message: $finalText,
-            data: $result->data,
-            timestamp: \time(),
-        );
-
-        return $result;
     }
 
     /**
@@ -362,9 +402,12 @@ final class AgentExecutor
     }
 
     /**
-     * Build tool definitions array for the Anthropic API.
+     * Build tool definitions array for the LLM provider.
      *
-     * @return array<int, array{name: string, description: string, input_schema: array<string, mixed>}>
+     * Note: Currently outputs Anthropic API format (input_schema).
+     * Future providers may need format adaptation.
+     *
+     * @return array<int, array<string, mixed>>
      */
     private function buildToolDefinitions(): array
     {
