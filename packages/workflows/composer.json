@@ -23,12 +23,17 @@
         {
             "type": "path",
             "url": "../config"
+        },
+        {
+            "type": "path",
+            "url": "../relationship"
         }
     ],
     "require": {
         "php": ">=8.4",
         "waaseyaa/access": "^0.1",
-        "waaseyaa/entity": "^0.1"
+        "waaseyaa/entity": "^0.1",
+        "waaseyaa/relationship": "^0.1"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"

@@ -22,6 +22,7 @@
     },
     "extra": {
         "waaseyaa": {
+            "layer": 6,
             "providers": ["Waaseyaa\\Billing\\BillingServiceProvider"]
         },
         "branch-alias": { "dev-main": "0.1.x-dev" }

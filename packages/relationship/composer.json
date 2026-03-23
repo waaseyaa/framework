@@ -12,8 +12,7 @@
         "php": ">=8.4",
         "waaseyaa/access": "^0.1",
         "waaseyaa/database-legacy": "^0.1",
-        "waaseyaa/entity": "^0.1",
-        "waaseyaa/workflows": "^0.1"
+        "waaseyaa/entity": "^0.1"
     },
     "extra": {
         "waaseyaa": {

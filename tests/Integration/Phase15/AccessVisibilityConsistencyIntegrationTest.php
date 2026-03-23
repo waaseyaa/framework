@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase15;
 
+require_once __DIR__ . '/../../../packages/relationship/src/VisibilityFilterInterface.php';
 require_once __DIR__ . '/../../../packages/relationship/src/RelationshipTraversalService.php';
 require_once __DIR__ . '/../../../packages/relationship/src/Relationship.php';
 require_once __DIR__ . '/../../../packages/relationship/src/RelationshipSchemaManager.php';
+require_once __DIR__ . '/../../../packages/workflows/src/WorkflowVisibilityFilter.php';
 
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
@@ -30,6 +32,7 @@ use Waaseyaa\Mcp\McpController;
 use Waaseyaa\Relationship\Relationship;
 use Waaseyaa\Relationship\RelationshipSchemaManager;
 use Waaseyaa\Relationship\RelationshipTraversalService;
+use Waaseyaa\Workflows\WorkflowVisibilityFilter;
 
 #[CoversNothing]
 final class AccessVisibilityConsistencyIntegrationTest extends TestCase
@@ -153,7 +156,7 @@ final class AccessVisibilityConsistencyIntegrationTest extends TestCase
         $payload = json_decode((string) $rpc['result']['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR);
         $this->assertSame(0, $payload['meta']['count']);
 
-        $traversal = new RelationshipTraversalService($manager, $database);
+        $traversal = new RelationshipTraversalService($manager, $database, new WorkflowVisibilityFilter());
         $browse = $traversal->browse('node', (string) $anchor->id(), ['status' => 'published']);
         $this->assertSame([], $browse['outbound']);
         $this->assertSame([], $browse['inbound']);

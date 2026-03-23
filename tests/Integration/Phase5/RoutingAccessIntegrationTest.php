@@ -6,7 +6,7 @@ namespace Waaseyaa\Tests\Integration\Phase5;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Routing\AccessChecker;
+use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\RouteMatch;
 use Waaseyaa\Routing\WaaseyaaRouter;

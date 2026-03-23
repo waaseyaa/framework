@@ -2,11 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Waaseyaa\Routing;
+namespace Waaseyaa\Access;
 
 use Symfony\Component\Routing\Route;
-use Waaseyaa\Access\AccessResult;
-use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Gate\GateInterface;
 
 /**

@@ -24,7 +24,7 @@ use Waaseyaa\Foundation\Http\CorsHandler;
 use Waaseyaa\Foundation\Http\ResponseSender;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
-use Waaseyaa\Routing\AccessChecker;
+use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\SSR\RenderCache;
 use Waaseyaa\SSR\SsrPageHandler;

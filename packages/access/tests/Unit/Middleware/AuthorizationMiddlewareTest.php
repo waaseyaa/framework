@@ -13,7 +13,7 @@ use Symfony\Component\Routing\Route;
 use Waaseyaa\Access\ErrorPageRendererInterface;
 use Waaseyaa\Access\Middleware\AuthorizationMiddleware;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
-use Waaseyaa\Routing\AccessChecker;
+use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\User\AnonymousUser;
 
 #[CoversClass(AuthorizationMiddleware::class)]
