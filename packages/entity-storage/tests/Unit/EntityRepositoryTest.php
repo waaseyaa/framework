@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace Waaseyaa\EntityStorage\Tests\Unit;
 
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\SpyEntityEventFactory;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -341,5 +345,107 @@ final class EntityRepositoryTest extends TestCase
 
         $repository->save($entity);
         $this->assertGreaterThan(0, $factory->callCount, 'Custom event factory should be called during save');
+    }
+
+    // -----------------------------------------------------------------------
+    // Batch operations
+    // -----------------------------------------------------------------------
+
+    private function createSqlRepository(): EntityRepository
+    {
+        $db = DBALDatabase::createSqlite();
+        $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
+        (new SqlSchemaHandler($this->entityType, $db))->ensureTable();
+
+        return new EntityRepository(
+            $this->entityType,
+            $driver,
+            $this->eventDispatcher,
+            database: $db,
+        );
+    }
+
+    private function newEntity(string $id, string $label = 'Test'): TestStorageEntity
+    {
+        $entity = new TestStorageEntity(
+            values: ['id' => $id, 'label' => $label, 'bundle' => 'article', 'langcode' => 'en'],
+            entityTypeId: 'test_entity',
+            entityKeys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+        );
+        $entity->enforceIsNew(true);
+
+        return $entity;
+    }
+
+    #[Test]
+    public function saveManyReturnsResultsPerEntity(): void
+    {
+        $repository = $this->createSqlRepository();
+        $results = $repository->saveMany([$this->newEntity('1', 'First'), $this->newEntity('2', 'Second')]);
+
+        $this->assertCount(2, $results);
+        $this->assertSame(EntityConstants::SAVED_NEW, $results[0]);
+        $this->assertSame(EntityConstants::SAVED_NEW, $results[1]);
+    }
+
+    #[Test]
+    public function saveManyWithEmptyArrayReturnsEmpty(): void
+    {
+        $repository = $this->createSqlRepository();
+        $this->assertSame([], $repository->saveMany([]));
+    }
+
+    #[Test]
+    public function saveManyDispatchesEventsAfterCommit(): void
+    {
+        $repository = $this->createSqlRepository();
+
+        $events = [];
+        $this->eventDispatcher->addListener(EntityEvents::PRE_SAVE->value, function () use (&$events) {
+            $events[] = 'pre_save';
+        });
+        $this->eventDispatcher->addListener(EntityEvents::POST_SAVE->value, function () use (&$events) {
+            $events[] = 'post_save';
+        });
+
+        $repository->saveMany([$this->newEntity('1')]);
+
+        $this->assertSame(['pre_save', 'post_save'], $events);
+    }
+
+    #[Test]
+    public function saveManyThrowsWithoutDatabase(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->repository->saveMany([$this->newEntity('1')]);
+    }
+
+    #[Test]
+    public function deleteManyReturnsCount(): void
+    {
+        $repository = $this->createSqlRepository();
+        $e1 = $this->newEntity('1', 'First');
+        $e2 = $this->newEntity('2', 'Second');
+        $repository->saveMany([$e1, $e2]);
+
+        $count = $repository->deleteMany([$e1, $e2]);
+
+        $this->assertSame(2, $count);
+        $this->assertNull($repository->find('1'));
+        $this->assertNull($repository->find('2'));
+    }
+
+    #[Test]
+    public function deleteManyWithEmptyArrayReturnsZero(): void
+    {
+        $repository = $this->createSqlRepository();
+        $this->assertSame(0, $repository->deleteMany([]));
+    }
+
+    #[Test]
+    public function deleteManyThrowsWithoutDatabase(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->repository->deleteMany([$this->newEntity('1')]);
     }
 }

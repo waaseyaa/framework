@@ -89,4 +89,29 @@ interface EntityRepositoryInterface
      * @throws \InvalidArgumentException If the target revision does not exist.
      */
     public function rollback(string $entityId, int $targetRevisionId): EntityInterface;
+
+    /**
+     * Save multiple entities in a single transaction.
+     *
+     * Events are buffered during the transaction and dispatched after commit.
+     * On failure, all changes are rolled back and no events are dispatched.
+     *
+     * @param EntityInterface[] $entities The entities to save.
+     * @param bool $validate Whether to run pre-save validation (forward-looking hook for #569).
+     * @return int[] Array of SAVED_NEW/SAVED_UPDATED per entity (same order as input).
+     * @throws \LogicException If no database connection is available for transactions.
+     */
+    public function saveMany(array $entities, bool $validate = true): array;
+
+    /**
+     * Delete multiple entities in a single transaction.
+     *
+     * Events are buffered during the transaction and dispatched after commit.
+     * On failure, all changes are rolled back and no events are dispatched.
+     *
+     * @param EntityInterface[] $entities The entities to delete.
+     * @return int Number of entities deleted.
+     * @throws \LogicException If no database connection is available for transactions.
+     */
+    public function deleteMany(array $entities): int;
 }

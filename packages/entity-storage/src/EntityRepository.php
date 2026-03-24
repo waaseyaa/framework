@@ -96,39 +96,85 @@ final class EntityRepository implements EntityRepositoryInterface
 
     public function save(EntityInterface $entity): int
     {
+        return $this->doSave($entity);
+    }
+
+    public function delete(EntityInterface $entity): void
+    {
+        $this->doDelete($entity);
+    }
+
+    public function saveMany(array $entities, bool $validate = true): array
+    {
+        if ($entities === []) {
+            return [];
+        }
+
+        if ($this->database === null) {
+            throw new \LogicException('saveMany() requires a database connection for transaction support.');
+        }
+
+        $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher);
+
+        return $unitOfWork->transaction(function () use ($entities, $unitOfWork): array {
+            $results = [];
+            foreach ($entities as $entity) {
+                $results[] = $this->doSave($entity, $unitOfWork);
+            }
+
+            return $results;
+        });
+    }
+
+    public function deleteMany(array $entities): int
+    {
+        if ($entities === []) {
+            return 0;
+        }
+
+        if ($this->database === null) {
+            throw new \LogicException('deleteMany() requires a database connection for transaction support.');
+        }
+
+        $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher);
+
+        return $unitOfWork->transaction(function () use ($entities, $unitOfWork): int {
+            foreach ($entities as $entity) {
+                $this->doDelete($entity, $unitOfWork);
+            }
+
+            return count($entities);
+        });
+    }
+
+    private function doSave(EntityInterface $entity, ?UnitOfWork $unitOfWork = null): int
+    {
         $isNew = $entity->isNew();
         $entityTypeId = $this->entityType->id();
 
-        // Dispatch PRE_SAVE event.
-        $this->eventDispatcher->dispatch(
+        $this->dispatchEvent(
             $this->eventFactory->create($entity),
             EntityEvents::PRE_SAVE->value,
+            $unitOfWork,
         );
 
         $values = $entity->toArray();
         $id = (string) ($entity->id() ?? '');
-
-        // Determine if we should create a new revision.
         $createRevision = $this->shouldCreateRevision($entity, $isNew);
 
         // Wrap revision + base table writes in a transaction (invariant #4).
-        $transaction = $this->database?->transaction();
+        // Skip if already inside a UnitOfWork transaction.
+        $transaction = ($unitOfWork === null) ? $this->database?->transaction() : null;
         try {
             if ($createRevision && $this->revisionDriver !== null) {
                 $log = ($entity instanceof RevisionableInterface) ? $entity->getRevisionLog() : null;
-
                 $revisionId = $this->revisionDriver->writeRevision($id, $values, $log);
-
-                // Set revision_id on the entity values for the base table.
                 $values['revision_id'] = $revisionId;
-
-                // Update entity's internal revision_id.
                 if ($entity instanceof ContentEntityInterface) {
                     $revisionKey = $this->entityType->getKeys()['revision'] ?? 'revision_id';
                     $entity->set($revisionKey, $revisionId);
                 }
             } elseif (!$createRevision && !$isNew && $this->revisionDriver !== null && $entity instanceof RevisionableInterface) {
-                // In-place update of current revision.
                 $currentRevisionId = $entity->getRevisionId();
                 if ($currentRevisionId !== null) {
                     $this->revisionDriver->updateRevision($id, $currentRevisionId, $values);
@@ -142,53 +188,60 @@ final class EntityRepository implements EntityRepositoryInterface
             throw $e;
         }
 
-        // Mark entity as no longer new.
         if ($isNew && method_exists($entity, 'enforceIsNew')) {
             $entity->enforceIsNew(false);
         }
 
         $result = $isNew ? EntityConstants::SAVED_NEW : EntityConstants::SAVED_UPDATED;
 
-        // Dispatch POST_SAVE event.
-        $this->eventDispatcher->dispatch(
+        $this->dispatchEvent(
             $this->eventFactory->create($entity),
             EntityEvents::POST_SAVE->value,
+            $unitOfWork,
         );
 
-        // Dispatch REVISION_CREATED if a revision was created.
         if ($createRevision && $this->revisionDriver !== null) {
-            $this->eventDispatcher->dispatch(
+            $this->dispatchEvent(
                 $this->eventFactory->create($entity),
                 EntityEvents::REVISION_CREATED->value,
+                $unitOfWork,
             );
         }
 
         return $result;
     }
 
-    public function delete(EntityInterface $entity): void
+    private function doDelete(EntityInterface $entity, ?UnitOfWork $unitOfWork = null): void
     {
         $entityTypeId = $this->entityType->id();
         $id = (string) $entity->id();
 
-        // Dispatch PRE_DELETE event.
-        $this->eventDispatcher->dispatch(
+        $this->dispatchEvent(
             $this->eventFactory->create($entity),
             EntityEvents::PRE_DELETE->value,
+            $unitOfWork,
         );
 
-        // Delete all revisions first (if revisionable).
         if ($this->revisionDriver !== null && $this->entityType->isRevisionable()) {
             $this->revisionDriver->deleteAllRevisions($id);
         }
 
         $this->driver->remove($entityTypeId, $id);
 
-        // Dispatch POST_DELETE event.
-        $this->eventDispatcher->dispatch(
+        $this->dispatchEvent(
             $this->eventFactory->create($entity),
             EntityEvents::POST_DELETE->value,
+            $unitOfWork,
         );
+    }
+
+    private function dispatchEvent(object $event, string $eventName, ?UnitOfWork $unitOfWork = null): void
+    {
+        if ($unitOfWork !== null) {
+            $unitOfWork->bufferEvent($event, $eventName);
+        } else {
+            $this->eventDispatcher->dispatch($event, $eventName);
+        }
     }
 
     public function exists(string $id): bool
@@ -266,12 +319,11 @@ final class EntityRepository implements EntityRepositoryInterface
         // Load the new entity via loadRevision to include revision metadata.
         $entity = $this->loadRevision($entityId, $newRevisionId);
 
-        // Dispatch REVISION_CREATED (rollback creates a revision) then REVISION_REVERTED.
-        $this->eventDispatcher->dispatch(
+        $this->dispatchEvent(
             $this->eventFactory->create($entity),
             EntityEvents::REVISION_CREATED->value,
         );
-        $this->eventDispatcher->dispatch(
+        $this->dispatchEvent(
             $this->eventFactory->create($entity),
             EntityEvents::REVISION_REVERTED->value,
         );
