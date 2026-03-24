@@ -14,6 +14,7 @@ use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
+use Waaseyaa\EntityStorage\Tests\Fixtures\LifecycleTrackingEntity;
 use Waaseyaa\EntityStorage\Tests\Fixtures\SpyEntityEventFactory;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -447,5 +448,113 @@ final class EntityRepositoryTest extends TestCase
     {
         $this->expectException(\LogicException::class);
         $this->repository->deleteMany([$this->newEntity('1')]);
+    }
+
+    // -----------------------------------------------------------------------
+    // Lifecycle hooks
+    // -----------------------------------------------------------------------
+
+    #[Test]
+    public function saveCallsLifecycleHooksInOrder(): void
+    {
+        $lifecycleType = new EntityType(
+            id: 'test_entity',
+            label: 'Test Entity',
+            class: LifecycleTrackingEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+        );
+
+        $db = DBALDatabase::createSqlite();
+        $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
+        (new SqlSchemaHandler($lifecycleType, $db))->ensureTable();
+
+        $repository = new EntityRepository(
+            $lifecycleType,
+            $driver,
+            $this->eventDispatcher,
+            database: $db,
+        );
+
+        $entity = new LifecycleTrackingEntity(
+            values: ['id' => '1', 'label' => 'Test', 'bundle' => 'article', 'langcode' => 'en'],
+            entityTypeId: 'test_entity',
+            entityKeys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+        );
+        $entity->enforceIsNew(true);
+
+        $repository->save($entity);
+
+        $this->assertSame(['preSave:new', 'postSave:new'], $entity->hookLog);
+    }
+
+    #[Test]
+    public function deleteCallsLifecycleHooksInOrder(): void
+    {
+        $lifecycleType = new EntityType(
+            id: 'test_entity',
+            label: 'Test Entity',
+            class: LifecycleTrackingEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+        );
+
+        $db = DBALDatabase::createSqlite();
+        $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
+        (new SqlSchemaHandler($lifecycleType, $db))->ensureTable();
+
+        $repository = new EntityRepository(
+            $lifecycleType,
+            $driver,
+            $this->eventDispatcher,
+            database: $db,
+        );
+
+        $entity = new LifecycleTrackingEntity(
+            values: ['id' => '1', 'label' => 'Test', 'bundle' => 'article', 'langcode' => 'en'],
+            entityTypeId: 'test_entity',
+            entityKeys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+        );
+        $entity->enforceIsNew(true);
+        $repository->save($entity);
+
+        $entity->hookLog = []; // reset
+        $repository->delete($entity);
+
+        $this->assertSame(['preDelete', 'postDelete'], $entity->hookLog);
+    }
+
+    #[Test]
+    public function updateCallsHooksWithIsNewFalse(): void
+    {
+        $lifecycleType = new EntityType(
+            id: 'test_entity',
+            label: 'Test Entity',
+            class: LifecycleTrackingEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+        );
+
+        $db = DBALDatabase::createSqlite();
+        $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
+        (new SqlSchemaHandler($lifecycleType, $db))->ensureTable();
+
+        $repository = new EntityRepository(
+            $lifecycleType,
+            $driver,
+            $this->eventDispatcher,
+            database: $db,
+        );
+
+        $entity = new LifecycleTrackingEntity(
+            values: ['id' => '1', 'label' => 'Test', 'bundle' => 'article', 'langcode' => 'en'],
+            entityTypeId: 'test_entity',
+            entityKeys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+        );
+        $entity->enforceIsNew(true);
+        $repository->save($entity);
+
+        $entity->hookLog = []; // reset
+        $entity->set('label', 'Updated');
+        $repository->save($entity);
+
+        $this->assertSame(['preSave:update', 'postSave:update'], $entity->hookLog);
     }
 }

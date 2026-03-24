@@ -138,4 +138,24 @@ abstract class EntityBase implements EntityInterface
 
         return (string) ($this->values[$langcodeKey] ?? 'en');
     }
+
+    /**
+     * Called before the entity is persisted. Override for custom logic.
+     */
+    public function preSave(bool $isNew): void {}
+
+    /**
+     * Called after the entity is successfully persisted. Override for custom logic.
+     */
+    public function postSave(bool $isNew): void {}
+
+    /**
+     * Called before the entity is deleted. Override for custom logic.
+     */
+    public function preDelete(): void {}
+
+    /**
+     * Called after the entity is successfully deleted. Override for custom logic.
+     */
+    public function postDelete(): void {}
 }

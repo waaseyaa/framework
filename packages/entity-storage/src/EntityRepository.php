@@ -7,6 +7,7 @@ namespace Waaseyaa\EntityStorage;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\ContentEntityInterface;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
@@ -152,6 +153,10 @@ final class EntityRepository implements EntityRepositoryInterface
         $isNew = $entity->isNew();
         $entityTypeId = $this->entityType->id();
 
+        if ($entity instanceof EntityBase) {
+            $entity->preSave($isNew);
+        }
+
         $this->dispatchEvent(
             $this->eventFactory->create($entity),
             EntityEvents::PRE_SAVE->value,
@@ -208,6 +213,10 @@ final class EntityRepository implements EntityRepositoryInterface
             );
         }
 
+        if ($entity instanceof EntityBase) {
+            $entity->postSave($isNew);
+        }
+
         return $result;
     }
 
@@ -215,6 +224,10 @@ final class EntityRepository implements EntityRepositoryInterface
     {
         $entityTypeId = $this->entityType->id();
         $id = (string) $entity->id();
+
+        if ($entity instanceof EntityBase) {
+            $entity->preDelete();
+        }
 
         $this->dispatchEvent(
             $this->eventFactory->create($entity),
@@ -233,6 +246,10 @@ final class EntityRepository implements EntityRepositoryInterface
             EntityEvents::POST_DELETE->value,
             $unitOfWork,
         );
+
+        if ($entity instanceof EntityBase) {
+            $entity->postDelete();
+        }
     }
 
     private function dispatchEvent(object $event, string $eventName, ?UnitOfWork $unitOfWork = null): void
