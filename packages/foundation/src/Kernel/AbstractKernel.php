@@ -9,6 +9,10 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
+use Waaseyaa\Foundation\Kernel\Bootstrap\AccessPolicyRegistry;
+use Waaseyaa\Foundation\Kernel\Bootstrap\ManifestBootstrapper;
+use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistry;
 use Waaseyaa\Entity\Audit\EntityAuditLogger;
 use Waaseyaa\Entity\Audit\EntityWriteAuditListener;
 use Waaseyaa\Entity\EntityTypeInterface;
@@ -19,7 +23,6 @@ use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Foundation\Diagnostic\DiagnosticCode;
 use Waaseyaa\Foundation\Diagnostic\DiagnosticEmitter;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
-use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
 use Waaseyaa\Foundation\Log\ErrorLogHandler;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Migration\MigrationLoader;
@@ -100,16 +103,7 @@ abstract class AbstractKernel
 
     protected function bootDatabase(): void
     {
-        $this->database = DBALDatabase::createSqlite($this->resolveDatabasePath());
-    }
-
-    private function resolveDatabasePath(): string
-    {
-        $dbPath = $this->config['database'] ?? null;
-        if ($dbPath === null) {
-            $dbPath = getenv('WAASEYAA_DB') ?: $this->projectRoot . '/waaseyaa.sqlite';
-        }
-        return $dbPath;
+        $this->database = (new DatabaseBootstrapper())->boot($this->projectRoot, $this->config);
     }
 
     protected function bootEntityTypeManager(): void
@@ -129,11 +123,7 @@ abstract class AbstractKernel
 
     protected function compileManifest(): void
     {
-        $compiler = new PackageManifestCompiler(
-            basePath: $this->projectRoot,
-            storagePath: $this->projectRoot . '/storage',
-        );
-        $this->manifest = $compiler->load();
+        $this->manifest = (new ManifestBootstrapper())->boot($this->projectRoot);
     }
 
     protected function bootMigrations(): void
@@ -151,62 +141,15 @@ abstract class AbstractKernel
 
     protected function discoverAndRegisterProviders(): void
     {
-        // Instantiate providers from manifest
-        foreach ($this->manifest->providers as $providerClass) {
-            if (!class_exists($providerClass)) {
-                $this->logger->warning(sprintf('Provider class not found: %s', $providerClass));
-                continue;
-            }
-
-            $provider = new $providerClass();
-            if (!$provider instanceof ServiceProvider) {
-                $this->logger->warning(sprintf('Class %s is not a ServiceProvider', $providerClass));
-                continue;
-            }
-
-            $provider->setKernelContext($this->projectRoot, $this->config, $this->manifest->formatters);
-            $provider->setKernelResolver(function (string $className): ?object {
-                if ($className === \Waaseyaa\Entity\EntityTypeManager::class) {
-                    return $this->entityTypeManager;
-                }
-                if ($className === \Waaseyaa\Database\DatabaseInterface::class) {
-                    return $this->database;
-                }
-                if ($className === \Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class) {
-                    return $this->dispatcher;
-                }
-                // Check other providers' bindings
-                foreach ($this->providers as $other) {
-                    if (isset($other->getBindings()[$className])) {
-                        return $other->resolve($className);
-                    }
-                }
-                return null;
-            });
-
-            $this->providers[] = $provider;
-        }
-
-        // Register all providers, then collect their entity types.
-        foreach ($this->providers as $provider) {
-            $provider->register();
-        }
-
-        // Register entity types declared by providers.
-        foreach ($this->providers as $provider) {
-            foreach ($provider->getEntityTypes() as $entityType) {
-                try {
-                    $this->entityTypeManager->registerEntityType($entityType);
-                } catch (\RuntimeException | \InvalidArgumentException $e) {
-                    $this->logger->error(sprintf(
-                        'Failed to register entity type "%s" from %s: %s',
-                        $entityType->id(),
-                        $provider::class,
-                        $e->getMessage(),
-                    ));
-                }
-            }
-        }
+        $registry = new ProviderRegistry($this->logger);
+        $this->providers = $registry->discoverAndRegister(
+            $this->manifest,
+            $this->projectRoot,
+            $this->config,
+            $this->entityTypeManager,
+            $this->database,
+            $this->dispatcher,
+        );
     }
 
     protected function loadAppEntityTypes(): void
@@ -277,45 +220,12 @@ abstract class AbstractKernel
 
     protected function bootProviders(): void
     {
-        foreach ($this->providers as $provider) {
-            $provider->boot();
-        }
+        (new ProviderRegistry($this->logger))->boot($this->providers);
     }
 
     protected function discoverAccessPolicies(): void
     {
-        $policies = [];
-        foreach ($this->manifest->policies as $class => $entityTypes) {
-            if (!class_exists($class)) {
-                $this->logger->warning(sprintf(
-                    'Access policy class not found: %s (covering entity types: %s). '
-                    . 'Run "composer dump-autoload --optimize" to update the classmap.',
-                    $class,
-                    implode(', ', $entityTypes),
-                ));
-                continue;
-            }
-
-            try {
-                // Policies may accept their entity type list as a constructor
-                // argument (e.g. ConfigEntityAccessPolicy). Detect via reflection.
-                $ref = new \ReflectionClass($class);
-                $constructor = $ref->getConstructor();
-                if ($constructor !== null && $constructor->getNumberOfRequiredParameters() > 0) {
-                    $policies[] = new $class($entityTypes);
-                } else {
-                    $policies[] = new $class();
-                }
-            } catch (\Throwable $e) {
-                $this->logger->error(sprintf(
-                    'Failed to instantiate access policy %s: %s',
-                    $class,
-                    $e->getMessage(),
-                ));
-            }
-        }
-
-        $this->accessHandler = new EntityAccessHandler($policies);
+        $this->accessHandler = (new AccessPolicyRegistry($this->logger))->discover($this->manifest);
     }
 
     protected function bootKnowledgeExtensionRunner(): void
