@@ -1,7 +1,7 @@
 # Waaseyaa
 
 ## Project Structure
-- Monorepo: 38 PHP packages in `packages/`, 3 meta-packages (core, cms, full), 1 JS admin SPA
+- Monorepo: 52 PHP packages in `packages/`, 3 meta-packages (core, cms, full), 1 JS admin SPA
 - 7-layer architecture (Foundation → Core Data → Content Types → Services → API → AI → Interfaces)
 - Each package has its own `composer.json` with path repository references
 - Root `composer.json` uses `@dev` constraints for all waaseyaa/* packages
@@ -129,10 +129,23 @@ This project uses three-tier codified context infrastructure ([arxiv.org/abs/260
 Design docs in `docs/plans/` are session artifacts (implementation history). Specs in `docs/specs/` are enduring architectural knowledge (kept current). When refactoring a subsystem, update its spec — run `tools/drift-detector.sh` to find stale specs.
 
 ## Commands
-- `./vendor/bin/phpunit --configuration phpunit.xml.dist` — run all tests (do NOT use `-v`, PHPUnit 10.5 rejects it)
-- `./vendor/bin/phpunit --filter Phase10` — run tests for a specific phase
+
+**Testing** (do NOT use `-v` flag, PHPUnit 10.5 rejects it):
+- `./vendor/bin/phpunit` — run all tests
 - `./vendor/bin/phpunit --testsuite Unit` — unit tests only
+- `./vendor/bin/phpunit --testsuite Integration` — integration tests only
+- `./vendor/bin/phpunit --filter Phase10` — run tests matching a pattern
+- `./vendor/bin/phpunit packages/mail/tests/` — run a single package's tests
+
+**Code quality:**
+- `composer cs-check` — check code style (dry-run PHP-CS-Fixer)
+- `composer cs-fix` — auto-fix code style
+- `composer phpstan` — static analysis (level 5)
+
+**Development:**
+- `composer dev` — start dev server (PHP 8.4 on :8081 + admin SPA)
 - `bin/waaseyaa` — CLI entry point (SQLite + file config)
+- `bin/waaseyaa optimize:manifest` — rebuild attribute-discovery manifest
 
 ## Code Style
 - PHP 8.4+, `declare(strict_types=1)` in every file
