@@ -14,6 +14,8 @@ use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\Event\DefaultEntityEventFactory;
 use Waaseyaa\Entity\Event\EntityEventFactoryInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
+use Waaseyaa\Entity\Validation\EntityValidationException;
+use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
@@ -39,6 +41,7 @@ final class EntityRepository implements EntityRepositoryInterface
         private readonly ?RevisionableStorageDriver $revisionDriver = null,
         private readonly ?DatabaseInterface $database = null,
         ?EntityEventFactoryInterface $eventFactory = null,
+        private readonly ?EntityValidator $validator = null,
     ) {
         $this->eventFactory = $eventFactory ?? new DefaultEntityEventFactory();
     }
@@ -95,9 +98,9 @@ final class EntityRepository implements EntityRepositoryInterface
         return $entities;
     }
 
-    public function save(EntityInterface $entity): int
+    public function save(EntityInterface $entity, bool $validate = true): int
     {
-        return $this->doSave($entity);
+        return $this->doSave($entity, validate: $validate);
     }
 
     public function delete(EntityInterface $entity): void
@@ -117,10 +120,10 @@ final class EntityRepository implements EntityRepositoryInterface
 
         $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher);
 
-        return $unitOfWork->transaction(function () use ($entities, $unitOfWork): array {
+        return $unitOfWork->transaction(function () use ($entities, $validate, $unitOfWork): array {
             $results = [];
             foreach ($entities as $entity) {
-                $results[] = $this->doSave($entity, $unitOfWork);
+                $results[] = $this->doSave($entity, $unitOfWork, $validate);
             }
 
             return $results;
@@ -148,10 +151,20 @@ final class EntityRepository implements EntityRepositoryInterface
         });
     }
 
-    private function doSave(EntityInterface $entity, ?UnitOfWork $unitOfWork = null): int
+    private function doSave(EntityInterface $entity, ?UnitOfWork $unitOfWork = null, bool $validate = true): int
     {
         $isNew = $entity->isNew();
         $entityTypeId = $this->entityType->id();
+
+        if ($validate && $this->validator !== null) {
+            $constraints = $this->entityType->getConstraints();
+            if ($constraints !== []) {
+                $violations = $this->validator->validate($entity, $constraints);
+                if ($violations->count() > 0) {
+                    throw new EntityValidationException($violations);
+                }
+            }
+        }
 
         if ($entity instanceof EntityBase) {
             $entity->preSave($isNew);

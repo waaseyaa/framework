@@ -41,9 +41,11 @@ interface EntityRepositoryInterface
      * Dispatches pre/post save domain events.
      *
      * @param EntityInterface $entity The entity to save.
+     * @param bool $validate Whether to run pre-save validation.
      * @return int SAVED_NEW (1) or SAVED_UPDATED (2).
+     * @throws \Waaseyaa\Entity\Validation\EntityValidationException If validation fails.
      */
-    public function save(EntityInterface $entity): int;
+    public function save(EntityInterface $entity, bool $validate = true): int;
 
     /**
      * Delete an entity.

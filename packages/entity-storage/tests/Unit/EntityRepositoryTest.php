@@ -557,4 +557,123 @@ final class EntityRepositoryTest extends TestCase
 
         $this->assertSame(['preSave:update', 'postSave:update'], $entity->hookLog);
     }
+
+    // -----------------------------------------------------------------------
+    // Pre-save validation
+    // -----------------------------------------------------------------------
+
+    #[Test]
+    public function saveThrowsValidationExceptionOnFailure(): void
+    {
+        $constrainedType = new EntityType(
+            id: 'test_entity',
+            label: 'Test Entity',
+            class: TestStorageEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+            constraints: [
+                'label' => [new \Symfony\Component\Validator\Constraints\NotBlank()],
+            ],
+        );
+
+        $validator = new \Waaseyaa\Entity\Validation\EntityValidator(
+            \Symfony\Component\Validator\Validation::createValidator(),
+        );
+
+        $repository = new EntityRepository(
+            $constrainedType,
+            $this->driver,
+            $this->eventDispatcher,
+            validator: $validator,
+        );
+
+        $entity = new TestStorageEntity(
+            values: ['id' => '1', 'label' => '', 'bundle' => 'article', 'langcode' => 'en'],
+            entityTypeId: 'test_entity',
+            entityKeys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+        );
+        $entity->enforceIsNew(true);
+
+        $this->expectException(\Waaseyaa\Entity\Validation\EntityValidationException::class);
+        $repository->save($entity);
+    }
+
+    #[Test]
+    public function saveSkipsValidationWhenDisabled(): void
+    {
+        $constrainedType = new EntityType(
+            id: 'test_entity',
+            label: 'Test Entity',
+            class: TestStorageEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+            constraints: [
+                'label' => [new \Symfony\Component\Validator\Constraints\NotBlank()],
+            ],
+        );
+
+        $db = DBALDatabase::createSqlite();
+        $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
+        (new SqlSchemaHandler($constrainedType, $db))->ensureTable();
+
+        $validator = new \Waaseyaa\Entity\Validation\EntityValidator(
+            \Symfony\Component\Validator\Validation::createValidator(),
+        );
+
+        $repository = new EntityRepository(
+            $constrainedType,
+            $driver,
+            $this->eventDispatcher,
+            database: $db,
+            validator: $validator,
+        );
+
+        $entity = new TestStorageEntity(
+            values: ['id' => '1', 'label' => '', 'bundle' => 'article', 'langcode' => 'en'],
+            entityTypeId: 'test_entity',
+            entityKeys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+        );
+        $entity->enforceIsNew(true);
+
+        $result = $repository->save($entity, validate: false);
+        $this->assertSame(EntityConstants::SAVED_NEW, $result);
+    }
+
+    #[Test]
+    public function savePassesWhenValidationSucceeds(): void
+    {
+        $constrainedType = new EntityType(
+            id: 'test_entity',
+            label: 'Test Entity',
+            class: TestStorageEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+            constraints: [
+                'label' => [new \Symfony\Component\Validator\Constraints\NotBlank()],
+            ],
+        );
+
+        $db = DBALDatabase::createSqlite();
+        $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
+        (new SqlSchemaHandler($constrainedType, $db))->ensureTable();
+
+        $validator = new \Waaseyaa\Entity\Validation\EntityValidator(
+            \Symfony\Component\Validator\Validation::createValidator(),
+        );
+
+        $repository = new EntityRepository(
+            $constrainedType,
+            $driver,
+            $this->eventDispatcher,
+            database: $db,
+            validator: $validator,
+        );
+
+        $entity = new TestStorageEntity(
+            values: ['id' => '1', 'label' => 'Valid', 'bundle' => 'article', 'langcode' => 'en'],
+            entityTypeId: 'test_entity',
+            entityKeys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+        );
+        $entity->enforceIsNew(true);
+
+        $result = $repository->save($entity);
+        $this->assertSame(EntityConstants::SAVED_NEW, $result);
+    }
 }
