@@ -6,8 +6,10 @@ namespace Waaseyaa\EntityStorage\Tests\Unit;
 
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityConstants;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\Event\EntityEvent;
+use Waaseyaa\Entity\Event\EntityEventFactoryInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
@@ -489,5 +491,37 @@ final class SqlEntityStorageTest extends TestCase
             $this->database,
             $this->eventDispatcher,
         );
+    }
+
+    public function testSaveUsesInjectedEventFactory(): void
+    {
+        $entity = new TestStorageEntity(
+            values: ['id' => '99', 'label' => 'Factory Test', 'bundle' => 'article', 'langcode' => 'en'],
+            entityTypeId: 'test_entity',
+            entityKeys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+        );
+        $entity->enforceIsNew(true);
+
+        $factoryCalled = false;
+        $factory = new class ($factoryCalled) implements EntityEventFactoryInterface {
+            public function __construct(private bool &$called) {}
+
+            public function create(EntityInterface $entity, ?EntityInterface $originalEntity = null): EntityEvent
+            {
+                $this->called = true;
+
+                return new EntityEvent($entity, $originalEntity);
+            }
+        };
+
+        $storage = new SqlEntityStorage(
+            $this->entityType,
+            $this->database,
+            $this->eventDispatcher,
+            eventFactory: $factory,
+        );
+
+        $storage->save($entity);
+        $this->assertTrue($factoryCalled, 'Custom event factory should be called during save');
     }
 }

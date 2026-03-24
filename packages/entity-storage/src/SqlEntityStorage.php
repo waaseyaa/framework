@@ -9,7 +9,8 @@ use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
-use Waaseyaa\Entity\Event\EntityEvent;
+use Waaseyaa\Entity\Event\DefaultEntityEventFactory;
+use Waaseyaa\Entity\Event\EntityEventFactoryInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
@@ -40,17 +41,21 @@ final class SqlEntityStorage implements EntityStorageInterface
 
     private readonly LoggerInterface $logger;
 
+    private readonly EntityEventFactoryInterface $eventFactory;
+
     public function __construct(
         private readonly EntityTypeInterface $entityType,
         private readonly DatabaseInterface $database,
         private readonly EventDispatcherInterface $eventDispatcher,
         ?LoggerInterface $logger = null,
+        ?EntityEventFactoryInterface $eventFactory = null,
     ) {
         $this->tableName = $this->entityType->id();
         $keys = $this->entityType->getKeys();
         $this->idKey = $keys['id'] ?? 'id';
         $this->entityKeys = $keys;
         $this->logger = $logger ?? new NullLogger();
+        $this->eventFactory = $eventFactory ?? new DefaultEntityEventFactory();
     }
 
     public function create(array $values = []): EntityInterface
@@ -127,7 +132,7 @@ final class SqlEntityStorage implements EntityStorageInterface
 
         // Dispatch PRE_SAVE event.
         $this->eventDispatcher->dispatch(
-            new EntityEvent($entity),
+            $this->eventFactory->create($entity),
             EntityEvents::PRE_SAVE->value,
         );
 
@@ -188,7 +193,7 @@ final class SqlEntityStorage implements EntityStorageInterface
 
         // Dispatch POST_SAVE event.
         $this->eventDispatcher->dispatch(
-            new EntityEvent($entity),
+            $this->eventFactory->create($entity),
             EntityEvents::POST_SAVE->value,
         );
 
@@ -207,7 +212,7 @@ final class SqlEntityStorage implements EntityStorageInterface
         // Dispatch PRE_DELETE events.
         foreach ($entities as $entity) {
             $this->eventDispatcher->dispatch(
-                new EntityEvent($entity),
+                $this->eventFactory->create($entity),
                 EntityEvents::PRE_DELETE->value,
             );
         }
@@ -230,7 +235,7 @@ final class SqlEntityStorage implements EntityStorageInterface
         // Dispatch POST_DELETE events.
         foreach ($entities as $entity) {
             $this->eventDispatcher->dispatch(
-                new EntityEvent($entity),
+                $this->eventFactory->create($entity),
                 EntityEvents::POST_DELETE->value,
             );
         }
