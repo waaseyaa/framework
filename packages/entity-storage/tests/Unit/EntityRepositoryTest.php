@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace Waaseyaa\EntityStorage\Tests\Unit;
 
 use Waaseyaa\Entity\EntityConstants;
-use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\Event\EntityEvent;
-use Waaseyaa\Entity\Event\EntityEventFactoryInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\EntityStorage\Tests\Fixtures\SpyEntityEventFactory;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -325,18 +324,7 @@ final class EntityRepositoryTest extends TestCase
     #[Test]
     public function saveUsesInjectedEventFactory(): void
     {
-        $factoryCalled = false;
-        $factory = new class ($factoryCalled) implements EntityEventFactoryInterface {
-            public function __construct(private bool &$called) {}
-
-            public function create(EntityInterface $entity, ?EntityInterface $originalEntity = null): EntityEvent
-            {
-                $this->called = true;
-
-                return new EntityEvent($entity, $originalEntity);
-            }
-        };
-
+        $factory = new SpyEntityEventFactory();
         $repository = new EntityRepository(
             $this->entityType,
             $this->driver,
@@ -352,6 +340,6 @@ final class EntityRepositoryTest extends TestCase
         $entity->enforceIsNew(true);
 
         $repository->save($entity);
-        $this->assertTrue($factoryCalled, 'Custom event factory should be called during save');
+        $this->assertGreaterThan(0, $factory->callCount, 'Custom event factory should be called during save');
     }
 }

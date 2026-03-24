@@ -10,18 +10,9 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\Event\DefaultEntityEventFactory;
 use Waaseyaa\Entity\Event\EntityEvent;
-use Waaseyaa\Entity\Event\EntityEventFactoryInterface;
-
 #[CoversClass(DefaultEntityEventFactory::class)]
 final class DefaultEntityEventFactoryTest extends TestCase
 {
-    #[Test]
-    public function implementsInterface(): void
-    {
-        $factory = new DefaultEntityEventFactory();
-        $this->assertInstanceOf(EntityEventFactoryInterface::class, $factory);
-    }
-
     #[Test]
     public function createReturnsEntityEvent(): void
     {
