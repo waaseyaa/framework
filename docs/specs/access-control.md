@@ -79,6 +79,7 @@ enum AccessStatus: string
 AccessResult::allowed(string $reason = ''): AccessResult
 AccessResult::neutral(string $reason = ''): AccessResult
 AccessResult::forbidden(string $reason = ''): AccessResult
+AccessResult::unauthenticated(string $reason = ''): AccessResult
 ```
 
 ### State Checks
@@ -318,6 +319,8 @@ Routes declare access requirements via Symfony Route options. Multiple requireme
 | Option | Type | Behavior |
 |--------|------|----------|
 | `_public` | `true` | Always allow (no auth required) |
+| `_authenticated` | `true` | Require non-anonymous identity; returns `AccessResult::unauthenticated()` (401) if anonymous. Short-circuits before other checks. |
+| `_session` | `true` or `string[]` | Require active session. When array, requires specific session keys to be present. |
 | `_permission` | `string` | Require specific permission via `$account->hasPermission()` |
 | `_role` | `string` | Require role (comma-separated for multiple); checks `$account->getRoles()` |
 | `_gate` | `array{ability: string, subject?: mixed}` | Require gate ability check |
@@ -326,10 +329,12 @@ If no access requirements are present on the route, returns `AccessResult::neutr
 
 ### Evaluation
 
-1. Start with `AccessResult::allowed()`.
-2. For each requirement present, compute its result and combine via `andIf()`.
-3. If no requirements found, return `AccessResult::neutral()`.
-4. Return combined result.
+1. Check `_authenticated` first (short-circuit: returns `unauthenticated` immediately if anonymous).
+2. Check `_session` (short-circuit: returns `forbidden` if session requirements not met).
+3. Start with `AccessResult::allowed()`.
+4. For each remaining requirement present (`_public`, `_permission`, `_role`, `_gate`), compute its result and combine via `andIf()`.
+5. If no requirements found, return `AccessResult::neutral()`.
+6. Return combined result.
 
 ## Permission Handler
 
@@ -467,14 +472,17 @@ packages/access/src/
         EntityAccessGate.php         - Adapter bridging GateInterface to EntityAccessHandler
         PolicyAttribute.php          - Maps policy class to entity type
         AccessDeniedException.php    - Thrown by Gate::authorize()
+    RedirectValidator.php            - Open-redirect prevention (isSafe/sanitize)
+    ErrorPageRendererInterface.php   - Error page rendering contract (render -> ?Response)
     Middleware/
         AuthorizationMiddleware.php  - Route-level access enforcement
 
 packages/routing/src/
-    AccessChecker.php                - Route option access checks
+    AccessChecker.php                - Route option access checks (_public, _authenticated, _session, _permission, _role, _gate)
 
 packages/user/src/Middleware/
     SessionMiddleware.php            - Resolves AccountInterface from session
+    BearerAuthMiddleware.php         - JWT and API key authentication via Bearer tokens (priority: 40)
 
 public/index.php                     - Front controller; wires the pipeline
 ```

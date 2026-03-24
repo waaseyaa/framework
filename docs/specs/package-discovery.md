@@ -187,6 +187,8 @@ final class ProviderDiscovery
 
 Returns `list<class-string<ServiceProviderInterface>>`.
 
+**Runtime orchestration**: At boot time, `AbstractKernel` delegates provider instantiation and registration to `ProviderRegistry` (`packages/foundation/src/Kernel/Bootstrap/ProviderRegistry.php`), which reads provider class names from the compiled `PackageManifest` and calls `register()` on each. See the Kernel Bootstrap section of the infrastructure spec for details.
+
 ## PackageManifest
 
 ### PackageManifest DTO

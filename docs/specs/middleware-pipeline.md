@@ -312,6 +312,22 @@ $httpRequest = HttpRequest::createFromGlobals();
 $raw = $httpRequest->getContent();  // Correct: reads from the Request object
 ```
 
+## Built-in HTTP Middleware
+
+All HTTP middleware implement `HttpMiddlewareInterface` and use `#[AsMiddleware(pipeline: 'http', priority: N)]` for auto-discovery. Higher priority runs first (outer onion layer).
+
+| Priority | Class | Package | Purpose |
+|----------|-------|---------|---------|
+| 100 | `SecurityHeadersMiddleware` | foundation | CSP, X-Frame-Options, HSTS. Constructor: `(string $csp, bool $hstsEnabled, int $hstsMaxAge)` |
+| 90 | `CompressionMiddleware` | foundation | gzip compression for responses above minimum size. Constructor: `(int $minimumSize = 1024)` |
+| 80 | `RateLimitMiddleware` | foundation | IP-based rate limiting via `RateLimiterInterface`. Constructor: `(RateLimiterInterface, int $maxAttempts = 60, int $windowSeconds = 60)` |
+| 70 | `BodySizeLimitMiddleware` | foundation | Rejects payloads over max bytes (413). Constructor: `(int $maxBytes = 1_048_576)` |
+| 60 | `RequestLoggingMiddleware` | foundation | Logs method, URI, status, duration. Constructor: `(?Closure $logger = null)` |
+| 50 | `ETagMiddleware` | foundation | ETag generation + 304 Not Modified for GET/HEAD |
+| 40 | `BearerAuthMiddleware` | user | JWT and API key auth via Bearer header. Constructor: `(EntityStorageInterface, string $jwtSecret, array $apiKeys, ?LoggerInterface)` |
+| — | `SessionMiddleware` | user | Resolves `AccountInterface` from session |
+| — | `AuthorizationMiddleware` | access | Route-level access enforcement via `AccessChecker` |
+
 ## File Reference
 
 ### Interfaces (packages/foundation/src/Middleware/)

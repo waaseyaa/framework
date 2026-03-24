@@ -6,7 +6,7 @@
 - Each package has its own `composer.json` with path repository references
 - Root `composer.json` uses `@dev` constraints for all waaseyaa/* packages
 - Authorization pipeline in `public/index.php`: SessionMiddleware → AuthorizationMiddleware. Session always sets `_account` on request; authorization reads it.
-- Route access control via route options: `_public`, `_permission`, `_role`, `_gate` — checked by `AccessChecker`
+- Route access control via route options: `_public`, `_authenticated`, `_session`, `_permission`, `_role`, `_gate` — checked by `AccessChecker`
 - Field-level access: `FieldAccessPolicyInterface` (companion to `AccessPolicyInterface`). Classes must implement both — `EntityAccessHandler` finds field policies via `instanceof` check. Open-by-default: Neutral = accessible, only Forbidden restricts.
 - Access result semantics differ by level: entity-level uses `isAllowed()` (deny unless granted), field-level uses `!isForbidden()` (allow unless denied). This asymmetry is intentional.
 
@@ -24,7 +24,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/foundation/src/Ingestion/*`, `defaults/ingestion.*` | `waaseyaa:ingestion` | `docs/specs/ingestion-defaults.md`, `docs/specs/ingestion-validator-contract.md`, `docs/specs/ingestion-validation-gates-contract.md`, `docs/specs/ingestion-fixture-pack-contract.md`, `docs/specs/ingestion-editorial-dashboard-contract.md`, `docs/specs/source-adapter-contract.md`, `docs/specs/source-connectors-contract.md`, `docs/specs/source-priority-merge-contract.md`, `docs/specs/cross-source-identity-contract.md` |
 | `defaults/*`, `bin/check-no-secrets`, `bin/check-ingestion-defaults` | `waaseyaa:security-defaults` | `docs/specs/security-defaults.md` |
 | `packages/foundation/src/Diagnostic/*`, `packages/cli/src/Command/Health*`, `packages/cli/src/Command/SchemaCheck*` | `waaseyaa:operator-diagnostics` | `docs/specs/operator-diagnostics.md`, `docs/specs/operations-playbooks.md` |
-| `packages/foundation/*`, `packages/cache/*`, `packages/database-legacy/*`, `packages/plugin/*`, `packages/i18n/*`, `packages/queue/*`, `packages/state/*`, `packages/validation/*`, `packages/typed-data/*`, `packages/testing/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md`, `docs/specs/package-discovery.md`, `docs/specs/plugin-extension-points.md`, `docs/specs/external-extension-sdk.md`, `docs/specs/extension-compatibility-matrix.md`, `docs/specs/extension-release-playbook.md`, `docs/specs/extension-author-onboarding.md` |
+| `packages/foundation/*`, `packages/cache/*`, `packages/database-legacy/*`, `packages/plugin/*`, `packages/i18n/*`, `packages/queue/*`, `packages/state/*`, `packages/validation/*`, `packages/typed-data/*`, `packages/testing/*`, `packages/http-client/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md`, `docs/specs/package-discovery.md`, `docs/specs/plugin-extension-points.md`, `docs/specs/external-extension-sdk.md`, `docs/specs/extension-compatibility-matrix.md`, `docs/specs/extension-release-playbook.md`, `docs/specs/extension-author-onboarding.md` |
 | `packages/mcp/*` | `waaseyaa:mcp-endpoint` | `docs/specs/mcp-endpoint.md` |
 | `public/index.php`, `packages/*/src/Middleware/*` | `waaseyaa:middleware-pipeline` | `docs/specs/middleware-pipeline.md` |
 | `packages/note/*` | — | `docs/specs/ingestion-defaults.md` |
@@ -56,7 +56,7 @@ Use `waaseyaa_search_specs` MCP tool to find specs affected by a change when the
 
 | Layer | Name | Packages |
 |---|---|---|
-| 0 | Foundation | foundation, cache, plugin, typed-data, database-legacy, testing, i18n, queue, scheduler, state, validation, mail |
+| 0 | Foundation | foundation, cache, plugin, typed-data, database-legacy, testing, i18n, queue, scheduler, state, validation, mail, http-client |
 | 1 | Core Data | entity, entity-storage, access, user, config, field |
 | 2 | Content Types | node, taxonomy, media, path, menu, note, relationship |
 | 3 | Services | workflows, search, notification |
@@ -77,7 +77,7 @@ Use `waaseyaa_search_specs` MCP tool to find specs affected by a change when the
 4. Create storage schema via `SqlSchemaHandler` — define columns, `_data` blob is automatic
 5. Add `AccessPolicyInterface` (+ `FieldAccessPolicyInterface` if field-level control needed)
 6. Add API routes in `RouteBuilder`, wire controller, set route access options (`_gate` for entity access)
-7. Test: use `InMemoryEntityStorage` or `PdoDatabase::createSqlite()` for in-memory testing
+7. Test: use `InMemoryEntityStorage` or `DBALDatabase::createSqlite()` for in-memory testing
 
 **Adding an access policy:**
 1. Create class implementing `AccessPolicyInterface` (add `FieldAccessPolicyInterface` if field access needed — same class, intersection type)
@@ -88,7 +88,7 @@ Use `waaseyaa_search_specs` MCP tool to find specs affected by a change when the
 6. Run `waaseyaa optimize:manifest` (or restart dev server) to pick up the new policy
 
 **Adding an API endpoint:**
-1. Add route in `RouteBuilder` with access options (`_public`, `_permission`, `_role`, or `_gate`)
+1. Add route in `RouteBuilder` with access options (`_public`, `_authenticated`, `_session`, `_permission`, `_role`, or `_gate`)
 2. Implement controller method following `JsonApiController` CRUD patterns
 3. Wire access via route options — `AccessChecker` evaluates them from the matched route
 4. For entity endpoints: use `ResourceSerializer` with paired nullable `?EntityAccessHandler` + `?AccountInterface`
@@ -148,14 +148,14 @@ Design docs in `docs/plans/` are session artifacts (implementation history). Spe
 ## Architecture Gotchas
 - **Entity subclass constructors**: User, Node etc. only accept `(array $values)` and hardcode entityTypeId/entityKeys. SqlEntityStorage uses reflection to detect constructor shape.
 - **Dual-state bug pattern**: When data can come from two sources (e.g., attribute vs registry), always use one canonical source. Found repeatedly in ComponentRenderer, Pipeline, entity values.
-- **PDO fetch mode**: PdoDatabase sets FETCH_ASSOC to avoid duplicate numeric-indexed columns.
+- **DBAL fetch mode**: DBALDatabase uses `fetchAssociative()` to return associative arrays (equivalent to FETCH_ASSOC).
 - **_data JSON blob**: SqlSchemaHandler adds a `_data` TEXT column. SqlEntityStorage::splitForStorage() puts non-schema values into it as JSON; mapRowToEntity() merges them back on load.
 - **PascalCase conversion**: Use `str_replace('_', '', ucwords($name, '_'))` not `ucfirst()`.
 - **InMemoryEntityStorage** (`Waaseyaa\Api\Tests\Fixtures\`) — use for tests. SqlEntityStorage for real storage.
 - **EntityTypeManager** takes `(EventDispatcherInterface, ?\Closure $storageFactory = null)` where factory receives `EntityTypeInterface $definition`.
 - **EntityEvent uses public properties**: `$event->entity` and `$event->originalEntity` are public readonly — no getter methods. Common mistake: `$event->getEntity()`.
-- **DatabaseInterface vs PdoDatabase**: `DatabaseInterface` does NOT have `getPdo()`. If raw PDO is needed, type-hint `PdoDatabase` directly. Prefer using query builder (`select()`, `insert()`, `delete()`) over raw PDO when possible.
-- **LIKE wildcard escaping**: `PdoSelect` appends `ESCAPE '\'` for LIKE/NOT LIKE operators. When building LIKE patterns in `SqlEntityQuery`, escape `%` and `_` in user input with `str_replace(['%', '_'], ['\\%', '\\_'], $value)`.
+- **DatabaseInterface vs DBALDatabase**: `DatabaseInterface` does NOT have `getConnection()`. If the DBAL `Connection` is needed, type-hint `DBALDatabase` directly. Prefer using query builder (`select()`, `insert()`, `delete()`) over raw DBAL when possible.
+- **LIKE wildcard escaping**: `DBALSelect` appends `ESCAPE '\'` for LIKE/NOT LIKE operators. When building LIKE patterns in `SqlEntityQuery`, escape `%` and `_` in user input with `str_replace(['%', '_'], ['\\%', '\\_'], $value)`.
 - **JSON symmetry**: Always pair `json_encode(..., JSON_THROW_ON_ERROR)` with `json_decode(..., JSON_THROW_ON_ERROR)`. Asymmetric usage causes silent `null` on corrupt data.
 - **Best-effort side effects**: Event listeners for non-critical operations (broadcasting, logging, cache invalidation) should wrap in try-catch and log via `error_log()` to avoid crashing the primary request.
 - **Final classes can't be mocked**: PHPUnit `createMock()` fails on `final class`. Use real instances with temp directories (e.g., `sys_get_temp_dir() . '/waaseyaa_test_' . uniqid()`) instead.
@@ -181,7 +181,7 @@ Design docs in `docs/plans/` are session artifacts (implementation history). Spe
 - **`discoverAccessPolicies()` constructor heuristic**: `ConfigEntityAccessPolicy` takes `array $entityTypeIds` as a required constructor parameter (from `#[PolicyAttribute]`). The reflection-based heuristic in `AbstractKernel::discoverAccessPolicies()` that passes entity types to constructors with required params exists for this reason — do not remove it.
 - **`toMachineName()` can return empty string**: Labels with only special characters (e.g. `"!!!"`) produce empty machine names after regex replacement and trim. `JsonApiController::store()` guards against this with a 422 response. Any caller of `toMachineName()` must validate the result.
 - **Kernel boot flag ordering**: `AbstractKernel::boot()` sets `$this->booted = true` *after* all initialization steps succeed. Setting it before would create a zombie state where boot failure prevents retry. If adding new boot steps, add them before the flag assignment.
-- **Migration system boot order**: `bootMigrations()` runs after `compileManifest()` (requires `PackageManifest`) and before `discoverAndRegisterProviders()`. It creates its own DBAL `Connection` separate from `PdoDatabase` — two connections to the same SQLite file, which is fine for single-threaded CLI.
+- **Migration system boot order**: `bootMigrations()` runs after `compileManifest()` (requires `PackageManifest`) and before `discoverAndRegisterProviders()`. It reuses the DBAL `Connection` from `DBALDatabase` (via `getConnection()`) — single connection, no duplication.
 - **`MakeMigrationCommand` requires `$projectRoot`**: Constructor changed from no-arg to `(string $projectRoot)`. ConsoleKernel must pass `$this->projectRoot`. The `--package` flag is not yet implemented (see #464).
 - **Migration CLI commands take `\Closure` providers**: `MigrateCommand`, `MigrateRollbackCommand`, `MigrateStatusCommand` all accept `(Migrator, \Closure $migrationsProvider)`. The closure defers filesystem scanning until the command runs. In ConsoleKernel: `fn () => $this->migrationLoader->loadAll()`.
 - **Entity types without `uuid` key are config entities**: `SqlEntityStorage::save()` requires explicit non-empty string IDs for entities whose `EntityType` keys lack `'uuid' => 'uuid'`. Content entities with auto-increment IDs must include the uuid key even if they don't use UUIDs.
@@ -202,11 +202,11 @@ Design docs in `docs/plans/` are session artifacts (implementation history). Spe
 
 ## Testing
 - Integration tests in `tests/Integration/PhaseN/` — one directory per implementation phase
-- GraphQL integration tests in `tests/Integration/GraphQL/` — full-stack tests with real SQLite via `PdoDatabase::createSqlite()`
+- GraphQL integration tests in `tests/Integration/GraphQL/` — full-stack tests with real SQLite via `DBALDatabase::createSqlite()`
 - Unit tests in `packages/*/tests/Unit/`
 - Use `CommandTester` from Symfony Console for CLI command tests
 - Use `ArrayLoader` for Twig tests (no filesystem needed)
-- All storage can be in-memory: MemoryStorage (config), MemoryBackend (cache), InMemoryEntityStorage (entities), PdoDatabase::createSqlite() (SQL with :memory:)
+- All storage can be in-memory: MemoryStorage (config), MemoryBackend (cache), InMemoryEntityStorage (entities), DBALDatabase::createSqlite() (SQL with :memory:)
 - Test cache file handling with corrupt files (`<?php throw new \RuntimeException("corrupt");`) and wrong return types (`<?php return "not an array";`) to verify recovery paths
 - Test access policies with anonymous classes implementing intersection types (`AccessPolicyInterface & FieldAccessPolicyInterface`) — PHPUnit `createMock()` can't mock intersection types, so use real anonymous classes with inline logic
 - Frontend tests: `cd packages/admin && npm test` — Vitest with `@nuxt/test-utils` nuxt environment

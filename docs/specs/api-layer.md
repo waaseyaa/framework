@@ -447,7 +447,7 @@ Access result semantics differ by level:
 
 The `CONTAINS` and `STARTS_WITH` filter operators are translated to SQL `LIKE` patterns by `SqlEntityQuery` (in `packages/entity-storage/`). There are two important details:
 
-1. **PdoSelect appends `ESCAPE '\'`** for all LIKE/NOT LIKE operators. This means the backslash character is the escape character in LIKE patterns.
+1. **DBALSelect appends `ESCAPE '\'`** for all LIKE/NOT LIKE operators. This means the backslash character is the escape character in LIKE patterns.
 
 2. **User input must be escaped** before embedding in LIKE patterns:
 
@@ -667,7 +667,7 @@ Generates OpenAPI 3.1.0 spec. For each entity type, creates four component schem
 2. Cache bins are configured (`render`, `discovery`, `mcp_read`) via `CacheFactory`.
 3. `$this->discoveryHandler = new DiscoveryApiHandler(...)` is created with three dependencies:
    - `$this->entityTypeManager` — the fully booted `EntityTypeManager` (available after `boot()`).
-   - `$this->database` — the `PdoDatabase` instance (available after `boot()`).
+   - `$this->database` — the `DatabaseInterface` instance (available after `boot()`).
    - `$this->discoveryCache` — a `CacheBackendInterface` (`DatabaseBackend` backed by the `cache_discovery` table), created moments earlier in the same method.
 
 The handler is stored as `$this->discoveryHandler` on the kernel and subsequently passed to both `SsrPageHandler` and `ControllerDispatcher`.
@@ -680,7 +680,7 @@ final class DiscoveryApiHandler
 {
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
-        private readonly PdoDatabase $database,
+        private readonly DatabaseInterface $database,
         private readonly ?CacheBackendInterface $discoveryCache = null,
     ) {}
 }
@@ -716,6 +716,7 @@ packages/api/
     Controller/
       BroadcastController.php
       BroadcastStorage.php
+      CodifiedContextController.php
       SchemaController.php
       TranslationController.php
     Http/

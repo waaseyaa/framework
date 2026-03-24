@@ -8,9 +8,10 @@ Specification for the foundational infrastructure layer of Waaseyaa CMS: domain 
 |---------|-----------|-------|---------|
 | `packages/foundation/` | `Waaseyaa\Foundation\` | 0 (Foundation) | DomainEvent, ServiceProvider, middleware interfaces, migration system, attribute discovery |
 | `packages/cache/` | `Waaseyaa\Cache\` | 0 (Foundation) | CacheBackendInterface, MemoryBackend, DatabaseBackend, NullBackend, tag invalidation |
-| `packages/database-legacy/` | `Waaseyaa\Database\` | 0 (Foundation) | DatabaseInterface, PdoDatabase, query builder (select/insert/update/delete), schema, transactions |
+| `packages/database-legacy/` | `Waaseyaa\Database\` | 0 (Foundation) | DatabaseInterface, DBALDatabase (Doctrine DBAL), query builder (select/insert/update/delete), schema, transactions |
 | `packages/plugin/` | `Waaseyaa\Plugin\` | 0 (Foundation) | PluginManager, attribute-based plugin discovery, plugin factory |
 | `packages/mail/` | `Waaseyaa\Mail\` | 0 (Foundation) | Transport-agnostic mail API with Twig templating, pluggable transports (ArrayTransport for tests, LocalTransport for file-based delivery) |
+| `packages/http-client/` | `Waaseyaa\HttpClient\` | 0 (Foundation) | Minimal HTTP client for JSON APIs and webhooks, zero external dependencies |
 
 ## Domain Events
 
@@ -256,24 +257,22 @@ interface DatabaseInterface
 }
 ```
 
-**CRITICAL**: `DatabaseInterface` does NOT have `getPdo()`. If raw PDO is needed, type-hint `PdoDatabase` directly. Prefer using the query builder (`select()`, `insert()`, `update()`, `delete()`) over raw PDO.
+**CRITICAL**: `DatabaseInterface` does NOT have `getConnection()`. If the DBAL `Connection` is needed, type-hint `DBALDatabase` directly. Prefer using the query builder (`select()`, `insert()`, `update()`, `delete()`) over raw DBAL.
 
-### PdoDatabase
+### DBALDatabase
 
-File: `packages/database-legacy/src/PdoDatabase.php`
+File: `packages/database-legacy/src/DBALDatabase.php`
 
 ```php
-final class PdoDatabase implements DatabaseInterface
+final class DBALDatabase implements DatabaseInterface
 {
-    public function __construct(private readonly \PDO $pdo);
+    public function __construct(private readonly Connection $connection);
     public static function createSqlite(string $path = ':memory:'): self;
-    public function getPdo(): \PDO;   // ONLY on PdoDatabase, NOT on DatabaseInterface
+    public function getConnection(): Connection;   // ONLY on DBALDatabase, NOT on DatabaseInterface
 }
 ```
 
-PdoDatabase sets two PDO attributes on construction:
-- `ATTR_ERRMODE` = `ERRMODE_EXCEPTION`
-- `ATTR_DEFAULT_FETCH_MODE` = `FETCH_ASSOC` (avoids duplicate numeric-indexed columns)
+`DBALDatabase` wraps a Doctrine DBAL `Connection`. The `createSqlite()` factory enables WAL mode for non-memory databases. Query results use `fetchAssociative()` (equivalent to FETCH_ASSOC — no duplicate numeric-indexed columns).
 
 ### TransactionInterface
 
@@ -287,7 +286,7 @@ interface TransactionInterface
 }
 ```
 
-`PdoTransaction` begins the transaction in its constructor. Calling `commit()` or `rollBack()` after the transaction is no longer active throws `\RuntimeException`.
+`DBALTransaction` begins the transaction in its constructor. Calling `commit()` or `rollBack()` after the transaction is no longer active throws `\RuntimeException`.
 
 ## Query Builder
 
@@ -312,9 +311,9 @@ interface SelectInterface
 }
 ```
 
-### PdoSelect condition operators
+### DBALSelect condition operators
 
-File: `packages/database-legacy/src/Query/PdoSelect.php`
+File: `packages/database-legacy/src/Query/DBALSelect.php`
 
 Supported operators in `condition()`:
 - `=`, `!=`, `<`, `>`, `<=`, `>=` -- standard comparison, single `?` placeholder
@@ -574,7 +573,7 @@ interface SchemaInterface
 }
 ```
 
-`PdoSchema` uses SQLite-specific SQL. Type mapping: `serial` -> INTEGER AUTOINCREMENT, `varchar` -> TEXT, `int`/`integer` -> INTEGER, `text` -> TEXT, `float`/`numeric`/`decimal` -> REAL, `blob` -> BLOB.
+`DBALSchema` uses Doctrine DBAL's schema introspection and DDL generation. Type mapping: `serial` -> INTEGER AUTOINCREMENT, `varchar` -> TEXT, `int`/`integer` -> INTEGER, `text` -> TEXT, `float`/`numeric`/`decimal` -> REAL, `blob` -> BLOB.
 
 Note: SQLite cannot add a primary key to an existing table. `addPrimaryKey()` throws `\RuntimeException`.
 
@@ -582,7 +581,7 @@ Note: SQLite cannot add a primary key to an existing table. `addPrimaryKey()` th
 
 ## Migration System
 
-The migration system uses Doctrine DBAL (not the legacy PdoDatabase). It lives in `packages/foundation/src/Migration/`.
+The migration system uses Doctrine DBAL (same as the database layer). It lives in `packages/foundation/src/Migration/`.
 
 ### Migration base class
 
@@ -684,11 +683,372 @@ final readonly class MigrationResult
 }
 ```
 
+## HTTP Client
+
+Minimal HTTP client with no external dependencies (uses PHP streams).
+
+### HttpClientInterface
+
+File: `packages/http-client/src/HttpClientInterface.php`
+
+```php
+interface HttpClientInterface
+{
+    public function request(string $method, string $url, array $headers = [], array|string|null $body = null): HttpResponse;
+    public function get(string $url, array $headers = []): HttpResponse;
+    public function post(string $url, array $headers = [], array|string|null $body = null): HttpResponse;
+}
+```
+
+### HttpResponse
+
+File: `packages/http-client/src/HttpResponse.php`
+
+```php
+final readonly class HttpResponse
+{
+    public function __construct(
+        public int $statusCode,
+        public string $body,
+        public array $headers = [],
+    );
+
+    public function json(): array;      // json_decode with JSON_THROW_ON_ERROR
+    public function isSuccess(): bool;  // 200-299
+}
+```
+
+### StreamHttpClient
+
+File: `packages/http-client/src/StreamHttpClient.php`
+
+Implementation using `file_get_contents()` with stream contexts. Throws `HttpRequestException` on failure.
+
+## Logging
+
+Waaseyaa provides its own logging interfaces (not `psr/log`). All loggers implement `Waaseyaa\Foundation\Log\LoggerInterface`.
+
+### LoggerInterface
+
+File: `packages/foundation/src/Log/LoggerInterface.php`
+
+```php
+interface LoggerInterface
+{
+    public function emergency(string|\Stringable $message, array $context = []): void;
+    public function alert(string|\Stringable $message, array $context = []): void;
+    public function critical(string|\Stringable $message, array $context = []): void;
+    public function error(string|\Stringable $message, array $context = []): void;
+    public function warning(string|\Stringable $message, array $context = []): void;
+    public function notice(string|\Stringable $message, array $context = []): void;
+    public function info(string|\Stringable $message, array $context = []): void;
+    public function debug(string|\Stringable $message, array $context = []): void;
+    public function log(LogLevel $level, string|\Stringable $message, array $context = []): void;
+}
+```
+
+### LogLevel
+
+File: `packages/foundation/src/Log/LogLevel.php`
+
+String-backed enum: `EMERGENCY`, `ALERT`, `CRITICAL`, `ERROR`, `WARNING`, `NOTICE`, `INFO`, `DEBUG`.
+
+### Logger implementations
+
+| Class | File | Purpose |
+|-------|------|---------|
+| `ErrorLogHandler` | `Log/ErrorLogHandler.php` | Delegates to `error_log()` — default when no logger configured |
+| `FileLogger` | `Log/FileLogger.php` | Writes timestamped JSON lines to a file. Constructor: `(string $filePath, LogLevel $minimumLevel = LogLevel::DEBUG)`. Uses `LOCK_EX` for safe concurrent writes. |
+| `CompositeLogger` | `Log/CompositeLogger.php` | Fans out to multiple loggers. Constructor: `(LoggerInterface ...$loggers)`. Best-effort: one broken sink does not stop others. |
+| `NullLogger` | `Log/NullLogger.php` | No-op — for testing and disabled logging. |
+
+`LoggerTrait` provides convenience methods (`emergency()`, `error()`, etc.) that delegate to `log()`.
+
+## Rate Limiting
+
+### RateLimiterInterface
+
+File: `packages/foundation/src/RateLimit/RateLimiterInterface.php`
+
+```php
+interface RateLimiterInterface
+{
+    /** @return array{allowed: bool, remaining: int, retryAfter: ?int} */
+    public function attempt(string $key, int $maxAttempts, int $windowSeconds): array;
+}
+```
+
+### InMemoryRateLimiter
+
+File: `packages/foundation/src/RateLimit/InMemoryRateLimiter.php`
+
+Sliding-window rate limiter stored in memory. Resets per-process. Used by `RateLimitMiddleware`.
+
+## Asset Management
+
+### ViteAssetManager
+
+File: `packages/foundation/src/Asset/ViteAssetManager.php`
+Implements: `AssetManagerInterface`
+
+```php
+final class ViteAssetManager implements AssetManagerInterface
+{
+    public function __construct(
+        private readonly string $basePath,     // dist directory path
+        private readonly string $baseUrl = '/dist',
+    );
+
+    public function url(string $path, string $bundle = 'admin'): string;
+}
+```
+
+Reads Vite `manifest.json` files to resolve source paths to hashed asset URLs. Manifests are cached per bundle.
+
+`TenantAssetResolver` (`packages/foundation/src/Asset/TenantAssetResolver.php`) resolves tenant-specific asset paths.
+
+## HTTP Utilities
+
+### ControllerDispatcher
+
+File: `packages/foundation/src/Http/ControllerDispatcher.php`
+
+Routes a matched controller name to the appropriate handler. Receives controller identifier, route params, and request context, then delegates to JSON:API controllers, discovery endpoints, SSR, MCP, or other handlers. Central dispatch hub for `HttpKernel`.
+
+### CorsHandler
+
+File: `packages/foundation/src/Http/CorsHandler.php`
+
+```php
+final class CorsHandler
+{
+    public function __construct(
+        private readonly array $allowedOrigins = ['http://localhost:3000', 'http://127.0.0.1:3000'],
+        private readonly bool $allowDevLocalhostPorts = false,
+        ?LoggerInterface $logger = null,
+    );
+
+    public function resolveCorsHeaders(string $origin): array;
+    public function handlePreflight(string $origin, string $requestMethod): array;
+}
+```
+
+### ResponseSender
+
+File: `packages/foundation/src/Http/ResponseSender.php`
+
+Sends Symfony `Response` objects to the client. Handles header output and body streaming.
+
+## Operator Diagnostics
+
+### DiagnosticCode
+
+File: `packages/foundation/src/Diagnostic/DiagnosticCode.php`
+
+String-backed enum of operator-facing error codes:
+
+| Code | Trigger |
+|------|---------|
+| `DEFAULT_TYPE_MISSING` | No entity types registered at boot |
+| `DEFAULT_TYPE_DISABLED` | All registered types disabled |
+| `DATABASE_UNREACHABLE` | Database file missing or corrupt |
+| `DATABASE_SCHEMA_DRIFT` | Entity table columns don't match expected schema |
+| `STORAGE_DIRECTORY_MISSING` | `storage/framework/` does not exist |
+| `CACHE_DIRECTORY_UNWRITABLE` | Cache directory not writable |
+| `INGESTION_LOG_OVERSIZED` | Ingestion log exceeds retention threshold |
+| `INGESTION_RECENT_FAILURES` | High ingestion failure rate |
+
+Each code has a `defaultMessage()` method for human-readable descriptions.
+
+### DiagnosticEmitter
+
+File: `packages/foundation/src/Diagnostic/DiagnosticEmitter.php`
+
+```php
+final class DiagnosticEmitter
+{
+    public function __construct(?LoggerInterface $logger = null);
+    public function emit(DiagnosticCode $code, string $message, array $context = []): DiagnosticEntry;
+}
+```
+
+Emits structured JSON diagnostic log entries. Returns `DiagnosticEntry` for callers that need to inspect or re-throw.
+
+### HealthChecker
+
+File: `packages/foundation/src/Diagnostic/HealthChecker.php`
+Implements: `HealthCheckerInterface`
+
+```php
+final class HealthChecker implements HealthCheckerInterface
+{
+    public function __construct(
+        private readonly BootDiagnosticReport $bootReport,
+        private readonly DatabaseInterface $database,
+        private readonly EntityTypeManagerInterface $entityTypeManager,
+        private readonly string $projectRoot,
+        ?LoggerInterface $logger = null,
+    );
+
+    public function runAll(): array;          // list<HealthCheckResult>
+    public function checkBoot(): array;       // entity type registry state
+    public function checkRuntime(): array;    // database, schema drift, storage, cache dirs
+    public function checkIngestion(): array;  // ingestion log health, error rates
+}
+```
+
+Three check groups: boot (entity type registry), runtime (database connectivity, schema drift, storage directories), and ingestion (log size, error rate). Results are `HealthCheckResult` value objects with pass/warn/fail status.
+
+## Queue System
+
+File: `packages/queue/`
+Namespace: `Waaseyaa\Queue\`
+
+### QueueInterface
+
+File: `packages/queue/src/QueueInterface.php`
+
+Queue implementations: `DbalQueue` (DBAL-backed persistent), `InMemoryQueue` (testing), `MessageBusQueue` (Symfony Messenger bridge), `SyncQueue` (immediate execution).
+
+### Worker
+
+File: `packages/queue/src/Worker/Worker.php`
+
+Processes jobs from a queue. `WorkerOptions` controls max jobs, memory limit, sleep interval, and timeout.
+
+### Transport layer
+
+`TransportInterface` (`packages/queue/src/Transport/TransportInterface.php`) abstracts job serialization/deserialization. Implementations: `DbalTransport` (database-backed), `InMemoryTransport` (testing).
+
+### Failed job tracking
+
+`FailedJobRepositoryInterface` with implementations: `DatabaseFailedJobRepository` (DBAL-backed), `InMemoryFailedJobRepository` (testing).
+
+### Message types
+
+| Message | Purpose |
+|---------|---------|
+| `EntityMessage` | Entity lifecycle events for async processing |
+| `ConfigMessage` | Config change propagation |
+| `GenericMessage` | Arbitrary payload |
+
+### Job attributes
+
+| Attribute | Purpose |
+|-----------|---------|
+| `#[OnQueue('name')]` | Route job to a specific queue |
+| `#[RateLimited]` | Apply rate limiting to job execution |
+| `#[UniqueJob]` | Prevent duplicate concurrent execution |
+
+### Job composition
+
+`BatchedJobs` groups multiple jobs for parallel execution. `ChainedJobs` runs jobs sequentially — failure stops the chain.
+
+### Migration
+
+`CreateQueueTables` migration creates the `queue_jobs` and `failed_jobs` tables.
+
+## Kernel Bootstrap
+
+The kernel boot sequence is decomposed into extracted bootstrapper classes in `packages/foundation/src/Kernel/Bootstrap/`. `AbstractKernel` delegates to these rather than inlining the logic.
+
+### AbstractKernel
+
+File: `packages/foundation/src/Kernel/AbstractKernel.php`
+
+Constructor: `(string $projectRoot, ?LoggerInterface $logger = null)`
+
+Boot sequence (idempotent — guarded by `$this->booted` flag, set only after all steps succeed):
+
+```
+EnvLoader::load(.env)
+  → ConfigLoader::load(config/waaseyaa.php)
+  → new EventDispatcher()
+  → bootDatabase()           // DatabaseBootstrapper
+  → bootEntityTypeManager()  // inline, wires storage factory closure
+  → compileManifest()        // ManifestBootstrapper
+  → bootMigrations()         // reuses DBAL connection from bootDatabase
+  → discoverAndRegisterProviders()  // ProviderRegistry
+  → loadAppEntityTypes()     // reads config/entity-types.php
+  → validateContentTypes()   // DiagnosticEmitter check
+  → bootProviders()          // calls boot() on all registered providers
+  → discoverAccessPolicies() // AccessPolicyRegistry
+  → $this->booted = true
+```
+
+### DatabaseBootstrapper
+
+File: `packages/foundation/src/Kernel/Bootstrap/DatabaseBootstrapper.php`
+Class: `final class DatabaseBootstrapper`
+
+```php
+public function boot(string $projectRoot, array $config): DatabaseInterface
+```
+
+Creates `DBALDatabase::createSqlite()` using path resolution: `$config['database']` → `WAASEYAA_DB` env → `$projectRoot/waaseyaa.sqlite`.
+
+### ManifestBootstrapper
+
+File: `packages/foundation/src/Kernel/Bootstrap/ManifestBootstrapper.php`
+Class: `final class ManifestBootstrapper`
+
+```php
+public function boot(string $projectRoot): PackageManifest
+```
+
+Instantiates `PackageManifestCompiler` with `storagePath: $projectRoot . '/storage'` and calls `load()` (cache-first, compile on miss).
+
+### ProviderRegistry
+
+File: `packages/foundation/src/Kernel/Bootstrap/ProviderRegistry.php`
+Class: `final class ProviderRegistry`
+
+Constructor: `(LoggerInterface $logger)`
+
+```php
+public function discoverAndRegister(
+    PackageManifest $manifest,
+    string $projectRoot,
+    array $config,
+    EntityTypeManager $entityTypeManager,
+    DatabaseInterface $database,
+    EventDispatcherInterface $dispatcher,
+): array  // list<ServiceProvider>
+```
+
+Instantiates each provider class from the manifest, calls `register()` on each, and returns the list. Handles instantiation failures gracefully with error logging.
+
+### AccessPolicyRegistry
+
+File: `packages/foundation/src/Kernel/Bootstrap/AccessPolicyRegistry.php`
+Class: `final class AccessPolicyRegistry`
+
+Constructor: `(LoggerInterface $logger)`
+
+```php
+public function discover(PackageManifest $manifest): EntityAccessHandler
+```
+
+Reads `$manifest->policies` (keyed by class name → entity type list), instantiates each policy class, and returns a wired `EntityAccessHandler`. Uses reflection heuristic: policies with required constructor parameters (e.g., `ConfigEntityAccessPolicy`) receive the entity type list; no-arg policies are instantiated directly. Missing classes and instantiation failures are logged, not fatal.
+
 ## File Reference
 
 ### packages/foundation/src/
 
 ```
+Kernel/
+    AbstractKernel.php           -- boot orchestrator, delegates to Bootstrap/ classes
+    HttpKernel.php               -- HTTP request handling, cache setup, CORS
+    ConsoleKernel.php            -- CLI command registration and execution
+    EnvLoader.php                -- .env file parser
+    ConfigLoader.php             -- config/waaseyaa.php loader
+    EventListenerRegistrar.php   -- registers cache invalidation listeners
+    BuiltinRouteRegistrar.php    -- registers built-in API routes
+    Bootstrap/
+        DatabaseBootstrapper.php     -- creates DBALDatabase connection
+        ManifestBootstrapper.php     -- loads/compiles PackageManifest
+        ProviderRegistry.php         -- discovers, instantiates, and registers service providers
+        AccessPolicyRegistry.php     -- discovers access policies and wires EntityAccessHandler
 Event/
     DomainEvent.php              -- abstract base for all domain events
     EventBus.php                 -- three-channel dispatcher (sync/async/broadcast)
@@ -728,6 +1088,33 @@ Attribute/
     AsFieldType.php              -- #[AsFieldType(id: '...', label: '...')]
     AsEntityType.php             -- #[AsEntityType(id: '...', label: '...')]
     AsMiddleware.php             -- #[AsMiddleware(pipeline: '...', priority: 0)]
+Log/
+    LoggerInterface.php          -- log contract (emergency through debug + log)
+    LogLevel.php                 -- string-backed enum (EMERGENCY..DEBUG)
+    LoggerTrait.php              -- convenience methods delegating to log()
+    ErrorLogHandler.php          -- default logger via error_log()
+    FileLogger.php               -- timestamped JSON lines to file
+    CompositeLogger.php          -- fan-out to multiple loggers
+    NullLogger.php               -- no-op for testing
+RateLimit/
+    RateLimiterInterface.php     -- attempt(key, max, window): {allowed, remaining, retryAfter}
+    InMemoryRateLimiter.php      -- sliding-window in-memory implementation
+Asset/
+    AssetManagerInterface.php    -- url(path, bundle): string
+    ViteAssetManager.php         -- reads Vite manifest.json for hashed URLs
+    TenantAssetResolver.php      -- tenant-specific asset path resolution
+Http/
+    ControllerDispatcher.php     -- routes controller names to handlers
+    CorsHandler.php              -- CORS preflight and header resolution
+    ResponseSender.php           -- sends Symfony Response to client
+Diagnostic/
+    DiagnosticCode.php           -- string-backed enum of operator error codes
+    DiagnosticEntry.php          -- structured diagnostic log entry
+    DiagnosticEmitter.php        -- emits structured JSON diagnostic entries
+    HealthCheckerInterface.php   -- health check contract
+    HealthChecker.php            -- boot/runtime/ingestion health checks
+    HealthCheckResult.php        -- pass/warn/fail result value object
+    BootDiagnosticReport.php     -- entity type registry snapshot
 ```
 
 ### packages/cache/src/
@@ -755,19 +1142,68 @@ Listener/
 
 ```
 DatabaseInterface.php            -- select/insert/update/delete/schema/transaction/query
-PdoDatabase.php                  -- implements DatabaseInterface, has getPdo()
+DBALDatabase.php                 -- implements DatabaseInterface, wraps Doctrine DBAL Connection
 SelectInterface.php              -- fluent select builder
 InsertInterface.php              -- fluent insert builder
 UpdateInterface.php              -- fluent update builder
 DeleteInterface.php              -- fluent delete builder
 SchemaInterface.php              -- DDL operations (createTable, addField, etc.)
 TransactionInterface.php         -- commit/rollBack
-PdoTransaction.php               -- PDO transaction wrapper
+DBALTransaction.php              -- DBAL transaction wrapper
 Query/
-    PdoSelect.php                -- SELECT with joins, conditions, ordering, pagination
-    PdoInsert.php                -- INSERT with field inference from values
-    PdoUpdate.php                -- UPDATE with conditions
-    PdoDelete.php                -- DELETE with conditions
+    DBALSelect.php               -- SELECT with joins, conditions, ordering, pagination
+    DBALInsert.php               -- INSERT with field inference from values
+    DBALUpdate.php               -- UPDATE with conditions
+    DBALDelete.php               -- DELETE with conditions
 Schema/
-    PdoSchema.php                -- SQLite DDL implementation
+    DBALSchema.php               -- DDL implementation via Doctrine DBAL
+```
+
+### packages/http-client/src/
+
+```
+HttpClientInterface.php          -- request/get/post contract
+HttpResponse.php                 -- readonly DTO: statusCode, body, headers, json(), isSuccess()
+StreamHttpClient.php             -- file_get_contents + stream context implementation
+HttpRequestException.php         -- thrown on request failure
+```
+
+### packages/queue/src/
+
+```
+QueueInterface.php               -- push/pop/acknowledge contract
+DbalQueue.php                    -- DBAL-backed persistent queue
+InMemoryQueue.php                -- in-memory queue for testing
+MessageBusQueue.php              -- Symfony Messenger bridge
+SyncQueue.php                    -- immediate synchronous execution
+Job.php                          -- job value object
+Worker/
+    Worker.php                   -- processes jobs from queue
+    WorkerOptions.php            -- max jobs, memory limit, sleep, timeout
+Transport/
+    TransportInterface.php       -- job serialization/deserialization
+    DbalTransport.php            -- DBAL-backed transport
+    InMemoryTransport.php        -- in-memory transport for testing
+Handler/
+    HandlerInterface.php         -- job handler contract
+    JobHandler.php               -- default handler dispatch
+Message/
+    EntityMessage.php            -- entity lifecycle async message
+    ConfigMessage.php            -- config change message
+    GenericMessage.php           -- arbitrary payload message
+Storage/
+    DatabaseFailedJobRepository.php  -- DBAL-backed failed job store
+    InMemoryFailedJobRepository.php  -- in-memory failed job store
+FailedJobRepository.php          -- failed job base class
+FailedJobRepositoryInterface.php -- failed job tracking contract
+QueueServiceProvider.php         -- registers queue services
+AttributeGuard.php               -- enforces job attributes at runtime
+BatchedJobs.php                  -- parallel job group
+ChainedJobs.php                  -- sequential job chain
+Attribute/
+    OnQueue.php                  -- #[OnQueue('name')] route to specific queue
+    RateLimited.php              -- #[RateLimited] rate-limit job execution
+    UniqueJob.php                -- #[UniqueJob] prevent duplicates
+Migration/
+    CreateQueueTables.php        -- creates queue_jobs + failed_jobs tables
 ```

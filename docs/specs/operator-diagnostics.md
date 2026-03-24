@@ -70,7 +70,7 @@ Each `DiagnosticCode` case provides:
 
 ### 2. Runtime Checks
 
-- **Database** — `SELECT 1` connectivity test via `PdoDatabase::query()`
+- **Database** — `SELECT 1` connectivity test via `DBALDatabase::query()`
 - **Schema drift** — compares `PRAGMA table_info()` against `SqlSchemaHandler.buildTableSpec()` expected columns for each registered entity type
 - **Storage directory** — `storage/framework/` existence check
 - **Cache directory** — `storage/framework/` writability check

@@ -181,11 +181,12 @@ final readonly class AgentContext
         public AccountInterface $account,   // user the agent acts as
         public array $parameters = [],      // agent-specific params
         public bool $dryRun = false,
+        public int $maxIterations = 25,     // max tool loop iterations
     ) {}
 }
 ```
 
-Agents always operate as a specific user via `AccountInterface`. The `$parameters` array carries agent-specific input data.
+Agents always operate as a specific user via `AccountInterface`. The `$parameters` array carries agent-specific input data. `$maxIterations` caps the provider tool loop — `AgentExecutor` throws `MaxIterationsException` when exceeded.
 
 ### AgentResult and AgentAction
 
@@ -220,13 +221,15 @@ final readonly class AgentAction
 **File:** `packages/ai-agent/src/AgentExecutor.php`
 **Class:** `Waaseyaa\AI\Agent\AgentExecutor`
 
-Wraps agent execution with safety guarantees and audit logging. Three execution paths:
+Wraps agent execution with safety guarantees and audit logging. Five execution paths:
 
 1. `execute(AgentInterface, AgentContext): AgentResult` -- Full execution with try/catch.
 2. `dryRun(AgentInterface, AgentContext): AgentResult` -- Preview mode with try/catch.
 3. `executeTool(string $toolName, array $arguments, AgentContext): array` -- MCP tool call on behalf of an agent.
+4. `executeWithProvider(AgentInterface, AgentContext, ProviderInterface): AgentResult` -- Multi-turn tool loop with an LLM provider. Checks `AgentContext::maxIterations` per iteration; throws `MaxIterationsException` when exceeded.
+5. `streamWithProvider(AgentInterface, AgentContext, StreamingProviderInterface, callable $onChunk): AgentResult` -- Streaming variant forwarding `StreamChunk` objects in real time.
 
-All three paths log to an in-memory audit log. Exceptions are caught and converted to failure results, never propagated. The `executeTool()` method delegates to `McpToolExecutor::execute()`.
+All paths log to an in-memory audit log. Exceptions are caught and converted to failure results, never propagated. The `executeTool()` method delegates to `McpToolExecutor::execute()`.
 
 ### Audit Logging
 
@@ -258,6 +261,124 @@ Lightweight adapter exposing `tools/list` and `tools/call` from the MCP protocol
 public function listTools(): array;                         // {tools: [...]}
 public function callTool(string $name, array $arguments): array; // MCP result
 ```
+
+## LLM Provider System
+
+### ProviderInterface
+
+**File:** `packages/ai-agent/src/Provider/ProviderInterface.php`
+
+```php
+interface ProviderInterface
+{
+    public function sendMessage(MessageRequest $request): MessageResponse;
+}
+```
+
+### StreamingProviderInterface
+
+**File:** `packages/ai-agent/src/Provider/StreamingProviderInterface.php`
+
+```php
+interface StreamingProviderInterface extends ProviderInterface
+{
+    /** @param callable(StreamChunk): void $onChunk */
+    public function streamMessage(MessageRequest $request, callable $onChunk): MessageResponse;
+}
+```
+
+### AnthropicProvider
+
+**File:** `packages/ai-agent/src/Provider/AnthropicProvider.php`
+**Implements:** `StreamingProviderInterface`
+
+```php
+final class AnthropicProvider implements StreamingProviderInterface
+{
+    public function __construct(
+        private readonly string $apiKey,
+        private readonly string $model = 'claude-sonnet-4-20250514',
+    );
+
+    public function sendMessage(MessageRequest $request): MessageResponse;
+    public function streamMessage(MessageRequest $request, callable $onChunk): MessageResponse;
+    public function buildRequestBody(MessageRequest $request): array;
+    public function parseResponse(array $data): MessageResponse;
+    public function parseSseEvents(array $lines, callable $onChunk): array;
+}
+```
+
+Uses cURL for HTTP. `CURLOPT_WRITEFUNCTION` callbacks must not throw — `json_decode` is wrapped in try-catch inside callbacks. Error handling parses error bodies and handles HTTP 429 with `RateLimitException`.
+
+### Message Block Value Objects
+
+**File:** `packages/ai-agent/src/Provider/ToolUseBlock.php`
+
+```php
+final readonly class ToolUseBlock
+{
+    public function __construct(
+        public string $id,
+        public string $name,
+        public array $input,     // array<string, mixed>
+    );
+}
+```
+
+**File:** `packages/ai-agent/src/Provider/ToolResultBlock.php`
+
+```php
+final readonly class ToolResultBlock
+{
+    public function __construct(
+        public string $toolUseId,
+        public string $content,
+        public bool $isError = false,
+    );
+
+    public function toArray(): array;  // {type, tool_use_id, content, is_error}
+}
+```
+
+**File:** `packages/ai-agent/src/Provider/StreamChunk.php`
+
+```php
+final readonly class StreamChunk
+{
+    public function __construct(
+        public string $type,
+        public string $text = '',
+        public ?ToolUseBlock $toolUse = null,
+    );
+}
+```
+
+### Provider Exceptions
+
+**File:** `packages/ai-agent/src/Provider/RateLimitException.php`
+
+```php
+final class RateLimitException extends \RuntimeException
+{
+    public function __construct(
+        public readonly int $retryAfterSeconds,
+        string $message = '',
+    );
+}
+```
+
+Thrown by `AnthropicProvider` on HTTP 429. `$retryAfterSeconds` parsed from the `retry-after` header.
+
+**File:** `packages/ai-agent/src/Provider/MaxIterationsException.php`
+
+```php
+final class MaxIterationsException extends \RuntimeException
+{
+    public function __construct(int $maxIterations);
+}
+```
+
+Thrown by `AgentExecutor` when the tool loop exceeds `AgentContext::$maxIterations`.
 
 ## Hybrid Search Ranking Contract
 
@@ -432,7 +553,40 @@ interface EmbeddingInterface
 }
 ```
 
-Implementations connect to embedding providers (OpenAI, local models, etc.). The `getDimensions()` method returns the vector dimensionality.
+Implementations connect to embedding providers. The `getDimensions()` method returns the vector dimensionality.
+
+### Embedding Provider Implementations
+
+**File:** `packages/ai-vector/src/OpenAiEmbeddingProvider.php`
+
+```php
+final class OpenAiEmbeddingProvider implements EmbeddingInterface
+{
+    public function __construct(
+        private readonly string $apiKey,
+        private readonly string $model = 'text-embedding-3-small',
+        private readonly string $endpoint = 'https://api.openai.com/v1/embeddings',
+        private readonly mixed $transport = null,    // callable for testing
+        private readonly int $dimensions = 1536,
+    );
+}
+```
+
+**File:** `packages/ai-vector/src/OllamaEmbeddingProvider.php`
+
+```php
+final class OllamaEmbeddingProvider implements EmbeddingInterface
+{
+    public function __construct(
+        private readonly string $endpoint = 'http://127.0.0.1:11434/api/embeddings',
+        private readonly string $model = 'nomic-embed-text',
+        private readonly mixed $transport = null,    // callable for testing
+        private readonly int $dimensions = 768,
+    );
+}
+```
+
+Both accept an optional `$transport` callable `(string $url, array $headers, array $body): array` for test injection. When null, they use real HTTP calls.
 
 ### VectorStoreInterface
 
@@ -655,6 +809,18 @@ Pipeline uses `syncStepsToValues()` to maintain a single source of truth. Called
 | `packages/ai-agent/src/AgentAction.php` | `AgentAction` | Single action value object |
 | `packages/ai-agent/src/AgentAuditLog.php` | `AgentAuditLog` | Audit log entry |
 | `packages/ai-agent/src/McpServer.php` | `McpServer` | MCP protocol adapter (tools/list, tools/call) |
+| `packages/ai-agent/src/ToolRegistry.php` | `ToolRegistry` | Tool registration and lookup |
+| `packages/ai-agent/src/ToolRegistryInterface.php` | `ToolRegistryInterface` | Tool registry contract |
+| `packages/ai-agent/src/Provider/ProviderInterface.php` | `ProviderInterface` | LLM provider contract (sendMessage) |
+| `packages/ai-agent/src/Provider/StreamingProviderInterface.php` | `StreamingProviderInterface` | Streaming LLM provider (extends ProviderInterface) |
+| `packages/ai-agent/src/Provider/AnthropicProvider.php` | `AnthropicProvider` | Anthropic Messages API with streaming |
+| `packages/ai-agent/src/Provider/MessageRequest.php` | `MessageRequest` | LLM request value object |
+| `packages/ai-agent/src/Provider/MessageResponse.php` | `MessageResponse` | LLM response value object |
+| `packages/ai-agent/src/Provider/StreamChunk.php` | `StreamChunk` | Streaming chunk (type, text, toolUse) |
+| `packages/ai-agent/src/Provider/ToolUseBlock.php` | `ToolUseBlock` | Tool call from LLM (id, name, input) |
+| `packages/ai-agent/src/Provider/ToolResultBlock.php` | `ToolResultBlock` | Tool result back to LLM |
+| `packages/ai-agent/src/Provider/RateLimitException.php` | `RateLimitException` | HTTP 429 with retryAfterSeconds |
+| `packages/ai-agent/src/Provider/MaxIterationsException.php` | `MaxIterationsException` | Tool loop safety limit exceeded |
 | `packages/ai-pipeline/src/Pipeline.php` | `Pipeline` | Config entity for processing pipelines |
 | `packages/ai-pipeline/src/PipelineStepInterface.php` | `PipelineStepInterface` | Step plugin contract |
 | `packages/ai-pipeline/src/PipelineStepConfig.php` | `PipelineStepConfig` | Step configuration value object |
@@ -665,6 +831,8 @@ Pipeline uses `syncStepsToValues()` to maintain a single source of truth. Called
 | `packages/ai-pipeline/src/PipelineDispatcher.php` | `PipelineDispatcher` | Async queue dispatch |
 | `packages/ai-pipeline/src/PipelineQueueMessage.php` | `PipelineQueueMessage` | Queue message value object |
 | `packages/ai-vector/src/EmbeddingInterface.php` | `EmbeddingInterface` | Embedding provider contract |
+| `packages/ai-vector/src/OpenAiEmbeddingProvider.php` | `OpenAiEmbeddingProvider` | OpenAI embeddings (text-embedding-3-small) |
+| `packages/ai-vector/src/OllamaEmbeddingProvider.php` | `OllamaEmbeddingProvider` | Ollama local embeddings (nomic-embed-text) |
 | `packages/ai-vector/src/VectorStoreInterface.php` | `VectorStoreInterface` | Vector storage contract |
 | `packages/ai-vector/src/EntityEmbedding.php` | `EntityEmbedding` | Embedding value object |
 | `packages/ai-vector/src/SimilarityResult.php` | `SimilarityResult` | Search result with score |

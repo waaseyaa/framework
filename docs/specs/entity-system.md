@@ -158,12 +158,20 @@ interface EntityRepositoryInterface
 {
     public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface;
     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array;
-    public function save(EntityInterface $entity): int;
+    public function save(EntityInterface $entity, bool $validate = true): int;
     public function delete(EntityInterface $entity): void;
     public function exists(string $id): bool;
     public function count(array $criteria = []): int;
+    public function loadRevision(string $entityId, int $revisionId): ?EntityInterface;
+    public function rollback(string $entityId, int $targetRevisionId): EntityInterface;
+    public function saveMany(array $entities, bool $validate = true): array;   // int[] (SAVED_NEW/SAVED_UPDATED)
+    public function deleteMany(array $entities): int;
 }
 ```
+
+`save()` accepts `bool $validate = true`. When true and an `EntityValidator` is injected, validates against `EntityType::getConstraints()` before persisting. Throws `EntityValidationException` on failure.
+
+`saveMany()`/`deleteMany()` wrap all operations in a `UnitOfWork` transaction. Events are buffered and dispatched only after successful commit. Requires `$database` to be non-null (throws `\LogicException` otherwise).
 
 ### EntityConstants
 
@@ -213,7 +221,20 @@ PHP attribute `#[EntityTypeAttribute(...)]` for class-level discovery. Extends `
 2. `EntityBase::__construct()` auto-generates UUID via `Uuid::v4()->toRfc4122()` if not provided
 3. Entity starts with `isNew() === true` (id is null)
 
-### Save (new entity)
+### Save (via EntityRepository)
+
+The `EntityRepository::save()` pipeline (used for all high-level persistence):
+
+1. Validates entity against `EntityType::getConstraints()` if `$validate === true` and `EntityValidator` is injected
+2. Calls `$entity->preSave($isNew)` lifecycle hook (if entity extends `EntityBase`)
+3. Dispatches `EntityEvents::PRE_SAVE` event (via `EntityEventFactoryInterface`)
+4. Writes to storage driver (`$driver->write()`)
+5. Calls `$entity->enforceIsNew(false)` for new entities
+6. Dispatches `EntityEvents::POST_SAVE` event
+7. Calls `$entity->postSave($isNew)` lifecycle hook (if entity extends `EntityBase`)
+8. Returns `EntityConstants::SAVED_NEW` (1) or `SAVED_UPDATED` (2)
+
+### Save (via SqlEntityStorage — low-level)
 
 1. `SqlEntityStorage::save()` detects `isNew() === true`
 2. Calls `splitForStorage()` to separate schema columns from `_data` JSON blob
@@ -224,14 +245,13 @@ PHP attribute `#[EntityTypeAttribute(...)]` for class-level discovery. Extends `
 7. Dispatches `EntityEvents::POST_SAVE` event
 8. Returns `EntityConstants::SAVED_NEW` (1)
 
-### Save (existing entity)
+### Delete (via EntityRepository)
 
-1. `SqlEntityStorage::save()` detects `isNew() === false`
-2. Calls `splitForStorage()` to separate schema columns from `_data` JSON blob
-3. Dispatches `EntityEvents::PRE_SAVE` event
-4. Runs `UPDATE` via `$database->update()`, excluding the ID from update fields
-5. Dispatches `EntityEvents::POST_SAVE` event
-6. Returns `EntityConstants::SAVED_UPDATED` (2)
+1. Calls `$entity->preDelete()` lifecycle hook (if entity extends `EntityBase`)
+2. Dispatches `EntityEvents::PRE_DELETE` event
+3. Removes from storage driver (`$driver->remove()`)
+4. Dispatches `EntityEvents::POST_DELETE` event
+5. Calls `$entity->postDelete()` lifecycle hook (if entity extends `EntityBase`)
 
 ### Load
 
@@ -240,12 +260,6 @@ PHP attribute `#[EntityTypeAttribute(...)]` for class-level discovery. Extends `
 3. Merges `_data` JSON blob back into the values array
 4. Instantiates entity via `instantiateEntity()` (adapts to constructor signature)
 5. Calls `$entity->enforceIsNew(false)` on loaded entities
-
-### Delete
-
-1. Dispatches `EntityEvents::PRE_DELETE` for each entity
-2. Collects IDs, runs `DELETE ... WHERE id IN (...)`
-3. Dispatches `EntityEvents::POST_DELETE` for each entity
 
 ## Storage Layer
 
@@ -308,21 +322,36 @@ Default table schema (from `buildTableSpec()`):
 File: `packages/entity-storage/src/EntityStorageFactory.php`
 Class: `final class EntityStorageFactory`
 
-Constructor: `(DatabaseInterface $database, EventDispatcherInterface $eventDispatcher)`
+Constructor: `(DatabaseInterface $database, EventDispatcherInterface $eventDispatcher, ?EntityEventFactoryInterface $eventFactory = null)`
 
-`getStorage(EntityTypeInterface $entityType): SqlEntityStorage` -- creates and caches SqlEntityStorage instances by entity type ID.
+`getStorage(EntityTypeInterface $entityType): SqlEntityStorage` -- creates and caches SqlEntityStorage instances by entity type ID. Propagates `$eventFactory` to each SqlEntityStorage instance.
 
 ### EntityRepository
 
 File: `packages/entity-storage/src/EntityRepository.php`
 Class: `final class EntityRepository implements EntityRepositoryInterface`
 
-Constructor: `(EntityTypeInterface $entityType, EntityStorageDriverInterface $driver, EventDispatcherInterface $eventDispatcher)`
+Constructor:
+```php
+public function __construct(
+    private readonly EntityTypeInterface $entityType,
+    private readonly EntityStorageDriverInterface $driver,
+    private readonly EventDispatcherInterface $eventDispatcher,
+    private readonly ?RevisionableStorageDriver $revisionDriver = null,
+    private readonly ?DatabaseInterface $database = null,
+    ?EntityEventFactoryInterface $eventFactory = null,
+    private readonly ?EntityValidator $validator = null,
+)
+```
 
 Higher-level layer that handles:
 - Entity hydration (`hydrate()` method with `_data` merge and constructor adaptation)
 - Language fallback via `setFallbackChain(string[] $chain)` (default: `['en']`)
-- Event dispatch (PRE_SAVE, POST_SAVE, PRE_DELETE, POST_DELETE)
+- Event dispatch via `EntityEventFactoryInterface` (defaults to `DefaultEntityEventFactory`)
+- Pre-save validation via `EntityValidator` (when injected and `validate: true`)
+- Entity lifecycle hooks (`preSave`, `postSave`, `preDelete`, `postDelete` on `EntityBase`)
+- Batch operations via `saveMany()`/`deleteMany()` with `UnitOfWork` transaction wrapping
+- Revision management via `loadRevision()` and `rollback()`
 
 ### UnitOfWork
 
@@ -526,6 +555,8 @@ enum EntityEvents: string
     case POST_DELETE = 'waaseyaa.entity.post_delete';
     case POST_LOAD = 'waaseyaa.entity.post_load';
     case PRE_CREATE = 'waaseyaa.entity.pre_create';
+    case REVISION_CREATED = 'waaseyaa.entity.revision_created';
+    case REVISION_REVERTED = 'waaseyaa.entity.revision_reverted';
 }
 ```
 
@@ -538,6 +569,80 @@ File: `packages/entity/src/Event/EntitySaved.php` -- extends `DomainEvent`, cont
 File: `packages/entity/src/Event/EntityDeleted.php` -- extends `DomainEvent`
 
 These are separate from `EntityEvent`. They carry aggregate metadata (`aggregateType`, `aggregateId`, `tenantId`, `actorId`).
+
+### EntityEventFactoryInterface
+
+File: `packages/entity/src/Event/EntityEventFactoryInterface.php`
+
+```php
+interface EntityEventFactoryInterface
+{
+    public function create(
+        EntityInterface $entity,
+        ?EntityInterface $originalEntity = null,
+    ): EntityEvent;
+}
+```
+
+`DefaultEntityEventFactory` (`packages/entity/src/Event/DefaultEntityEventFactory.php`) is the default implementation — simply returns `new EntityEvent($entity, $originalEntity)`. Applications can provide custom factories to attach additional context (e.g., tenant ID, actor ID) to entity events.
+
+`EntityRepository` accepts `?EntityEventFactoryInterface` in its constructor (defaults to `DefaultEntityEventFactory`). `EntityStorageFactory` propagates the factory to storage instances.
+
+### Entity Validation
+
+File: `packages/entity/src/Validation/EntityValidator.php`
+
+```php
+final class EntityValidator
+{
+    public function __construct(private readonly ValidatorInterface $validator);
+
+    public function validate(EntityInterface $entity, array $constraints = []): ConstraintViolationListInterface;
+}
+```
+
+Validates entity field values against per-field Symfony Validator constraints. `$constraints` is keyed by field name. For `FieldableInterface` entities, uses `get($field)` for proper resolution; otherwise falls back to `toArray()`. Violations are remapped to include the field path.
+
+File: `packages/entity/src/Validation/EntityValidationException.php`
+
+```php
+final class EntityValidationException extends \RuntimeException
+{
+    public function __construct(
+        public readonly ConstraintViolationListInterface $violations,
+        string $message = 'Entity validation failed.',
+    );
+}
+```
+
+Thrown by `EntityRepository::save()` when validation fails. The `$violations` property provides programmatic access to all constraint violations.
+
+### Entity Lifecycle Hooks
+
+File: `packages/entity/src/EntityBase.php`
+
+`EntityBase` provides four no-op lifecycle hooks that subclasses can override:
+
+```php
+public function preSave(bool $isNew): void {}
+public function postSave(bool $isNew): void {}
+public function preDelete(): void {}
+public function postDelete(): void {}
+```
+
+Called by `EntityRepository` (not `SqlEntityStorage`). Execution order within `save()`:
+
+```
+preSave($isNew) → PRE_SAVE event → persist → POST_SAVE event → postSave($isNew)
+```
+
+Execution order within `delete()`:
+
+```
+preDelete() → PRE_DELETE event → remove → POST_DELETE event → postDelete()
+```
+
+Hooks are only called when the entity is an instance of `EntityBase`. They run inside `UnitOfWork` transactions for batch operations (`saveMany`/`deleteMany`).
 
 ## Configuration Entities
 
@@ -762,7 +867,7 @@ class FieldType extends WaaseyaaPlugin
 
 ### packages/entity/src/
 - `EntityInterface.php` -- core entity contract
-- `EntityBase.php` -- abstract base with values array, UUID generation, enforceIsNew
+- `EntityBase.php` -- abstract base with values array, UUID generation, enforceIsNew, lifecycle hooks (preSave/postSave/preDelete/postDelete)
 - `ContentEntityInterface.php` -- extends EntityInterface + FieldableInterface
 - `ContentEntityBase.php` -- abstract base for content entities (fieldable)
 - `ConfigEntityInterface.php` -- config entity contract with status/dependencies
@@ -777,9 +882,12 @@ class FieldType extends WaaseyaaPlugin
 - `RevisionableInterface.php` -- revision contract
 - `Attribute/EntityTypeAttribute.php` -- PHP attribute for entity type discovery
 - `Event/EntityEvent.php` -- event with public readonly entity + originalEntity
-- `Event/EntityEvents.php` -- string-backed enum of event names
+- `Event/EntityEvents.php` -- string-backed enum of event names (includes REVISION_CREATED, REVISION_REVERTED)
+- `Event/EntityEventFactoryInterface.php` -- factory interface for creating EntityEvent instances
 - `Event/EntitySaved.php` -- domain event for entity save
 - `Event/EntityDeleted.php` -- domain event for entity delete
+- `Validation/EntityValidator.php` -- per-field validation via Symfony Validator
+- `Validation/EntityValidationException.php` -- exception carrying ConstraintViolationListInterface
 - `Storage/EntityStorageInterface.php` -- storage CRUD contract
 - `Storage/EntityQueryInterface.php` -- query builder contract
 - `Storage/RevisionableStorageInterface.php` -- revision storage contract

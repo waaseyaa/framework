@@ -68,7 +68,8 @@ map_file_to_specs() {
   case "$file" in
     packages/foundation/*|packages/cache/*|packages/database-legacy/*|\
 packages/plugin/*|packages/i18n/*|packages/queue/*|packages/state/*|\
-packages/validation/*|packages/typed-data/*|packages/testing/*|packages/mail/*)
+packages/validation/*|packages/typed-data/*|packages/testing/*|packages/mail/*|\
+packages/http-client/*)
       specs="$specs docs/specs/infrastructure.md" ;;
   esac
 
