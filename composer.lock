@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "fd232b448ebf3369ff25b0d4f3b52910",
+    "content-hash": "30661f5ebf71f76ceaf8bbef9dbb1ce1",
     "packages": [
         {
             "name": "doctrine/dbal",
@@ -3765,6 +3765,45 @@
                 "GPL-2.0-or-later"
             ],
             "description": "GraphQL endpoint for Waaseyaa — auto-generated schema from entity types",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/http-client",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/http-client",
+                "reference": "a37ba508654c6c2785bcdeb8f3ee3aa56ff1cc7c"
+            },
+            "require": {
+                "php": ">=8.4"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev",
+                    "dev-develop/v1.1": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\HttpClient\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\HttpClient\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Minimal HTTP client for JSON APIs and webhooks",
             "transport-options": {
                 "relative": true
             }
@@ -8352,6 +8391,7 @@
         "waaseyaa/foundation": 20,
         "waaseyaa/github": 20,
         "waaseyaa/graphql": 20,
+        "waaseyaa/http-client": 20,
         "waaseyaa/i18n": 20,
         "waaseyaa/inertia": 20,
         "waaseyaa/ingestion": 20,
@@ -8385,5 +8425,5 @@
         "php": ">=8.4"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.9.0"
+    "plugin-api-version": "2.6.0"
 }

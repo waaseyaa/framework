@@ -24,6 +24,7 @@ jobs:
           - { local: 'packages/state', remote: 'state' }
           - { local: 'packages/validation', remote: 'validation' }
           - { local: 'packages/mail', remote: 'mail' }
+          - { local: 'packages/http-client', remote: 'http-client' }
           - { local: 'packages/github', remote: 'github' }
           - { local: 'packages/ingestion', remote: 'ingestion' }
           - { local: 'packages/deployer', remote: 'deployer' }

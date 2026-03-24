@@ -53,7 +53,8 @@
         { "type": "path", "url": "packages/auth" },
         { "type": "path", "url": "packages/billing" },
         { "type": "path", "url": "packages/scheduler" },
-        { "type": "path", "url": "packages/notification" }
+        { "type": "path", "url": "packages/notification" },
+        { "type": "path", "url": "packages/http-client" }
     ],
     "require": {
         "php": ">=8.4",
@@ -79,6 +80,7 @@
         "waaseyaa/foundation": "@dev",
         "waaseyaa/github": "@dev",
         "waaseyaa/graphql": "@dev",
+        "waaseyaa/http-client": "@dev",
         "waaseyaa/i18n": "@dev",
         "waaseyaa/inertia": "@dev",
         "waaseyaa/ingestion": "@dev",
@@ -160,6 +162,7 @@
             "Waaseyaa\\AdminSurface\\Tests\\": "packages/admin-surface/tests/",
             "Waaseyaa\\Auth\\Tests\\": "packages/auth/tests/",
             "Waaseyaa\\Billing\\Tests\\": "packages/billing/tests/",
+            "Waaseyaa\\HttpClient\\Tests\\": "packages/http-client/tests/",
             "Waaseyaa\\Tests\\": "tests/"
         }
     },
