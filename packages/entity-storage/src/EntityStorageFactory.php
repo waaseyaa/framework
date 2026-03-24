@@ -7,6 +7,7 @@ namespace Waaseyaa\EntityStorage;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
+use Waaseyaa\Entity\Event\EntityEventFactoryInterface;
 
 /**
  * Factory for creating and caching entity storage instances.
@@ -23,6 +24,7 @@ final class EntityStorageFactory
     public function __construct(
         private readonly DatabaseInterface $database,
         private readonly EventDispatcherInterface $eventDispatcher,
+        private readonly ?EntityEventFactoryInterface $eventFactory = null,
     ) {}
 
     /**
@@ -39,6 +41,7 @@ final class EntityStorageFactory
                 $entityType,
                 $this->database,
                 $this->eventDispatcher,
+                eventFactory: $this->eventFactory,
             );
         }
 
