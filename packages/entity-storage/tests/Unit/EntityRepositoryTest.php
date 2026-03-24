@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Waaseyaa\EntityStorage\Tests\Unit;
 
 use Waaseyaa\Entity\EntityConstants;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\Event\EntityEvent;
+use Waaseyaa\Entity\Event\EntityEventFactoryInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
@@ -318,5 +320,38 @@ final class EntityRepositoryTest extends TestCase
 
         $this->assertNotNull($entity);
         $this->assertSame('Bonjour', $entity->label());
+    }
+
+    #[Test]
+    public function saveUsesInjectedEventFactory(): void
+    {
+        $factoryCalled = false;
+        $factory = new class ($factoryCalled) implements EntityEventFactoryInterface {
+            public function __construct(private bool &$called) {}
+
+            public function create(EntityInterface $entity, ?EntityInterface $originalEntity = null): EntityEvent
+            {
+                $this->called = true;
+
+                return new EntityEvent($entity, $originalEntity);
+            }
+        };
+
+        $repository = new EntityRepository(
+            $this->entityType,
+            $this->driver,
+            $this->eventDispatcher,
+            eventFactory: $factory,
+        );
+
+        $entity = new TestStorageEntity(
+            values: ['id' => '1', 'label' => 'Hello', 'bundle' => 'article', 'langcode' => 'en'],
+            entityTypeId: 'test_entity',
+            entityKeys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+        );
+        $entity->enforceIsNew(true);
+
+        $repository->save($entity);
+        $this->assertTrue($factoryCalled, 'Custom event factory should be called during save');
     }
 }

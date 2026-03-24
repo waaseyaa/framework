@@ -10,7 +10,8 @@ use Waaseyaa\Entity\ContentEntityInterface;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
-use Waaseyaa\Entity\Event\EntityEvent;
+use Waaseyaa\Entity\Event\DefaultEntityEventFactory;
+use Waaseyaa\Entity\Event\EntityEventFactoryInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\RevisionableInterface;
@@ -28,13 +29,18 @@ final class EntityRepository implements EntityRepositoryInterface
     /** @var string[] Default language fallback chain. */
     private array $fallbackChain = ['en'];
 
+    private readonly EntityEventFactoryInterface $eventFactory;
+
     public function __construct(
         private readonly EntityTypeInterface $entityType,
         private readonly EntityStorageDriverInterface $driver,
         private readonly EventDispatcherInterface $eventDispatcher,
         private readonly ?RevisionableStorageDriver $revisionDriver = null,
         private readonly ?DatabaseInterface $database = null,
-    ) {}
+        ?EntityEventFactoryInterface $eventFactory = null,
+    ) {
+        $this->eventFactory = $eventFactory ?? new DefaultEntityEventFactory();
+    }
 
     /**
      * Set the language fallback chain.
@@ -95,7 +101,7 @@ final class EntityRepository implements EntityRepositoryInterface
 
         // Dispatch PRE_SAVE event.
         $this->eventDispatcher->dispatch(
-            new EntityEvent($entity),
+            $this->eventFactory->create($entity),
             EntityEvents::PRE_SAVE->value,
         );
 
@@ -145,14 +151,14 @@ final class EntityRepository implements EntityRepositoryInterface
 
         // Dispatch POST_SAVE event.
         $this->eventDispatcher->dispatch(
-            new EntityEvent($entity),
+            $this->eventFactory->create($entity),
             EntityEvents::POST_SAVE->value,
         );
 
         // Dispatch REVISION_CREATED if a revision was created.
         if ($createRevision && $this->revisionDriver !== null) {
             $this->eventDispatcher->dispatch(
-                new EntityEvent($entity),
+                $this->eventFactory->create($entity),
                 EntityEvents::REVISION_CREATED->value,
             );
         }
@@ -167,7 +173,7 @@ final class EntityRepository implements EntityRepositoryInterface
 
         // Dispatch PRE_DELETE event.
         $this->eventDispatcher->dispatch(
-            new EntityEvent($entity),
+            $this->eventFactory->create($entity),
             EntityEvents::PRE_DELETE->value,
         );
 
@@ -180,7 +186,7 @@ final class EntityRepository implements EntityRepositoryInterface
 
         // Dispatch POST_DELETE event.
         $this->eventDispatcher->dispatch(
-            new EntityEvent($entity),
+            $this->eventFactory->create($entity),
             EntityEvents::POST_DELETE->value,
         );
     }
@@ -262,11 +268,11 @@ final class EntityRepository implements EntityRepositoryInterface
 
         // Dispatch REVISION_CREATED (rollback creates a revision) then REVISION_REVERTED.
         $this->eventDispatcher->dispatch(
-            new EntityEvent($entity),
+            $this->eventFactory->create($entity),
             EntityEvents::REVISION_CREATED->value,
         );
         $this->eventDispatcher->dispatch(
-            new EntityEvent($entity),
+            $this->eventFactory->create($entity),
             EntityEvents::REVISION_REVERTED->value,
         );
 
