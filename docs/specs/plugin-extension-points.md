@@ -68,7 +68,38 @@ Demonstrates:
 - discovery hint augmentation,
 - deterministic normalization/sorting behavior.
 
+## ServiceProvider Extension Hooks
+
+File: `packages/foundation/src/ServiceProvider/ServiceProvider.php`
+
+Beyond `register()` and `boot()`, service providers expose five additional extension hooks called by the kernel during bootstrap. All return empty defaults — override in package providers to contribute.
+
+```php
+// Contribute CLI commands (called by ConsoleKernel)
+public function commands(
+    EntityTypeManager $entityTypeManager,
+    DatabaseInterface $database,
+    EventDispatcherInterface $dispatcher,
+): array;  // list<Command>
+
+// Contribute HTTP middleware instances (called by HttpKernel)
+public function middleware(EntityTypeManager $entityTypeManager): array;  // list<HttpMiddlewareInterface>
+
+// Register routes (called during boot)
+public function routes(WaaseyaaRouter $router, ?EntityTypeManager $entityTypeManager = null): void;
+
+// Override GraphQL mutations (called by GraphQL bootstrap)
+public function graphqlMutationOverrides(EntityTypeManager $entityTypeManager): array;
+// Returns: array<string, array{args?: ..., resolve?: callable}>
+
+// Set kernel resolver for lazy service resolution
+public function setKernelResolver(\Closure $resolver): void;
+```
+
+These hooks are the stable contract for packages to extend the application without modifying kernel code. The kernel calls them during the appropriate boot phase — commands during console boot, middleware during HTTP boot, routes during provider boot.
+
 ## Compatibility Notes
 
 - These extension points are additive and do not alter existing `PluginManagerInterface` contracts.
 - Existing plugins that do not implement `KnowledgeToolingExtensionInterface` remain fully compatible.
+- ServiceProvider extension hooks return empty defaults — packages that don't override them are unaffected.

@@ -54,6 +54,31 @@ System fields (`id`, `uuid`, `created_at`, `updated_at`) are read-only for all r
 
 See also: `docs/specs/access-control.md`, `docs/specs/field-access.md`.
 
+### GraphQL authentication model
+
+The GraphQL endpoint is registered with `allowAll()` at the route level — no route-level authentication. This is intentional: GraphQL serves both public queries and authenticated mutations through a single endpoint.
+
+Access enforcement happens at the resolver level via `GraphQlAccessGuard`. Mutations that require authentication check the `_account` on the request and return a `UserError` on denial. This follows the same pattern as REST read routes: route is open, entity access policies control authorization.
+
+### HTTP response security headers
+
+`SecurityHeadersMiddleware` (priority 100, outermost layer) adds security headers to all responses:
+
+| Header | Default |
+|--------|---------|
+| `Content-Security-Policy` | `default-src 'self'` |
+| `X-Frame-Options` | `DENY` |
+| `X-Content-Type-Options` | `nosniff` |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` (when `hstsEnabled`) |
+
+### Rate limiting
+
+`RateLimitMiddleware` (priority 80) enforces IP-based rate limiting: 60 requests per 60-second window by default. Exceeding the limit returns HTTP 429 with `Retry-After` header.
+
+### Request body limits
+
+`BodySizeLimitMiddleware` (priority 70) rejects payloads exceeding 1 MB with HTTP 413.
+
 ## Encryption Policy
 
 ### Current (pre-v1)
@@ -110,6 +135,12 @@ Patterns checked: `sk-*` (OpenAI), `ghp_*` (GitHub), `xox[bp]-*` (Slack), `ya29.
 | `packages/routing/src/AccessChecker.php` | `_authenticated` route option evaluation |
 | `packages/routing/src/RouteBuilder.php` | `requireAuthentication()` fluent method |
 | `packages/api/src/JsonApiRouteProvider.php` | Authentication on write routes |
+| `packages/graphql/src/GraphQlRouteProvider.php` | GraphQL route with `allowAll()` |
+| `packages/graphql/src/GraphQlAccessGuard.php` | Resolver-level access enforcement |
+| `packages/foundation/src/Middleware/SecurityHeadersMiddleware.php` | CSP, HSTS, X-Frame-Options |
+| `packages/foundation/src/Middleware/RateLimitMiddleware.php` | IP-based rate limiting (60/60s) |
+| `packages/foundation/src/Middleware/BodySizeLimitMiddleware.php` | 1 MB body size limit |
+| `packages/user/src/Middleware/BearerAuthMiddleware.php` | JWT + API key bearer auth |
 | `packages/note/src/NoteAccessPolicy.php` | Entity + field access for core.note |
 | `defaults/core.note.yaml` | Governance manifest with encryption_policy |
 | `bin/check-no-secrets` | CI shell gate for secret patterns |

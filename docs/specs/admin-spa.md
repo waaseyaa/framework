@@ -251,10 +251,28 @@ packages/admin/app/
       DateTimeInput.vue            # datetime-local
       EntityAutocomplete.vue       # Typeahead search for entity references
       HiddenField.vue              # Renders nothing (excluded from editable forms)
+      MachineNameInput.vue         # Machine-readable name generator from label
+      FileUpload.vue               # File upload input
+    telescope/
+      ContextHeatmap.vue           # Heatmap visualization of codified context events
+      DriftScoreChart.vue          # Drift score indicator (0–100 with color intensity)
+      EventStreamViewer.vue        # Expandable event log with collapsible rows
+      ValidationReportCard.vue     # Validation report display with severity styling
+    onboarding/
+      OnboardingPrompt.vue         # Onboarding guide prompt
+  adapters/
+    AdminSurfaceTransportAdapter.ts  # AdminSurface API transport layer
+    BootstrapAuthAdapter.ts          # Bootstrap authentication during app init
+    JsonApiTransportAdapter.ts       # JSON:API protocol transport
+    index.ts                         # Re-exports all adapters
   composables/
+    useAdmin.ts                    # Admin panel context & utilities
+    useAuth.ts                     # Authentication state & login/logout
+    useCodifiedContext.ts          # Codified context session/event tracking
     useEntity.ts                   # JSON:API CRUD + search
     useSchema.ts                   # Schema fetch/cache/sort
     useLanguage.ts                 # i18n
+    useNavGroups.ts                # Navigation group rendering & humanize() helper
     useRealtime.ts                 # SSE connection
   pages/
     index.vue                      # Dashboard: entity type cards
@@ -336,10 +354,17 @@ Backend JSON:API and schema endpoints are tested via PHPUnit integration tests i
 | `packages/admin/nuxt.config.ts` | Nuxt configuration, API proxy |
 | `packages/admin/app/app.vue` | Root component |
 | `packages/admin/app/layouts/default.vue` | Default layout (AdminShell wrapper) |
+| `packages/admin/app/composables/useAdmin.ts` | Admin panel context & utilities |
+| `packages/admin/app/composables/useAuth.ts` | Authentication state & login/logout |
+| `packages/admin/app/composables/useCodifiedContext.ts` | Codified context session/event tracking |
 | `packages/admin/app/composables/useEntity.ts` | JSON:API CRUD composable |
 | `packages/admin/app/composables/useSchema.ts` | Schema fetching and caching |
 | `packages/admin/app/composables/useLanguage.ts` | i18n composable |
+| `packages/admin/app/composables/useNavGroups.ts` | Navigation group rendering |
 | `packages/admin/app/composables/useRealtime.ts` | SSE connection composable |
+| `packages/admin/app/adapters/AdminSurfaceTransportAdapter.ts` | AdminSurface API transport |
+| `packages/admin/app/adapters/JsonApiTransportAdapter.ts` | JSON:API protocol transport |
+| `packages/admin/app/adapters/BootstrapAuthAdapter.ts` | Bootstrap auth during init |
 | `packages/admin/app/components/layout/AdminShell.vue` | Shell layout + global CSS |
 | `packages/admin/app/components/layout/NavBuilder.vue` | Dynamic sidebar navigation |
 | `packages/admin/app/components/schema/SchemaForm.vue` | Schema-driven entity form |

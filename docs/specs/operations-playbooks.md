@@ -128,6 +128,74 @@ Use this as the default runbook for upgrades, baseline refreshes, and verificati
    - `php bin/waaseyaa fixture:pack:refresh --input-dir tests/fixtures/scenarios --output tests/fixtures/scenarios/fixture-pack.aggregate.json`
 3. Verify repeated refresh runs keep the same aggregate hash.
 
+## CLI Command Reference
+
+### Queue Operations
+
+| Command | Description | Key Options |
+|---------|-------------|-------------|
+| `queue:work` | Process jobs from the queue | `queue` (arg), `--sleep`, `--tries`, `--timeout`, `--max-jobs`, `--max-time`, `--memory` |
+| `queue:failed` | List all failed queue jobs | — |
+| `queue:retry` | Retry a failed job | `id` (arg: job ID or `all`) |
+| `queue:flush` | Remove all failed queue jobs | — |
+
+### Scheduling
+
+| Command | Description | Key Options |
+|---------|-------------|-------------|
+| `schedule:run` | Run due scheduled tasks | — |
+| `schedule:list` | List all registered scheduled tasks | — |
+
+### Search
+
+| Command | Description | Key Options |
+|---------|-------------|-------------|
+| `search:reindex` | Rebuild search index from all indexable entities | `--batch-size` / `-b` (default: 100) |
+
+### Development
+
+| Command | Description | Key Options |
+|---------|-------------|-------------|
+| `serve` | Start the PHP development server | `--host` (default: 127.0.0.1), `--port` / `-p` (default: 8080) |
+| `sync-rules` | Sync framework rules from Waaseyaa to app | `--force` / `-f`, `--dry-run` |
+
+## Queue Operations Playbook
+
+### Starting a queue worker
+
+```bash
+php bin/waaseyaa queue:work --max-jobs=100 --memory=128 --timeout=60
+```
+
+For production, run the worker as a systemd service or Supervisor process. Restart on failure.
+
+### Monitoring failed jobs
+
+```bash
+php bin/waaseyaa queue:failed          # list all failures
+php bin/waaseyaa queue:retry <id>      # retry specific job
+php bin/waaseyaa queue:retry all       # retry all failures
+php bin/waaseyaa queue:flush           # discard all failures
+```
+
+### Scheduling in production
+
+Run `schedule:run` via system cron every minute:
+
+```cron
+* * * * * cd /path/to/project && php bin/waaseyaa schedule:run >> /dev/null 2>&1
+```
+
+Use `schedule:list` to verify registered tasks.
+
+### Search reindex
+
+Full FTS5 index rebuild (safe to run on a live system):
+
+```bash
+php bin/waaseyaa search:reindex --batch-size=200
+```
+
 ## Onboarding Path (Contributor Quick Path)
 
 1. Read `CLAUDE.md` for architecture and gotchas.
