@@ -512,6 +512,8 @@ final class DiscoveryRelationshipStorage implements EntityStorageInterface
         return $this->entities[(int) $id] ?? null;
     }
 
+    public function loadByKey(string $key, mixed $value): ?EntityInterface { return null; }
+
     public function loadMultiple(array $ids = []): array
     {
         if ($ids === []) {
@@ -566,6 +568,8 @@ final class DiscoveryEntityStorage implements EntityStorageInterface
     {
         return $this->entities[(string) $id] ?? null;
     }
+
+    public function loadByKey(string $key, mixed $value): ?EntityInterface { return null; }
 
     public function loadMultiple(array $ids = []): array
     {

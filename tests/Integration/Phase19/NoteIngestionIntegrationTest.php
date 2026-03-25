@@ -214,6 +214,11 @@ final class InMemoryNoteStorage implements EntityStorageInterface
         return null;
     }
 
+    public function loadByKey(string $key, mixed $value): ?EntityInterface
+    {
+        return null;
+    }
+
     public function loadMultiple(array $ids = []): array
     {
         return [];

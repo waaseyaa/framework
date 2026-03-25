@@ -36,6 +36,16 @@ class InMemoryEntityStorage implements EntityStorageInterface
         return $this->entities[$id] ?? null;
     }
 
+    public function loadByKey(string $key, mixed $value): ?EntityInterface
+    {
+        foreach ($this->entities as $entity) {
+            if ($entity instanceof FieldableInterface && $entity->get($key) === $value) {
+                return $entity;
+            }
+        }
+        return null;
+    }
+
     public function loadMultiple(array $ids = []): array
     {
         if ($ids === []) {

@@ -512,4 +512,35 @@ final class SqlEntityStorageTest extends TestCase
         $storage->save($entity);
         $this->assertGreaterThan(0, $factory->callCount, 'Custom event factory should be called during save');
     }
+
+    public function testLoadByKeyReturnsEntityOnHit(): void
+    {
+        $entity = $this->storage->create(['label' => 'Find Me', 'bundle' => 'article']);
+        $this->storage->save($entity);
+        $uuid = $entity->uuid();
+
+        $found = $this->storage->loadByKey('uuid', $uuid);
+
+        $this->assertNotNull($found);
+        $this->assertSame($entity->id(), $found->id());
+        $this->assertSame('Find Me', $found->label());
+    }
+
+    public function testLoadByKeyReturnsNullOnMiss(): void
+    {
+        $found = $this->storage->loadByKey('uuid', 'nonexistent-uuid');
+
+        $this->assertNull($found);
+    }
+
+    public function testLoadByKeyWorksWithLabelField(): void
+    {
+        $entity = $this->storage->create(['label' => 'Unique Label', 'bundle' => 'article']);
+        $this->storage->save($entity);
+
+        $found = $this->storage->loadByKey('label', 'Unique Label');
+
+        $this->assertNotNull($found);
+        $this->assertSame($entity->id(), $found->id());
+    }
 }

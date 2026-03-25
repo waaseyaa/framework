@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Cache\CacheConfigResolver;
 use Waaseyaa\Database\DBALDatabase;
@@ -44,10 +45,18 @@ class StubControllerWithRequiredNonNullable
     ) {}
 }
 
+class StubControllerWithGate
+{
+    public function __construct(
+        public readonly EntityTypeManager $etm,
+        public readonly GateInterface $gate,
+    ) {}
+}
+
 #[CoversClass(SsrPageHandler::class)]
 final class SsrPageHandlerResolverTest extends TestCase
 {
-    private function createHandler(?\Closure $serviceResolver = null): SsrPageHandler
+    private function createHandler(?\Closure $serviceResolver = null, ?GateInterface $gate = null): SsrPageHandler
     {
         $entityTypeManager = new EntityTypeManager(new EventDispatcher());
         $database = DBALDatabase::createSqlite();
@@ -64,6 +73,7 @@ final class SsrPageHandlerResolverTest extends TestCase
             config: [],
             manifest: null,
             serviceResolver: $serviceResolver,
+            gate: $gate,
         );
     }
 
@@ -171,5 +181,25 @@ final class SsrPageHandlerResolverTest extends TestCase
             $account,
             $request,
         );
+    }
+
+    #[Test]
+    public function resolves_gate_interface_from_service_map(): void
+    {
+        $gate = $this->createStub(GateInterface::class);
+        $handler = $this->createHandler(gate: $gate);
+        $twig = $this->createStub(\Twig\Environment::class);
+        $account = $this->createStub(AccountInterface::class);
+        $request = HttpRequest::create('/test');
+
+        $controller = $handler->resolveControllerInstance(
+            StubControllerWithGate::class,
+            $twig,
+            $account,
+            $request,
+        );
+
+        $this->assertInstanceOf(StubControllerWithGate::class, $controller);
+        $this->assertSame($gate, $controller->gate);
     }
 }
