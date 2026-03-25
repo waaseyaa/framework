@@ -12,6 +12,15 @@ interface EntityStorageInterface
 
     public function load(int|string $id): ?EntityInterface;
 
+    /**
+     * Load a single entity by an arbitrary unique key.
+     *
+     * Convenience method that encapsulates the common query+load pattern:
+     *   $ids = $storage->getQuery()->condition($key, $value)->range(0, 1)->execute();
+     *   return $ids ? $storage->load(reset($ids)) : null;
+     */
+    public function loadByKey(string $key, mixed $value): ?EntityInterface;
+
     /** @return array<int|string, EntityInterface> */
     public function loadMultiple(array $ids = []): array;
 

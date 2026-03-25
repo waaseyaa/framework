@@ -130,6 +130,7 @@ final class HttpKernel extends AbstractKernel
                 }
                 return null;
             },
+            gate: new EntityAccessGate($this->accessHandler),
         );
 
         // Router setup.

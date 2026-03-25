@@ -117,6 +117,8 @@ final class CapturingStorage implements EntityStorageInterface
 
     public function load(int|string $id): ?EntityInterface { return null; }
 
+    public function loadByKey(string $key, mixed $value): ?EntityInterface { return null; }
+
     public function loadMultiple(array $ids = []): array { return []; }
 
     public function delete(array $entities): void {}

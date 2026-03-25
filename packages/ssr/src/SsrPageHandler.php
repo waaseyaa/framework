@@ -50,6 +50,7 @@ final class SsrPageHandler
         /** @var (\Closure(string): ?object)|null */
         private readonly ?\Closure $serviceResolver = null,
         ?LoggerInterface $logger = null,
+        private readonly ?\Waaseyaa\Access\Gate\GateInterface $gate = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -322,6 +323,10 @@ final class SsrPageHandler
             HttpRequest::class => $httpRequest,
             AccountInterface::class => $account,
         ];
+
+        if ($this->gate !== null) {
+            $serviceMap[\Waaseyaa\Access\Gate\GateInterface::class] = $this->gate;
+        }
 
         $args = [];
         foreach ($constructor->getParameters() as $param) {

@@ -90,6 +90,20 @@ final class SqlEntityStorage implements EntityStorageInterface
         return $this->mapRowToEntity($row);
     }
 
+    public function loadByKey(string $key, mixed $value): ?EntityInterface
+    {
+        $ids = $this->getQuery()
+            ->condition($key, $value)
+            ->range(0, 1)
+            ->execute();
+
+        if ($ids === []) {
+            return null;
+        }
+
+        return $this->load(reset($ids));
+    }
+
     /**
      * @param array<int|string> $ids
      * @return array<int|string, EntityInterface>
@@ -125,16 +139,17 @@ final class SqlEntityStorage implements EntityStorageInterface
         // Auto-populate timestamp fields.
         $this->populateTimestamps($entity, $isNew);
 
-        $values = $entity->toArray();
-
-        // Split values into schema columns and extra data.
-        $dbValues = $this->splitForStorage($values);
-
-        // Dispatch PRE_SAVE event.
+        // Dispatch PRE_SAVE event (before snapshotting so listeners can mutate the entity).
         $this->eventDispatcher->dispatch(
             $this->eventFactory->create($entity),
             EntityEvents::PRE_SAVE->value,
         );
+
+        // Snapshot entity values AFTER PRE_SAVE so listener mutations are persisted.
+        $values = $entity->toArray();
+
+        // Split values into schema columns and extra data.
+        $dbValues = $this->splitForStorage($values);
 
         if ($isNew) {
             // Remove id key if null (auto-increment will handle it).
