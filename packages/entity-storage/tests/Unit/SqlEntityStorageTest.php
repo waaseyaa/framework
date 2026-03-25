@@ -543,4 +543,21 @@ final class SqlEntityStorageTest extends TestCase
         $this->assertNotNull($found);
         $this->assertSame($entity->id(), $found->id());
     }
+
+    public function testPreSaveMutationsArePersisted(): void
+    {
+        $this->eventDispatcher->addListener(
+            EntityEvents::PRE_SAVE->value,
+            function (EntityEvent $event): void {
+                $event->entity->set('label', 'Mutated by listener');
+            },
+        );
+
+        $entity = $this->storage->create(['label' => 'Original', 'bundle' => 'article']);
+        $this->storage->save($entity);
+
+        $loaded = $this->storage->load($entity->id());
+        $this->assertNotNull($loaded);
+        $this->assertSame('Mutated by listener', $loaded->label());
+    }
 }
