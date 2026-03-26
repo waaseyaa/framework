@@ -6,6 +6,7 @@ namespace Waaseyaa\SSR;
 
 use Twig\Environment;
 use Twig\Error\LoaderError;
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\EntityInterface;
 
 final class RenderController
@@ -15,7 +16,7 @@ final class RenderController
         private readonly ?EntityRenderer $entityRenderer = null,
     ) {}
 
-    public function renderPath(string $path = '/'): SsrResponse
+    public function renderPath(string $path = '/', ?AccountInterface $account = null): SsrResponse
     {
         $normalizedPath = trim($path);
         if ($normalizedPath === '') {
@@ -25,10 +26,10 @@ final class RenderController
             $normalizedPath = '/' . $normalizedPath;
         }
 
-        $context = [
+        $context = $this->mergeAccountIntoContext([
             'title' => 'Waaseyaa',
             'path' => $normalizedPath,
-        ];
+        ], $account);
 
         // Try path-specific template first (e.g., /language → language.html.twig).
         $templates = [];
@@ -88,7 +89,7 @@ final class RenderController
         return new SsrResponse(content: '<h1>Render template missing</h1>', statusCode: 500);
     }
 
-    public function tryRenderPathTemplate(string $path): ?SsrResponse
+    public function tryRenderPathTemplate(string $path, ?AccountInterface $account = null): ?SsrResponse
     {
         $normalizedPath = trim($path);
         if ($normalizedPath === '' || $normalizedPath === '/') {
@@ -103,10 +104,10 @@ final class RenderController
             return null;
         }
 
-        $context = [
+        $context = $this->mergeAccountIntoContext([
             'title' => 'Waaseyaa',
             'path' => $normalizedPath,
-        ];
+        ], $account);
 
         // Try exact single-segment match first, then first segment of multi-segment paths.
         $candidates = [$trimmed];
@@ -143,9 +144,9 @@ final class RenderController
         return $segment . '.html.twig';
     }
 
-    public function renderNotFound(string $path): SsrResponse
+    public function renderNotFound(string $path, ?AccountInterface $account = null): SsrResponse
     {
-        $context = ['path' => $path];
+        $context = $this->mergeAccountIntoContext(['path' => $path], $account);
         foreach (['404.html.twig', 'ssr/404.html.twig'] as $template) {
             try {
                 return new SsrResponse(
@@ -166,9 +167,9 @@ final class RenderController
         );
     }
 
-    public function renderForbidden(string $path): SsrResponse
+    public function renderForbidden(string $path, ?AccountInterface $account = null): SsrResponse
     {
-        $context = ['path' => $path];
+        $context = $this->mergeAccountIntoContext(['path' => $path], $account);
         foreach (['403.html.twig', 'ssr/403.html.twig'] as $template) {
             try {
                 return new SsrResponse(
@@ -206,5 +207,19 @@ final class RenderController
             content: '<!doctype html><html><head><meta charset="utf-8"><title>500</title></head><body><main><h1>Server Error</h1><p>Something went wrong. Please try again later.</p></main></body></html>',
             statusCode: 500,
         );
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     *
+     * @return array<string, mixed>
+     */
+    private function mergeAccountIntoContext(array $context, ?AccountInterface $account): array
+    {
+        if ($account !== null) {
+            $context['account'] = $account;
+        }
+
+        return $context;
     }
 }

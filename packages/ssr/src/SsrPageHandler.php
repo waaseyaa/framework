@@ -106,7 +106,7 @@ final class SsrPageHandler
             $contentLangcode = $language['langcode'];
             $aliasLookupPath = $language['alias_path'];
             if ($aliasLookupPath === '/') {
-                $response = (new RenderController($twig))->renderPath('/');
+                $response = (new RenderController($twig))->renderPath('/', $account);
                 $headers = $response->headers;
                 $headers['Cache-Control'] = $cacheControlHeader;
                 return $this->htmlResult($response->statusCode, $response->content, $headers);
@@ -119,13 +119,13 @@ final class SsrPageHandler
             }
             if ($resolved === null) {
                 $renderController = new RenderController($twig);
-                $pathResponse = $renderController->tryRenderPathTemplate($aliasLookupPath);
+                $pathResponse = $renderController->tryRenderPathTemplate($aliasLookupPath, $account);
                 if ($pathResponse !== null) {
                     $headers = $pathResponse->headers;
                     $headers['Cache-Control'] = $cacheControlHeader;
                     return $this->htmlResult($pathResponse->statusCode, $pathResponse->content, $headers);
                 }
-                $response = $renderController->renderNotFound($aliasLookupPath);
+                $response = $renderController->renderNotFound($aliasLookupPath, $account);
                 $headers = $response->headers;
                 $headers['Cache-Control'] = $cacheControlHeader;
                 return $this->htmlResult($response->statusCode, $response->content, $headers);
@@ -134,7 +134,7 @@ final class SsrPageHandler
             $targetStorage = $this->entityTypeManager->getStorage($resolved->entityTypeId);
             $entity = $targetStorage->load($resolved->entityId);
             if ($entity === null) {
-                $response = (new RenderController($twig))->renderNotFound($aliasLookupPath);
+                $response = (new RenderController($twig))->renderNotFound($aliasLookupPath, $account);
                 $headers = $response->headers;
                 $headers['Cache-Control'] = $cacheControlHeader;
                 return $this->htmlResult($response->statusCode, $response->content, $headers);
@@ -144,7 +144,7 @@ final class SsrPageHandler
             $visibilityResolver = new EditorialVisibilityResolver();
             $visibility = $visibilityResolver->canRender($entity, $account, $previewRequested);
             if ($visibility->isForbidden()) {
-                $response = (new RenderController($twig))->renderForbidden($aliasLookupPath);
+                $response = (new RenderController($twig))->renderForbidden($aliasLookupPath, $account);
                 $headers = $response->headers;
                 $headers['Cache-Control'] = $cacheControlHeader;
                 return $this->htmlResult($response->statusCode, $response->content, $headers);
@@ -201,7 +201,10 @@ final class SsrPageHandler
                 }
             }
 
-            $response = (new RenderController($twig, $entityRenderer))->renderEntity($entity, $viewMode, $renderContext);
+            $twigEntityContext = $renderContext;
+            $twigEntityContext['account'] = $account;
+
+            $response = (new RenderController($twig, $entityRenderer))->renderEntity($entity, $viewMode, $twigEntityContext);
             if (
                 !$account->isAuthenticated()
                 && !$previewRequested

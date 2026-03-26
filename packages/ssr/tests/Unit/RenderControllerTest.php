@@ -7,6 +7,7 @@ namespace Waaseyaa\SSR\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Twig\Environment;
@@ -20,6 +21,35 @@ use Waaseyaa\SSR\ViewMode;
 #[CoversClass(RenderController::class)]
 final class RenderControllerTest extends TestCase
 {
+    #[Test]
+    public function renderPathPassesAccountIntoTwigContext(): void
+    {
+        $account = $this->createStub(AccountInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
+
+        $twig = new Environment(new ArrayLoader([
+            'page.html.twig' => '<main>{% if account.isAuthenticated() %}authenticated{% endif %}</main>',
+        ]));
+        $controller = new RenderController($twig);
+
+        $response = $controller->renderPath('/about', $account);
+
+        $this->assertSame('<main>authenticated</main>', $response->content);
+    }
+
+    #[Test]
+    public function renderPathOmitsAccountWhenNotProvided(): void
+    {
+        $twig = new Environment(new ArrayLoader([
+            'page.html.twig' => '<main>{% if account is defined %}bad{% else %}ok{% endif %}</main>',
+        ]));
+        $controller = new RenderController($twig);
+
+        $response = $controller->renderPath('/about', null);
+
+        $this->assertSame('<main>ok</main>', $response->content);
+    }
+
     #[Test]
     public function renderPathUsesTwigTemplateWhenAvailable(): void
     {
@@ -163,6 +193,61 @@ final class RenderControllerTest extends TestCase
     }
 
     #[Test]
+    public function renderEntityReceivesAccountViaContext(): void
+    {
+        $account = $this->createStub(AccountInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
+
+        $twig = new Environment(new ArrayLoader([
+            'node.full.html.twig' => '<article>{% if account.isAuthenticated() %}in{% endif %}{{ fields.title.formatted|raw }}</article>',
+        ]));
+
+        $definition = new EntityType(
+            id: 'node',
+            label: 'Node',
+            class: RenderControllerEntity::class,
+            keys: ['id' => 'id', 'label' => 'title'],
+            fieldDefinitions: ['title' => ['type' => 'string']],
+        );
+        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager->method('getDefinition')->willReturn($definition);
+
+        $renderer = new EntityRenderer($manager, new FieldFormatterRegistry(), new ArrayViewModeConfig([
+            'node' => [
+                'full' => [
+                    'title' => ['formatter' => 'string', 'weight' => 0],
+                ],
+            ],
+        ]));
+        $controller = new RenderController($twig, $renderer);
+
+        $response = $controller->renderEntity(
+            new RenderControllerEntity('node', ['id' => 1, 'title' => 'X']),
+            ViewMode::full(),
+            ['account' => $account],
+        );
+
+        $this->assertSame('<article>inX</article>', $response->content);
+    }
+
+    #[Test]
+    public function tryRenderPathTemplatePassesAccountIntoContext(): void
+    {
+        $account = $this->createStub(AccountInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
+
+        $twig = new Environment(new ArrayLoader([
+            'language.html.twig' => '<main>{% if account.isAuthenticated() %}yes{% endif %}</main>',
+        ]));
+        $controller = new RenderController($twig);
+
+        $response = $controller->tryRenderPathTemplate('/language', $account);
+
+        $this->assertNotNull($response);
+        $this->assertSame('<main>yes</main>', $response->content);
+    }
+
+    #[Test]
     public function tryRenderPathTemplateResolvesValidSingleSegment(): void
     {
         $twig = new Environment(new ArrayLoader([
@@ -252,6 +337,22 @@ final class RenderControllerTest extends TestCase
 
         $this->assertSame(404, $response->statusCode);
         $this->assertSame('<h1>Not Found /missing</h1>', $response->content);
+    }
+
+    #[Test]
+    public function renderNotFoundPassesAccountIntoContext(): void
+    {
+        $account = $this->createStub(AccountInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
+
+        $twig = new Environment(new ArrayLoader([
+            '404.html.twig' => '<h1>{% if account.isAuthenticated() %}auth{% endif %} {{ path }}</h1>',
+        ]));
+        $controller = new RenderController($twig);
+
+        $response = $controller->renderNotFound('/missing', $account);
+
+        $this->assertSame('<h1>auth /missing</h1>', $response->content);
     }
 
     #[Test]
