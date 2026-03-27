@@ -18,24 +18,11 @@ final class ScheduleStateRepository
     {
         $now = date('Y-m-d\TH:i:sP');
 
-        // Upsert: try update first, insert if no rows affected
-        $affected = $this->database->update(self::TABLE)
-            ->fields([
-                'last_run_at' => $now,
-                'last_result' => $result,
-            ])
-            ->condition('task_name', $taskName)
-            ->execute();
-
-        if ($affected === 0) {
-            $this->database->insert(self::TABLE)
-                ->values([
-                    'task_name' => $taskName,
-                    'last_run_at' => $now,
-                    'last_result' => $result,
-                ])
-                ->execute();
-        }
+        // Atomic upsert — task_name is PRIMARY KEY
+        $this->database->query(
+            'INSERT OR REPLACE INTO ' . self::TABLE . ' (task_name, last_run_at, last_result) VALUES (?, ?, ?)',
+            [$taskName, $now, $result],
+        );
     }
 
     /**
