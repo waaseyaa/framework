@@ -18,12 +18,15 @@ final class LayerDependencyTest extends TestCase
      * Layer-1+ packages that validation must never require.
      */
     private const FORBIDDEN_PACKAGES = [
+        // Layer 1 — Core Data
         'waaseyaa/entity',
         'waaseyaa/entity-storage',
         'waaseyaa/access',
         'waaseyaa/user',
         'waaseyaa/config',
         'waaseyaa/field',
+        'waaseyaa/auth',
+        // Layer 2 — Content Types
         'waaseyaa/node',
         'waaseyaa/taxonomy',
         'waaseyaa/media',
@@ -31,20 +34,27 @@ final class LayerDependencyTest extends TestCase
         'waaseyaa/menu',
         'waaseyaa/note',
         'waaseyaa/relationship',
+        // Layer 3 — Services
         'waaseyaa/workflows',
         'waaseyaa/search',
+        'waaseyaa/billing',
+        'waaseyaa/github',
+        // Layer 4 — API
         'waaseyaa/api',
         'waaseyaa/routing',
+        // Layer 5 — AI
         'waaseyaa/ai-schema',
         'waaseyaa/ai-agent',
         'waaseyaa/ai-pipeline',
         'waaseyaa/ai-vector',
+        // Layer 6 — Interfaces
         'waaseyaa/cli',
         'waaseyaa/admin',
         'waaseyaa/mcp',
         'waaseyaa/ssr',
         'waaseyaa/telescope',
-
+        'waaseyaa/deployer',
+        'waaseyaa/inertia',
     ];
 
     #[Test]
