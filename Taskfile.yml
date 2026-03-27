@@ -1,0 +1,24 @@
+version: '3'
+
+tasks:
+  drift:check:
+    desc: "Check for spec drift (stale specs vs recent changes)"
+    cmds:
+      - tools/drift-detector.sh {{.CLI_ARGS | default "5"}}
+
+  lint:
+    desc: "Run PHP linting (PHPStan)"
+    cmds:
+      - vendor/bin/phpstan analyse --no-progress
+
+  test:
+    desc: "Run PHPUnit tests"
+    cmds:
+      - vendor/bin/phpunit
+
+  ci:
+    desc: "Run full CI pipeline (drift check, lint, test)"
+    cmds:
+      - task: drift:check
+      - task: lint
+      - task: test

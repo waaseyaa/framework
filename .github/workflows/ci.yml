@@ -7,6 +7,17 @@ on:
     branches: [main]
 
 jobs:
+  spec-drift:
+    name: spec-drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for stale specs
+        run: bash tools/drift-detector.sh 5
+
   ci-lint:
     name: ci/lint
     runs-on: ubuntu-latest
