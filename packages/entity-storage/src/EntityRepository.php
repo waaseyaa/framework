@@ -156,6 +156,12 @@ final class EntityRepository implements EntityRepositoryInterface
         $isNew = $entity->isNew();
         $entityTypeId = $this->entityType->id();
 
+        $originalEntity = null;
+        if (!$isNew) {
+            $id = (string) $entity->id();
+            $originalEntity = $this->find($id);
+        }
+
         if ($validate && $this->validator !== null) {
             $constraints = $this->entityType->getConstraints();
             if ($constraints !== []) {
@@ -171,7 +177,7 @@ final class EntityRepository implements EntityRepositoryInterface
         }
 
         $this->dispatchEvent(
-            $this->eventFactory->create($entity),
+            $this->eventFactory->create($entity, $originalEntity),
             EntityEvents::PRE_SAVE->value,
             $unitOfWork,
         );
@@ -213,7 +219,7 @@ final class EntityRepository implements EntityRepositoryInterface
         $result = $isNew ? EntityConstants::SAVED_NEW : EntityConstants::SAVED_UPDATED;
 
         $this->dispatchEvent(
-            $this->eventFactory->create($entity),
+            $this->eventFactory->create($entity, $originalEntity),
             EntityEvents::POST_SAVE->value,
             $unitOfWork,
         );
