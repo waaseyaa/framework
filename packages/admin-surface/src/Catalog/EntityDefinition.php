@@ -12,6 +12,7 @@ namespace Waaseyaa\AdminSurface\Catalog;
 final class EntityDefinition
 {
     private ?string $group = null;
+    private ?string $description = null;
 
     /** @var FieldDefinition[] */
     private array $fields = [];
@@ -34,6 +35,12 @@ final class EntityDefinition
     public function group(string $group): self
     {
         $this->group = $group;
+        return $this;
+    }
+
+    public function description(string $description): self
+    {
+        $this->description = $description;
         return $this;
     }
 
@@ -88,6 +95,7 @@ final class EntityDefinition
         return array_filter([
             'id' => $this->id,
             'label' => $this->label,
+            'description' => $this->description,
             'group' => $this->group,
             'fields' => array_map(fn(FieldDefinition $f) => $f->toArray(), $this->fields),
             'actions' => array_map(fn(ActionDefinition $a) => $a->toArray(), $this->actions),

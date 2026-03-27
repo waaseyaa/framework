@@ -34,4 +34,7 @@ interface EntityTypeInterface
 
     /** @return string|null Admin sidebar group key (e.g. 'content', 'taxonomy'). */
     public function getGroup(): ?string;
+
+    /** @return string|null Human-readable description of the entity type. */
+    public function getDescription(): ?string;
 }

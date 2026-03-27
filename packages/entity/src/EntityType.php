@@ -23,6 +23,7 @@ final readonly class EntityType implements EntityTypeInterface
      * @param string|null $bundleEntityType The entity type ID that provides bundles (e.g. 'node_type' for 'node').
      * @param array<string, mixed> $constraints Validation constraints.
      * @param array<string, array<string, mixed>> $fieldDefinitions Field definitions keyed by field name.
+     * @param string|null $description Human-readable description of the entity type.
      */
     public function __construct(
         private string $id,
@@ -37,6 +38,7 @@ final readonly class EntityType implements EntityTypeInterface
         private array $constraints = [],
         private array $fieldDefinitions = [],
         private ?string $group = null,
+        private ?string $description = null,
     ) {}
 
     public function id(): string
@@ -101,5 +103,10 @@ final readonly class EntityType implements EntityTypeInterface
     public function getGroup(): ?string
     {
         return $this->group;
+    }
+
+    public function getDescription(): ?string
+    {
+        return $this->description;
     }
 }
