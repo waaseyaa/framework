@@ -249,7 +249,7 @@ final class EntityRepository implements EntityRepositoryInterface
         }
 
         $this->dispatchEvent(
-            $this->eventFactory->create($entity),
+            $this->eventFactory->create($entity, $entity),
             EntityEvents::PRE_DELETE->value,
             $unitOfWork,
         );
@@ -261,7 +261,7 @@ final class EntityRepository implements EntityRepositoryInterface
         $this->driver->remove($entityTypeId, $id);
 
         $this->dispatchEvent(
-            $this->eventFactory->create($entity),
+            $this->eventFactory->create($entity, $entity),
             EntityEvents::POST_DELETE->value,
             $unitOfWork,
         );
