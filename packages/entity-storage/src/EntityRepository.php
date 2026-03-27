@@ -14,10 +14,10 @@ use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\Event\DefaultEntityEventFactory;
 use Waaseyaa\Entity\Event\EntityEventFactoryInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
-use Waaseyaa\Entity\Validation\EntityValidationException;
-use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\RevisionableInterface;
+use Waaseyaa\Entity\Validation\EntityValidationException;
+use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 
