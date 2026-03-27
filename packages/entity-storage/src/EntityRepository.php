@@ -156,12 +156,6 @@ final class EntityRepository implements EntityRepositoryInterface
         $isNew = $entity->isNew();
         $entityTypeId = $this->entityType->id();
 
-        $originalEntity = null;
-        if (!$isNew) {
-            $id = (string) $entity->id();
-            $originalEntity = $this->find($id);
-        }
-
         if ($validate && $this->validator !== null) {
             $constraints = $this->entityType->getConstraints();
             if ($constraints !== []) {
@@ -170,6 +164,12 @@ final class EntityRepository implements EntityRepositoryInterface
                     throw new EntityValidationException($violations);
                 }
             }
+        }
+
+        $originalEntity = null;
+        if (!$isNew) {
+            $id = (string) $entity->id();
+            $originalEntity = $this->find($id);
         }
 
         if ($entity instanceof EntityBase) {
@@ -226,7 +226,7 @@ final class EntityRepository implements EntityRepositoryInterface
 
         if ($createRevision && $this->revisionDriver !== null) {
             $this->dispatchEvent(
-                $this->eventFactory->create($entity),
+                $this->eventFactory->create($entity, $originalEntity),
                 EntityEvents::REVISION_CREATED->value,
                 $unitOfWork,
             );
