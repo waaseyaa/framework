@@ -80,6 +80,12 @@ declare -A PATTERN_TO_SPEC=(
   ["packages/ai-"]="docs/specs/ai-integration.md"
   ["packages/mcp/"]="docs/specs/mcp-endpoint.md"
   ["packages/user/"]="docs/specs/access-control.md"
+  ["packages/ingestion/"]="docs/specs/ingestion-defaults.md"
+  ["packages/auth/"]="docs/specs/access-control.md"
+  ["packages/billing/"]="docs/specs/infrastructure.md"
+  ["packages/github/"]="docs/specs/infrastructure.md"
+  ["packages/deployer/"]="docs/specs/infrastructure.md"
+  ["packages/inertia/"]="docs/specs/infrastructure.md"
   ["public/"]="docs/specs/middleware-pipeline.md"
 )
 
