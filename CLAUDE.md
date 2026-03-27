@@ -18,10 +18,12 @@ When working on files matching these patterns, retrieve the spec for deep contex
 |---|---|---|
 | `packages/entity/*`, `packages/entity-storage/*`, `packages/field/*`, `packages/config/*` | `waaseyaa:entity-system` | `docs/specs/entity-system.md` |
 | `packages/access/*`, `packages/user/src/Middleware/*` | `waaseyaa:access-control` | `docs/specs/access-control.md`, `docs/specs/field-access.md` |
+| `packages/auth/*` | `waaseyaa:access-control` | `docs/specs/access-control.md` |
 | `packages/api/*`, `packages/routing/*` | `waaseyaa:api-layer` | `docs/specs/api-layer.md` |
 | `packages/admin/*` | `waaseyaa:admin-spa` | `docs/specs/admin-spa.md` |
 | `packages/ai-*/*` | `waaseyaa:ai-integration` | `docs/specs/ai-integration.md`, `docs/specs/authoring-assist-contract.md`, `docs/specs/semantic-refresh-trigger-contract.md` |
 | `packages/foundation/src/Ingestion/*`, `defaults/ingestion.*` | `waaseyaa:ingestion` | `docs/specs/ingestion-defaults.md`, `docs/specs/ingestion-validator-contract.md`, `docs/specs/ingestion-validation-gates-contract.md`, `docs/specs/ingestion-fixture-pack-contract.md`, `docs/specs/ingestion-editorial-dashboard-contract.md`, `docs/specs/source-adapter-contract.md`, `docs/specs/source-connectors-contract.md`, `docs/specs/source-priority-merge-contract.md`, `docs/specs/cross-source-identity-contract.md` |
+| `packages/ingestion/*` | `waaseyaa:ingestion` | `docs/specs/ingestion-defaults.md` |
 | `defaults/*`, `bin/check-no-secrets`, `bin/check-ingestion-defaults` | `waaseyaa:security-defaults` | `docs/specs/security-defaults.md` |
 | `packages/foundation/src/Diagnostic/*`, `packages/cli/src/Command/Health*`, `packages/cli/src/Command/SchemaCheck*` | `waaseyaa:operator-diagnostics` | `docs/specs/operator-diagnostics.md`, `docs/specs/operations-playbooks.md` |
 | `packages/foundation/*`, `packages/cache/*`, `packages/database-legacy/*`, `packages/plugin/*`, `packages/i18n/*`, `packages/queue/*`, `packages/state/*`, `packages/validation/*`, `packages/typed-data/*`, `packages/testing/*`, `packages/http-client/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md`, `docs/specs/package-discovery.md`, `docs/specs/plugin-extension-points.md`, `docs/specs/external-extension-sdk.md`, `docs/specs/extension-compatibility-matrix.md`, `docs/specs/extension-release-playbook.md`, `docs/specs/extension-author-onboarding.md` |
@@ -34,6 +36,10 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/ssr/*` | — | — |
 | `packages/telescope/*` | — | — |
 | `packages/workflows/*` | — | — |
+| `packages/billing/*` | — | — |
+| `packages/github/*` | — | — |
+| `packages/deployer/*` | — | — |
+| `packages/inertia/*` | — | — |
 | `packages/mail/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md` |
 | `packages/scheduler/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md` |
 | `packages/notification/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md` |
@@ -56,13 +62,13 @@ Use `waaseyaa_search_specs` MCP tool to find specs affected by a change when the
 
 | Layer | Name | Packages |
 |---|---|---|
-| 0 | Foundation | foundation, cache, plugin, typed-data, database-legacy, testing, i18n, queue, scheduler, state, validation, mail, http-client |
-| 1 | Core Data | entity, entity-storage, access, user, config, field |
+| 0 | Foundation | foundation, cache, plugin, typed-data, database-legacy, testing, i18n, queue, scheduler, state, validation, mail, http-client, ingestion |
+| 1 | Core Data | entity, entity-storage, access, user, config, field, auth |
 | 2 | Content Types | node, taxonomy, media, path, menu, note, relationship |
-| 3 | Services | workflows, search, notification |
+| 3 | Services | workflows, search, notification, billing, github |
 | 4 | API | api, routing |
 | 5 | AI | ai-schema, ai-agent, ai-pipeline, ai-vector |
-| 6 | Interfaces | cli, admin, admin-surface, graphql, mcp, ssr, telescope |
+| 6 | Interfaces | cli, admin, admin-surface, graphql, mcp, ssr, telescope, deployer, inertia |
 
 **Rule:** Packages can only import from their own layer or lower. Upward communication via DomainEvents.
 
