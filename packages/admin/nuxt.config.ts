@@ -5,14 +5,17 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   ssr: false,
 
-  srcDir: 'app/',
-
-  routeRules: {
-    '/api/**': { proxy: `${backendUrl}/api/**` },
-    '/admin/**': { proxy: `${backendUrl}/admin/**` },
+  nitro: {
+    prerender: {
+      // /login is proxied to PHP during generate; backend may be unreachable in CI.
+      failOnError: false,
+    },
   },
 
+  srcDir: 'app/',
+
   app: {
+    baseURL: '/admin/',
     head: {
       title: 'Waaseyaa',
       meta: [
@@ -20,6 +23,13 @@ export default defineNuxtConfig({
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       ],
     },
+  },
+
+  routeRules: {
+    '/api/**': { proxy: `${backendUrl}/api/**` },
+    '/admin/surface/**': { proxy: `${backendUrl}/admin/surface/**` },
+    '/admin/bootstrap': { proxy: `${backendUrl}/admin/bootstrap` },
+    '/login': { proxy: `${backendUrl}/login` },
   },
 
   runtimeConfig: {

@@ -2,6 +2,7 @@
 import { useLanguage } from '~/composables/useLanguage'
 import { useEntity } from '~/composables/useEntity'
 import { useAdmin } from '~/composables/useAdmin'
+import { TransportError } from '~/contracts/transport'
 import OnboardingPrompt from '~/components/onboarding/OnboardingPrompt.vue'
 
 const { t, entityLabel } = useLanguage()
@@ -14,16 +15,50 @@ const showOnboarding = ref(false)
 const onboardingError = ref<string | null>(null)
 const { list } = useEntity()
 
+/** Prefer `node_type` when present (stock Waaseyaa); otherwise first listable catalog type (e.g. Minoo). */
+const onboardingProbeTypeId = computed(() => {
+  if (catalog.some(e => e.id === 'node_type')) {
+    return 'node_type'
+  }
+  const first = catalog.find(e => e.capabilities.list)
+  return first?.id ?? null
+})
+
+const onboardingNotePath = computed(() =>
+  catalog.some(e => e.id === 'note') ? '/note/create' : '/',
+)
+
+const onboardingCustomTypePath = computed(() => {
+  if (catalog.some(e => e.id === 'node_type' && e.capabilities.create)) {
+    return '/node_type/create'
+  }
+  const first = catalog.find(e => e.capabilities.create)
+  return first ? `/${first.id}/create` : '/node_type/create'
+})
+
 onMounted(async () => {
   onboardingReady.value = false
   onboardingError.value = null
+  const typeId = onboardingProbeTypeId.value
+  if (typeId === null) {
+    showOnboarding.value = false
+    onboardingReady.value = true
+    return
+  }
   try {
-    const result = await list('node_type', { page: { offset: 0, limit: 1 } })
+    const result = await list(typeId, { page: { offset: 0, limit: 1 } })
     const total = typeof result.meta?.total === 'number' ? result.meta.total : result.data.length
     showOnboarding.value = total === 0
   } catch (e: unknown) {
-    console.error('[Waaseyaa] Failed to detect onboarding state:', e)
-    onboardingError.value = (e as any)?.data?.errors?.[0]?.detail ?? (e instanceof Error ? e.message : null)
+    if (e instanceof TransportError && e.status === 404) {
+      showOnboarding.value = false
+    } else {
+      console.error('[Waaseyaa] Failed to detect onboarding state:', e)
+      onboardingError.value = (e as TransportError).detail
+        ?? (e as Error).message
+        ?? (e as { data?: { errors?: Array<{ detail?: string }> } })?.data?.errors?.[0]?.detail
+        ?? null
+    }
   } finally {
     onboardingReady.value = true
   }
@@ -39,8 +74,8 @@ onMounted(async () => {
     <OnboardingPrompt
       v-if="onboardingReady && showOnboarding"
       :docs-url="config.public.docsUrl"
-      note-path="/note/create"
-      custom-type-path="/node_type/create"
+      :note-path="onboardingNotePath"
+      :custom-type-path="onboardingCustomTypePath"
     />
     <div v-else-if="onboardingReady && onboardingError" class="error">{{ onboardingError }}</div>
 

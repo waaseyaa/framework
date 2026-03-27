@@ -1,5 +1,7 @@
 playwright-report/
 test-results/
 .output/
+dist
+dist/
 .nuxt/
 node_modules/
