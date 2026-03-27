@@ -12,7 +12,7 @@ final readonly class QueryFilter
     /**
      * Supported filter operators.
      */
-    private const VALID_OPERATORS = ['=', '!=', '>', '<', '>=', '<=', 'CONTAINS', 'STARTS_WITH'];
+    private const VALID_OPERATORS = ['=', '!=', '>', '<', '>=', '<=', 'CONTAINS', 'STARTS_WITH', 'IN'];
 
     public function __construct(
         public string $field,

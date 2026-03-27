@@ -150,6 +150,9 @@ final class SqlEntityQuery implements EntityQueryInterface
                 $select->isNull($field);
             } elseif ($operator === 'IS NOT NULL') {
                 $select->isNotNull($field);
+            } elseif ($operator === 'IN') {
+                $values = is_array($condition['value']) ? $condition['value'] : [$condition['value']];
+                $select->condition($field, $values, 'IN');
             } elseif ($operator === 'CONTAINS') {
                 $escaped = str_replace(['%', '_'], ['\\%', '\\_'], (string) $condition['value']);
                 $select->condition($field, '%' . $escaped . '%', 'LIKE');

@@ -226,13 +226,17 @@ final class EntityResolver
                     throw new UserError("Invalid filter: each entry must have 'field' and 'value' keys.");
                 }
                 $op = isset($f['operator']) ? strtoupper((string) $f['operator']) : '=';
-                $allowed = ['=', '!=', '<', '>', '<=', '>=', 'CONTAINS', 'STARTS_WITH'];
+                $allowed = ['=', '!=', '<', '>', '<=', '>=', 'CONTAINS', 'STARTS_WITH', 'IN'];
                 if (!in_array($op, $allowed, true)) {
                     throw new UserError("Invalid filter operator: '{$f['operator']}'");
                 }
+                $value = $f['value'];
+                if ($op === 'IN' && is_string($value)) {
+                    $value = array_map('trim', explode(',', $value));
+                }
                 $filters[] = new QueryFilter(
                     field: (string) $f['field'],
-                    value: $f['value'],
+                    value: $value,
                     operator: $op,
                 );
             }
