@@ -135,7 +135,7 @@ final class HealthReportCommand extends Command
             'PHP Version' => PHP_VERSION,
             'OS' => PHP_OS,
             'SAPI' => PHP_SAPI,
-            'Database' => getenv('WAASEYAA_DB') ?: './waaseyaa.sqlite',
+            'Database' => getenv('WAASEYAA_DB') ?: './storage/waaseyaa.sqlite',
             'Config Dir' => getenv('WAASEYAA_CONFIG_DIR') ?: './config/sync',
             'Project Root' => $this->projectRoot,
             'Generated At' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),

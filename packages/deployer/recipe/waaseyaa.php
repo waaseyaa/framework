@@ -12,7 +12,7 @@
  *   require __DIR__ . '/vendor/waaseyaa/deployer/recipe/waaseyaa.php';
  *
  *   set('application', 'myapp');
- *   set('shared_files', ['.env', 'waaseyaa.sqlite']);
+ *   set('shared_files', ['.env']);
  *   set('shared_dirs', ['storage']);
  *   set('writable_dirs', ['storage']);
  *

@@ -58,7 +58,7 @@ final class AboutCommand extends Command
             'PHP Version' => PHP_VERSION,
             'Environment' => $_ENV['APP_ENV'] ?? 'production',
             'Debug Mode' => ($_ENV['APP_DEBUG'] ?? '0') === '1' ? 'ON' : 'OFF',
-            'Database' => $_ENV['WAASEYAA_DB'] ?? './waaseyaa.sqlite',
+            'Database' => $_ENV['WAASEYAA_DB'] ?? './storage/waaseyaa.sqlite',
             'Config Dir' => $_ENV['WAASEYAA_CONFIG_DIR'] ?? './config/sync',
             'OS' => PHP_OS_FAMILY,
         ];

@@ -23,7 +23,7 @@ final class DatabaseBootstrapper
     {
         $dbPath = $config['database'] ?? null;
         if ($dbPath === null) {
-            $dbPath = getenv('WAASEYAA_DB') ?: $projectRoot . '/waaseyaa.sqlite';
+            $dbPath = getenv('WAASEYAA_DB') ?: $projectRoot . '/storage/waaseyaa.sqlite';
         }
 
         return $dbPath;

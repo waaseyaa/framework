@@ -227,7 +227,7 @@ Design docs in `docs/plans/` are session artifacts (implementation history). Spe
 - Frontend E2E: `cd packages/admin && npm run test:e2e` — Playwright specs in `e2e/`; requires `nuxt dev` on port 3000
 
 ## Environment
-- `WAASEYAA_DB` — SQLite database path (default: `./waaseyaa.sqlite`)
+- `WAASEYAA_DB` — SQLite database path (default: `./storage/waaseyaa.sqlite`)
 - `WAASEYAA_CONFIG_DIR` — config sync directory (default: `./config/sync`)
 
 ## Architectural Boundaries

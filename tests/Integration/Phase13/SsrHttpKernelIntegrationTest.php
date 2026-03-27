@@ -256,7 +256,7 @@ TWIG,
 
     private function buildConfigFile(): string
     {
-        $databasePath = $this->projectRoot . '/waaseyaa.sqlite';
+        $databasePath = $this->projectRoot . '/storage/waaseyaa.sqlite';
 
         return <<<PHP
 <?php
