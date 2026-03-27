@@ -26,6 +26,71 @@ src/
 - **Routes** defined in `ServiceProvider::routes()` via `WaaseyaaRouter`
 - **Auth** via `Waaseyaa\Auth\AuthManager` (session-based)
 - **Config** via `config/waaseyaa.php` — use `getenv()` or `env()` helper, NEVER `$_ENV`
+- **PSR-4 one-class-per-file** — each PHP file declares exactly one class/interface/enum. Namespace matches directory path.
+
+### ServiceProvider DI Methods
+
+Service providers extend `Waaseyaa\Foundation\ServiceProvider\ServiceProvider`. Register bindings in `register()`, use `boot()` for event subscribers and cache warming.
+
+```php
+// In register():
+$this->singleton(MyInterface::class, fn () => new MyService($this->resolve(Dependency::class)));
+$this->bind(TransientService::class, TransientService::class);  // new instance each time
+$myService = $this->resolve(MyInterface::class);  // resolve a registered binding
+$this->tag(MyInterface::class, 'my_tag');  // tag for grouped resolution
+$this->entityType(new EntityType(...));  // register an entity type
+```
+
+**Method signatures** (from `Waaseyaa\Foundation\ServiceProvider\ServiceProvider`):
+
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `singleton()` | `protected singleton(string $abstract, string\|callable $concrete): void` | Bind as shared instance (resolved once) |
+| `bind()` | `protected bind(string $abstract, string\|callable $concrete): void` | Bind as transient (new instance each call) |
+| `resolve()` | `public resolve(string $abstract): mixed` | Resolve a binding (falls back to kernel resolver) |
+| `tag()` | `protected tag(string $abstract, string $tag): void` | Tag a binding for grouped resolution |
+| `entityType()` | `protected entityType(EntityTypeInterface $entityType): void` | Register an entity type definition |
+
+### Key Framework Namespaces
+
+| Interface | Full Namespace | Purpose |
+|-----------|---------------|---------|
+| `EntityRepositoryInterface` | `Waaseyaa\Entity\Repository\EntityRepositoryInterface` | Entity CRUD (find, findBy, save, delete, saveMany, deleteMany) |
+| `AccessPolicyInterface` | `Waaseyaa\Access\AccessPolicyInterface` | Entity access control (access, createAccess, appliesTo) |
+| `FieldAccessPolicyInterface` | `Waaseyaa\Access\FieldAccessPolicyInterface` | Field-level access (open-by-default, Forbidden restricts) |
+| `QueueInterface` | `Waaseyaa\Queue\QueueInterface` | Dispatch messages: `dispatch(object $message): void` |
+| `Job` | `Waaseyaa\Queue\Job` | Abstract queue job base class |
+| `DatabaseInterface` | `Waaseyaa\Database\DatabaseInterface` | Raw SQL via Doctrine DBAL (for non-entity tables) |
+| `ServiceProvider` | `Waaseyaa\Foundation\ServiceProvider\ServiceProvider` | Base class for service providers |
+
+### Queue Job Pattern
+
+```php
+use Waaseyaa\Queue\Job;
+use Waaseyaa\Queue\QueueInterface;
+
+final class SendWelcomeEmail extends Job
+{
+    public int $tries = 3;        // max attempts
+    public int $timeout = 30;     // seconds before timeout
+    public int $retryAfter = 10;  // seconds between retries
+
+    public function __construct(private readonly string $userId) {}
+
+    public function handle(): void
+    {
+        // Job logic here
+    }
+
+    public function failed(\Throwable $e): void
+    {
+        // Cleanup on final failure (optional override)
+    }
+}
+
+// Dispatch via QueueInterface:
+$queue->dispatch(new SendWelcomeEmail($userId));
+```
 
 ## Orchestration Table
 
