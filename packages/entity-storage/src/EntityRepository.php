@@ -14,10 +14,10 @@ use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\Event\DefaultEntityEventFactory;
 use Waaseyaa\Entity\Event\EntityEventFactoryInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
-use Waaseyaa\Entity\Validation\EntityValidationException;
-use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\RevisionableInterface;
+use Waaseyaa\Entity\Validation\EntityValidationException;
+use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 
@@ -166,12 +166,18 @@ final class EntityRepository implements EntityRepositoryInterface
             }
         }
 
+        $originalEntity = null;
+        if (!$isNew) {
+            $id = (string) $entity->id();
+            $originalEntity = $this->find($id);
+        }
+
         if ($entity instanceof EntityBase) {
             $entity->preSave($isNew);
         }
 
         $this->dispatchEvent(
-            $this->eventFactory->create($entity),
+            $this->eventFactory->create($entity, $originalEntity),
             EntityEvents::PRE_SAVE->value,
             $unitOfWork,
         );
@@ -213,14 +219,14 @@ final class EntityRepository implements EntityRepositoryInterface
         $result = $isNew ? EntityConstants::SAVED_NEW : EntityConstants::SAVED_UPDATED;
 
         $this->dispatchEvent(
-            $this->eventFactory->create($entity),
+            $this->eventFactory->create($entity, $originalEntity),
             EntityEvents::POST_SAVE->value,
             $unitOfWork,
         );
 
         if ($createRevision && $this->revisionDriver !== null) {
             $this->dispatchEvent(
-                $this->eventFactory->create($entity),
+                $this->eventFactory->create($entity, $originalEntity),
                 EntityEvents::REVISION_CREATED->value,
                 $unitOfWork,
             );
@@ -243,7 +249,7 @@ final class EntityRepository implements EntityRepositoryInterface
         }
 
         $this->dispatchEvent(
-            $this->eventFactory->create($entity),
+            $this->eventFactory->create($entity, $entity),
             EntityEvents::PRE_DELETE->value,
             $unitOfWork,
         );
@@ -255,7 +261,7 @@ final class EntityRepository implements EntityRepositoryInterface
         $this->driver->remove($entityTypeId, $id);
 
         $this->dispatchEvent(
-            $this->eventFactory->create($entity),
+            $this->eventFactory->create($entity, $entity),
             EntityEvents::POST_DELETE->value,
             $unitOfWork,
         );

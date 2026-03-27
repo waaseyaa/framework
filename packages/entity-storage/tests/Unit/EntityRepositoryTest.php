@@ -676,4 +676,125 @@ final class EntityRepositoryTest extends TestCase
         $result = $repository->save($entity);
         $this->assertSame(EntityConstants::SAVED_NEW, $result);
     }
+
+    #[Test]
+    public function saveNewEntityPassesNullOriginalEntityToEvents(): void
+    {
+        $events = [];
+
+        $this->eventDispatcher->addListener(
+            EntityEvents::PRE_SAVE->value,
+            function (EntityEvent $event) use (&$events) {
+                $events[] = ['event' => 'pre_save', 'originalEntity' => $event->originalEntity];
+            },
+        );
+
+        $this->eventDispatcher->addListener(
+            EntityEvents::POST_SAVE->value,
+            function (EntityEvent $event) use (&$events) {
+                $events[] = ['event' => 'post_save', 'originalEntity' => $event->originalEntity];
+            },
+        );
+
+        $entity = new TestStorageEntity(
+            values: ['id' => '1', 'label' => 'New', 'bundle' => 'article', 'langcode' => 'en'],
+            entityTypeId: 'test_entity',
+            entityKeys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+        );
+        $entity->enforceIsNew(true);
+        $this->repository->save($entity);
+
+        $this->assertCount(2, $events);
+        $this->assertNull($events[0]['originalEntity'], 'PRE_SAVE originalEntity should be null for new entities');
+        $this->assertNull($events[1]['originalEntity'], 'POST_SAVE originalEntity should be null for new entities');
+    }
+
+    #[Test]
+    public function saveExistingEntityPassesOriginalEntityToEvents(): void
+    {
+        $entity = new TestStorageEntity(
+            values: ['id' => '1', 'label' => 'Original', 'bundle' => 'article', 'langcode' => 'en'],
+            entityTypeId: 'test_entity',
+            entityKeys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+        );
+        $entity->enforceIsNew(true);
+        $this->repository->save($entity);
+
+        // Modify and save again
+        $entity->set('label', 'Modified');
+
+        $events = [];
+
+        $this->eventDispatcher->addListener(
+            EntityEvents::PRE_SAVE->value,
+            function (EntityEvent $event) use (&$events) {
+                $events[] = [
+                    'event' => 'pre_save',
+                    'label' => $event->entity->label(),
+                    'originalLabel' => $event->originalEntity?->label(),
+                ];
+            },
+        );
+
+        $this->eventDispatcher->addListener(
+            EntityEvents::POST_SAVE->value,
+            function (EntityEvent $event) use (&$events) {
+                $events[] = [
+                    'event' => 'post_save',
+                    'label' => $event->entity->label(),
+                    'originalLabel' => $event->originalEntity?->label(),
+                ];
+            },
+        );
+
+        $this->repository->save($entity);
+
+        $this->assertCount(2, $events);
+        $this->assertSame('Modified', $events[0]['label']);
+        $this->assertSame('Original', $events[0]['originalLabel'], 'PRE_SAVE should receive DB state as originalEntity');
+        $this->assertSame('Modified', $events[1]['label']);
+        $this->assertSame('Original', $events[1]['originalLabel'], 'POST_SAVE should receive DB state as originalEntity');
+    }
+
+    #[Test]
+    public function deletePassesEntityAsOriginalEntityToEvents(): void
+    {
+        $entity = new TestStorageEntity(
+            values: ['id' => '1', 'label' => 'ToDelete', 'bundle' => 'article', 'langcode' => 'en'],
+            entityTypeId: 'test_entity',
+            entityKeys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+        );
+        $entity->enforceIsNew(true);
+        $this->repository->save($entity);
+
+        $events = [];
+
+        $this->eventDispatcher->addListener(
+            EntityEvents::PRE_DELETE->value,
+            function (EntityEvent $event) use (&$events) {
+                $events[] = [
+                    'event' => 'pre_delete',
+                    'originalEntity' => $event->originalEntity,
+                    'entity' => $event->entity,
+                ];
+            },
+        );
+
+        $this->eventDispatcher->addListener(
+            EntityEvents::POST_DELETE->value,
+            function (EntityEvent $event) use (&$events) {
+                $events[] = [
+                    'event' => 'post_delete',
+                    'originalEntity' => $event->originalEntity,
+                    'entity' => $event->entity,
+                ];
+            },
+        );
+
+        $this->repository->delete($entity);
+
+        $this->assertCount(2, $events);
+        $this->assertSame($events[0]['entity'], $events[0]['originalEntity'], 'PRE_DELETE originalEntity should be the entity itself');
+        $this->assertSame($events[1]['entity'], $events[1]['originalEntity'], 'POST_DELETE originalEntity should be the entity itself');
+    }
 }
