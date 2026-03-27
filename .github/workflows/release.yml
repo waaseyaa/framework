@@ -53,7 +53,7 @@ jobs:
             > build/deploy/staging-metadata.json
 
       - name: Upload deployment metadata
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: staging-deploy-metadata
           path: build/deploy/
@@ -98,7 +98,7 @@ jobs:
         run: cd packages/admin && npx playwright test --project=chromium
 
       - name: Upload Playwright artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: playwright-full-sweep
@@ -108,7 +108,7 @@ jobs:
           retention-days: 90
 
       - name: Upload server logs on failure
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: staging-server-logs
@@ -159,7 +159,7 @@ jobs:
             > build/deploy/production-metadata.json
 
       - name: Upload deployment metadata
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: production-deploy-metadata
           path: build/deploy/
@@ -204,7 +204,7 @@ jobs:
         run: cd packages/admin && npx playwright test --project=chromium
 
       - name: Upload smoke test artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: post-deploy-smoke
