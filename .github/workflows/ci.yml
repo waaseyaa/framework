@@ -82,7 +82,7 @@ jobs:
         run: ./vendor/bin/phpunit --testsuite Integration --log-junit build/logs/junit-integration.xml
 
       - name: Upload test artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results
@@ -150,7 +150,7 @@ jobs:
         run: cd packages/admin && npx playwright test --project=chromium --project=firefox
 
       - name: Upload Playwright artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: playwright-smoke-results
@@ -160,7 +160,7 @@ jobs:
           retention-days: 30
 
       - name: Upload server logs on failure
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: server-logs
@@ -201,7 +201,7 @@ jobs:
         run: npm test
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: frontend-build
