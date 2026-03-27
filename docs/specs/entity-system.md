@@ -79,9 +79,13 @@ interface EntityTypeInterface
     public function getStorageClass(): string;              // class-string<EntityStorageInterface>
     public function getKeys(): array;                       // array<string, string>
     public function isRevisionable(): bool;
+    public function getRevisionDefault(): bool;
     public function isTranslatable(): bool;
     public function getBundleEntityType(): ?string;
     public function getConstraints(): array;                // array<string, mixed>
+    public function getFieldDefinitions(): array;           // array<string, array<string, mixed>>
+    public function getGroup(): ?string;                    // admin sidebar group key
+    public function getDescription(): ?string;              // human-readable description
 }
 ```
 
@@ -108,6 +112,7 @@ interface EntityStorageInterface
 {
     public function create(array $values = []): EntityInterface;
     public function load(int|string $id): ?EntityInterface;
+    public function loadByKey(string $key, mixed $value): ?EntityInterface;
     public function loadMultiple(array $ids = []): array;   // array<int|string, EntityInterface>
     public function save(EntityInterface $entity): int;     // SAVED_NEW (1) or SAVED_UPDATED (2)
     public function delete(array $entities): void;          // EntityInterface[]
@@ -115,6 +120,8 @@ interface EntityStorageInterface
     public function getEntityTypeId(): string;
 }
 ```
+
+`loadByKey()` is a convenience method encapsulating the common query+load pattern: query by an arbitrary unique key, limit to 1, load the result. Equivalent to `$ids = $storage->getQuery()->condition($key, $value)->range(0, 1)->execute(); return $ids ? $storage->load(reset($ids)) : null;`
 
 ### EntityQueryInterface
 
@@ -199,11 +206,21 @@ new EntityType(
     storageClass: SqlEntityStorage::class,
     keys: ['id' => 'nid', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
     revisionable: false,
+    revisionDefault: false,
     translatable: false,
     bundleEntityType: 'node_type',
     constraints: [],
+    fieldDefinitions: [],
+    group: null,
+    description: null,
 );
 ```
+
+New parameters added to `EntityType`:
+- `revisionDefault: bool` -- whether new revisions are created by default on save (when `revisionable` is true)
+- `fieldDefinitions: array` -- field definitions keyed by field name, used by `SchemaController`, `GraphQL`, and `EntityTypeBuilder`
+- `group: ?string` -- admin sidebar group key (e.g., `'content'`, `'taxonomy'`) for catalog grouping
+- `description: ?string` -- human-readable description of the entity type, displayed in admin catalog
 
 Entity types are registered explicitly with `EntityTypeManager::registerEntityType()`. The manager throws `\InvalidArgumentException` if a type ID is already registered.
 
@@ -275,8 +292,16 @@ public function __construct(
     private readonly EntityTypeInterface $entityType,
     private readonly DatabaseInterface $database,
     private readonly EventDispatcherInterface $eventDispatcher,
+    ?LoggerInterface $logger = null,
+    ?EntityEventFactoryInterface $eventFactory = null,
 )
 ```
+
+`$logger` defaults to `NullLogger`. `$eventFactory` defaults to `DefaultEntityEventFactory`. The logger is from `Waaseyaa\Foundation\Log\LoggerInterface` (not PSR-3).
+
+**`loadByKey()`**: Implements `EntityStorageInterface::loadByKey()` using the query+load pattern.
+
+**Automatic timestamp population**: `SqlEntityStorage::save()` calls `populateTimestamps()` which inspects `EntityType::getFieldDefinitions()` for fields with `'type' => 'timestamp'`. On new entities, sets `created` to `time()` if not already set. Always updates `changed` to `time()`.
 
 Table name derived from `$entityType->id()` (e.g., entity type `'node'` maps to table `node`).
 
@@ -352,6 +377,7 @@ Higher-level layer that handles:
 - Entity lifecycle hooks (`preSave`, `postSave`, `preDelete`, `postDelete` on `EntityBase`)
 - Batch operations via `saveMany()`/`deleteMany()` with `UnitOfWork` transaction wrapping
 - Revision management via `loadRevision()` and `rollback()`
+- Automatic revision creation based on `EntityType::getRevisionDefault()` and per-entity `isNewRevision()` override (via `shouldCreateRevision()` internal method)
 
 ### UnitOfWork
 
@@ -500,11 +526,15 @@ Constructor: `(EntityTypeInterface $entityType, DatabaseInterface $database)`
 
 Table and ID key derived from entity type. Fluent API builds conditions, sorts, and ranges.
 
+**JSON field resolution**: `resolveField()` checks if a field exists as a real table column (cached in `$columnCache`). Fields stored in the `_data` JSON blob are wrapped in `json_extract()` so they can be used in conditions, sorts, and counts transparently.
+
 Supported operators:
 - Standard SQL: `=`, `<>`, `<`, `>`, `<=`, `>=`, `IN`, `NOT IN`, `LIKE`, `NOT LIKE`
 - `IS NULL` / `IS NOT NULL` -- via `exists()` and `notExists()`
 - `CONTAINS` -- translated to `LIKE '%escaped_value%'`
 - `STARTS_WITH` -- translated to `LIKE 'escaped_value%'`
+
+The `IN` operator coerces non-array values to a single-element array (`is_array($value) ? $value : [$value]`), making it safe to pass either a single value or an array.
 
 LIKE wildcard escaping: `str_replace(['%', '_'], ['\\%', '\\_'], $value)` before wrapping with `%`.
 
@@ -942,3 +972,4 @@ class FieldType extends WaaseyaaPlugin
 
 ### Test fixtures
 - `packages/api/tests/Fixtures/InMemoryEntityStorage.php` -- implements EntityStorageInterface for tests
+- `packages/entity-storage/tests/Fixtures/LifecycleTrackingEntity.php` -- extends `TestStorageEntity`, records lifecycle hook calls (`preSave`, `postSave`, `preDelete`, `postDelete`) into a public `$hookLog` array for verification in tests

@@ -338,6 +338,7 @@ Parses `$_GET`-style arrays into a `ParsedQuery` value object.
 |-----------|--------|---------|
 | `filter[field]=value` | Simple equality | `filter[status]=published` |
 | `filter[field][operator]=op&filter[field][value]=val` | Operator filter | `filter[title][operator]=CONTAINS&filter[title][value]=hello` |
+| `filter[field][operator]=IN&filter[field][value][]=v1&filter[field][value][]=v2` | IN filter (batch lookup) | `filter[uuid][operator]=IN&filter[uuid][value][]=abc-123&filter[uuid][value][]=def-456` |
 | `sort=field,-field2` | Comma-separated, `-` prefix for DESC | `sort=-created,title` |
 | `page[offset]=N` | Offset-based pagination | `page[offset]=20` |
 | `page[limit]=N` | Page size | `page[limit]=10` |
@@ -349,7 +350,7 @@ Parses `$_GET`-style arrays into a `ParsedQuery` value object.
 // packages/api/src/Query/QueryFilter.php
 final readonly class QueryFilter
 {
-    private const VALID_OPERATORS = ['=', '!=', '>', '<', '>=', '<=', 'CONTAINS', 'STARTS_WITH'];
+    private const VALID_OPERATORS = ['=', '!=', '>', '<', '>=', '<=', 'CONTAINS', 'STARTS_WITH', 'IN'];
 
     public function __construct(
         public string $field,
@@ -458,6 +459,16 @@ $escapedValue = str_replace(['%', '_'], ['\\%', '\\_'], $value);
 ```
 
 Without this escaping, a user submitting `100%` as a filter value would match unintended rows because `%` is a LIKE wildcard.
+
+## IN Filter Operator
+
+The `IN` operator supports batch lookups by matching a field against a list of values. This is primarily used for batch UUID resolution (e.g., loading multiple entities by UUID in a single request).
+
+```
+GET /api/node?filter[uuid][operator]=IN&filter[uuid][value][]=550e8400-...&filter[uuid][value][]=6ba7b810-...
+```
+
+The `value` parameter must be an array when using `IN`. `QueryParser` passes the array value through to `QueryFilter`, and `QueryApplier` translates it to a SQL `IN (...)` clause via `EntityQueryInterface::condition()`.
 
 ## Route Building
 

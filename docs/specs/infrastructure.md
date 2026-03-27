@@ -685,7 +685,7 @@ final readonly class MigrationResult
 
 ## HTTP Client
 
-Minimal HTTP client with no external dependencies (uses PHP streams).
+Minimal HTTP client with no external dependencies (uses PHP streams). Zero composer dependencies — requires only `php: >=8.4`.
 
 ### HttpClientInterface
 
@@ -723,6 +723,25 @@ final readonly class HttpResponse
 File: `packages/http-client/src/StreamHttpClient.php`
 
 Implementation using `file_get_contents()` with stream contexts. Throws `HttpRequestException` on failure.
+
+### HttpRequestException
+
+File: `packages/http-client/src/HttpRequestException.php`
+
+```php
+final class HttpRequestException extends \RuntimeException
+{
+    public function __construct(
+        string $message,
+        public readonly string $url,
+        public readonly string $method,
+        public readonly ?HttpResponse $response = null,
+        ?\Throwable $previous = null,
+    );
+}
+```
+
+Carries the failed request's URL, method, and optionally the response (when the server responded but with an error status). This allows callers to inspect both transport failures and HTTP error responses uniformly.
 
 ## Logging
 
@@ -830,8 +849,21 @@ final class CorsHandler
 
     public function resolveCorsHeaders(string $origin): array;
     public function handlePreflight(string $origin, string $requestMethod): array;
+    public function isCorsPreflightRequest(string $method): bool;
 }
 ```
+
+CORS origin resolution in `HttpKernel::handleCors()`:
+1. Reads `cors_origins` from config (defaults to `localhost:3000` and `127.0.0.1:3000`).
+2. Checks `WAASEYAA_CORS_ORIGIN` env var — if set, overrides the config array with a single-origin list.
+3. Passes `allowDevLocalhostPorts: true` when the kernel is in development mode (env is `dev`, `development`, or `local`), allowing any localhost port.
+
+### Dev fallback account
+
+`HttpKernel::shouldUseDevFallbackAccount()` controls whether `DevAdminAccount` is injected as the session fallback. All three conditions must be true:
+- PHP SAPI is `cli-server` (built-in dev server)
+- Application is in development mode (`config.environment` or `APP_ENV` is dev/development/local)
+- `config.auth.dev_fallback_account` is explicitly `true`
 
 ### ResponseSender
 
@@ -964,6 +996,9 @@ Boot sequence (idempotent — guarded by `$this->booted` flag, set only after al
 EnvLoader::load(.env)
   → ConfigLoader::load(config/waaseyaa.php)
   → new EventDispatcher()
+  → new EntityTypeLifecycleManager($projectRoot)
+  → new EntityAuditLogger($projectRoot)
+  → register EntityWriteAuditListener on PRE_SAVE, POST_SAVE, POST_DELETE
   → bootDatabase()           // DatabaseBootstrapper
   → bootEntityTypeManager()  // inline, wires storage factory closure
   → compileManifest()        // ManifestBootstrapper
@@ -973,8 +1008,17 @@ EnvLoader::load(.env)
   → validateContentTypes()   // DiagnosticEmitter check
   → bootProviders()          // calls boot() on all registered providers
   → discoverAccessPolicies() // AccessPolicyRegistry
+  → bootKnowledgeExtensionRunner() // plugin discovery for knowledge tooling extensions
   → $this->booted = true
 ```
+
+Early boot initializes the entity lifecycle manager (for disabling entity types at runtime) and the entity audit logger (for write audit trails). The `EntityWriteAuditListener` is registered on the event dispatcher before any entity storage is created, ensuring all entity writes are audited from boot onward.
+
+`loadAppEntityTypes()` reads `config/entity-types.php` and registers any `EntityTypeInterface` instances found there. Non-conforming entries are logged as warnings. Registration failures (duplicate IDs, invalid definitions) are logged as errors but do not halt boot.
+
+`validateContentTypes()` checks that at least one entity type is registered and enabled. If no types exist, it emits `DEFAULT_TYPE_MISSING` and throws. If all registered types are disabled via the lifecycle manager, it emits `DEFAULT_TYPE_DISABLED` and throws.
+
+`bootKnowledgeExtensionRunner()` reads `config.extensions.plugin_directories` and `config.extensions.plugin_attribute`, discovers plugins via `AttributeDiscovery`, and builds a `KnowledgeToolingExtensionRunner`. On failure, falls back to an empty runner. The runner is accessible via `getKnowledgeToolingExtensionRunner()` and provides `applyWorkflowContext()`, `applyTraversalContext()`, and `applyDiscoveryContext()` extension hooks.
 
 ### DatabaseBootstrapper
 
@@ -985,7 +1029,7 @@ Class: `final class DatabaseBootstrapper`
 public function boot(string $projectRoot, array $config): DatabaseInterface
 ```
 
-Creates `DBALDatabase::createSqlite()` using path resolution: `$config['database']` → `WAASEYAA_DB` env → `$projectRoot/waaseyaa.sqlite`.
+Creates `DBALDatabase::createSqlite()` using path resolution: `$config['database']` → `WAASEYAA_DB` env → `$projectRoot/storage/waaseyaa.sqlite`.
 
 ### ManifestBootstrapper
 
@@ -1016,7 +1060,14 @@ public function discoverAndRegister(
 ): array  // list<ServiceProvider>
 ```
 
-Instantiates each provider class from the manifest, calls `register()` on each, and returns the list. Handles instantiation failures gracefully with error logging.
+Discovery and registration follows a multi-phase process:
+
+1. **Instantiation**: Each provider class from `$manifest->providers` is instantiated. Non-`ServiceProvider` instances are logged and skipped.
+2. **Context injection**: Each provider receives kernel context via `setKernelContext($projectRoot, $config, $manifest->formatters)` and a kernel resolver closure via `setKernelResolver()`. The resolver provides cross-provider DI — it resolves `EntityTypeManager`, `DatabaseInterface`, `EventDispatcherInterface`, and any binding registered by previously-loaded providers.
+3. **Registration**: `register()` is called on each provider, allowing them to bind interfaces to implementations.
+4. **Entity type collection**: After all providers register, entity types from `$provider->getEntityTypes()` are registered with the `EntityTypeManager`. Registration failures are logged as errors but do not halt boot.
+
+The method returns the full list of instantiated providers. Handles instantiation failures gracefully with error logging.
 
 ### AccessPolicyRegistry
 

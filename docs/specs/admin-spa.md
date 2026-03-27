@@ -29,11 +29,32 @@ const backendUrl = process.env.NUXT_BACKEND_URL ?? 'http://127.0.0.1:8080'
 
 routeRules: {
   '/api/**': { proxy: `${backendUrl}/api/**` },
-  '/admin/**': { proxy: `${backendUrl}/admin/**` },
+  '/admin/surface/**': { proxy: `${backendUrl}/admin/surface/**` },
+  '/admin/bootstrap': { proxy: `${backendUrl}/admin/bootstrap` },
+  '/login': { proxy: `${backendUrl}/login` },
 },
 ```
 
-All `/api/*` and `/admin/*` requests proxy to the PHP backend defined by `NUXT_BACKEND_URL`. The default is `http://127.0.0.1:8080`, matching the repo's PHP dev server and CI workflows. The PHP backend is served by the built-in PHP server with `public/index.php` as the front controller.
+All `/api/*` requests and specific `/admin/surface/*`, `/admin/bootstrap`, and `/login` routes proxy to the PHP backend defined by `NUXT_BACKEND_URL`. The default is `http://127.0.0.1:8080`, matching the repo's PHP dev server and CI workflows. The PHP backend is served by the built-in PHP server with `public/index.php` as the front controller.
+
+### Base URL
+
+The admin SPA is served under the `/admin/` subpath, configured via `app.baseURL: '/admin/'` in nuxt.config.ts. Playwright E2E tests also use `http://localhost:3000/admin` as the base URL.
+
+### Runtime Config
+
+Exposed via `useRuntimeConfig().public`:
+
+| Key | Env Var | Default | Purpose |
+|-----|---------|---------|---------|
+| `enableRealtime` | `NUXT_PUBLIC_ENABLE_REALTIME` | `'0'` in dev, `'1'` in production | Disable SSE in dev to avoid php -S single-process request starvation |
+| `appName` | `NUXT_PUBLIC_APP_NAME` | `'Waaseyaa'` | Override site name (e.g. "Minoo") |
+| `docsUrl` | `NUXT_PUBLIC_DOCS_URL` | `'https://github.com/jonesrussell/waaseyaa'` | Quickstart docs link used by onboarding prompt |
+| `baseUrl` | `NUXT_PUBLIC_BASE_URL` | `''` | Base URL for subpath mounting, used by admin plugin for bootstrap resolution |
+
+### Nitro Prerender
+
+`nitro.prerender.failOnError` is set to `false` because `/login` is proxied to PHP during `nuxt generate` and the backend may be unreachable in CI.
 
 ## Composables
 
@@ -116,7 +137,7 @@ function useLanguage(): {
 }
 ```
 
-- Translation file: `packages/admin/app/i18n/en.json`
+- Translation files: `packages/admin/app/i18n/en.json`, `packages/admin/app/i18n/fr.json`
 - Replacement syntax: `{token}` in translation strings
 - Module-level `currentLocale` ref shared across all callers
 - Falls back to the key itself when no translation is found
@@ -210,19 +231,30 @@ When the PHP `SchemaPresenter` marks a field with `readOnly: true` + `x-access-r
 
 ## i18n
 
-Translation file: `packages/admin/app/i18n/en.json`
+Translation files: `packages/admin/app/i18n/en.json` (English), `packages/admin/app/i18n/fr.json` (French)
 
 Key categories:
-- UI chrome: `app_name`, `dashboard`, `content`, `sidebar_nav`
-- CRUD actions: `save`, `create`, `create_new`, `edit`, `delete`, `back_to_list`
+- UI chrome: `app_name`, `dashboard`, `content`, `sidebar_nav`, `toggle_menu`, `language`
+- CRUD actions: `save`, `create`, `create_new`, `edit`, `delete`, `back_to_list`, `actions`, `cancel`
 - States: `loading`, `saving`
 - Feedback: `entity_created`, `entity_saved`, `confirm_delete`
 - Pagination: `showing`, `of`, `previous`, `next`, `no_items`
-- Errors: `error_generic`, `error_not_found`, `error_loading_schema`, `error_loading_types`, `error_loading_entities`, `error_deleting`, `error_nav`
+- Errors: `error_generic`, `error_not_found`, `error_page_title`, `error_page_back`, `error_loading_schema`, `error_loading_types`, `error_loading_entities`, `error_deleting`, `error_nav`
 - Autocomplete: `autocomplete_placeholder`, `autocomplete_no_results`, `autocomplete_loading`
 - Realtime: `realtime_connected`
+- Onboarding: `onboarding_title`, `onboarding_body`, `onboarding_use_note`, `onboarding_create_type`, `onboarding_quickstart`
+- Type management: `disable_type`, `enable_type`, `type_disabled`, `disable_type_title`, `disable_type_body`, `disable_type_warning`, `disable_anyway`
+- Navigation groups: `nav_group_people`, `nav_group_content`, `nav_group_taxonomy`, `nav_group_media`, `nav_group_structure`, `nav_group_workflows`, `nav_group_ai`, `nav_group_events`, `nav_group_community`, `nav_group_knowledge`, `nav_group_language`, `nav_group_ingestion`, `nav_group_other`
+- Ingestion widget: `ingest_widget_title`, `ingest_widget_empty`, `ingest_status_pending_review`, `ingest_status_approved`, `ingest_status_rejected`, `ingest_status_failed`
+- NC sync: `nc_sync_widget_title`, `nc_sync_last_sync`, `nc_sync_created`, `nc_sync_skipped`, `nc_sync_failed`, `nc_sync_open_dashboard`, `nc_sync_view_teachings`, `nc_sync_view_events`, `na`
+- Entity type labels: `entity_type_user`, `entity_type_node`, `entity_type_node_type`, `entity_type_taxonomy_term`, etc.
+- Field labels: `field_title`, `field_machine_name`, `field_published`, `field_description`, `field_weight`, `field_email`, etc.
+- Parameterized: `create_entity`, `edit_entity` (with `{type}` token)
+- Telescope: `telescope_codified_context`, `telescope_cc_sessions`, `telescope_cc_drift_score`, etc.
 
 Token replacement pattern: `t('key', { token: 'value' })` replaces `{token}` in the string.
+
+The `useLanguage` composable also exposes `entityLabel(id, fallback)` for resolving `entity_type_{id}` keys with a fallback to the raw label.
 
 ## Component Patterns
 
@@ -258,6 +290,7 @@ packages/admin/app/
       DriftScoreChart.vue          # Drift score indicator (0–100 with color intensity)
       EventStreamViewer.vue        # Expandable event log with collapsible rows
       ValidationReportCard.vue     # Validation report display with severity styling
+    IngestSummaryWidget.vue        # Ingestion status counters + NC sync panel
     onboarding/
       OnboardingPrompt.vue         # Onboarding guide prompt
   adapters/
@@ -275,13 +308,14 @@ packages/admin/app/
     useNavGroups.ts                # Navigation group rendering & humanize() helper
     useRealtime.ts                 # SSE connection
   pages/
-    index.vue                      # Dashboard: entity type cards
+    index.vue                      # Dashboard: catalog-aware onboarding + entity type cards + IngestSummaryWidget
     [entityType]/
       index.vue                    # Entity list (delegates to SchemaList)
       create.vue                   # Entity create form (delegates to SchemaForm)
       [id].vue                     # Entity edit form (delegates to SchemaForm with entityId)
   i18n/
     en.json                        # English translations
+    fr.json                        # French translations
 ```
 
 ### Naming Conventions
@@ -304,6 +338,16 @@ Every widget component must accept these props:
 }
 ```
 And emit: `'update:modelValue'` with the new value.
+
+## Dashboard (`pages/index.vue`)
+
+The dashboard page uses the `useAdmin()` catalog (from the AdminSurface bootstrap endpoint) to render entity type cards. It includes:
+
+1. **Onboarding detection**: On mount, probes for existing content by listing the first listable catalog type (prefers `node_type`). If no content exists, shows `OnboardingPrompt` with links to create a Note, create a custom type, or open the quickstart guide. Paths are computed from catalog capabilities.
+2. **IngestSummaryWidget**: Renders ingestion status counters (pending_review, approved, rejected, failed) from the `ingest_log` entity type. Hides silently on 404 (entity type not registered). Each counter links to the filtered ingest_log list. Also includes a North Cloud Search sync panel fetched from `/api/admin/nc-sync-status` with last-sync timestamp, created/skipped/failed counts, and links to the ingestion dashboard, teachings, and events.
+3. **Entity type card grid**: Renders a card for each catalog entry using `entityLabel(et.id, et.label)` for i18n-aware labels.
+
+Error handling uses `TransportError` from `~/contracts/transport` to distinguish 404s from other failures.
 
 ## Routing
 
@@ -335,12 +379,22 @@ File-based routing via Nuxt 3:
 cd packages/admin && npm run build
 ```
 
-No dedicated test framework. The build step verifies TypeScript compilation and Nuxt module resolution. Build scripts from `packages/admin/package.json`:
+The build step verifies TypeScript compilation and Nuxt module resolution. Build scripts from `packages/admin/package.json`:
 - `dev`: `nuxt dev` (development server with HMR)
 - `build`: `nuxt build` (production build)
 - `generate`: `nuxt generate` (static site generation)
 - `preview`: `nuxt preview` (preview production build)
 - `postinstall`: `nuxt prepare` (generate `.nuxt` types)
+
+### E2E Testing (Playwright)
+
+Playwright config: `packages/admin/playwright.config.ts`. Tests live in `packages/admin/e2e/`.
+
+- Base URL: `http://localhost:3000/admin` (matches the `/admin/` base URL)
+- Browsers: Chromium, Firefox
+- Web server: auto-starts `npm run dev` with 120s timeout; reuses existing server outside CI
+- CI: `forbidOnly` enforced, 2 retries, trace on first retry
+- Reports: HTML reporter; `playwright-report/` and `test-results/` are gitignored
 
 ### Backend Testing
 
@@ -383,4 +437,7 @@ Backend JSON:API and schema endpoints are tested via PHPUnit integration tests i
 | `packages/admin/app/pages/[entityType]/index.vue` | Entity list page |
 | `packages/admin/app/pages/[entityType]/create.vue` | Entity create page |
 | `packages/admin/app/pages/[entityType]/[id].vue` | Entity edit page |
+| `packages/admin/app/components/IngestSummaryWidget.vue` | Ingestion status counters + NC sync panel |
 | `packages/admin/app/i18n/en.json` | English translation strings |
+| `packages/admin/app/i18n/fr.json` | French translation strings |
+| `packages/admin/playwright.config.ts` | Playwright E2E test configuration |
