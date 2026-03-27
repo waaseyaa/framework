@@ -11,7 +11,7 @@ jobs:
     name: spec-drift
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -22,7 +22,7 @@ jobs:
     name: ci/lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -31,7 +31,7 @@ jobs:
           coverage: none
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: vendor
           key: composer-${{ hashFiles('composer.lock') }}
@@ -56,7 +56,7 @@ jobs:
     name: ci/unit-tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -66,7 +66,7 @@ jobs:
           coverage: pcov
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: vendor
           key: composer-${{ hashFiles('composer.lock') }}
@@ -82,7 +82,7 @@ jobs:
         run: ./vendor/bin/phpunit --testsuite Integration --log-junit build/logs/junit-integration.xml
 
       - name: Upload test artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: test-results
@@ -97,7 +97,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [frontend-build]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -107,7 +107,7 @@ jobs:
           coverage: none
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: vendor
           key: composer-${{ hashFiles('composer.lock') }}
@@ -117,20 +117,20 @@ jobs:
         run: composer install --no-interaction --prefer-dist
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: packages/admin/package-lock.json
 
       - name: Cache node modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: packages/admin/node_modules
           key: node-${{ hashFiles('packages/admin/package-lock.json') }}
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ hashFiles('packages/admin/package-lock.json') }}
@@ -150,7 +150,7 @@ jobs:
         run: cd packages/admin && npx playwright test --project=chromium --project=firefox
 
       - name: Upload Playwright artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: playwright-smoke-results
@@ -160,7 +160,7 @@ jobs:
           retention-days: 30
 
       - name: Upload server logs on failure
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: server-logs
@@ -176,17 +176,17 @@ jobs:
       run:
         working-directory: packages/admin
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: packages/admin/package-lock.json
 
       - name: Cache node modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: packages/admin/node_modules
           key: node-${{ hashFiles('packages/admin/package-lock.json') }}
@@ -201,7 +201,7 @@ jobs:
         run: npm test
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: frontend-build
@@ -212,7 +212,7 @@ jobs:
     name: Manifest conformance
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Validate defaults manifests have project_versioning
         run: |
@@ -237,7 +237,7 @@ jobs:
           exit $fail
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
 
@@ -259,7 +259,7 @@ jobs:
     name: Ingestion defaults
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Validate ingestion schema metadata and compatibility rules
         run: bash bin/check-ingestion-defaults
 
@@ -267,7 +267,7 @@ jobs:
     name: Security defaults
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Check no secrets in defaults/
         run: bash bin/check-no-secrets
@@ -280,7 +280,7 @@ jobs:
           coverage: none
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: vendor
           key: composer-${{ hashFiles('composer.lock') }}
