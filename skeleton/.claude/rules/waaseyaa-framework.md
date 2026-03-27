@@ -31,16 +31,75 @@ Waaseyaa is a **Symfony 7-based, entity-first PHP framework**. PHP 8.4+, full de
 
 ## Required Abstractions
 
-| Need | Use |
-|------|-----|
-| Transactions, raw queries | `DatabaseInterface` |
-| Entity persistence | `SqlEntityStorage` + `StorageRepositoryAdapter` |
-| Entity data access | `EntityRepositoryInterface` |
-| Entity registration | `EntityTypeManager` |
-| Authorization | `AccessPolicyInterface` + `FieldAccessPolicyInterface` |
-| Query building | `SelectInterface` |
-| Dependency injection | Symfony DI container |
-| Config access | `getenv()` or Waaseyaa `env()` helper |
+| Need | Use | Full Namespace |
+|------|-----|----------------|
+| Transactions, raw queries | `DatabaseInterface` | `Waaseyaa\Database\DatabaseInterface` |
+| Entity persistence | `SqlEntityStorage` + `StorageRepositoryAdapter` | `Waaseyaa\EntityStorage\Sql\SqlEntityStorage` |
+| Entity data access | `EntityRepositoryInterface` | `Waaseyaa\Entity\Repository\EntityRepositoryInterface` |
+| Entity registration | `EntityTypeManager` | `Waaseyaa\Entity\EntityTypeManager` |
+| Authorization | `AccessPolicyInterface` + `FieldAccessPolicyInterface` | `Waaseyaa\Access\AccessPolicyInterface`, `Waaseyaa\Access\FieldAccessPolicyInterface` |
+| Query building | `SelectInterface` | `Waaseyaa\Database\Query\SelectInterface` |
+| Dependency injection | `ServiceProvider` DI methods | `Waaseyaa\Foundation\ServiceProvider\ServiceProvider` |
+| Queue / async jobs | `QueueInterface` + `Job` | `Waaseyaa\Queue\QueueInterface`, `Waaseyaa\Queue\Job` |
+| Config access | `getenv()` or Waaseyaa `env()` helper | — |
+
+---
+
+## ServiceProvider DI Methods
+
+Service providers extend `Waaseyaa\Foundation\ServiceProvider\ServiceProvider`. Override `register()` for bindings, `boot()` for event wiring.
+
+```php
+// register() — bind services
+$this->singleton(MyInterface::class, fn () => new MyImpl($this->resolve(Dep::class)));
+$this->bind(Transient::class, Transient::class);
+
+// resolve() — retrieve a registered binding or kernel service
+$service = $this->resolve(MyInterface::class);
+
+// tag() — group bindings under a tag
+$this->tag(MyInterface::class, 'processors');
+
+// entityType() — register an entity type
+$this->entityType(new EntityType(id: 'widget', label: 'Widget', ...));
+```
+
+| Method | Visibility | Signature |
+|--------|-----------|-----------|
+| `singleton()` | protected | `(string $abstract, string\|callable $concrete): void` |
+| `bind()` | protected | `(string $abstract, string\|callable $concrete): void` |
+| `resolve()` | public | `(string $abstract): mixed` |
+| `tag()` | protected | `(string $abstract, string $tag): void` |
+| `entityType()` | protected | `(EntityTypeInterface $entityType): void` |
+
+---
+
+## Queue Job Pattern
+
+Extend `Waaseyaa\Queue\Job`, implement `handle()`, dispatch via `QueueInterface::dispatch()`.
+
+```php
+final class MyJob extends \Waaseyaa\Queue\Job {
+    public int $tries = 3;       // max retry attempts
+    public int $timeout = 60;    // seconds
+    public int $retryAfter = 0;  // delay between retries
+
+    public function handle(): void { /* work */ }
+    public function failed(\Throwable $e): void { /* optional cleanup */ }
+}
+
+// Dispatch:
+$queue->dispatch(new MyJob());
+```
+
+---
+
+## Code Organization
+
+- **PSR-4 one-class-per-file** — each `.php` file declares exactly one class, interface, or enum
+- **`declare(strict_types=1)`** in every file
+- **`final class`** by default for concrete implementations
+- **Namespace pattern**: `App\SubNamespace\` for application code
 
 ---
 
