@@ -17,6 +17,8 @@ final class Worker
     /** @var list<HandlerInterface> */
     private array $handlers;
 
+    private bool $shouldQuit = false;
+
     /**
      * @param list<HandlerInterface> $handlers
      */
@@ -43,6 +45,8 @@ final class Worker
      */
     public function run(string $queue, WorkerOptions $options): int
     {
+        $this->listenForSignals();
+
         $startTime = time();
         $processed = 0;
 
@@ -166,6 +170,14 @@ final class Worker
 
     private function shouldContinue(WorkerOptions $options, int $processed, int $startTime): bool
     {
+        if ($this->shouldQuit) {
+            return false;
+        }
+
+        if (\function_exists('pcntl_signal_dispatch')) {
+            pcntl_signal_dispatch();
+        }
+
         if ($options->maxJobs > 0 && $processed >= $options->maxJobs) {
             return false;
         }
@@ -179,5 +191,23 @@ final class Worker
         }
 
         return true;
+    }
+
+    private function listenForSignals(): void
+    {
+        if (!\function_exists('pcntl_signal')) {
+            return;
+        }
+
+        pcntl_signal(\SIGTERM, fn () => $this->shouldQuit = true);
+        pcntl_signal(\SIGINT, fn () => $this->shouldQuit = true);
+    }
+
+    /**
+     * Request graceful shutdown. The worker will finish its current job and exit.
+     */
+    public function stop(): void
+    {
+        $this->shouldQuit = true;
     }
 }

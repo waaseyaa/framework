@@ -115,4 +115,20 @@ final class WorkerTest extends TestCase
 
         self::assertTrue(FailingJob::$failedCalled);
     }
+
+    #[Test]
+    public function stopCausesWorkerToExitAfterCurrentJob(): void
+    {
+        $this->transport->push('default', serialize(new SuccessfulJob()));
+        $this->transport->push('default', serialize(new SuccessfulJob()));
+        $this->transport->push('default', serialize(new SuccessfulJob()));
+
+        // Request stop before run — worker should process zero jobs
+        $this->worker->stop();
+
+        $processed = $this->worker->run('default', new WorkerOptions(maxJobs: 10));
+
+        self::assertSame(0, $processed);
+        self::assertSame(3, $this->transport->size('default'));
+    }
 }
