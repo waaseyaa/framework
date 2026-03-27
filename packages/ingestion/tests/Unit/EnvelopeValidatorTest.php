@@ -99,6 +99,100 @@ final class EnvelopeValidatorTest extends TestCase
         $this->assertTrue($result->isValid());
     }
 
+    #[Test]
+    public function multipleMissingFieldsAllReported(): void
+    {
+        $result = $this->validator->validate([]);
+        $this->assertFalse($result->isValid());
+        $this->assertGreaterThanOrEqual(8, count($result->errors));
+    }
+
+    #[Test]
+    public function emptyStringFieldTreatedAsMissing(): void
+    {
+        $envelope = $this->envelope(['source' => '']);
+        $result = $this->validator->validate($envelope);
+        $this->assertFalse($result->isValid());
+        $this->assertStringContainsString('source', $result->errors[0]);
+    }
+
+    #[Test]
+    public function nullFieldTreatedAsMissing(): void
+    {
+        $envelope = $this->envelope(['timestamp' => null]);
+        $result = $this->validator->validate($envelope);
+        $this->assertFalse($result->isValid());
+        $allErrors = implode("\n", $result->errors);
+        $this->assertStringContainsString('timestamp', $allErrors);
+    }
+
+    #[Test]
+    public function missingFieldsShortCircuitBeforeVersionCheck(): void
+    {
+        $envelope = $this->envelope(['version' => '99.0']);
+        unset($envelope['source']);
+        $result = $this->validator->validate($envelope);
+        $this->assertFalse($result->isValid());
+        $allErrors = implode("\n", $result->errors);
+        $this->assertStringContainsString('source', $allErrors);
+        $this->assertStringNotContainsString('Unsupported version', $allErrors);
+    }
+
+    #[Test]
+    public function versionErrorSkipsEntityDataValidation(): void
+    {
+        $envelope = $this->envelope([
+            'version' => '99.0',
+            'data' => ['body' => 'no title'],
+        ]);
+        $result = $this->validator->validate($envelope);
+        $this->assertFalse($result->isValid());
+        $allErrors = implode("\n", $result->errors);
+        $this->assertStringContainsString('Unsupported version', $allErrors);
+        $this->assertStringNotContainsString('Article requires title', $allErrors);
+    }
+
+    #[Test]
+    public function emptyDataArrayPassesEnvelopeCheckDeferToEntityValidation(): void
+    {
+        $envelope = $this->envelope(['entity_type' => 'note', 'data' => []]);
+        $result = $this->validator->validate($envelope);
+        $this->assertTrue($result->isValid());
+    }
+
+    #[Test]
+    public function customRequiredFieldsOverride(): void
+    {
+        $minimal = new class extends EnvelopeValidator {
+            protected function requiredFields(): array
+            {
+                return ['version', 'entity_type', 'data'];
+            }
+
+            protected function supportedVersions(): array
+            {
+                return ['1.0'];
+            }
+
+            protected function supportedEntityTypes(): array
+            {
+                return ['article'];
+            }
+
+            protected function validateEntityData(string $entityType, array $data): array
+            {
+                return [];
+            }
+        };
+
+        $result = $minimal->validate([
+            'version' => '1.0',
+            'entity_type' => 'article',
+            'data' => ['title' => 'Test'],
+        ]);
+        $this->assertTrue($result->isValid());
+    }
+
     /** @param array<string, mixed> $overrides */
     private function envelope(array $overrides = []): array
     {
