@@ -1,0 +1,41 @@
+{
+    "name": "waaseyaa/geo",
+    "description": "Geospatial utilities for Waaseyaa: distance calculations, coordinate helpers",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../foundation"
+        }
+    ],
+    "require": {
+        "php": ">=8.4",
+        "waaseyaa/foundation": "^0.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Waaseyaa\\Geo\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Waaseyaa\\Geo\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "waaseyaa": {
+            "providers": [
+                "Waaseyaa\\Geo\\GeoServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "0.1.x-dev"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
