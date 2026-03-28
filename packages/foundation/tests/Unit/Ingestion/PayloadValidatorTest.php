@@ -440,6 +440,336 @@ final class PayloadValidatorTest extends TestCase
     }
 
     // ------------------------------------------------------------------
+    // Corrupt / unreadable schema
+    // ------------------------------------------------------------------
+
+    #[Test]
+    public function corruptSchemaFileReturnsLoadError(): void
+    {
+        // Write a valid schema so the registry builds a SchemaEntry for it.
+        $this->writeSchema('core.corrupt', [
+            '$schema' => 'http://json-schema.org/draft-07/schema#',
+            'type'    => 'object',
+            'required' => ['title'],
+            'additionalProperties' => false,
+            'properties' => [
+                'title' => ['type' => 'string'],
+            ],
+            'x-waaseyaa' => [
+                'entity_type'   => 'core.corrupt',
+                'version'       => '0.1.0',
+                'compatibility' => 'liberal',
+            ],
+        ]);
+
+        $registry = new DefaultsSchemaRegistry($this->defaultsDir);
+
+        // Force the registry to load and cache the valid entry.
+        $this->assertNotNull($registry->get('core.corrupt'));
+
+        // Now corrupt the file so PayloadValidator::loadSchema() fails.
+        file_put_contents(
+            $this->defaultsDir . '/core.corrupt.schema.json',
+            'NOT VALID JSON {{{',
+        );
+
+        $validator = new PayloadValidator($registry);
+
+        $envelope = $this->makeEnvelope('core.corrupt', ['title' => 'X']);
+        $errors = $validator->validate($envelope);
+
+        $this->assertCount(1, $errors);
+        $this->assertSame(IngestionErrorCode::PAYLOAD_SCHEMA_LOAD_FAILED, $errors[0]->code);
+        $this->assertStringContainsString('Failed to load schema', $errors[0]->message);
+    }
+
+    // ------------------------------------------------------------------
+    // Additional type validations
+    // ------------------------------------------------------------------
+
+    #[Test]
+    public function integerFieldAcceptsInt(): void
+    {
+        $this->writeSchema('core.typed', [
+            '$schema' => 'http://json-schema.org/draft-07/schema#',
+            'type'    => 'object',
+            'required' => ['count'],
+            'additionalProperties' => false,
+            'properties' => [
+                'count' => ['type' => 'integer'],
+            ],
+            'x-waaseyaa' => [
+                'entity_type'   => 'core.typed',
+                'version'       => '0.1.0',
+                'compatibility' => 'liberal',
+            ],
+        ]);
+
+        $registry = new DefaultsSchemaRegistry($this->defaultsDir);
+        $validator = new PayloadValidator($registry);
+
+        $envelope = $this->makeEnvelope('core.typed', ['count' => 42]);
+        $this->assertSame([], $validator->validate($envelope));
+    }
+
+    #[Test]
+    public function integerFieldRejectsFloat(): void
+    {
+        $this->writeSchema('core.typed', [
+            '$schema' => 'http://json-schema.org/draft-07/schema#',
+            'type'    => 'object',
+            'required' => ['count'],
+            'additionalProperties' => false,
+            'properties' => [
+                'count' => ['type' => 'integer'],
+            ],
+            'x-waaseyaa' => [
+                'entity_type'   => 'core.typed',
+                'version'       => '0.1.0',
+                'compatibility' => 'liberal',
+            ],
+        ]);
+
+        $registry = new DefaultsSchemaRegistry($this->defaultsDir);
+        $validator = new PayloadValidator($registry);
+
+        $envelope = $this->makeEnvelope('core.typed', ['count' => 3.14]);
+        $errors = $validator->validate($envelope);
+
+        $this->assertNotEmpty($this->findErrors($errors, 'count'));
+        $this->assertSame(IngestionErrorCode::PAYLOAD_FIELD_TYPE_INVALID, $this->findErrors($errors, 'count')[0]->code);
+    }
+
+    #[Test]
+    public function numberFieldAcceptsIntAndFloat(): void
+    {
+        $this->writeSchema('core.metric', [
+            '$schema' => 'http://json-schema.org/draft-07/schema#',
+            'type'    => 'object',
+            'required' => ['value'],
+            'additionalProperties' => false,
+            'properties' => [
+                'value' => ['type' => 'number'],
+            ],
+            'x-waaseyaa' => [
+                'entity_type'   => 'core.metric',
+                'version'       => '0.1.0',
+                'compatibility' => 'liberal',
+            ],
+        ]);
+
+        $registry = new DefaultsSchemaRegistry($this->defaultsDir);
+        $validator = new PayloadValidator($registry);
+
+        $this->assertSame([], $validator->validate($this->makeEnvelope('core.metric', ['value' => 42])));
+        $this->assertSame([], $validator->validate($this->makeEnvelope('core.metric', ['value' => 3.14])));
+    }
+
+    #[Test]
+    public function numberFieldRejectsString(): void
+    {
+        $this->writeSchema('core.metric', [
+            '$schema' => 'http://json-schema.org/draft-07/schema#',
+            'type'    => 'object',
+            'required' => ['value'],
+            'additionalProperties' => false,
+            'properties' => [
+                'value' => ['type' => 'number'],
+            ],
+            'x-waaseyaa' => [
+                'entity_type'   => 'core.metric',
+                'version'       => '0.1.0',
+                'compatibility' => 'liberal',
+            ],
+        ]);
+
+        $registry = new DefaultsSchemaRegistry($this->defaultsDir);
+        $validator = new PayloadValidator($registry);
+
+        $envelope = $this->makeEnvelope('core.metric', ['value' => 'not-a-number']);
+        $errors = $validator->validate($envelope);
+
+        $this->assertNotEmpty($this->findErrors($errors, 'value'));
+    }
+
+    #[Test]
+    public function booleanFieldAcceptsBool(): void
+    {
+        $this->writeSchema('core.flag', [
+            '$schema' => 'http://json-schema.org/draft-07/schema#',
+            'type'    => 'object',
+            'required' => ['active'],
+            'additionalProperties' => false,
+            'properties' => [
+                'active' => ['type' => 'boolean'],
+            ],
+            'x-waaseyaa' => [
+                'entity_type'   => 'core.flag',
+                'version'       => '0.1.0',
+                'compatibility' => 'liberal',
+            ],
+        ]);
+
+        $registry = new DefaultsSchemaRegistry($this->defaultsDir);
+        $validator = new PayloadValidator($registry);
+
+        $this->assertSame([], $validator->validate($this->makeEnvelope('core.flag', ['active' => true])));
+        $this->assertSame([], $validator->validate($this->makeEnvelope('core.flag', ['active' => false])));
+    }
+
+    #[Test]
+    public function booleanFieldRejectsInt(): void
+    {
+        $this->writeSchema('core.flag', [
+            '$schema' => 'http://json-schema.org/draft-07/schema#',
+            'type'    => 'object',
+            'required' => ['active'],
+            'additionalProperties' => false,
+            'properties' => [
+                'active' => ['type' => 'boolean'],
+            ],
+            'x-waaseyaa' => [
+                'entity_type'   => 'core.flag',
+                'version'       => '0.1.0',
+                'compatibility' => 'liberal',
+            ],
+        ]);
+
+        $registry = new DefaultsSchemaRegistry($this->defaultsDir);
+        $validator = new PayloadValidator($registry);
+
+        $errors = $validator->validate($this->makeEnvelope('core.flag', ['active' => 1]));
+        $this->assertNotEmpty($this->findErrors($errors, 'active'));
+    }
+
+    #[Test]
+    public function arrayFieldAcceptsList(): void
+    {
+        $this->writeSchema('core.tags', [
+            '$schema' => 'http://json-schema.org/draft-07/schema#',
+            'type'    => 'object',
+            'required' => ['tags'],
+            'additionalProperties' => false,
+            'properties' => [
+                'tags' => ['type' => 'array'],
+            ],
+            'x-waaseyaa' => [
+                'entity_type'   => 'core.tags',
+                'version'       => '0.1.0',
+                'compatibility' => 'liberal',
+            ],
+        ]);
+
+        $registry = new DefaultsSchemaRegistry($this->defaultsDir);
+        $validator = new PayloadValidator($registry);
+
+        $this->assertSame([], $validator->validate($this->makeEnvelope('core.tags', ['tags' => ['a', 'b']])));
+    }
+
+    #[Test]
+    public function arrayFieldRejectsAssociativeArray(): void
+    {
+        $this->writeSchema('core.tags', [
+            '$schema' => 'http://json-schema.org/draft-07/schema#',
+            'type'    => 'object',
+            'required' => ['tags'],
+            'additionalProperties' => false,
+            'properties' => [
+                'tags' => ['type' => 'array'],
+            ],
+            'x-waaseyaa' => [
+                'entity_type'   => 'core.tags',
+                'version'       => '0.1.0',
+                'compatibility' => 'liberal',
+            ],
+        ]);
+
+        $registry = new DefaultsSchemaRegistry($this->defaultsDir);
+        $validator = new PayloadValidator($registry);
+
+        $errors = $validator->validate($this->makeEnvelope('core.tags', ['tags' => ['key' => 'val']]));
+        $this->assertNotEmpty($this->findErrors($errors, 'tags'));
+    }
+
+    #[Test]
+    public function objectFieldAcceptsAssociativeArray(): void
+    {
+        $this->writeSchema('core.meta', [
+            '$schema' => 'http://json-schema.org/draft-07/schema#',
+            'type'    => 'object',
+            'required' => ['attrs'],
+            'additionalProperties' => false,
+            'properties' => [
+                'attrs' => ['type' => 'object'],
+            ],
+            'x-waaseyaa' => [
+                'entity_type'   => 'core.meta',
+                'version'       => '0.1.0',
+                'compatibility' => 'liberal',
+            ],
+        ]);
+
+        $registry = new DefaultsSchemaRegistry($this->defaultsDir);
+        $validator = new PayloadValidator($registry);
+
+        $this->assertSame([], $validator->validate($this->makeEnvelope('core.meta', ['attrs' => ['key' => 'val']])));
+    }
+
+    #[Test]
+    public function objectFieldRejectsList(): void
+    {
+        $this->writeSchema('core.meta', [
+            '$schema' => 'http://json-schema.org/draft-07/schema#',
+            'type'    => 'object',
+            'required' => ['attrs'],
+            'additionalProperties' => false,
+            'properties' => [
+                'attrs' => ['type' => 'object'],
+            ],
+            'x-waaseyaa' => [
+                'entity_type'   => 'core.meta',
+                'version'       => '0.1.0',
+                'compatibility' => 'liberal',
+            ],
+        ]);
+
+        $registry = new DefaultsSchemaRegistry($this->defaultsDir);
+        $validator = new PayloadValidator($registry);
+
+        $errors = $validator->validate($this->makeEnvelope('core.meta', ['attrs' => ['a', 'b']]));
+        $this->assertNotEmpty($this->findErrors($errors, 'attrs'));
+    }
+
+    // ------------------------------------------------------------------
+    // Field with no type declaration
+    // ------------------------------------------------------------------
+
+    #[Test]
+    public function fieldWithNoTypePasses(): void
+    {
+        $this->writeSchema('core.loose', [
+            '$schema' => 'http://json-schema.org/draft-07/schema#',
+            'type'    => 'object',
+            'required' => ['data'],
+            'additionalProperties' => false,
+            'properties' => [
+                'data' => [],
+            ],
+            'x-waaseyaa' => [
+                'entity_type'   => 'core.loose',
+                'version'       => '0.1.0',
+                'compatibility' => 'liberal',
+            ],
+        ]);
+
+        $registry = new DefaultsSchemaRegistry($this->defaultsDir);
+        $validator = new PayloadValidator($registry);
+
+        $this->assertSame([], $validator->validate($this->makeEnvelope('core.loose', ['data' => 'anything'])));
+        $this->assertSame([], $validator->validate($this->makeEnvelope('core.loose', ['data' => 42])));
+    }
+
+    // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
 
