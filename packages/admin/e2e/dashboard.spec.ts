@@ -18,10 +18,9 @@ test.describe('Dashboard', () => {
 
   test('each card links to the entity type route', async ({ page }) => {
     await page.goto('./', { waitUntil: 'networkidle' })
-    // Wait for hydration — heading renders server-side but NuxtLink
-    // needs client hydration to produce a proper <a> tag.
     await expect(page.getByRole('heading', { name: 'User' })).toBeVisible()
-    const userCard = page.getByRole('link', { name: 'User' })
+    // Scope to main to avoid matching the sidebar "User" link.
+    const userCard = page.locator('main').getByRole('link', { name: 'User' })
     await expect(userCard).toBeVisible({ timeout: 10_000 })
     await expect(userCard).toHaveAttribute('href', /\/user$/)
   })
@@ -34,8 +33,8 @@ test.describe('Dashboard', () => {
       }),
     )
     await page.goto('./', { waitUntil: 'networkidle' })
-    // Wait for hydration before clicking
-    const userLink = page.getByRole('link', { name: 'User' })
+    // Scope to main to avoid matching the sidebar "User" link.
+    const userLink = page.locator('main').getByRole('link', { name: 'User' })
     await expect(userLink).toBeVisible({ timeout: 10_000 })
     await userLink.click()
     await expect(page).toHaveURL(/\/user$/)

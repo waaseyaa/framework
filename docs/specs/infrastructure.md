@@ -1,6 +1,6 @@
 # Infrastructure
 
-Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, migration system, kernel bootstrapping, and service provider discovery.
+Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, migration system, kernel bootstrapping, service provider discovery, and queue workers.
 
 ## Packages
 
