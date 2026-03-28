@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "77be342a627d4304fc700b7d65db23cd",
+    "content-hash": "3a4dce2f3296b62538bf58f52819ac97",
     "packages": [
         {
             "name": "doctrine/dbal",
@@ -3692,7 +3692,7 @@
         },
         {
             "name": "waaseyaa/github",
-            "version": "dev-feat/messaging-package",
+            "version": "dev-feat/oauth-provider",
             "dist": {
                 "type": "path",
                 "url": "packages/github",
@@ -4297,6 +4297,40 @@
                 "GPL-2.0-or-later"
             ],
             "description": "Multi-channel notification system for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/oauth-provider",
+            "version": "dev-feat/oauth-provider",
+            "dist": {
+                "type": "path",
+                "url": "packages/oauth-provider",
+                "reference": "1100af25dabd39dd63d3652fe159e107be4d7445"
+            },
+            "require": {
+                "php": ">=8.4",
+                "waaseyaa/http-client": "dev-main"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^11.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\OAuthProvider\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\OAuthProvider\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "OAuth 2.0 provider abstraction for Waaseyaa applications",
             "transport-options": {
                 "relative": true
             }
@@ -8449,6 +8483,7 @@
         "waaseyaa/node": 20,
         "waaseyaa/note": 20,
         "waaseyaa/notification": 20,
+        "waaseyaa/oauth-provider": 20,
         "waaseyaa/path": 20,
         "waaseyaa/plugin": 20,
         "waaseyaa/queue": 20,

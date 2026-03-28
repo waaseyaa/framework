@@ -17,9 +17,8 @@ final class ProviderRegistry
     public function get(string $name): OAuthProviderInterface
     {
         if (!isset($this->providers[$name])) {
-            throw new \InvalidArgumentException(sprintf('OAuth provider "%s" is not registered.', $name));
+            throw new \InvalidArgumentException("OAuth provider '{$name}' is not registered");
         }
-
         return $this->providers[$name];
     }
 
@@ -28,9 +27,7 @@ final class ProviderRegistry
         return isset($this->providers[$name]);
     }
 
-    /**
-     * @return array<string, OAuthProviderInterface>
-     */
+    /** @return array<string, OAuthProviderInterface> */
     public function all(): array
     {
         return $this->providers;
