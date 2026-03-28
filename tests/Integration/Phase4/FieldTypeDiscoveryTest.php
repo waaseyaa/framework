@@ -57,6 +57,7 @@ final class FieldTypeDiscoveryTest extends TestCase
             'decimal',
             'list',
             'computed',
+            'json',
         ];
 
         foreach ($expectedTypes as $type) {
@@ -68,9 +69,9 @@ final class FieldTypeDiscoveryTest extends TestCase
         }
 
         $this->assertCount(
-            15,
+            16,
             $definitions,
-            'All 15 built-in field types should be discovered',
+            'All 16 built-in field types should be discovered',
         );
     }
 

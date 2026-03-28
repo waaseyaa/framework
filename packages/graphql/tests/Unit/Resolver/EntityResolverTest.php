@@ -149,7 +149,8 @@ final class EntityResolverTest extends TestCase
         $resolver = $this->createResolver(new EntityAccessHandler([$policy]));
         $result = $resolver->resolveList('article', []);
 
-        self::assertSame(1, $result['total']);
+        // total reflects unfiltered count (full dataset), items are access-filtered.
+        self::assertSame(2, $result['total']);
         self::assertCount(1, $result['items']);
         self::assertSame('Visible', $result['items'][0]['title']);
     }
