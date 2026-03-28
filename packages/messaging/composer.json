@@ -1,0 +1,50 @@
+{
+    "name": "waaseyaa/messaging",
+    "description": "Direct messaging infrastructure for Waaseyaa: threads, messages, participants",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../entity"
+        },
+        {
+            "type": "path",
+            "url": "../foundation"
+        },
+        {
+            "type": "path",
+            "url": "../mercure"
+        }
+    ],
+    "require": {
+        "php": ">=8.4",
+        "waaseyaa/entity": "^0.1",
+        "waaseyaa/foundation": "^0.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Waaseyaa\\Messaging\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Waaseyaa\\Messaging\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "waaseyaa": {
+            "providers": [
+                "Waaseyaa\\Messaging\\MessagingServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "0.1.x-dev"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
