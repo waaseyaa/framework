@@ -79,4 +79,25 @@ final class UploadHandlerTest extends TestCase
         $filename = $handler->generateSafeFilename('!!!.png');
         $this->assertMatchesRegularExpression('/^upload_[a-f0-9]{8}\.png$/', $filename);
     }
+
+    #[Test]
+    public function rejects_path_traversal_in_move_upload(): void
+    {
+        $handler = new UploadHandler(sys_get_temp_dir());
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('path traversal');
+        $handler->moveUpload(
+            ['error' => UPLOAD_ERR_OK, 'size' => 100, 'type' => 'image/jpeg', 'tmp_name' => '/tmp/x', 'name' => 'a.jpg'],
+            '../../etc',
+        );
+    }
+
+    #[Test]
+    public function rejects_path_traversal_in_delete_directory(): void
+    {
+        $handler = new UploadHandler(sys_get_temp_dir());
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('path traversal');
+        $handler->deleteDirectory('../../../etc');
+    }
 }

@@ -37,7 +37,14 @@ final class UploadHandler
             $errors[] = "File must be under {$maxMb}MB.";
         }
 
-        if (!in_array($file['type'] ?? '', $this->allowedMimeTypes, true)) {
+        $tmpName = $file['tmp_name'] ?? '';
+        if ($tmpName !== '' && is_file($tmpName)) {
+            $detectedType = (new \finfo(FILEINFO_MIME_TYPE))->file($tmpName);
+        } else {
+            $detectedType = $file['type'] ?? '';
+        }
+
+        if (!in_array($detectedType, $this->allowedMimeTypes, true)) {
             $errors[] = 'File type not allowed.';
         }
 
@@ -61,6 +68,13 @@ final class UploadHandler
     /** @return string relative path from basePath */
     public function moveUpload(array $file, string $subdir): string
     {
+        $this->assertSafeSubdir($subdir);
+
+        $errors = $this->validate($file);
+        if ($errors !== []) {
+            throw new \InvalidArgumentException(implode(' ', $errors));
+        }
+
         $targetDir = $this->basePath . '/' . $subdir;
 
         if (!is_dir($targetDir)) {
@@ -69,13 +83,18 @@ final class UploadHandler
 
         $filename = $this->generateSafeFilename($file['name'] ?? 'upload.bin');
         $targetPath = $targetDir . '/' . $filename;
-        move_uploaded_file($file['tmp_name'], $targetPath);
+
+        if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
+            throw new \RuntimeException('Failed to move uploaded file.');
+        }
 
         return $subdir . '/' . $filename;
     }
 
     public function deleteDirectory(string $subdir): void
     {
+        $this->assertSafeSubdir($subdir);
+
         $dir = $this->basePath . '/' . $subdir;
 
         if (!is_dir($dir)) {
@@ -92,5 +111,12 @@ final class UploadHandler
         }
 
         rmdir($dir);
+    }
+
+    private function assertSafeSubdir(string $subdir): void
+    {
+        if (str_contains($subdir, '..')) {
+            throw new \InvalidArgumentException('Invalid subdirectory: path traversal not allowed.');
+        }
     }
 }
