@@ -600,6 +600,43 @@ final class SqlEntityStorageTest extends TestCase
         $this->assertSame($entity->id(), $found->id());
     }
 
+    public function testJsonFieldRoundTrip(): void
+    {
+        $storage = $this->createStorageWithFields('json_test', [
+            'metadata' => ['type' => 'json'],
+        ]);
+
+        $entity = $storage->create([
+            'label' => 'JSON Test',
+            'bundle' => 'article',
+            'metadata' => ['tags' => ['php', 'waaseyaa'], 'version' => 2],
+        ]);
+        $storage->save($entity);
+
+        $loaded = $storage->load($entity->id());
+        $this->assertNotNull($loaded);
+        $this->assertIsArray($loaded->get('metadata'));
+        $this->assertSame(['tags' => ['php', 'waaseyaa'], 'version' => 2], $loaded->get('metadata'));
+    }
+
+    public function testJsonFieldNullRoundTrip(): void
+    {
+        $storage = $this->createStorageWithFields('json_null_test', [
+            'metadata' => ['type' => 'json'],
+        ]);
+
+        $entity = $storage->create([
+            'label' => 'JSON Null Test',
+            'bundle' => 'article',
+            'metadata' => null,
+        ]);
+        $storage->save($entity);
+
+        $loaded = $storage->load($entity->id());
+        $this->assertNotNull($loaded);
+        $this->assertNull($loaded->get('metadata'));
+    }
+
     public function testPreSaveMutationsArePersisted(): void
     {
         $this->eventDispatcher->addListener(

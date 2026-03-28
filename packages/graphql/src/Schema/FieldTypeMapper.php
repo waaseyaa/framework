@@ -31,7 +31,7 @@ final class FieldTypeMapper
     {
         $known = true;
         $type = match ($fieldType) {
-            'string', 'email', 'uri', 'timestamp', 'datetime', 'list_string' => Type::string(),
+            'string', 'email', 'uri', 'timestamp', 'datetime', 'list_string', 'json' => Type::string(),
             'integer' => Type::int(),
             'boolean' => Type::boolean(),
             'float', 'decimal' => Type::float(),
@@ -50,7 +50,7 @@ final class FieldTypeMapper
     public function toInputType(string $fieldType, bool $isMultiple): Type
     {
         $type = match ($fieldType) {
-            'string', 'email', 'uri', 'timestamp', 'datetime', 'list_string' => Type::string(),
+            'string', 'email', 'uri', 'timestamp', 'datetime', 'list_string', 'json' => Type::string(),
             'integer' => Type::int(),
             'boolean' => Type::boolean(),
             'float', 'decimal' => Type::float(),
