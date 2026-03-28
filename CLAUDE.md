@@ -199,6 +199,7 @@ Design docs in `docs/plans/` are session artifacts (implementation history). Spe
 - **SchemaController field definitions**: `SchemaController::show()` passes `$entityType->getFieldDefinitions()` to `SchemaPresenter::present()`. Field definitions are registered per entity type via the `fieldDefinitions:` constructor param on `EntityType`.
 - **`discoverAccessPolicies()` constructor heuristic**: `ConfigEntityAccessPolicy` takes `array $entityTypeIds` as a required constructor parameter (from `#[PolicyAttribute]`). The reflection-based heuristic in `AbstractKernel::discoverAccessPolicies()` that passes entity types to constructors with required params exists for this reason — do not remove it.
 - **`toMachineName()` can return empty string**: Labels with only special characters (e.g. `"!!!"`) produce empty machine names after regex replacement and trim. `JsonApiController::store()` guards against this with a 422 response. Any caller of `toMachineName()` must validate the result.
+- **Debug boot guard**: `AbstractKernel::boot()` throws `RuntimeException` if `isDebugMode()` is true and `isDevelopmentMode()` is false. Both methods and the boot guard use `resolveEnvironment()` as the single canonical source for `APP_ENV` resolution. Tests that boot with `debug => true` in config must also set `APP_ENV=local`.
 - **Kernel boot flag ordering**: `AbstractKernel::boot()` sets `$this->booted = true` *after* all initialization steps succeed. Setting it before would create a zombie state where boot failure prevents retry. If adding new boot steps, add them before the flag assignment.
 - **Migration system boot order**: `bootMigrations()` runs after `compileManifest()` (requires `PackageManifest`) and before `discoverAndRegisterProviders()`. It reuses the DBAL `Connection` from `DBALDatabase` (via `getConnection()`) — single connection, no duplication.
 - **`MakeMigrationCommand` requires `$projectRoot`**: Constructor changed from no-arg to `(string $projectRoot)`. ConsoleKernel must pass `$this->projectRoot`. The `--package` flag is not yet implemented (see #464).
@@ -234,6 +235,9 @@ Design docs in `docs/plans/` are session artifacts (implementation history). Spe
 - Frontend E2E: `cd packages/admin && npm run test:e2e` — Playwright specs in `e2e/`; requires `nuxt dev` on port 3000
 
 ## Environment
+- `APP_ENV` — Application environment: `local`, `dev`, `development`, `staging`, `production` (default: `production`)
+- `APP_DEBUG` — Debug mode toggle (default: `false`). Enables detailed error pages, debug toolbar, debug headers. **Kernel refuses to boot if `APP_DEBUG=true` in production.**
+- `LOG_LEVEL` — Minimum log level for default handler: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency` (default: `warning`)
 - `WAASEYAA_DB` — SQLite database path (default: `./storage/waaseyaa.sqlite`)
 - `WAASEYAA_CONFIG_DIR` — config sync directory (default: `./config/sync`)
 
