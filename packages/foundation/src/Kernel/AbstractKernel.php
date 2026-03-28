@@ -79,6 +79,13 @@ abstract class AbstractKernel
 
         $this->config = ConfigLoader::load($this->projectRoot . '/config/waaseyaa.php');
 
+        // Safety guard: refuse to boot with debug enabled in production.
+        if ($this->isDebugMode() && !$this->isDevelopmentMode()) {
+            throw new \RuntimeException(
+                sprintf('APP_DEBUG must not be enabled in production (APP_ENV=%s). Aborting boot.', $this->resolveEnvironment()),
+            );
+        }
+
         $this->dispatcher         = new EventDispatcher();
         $this->lifecycleManager   = new EntityTypeLifecycleManager($this->projectRoot);
         $this->entityAuditLogger  = new EntityAuditLogger($this->projectRoot);
@@ -325,6 +332,40 @@ abstract class AbstractKernel
     public function getEntityAuditLogger(): EntityAuditLogger
     {
         return $this->entityAuditLogger;
+    }
+
+    /**
+     * Whether debug mode is enabled.
+     * Resolution: APP_DEBUG env var > config 'debug' key > false.
+     */
+    protected function isDebugMode(): bool
+    {
+        $envValue = getenv('APP_DEBUG');
+        if (is_string($envValue) && $envValue !== '') {
+            return filter_var($envValue, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        return filter_var($this->config['debug'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /**
+     * Whether the application is running in a development environment.
+     * Resolution: config 'environment' key > APP_ENV env var > 'production'.
+     */
+    protected function isDevelopmentMode(): bool
+    {
+        return in_array(strtolower($this->resolveEnvironment()), ['dev', 'development', 'local'], true);
+    }
+
+    /**
+     * Resolve the current environment name from config or env var.
+     * Single canonical source for environment resolution.
+     */
+    protected function resolveEnvironment(): string
+    {
+        $env = $this->config['environment'] ?? getenv('APP_ENV') ?: 'production';
+
+        return is_string($env) ? $env : 'production';
     }
 
     public function getProjectRoot(): string
