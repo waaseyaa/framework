@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Waaseyaa\OAuthProvider\Provider;
 
 use Waaseyaa\HttpClient\HttpClientInterface;
-use Waaseyaa\OAuthProvider\OAuthException;
 use Waaseyaa\OAuthProvider\OAuthProviderInterface;
 use Waaseyaa\OAuthProvider\OAuthToken;
 use Waaseyaa\OAuthProvider\OAuthUserProfile;
@@ -13,10 +12,10 @@ use Waaseyaa\OAuthProvider\UnsupportedOperationException;
 
 final class GitHubOAuthProvider implements OAuthProviderInterface
 {
-    private const AUTH_ENDPOINT = 'https://github.com/login/oauth/authorize';
-    private const TOKEN_ENDPOINT = 'https://github.com/login/oauth/access_token';
-    private const USER_ENDPOINT = 'https://api.github.com/user';
-    private const EMAILS_ENDPOINT = 'https://api.github.com/user/emails';
+    private const AUTH_URL = 'https://github.com/login/oauth/authorize';
+    private const TOKEN_URL = 'https://github.com/login/oauth/access_token';
+    private const USER_URL = 'https://api.github.com/user';
+    private const EMAILS_URL = 'https://api.github.com/user/emails';
 
     public function __construct(
         private readonly string $clientId,
@@ -30,91 +29,89 @@ final class GitHubOAuthProvider implements OAuthProviderInterface
         return 'github';
     }
 
+    /** @param list<string> $scopes */
     public function getAuthorizationUrl(array $scopes, string $state): string
     {
-        $params = [
-            'client_id' => $this->clientId,
+        $params = http_build_query([
+            'client_id'    => $this->clientId,
             'redirect_uri' => $this->redirectUri,
-            'scope' => implode(' ', $scopes),
-            'state' => $state,
-        ];
+            'scope'        => implode(' ', $scopes),
+            'state'        => $state,
+        ]);
 
-        return self::AUTH_ENDPOINT . '?' . http_build_query($params);
+        return self::AUTH_URL . '?' . $params;
     }
 
     public function exchangeCode(string $code): OAuthToken
     {
-        $response = $this->httpClient->post(
-            self::TOKEN_ENDPOINT,
-            ['Accept' => 'application/json'],
-            [
-                'client_id' => $this->clientId,
-                'client_secret' => $this->clientSecret,
-                'code' => $code,
-                'redirect_uri' => $this->redirectUri,
-            ],
-        );
+        $body = http_build_query([
+            'code'          => $code,
+            'client_id'     => $this->clientId,
+            'client_secret' => $this->clientSecret,
+            'redirect_uri'  => $this->redirectUri,
+        ]);
 
-        /** @var array{access_token?: string, token_type?: string, scope?: string, error?: string, error_description?: string} $data */
+        $response = $this->httpClient->post(self::TOKEN_URL, [
+            'Accept'       => 'application/json',
+            'Content-Type' => 'application/x-www-form-urlencoded',
+        ], $body);
+
         $data = $response->json();
 
-        if (isset($data['error'])) {
-            throw new OAuthException($data['error_description'] ?? $data['error'], 'github', $response->statusCode);
+        if (!$response->isSuccess()) {
+            $message = $data['error_description'] ?? $data['error'] ?? 'Token request failed';
+            throw new \RuntimeException((string) $message);
+        }
+
+        $scopes = [];
+        if (isset($data['scope']) && $data['scope'] !== '') {
+            $scopes = explode(',', (string) $data['scope']);
         }
 
         return new OAuthToken(
-            accessToken: $data['access_token'] ?? '',
+            accessToken: (string) $data['access_token'],
             refreshToken: null,
             expiresAt: null,
-            scopes: isset($data['scope']) ? explode(',', $data['scope']) : [],
-            tokenType: 'Bearer',
+            scopes: $scopes,
         );
     }
 
     public function refreshToken(string $refreshToken): OAuthToken
     {
-        throw new UnsupportedOperationException('github', 'token refresh');
+        throw UnsupportedOperationException::refreshNotSupported('github');
     }
 
     public function getUserProfile(string $accessToken): OAuthUserProfile
     {
         $headers = [
             'Authorization' => 'Bearer ' . $accessToken,
-            'Accept' => 'application/json',
+            'Accept'        => 'application/vnd.github+json',
+            'User-Agent'    => 'Waaseyaa/1.0',
         ];
 
-        $userResponse = $this->httpClient->get(self::USER_ENDPOINT, $headers);
-
-        if (!$userResponse->isSuccess()) {
-            /** @var array{message?: string} $errorData */
-            $errorData = $userResponse->json();
-            throw new OAuthException($errorData['message'] ?? 'Failed to fetch user profile', 'github', $userResponse->statusCode);
-        }
-
-        /** @var array{id: int|string, login?: string, name?: string, email?: string|null, avatar_url?: string|null} $userData */
+        $userResponse = $this->httpClient->get(self::USER_URL, $headers);
         $userData = $userResponse->json();
-        $email = $userData['email'] ?? null;
 
-        if ($email === null) {
-            $emailResponse = $this->httpClient->get(self::EMAILS_ENDPOINT, $headers);
+        $emailsResponse = $this->httpClient->get(self::EMAILS_URL, $headers);
+        $emailsData = $emailsResponse->json();
 
-            if ($emailResponse->isSuccess()) {
-                /** @var list<array{email: string, primary: bool}> $emails */
-                $emails = $emailResponse->json();
-                foreach ($emails as $entry) {
-                    if ($entry['primary']) {
-                        $email = $entry['email'];
-                        break;
-                    }
-                }
+        $email = '';
+        foreach ($emailsData as $entry) {
+            if (isset($entry['primary'], $entry['verified']) && $entry['primary'] && $entry['verified']) {
+                $email = (string) $entry['email'];
+                break;
             }
         }
 
+        $name = isset($userData['name']) && $userData['name'] !== null
+            ? (string) $userData['name']
+            : (string) $userData['login'];
+
         return new OAuthUserProfile(
             providerId: (string) $userData['id'],
-            email: $email ?? '',
-            name: $userData['name'] ?? $userData['login'] ?? '',
-            avatarUrl: $userData['avatar_url'] ?? null,
+            email: $email,
+            name: $name,
+            avatarUrl: isset($userData['avatar_url']) ? (string) $userData['avatar_url'] : null,
         );
     }
 }
