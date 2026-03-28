@@ -290,16 +290,6 @@ final class HttpKernel extends AbstractKernel
         }
     }
 
-    private function isDevelopmentMode(): bool
-    {
-        $env = $this->config['environment'] ?? getenv('APP_ENV') ?: '';
-        if (!is_string($env)) {
-            return false;
-        }
-
-        return in_array(strtolower($env), ['dev', 'development', 'local'], true);
-    }
-
     private function shouldUseDevFallbackAccount(?string $sapi = null): bool
     {
         $resolvedSapi = $sapi ?? PHP_SAPI;
