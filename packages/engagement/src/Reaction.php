@@ -16,11 +16,9 @@ final class Reaction extends ContentEntityBase
         'label' => 'reaction_type',
     ];
 
-    public const array DEFAULT_REACTION_TYPES = ['like', 'love', 'celebrate'];
-
     /**
      * @param array<string, mixed> $values
-     * @param list<string>|null $allowedReactionTypes Custom allowed types (null = use defaults)
+     * @param list<string>|null $allowedReactionTypes Allowed types (null = accept any non-empty string)
      */
     public function __construct(array $values = [], ?array $allowedReactionTypes = null)
     {
@@ -30,10 +28,9 @@ final class Reaction extends ContentEntityBase
             }
         }
 
-        $allowed = $allowedReactionTypes ?? self::DEFAULT_REACTION_TYPES;
-        if (!in_array($values['reaction_type'], $allowed, true)) {
+        if ($allowedReactionTypes !== null && !in_array($values['reaction_type'], $allowedReactionTypes, true)) {
             throw new \InvalidArgumentException(
-                "Invalid reaction_type '{$values['reaction_type']}'. Allowed: " . implode(', ', $allowed),
+                "Invalid reaction_type '{$values['reaction_type']}'. Allowed: " . implode(', ', $allowedReactionTypes),
             );
         }
 

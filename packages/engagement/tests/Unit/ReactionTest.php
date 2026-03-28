@@ -44,16 +44,16 @@ final class ReactionTest extends TestCase
     }
 
     #[Test]
-    public function rejects_invalid_reaction_type_with_defaults(): void
+    public function accepts_any_type_when_no_allowed_list(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid reaction_type');
-        new Reaction([
+        $reaction = new Reaction([
             'user_id' => 1,
             'target_type' => 'post',
             'target_id' => 1,
-            'reaction_type' => 'invalid',
+            'reaction_type' => 'miigwech',
         ]);
+
+        $this->assertSame('miigwech', $reaction->get('reaction_type'));
     }
 
     #[Test]
