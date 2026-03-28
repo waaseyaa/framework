@@ -92,7 +92,9 @@ final class EntityResolver
             $items[] = $data;
         }
 
-        return ['items' => $items, 'total' => $total];
+        $filteredOut = count($entities) - count($items);
+
+        return ['items' => $items, 'total' => max(0, $total - $filteredOut)];
     }
 
     /**
