@@ -105,9 +105,11 @@ test.describe('Telescope: Codified Context', () => {
   })
 
   test('navigates to session detail on link click', async ({ page }) => {
-    await page.goto('/telescope/codified-context')
-    await page.locator(`a[href="/telescope/codified-context/sess-abcdef12"]`).click()
-    await expect(page).toHaveURL('/telescope/codified-context/sess-abcdef12')
+    await page.goto('/telescope/codified-context', { waitUntil: 'networkidle' })
+    // Wait for session list to render, then click the first session link.
+    await expect(page.getByText('sess-abcdef12')).toBeVisible({ timeout: 10_000 })
+    await page.getByText('sess-abcdef12').first().click()
+    await expect(page).toHaveURL(/\/telescope\/codified-context\/sess-abcdef12/)
   })
 
   test('detail page shows session metadata', async ({ page }) => {
@@ -124,7 +126,7 @@ test.describe('Telescope: Codified Context', () => {
 
   test('detail page shows validation report with drift score', async ({ page }) => {
     await page.goto('/telescope/codified-context/sess-abcdef12')
-    await expect(page.getByText('Validation Report')).toBeVisible()
+    await expect(page.getByText('Validation Report').first()).toBeVisible()
     // Score appears in validation card
     await expect(page.getByText('Context is healthy. Minor stale reference detected.')).toBeVisible()
   })
