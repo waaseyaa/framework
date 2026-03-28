@@ -223,6 +223,70 @@ final class IngestionLoggerTest extends TestCase
     }
 
     // ------------------------------------------------------------------
+    // Prune edge cases
+    // ------------------------------------------------------------------
+
+    #[Test]
+    public function pruneKeepsEntriesWithUnparseableLoggedAt(): void
+    {
+        $dir = $this->projectRoot . '/storage/framework';
+        mkdir($dir, 0755, true);
+
+        $file = $dir . '/ingestion.jsonl';
+
+        $unparseable = json_encode([
+            'source'    => 'manual',
+            'type'      => 'core.note',
+            'status'    => 'accepted',
+            'trace_id'  => 'trace-bad-date',
+            'timestamp' => '2026-03-08T17:00:00+00:00',
+            'logged_at' => 'NOT-A-DATE',
+        ], JSON_THROW_ON_ERROR);
+
+        $recent = json_encode([
+            'source'    => 'manual',
+            'type'      => 'core.note',
+            'status'    => 'accepted',
+            'trace_id'  => 'trace-recent',
+            'timestamp' => '2026-03-08T17:00:00+00:00',
+            'logged_at' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
+        ], JSON_THROW_ON_ERROR);
+
+        file_put_contents($file, $unparseable . "\n" . $recent . "\n");
+
+        $logger = new IngestionLogger($this->projectRoot);
+        $logger->prune(30);
+
+        $entries = $logger->read();
+        $this->assertCount(2, $entries);
+
+        $traceIds = array_column($entries, 'trace_id');
+        $this->assertContains('trace-bad-date', $traceIds);
+        $this->assertContains('trace-recent', $traceIds);
+    }
+
+    #[Test]
+    public function pruneRemovesAllWhenAllExpired(): void
+    {
+        $logger = new IngestionLogger($this->projectRoot);
+
+        $old = new IngestionLogEntry(
+            source:    'manual',
+            type:      'core.note',
+            status:    'accepted',
+            traceId:   'trace-old-1',
+            timestamp: '2025-01-01T00:00:00+00:00',
+            loggedAt:  '2025-01-01T00:00:00+00:00',
+        );
+        $logger->log($old);
+
+        $logger->prune(30);
+
+        $entries = $logger->read();
+        $this->assertSame([], $entries);
+    }
+
+    // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
 
