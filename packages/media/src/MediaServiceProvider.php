@@ -11,7 +11,7 @@ final class MediaServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->singleton(UploadHandler::class, fn () => new UploadHandler(
+        $this->singleton(UploadHandler::class, fn() => new UploadHandler(
             basePath: $this->config['media']['upload_path'] ?? 'public/uploads',
             allowedMimeTypes: $this->config['media']['allowed_types'] ?? UploadHandler::DEFAULT_ALLOWED_TYPES,
             maxSizeBytes: $this->config['media']['max_size'] ?? UploadHandler::DEFAULT_MAX_SIZE,

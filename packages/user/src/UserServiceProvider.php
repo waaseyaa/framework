@@ -54,16 +54,16 @@ final class UserServiceProvider extends ServiceProvider
             ],
         ));
 
-        $this->singleton(UserBlockService::class, fn () => new UserBlockService(
+        $this->singleton(UserBlockService::class, fn() => new UserBlockService(
             $this->resolve(EntityTypeManager::class),
         ));
 
-        $this->singleton(PasswordResetTokenRepository::class, fn () => new PasswordResetTokenRepository(
+        $this->singleton(PasswordResetTokenRepository::class, fn() => new PasswordResetTokenRepository(
             $this->resolve(\PDO::class),
         ));
 
         $config = $this->config ?? [];
-        $this->singleton(AuthMailer::class, fn () => new AuthMailer(
+        $this->singleton(AuthMailer::class, fn() => new AuthMailer(
             driver: $this->resolve(MailDriverInterface::class),
             twig: \Waaseyaa\SSR\SsrServiceProvider::getTwigEnvironment(),
             baseUrl: $config['app']['url'] ?? '',

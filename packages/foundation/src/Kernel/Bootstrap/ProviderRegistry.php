@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Kernel\Bootstrap;
 
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
-use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 final class ProviderRegistry
 {

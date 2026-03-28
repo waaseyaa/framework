@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Waaseyaa\GraphQL\Resolver;
 
 use GraphQL\Error\UserError;
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Api\Query\ParsedQuery;
 use Waaseyaa\Api\Query\QueryApplier;
 use Waaseyaa\Api\Query\QueryFilter;
 use Waaseyaa\Api\Query\QuerySort;
-use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\FieldableInterface;

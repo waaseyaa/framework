@@ -23,7 +23,7 @@ final class PasswordResetTokenRepository
 
         $token = bin2hex(random_bytes(32));
         $stmt = $this->pdo->prepare(
-            'INSERT INTO password_reset_tokens (token, user_id, expires_at, used_at) VALUES (:token, :uid, :expires, NULL)'
+            'INSERT INTO password_reset_tokens (token, user_id, expires_at, used_at) VALUES (:token, :uid, :expires, NULL)',
         );
         $stmt->execute([
             'token' => $token,
@@ -42,7 +42,7 @@ final class PasswordResetTokenRepository
         $this->ensureTable();
 
         $stmt = $this->pdo->prepare(
-            'SELECT user_id FROM password_reset_tokens WHERE token = :token AND expires_at > :now AND used_at IS NULL'
+            'SELECT user_id FROM password_reset_tokens WHERE token = :token AND expires_at > :now AND used_at IS NULL',
         );
         $stmt->execute(['token' => $token, 'now' => time()]);
         $result = $stmt->fetchColumn();
@@ -73,7 +73,7 @@ final class PasswordResetTokenRepository
             . 'user_id TEXT NOT NULL, '
             . 'expires_at INTEGER NOT NULL, '
             . 'used_at INTEGER'
-            . ')'
+            . ')',
         );
         $this->tableEnsured = true;
     }

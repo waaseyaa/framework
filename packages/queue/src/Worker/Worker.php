@@ -199,8 +199,8 @@ final class Worker
             return;
         }
 
-        pcntl_signal(\SIGTERM, fn () => $this->shouldQuit = true);
-        pcntl_signal(\SIGINT, fn () => $this->shouldQuit = true);
+        pcntl_signal(\SIGTERM, fn() => $this->shouldQuit = true);
+        pcntl_signal(\SIGINT, fn() => $this->shouldQuit = true);
     }
 
     /**
