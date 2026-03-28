@@ -11,8 +11,6 @@ final class EngagementServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $reactionTypes = $this->config['engagement']['reaction_types'] ?? Reaction::DEFAULT_REACTION_TYPES;
-
         $this->entityType(new EntityType(
             id: 'reaction',
             label: 'Reaction',
