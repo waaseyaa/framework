@@ -167,6 +167,7 @@
             "Waaseyaa\\Auth\\Tests\\": "packages/auth/tests/",
             "Waaseyaa\\Billing\\Tests\\": "packages/billing/tests/",
             "Waaseyaa\\HttpClient\\Tests\\": "packages/http-client/tests/",
+            "Waaseyaa\\Engagement\\Tests\\": "packages/engagement/tests/",
             "Waaseyaa\\Tests\\": "tests/"
         }
     },
