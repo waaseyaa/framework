@@ -118,6 +118,7 @@ final class HttpKernel extends AbstractKernel
             config: $this->config,
             manifest: $this->manifest,
             serviceResolver: function (string $className): ?object {
+                // First check provider bindings.
                 foreach ($this->providers as $provider) {
                     if (isset($provider->getBindings()[$className])) {
                         try {
@@ -128,7 +129,12 @@ final class HttpKernel extends AbstractKernel
                         }
                     }
                 }
-                return null;
+
+                // Fall through to kernel-level services (DatabaseInterface, etc.).
+                $kernelServices = [
+                    \Waaseyaa\Database\DatabaseInterface::class => $this->database,
+                ];
+                return $kernelServices[$className] ?? null;
             },
             gate: new EntityAccessGate($this->accessHandler),
         );

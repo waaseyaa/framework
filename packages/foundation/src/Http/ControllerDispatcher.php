@@ -737,13 +737,28 @@ final class ControllerDispatcher
             };
         } catch (\Throwable $e) {
             $this->logger->critical(sprintf("Unhandled exception: %s in %s:%d\n%s", $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString()));
+
+            $debug = filter_var($this->config['debug'] ?? getenv('WAASEYAA_DEBUG') ?: false, FILTER_VALIDATE_BOOLEAN);
+            $detail = $debug
+                ? sprintf('%s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine())
+                : 'An unexpected error occurred.';
+
+            $error = [
+                'status' => '500',
+                'title' => 'Internal Server Error',
+                'detail' => $detail,
+            ];
+
+            if ($debug) {
+                $error['meta'] = [
+                    'exception' => $e::class,
+                    'trace' => array_slice(explode("\n", $e->getTraceAsString()), 0, 20),
+                ];
+            }
+
             ResponseSender::json(500, [
                 'jsonapi' => ['version' => '1.1'],
-                'errors' => [[
-                    'status' => '500',
-                    'title' => 'Internal Server Error',
-                    'detail' => 'An unexpected error occurred.',
-                ]],
+                'errors' => [$error],
             ]);
         }
     }
