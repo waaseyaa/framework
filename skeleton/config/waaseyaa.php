@@ -3,6 +3,18 @@
 declare(strict_types=1);
 
 return [
+    // Debug mode. Controls error detail display, debug toolbar, and debug headers.
+    // Override with APP_DEBUG env var. MUST be false in production.
+    'debug' => filter_var(getenv('APP_DEBUG') ?: false, FILTER_VALIDATE_BOOLEAN),
+
+    // Minimum log level for the default log handler.
+    // Override with LOG_LEVEL env var. Values: debug, info, notice, warning, error, critical, alert, emergency.
+    'log_level' => getenv('LOG_LEVEL') ?: 'warning',
+
+    // Application environment. Controls dev-only features (fallback account, CORS relaxation).
+    // Override with APP_ENV env var. Values: local, dev, development, staging, production.
+    'environment' => getenv('APP_ENV') ?: 'production',
+
     // SQLite database path. Null means "resolve in kernel":
     // WAASEYAA_DB env var -> {projectRoot}/storage/waaseyaa.sqlite fallback.
     // Set an explicit path here to override both.

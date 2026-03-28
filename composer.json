@@ -179,7 +179,7 @@
         "cs-fix": "php-cs-fixer fix",
         "dev": [
             "Composer\\Config::disableProcessTimeout",
-            "APP_ENV=local WAASEYAA_DEV_FALLBACK_ACCOUNT=true PHP_CLI_SERVER_WORKERS=4 php -S localhost:8081 -t public & npm run dev --prefix packages/admin && kill $!"
+            "APP_ENV=local APP_DEBUG=true WAASEYAA_DEV_FALLBACK_ACCOUNT=true PHP_CLI_SERVER_WORKERS=4 php -S localhost:8081 -t public & npm run dev --prefix packages/admin && kill $!"
         ],
         "phpstan": "phpstan analyse --memory-limit=512M"
     },
