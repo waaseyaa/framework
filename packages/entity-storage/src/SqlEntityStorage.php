@@ -298,6 +298,19 @@ final class SqlEntityStorage implements EntityStorageInterface
             $row = array_merge($row, $extra);
         }
 
+        // Decode json field values from JSON strings back to arrays.
+        $jsonFields = $this->getJsonFieldNames();
+        foreach ($jsonFields as $fieldName => $_) {
+            if (isset($row[$fieldName]) && is_string($row[$fieldName])) {
+                try {
+                    $row[$fieldName] = json_decode($row[$fieldName], associative: true, depth: 512, flags: \JSON_THROW_ON_ERROR);
+                } catch (\JsonException $e) {
+                    $this->logger->warning(sprintf('Corrupt JSON in field "%s" for %s entity %s: %s', $fieldName, $this->tableName, $row[$this->idKey] ?? '?', $e->getMessage()));
+                    $row[$fieldName] = null;
+                }
+            }
+        }
+
         /** @var EntityInterface $entity */
         $entity = $this->instantiateEntity($class, $row);
 
@@ -351,6 +364,7 @@ final class SqlEntityStorage implements EntityStorageInterface
      *
      * Values whose keys match actual table columns are stored directly.
      * All other values are JSON-encoded into the _data column.
+     * Fields with type 'json' are JSON-encoded before storage.
      *
      * @param array<string, mixed> $values
      * @return array<string, mixed>
@@ -358,6 +372,7 @@ final class SqlEntityStorage implements EntityStorageInterface
     private function splitForStorage(array $values): array
     {
         $schema = $this->database->schema();
+        $jsonFields = $this->getJsonFieldNames();
         $dbValues = [];
         $extraData = [];
 
@@ -366,6 +381,10 @@ final class SqlEntityStorage implements EntityStorageInterface
                 continue;
             }
             if ($this->columnExists($key, $schema)) {
+                // Encode json field values that are arrays/objects to JSON strings.
+                if (isset($jsonFields[$key]) && !is_string($value) && $value !== null) {
+                    $value = json_encode($value, \JSON_THROW_ON_ERROR);
+                }
                 $dbValues[$key] = $value;
             } else {
                 $extraData[$key] = $value;
@@ -399,6 +418,30 @@ final class SqlEntityStorage implements EntityStorageInterface
                 $entity->set('changed', $now);
             }
         }
+    }
+
+    /** @var array<string, true>|null Cached json field names for this entity type. */
+    private ?array $jsonFieldCache = null;
+
+    /**
+     * Returns field names whose type is 'json', keyed by name.
+     *
+     * @return array<string, true>
+     */
+    private function getJsonFieldNames(): array
+    {
+        if ($this->jsonFieldCache !== null) {
+            return $this->jsonFieldCache;
+        }
+
+        $this->jsonFieldCache = [];
+        foreach ($this->entityType->getFieldDefinitions() as $name => $def) {
+            if (($def['type'] ?? null) === 'json') {
+                $this->jsonFieldCache[$name] = true;
+            }
+        }
+
+        return $this->jsonFieldCache;
     }
 
     /**
