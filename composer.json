@@ -54,7 +54,8 @@
         { "type": "path", "url": "packages/billing" },
         { "type": "path", "url": "packages/scheduler" },
         { "type": "path", "url": "packages/notification" },
-        { "type": "path", "url": "packages/http-client" }
+        { "type": "path", "url": "packages/http-client" },
+        { "type": "path", "url": "packages/messaging" }
     ],
     "require": {
         "php": ">=8.4",
@@ -87,6 +88,7 @@
         "waaseyaa/mail": "@dev",
         "waaseyaa/mcp": "@dev",
         "waaseyaa/media": "@dev",
+        "waaseyaa/messaging": "@dev",
         "waaseyaa/menu": "@dev",
         "waaseyaa/node": "@dev",
         "waaseyaa/note": "@dev",
@@ -115,7 +117,8 @@
     },
     "autoload": {
         "psr-4": {
-            "Waaseyaa\\GitHub\\": "packages/github/src/"
+            "Waaseyaa\\GitHub\\": "packages/github/src/",
+            "Waaseyaa\\Engagement\\": "packages/engagement/src/"
         }
     },
     "autoload-dev": {
@@ -143,6 +146,7 @@
             "Waaseyaa\\Mail\\Tests\\": "packages/mail/tests/",
             "Waaseyaa\\Media\\Tests\\": "packages/media/tests/",
             "Waaseyaa\\Menu\\Tests\\": "packages/menu/tests/",
+            "Waaseyaa\\Messaging\\Tests\\": "packages/messaging/tests/",
             "Waaseyaa\\Node\\Tests\\": "packages/node/tests/",
             "Waaseyaa\\Path\\Tests\\": "packages/path/tests/",
             "Waaseyaa\\Relationship\\Tests\\": "packages/relationship/tests/",
@@ -163,6 +167,7 @@
             "Waaseyaa\\Auth\\Tests\\": "packages/auth/tests/",
             "Waaseyaa\\Billing\\Tests\\": "packages/billing/tests/",
             "Waaseyaa\\HttpClient\\Tests\\": "packages/http-client/tests/",
+            "Waaseyaa\\Engagement\\Tests\\": "packages/engagement/tests/",
             "Waaseyaa\\Tests\\": "tests/"
         }
     },

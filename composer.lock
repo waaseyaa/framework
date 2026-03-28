@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "30661f5ebf71f76ceaf8bbef9dbb1ce1",
+    "content-hash": "77be342a627d4304fc700b7d65db23cd",
     "packages": [
         {
             "name": "doctrine/dbal",
@@ -3208,14 +3208,15 @@
             "dist": {
                 "type": "path",
                 "url": "packages/api",
-                "reference": "cb5468fdcf7671c2c11cc029fb81938e224d5448"
+                "reference": "ce84ea274bfc2473f100dc11cd4bf1b821acac0c"
             },
             "require": {
                 "php": ">=8.4",
                 "waaseyaa/access": "^0.1",
                 "waaseyaa/entity": "^0.1",
                 "waaseyaa/foundation": "^0.1",
-                "waaseyaa/routing": "^0.1"
+                "waaseyaa/routing": "^0.1",
+                "waaseyaa/ssr": "^0.1"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -3691,7 +3692,7 @@
         },
         {
             "name": "waaseyaa/github",
-            "version": "dev-main",
+            "version": "dev-feat/messaging-package",
             "dist": {
                 "type": "path",
                 "url": "packages/github",
@@ -4117,6 +4118,51 @@
             }
         },
         {
+            "name": "waaseyaa/messaging",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/messaging",
+                "reference": "f2f2bf9e8e06ebb0929169ecdde94a0b2bc474c3"
+            },
+            "require": {
+                "php": ">=8.4",
+                "waaseyaa/entity": "^0.1",
+                "waaseyaa/foundation": "^0.1"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "extra": {
+                "waaseyaa": {
+                    "providers": [
+                        "Waaseyaa\\Messaging\\MessagingServiceProvider"
+                    ]
+                },
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Messaging\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Messaging\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Direct messaging infrastructure for Waaseyaa: threads, messages, participants",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
             "name": "waaseyaa/node",
             "version": "dev-main",
             "dist": {
@@ -4214,13 +4260,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/notification",
-                "reference": "61f6471d322102d206996d579cfbdb96413a5f24"
+                "reference": "b2c8a96501bb1a88c3eabb0aea991547fcda5539"
             },
             "require": {
                 "php": ">=8.4",
                 "waaseyaa/database-legacy": "^0.1",
-                "waaseyaa/entity": "^0.1",
-                "waaseyaa/entity-storage": "^0.1",
                 "waaseyaa/foundation": "^0.1",
                 "waaseyaa/mail": "^0.1",
                 "waaseyaa/queue": "^0.1"
@@ -4790,14 +4834,16 @@
             "dist": {
                 "type": "path",
                 "url": "packages/user",
-                "reference": "645475870a06b34f19705ac6589123ae782f567d"
+                "reference": "258d304e429f54a19b91f06fb1f2665df21b9da8"
             },
             "require": {
                 "php": ">=8.4",
                 "symfony/http-foundation": "^7.0",
+                "twig/twig": "^3.0",
                 "waaseyaa/access": "^0.1",
                 "waaseyaa/entity": "^0.1",
-                "waaseyaa/foundation": "^0.1"
+                "waaseyaa/foundation": "^0.1",
+                "waaseyaa/mail": "^0.1"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -8399,6 +8445,7 @@
         "waaseyaa/mcp": 20,
         "waaseyaa/media": 20,
         "waaseyaa/menu": 20,
+        "waaseyaa/messaging": 20,
         "waaseyaa/node": 20,
         "waaseyaa/note": 20,
         "waaseyaa/notification": 20,
@@ -8425,5 +8472,5 @@
         "php": ">=8.4"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.6.0"
+    "plugin-api-version": "2.9.0"
 }
