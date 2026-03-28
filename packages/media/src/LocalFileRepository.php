@@ -126,6 +126,8 @@ final class LocalFileRepository implements FileRepositoryInterface
             );
         }
 
+        usort($result, fn(File $a, File $b): int => strcmp($a->uri, $b->uri));
+
         return $result;
     }
 
