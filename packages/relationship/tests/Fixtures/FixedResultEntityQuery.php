@@ -30,6 +30,11 @@ class FixedResultEntityQuery implements EntityQueryInterface
     public function count(): static { return $this; }
     public function accessCheck(bool $check = true): static { return $this; }
 
+    public function getCallCount(): int
+    {
+        return $this->callCount;
+    }
+
     public function execute(): array
     {
         $index = $this->callCount++;

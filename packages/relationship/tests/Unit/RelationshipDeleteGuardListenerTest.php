@@ -25,8 +25,8 @@ final class RelationshipDeleteGuardListenerTest extends TestCase
         $manager = $this->makeManager();
         $listener = new RelationshipDeleteGuardListener($manager, 'node');
 
-        $this->expectNotToPerformAssertions();
         $listener(new EntityEvent($entity));
+        $this->addToAssertionCount(1);
     }
 
     #[Test]
@@ -36,19 +36,30 @@ final class RelationshipDeleteGuardListenerTest extends TestCase
         $manager = $this->makeManager();
         $listener = new RelationshipDeleteGuardListener($manager, 'node');
 
-        $this->expectNotToPerformAssertions();
         $listener(new EntityEvent($entity));
+        $this->addToAssertionCount(1);
     }
 
     #[Test]
     public function allows_deletion_when_no_linked_relationships(): void
     {
         $entity = $this->makeEntity('node', 1);
-        $manager = $this->makeManager();
+        $query = new FixedResultEntityQuery([[], []]);
+        $storage = new StubEntityStorage(
+            loadHandler: static fn () => null,
+            query: $query,
+            entityTypeId: 'relationship',
+        );
+        $hasDefinitionOverride = static fn (string $typeId): bool => true;
+        $manager = new StubEntityTypeManager(
+            knownTypes: [],
+            storage: $storage,
+            hasDefinitionOverride: $hasDefinitionOverride,
+        );
         $listener = new RelationshipDeleteGuardListener($manager, 'node');
 
-        $this->expectNotToPerformAssertions();
         $listener(new EntityEvent($entity));
+        $this->assertSame(2, $query->getCallCount());
     }
 
     #[Test]
@@ -96,8 +107,8 @@ final class RelationshipDeleteGuardListenerTest extends TestCase
         $manager = $this->makeManager(hasRelationshipType: false);
         $listener = new RelationshipDeleteGuardListener($manager, 'node');
 
-        $this->expectNotToPerformAssertions();
         $listener(new EntityEvent($entity));
+        $this->addToAssertionCount(1);
     }
 
     #[Test]
