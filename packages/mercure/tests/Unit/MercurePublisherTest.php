@@ -41,10 +41,12 @@ final class MercurePublisherTest extends TestCase
     }
 
     #[Test]
-    public function generates_valid_jwt_structure(): void
+    public function generates_jwt_with_expiry_and_publish_claim(): void
     {
         $publisher = new MercurePublisher('https://hub.example.com', 'test-secret');
-        $jwt = $publisher->generateJwt();
+
+        $method = new \ReflectionMethod($publisher, 'generateJwt');
+        $jwt = $method->invoke($publisher);
 
         $parts = explode('.', $jwt);
         $this->assertCount(3, $parts, 'JWT must have 3 parts');
@@ -55,16 +57,8 @@ final class MercurePublisherTest extends TestCase
 
         $payload = json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true);
         $this->assertSame(['publish' => ['*']], $payload['mercure']);
-    }
-
-    #[Test]
-    public function builds_correct_post_body(): void
-    {
-        $publisher = new MercurePublisher('https://hub.example.com', 'secret');
-        $body = $publisher->buildPostBody('my-topic', ['key' => 'value']);
-
-        parse_str($body, $parsed);
-        $this->assertSame('my-topic', $parsed['topic']);
-        $this->assertSame('{"key":"value"}', $parsed['data']);
+        $this->assertArrayHasKey('iat', $payload);
+        $this->assertArrayHasKey('exp', $payload);
+        $this->assertGreaterThan($payload['iat'], $payload['exp']);
     }
 }

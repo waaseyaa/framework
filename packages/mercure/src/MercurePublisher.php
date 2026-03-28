@@ -45,16 +45,20 @@ final class MercurePublisher
         return $this->hubUrl !== '' && $this->jwtSecret !== '';
     }
 
-    public function generateJwt(): string
+    private function generateJwt(): string
     {
         $header = self::base64UrlEncode(json_encode(['alg' => 'HS256', 'typ' => 'JWT'], JSON_THROW_ON_ERROR));
-        $payload = self::base64UrlEncode(json_encode(['mercure' => ['publish' => ['*']]], JSON_THROW_ON_ERROR));
+        $payload = self::base64UrlEncode(json_encode([
+            'mercure' => ['publish' => ['*']],
+            'iat' => time(),
+            'exp' => time() + 3600,
+        ], JSON_THROW_ON_ERROR));
         $signature = self::base64UrlEncode(hash_hmac('sha256', "{$header}.{$payload}", $this->jwtSecret, true));
 
         return "{$header}.{$payload}.{$signature}";
     }
 
-    public function buildPostBody(string $topic, array $data): string
+    private function buildPostBody(string $topic, array $data): string
     {
         return http_build_query([
             'topic' => $topic,
