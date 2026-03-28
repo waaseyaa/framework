@@ -1,5 +1,7 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-03-28 — telescope E2E tests stabilized -->
+
 ## Package
 
 - Path: `packages/admin/`
