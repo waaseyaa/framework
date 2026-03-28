@@ -3736,7 +3736,7 @@
         },
         {
             "name": "waaseyaa/github",
-            "version": "dev-worktree-agent-aef000bd",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/github",
@@ -4391,7 +4391,7 @@
         },
         {
             "name": "waaseyaa/oauth-provider",
-            "version": "dev-worktree-agent-aef000bd",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/oauth-provider",

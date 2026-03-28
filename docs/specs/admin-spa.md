@@ -393,7 +393,7 @@ Playwright config: `packages/admin/playwright.config.ts`. Tests live in `package
 - Base URL: `http://localhost:3000/admin` (matches the `/admin/` base URL)
 - Browsers: Chromium, Firefox
 - Web server: auto-starts `npm run dev` with 120s timeout; reuses existing server outside CI
-- CI: `forbidOnly` enforced, 2 retries, trace on first retry
+- CI: `forbidOnly` enforced, 2 retries, trace on first retry; dashboard tests use `networkidle` wait and role-based selectors for hydration stability
 - Reports: HTML reporter; `playwright-report/` and `test-results/` are gitignored
 
 ### Backend Testing
