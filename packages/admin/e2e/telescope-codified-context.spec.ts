@@ -106,9 +106,9 @@ test.describe('Telescope: Codified Context', () => {
 
   test('navigates to session detail on link click', async ({ page }) => {
     await page.goto('/telescope/codified-context', { waitUntil: 'networkidle' })
-    // Wait for session list to render, then click the first session link.
-    await expect(page.getByText('sess-abcdef12')).toBeVisible({ timeout: 10_000 })
-    await page.getByText('sess-abcdef12').first().click()
+    // Session list shows truncated IDs (e.g. 'sess-abc'), not full IDs.
+    await expect(page.getByText('sess-abc')).toBeVisible({ timeout: 10_000 })
+    await page.getByText('sess-abc').click()
     await expect(page).toHaveURL(/\/telescope\/codified-context\/sess-abcdef12/)
   })
 
