@@ -21,7 +21,7 @@ final class UserServiceProviderTest extends TestCase
 
         $entityTypes = $provider->getEntityTypes();
 
-        $this->assertCount(1, $entityTypes);
+        $this->assertCount(2, $entityTypes);
         $this->assertSame('user', $entityTypes[0]->id());
         $this->assertSame('User', $entityTypes[0]->getLabel());
         $this->assertSame(User::class, $entityTypes[0]->getClass());
