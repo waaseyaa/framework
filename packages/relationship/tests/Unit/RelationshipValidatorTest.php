@@ -7,19 +7,16 @@ namespace Waaseyaa\Relationship\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Entity\EntityInterface;
-use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Entity\Storage\EntityQueryInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Relationship\RelationshipValidator;
+use Waaseyaa\Relationship\Tests\Fixtures\StubEntityTypeManager;
 
 #[CoversClass(RelationshipValidator::class)]
 final class RelationshipValidatorTest extends TestCase
 {
     private function makeValidator(?EntityTypeManagerInterface $manager = null): RelationshipValidator
     {
-        return new RelationshipValidator($manager ?? new ValidatorStubEntityTypeManager([]));
+        return new RelationshipValidator($manager ?? new StubEntityTypeManager([]));
     }
 
     // -----------------------------------------------------------------------
@@ -175,7 +172,7 @@ final class RelationshipValidatorTest extends TestCase
     #[Test]
     public function validate_accepts_valid_complete_entity(): void
     {
-        $manager = new ValidatorStubEntityTypeManager(['node']);
+        $manager = new StubEntityTypeManager(['node']);
         $validator = new RelationshipValidator($manager);
         $errors = $validator->validate([
             'relationship_type' => 'references',
@@ -262,7 +259,7 @@ final class RelationshipValidatorTest extends TestCase
     #[Test]
     public function validate_accepts_confidence_in_range(): void
     {
-        $manager = new ValidatorStubEntityTypeManager(['node']);
+        $manager = new StubEntityTypeManager(['node']);
         $validator = new RelationshipValidator($manager);
         $errors = $validator->validate([
             'relationship_type' => 'references',
@@ -304,7 +301,7 @@ final class RelationshipValidatorTest extends TestCase
     #[Test]
     public function validate_rejects_start_date_after_end_date(): void
     {
-        $manager = new ValidatorStubEntityTypeManager(['node']);
+        $manager = new StubEntityTypeManager(['node']);
         $validator = new RelationshipValidator($manager);
         $errors = $validator->validate([
             'relationship_type' => 'references',
@@ -354,7 +351,7 @@ final class RelationshipValidatorTest extends TestCase
     #[Test]
     public function validate_rejects_unknown_entity_type(): void
     {
-        $manager = new ValidatorStubEntityTypeManager([]);
+        $manager = new StubEntityTypeManager([]);
         $validator = new RelationshipValidator($manager);
         $errors = $validator->validate([
             'relationship_type' => 'references',
@@ -405,7 +402,7 @@ final class RelationshipValidatorTest extends TestCase
     #[Test]
     public function assert_valid_does_not_throw_for_valid_entity(): void
     {
-        $manager = new ValidatorStubEntityTypeManager(['node']);
+        $manager = new StubEntityTypeManager(['node']);
         $validator = new RelationshipValidator($manager);
         $this->expectNotToPerformAssertions();
         $validator->assertValid([
@@ -427,102 +424,4 @@ final class RelationshipValidatorTest extends TestCase
         $this->expectExceptionMessage('Relationship validation failed');
         $validator->assertValid([]);
     }
-}
-
-// ---------------------------------------------------------------------------
-// Test doubles
-// ---------------------------------------------------------------------------
-
-/** @internal */
-final class ValidatorStubEntityTypeManager implements EntityTypeManagerInterface
-{
-    /** @param list<string> $knownTypes Entity types that "exist" with a loadable entity at ID "1" and "2" */
-    public function __construct(private readonly array $knownTypes) {}
-
-    public function getDefinition(string $entityTypeId): EntityTypeInterface
-    {
-        return new class($entityTypeId) implements EntityTypeInterface {
-            public function __construct(private readonly string $id) {}
-            public function id(): string { return $this->id; }
-            public function getLabel(): string { return $this->id; }
-            public function getClass(): string { return ''; }
-            public function getStorageClass(): string { return ''; }
-            public function getKeys(): array { return ['id' => 'id', 'uuid' => 'uuid']; }
-            public function isRevisionable(): bool { return false; }
-            public function getRevisionDefault(): bool { return false; }
-            public function isTranslatable(): bool { return false; }
-            public function getBundleEntityType(): ?string { return null; }
-            public function getConstraints(): array { return []; }
-            public function getFieldDefinitions(): array { return []; }
-            public function getGroup(): ?string { return null; }
-            public function getDescription(): ?string { return null; }
-        };
-    }
-
-    public function getDefinitions(): array { return []; }
-
-    public function hasDefinition(string $entityTypeId): bool
-    {
-        return in_array($entityTypeId, $this->knownTypes, true);
-    }
-
-    public function getStorage(string $entityTypeId): EntityStorageInterface
-    {
-        return new ValidatorStubEntityStorage();
-    }
-
-    public function registerEntityType(EntityTypeInterface $type): void {}
-    public function registerCoreEntityType(EntityTypeInterface $type): void {}
-}
-
-/** @internal */
-final class ValidatorStubEntityStorage implements EntityStorageInterface
-{
-    public function create(array $values = []): EntityInterface
-    {
-        throw new \RuntimeException('Not needed in test.');
-    }
-
-    public function load(int|string $id): ?EntityInterface
-    {
-        // All entities "exist" for validation tests
-        return new class($id) implements EntityInterface {
-            public function __construct(private readonly int|string $id) {}
-            public function id(): int|string|null { return $this->id; }
-            public function uuid(): string { return ''; }
-            public function label(): string { return 'test'; }
-            public function getEntityTypeId(): string { return 'node'; }
-            public function bundle(): string { return 'default'; }
-            public function isNew(): bool { return false; }
-            public function get(string $name): mixed { return null; }
-            public function set(string $name, mixed $value): static { return $this; }
-            public function toArray(): array { return []; }
-            public function language(): string { return 'en'; }
-        };
-    }
-
-    public function loadByKey(string $key, mixed $value): ?EntityInterface { return null; }
-    public function loadMultiple(array $ids = []): array { return []; }
-    public function save(EntityInterface $entity): int { throw new \RuntimeException('Not needed.'); }
-    public function delete(array $entities): void {}
-
-    public function getQuery(): EntityQueryInterface
-    {
-        return new ValidatorStubEntityQuery();
-    }
-
-    public function getEntityTypeId(): string { return 'node'; }
-}
-
-/** @internal */
-final class ValidatorStubEntityQuery implements EntityQueryInterface
-{
-    public function condition(string $field, mixed $value, string $operator = '='): static { return $this; }
-    public function exists(string $field): static { return $this; }
-    public function notExists(string $field): static { return $this; }
-    public function sort(string $field, string $direction = 'ASC'): static { return $this; }
-    public function range(int $offset, int $limit): static { return $this; }
-    public function count(): static { return $this; }
-    public function accessCheck(bool $check = true): static { return $this; }
-    public function execute(): array { return []; }
 }
