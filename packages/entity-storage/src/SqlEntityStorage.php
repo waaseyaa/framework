@@ -60,6 +60,12 @@ final class SqlEntityStorage implements EntityStorageInterface
 
     public function create(array $values = []): EntityInterface
     {
+        foreach ($this->entityType->getFieldDefinitions() as $name => $def) {
+            if (!array_key_exists($name, $values) && array_key_exists('default', $def)) {
+                $values[$name] = $def['default'];
+            }
+        }
+
         $class = $this->entityType->getClass();
         $entity = $this->instantiateEntity($class, $values);
 
