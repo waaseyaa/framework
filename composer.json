@@ -55,8 +55,8 @@
         { "type": "path", "url": "packages/scheduler" },
         { "type": "path", "url": "packages/notification" },
         { "type": "path", "url": "packages/http-client" },
-        { "type": "path", "url": "packages/messaging" },
-        { "type": "path", "url": "packages/oauth-provider" }
+        { "type": "path", "url": "packages/oauth-provider" },
+        { "type": "path", "url": "packages/messaging" }
     ],
     "require": {
         "php": ">=8.4",
@@ -92,9 +92,9 @@
         "waaseyaa/messaging": "@dev",
         "waaseyaa/menu": "@dev",
         "waaseyaa/node": "@dev",
+        "waaseyaa/oauth-provider": "@dev",
         "waaseyaa/note": "@dev",
         "waaseyaa/notification": "@dev",
-        "waaseyaa/oauth-provider": "@dev",
         "waaseyaa/path": "@dev",
         "waaseyaa/plugin": "@dev",
         "waaseyaa/queue": "@dev",
@@ -120,7 +120,6 @@
     "autoload": {
         "psr-4": {
             "Waaseyaa\\GitHub\\": "packages/github/src/",
-            "Waaseyaa\\OAuthProvider\\": "packages/oauth-provider/src/",
             "Waaseyaa\\Engagement\\": "packages/engagement/src/"
         }
     },

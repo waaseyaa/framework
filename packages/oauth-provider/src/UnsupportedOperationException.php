@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\OAuthProvider;
 
-final class UnsupportedOperationException extends \LogicException
+final class UnsupportedOperationException extends \RuntimeException
 {
-    public function __construct(string $provider, string $operation)
+    public static function refreshNotSupported(string $provider): self
     {
-        parent::__construct(sprintf('Provider "%s" does not support %s.', $provider, $operation));
+        return new self("Token refresh is not supported by the '{$provider}' provider");
     }
 }

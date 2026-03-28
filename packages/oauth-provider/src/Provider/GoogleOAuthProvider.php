@@ -5,17 +5,15 @@ declare(strict_types=1);
 namespace Waaseyaa\OAuthProvider\Provider;
 
 use Waaseyaa\HttpClient\HttpClientInterface;
-use Waaseyaa\HttpClient\HttpResponse;
-use Waaseyaa\OAuthProvider\OAuthException;
 use Waaseyaa\OAuthProvider\OAuthProviderInterface;
 use Waaseyaa\OAuthProvider\OAuthToken;
 use Waaseyaa\OAuthProvider\OAuthUserProfile;
 
 final class GoogleOAuthProvider implements OAuthProviderInterface
 {
-    private const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
-    private const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
-    private const USERINFO_ENDPOINT = 'https://www.googleapis.com/oauth2/v2/userinfo';
+    private const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
+    private const TOKEN_URL = 'https://oauth2.googleapis.com/token';
+    private const USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
 
     public function __construct(
         private readonly string $clientId,
@@ -29,117 +27,91 @@ final class GoogleOAuthProvider implements OAuthProviderInterface
         return 'google';
     }
 
-    /**
-     * @param array<string> $scopes
-     */
+    /** @param list<string> $scopes */
     public function getAuthorizationUrl(array $scopes, string $state): string
     {
-        $params = [
-            'client_id' => $this->clientId,
-            'redirect_uri' => $this->redirectUri,
+        $params = http_build_query([
+            'client_id'     => $this->clientId,
+            'redirect_uri'  => $this->redirectUri,
             'response_type' => 'code',
-            'scope' => implode(' ', $scopes),
-            'state' => $state,
-            'access_type' => 'offline',
-            'prompt' => 'consent',
-        ];
+            'scope'         => implode(' ', $scopes),
+            'state'         => $state,
+            'access_type'   => 'offline',
+            'prompt'        => 'consent',
+        ]);
 
-        return self::AUTH_ENDPOINT . '?' . http_build_query($params);
+        return self::AUTH_URL . '?' . $params;
     }
 
     public function exchangeCode(string $code): OAuthToken
     {
-        $response = $this->httpClient->post(self::TOKEN_ENDPOINT, [], [
-            'grant_type' => 'authorization_code',
-            'code' => $code,
-            'client_id' => $this->clientId,
+        $body = http_build_query([
+            'code'          => $code,
+            'client_id'     => $this->clientId,
             'client_secret' => $this->clientSecret,
-            'redirect_uri' => $this->redirectUri,
+            'redirect_uri'  => $this->redirectUri,
+            'grant_type'    => 'authorization_code',
         ]);
 
-        $data = $this->parseResponse($response);
-
-        return $this->buildToken($data, hasRefreshToken: true);
+        return $this->requestToken($body);
     }
 
     public function refreshToken(string $refreshToken): OAuthToken
     {
-        $response = $this->httpClient->post(self::TOKEN_ENDPOINT, [], [
-            'grant_type' => 'refresh_token',
+        $body = http_build_query([
             'refresh_token' => $refreshToken,
-            'client_id' => $this->clientId,
+            'client_id'     => $this->clientId,
             'client_secret' => $this->clientSecret,
+            'grant_type'    => 'refresh_token',
         ]);
 
-        $data = $this->parseResponse($response);
-
-        return $this->buildToken($data, hasRefreshToken: false);
+        return $this->requestToken($body);
     }
 
     public function getUserProfile(string $accessToken): OAuthUserProfile
     {
-        $response = $this->httpClient->get(
-            self::USERINFO_ENDPOINT,
-            ['Authorization' => 'Bearer ' . $accessToken],
-        );
+        $response = $this->httpClient->get(self::USERINFO_URL, [
+            'Authorization' => 'Bearer ' . $accessToken,
+        ]);
 
-        $data = $this->parseResponse($response);
-
-        $rawId = $data['id'] ?? '';
-        $providerId = is_string($rawId) || is_int($rawId) ? (string) $rawId : '';
-        $email = is_string($data['email'] ?? null) ? $data['email'] : '';
-        $name = is_string($data['name'] ?? null) ? $data['name'] : '';
-        $avatarUrl = is_string($data['picture'] ?? null) ? $data['picture'] : null;
+        $data = $response->json();
 
         return new OAuthUserProfile(
-            providerId: $providerId,
-            email: $email,
-            name: $name,
-            avatarUrl: $avatarUrl,
+            providerId: (string) $data['id'],
+            email: (string) $data['email'],
+            name: (string) $data['name'],
+            avatarUrl: isset($data['picture']) ? (string) $data['picture'] : null,
         );
     }
 
-    /**
-     * @param array<string, mixed> $data
-     */
-    private function buildToken(array $data, bool $hasRefreshToken): OAuthToken
+    private function requestToken(string $body): OAuthToken
     {
-        $accessToken = is_string($data['access_token'] ?? null) ? $data['access_token'] : '';
-        $refreshToken = $hasRefreshToken && is_string($data['refresh_token'] ?? null) ? $data['refresh_token'] : null;
-        $scope = is_string($data['scope'] ?? null) ? $data['scope'] : '';
-        $tokenType = is_string($data['token_type'] ?? null) ? $data['token_type'] : 'Bearer';
-        $rawExpiresIn = $data['expires_in'] ?? null;
-        $expiresIn = is_int($rawExpiresIn) || is_string($rawExpiresIn) ? (int) $rawExpiresIn : null;
+        $response = $this->httpClient->post(self::TOKEN_URL, [
+            'Content-Type' => 'application/x-www-form-urlencoded',
+        ], $body);
 
-        return new OAuthToken(
-            accessToken: $accessToken,
-            refreshToken: $refreshToken,
-            expiresAt: $expiresIn !== null
-                ? new \DateTimeImmutable('+' . $expiresIn . ' seconds')
-                : null,
-            scopes: $scope !== '' ? explode(' ', $scope) : [],
-            tokenType: $tokenType,
-        );
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function parseResponse(HttpResponse $response): array
-    {
         $data = $response->json();
 
         if (!$response->isSuccess()) {
-            $errorDescription = is_string($data['error_description'] ?? null) ? $data['error_description'] : null;
-            $error = $data['error'] ?? null;
-            $nestedMessage = is_array($error) && is_string($error['message'] ?? null) ? $error['message'] : null;
-            $topLevelError = is_string($error) ? $error : null;
-
-            $message = $errorDescription ?? $nestedMessage ?? $topLevelError ?? 'Unknown error';
-
-            throw new OAuthException($message, 'google', $response->statusCode);
+            $message = $data['error_description'] ?? $data['error'] ?? 'Token request failed';
+            throw new \RuntimeException((string) $message);
         }
 
-        return $data;
+        $expiresAt = null;
+        if (isset($data['expires_in'])) {
+            $expiresAt = new \DateTimeImmutable('+' . (int) $data['expires_in'] . ' seconds');
+        }
+
+        $scopes = [];
+        if (isset($data['scope']) && $data['scope'] !== '') {
+            $scopes = explode(' ', (string) $data['scope']);
+        }
+
+        return new OAuthToken(
+            accessToken: (string) $data['access_token'],
+            refreshToken: isset($data['refresh_token']) ? (string) $data['refresh_token'] : null,
+            expiresAt: $expiresAt,
+            scopes: $scopes,
+        );
     }
 }

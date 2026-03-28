@@ -6,9 +6,7 @@ namespace Waaseyaa\OAuthProvider;
 
 final readonly class OAuthToken
 {
-    /**
-     * @param array<string> $scopes
-     */
+    /** @param list<string> $scopes */
     public function __construct(
         public string $accessToken,
         public ?string $refreshToken,
@@ -16,13 +14,4 @@ final readonly class OAuthToken
         public array $scopes,
         public string $tokenType = 'Bearer',
     ) {}
-
-    public function isExpired(): bool
-    {
-        if ($this->expiresAt === null) {
-            return false;
-        }
-
-        return $this->expiresAt < new \DateTimeImmutable();
-    }
 }

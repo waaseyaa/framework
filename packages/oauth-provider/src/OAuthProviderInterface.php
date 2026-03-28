@@ -8,16 +8,12 @@ interface OAuthProviderInterface
 {
     public function getName(): string;
 
-    /**
-     * @param array<string> $scopes
-     */
+    /** @param list<string> $scopes */
     public function getAuthorizationUrl(array $scopes, string $state): string;
 
     public function exchangeCode(string $code): OAuthToken;
 
-    /**
-     * @throws UnsupportedOperationException
-     */
+    /** @throws UnsupportedOperationException if the provider does not support token refresh */
     public function refreshToken(string $refreshToken): OAuthToken;
 
     public function getUserProfile(string $accessToken): OAuthUserProfile;
