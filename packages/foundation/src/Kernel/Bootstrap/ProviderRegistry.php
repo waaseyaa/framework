@@ -24,7 +24,6 @@ final class ProviderRegistry
      * Discover, instantiate, and register all service providers from the manifest.
      *
      * @param array<string, mixed> $config
-     * @param list<string> $formatters
      * @return list<ServiceProvider>
      */
     public function discoverAndRegister(
