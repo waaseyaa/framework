@@ -113,7 +113,7 @@
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.50",
-        "phpstan/phpstan": "^1.10",
+        "phpstan/phpstan": "^2.1",
         "phpunit/phpunit": "^10.5",
         "waaseyaa/testing": "@dev"
     },
