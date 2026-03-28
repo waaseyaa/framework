@@ -9,6 +9,8 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Relationship\RelationshipValidator;
+use Waaseyaa\Relationship\Tests\Fixtures\FixedResultEntityQuery;
+use Waaseyaa\Relationship\Tests\Fixtures\StubEntityStorage;
 use Waaseyaa\Relationship\Tests\Fixtures\StubEntityTypeManager;
 
 #[CoversClass(RelationshipValidator::class)]
@@ -393,6 +395,134 @@ final class RelationshipValidatorTest extends TestCase
             }
         }
         $this->assertTrue($found, 'Expected invalid status error');
+    }
+
+    #[Test]
+    public function validate_rejects_entity_not_found(): void
+    {
+        $storage = new StubEntityStorage(
+            loadHandler: static fn () => null,
+            query: new FixedResultEntityQuery([[], []]),
+            entityTypeId: 'node',
+        );
+        $manager = new StubEntityTypeManager(
+            knownTypes: ['node'],
+            storage: $storage,
+        );
+        $validator = new RelationshipValidator($manager);
+        $errors = $validator->validate([
+            'relationship_type' => 'references',
+            'from_entity_type' => 'node',
+            'from_entity_id' => '1',
+            'to_entity_type' => 'node',
+            'to_entity_id' => '2',
+            'directionality' => 'directed',
+            'status' => 1,
+        ]);
+        $found = false;
+        foreach ($errors as $error) {
+            if (str_contains($error, 'missing entity')) {
+                $found = true;
+                break;
+            }
+        }
+        $this->assertTrue($found, 'Expected missing entity error');
+    }
+
+    #[Test]
+    public function validate_accepts_entity_found_by_uuid(): void
+    {
+        $storage = new StubEntityStorage(
+            loadHandler: static fn () => null,
+            query: new FixedResultEntityQuery([[1], [1]]),
+            entityTypeId: 'node',
+        );
+        $manager = new StubEntityTypeManager(
+            knownTypes: ['node'],
+            storage: $storage,
+        );
+        $validator = new RelationshipValidator($manager);
+        $errors = $validator->validate([
+            'relationship_type' => 'references',
+            'from_entity_type' => 'node',
+            'from_entity_id' => 'abc-uuid-123',
+            'to_entity_type' => 'node',
+            'to_entity_id' => 'def-uuid-456',
+            'directionality' => 'directed',
+            'status' => 1,
+        ]);
+        $this->assertSame([], $errors);
+    }
+
+    #[Test]
+    public function validate_rejects_whitespace_only_required_fields(): void
+    {
+        $validator = $this->makeValidator();
+        $errors = $validator->validate([
+            'relationship_type' => '   ',
+            'from_entity_type' => '   ',
+            'from_entity_id' => '   ',
+            'to_entity_type' => '   ',
+            'to_entity_id' => '   ',
+            'directionality' => '   ',
+            'status' => '   ',
+        ]);
+        $requiredFields = ['relationship_type', 'from_entity_type', 'from_entity_id', 'to_entity_type', 'to_entity_id', 'directionality', 'status'];
+        foreach ($requiredFields as $field) {
+            $found = false;
+            foreach ($errors as $error) {
+                if (str_contains($error, sprintf('"%s"', $field)) && str_contains($error, 'required')) {
+                    $found = true;
+                    break;
+                }
+            }
+            $this->assertTrue($found, "Expected required error for whitespace-only field '$field'");
+        }
+    }
+
+    #[Test]
+    public function normalize_passes_through_unsupported_status_types(): void
+    {
+        $validator = $this->makeValidator();
+        $arrayStatus = ['active'];
+        $result = $validator->normalize(['status' => $arrayStatus]);
+        $this->assertSame($arrayStatus, $result['status']);
+    }
+
+    #[Test]
+    public function validate_accepts_boundary_confidence_zero(): void
+    {
+        $manager = new StubEntityTypeManager(['node']);
+        $validator = new RelationshipValidator($manager);
+        $errors = $validator->validate([
+            'relationship_type' => 'references',
+            'from_entity_type' => 'node',
+            'from_entity_id' => '1',
+            'to_entity_type' => 'node',
+            'to_entity_id' => '2',
+            'directionality' => 'directed',
+            'status' => 1,
+            'confidence' => 0.0,
+        ]);
+        $this->assertSame([], $errors);
+    }
+
+    #[Test]
+    public function validate_accepts_boundary_confidence_one(): void
+    {
+        $manager = new StubEntityTypeManager(['node']);
+        $validator = new RelationshipValidator($manager);
+        $errors = $validator->validate([
+            'relationship_type' => 'references',
+            'from_entity_type' => 'node',
+            'from_entity_id' => '1',
+            'to_entity_type' => 'node',
+            'to_entity_id' => '2',
+            'directionality' => 'directed',
+            'status' => 1,
+            'confidence' => 1.0,
+        ]);
+        $this->assertSame([], $errors);
     }
 
     // -----------------------------------------------------------------------
