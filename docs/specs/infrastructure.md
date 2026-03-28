@@ -945,8 +945,34 @@ Queue implementations: `DbalQueue` (DBAL-backed persistent), `InMemoryQueue` (te
 ### Worker
 
 File: `packages/queue/src/Worker/Worker.php`
+Class: `final class Worker`
 
-Processes jobs from a queue. `WorkerOptions` controls max jobs, memory limit, sleep interval, and timeout.
+Constructor: `(TransportInterface $transport, FailedJobRepositoryInterface $failedJobRepository, array $handlers)`
+
+Long-running daemon that processes jobs from a queue transport.
+
+**Public API:**
+- `run(string $queue, WorkerOptions $options): int` — daemon loop, returns count of jobs processed
+- `runNextJob(string $queue, WorkerOptions $options): bool` — process single job (non-looping, useful for tests)
+- `stop(): void` — request graceful shutdown (finishes current job, then exits)
+- `addHandler(HandlerInterface $handler): void` — prepend a handler (first added = highest priority)
+
+**Stop conditions** (checked in `shouldContinue()`):
+- `$shouldQuit` flag set (via `stop()` or POSIX signal)
+- `maxJobs` reached (`$options->maxJobs > 0 && $processed >= $options->maxJobs`)
+- `maxTime` elapsed (`$options->maxTime > 0 && (time() - $startTime) >= $options->maxTime`)
+- Memory limit exceeded (`memory_get_usage(true) / 1024 / 1024 >= $options->memoryLimit`)
+
+**POSIX signal handling:** `listenForSignals()` registers SIGTERM/SIGINT handlers that set `$shouldQuit = true`. `pcntl_signal_dispatch()` is called each iteration in `shouldContinue()`. Gracefully degrades when `pcntl` extension is unavailable.
+
+**Job processing pipeline:**
+1. `transport->pop($queue)` — dequeue raw message (`{id, payload, attempts}`)
+2. `@unserialize($raw['payload'])` — deserialize (failures recorded to `FailedJobRepository`)
+3. First matching `HandlerInterface::supports($message)` handles the job
+4. If `Job::isReleased()`, release back to queue with delay; otherwise `transport->ack()`
+5. On exception: retry with exponential backoff (`min(baseDelay * 2^(attempts-1), 3600)`) if under `maxTries`, otherwise record failure and call `Job::failed($e)` (best-effort)
+
+**WorkerOptions** (`packages/queue/src/Worker/WorkerOptions.php`): Controls `maxJobs`, `maxTime`, `memoryLimit`, `sleep` (seconds between polls), `maxTries`.
 
 ### Transport layer
 
