@@ -89,7 +89,7 @@ final class GraphQlEndpoint
             $guard,
             $this->maxDepth,
         );
-        $entityResolver = new EntityResolver($this->entityTypeManager, $guard);
+        $entityResolver = new EntityResolver($this->entityTypeManager, $guard, $this->account);
 
         $schemaFactory = new SchemaFactory(
             entityTypeManager: $this->entityTypeManager,

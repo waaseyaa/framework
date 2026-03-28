@@ -9,6 +9,7 @@ use Waaseyaa\Api\Query\ParsedQuery;
 use Waaseyaa\Api\Query\QueryApplier;
 use Waaseyaa\Api\Query\QueryFilter;
 use Waaseyaa\Api\Query\QuerySort;
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\FieldableInterface;
@@ -32,6 +33,7 @@ final class EntityResolver
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly GraphQlAccessGuard $guard,
+        private readonly ?AccountInterface $account = null,
         ?LoggerInterface $logger = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
@@ -127,6 +129,8 @@ final class EntityResolver
     public function resolveCreate(string $entityTypeId, array $input): array
     {
         $this->guard->assertCreateAccess($entityTypeId);
+
+        $input = $this->injectAccountContext($entityTypeId, $input);
 
         $storage = $this->entityTypeManager->getStorage($entityTypeId);
         $entity = $storage->create($input);
@@ -269,5 +273,35 @@ final class EntityResolver
         }
 
         return $sorts;
+    }
+
+    /**
+     * Auto-inject account_id and tenant_id from the authenticated account
+     * when the entity type defines those fields and the input omits them.
+     *
+     * @param array<string, mixed> $input
+     * @return array<string, mixed>
+     */
+    private function injectAccountContext(string $entityTypeId, array $input): array
+    {
+        if ($this->account === null || !$this->account->isAuthenticated()) {
+            return $input;
+        }
+
+        $definition = $this->entityTypeManager->getDefinition($entityTypeId);
+        $fieldDefinitions = $definition->getFieldDefinitions();
+
+        if (isset($fieldDefinitions['account_id']) && !isset($input['account_id'])) {
+            $input['account_id'] = (string) $this->account->id();
+        }
+
+        if (isset($fieldDefinitions['tenant_id']) && !isset($input['tenant_id'])) {
+            $tenantId = $this->account->getTenantId();
+            if ($tenantId !== null) {
+                $input['tenant_id'] = $tenantId;
+            }
+        }
+
+        return $input;
     }
 }
