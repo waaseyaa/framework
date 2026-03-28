@@ -62,7 +62,7 @@
         "php": ">=8.4",
         "dragonmantank/cron-expression": "^3.0",
         "symfony/console": "^7.0",
-        "symfony/html-sanitizer": "^7.0",
+        "symfony/html-sanitizer": "^8.0",
         "waaseyaa/access": "@dev",
         "waaseyaa/admin-surface": "@dev",
         "waaseyaa/ai-agent": "@dev",
