@@ -468,6 +468,29 @@ final class SqlEntityStorageTest extends TestCase
         $configStorage->save($entity);
     }
 
+    /** @param array<string, array<string, mixed>> $fieldDefinitions */
+    private function createStorageWithFields(string $id, array $fieldDefinitions): SqlEntityStorage
+    {
+        $entityType = new EntityType(
+            id: $id,
+            label: ucfirst($id),
+            class: TestStorageEntity::class,
+            keys: [
+                'id' => 'id',
+                'uuid' => 'uuid',
+                'bundle' => 'bundle',
+                'label' => 'label',
+                'langcode' => 'langcode',
+            ],
+            fieldDefinitions: $fieldDefinitions,
+        );
+
+        $schemaHandler = new SqlSchemaHandler($entityType, $this->database);
+        $schemaHandler->ensureTable();
+
+        return new SqlEntityStorage($entityType, $this->database, $this->eventDispatcher);
+    }
+
     private function createConfigStorage(): SqlEntityStorage
     {
         $configType = new EntityType(
@@ -511,6 +534,39 @@ final class SqlEntityStorageTest extends TestCase
 
         $storage->save($entity);
         $this->assertGreaterThan(0, $factory->callCount, 'Custom event factory should be called during save');
+    }
+
+    public function testCreateAppliesFieldDefaults(): void
+    {
+        $storage = $this->createStorageWithFields('default_test', [
+            'status' => ['type' => 'integer', 'default' => 1],
+        ]);
+
+        $entity = $storage->create([]);
+
+        $this->assertSame(1, $entity->get('status'));
+    }
+
+    public function testCreateExplicitValuesOverrideDefaults(): void
+    {
+        $storage = $this->createStorageWithFields('override_test', [
+            'status' => ['type' => 'integer', 'default' => 1],
+        ]);
+
+        $entity = $storage->create(['status' => 0]);
+
+        $this->assertSame(0, $entity->get('status'));
+    }
+
+    public function testCreateSkipsFieldsWithoutDefaultKey(): void
+    {
+        $storage = $this->createStorageWithFields('nodefault_test', [
+            'title' => ['type' => 'string'],
+        ]);
+
+        $entity = $storage->create([]);
+
+        $this->assertNull($entity->get('title'));
     }
 
     public function testLoadByKeyReturnsEntityOnHit(): void
