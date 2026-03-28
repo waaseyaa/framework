@@ -11,7 +11,6 @@ use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Gate\EntityAccessGate;
 use Waaseyaa\Access\Middleware\AuthorizationMiddleware;
-use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Cache\Backend\DatabaseBackend;
@@ -104,8 +103,8 @@ final class HttpKernel extends AbstractKernel
         $listenerRegistrar->registerRenderCacheListeners($this->renderCache);
         $listenerRegistrar->registerDiscoveryCacheListeners($this->discoveryCache);
         $listenerRegistrar->registerMcpReadCacheListeners($this->mcpReadCache);
-        if (class_exists(SqliteEmbeddingStorage::class)) {
-            $listenerRegistrar->registerEmbeddingLifecycleListeners(new SqliteEmbeddingStorage($pdo), $this->config);
+        if (class_exists(\Waaseyaa\AI\Vector\SqliteEmbeddingStorage::class)) {
+            $listenerRegistrar->registerEmbeddingLifecycleListeners(new \Waaseyaa\AI\Vector\SqliteEmbeddingStorage($pdo), $this->config);
         }
         $this->discoveryHandler = new DiscoveryApiHandler($this->entityTypeManager, $this->database, $this->discoveryCache);
         $this->ssrPageHandler = new SsrPageHandler(
