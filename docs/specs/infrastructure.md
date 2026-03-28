@@ -1,6 +1,6 @@
 # Infrastructure
 
-Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, and migration system.
+Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, migration system, and kernel bootstrapping.
 
 ## Packages
 
@@ -1021,6 +1021,7 @@ Boot sequence (idempotent — guarded by `$this->booted` flag, set only after al
 ```
 EnvLoader::load(.env)
   → ConfigLoader::load(config/waaseyaa.php)
+  → debug/environment safety guard
   → new EventDispatcher()
   → new EntityTypeLifecycleManager($projectRoot)
   → new EntityAuditLogger($projectRoot)
@@ -1045,6 +1046,18 @@ Early boot initializes the entity lifecycle manager (for disabling entity types 
 `validateContentTypes()` checks that at least one entity type is registered and enabled. If no types exist, it emits `DEFAULT_TYPE_MISSING` and throws. If all registered types are disabled via the lifecycle manager, it emits `DEFAULT_TYPE_DISABLED` and throws.
 
 `bootKnowledgeExtensionRunner()` reads `config.extensions.plugin_directories` and `config.extensions.plugin_attribute`, discovers plugins via `AttributeDiscovery`, and builds a `KnowledgeToolingExtensionRunner`. On failure, falls back to an empty runner. The runner is accessible via `getKnowledgeToolingExtensionRunner()` and provides `applyWorkflowContext()`, `applyTraversalContext()`, and `applyDiscoveryContext()` extension hooks.
+
+#### Environment and debug introspection
+
+Three protected methods provide environment awareness to all kernel subclasses:
+
+| Method | Resolution | Returns |
+|--------|-----------|---------|
+| `resolveEnvironment(): string` | Config `'environment'` key → `APP_ENV` env var → `'production'` | Canonical environment name (e.g., `'production'`, `'local'`, `'development'`) |
+| `isDevelopmentMode(): bool` | Calls `resolveEnvironment()`, checks if value is `dev`, `development`, or `local` (case-insensitive) | `true` in dev environments |
+| `isDebugMode(): bool` | `APP_DEBUG` env var → config `'debug'` key → `false` | `true` when debug is enabled |
+
+**Boot guard:** Immediately after loading configuration, `boot()` checks `isDebugMode() && !isDevelopmentMode()`. If debug is enabled outside a development environment, it throws `RuntimeException` with the message `APP_DEBUG must not be enabled in production (APP_ENV=...)`. This prevents accidentally deploying with debug mode active.
 
 ### DatabaseBootstrapper
 

@@ -1,6 +1,6 @@
 # Access Control
 
-Waaseyaa's access control system spans three packages: `packages/access/` (core primitives), `packages/routing/` (route-level checks), and `packages/user/` (session resolution). This document covers entity-level and route-level access. For field-level access, see `docs/specs/field-access.md`.
+Waaseyaa's access control system spans three packages: `packages/access/` (core primitives), `packages/routing/` (route-level checks), and `packages/user/` (session resolution, password reset). This document covers entity-level and route-level access. For field-level access, see `docs/specs/field-access.md`.
 
 ## Packages
 
