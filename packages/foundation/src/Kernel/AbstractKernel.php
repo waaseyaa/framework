@@ -81,9 +81,8 @@ abstract class AbstractKernel
 
         // Safety guard: refuse to boot with debug enabled in production.
         if ($this->isDebugMode() && !$this->isDevelopmentMode()) {
-            $env = $this->config['environment'] ?? getenv('APP_ENV') ?: 'production';
             throw new \RuntimeException(
-                sprintf('APP_DEBUG must not be enabled in production (APP_ENV=%s). Aborting boot.', $env),
+                sprintf('APP_DEBUG must not be enabled in production (APP_ENV=%s). Aborting boot.', $this->resolveEnvironment()),
             );
         }
 
@@ -351,16 +350,22 @@ abstract class AbstractKernel
 
     /**
      * Whether the application is running in a development environment.
-     * Resolution: config 'environment' key > APP_ENV env var > '' (not dev).
+     * Resolution: config 'environment' key > APP_ENV env var > 'production'.
      */
     protected function isDevelopmentMode(): bool
     {
-        $env = $this->config['environment'] ?? getenv('APP_ENV') ?: '';
-        if (!is_string($env)) {
-            return false;
-        }
+        return in_array(strtolower($this->resolveEnvironment()), ['dev', 'development', 'local'], true);
+    }
 
-        return in_array(strtolower($env), ['dev', 'development', 'local'], true);
+    /**
+     * Resolve the current environment name from config or env var.
+     * Single canonical source for environment resolution.
+     */
+    protected function resolveEnvironment(): string
+    {
+        $env = $this->config['environment'] ?? getenv('APP_ENV') ?: 'production';
+
+        return is_string($env) ? $env : 'production';
     }
 
     public function getProjectRoot(): string

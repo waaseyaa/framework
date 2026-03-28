@@ -76,6 +76,7 @@ final class DebugModeTest extends TestCase
     #[Test]
     public function debug_mode_reads_config_key(): void
     {
+        putenv('APP_ENV=local');
         $this->writeConfig(['debug' => true]);
         $kernel = new class($this->projectRoot) extends AbstractKernel {
             public function publicBoot(): void { $this->boot(); }
@@ -88,6 +89,7 @@ final class DebugModeTest extends TestCase
     #[Test]
     public function debug_mode_env_var_trumps_config(): void
     {
+        putenv('APP_ENV=local');
         putenv('APP_DEBUG=false');
         $this->writeConfig(['debug' => true]);
         $kernel = new class($this->projectRoot) extends AbstractKernel {
@@ -125,6 +127,32 @@ final class DebugModeTest extends TestCase
             public function devMode(): bool { return $this->isDevelopmentMode(); }
         };
         $this->assertFalse($kernel->devMode());
+    }
+
+    #[Test]
+    public function boot_succeeds_in_local_without_debug(): void
+    {
+        putenv('APP_ENV=local');
+        $this->writeConfig();
+        $kernel = new class($this->projectRoot) extends AbstractKernel {
+            public function publicBoot(): void { $this->boot(); }
+            public function debugMode(): bool { return $this->isDebugMode(); }
+        };
+        $kernel->publicBoot();
+        $this->assertFalse($kernel->debugMode());
+    }
+
+    #[Test]
+    public function boot_succeeds_in_production_without_debug(): void
+    {
+        putenv('APP_ENV=production');
+        $this->writeConfig();
+        $kernel = new class($this->projectRoot) extends AbstractKernel {
+            public function publicBoot(): void { $this->boot(); }
+            public function debugMode(): bool { return $this->isDebugMode(); }
+        };
+        $kernel->publicBoot();
+        $this->assertFalse($kernel->debugMode());
     }
 
     #[Test]
