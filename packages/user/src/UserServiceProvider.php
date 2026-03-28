@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Waaseyaa\User;
 
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Mail\MailDriverInterface;
 
 final class UserServiceProvider extends ServiceProvider
 {
@@ -37,6 +39,35 @@ final class UserServiceProvider extends ServiceProvider
                     'weight' => 20,
                 ],
             ],
+        ));
+
+        $this->entityType(new EntityType(
+            id: 'user_block',
+            label: 'User Block',
+            class: UserBlock::class,
+            keys: ['id' => 'ubid', 'uuid' => 'uuid', 'label' => 'blocker_id'],
+            group: 'user',
+            fieldDefinitions: [
+                'blocker_id' => ['type' => 'integer', 'label' => 'Blocker ID', 'weight' => 0],
+                'blocked_id' => ['type' => 'integer', 'label' => 'Blocked ID', 'weight' => 1],
+                'created_at' => ['type' => 'timestamp', 'label' => 'Created', 'weight' => 10],
+            ],
+        ));
+
+        $this->singleton(UserBlockService::class, fn () => new UserBlockService(
+            $this->resolve(EntityTypeManager::class),
+        ));
+
+        $this->singleton(PasswordResetTokenRepository::class, fn () => new PasswordResetTokenRepository(
+            $this->resolve(\PDO::class),
+        ));
+
+        $config = $this->config ?? [];
+        $this->singleton(AuthMailer::class, fn () => new AuthMailer(
+            driver: $this->resolve(MailDriverInterface::class),
+            twig: \Waaseyaa\SSR\SsrServiceProvider::getTwigEnvironment(),
+            baseUrl: $config['app']['url'] ?? '',
+            appName: $config['app']['name'] ?? 'Waaseyaa',
         ));
     }
 }
