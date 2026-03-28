@@ -55,7 +55,8 @@
         { "type": "path", "url": "packages/scheduler" },
         { "type": "path", "url": "packages/notification" },
         { "type": "path", "url": "packages/http-client" },
-        { "type": "path", "url": "packages/messaging" }
+        { "type": "path", "url": "packages/messaging" },
+        { "type": "path", "url": "packages/oauth-provider" }
     ],
     "require": {
         "php": ">=8.4",
@@ -93,6 +94,7 @@
         "waaseyaa/node": "@dev",
         "waaseyaa/note": "@dev",
         "waaseyaa/notification": "@dev",
+        "waaseyaa/oauth-provider": "@dev",
         "waaseyaa/path": "@dev",
         "waaseyaa/plugin": "@dev",
         "waaseyaa/queue": "@dev",
@@ -118,6 +120,7 @@
     "autoload": {
         "psr-4": {
             "Waaseyaa\\GitHub\\": "packages/github/src/",
+            "Waaseyaa\\OAuthProvider\\": "packages/oauth-provider/src/",
             "Waaseyaa\\Engagement\\": "packages/engagement/src/"
         }
     },
@@ -167,6 +170,7 @@
             "Waaseyaa\\Auth\\Tests\\": "packages/auth/tests/",
             "Waaseyaa\\Billing\\Tests\\": "packages/billing/tests/",
             "Waaseyaa\\HttpClient\\Tests\\": "packages/http-client/tests/",
+            "Waaseyaa\\OAuthProvider\\Tests\\": "packages/oauth-provider/tests/",
             "Waaseyaa\\Engagement\\Tests\\": "packages/engagement/tests/",
             "Waaseyaa\\Tests\\": "tests/"
         }
