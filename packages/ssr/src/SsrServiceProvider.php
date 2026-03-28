@@ -6,6 +6,9 @@ namespace Waaseyaa\SSR;
 
 use Twig\Environment;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\SSR\Flash\Flash;
+use Waaseyaa\SSR\Flash\FlashMessageService;
+use Waaseyaa\SSR\Twig\FlashTwigExtension;
 
 final class SsrServiceProvider extends ServiceProvider
 {
@@ -26,6 +29,12 @@ final class SsrServiceProvider extends ServiceProvider
         self::$twigEnvironment = ThemeServiceProvider::getTwigEnvironment()
             ?? self::createTwigEnvironment($this->projectRoot, $this->config);
         self::$formatterRegistry = new FieldFormatterRegistry($this->manifestFormatters);
+
+        $flashService = new FlashMessageService();
+        Flash::setService($flashService);
+        if (self::$twigEnvironment !== null) {
+            self::$twigEnvironment->addExtension(new FlashTwigExtension($flashService));
+        }
     }
 
     public static function getTwigEnvironment(): ?Environment
