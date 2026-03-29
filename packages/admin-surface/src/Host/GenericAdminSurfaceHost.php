@@ -7,6 +7,7 @@ namespace Waaseyaa\AdminSurface\Host;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\AdminSurface\Action\SurfaceActionHandler;
 use Waaseyaa\AdminSurface\Catalog\CatalogBuilder;
 use Waaseyaa\Api\Controller\SchemaController;
 use Waaseyaa\Api\JsonApiController;
@@ -32,6 +33,9 @@ use Waaseyaa\Entity\EntityTypeManager;
 class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
 {
     private ?AccountInterface $currentAccount = null;
+
+    /** @var array<string, SurfaceActionHandler> */
+    protected array $actions = [];
 
     /**
      * @param string[] $readOnlyTypes Entity type IDs that should be read-only in the admin
@@ -226,6 +230,14 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
     {
         if (!$this->entityTypeManager->hasDefinition($type)) {
             return AdminSurfaceResultData::error(404, 'Unknown entity type', "Type '{$type}' is not registered.");
+        }
+
+        // Check custom actions first
+        if (isset($this->actions[$action])) {
+            $handler = $this->actions[$action];
+            if ($handler instanceof SurfaceActionHandler) {
+                return $handler->handle($type, $payload);
+            }
         }
 
         return match ($action) {

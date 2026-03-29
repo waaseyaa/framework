@@ -11,7 +11,9 @@ use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\AdminSurface\Action\SurfaceActionHandler;
 use Waaseyaa\AdminSurface\Catalog\CatalogBuilder;
+use Waaseyaa\AdminSurface\Host\AdminSurfaceResultData;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceSessionData;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
 use Waaseyaa\Entity\ConfigEntityBase;
@@ -566,5 +568,103 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $this->assertTrue($result->ok);
         $this->assertCount(2, $result->data['entities']);
         $this->assertSame(2, $result->data['total']);
+    }
+
+    #[Test]
+    public function action_dispatches_to_custom_handler(): void
+    {
+        $expectedResult = AdminSurfaceResultData::success(['custom' => true]);
+
+        $handler = new class($expectedResult) implements SurfaceActionHandler {
+            public function __construct(private readonly AdminSurfaceResultData $result) {}
+
+            public function handle(string $type, array $payload): AdminSurfaceResultData
+            {
+                return $this->result;
+            }
+        };
+
+        $etm = $this->createMock(EntityTypeManager::class);
+        $etm->method('hasDefinition')->willReturn(true);
+
+        // Use a test subclass to set the protected $actions property
+        $host = new class($etm, $handler) extends GenericAdminSurfaceHost {
+            public function __construct(EntityTypeManager $etm, SurfaceActionHandler $handler)
+            {
+                parent::__construct($etm);
+                $this->actions['transition-stage'] = $handler;
+            }
+        };
+
+        $result = $host->action('lead', 'transition-stage', ['stage' => 'qualified']);
+
+        $this->assertTrue($result->ok);
+        $this->assertSame(['custom' => true], $result->data);
+    }
+
+    #[Test]
+    public function action_returns_400_for_unknown_custom_action(): void
+    {
+        $etm = $this->createMock(EntityTypeManager::class);
+        $etm->method('hasDefinition')->willReturn(true);
+
+        $host = new GenericAdminSurfaceHost($etm);
+        $result = $host->action('event', 'nonexistent-action');
+
+        $this->assertFalse($result->ok);
+        $this->assertSame(400, $result->error['status']);
+        $this->assertStringContainsString('nonexistent-action', $result->error['detail']);
+    }
+
+    #[Test]
+    public function builtin_actions_still_work(): void
+    {
+        $etm = $this->createMock(EntityTypeManager::class);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getDefinitions')->willReturn([
+            new EntityType(
+                id: 'event',
+                label: 'Event',
+                class: \stdClass::class,
+                keys: ['id' => 'eid'],
+                fieldDefinitions: [
+                    'title' => ['type' => 'string', 'label' => 'Title'],
+                ],
+            ),
+        ]);
+        $etm->method('getDefinition')->willReturn(
+            new EntityType(
+                id: 'event',
+                label: 'Event',
+                class: \stdClass::class,
+                keys: ['id' => 'eid'],
+                fieldDefinitions: [
+                    'title' => ['type' => 'string', 'label' => 'Title'],
+                ],
+            ),
+        );
+
+        // Register a custom action to confirm it doesn't interfere with built-ins
+        $handler = new class() implements SurfaceActionHandler {
+            public function handle(string $type, array $payload): AdminSurfaceResultData
+            {
+                return AdminSurfaceResultData::success(['should_not_see' => true]);
+            }
+        };
+
+        $host = new class($etm, $handler) extends GenericAdminSurfaceHost {
+            public function __construct(EntityTypeManager $etm, SurfaceActionHandler $handler)
+            {
+                parent::__construct($etm);
+                $this->actions['my-custom'] = $handler;
+            }
+        };
+
+        // 'schema' is a built-in action — should NOT be intercepted by custom actions
+        $result = $host->action('event', 'schema');
+
+        $this->assertTrue($result->ok);
+        // Schema result should contain field definitions, not the custom handler's output
+        $this->assertArrayNotHasKey('should_not_see', $result->data);
     }
 }
