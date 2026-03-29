@@ -59,6 +59,12 @@ final class ProviderRegistry
                 if ($className === \Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class) {
                     return $dispatcher;
                 }
+                if ($className === \PDO::class) {
+                    assert($database instanceof \Waaseyaa\Database\DBALDatabase);
+                    $pdo = $database->getConnection()->getNativeConnection();
+                    assert($pdo instanceof \PDO);
+                    return $pdo;
+                }
                 foreach ($this->providers as $other) {
                     if (isset($other->getBindings()[$className])) {
                         return $other->resolve($className);
