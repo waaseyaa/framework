@@ -38,6 +38,25 @@ final class SsrResponseTest extends TestCase
     }
 
     #[Test]
+    public function redirect_sets_status_and_location(): void
+    {
+        $response = SsrResponse::redirect('/admin/today?chat=open');
+
+        $this->assertSame('', $response->content);
+        $this->assertSame(302, $response->statusCode);
+        $this->assertSame(['Location' => '/admin/today?chat=open'], $response->headers);
+    }
+
+    #[Test]
+    public function redirect_accepts_custom_status(): void
+    {
+        $response = SsrResponse::redirect('/elsewhere', 301);
+
+        $this->assertSame(301, $response->statusCode);
+        $this->assertSame('/elsewhere', $response->headers['Location']);
+    }
+
+    #[Test]
     public function propertiesAreReadonly(): void
     {
         $reflection = new \ReflectionClass(SsrResponse::class);
