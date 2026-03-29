@@ -25,7 +25,9 @@ function onDrop(cardId: string, toStage: string) {
 }
 
 function onOpenDetail(id: string) {
-  window.open(`/${entityType.value}/${id}`, '_blank')
+  const router = useRouter()
+  const resolved = router.resolve(`/${entityType.value}/${id}`)
+  window.open(resolved.href, '_blank')
 }
 
 onMounted(() => {
