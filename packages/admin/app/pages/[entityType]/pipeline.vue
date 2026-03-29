@@ -25,7 +25,7 @@ function onDrop(cardId: string, toStage: string) {
 }
 
 function onOpenDetail(id: string) {
-  navigateTo(`/${entityType.value}/${id}`)
+  window.open(`/${entityType.value}/${id}`, '_blank')
 }
 
 onMounted(() => {
