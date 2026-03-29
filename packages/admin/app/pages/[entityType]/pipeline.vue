@@ -24,10 +24,14 @@ function onDrop(cardId: string, toStage: string) {
   pipeline.moveCard(entityType.value, cardId, toStage)
 }
 
+const detailEntityId = ref<string | null>(null)
+
 function onOpenDetail(id: string) {
-  const router = useRouter()
-  const resolved = router.resolve(`/${entityType.value}/${id}`)
-  window.open(resolved.href, '_blank')
+  detailEntityId.value = id
+}
+
+function onCloseDetail() {
+  detailEntityId.value = null
 }
 
 onMounted(() => {
@@ -74,6 +78,12 @@ watch(entityType, () => {
         @run-action="(action: string, payload: Record<string, unknown>) => pipeline.runCardAction(entityType.value, action, payload)"
       />
     </div>
+
+    <PipelineDetailPanel
+      :entity-type="entityType"
+      :entity-id="detailEntityId"
+      @close="onCloseDetail"
+    />
   </div>
 </template>
 
