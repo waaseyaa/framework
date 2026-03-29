@@ -74,12 +74,15 @@ function onDrop(event: DragEvent, stage: string) {
 <style scoped>
 .pipeline-column {
   flex: 0 0 300px;
+  width: 300px;
+  max-width: 300px;
   min-height: 400px;
   background: var(--color-bg, #f8fafc);
   border: 1px solid var(--color-border);
   border-radius: 10px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   transition: border-color 0.15s ease;
 }
 

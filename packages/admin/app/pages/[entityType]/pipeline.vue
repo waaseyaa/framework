@@ -81,6 +81,13 @@ watch(entityType, () => {
   gap: 12px;
   overflow-x: auto;
   padding-bottom: 16px;
+  align-items: flex-start;
+}
+
+.pipeline-board > * {
+  flex: 0 0 300px;
+  max-width: 300px;
+  min-width: 280px;
 }
 
 .loading {

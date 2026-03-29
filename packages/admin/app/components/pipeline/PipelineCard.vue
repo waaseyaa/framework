@@ -92,6 +92,8 @@ function onDragStart(event: DragEvent) {
   padding: 10px 12px;
   cursor: grab;
   transition: box-shadow 0.15s ease;
+  overflow: hidden;
+  word-break: break-word;
 }
 
 .pipeline-card:hover {
