@@ -71,6 +71,10 @@ export class JsonApiTransportAdapter implements TransportAdapter {
     return json.meta.schema
   }
 
+  async runAction(_type: string, _action: string, _payload?: Record<string, unknown>): Promise<unknown> {
+    throw new TransportError(501, 'Not Implemented', 'runAction is not supported by the JSON:API transport adapter')
+  }
+
   async search(type: string, field: string, query: string, limit: number = 10): Promise<EntityResource[]> {
     if (query.length < 2) return []
     const params = new URLSearchParams()

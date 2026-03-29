@@ -35,5 +35,9 @@ export function useEntity() {
     return transport.search(type, labelField, query, limit)
   }
 
-  return { list, get, create, update, remove, search }
+  async function runAction(type: string, action: string, payload?: Record<string, unknown>): Promise<unknown> {
+    return transport.runAction(type, action, payload)
+  }
+
+  return { list, get, create, update, remove, search, runAction }
 }
