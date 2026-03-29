@@ -688,6 +688,20 @@ final class ControllerDispatcher
                 })(),
 
                 $controller === 'auth.login' => (function () use ($body): never {
+                    static $rateLimiter = null;
+                    if ($rateLimiter === null) {
+                        $rateLimiter = new \Waaseyaa\Auth\RateLimiter();
+                    }
+
+                    $rateLimitKey = 'login:' . ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
+
+                    if ($rateLimiter->tooManyAttempts($rateLimitKey, 5)) {
+                        ResponseSender::json(429, [
+                            'jsonapi' => ['version' => '1.1'],
+                            'errors' => [['status' => '429', 'title' => 'Too Many Requests', 'detail' => 'Too many login attempts. Please try again later.']],
+                        ], ['Retry-After' => '60']);
+                    }
+
                     $safeBody = $body ?? [];
                     $username = is_string($safeBody['username'] ?? null) ? trim((string) $safeBody['username']) : '';
                     $password = is_string($safeBody['password'] ?? null) ? (string) $safeBody['password'] : '';
@@ -704,12 +718,14 @@ final class ControllerDispatcher
                     $user = $authController->findUserByName($userStorage, $username);
 
                     if ($user === null || !$user->isActive() || !$user->checkPassword($password)) {
+                        $rateLimiter->hit($rateLimitKey, 60);
                         ResponseSender::json(401, [
                             'jsonapi' => ['version' => '1.1'],
                             'errors' => [['status' => '401', 'title' => 'Unauthorized', 'detail' => 'Invalid credentials.']],
                         ]);
                     }
 
+                    $rateLimiter->clear($rateLimitKey);
                     $_SESSION['waaseyaa_uid'] = $user->id();
                     ResponseSender::json(200, [
                         'jsonapi' => ['version' => '1.1'],
