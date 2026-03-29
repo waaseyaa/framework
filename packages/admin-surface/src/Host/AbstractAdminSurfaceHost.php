@@ -138,7 +138,8 @@ abstract class AbstractAdminSurfaceHost
             return AdminSurfaceResultData::error(401, 'Unauthorized')->toArray();
         }
 
-        $payload = json_decode($request->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $content = $request->getContent();
+        $payload = $content !== '' ? json_decode($content, true, 512, JSON_THROW_ON_ERROR) : [];
 
         return $this->action($type, $action, $payload ?? [])->toArray();
     }
