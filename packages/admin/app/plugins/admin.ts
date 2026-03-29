@@ -156,27 +156,24 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
     bootstrap = response
   }
 
-  // Validate contract version compatibility
+  // Validate contract version compatibility (warn only during pre-stable)
   if (!isContractCompatible(bootstrap.version)) {
-    throw createError({
-      statusCode: 500,
-      message: `Admin contract version incompatible: client ${ADMIN_CONTRACT_VERSION}, server ${bootstrap.version}`,
-      fatal: true,
-    })
+    console.warn(`[waaseyaa:admin] Contract version mismatch: client ${ADMIN_CONTRACT_VERSION}, server ${bootstrap.version ?? 'unknown'}`)
   }
 
   // Instantiate legacy adapters
   const auth = new BootstrapAuthAdapter(bootstrap)
-  const apiPath = bootstrap.transport.apiPath ?? '/api'
+  const apiPath = bootstrap.transport?.apiPath ?? '/api'
   const resolvedApiPath = `${baseUrl}${apiPath}`
-  const transport = new JsonApiTransportAdapter(resolvedApiPath, bootstrap.tenant)
+  const tenant = { id: 'default', name: 'Default', scopingStrategy: 'server' as const, ...bootstrap.tenant }
+  const transport = new JsonApiTransportAdapter(resolvedApiPath, tenant)
 
   const runtime: AdminRuntime = {
     bootstrap,
     auth,
     transport,
-    catalog: bootstrap.entities,
-    tenant: bootstrap.tenant,
+    catalog: bootstrap.entities ?? [],
+    tenant,
   }
 
   return { provide: { admin: runtime } }

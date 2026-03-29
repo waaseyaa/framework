@@ -7,7 +7,7 @@ export class JsonApiTransportAdapter implements TransportAdapter {
   constructor(
     private readonly apiPath: string,
     private readonly tenant: AdminTenant,
-    private readonly fetchFn: typeof fetch = fetch,
+    private readonly fetchFn: typeof fetch = (...args: Parameters<typeof fetch>) => fetch(...args),
   ) {}
 
   async list(type: string, query?: ListQuery): Promise<ListResult> {
