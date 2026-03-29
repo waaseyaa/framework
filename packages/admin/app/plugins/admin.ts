@@ -33,8 +33,11 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
   const surfacePath = '/_surface'
 
   // ── Skip auth check on login page (prevents redirect loop) ─────
-  if (import.meta.client && window.location.pathname.endsWith('/login')) {
-    return { provide: { admin: null } }
+  if (import.meta.client) {
+    const path = window.location.pathname.replace(/\/+$/, '')
+    if (path.endsWith('/login') && !path.endsWith('-login')) {
+      return { provide: { admin: null } }
+    }
   }
   if (import.meta.server) {
     const route = useRoute()

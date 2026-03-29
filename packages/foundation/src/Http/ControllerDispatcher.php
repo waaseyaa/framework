@@ -688,6 +688,8 @@ final class ControllerDispatcher
                 })(),
 
                 $controller === 'auth.login' => (function () use ($body): never {
+                    // @todo Replace in-memory RateLimiter with cache-backed implementation
+                    // for PHP-FPM deployments. In-memory state is per-process only.
                     static $rateLimiter = null;
                     if ($rateLimiter === null) {
                         $rateLimiter = new \Waaseyaa\Auth\RateLimiter();

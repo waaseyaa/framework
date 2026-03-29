@@ -6,7 +6,10 @@ const route = useRoute()
 const { login } = useAuth()
 
 const logoUrl = config.public.logoUrl as string | undefined
-const returnTo = (route.query.returnTo as string) || '/'
+
+// Validate returnTo is a local path to prevent open redirect attacks
+const rawReturnTo = (route.query.returnTo as string) || '/'
+const returnTo = rawReturnTo.startsWith('/') && !rawReturnTo.startsWith('//') ? rawReturnTo : '/'
 
 const error = ref<string>('')
 const loading = ref<boolean>(false)
