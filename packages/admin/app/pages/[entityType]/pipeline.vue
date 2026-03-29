@@ -69,6 +69,7 @@ watch(entityType, () => {
         density="detailed"
         @drop="onDrop"
         @open-detail="onOpenDetail"
+        @run-action="(action: string, payload: Record<string, unknown>) => pipeline.runCardAction(entityType.value, action, payload)"
       />
     </div>
   </div>
