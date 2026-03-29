@@ -19,6 +19,10 @@
         {
             "type": "path",
             "url": "../foundation"
+        },
+        {
+            "type": "path",
+            "url": "../api"
         }
     ],
     "require": {
@@ -26,7 +30,8 @@
         "waaseyaa/entity": "@dev",
         "waaseyaa/access": "@dev",
         "waaseyaa/routing": "@dev",
-        "waaseyaa/foundation": "@dev"
+        "waaseyaa/foundation": "@dev",
+        "waaseyaa/api": "@dev"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
