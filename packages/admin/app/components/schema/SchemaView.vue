@@ -20,7 +20,7 @@ onMounted(async () => {
   if (schema.value) {
     try {
       const resource = await get(props.entityType, props.entityId)
-      entityData.value = { ...resource.attributes }
+      entityData.value = { id: resource.id, ...resource.attributes }
     } catch (e: any) {
       loadError.value = e.data?.errors?.[0]?.detail ?? e.message ?? 'Failed to load entity'
     }
@@ -28,6 +28,15 @@ onMounted(async () => {
 })
 
 const allFields = computed(() => sortedProperties(false))
+
+const hasValue = (fieldName: string): boolean => {
+  const val = entityData.value[fieldName]
+  return val != null && val !== ''
+}
+
+const populatedFields = computed(() => allFields.value.filter(([name]) => hasValue(name)))
+const emptyFields = computed(() => allFields.value.filter(([name]) => !hasValue(name)))
+const showEmpty = ref(false)
 
 function formatValue(value: any, fieldSchema: Record<string, any>): string {
   if (value == null || value === '') return t('field_not_set')
@@ -49,7 +58,7 @@ function formatValue(value: any, fieldSchema: Record<string, any>): string {
     <div v-else-if="schemaError" class="error">{{ schemaError }}</div>
     <div v-else-if="loadError" class="error">{{ loadError }}</div>
     <dl v-else class="field-list">
-      <template v-for="[fieldName, fieldSchema] in allFields" :key="fieldName">
+      <template v-for="[fieldName, fieldSchema] in populatedFields" :key="fieldName">
         <div class="field-row">
           <dt class="field-label">{{ fieldSchema['x-label'] || fieldName }}</dt>
           <dd
@@ -60,6 +69,19 @@ function formatValue(value: any, fieldSchema: Record<string, any>): string {
           <dd v-else class="field-value">
             {{ formatValue(entityData[fieldName], fieldSchema) }}
           </dd>
+        </div>
+      </template>
+
+      <div v-if="emptyFields.length > 0" class="empty-fields-toggle">
+        <button class="btn-link" @click="showEmpty = !showEmpty">
+          {{ showEmpty ? 'Hide' : 'Show' }} {{ emptyFields.length }} empty fields
+        </button>
+      </div>
+
+      <template v-if="showEmpty">
+        <div v-for="[fieldName, fieldSchema] in emptyFields" :key="fieldName" class="field-row field-row--empty">
+          <dt class="field-label">{{ fieldSchema['x-label'] || fieldName }}</dt>
+          <dd class="field-value field-value--empty">{{ t('field_not_set') }}</dd>
         </div>
       </template>
     </dl>
@@ -102,5 +124,32 @@ function formatValue(value: any, fieldSchema: Record<string, any>): string {
 
 .field-value--html :deep(p) {
   margin: 0 0 8px;
+}
+
+.field-value--empty {
+  color: var(--color-text-muted, #94a3b8);
+  font-style: italic;
+}
+
+.field-row--empty {
+  opacity: 0.7;
+}
+
+.empty-fields-toggle {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--color-primary, #3b82f6);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+}
+
+.btn-link:hover {
+  text-decoration: underline;
 }
 </style>
