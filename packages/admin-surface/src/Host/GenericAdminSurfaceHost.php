@@ -224,7 +224,12 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         }
 
         $storage = $this->entityTypeManager->getStorage($type);
-        $entity = $storage->load($id);
+        $entity = is_numeric($id) ? $storage->load($id) : null;
+
+        // Fall back to UUID lookup for non-numeric IDs
+        if ($entity === null) {
+            $entity = $storage->loadByKey('uuid', $id);
+        }
 
         if ($entity === null) {
             return AdminSurfaceResultData::error(404, 'Not found', "Entity '{$type}/{$id}' does not exist.");
