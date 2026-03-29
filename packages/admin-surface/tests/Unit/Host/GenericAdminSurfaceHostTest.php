@@ -17,6 +17,8 @@ use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
 use Waaseyaa\Entity\ConfigEntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\AdminSurface\Query\SurfaceFilterOperator;
+use Waaseyaa\AdminSurface\Query\SurfaceQuery;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 
@@ -354,5 +356,215 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $this->assertSame(1, $result->data['total']);
         $this->assertSame(0, $result->data['offset']);
         $this->assertSame(50, $result->data['limit']);
+    }
+
+    #[Test]
+    public function list_applies_equals_filter(): void
+    {
+        $published = $this->createMock(EntityInterface::class);
+        $published->method('getEntityTypeId')->willReturn('article');
+        $published->method('uuid')->willReturn('');
+        $published->method('id')->willReturn(1);
+        $published->method('toArray')->willReturn(['id' => 1, 'title' => 'Published Post', 'status' => 'published']);
+        $published->method('get')->willReturnCallback(
+            fn(string $field) => match ($field) {
+                'status' => 'published',
+                'title' => 'Published Post',
+                default => null,
+            },
+        );
+
+        $draft = $this->createMock(EntityInterface::class);
+        $draft->method('getEntityTypeId')->willReturn('article');
+        $draft->method('uuid')->willReturn('');
+        $draft->method('id')->willReturn(2);
+        $draft->method('toArray')->willReturn(['id' => 2, 'title' => 'Draft Post', 'status' => 'draft']);
+        $draft->method('get')->willReturnCallback(
+            fn(string $field) => match ($field) {
+                'status' => 'draft',
+                'title' => 'Draft Post',
+                default => null,
+            },
+        );
+
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage->method('loadMultiple')->willReturn([$published, $draft]);
+
+        $articleType = new EntityType(
+            id: 'article',
+            label: 'Article',
+            class: \stdClass::class,
+            keys: ['id' => 'id'],
+        );
+
+        $etm = $this->createMock(EntityTypeManager::class);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getDefinition')->willReturn($articleType);
+        $etm->method('getStorage')->willReturn($storage);
+
+        $host = new GenericAdminSurfaceHost($etm);
+
+        $query = new SurfaceQuery(
+            filters: [['field' => 'status', 'operator' => SurfaceFilterOperator::EQUALS, 'value' => 'published']],
+        );
+        $result = $host->list('article', $query);
+
+        $this->assertTrue($result->ok);
+        $this->assertCount(1, $result->data['entities']);
+        $this->assertSame('Published Post', $result->data['entities'][0]['attributes']['title']);
+    }
+
+    #[Test]
+    public function list_applies_in_filter(): void
+    {
+        $lead = $this->createMock(EntityInterface::class);
+        $lead->method('getEntityTypeId')->willReturn('contact');
+        $lead->method('uuid')->willReturn('');
+        $lead->method('id')->willReturn(1);
+        $lead->method('toArray')->willReturn(['id' => 1, 'name' => 'Alice', 'stage' => 'lead']);
+        $lead->method('get')->willReturnCallback(
+            fn(string $field) => match ($field) { 'stage' => 'lead', 'name' => 'Alice', default => null },
+        );
+
+        $qualified = $this->createMock(EntityInterface::class);
+        $qualified->method('getEntityTypeId')->willReturn('contact');
+        $qualified->method('uuid')->willReturn('');
+        $qualified->method('id')->willReturn(2);
+        $qualified->method('toArray')->willReturn(['id' => 2, 'name' => 'Bob', 'stage' => 'qualified']);
+        $qualified->method('get')->willReturnCallback(
+            fn(string $field) => match ($field) { 'stage' => 'qualified', 'name' => 'Bob', default => null },
+        );
+
+        $closed = $this->createMock(EntityInterface::class);
+        $closed->method('getEntityTypeId')->willReturn('contact');
+        $closed->method('uuid')->willReturn('');
+        $closed->method('id')->willReturn(3);
+        $closed->method('toArray')->willReturn(['id' => 3, 'name' => 'Carol', 'stage' => 'closed']);
+        $closed->method('get')->willReturnCallback(
+            fn(string $field) => match ($field) { 'stage' => 'closed', 'name' => 'Carol', default => null },
+        );
+
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage->method('loadMultiple')->willReturn([$lead, $qualified, $closed]);
+
+        $contactType = new EntityType(
+            id: 'contact',
+            label: 'Contact',
+            class: \stdClass::class,
+            keys: ['id' => 'id'],
+        );
+
+        $etm = $this->createMock(EntityTypeManager::class);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getDefinition')->willReturn($contactType);
+        $etm->method('getStorage')->willReturn($storage);
+
+        $host = new GenericAdminSurfaceHost($etm);
+
+        $query = new SurfaceQuery(
+            filters: [['field' => 'stage', 'operator' => SurfaceFilterOperator::IN, 'value' => 'lead,qualified']],
+        );
+        $result = $host->list('contact', $query);
+
+        $this->assertTrue($result->ok);
+        $this->assertCount(2, $result->data['entities']);
+    }
+
+    #[Test]
+    public function list_applies_sort_descending(): void
+    {
+        $older = $this->createMock(EntityInterface::class);
+        $older->method('getEntityTypeId')->willReturn('article');
+        $older->method('uuid')->willReturn('');
+        $older->method('id')->willReturn(1);
+        $older->method('toArray')->willReturn(['id' => 1, 'title' => 'Older', 'created_at' => '2024-01-01']);
+        $older->method('get')->willReturnCallback(
+            fn(string $field) => match ($field) {
+                'created_at' => '2024-01-01',
+                'title' => 'Older',
+                default => null,
+            },
+        );
+
+        $newer = $this->createMock(EntityInterface::class);
+        $newer->method('getEntityTypeId')->willReturn('article');
+        $newer->method('uuid')->willReturn('');
+        $newer->method('id')->willReturn(2);
+        $newer->method('toArray')->willReturn(['id' => 2, 'title' => 'Newer', 'created_at' => '2024-06-01']);
+        $newer->method('get')->willReturnCallback(
+            fn(string $field) => match ($field) {
+                'created_at' => '2024-06-01',
+                'title' => 'Newer',
+                default => null,
+            },
+        );
+
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage->method('loadMultiple')->willReturn([$older, $newer]);
+
+        $articleType = new EntityType(
+            id: 'article',
+            label: 'Article',
+            class: \stdClass::class,
+            keys: ['id' => 'id'],
+        );
+
+        $etm = $this->createMock(EntityTypeManager::class);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getDefinition')->willReturn($articleType);
+        $etm->method('getStorage')->willReturn($storage);
+
+        $host = new GenericAdminSurfaceHost($etm);
+
+        $query = new SurfaceQuery(
+            sortField: 'created_at',
+            sortDirection: 'DESC',
+        );
+        $result = $host->list('article', $query);
+
+        $this->assertTrue($result->ok);
+        $this->assertCount(2, $result->data['entities']);
+        $this->assertSame('Newer', $result->data['entities'][0]['attributes']['title']);
+        $this->assertSame('Older', $result->data['entities'][1]['attributes']['title']);
+    }
+
+    #[Test]
+    public function list_without_filters_returns_all(): void
+    {
+        $entity1 = $this->createMock(EntityInterface::class);
+        $entity1->method('getEntityTypeId')->willReturn('event');
+        $entity1->method('uuid')->willReturn('');
+        $entity1->method('id')->willReturn(1);
+        $entity1->method('toArray')->willReturn(['eid' => 1, 'title' => 'First']);
+
+        $entity2 = $this->createMock(EntityInterface::class);
+        $entity2->method('getEntityTypeId')->willReturn('event');
+        $entity2->method('uuid')->willReturn('');
+        $entity2->method('id')->willReturn(2);
+        $entity2->method('toArray')->willReturn(['eid' => 2, 'title' => 'Second']);
+
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage->method('loadMultiple')->willReturn([$entity1, $entity2]);
+
+        $eventType = new EntityType(
+            id: 'event',
+            label: 'Event',
+            class: \stdClass::class,
+            keys: ['id' => 'eid'],
+        );
+
+        $etm = $this->createMock(EntityTypeManager::class);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getDefinition')->willReturn($eventType);
+        $etm->method('getStorage')->willReturn($storage);
+
+        $host = new GenericAdminSurfaceHost($etm);
+
+        // Call with no query (backward compat)
+        $result = $host->list('event');
+
+        $this->assertTrue($result->ok);
+        $this->assertCount(2, $result->data['entities']);
+        $this->assertSame(2, $result->data['total']);
     }
 }

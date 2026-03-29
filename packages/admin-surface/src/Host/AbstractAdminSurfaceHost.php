@@ -6,6 +6,8 @@ namespace Waaseyaa\AdminSurface\Host;
 
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\AdminSurface\Catalog\CatalogBuilder;
+use Waaseyaa\AdminSurface\Query\SurfaceQuery;
+use Waaseyaa\AdminSurface\Query\SurfaceQueryParser;
 
 /**
  * Base host class that applications extend to integrate with the admin SPA.
@@ -36,10 +38,10 @@ abstract class AbstractAdminSurfaceHost
     /**
      * List entities of the given type.
      *
-     * @param string               $type    Entity type ID
-     * @param array<string, mixed> $query   Filter/sort/pagination parameters
+     * @param string                    $type    Entity type ID
+     * @param SurfaceQuery|array<string, mixed> $query   Filter/sort/pagination parameters
      */
-    abstract public function list(string $type, array $query = []): AdminSurfaceResultData;
+    abstract public function list(string $type, SurfaceQuery|array $query = []): AdminSurfaceResultData;
 
     /**
      * Get a single entity by type and ID.
@@ -104,7 +106,7 @@ abstract class AbstractAdminSurfaceHost
             return AdminSurfaceResultData::error(401, 'Unauthorized')->toArray();
         }
 
-        return $this->list($type, $request->query->all())->toArray();
+        return $this->list($type, SurfaceQueryParser::fromRequest($request))->toArray();
     }
 
     /**

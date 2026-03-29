@@ -14,6 +14,8 @@ use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Api\JsonApiResource;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Api\Schema\SchemaPresenter;
+use Waaseyaa\AdminSurface\Query\SurfaceFilterOperator;
+use Waaseyaa\AdminSurface\Query\SurfaceQuery;
 use Waaseyaa\Entity\ConfigEntityBase;
 use Waaseyaa\Entity\EntityTypeManager;
 
@@ -112,15 +114,23 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         return $catalog;
     }
 
-    public function list(string $type, array $query = []): AdminSurfaceResultData
+    public function list(string $type, SurfaceQuery|array $query = []): AdminSurfaceResultData
     {
         if (!$this->entityTypeManager->hasDefinition($type)) {
             return AdminSurfaceResultData::error(404, 'Unknown entity type', "Type '{$type}' is not registered.");
         }
 
+        // Backward compat: convert plain array to SurfaceQuery with pagination only
+        if (is_array($query)) {
+            $offset = max(0, (int) ($query['page[offset]'] ?? $query['page']['offset'] ?? 0));
+            $limit = (int) ($query['page[limit]'] ?? $query['page']['limit'] ?? 50);
+            $query = new SurfaceQuery(offset: $offset, limit: $limit);
+        }
+
         $storage = $this->entityTypeManager->getStorage($type);
         $entities = $storage->loadMultiple();
 
+        // Access filtering
         if ($this->accessHandler !== null && $this->currentAccount !== null) {
             $entities = array_filter(
                 $entities,
@@ -128,18 +138,33 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             );
         }
 
+        // Apply SurfaceQuery filters
+        foreach ($query->filters as $filter) {
+            $entities = array_filter(
+                $entities,
+                fn($e) => $this->applyFilter($e, $filter['field'], $filter['operator'], $filter['value']),
+            );
+        }
+
         $entities = array_values($entities);
+
+        // Apply sorting
+        if ($query->sortField !== null) {
+            $field = $query->sortField;
+            $desc = $query->sortDirection === 'DESC';
+            usort($entities, static function ($a, $b) use ($field, $desc): int {
+                $aVal = (string) $a->get($field);
+                $bVal = (string) $b->get($field);
+                $cmp = $aVal <=> $bVal;
+
+                return $desc ? -$cmp : $cmp;
+            });
+        }
+
         $total = count($entities);
 
-        $offset = max(0, (int) ($query['page[offset]'] ?? $query['page']['offset'] ?? 0));
-        $limit = (int) ($query['page[limit]'] ?? $query['page']['limit'] ?? 50);
-        if ($limit < 1) {
-            $limit = 50;
-        }
-        $limit = min($limit, 500);
-
         $serializer = $this->serializer();
-        $pageEntities = array_slice($entities, $offset, $limit);
+        $pageEntities = array_slice($entities, $query->offset, $query->limit);
 
         $surfaceEntities = [];
         foreach ($pageEntities as $entity) {
@@ -151,9 +176,26 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         return AdminSurfaceResultData::success([
             'entities' => $surfaceEntities,
             'total' => $total,
-            'offset' => $offset,
-            'limit' => $limit,
+            'offset' => $query->offset,
+            'limit' => $query->limit,
         ]);
+    }
+
+    private function applyFilter(mixed $entity, string $field, SurfaceFilterOperator $operator, mixed $value): bool
+    {
+        $fieldValue = (string) $entity->get($field);
+        $filterValue = (string) $value;
+
+        return match ($operator) {
+            SurfaceFilterOperator::EQUALS => $fieldValue === $filterValue,
+            SurfaceFilterOperator::NOT_EQUALS => $fieldValue !== $filterValue,
+            SurfaceFilterOperator::IN => in_array($fieldValue, explode(',', $filterValue), true),
+            SurfaceFilterOperator::CONTAINS => mb_stripos($fieldValue, $filterValue) !== false,
+            SurfaceFilterOperator::GT => (float) $fieldValue > (float) $filterValue,
+            SurfaceFilterOperator::LT => (float) $fieldValue < (float) $filterValue,
+            SurfaceFilterOperator::GTE => (float) $fieldValue >= (float) $filterValue,
+            SurfaceFilterOperator::LTE => (float) $fieldValue <= (float) $filterValue,
+        };
     }
 
     public function get(string $type, string $id): AdminSurfaceResultData

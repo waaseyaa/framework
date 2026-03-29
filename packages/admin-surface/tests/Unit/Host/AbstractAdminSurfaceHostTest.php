@@ -37,7 +37,7 @@ final class AbstractAdminSurfaceHostTest extends TestCase
                 return $this->catalog ?? new CatalogBuilder();
             }
 
-            public function list(string $type, array $query = []): AdminSurfaceResultData
+            public function list(string $type, \Waaseyaa\AdminSurface\Query\SurfaceQuery|array $query = []): AdminSurfaceResultData
             {
                 return AdminSurfaceResultData::success([
                     'entities' => [],

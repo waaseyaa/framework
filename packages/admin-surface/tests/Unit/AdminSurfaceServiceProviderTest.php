@@ -225,7 +225,7 @@ final class AdminSurfaceServiceProviderTest extends TestCase
                 return $catalog;
             }
 
-            public function list(string $type, array $query = []): AdminSurfaceResultData
+            public function list(string $type, \Waaseyaa\AdminSurface\Query\SurfaceQuery|array $query = []): AdminSurfaceResultData
             {
                 return AdminSurfaceResultData::success([
                     ['id' => '1', 'type' => $type, 'title' => 'First Article'],
