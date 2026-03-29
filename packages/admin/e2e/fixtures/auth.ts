@@ -3,7 +3,8 @@ import type { Page } from '@playwright/test'
 const DEV_ADMIN_ID = String(Number.MAX_SAFE_INTEGER)
 
 export async function mockUnauthenticatedSession(page: Page) {
-  await page.route('**/admin/surface/session', (route) =>
+  // Match both proxy path (/_surface/) and direct path (/admin/surface/)
+  await page.route(/\/(admin\/surface|_surface)\/session/, (route) =>
     route.fulfill({
       status: 200,
       json: { ok: false, error: { status: 401, title: 'Unauthorized' } },

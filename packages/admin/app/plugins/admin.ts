@@ -30,7 +30,18 @@ interface SurfaceResult<T> {
 export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRuntime | null } }> => {
   const config = useRuntimeConfig()
   const baseUrl = (config.public.baseUrl as string) || ''
-  const surfacePath = `${baseUrl}/admin/surface`
+  const surfacePath = '/_surface'
+
+  // ── Skip auth check on login page (prevents redirect loop) ─────
+  if (import.meta.client && window.location.pathname.endsWith('/login')) {
+    return { provide: { admin: null } }
+  }
+  if (import.meta.server) {
+    const route = useRoute()
+    if (route.path === '/login') {
+      return { provide: { admin: null } }
+    }
+  }
 
   // ── Fetch session from AdminSurface API ──────────────────────────
 

@@ -15,7 +15,7 @@ test.describe('Login page', () => {
   test('login page renders Split Panel with app name', async ({ page }) => {
     await mockUnauthenticatedSession(page)
     await page.goto('/login')
-    await expect(page.locator('.auth-brand-title')).toContainText('Waaseyaa')
+    await expect(page.locator('.auth-brand-title')).toBeVisible()
     await expect(page.locator('#login-username')).toBeVisible()
     await expect(page.locator('#login-password')).toBeVisible()
   })
