@@ -44,12 +44,14 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
   try {
     const sessionRes = await $fetch<SurfaceResult<SurfaceSession>>(`${surfacePath}/session`, {
       ignoreResponseError: true,
+      credentials: 'include',
     })
     if (sessionRes && sessionRes.ok && sessionRes.data) {
       surfaceSession = sessionRes.data
 
       const catalogRes = await $fetch<SurfaceResult<{ entities: SurfaceCatalogEntry[] }>>(`${surfacePath}/catalog`, {
         ignoreResponseError: true,
+        credentials: 'include',
       })
       if (catalogRes && catalogRes.ok && catalogRes.data) {
         surfaceCatalog = catalogRes.data.entities
@@ -120,6 +122,7 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
     try {
       response = await $fetch<AdminBootstrap>(`${baseUrl}/admin/bootstrap`, {
         ignoreResponseError: true,
+        credentials: 'include',
         onResponseError({ response: res }) {
           if (res.status === 401 || res.status === 403) {
             // Auth failure — will redirect to login below

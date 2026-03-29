@@ -146,7 +146,7 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
       Accept: 'application/json',
       ...(init.headers as Record<string, string> ?? {}),
     }
-    const response = await this.fetchFn(url, { ...init, headers })
+    const response = await this.fetchFn(url, { ...init, headers, credentials: 'include' })
     if (response.status === 204) return undefined as unknown as T
     const json = await response.json() as SurfaceResult<T>
     if (!response.ok || !json.ok) {
