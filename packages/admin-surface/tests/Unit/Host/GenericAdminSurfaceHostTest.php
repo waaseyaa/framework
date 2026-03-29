@@ -42,7 +42,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
 
         $host = new GenericAdminSurfaceHost($this->createMock(EntityTypeManager::class));
         $request = Request::create('/admin/surface/session');
-        $request->attributes->set('account', $account);
+        $request->attributes->set('_account', $account);
 
         $this->assertNull($host->resolveSession($request));
     }
@@ -61,7 +61,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             tenantName: 'My App',
         );
         $request = Request::create('/admin/surface/session');
-        $request->attributes->set('account', $account);
+        $request->attributes->set('_account', $account);
 
         $session = $host->resolveSession($request);
 
@@ -87,7 +87,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             adminPermission: 'manage site',
         );
         $request = Request::create('/admin/surface/session');
-        $request->attributes->set('account', $account);
+        $request->attributes->set('_account', $account);
 
         $this->assertNotNull($host->resolveSession($request));
     }
@@ -285,7 +285,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['authenticated']);
         $request = Request::create('/admin/surface/session');
-        $request->attributes->set('account', $account);
+        $request->attributes->set('_account', $account);
         $host->resolveSession($request);
 
         $result = $host->get('event', '1');
@@ -341,7 +341,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['authenticated']);
         $request = Request::create('/');
-        $request->attributes->set('account', $account);
+        $request->attributes->set('_account', $account);
         $host->resolveSession($request);
 
         $result = $host->list('event');

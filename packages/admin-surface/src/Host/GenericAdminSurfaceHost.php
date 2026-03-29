@@ -46,7 +46,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
 
     public function resolveSession(Request $request): ?AdminSurfaceSessionData
     {
-        $account = $request->attributes->get('account');
+        $account = $request->attributes->get('_account');
 
         if (!$account instanceof AccountInterface) {
             return null;
