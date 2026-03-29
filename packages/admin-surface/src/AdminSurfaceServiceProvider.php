@@ -64,9 +64,13 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
      */
     public static function registerRoutes(WaaseyaaRouter $router, AbstractAdminSurfaceHost $host): void
     {
+        // Session endpoint uses requireSession (not requireAuthentication) so the
+        // SPA can distinguish "not logged in" (SurfaceResult with ok:false) from
+        // "endpoint not available" (network error). The host's resolveSession()
+        // checks the account and returns null for unauthorized users.
         $router->addRoute('admin_surface.session', RouteBuilder::create('/admin/surface/session')
             ->methods('GET')
-            ->requireAuthentication()
+            ->requireSession()
             ->controller(fn($request) => $host->handleSession($request))
             ->build());
 
