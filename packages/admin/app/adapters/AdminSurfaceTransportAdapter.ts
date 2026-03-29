@@ -97,7 +97,7 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
   async schema(type: string): Promise<EntitySchema> {
     return this.request<EntitySchema>(
       `${this.basePath}/${type}/action/schema`,
-      { method: 'POST' },
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
     )
   }
 
