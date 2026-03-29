@@ -417,6 +417,103 @@ final class GenericAdminSurfaceHostTest extends TestCase
     }
 
     #[Test]
+    public function list_gt_filter_compares_non_numeric_strings_lexicographically_not_as_zero(): void
+    {
+        $high = $this->createMock(EntityInterface::class);
+        $high->method('getEntityTypeId')->willReturn('row');
+        $high->method('uuid')->willReturn('');
+        $high->method('id')->willReturn(1);
+        $high->method('toArray')->willReturn(['id' => 1, 'code' => 'zzz']);
+        $high->method('get')->willReturnCallback(
+            fn(string $field) => match ($field) { 'code' => 'zzz', default => null },
+        );
+
+        $low = $this->createMock(EntityInterface::class);
+        $low->method('getEntityTypeId')->willReturn('row');
+        $low->method('uuid')->willReturn('');
+        $low->method('id')->willReturn(2);
+        $low->method('toArray')->willReturn(['id' => 2, 'code' => 'aaa']);
+        $low->method('get')->willReturnCallback(
+            fn(string $field) => match ($field) { 'code' => 'aaa', default => null },
+        );
+
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage->method('loadMultiple')->willReturn([$high, $low]);
+
+        $type = new EntityType(
+            id: 'row',
+            label: 'Row',
+            class: \stdClass::class,
+            keys: ['id' => 'id'],
+        );
+
+        $etm = $this->createMock(EntityTypeManager::class);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getDefinition')->willReturn($type);
+        $etm->method('getStorage')->willReturn($storage);
+
+        $host = new GenericAdminSurfaceHost($etm);
+
+        // Lexicographically 'zzz' > 'mmm'; float cast would make both 0.0 and match nothing.
+        $query = new SurfaceQuery(
+            filters: [['field' => 'code', 'operator' => SurfaceFilterOperator::GT, 'value' => 'mmm']],
+        );
+        $result = $host->list('row', $query);
+
+        $this->assertTrue($result->ok);
+        $this->assertCount(1, $result->data['entities']);
+        $this->assertSame('zzz', $result->data['entities'][0]['attributes']['code']);
+    }
+
+    #[Test]
+    public function list_gt_filter_compares_numeric_strings_as_numbers(): void
+    {
+        $ten = $this->createMock(EntityInterface::class);
+        $ten->method('getEntityTypeId')->willReturn('row');
+        $ten->method('uuid')->willReturn('');
+        $ten->method('id')->willReturn(1);
+        $ten->method('toArray')->willReturn(['id' => 1, 'n' => '10']);
+        $ten->method('get')->willReturnCallback(
+            fn(string $field) => match ($field) { 'n' => '10', default => null },
+        );
+
+        $two = $this->createMock(EntityInterface::class);
+        $two->method('getEntityTypeId')->willReturn('row');
+        $two->method('uuid')->willReturn('');
+        $two->method('id')->willReturn(2);
+        $two->method('toArray')->willReturn(['id' => 2, 'n' => '2']);
+        $two->method('get')->willReturnCallback(
+            fn(string $field) => match ($field) { 'n' => '2', default => null },
+        );
+
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage->method('loadMultiple')->willReturn([$ten, $two]);
+
+        $type = new EntityType(
+            id: 'row',
+            label: 'Row',
+            class: \stdClass::class,
+            keys: ['id' => 'id'],
+        );
+
+        $etm = $this->createMock(EntityTypeManager::class);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getDefinition')->willReturn($type);
+        $etm->method('getStorage')->willReturn($storage);
+
+        $host = new GenericAdminSurfaceHost($etm);
+
+        $query = new SurfaceQuery(
+            filters: [['field' => 'n', 'operator' => SurfaceFilterOperator::GT, 'value' => '5']],
+        );
+        $result = $host->list('row', $query);
+
+        $this->assertTrue($result->ok);
+        $this->assertCount(1, $result->data['entities']);
+        $this->assertSame('10', $result->data['entities'][0]['attributes']['n']);
+    }
+
+    #[Test]
     public function list_applies_in_filter(): void
     {
         $lead = $this->createMock(EntityInterface::class);

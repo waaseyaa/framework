@@ -195,11 +195,26 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             SurfaceFilterOperator::NOT_EQUALS => $fieldValue !== $filterValue,
             SurfaceFilterOperator::IN => in_array($fieldValue, explode(',', $filterValue), true),
             SurfaceFilterOperator::CONTAINS => mb_stripos($fieldValue, $filterValue) !== false,
-            SurfaceFilterOperator::GT => (float) $fieldValue > (float) $filterValue,
-            SurfaceFilterOperator::LT => (float) $fieldValue < (float) $filterValue,
-            SurfaceFilterOperator::GTE => (float) $fieldValue >= (float) $filterValue,
-            SurfaceFilterOperator::LTE => (float) $fieldValue <= (float) $filterValue,
+            SurfaceFilterOperator::GT => $this->compareOrderedFilterValues($fieldValue, $filterValue) > 0,
+            SurfaceFilterOperator::LT => $this->compareOrderedFilterValues($fieldValue, $filterValue) < 0,
+            SurfaceFilterOperator::GTE => $this->compareOrderedFilterValues($fieldValue, $filterValue) >= 0,
+            SurfaceFilterOperator::LTE => $this->compareOrderedFilterValues($fieldValue, $filterValue) <= 0,
         };
+    }
+
+    /**
+     * Compare two values for GT/LT/GTE/LTE filters.
+     *
+     * When both sides are numeric strings, compare as floats so "10" > "2".
+     * Otherwise compare as strings so non-numeric values do not silently become 0.0.
+     */
+    private function compareOrderedFilterValues(string $fieldValue, string $filterValue): int
+    {
+        if (is_numeric($fieldValue) && is_numeric($filterValue)) {
+            return (float) $fieldValue <=> (float) $filterValue;
+        }
+
+        return $fieldValue <=> $filterValue;
     }
 
     public function get(string $type, string $id): AdminSurfaceResultData
