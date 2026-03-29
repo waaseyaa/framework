@@ -117,7 +117,7 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: payload ? JSON.stringify(payload) : undefined,
+        body: JSON.stringify(payload ?? {}),
       },
     )
   }
