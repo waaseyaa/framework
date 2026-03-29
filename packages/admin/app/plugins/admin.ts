@@ -55,6 +55,12 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
         surfaceCatalog = catalogRes.data.entities
         useSurface = true
       }
+    } else if (sessionRes && !sessionRes.ok && sessionRes.error?.status === 401) {
+      // Surface endpoint exists but user is not authenticated — redirect to login
+      if (import.meta.client) {
+        window.location.href = `${baseUrl}/login`
+      }
+      return { provide: { admin: null } }
     }
   } catch {
     // Surface not available — fall through to legacy bootstrap
