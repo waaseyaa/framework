@@ -1,6 +1,7 @@
 export interface CatalogEntry {
   id: string
   label: string
+  description?: string
   keys?: Record<string, string>
   group?: string
   disabled?: boolean

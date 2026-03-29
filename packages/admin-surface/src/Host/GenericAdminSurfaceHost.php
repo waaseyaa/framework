@@ -75,6 +75,11 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         foreach ($this->entityTypeManager->getDefinitions() as $definition) {
             $entity = $catalog->defineEntity($definition->id(), $definition->getLabel());
 
+            $description = $definition->getDescription();
+            if ($description !== null) {
+                $entity->description($description);
+            }
+
             $group = $definition->getGroup();
             if ($group !== null) {
                 $entity->group($group);

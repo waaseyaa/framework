@@ -17,6 +17,7 @@ interface SurfaceSession {
 interface SurfaceCatalogEntry {
   id: string
   label: string
+  description?: string
   group?: string
   disabled?: boolean
   fields: unknown[]
@@ -72,6 +73,7 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
     const catalog: CatalogEntry[] = surfaceCatalog.map(entry => ({
       id: entry.id,
       label: entry.label,
+      description: entry.description,
       group: entry.group,
       disabled: entry.disabled,
       capabilities: entry.capabilities,

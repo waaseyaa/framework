@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { useLanguage } from '~/composables/useLanguage'
 import { useEntity, type JsonApiResource } from '~/composables/useEntity'
+import { useAdmin } from '~/composables/useAdmin'
 
 const { t } = useLanguage()
 const { list } = useEntity()
+const { catalog } = useAdmin()
 
 const counts = ref<Record<string, number>>({
   pending_review: 0,
@@ -25,6 +27,11 @@ const ncSync = ref<{
 } | null>(null)
 
 async function fetchCounts() {
+  if (!catalog.some(e => e.id === 'ingest_log')) {
+    hidden.value = true
+    loading.value = false
+    return
+  }
   try {
     const result = await list('ingest_log', { page: { offset: 0, limit: 1000 } })
     const fresh: Record<string, number> = {

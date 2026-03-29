@@ -89,6 +89,7 @@ onMounted(async () => {
         class="card"
       >
         <h2 class="card-title">{{ entityLabel(et.id, et.label) }}</h2>
+        <p v-if="et.description" class="card-sub">{{ et.description }}</p>
       </NuxtLink>
     </div>
   </div>
