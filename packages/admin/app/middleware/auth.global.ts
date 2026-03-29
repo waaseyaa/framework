@@ -1,22 +1,8 @@
-import type { AdminRuntime } from '~/contracts'
-
-export default defineNuxtRouteMiddleware(async (to) => {
-  // Auth check runs client-side only. The PHP backend is the authoritative
-  // security layer; the Nuxt middleware is a UX redirect guard.
-  if (!import.meta.client) {
-    return
-  }
-
-  if (to.path === '/login') {
-    return
-  }
-
-  // Check if $admin is available — if not, plugin may have redirected already
-  const nuxtApp = useNuxtApp()
-  const admin = (nuxtApp as unknown as { $admin: AdminRuntime | null }).$admin
-  if (!admin) {
-    return navigateTo('/login')
-  }
-
-  // If we got here, the surface session succeeded — user is authenticated.
+export default defineNuxtRouteMiddleware(async () => {
+  // Auth is handled entirely by the admin plugin. If the AdminSurface session
+  // returns 401, the plugin redirects to the PHP backend's login page via
+  // window.location.href (full page navigation, not SPA routing).
+  //
+  // This middleware is intentionally empty — it exists as a named extension
+  // point for host apps that need additional route guards.
 })
