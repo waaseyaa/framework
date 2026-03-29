@@ -78,6 +78,54 @@ final class AuthControllerTest extends TestCase
     }
 
     #[Test]
+    public function findUserByNameFindsUserByEmail(): void
+    {
+        $user = new User(['uid' => 8, 'name' => 'eve', 'mail' => 'eve@example.com']);
+
+        // Build a query that returns [] for name lookup but the user for mail lookup.
+        $callCount = 0;
+        $query = new class($user, $callCount) implements EntityQueryInterface {
+            public function __construct(
+                private readonly User $user,
+                private int &$callCount,
+            ) {}
+
+            public function condition(string $field, mixed $value, string $operator = '='): static
+            {
+                if ($field === 'name') {
+                    $this->callCount = 1; // first query: by name
+                } elseif ($field === 'mail') {
+                    $this->callCount = 2; // second query: by mail
+                }
+                return $this;
+            }
+
+            public function exists(string $field): static { return $this; }
+            public function notExists(string $field): static { return $this; }
+            public function sort(string $field, string $direction = 'ASC'): static { return $this; }
+            public function range(int $offset, int $limit): static { return $this; }
+            public function count(): static { return $this; }
+            public function accessCheck(bool $check = true): static { return $this; }
+
+            public function execute(): array
+            {
+                // Name lookup returns empty, mail lookup returns the user ID.
+                return $this->callCount === 2 ? [(string) $this->user->id()] : [];
+            }
+        };
+
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage->method('getQuery')->willReturn($query);
+        $storage->method('load')->with($user->id())->willReturn($user);
+
+        $controller = new AuthController();
+        $found = $controller->findUserByName($storage, 'eve@example.com');
+
+        $this->assertInstanceOf(User::class, $found);
+        $this->assertSame(8, $found->id());
+    }
+
+    #[Test]
     public function findUserByNameQueryIncludesStatusOneCondition(): void
     {
         /** @var list<array{field: string, value: mixed, operator: string}> $capturedConditions */

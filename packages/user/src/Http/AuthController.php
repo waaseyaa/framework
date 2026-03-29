@@ -51,15 +51,25 @@ final class AuthController
     }
 
     /**
-     * Looks up a user by name in storage. Returns null if not found.
+     * Looks up a user by name or email in storage. Returns null if not found.
      */
     public function findUserByName(EntityStorageInterface $storage, string $name): ?User
     {
+        // Try by name first.
         $ids = $storage->getQuery()
             ->condition('name', $name)
             ->condition('status', 1)
             ->range(0, 1)
             ->execute();
+
+        // If not found, try by mail field (stored in _data JSON blob).
+        if ($ids === []) {
+            $ids = $storage->getQuery()
+                ->condition('mail', $name)
+                ->condition('status', 1)
+                ->range(0, 1)
+                ->execute();
+        }
 
         if ($ids === []) {
             return null;
