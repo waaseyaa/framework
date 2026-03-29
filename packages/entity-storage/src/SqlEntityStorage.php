@@ -116,14 +116,14 @@ final class SqlEntityStorage implements EntityStorageInterface
      */
     public function loadMultiple(array $ids = []): array
     {
-        if (empty($ids)) {
-            return [];
+        $query = $this->database->select($this->tableName)
+            ->fields($this->tableName);
+
+        if (!empty($ids)) {
+            $query->condition($this->idKey, $ids, 'IN');
         }
 
-        $result = $this->database->select($this->tableName)
-            ->fields($this->tableName)
-            ->condition($this->idKey, $ids, 'IN')
-            ->execute();
+        $result = $query->execute();
 
         $entities = [];
         foreach ($result as $row) {
