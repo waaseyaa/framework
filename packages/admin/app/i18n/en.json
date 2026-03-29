@@ -109,6 +109,11 @@
 
   "create_entity": "Create {type}",
   "edit_entity": "Edit {type}",
+  "view_entity": "{type} details",
+  "yes": "Yes",
+  "no": "No",
+  "field_not_set": "Not set",
+  "close": "Close",
 
   "telescope_codified_context": "Codified Context",
   "telescope_cc_sessions": "Sessions",
