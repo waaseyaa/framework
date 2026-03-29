@@ -7,7 +7,7 @@ export default defineNuxtConfig({
 
   nitro: {
     prerender: {
-      // /login is proxied to PHP during generate; backend may be unreachable in CI.
+      // Backend may be unreachable during static generation in CI.
       failOnError: false,
     },
   },
@@ -28,8 +28,6 @@ export default defineNuxtConfig({
   routeRules: {
     '/api/**': { proxy: `${backendUrl}/api/**` },
     '/admin/surface/**': { proxy: `${backendUrl}/admin/surface/**` },
-    '/admin/bootstrap': { proxy: `${backendUrl}/admin/bootstrap` },
-    '/login': { proxy: `${backendUrl}/login` },
   },
 
   runtimeConfig: {
