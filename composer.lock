@@ -2988,12 +2988,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/admin-surface",
-                "reference": "00f43e3b8377ee69e7384e864be3242e80174425"
+                "reference": "8159ff756ecb7fcc43b2dd53963fa38a458b9322"
             },
             "require": {
                 "php": ">=8.4",
                 "waaseyaa/access": "@dev",
-                "waaseyaa/api": "@dev",
                 "waaseyaa/entity": "@dev",
                 "waaseyaa/foundation": "@dev",
                 "waaseyaa/routing": "@dev"
