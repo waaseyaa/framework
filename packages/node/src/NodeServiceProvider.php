@@ -14,6 +14,7 @@ final class NodeServiceProvider extends ServiceProvider
         $this->entityType(new EntityType(
             id: 'node',
             label: 'Content',
+            description: 'Published content items',
             class: Node::class,
             keys: ['id' => 'nid', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
             group: 'content',
@@ -86,6 +87,7 @@ final class NodeServiceProvider extends ServiceProvider
         $this->entityType(new EntityType(
             id: 'node_type',
             label: 'Content Type',
+            description: 'Content type definitions and field configuration',
             class: NodeType::class,
             keys: ['id' => 'type', 'label' => 'name'],
             group: 'content',

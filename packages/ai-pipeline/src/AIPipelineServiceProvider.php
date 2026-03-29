@@ -14,6 +14,7 @@ final class AIPipelineServiceProvider extends ServiceProvider
         $this->entityType(new EntityType(
             id: 'pipeline',
             label: 'Pipeline',
+            description: 'AI processing pipeline configurations',
             class: Pipeline::class,
             keys: ['id' => 'id', 'label' => 'label'],
             group: 'ai',

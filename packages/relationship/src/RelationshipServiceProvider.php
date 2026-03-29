@@ -14,6 +14,7 @@ final class RelationshipServiceProvider extends ServiceProvider
         $this->entityType(new EntityType(
             id: 'relationship',
             label: 'Relationship',
+            description: 'Connections between entities for cross-referencing',
             class: Relationship::class,
             keys: [
                 'id' => 'rid',

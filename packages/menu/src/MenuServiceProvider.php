@@ -14,6 +14,7 @@ final class MenuServiceProvider extends ServiceProvider
         $this->entityType(new EntityType(
             id: 'menu',
             label: 'Menu',
+            description: 'Navigation menus for site structure',
             class: Menu::class,
             keys: ['id' => 'id', 'label' => 'label'],
             group: 'structure',
@@ -22,6 +23,7 @@ final class MenuServiceProvider extends ServiceProvider
         $this->entityType(new EntityType(
             id: 'menu_link',
             label: 'Menu Link',
+            description: 'Individual links within navigation menus',
             class: MenuLink::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'menu_name'],
             group: 'structure',

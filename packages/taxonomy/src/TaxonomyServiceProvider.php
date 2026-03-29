@@ -14,6 +14,7 @@ final class TaxonomyServiceProvider extends ServiceProvider
         $this->entityType(new EntityType(
             id: 'taxonomy_term',
             label: 'Taxonomy Term',
+            description: 'Categorization terms for organizing content',
             class: Term::class,
             keys: ['id' => 'tid', 'uuid' => 'uuid', 'label' => 'name', 'bundle' => 'vid'],
             group: 'taxonomy',
@@ -49,6 +50,7 @@ final class TaxonomyServiceProvider extends ServiceProvider
         $this->entityType(new EntityType(
             id: 'taxonomy_vocabulary',
             label: 'Vocabulary',
+            description: 'Term groupings that define classification systems',
             class: Vocabulary::class,
             keys: ['id' => 'vid', 'label' => 'name'],
             group: 'taxonomy',

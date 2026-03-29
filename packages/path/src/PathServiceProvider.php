@@ -14,6 +14,7 @@ final class PathServiceProvider extends ServiceProvider
         $this->entityType(new EntityType(
             id: 'path_alias',
             label: 'Path Alias',
+            description: 'URL aliases for human-readable paths',
             class: PathAlias::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'alias', 'langcode' => 'langcode'],
             group: 'structure',

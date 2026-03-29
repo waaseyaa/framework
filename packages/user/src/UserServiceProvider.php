@@ -16,6 +16,7 @@ final class UserServiceProvider extends ServiceProvider
         $this->entityType(new EntityType(
             id: 'user',
             label: 'User',
+            description: 'Manage user accounts, roles, and authentication',
             class: User::class,
             keys: ['id' => 'uid', 'uuid' => 'uuid', 'label' => 'name'],
             group: 'people',
@@ -44,6 +45,7 @@ final class UserServiceProvider extends ServiceProvider
         $this->entityType(new EntityType(
             id: 'user_block',
             label: 'User Block',
+            description: 'Block rules for restricting user access',
             class: UserBlock::class,
             keys: ['id' => 'ubid', 'uuid' => 'uuid', 'label' => 'blocker_id'],
             group: 'user',

@@ -14,6 +14,7 @@ final class NoteServiceProvider extends ServiceProvider
         $this->entityType(new EntityType(
             id: 'note',
             label: 'Note',
+            description: 'Quick-entry content items with minimal structure',
             class: Note::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title'],
             group: 'content',

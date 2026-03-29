@@ -14,6 +14,7 @@ final class WorkflowServiceProvider extends ServiceProvider
         $this->entityType(new EntityType(
             id: 'workflow',
             label: 'Workflow',
+            description: 'State machines for content publication workflows',
             class: Workflow::class,
             keys: ['id' => 'id', 'label' => 'label'],
             group: 'workflows',
