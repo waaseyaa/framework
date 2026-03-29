@@ -1,13 +1,19 @@
-import type { AdminBootstrap } from './bootstrap'
 import type { AuthAdapter } from './auth'
 import type { TransportAdapter } from './transport'
 import type { CatalogEntry } from './catalog'
-import type { AdminTenant } from './auth'
+import type { AdminTenant, AdminAccount } from './auth'
+
+export interface AdminAuthConfig {
+  strategy: 'redirect'
+  loginUrl: string
+}
 
 export interface AdminRuntime {
-  bootstrap: AdminBootstrap
   auth: AuthAdapter
+  authConfig: AdminAuthConfig
   transport: TransportAdapter
   catalog: CatalogEntry[]
   tenant: AdminTenant
+  account: AdminAccount
+  features?: Record<string, boolean>
 }

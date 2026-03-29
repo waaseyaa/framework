@@ -18,16 +18,5 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return navigateTo('/login')
   }
 
-  // For embedded auth strategy, check session via adapter
-  const strategy = admin.bootstrap?.auth?.strategy
-  if (strategy === 'embedded') {
-    const { isAuthenticated, checkAuth } = useAuth()
-    await checkAuth()
-    if (!isAuthenticated.value) {
-      return navigateTo('/login')
-    }
-  }
-
-  // For redirect strategy, the plugin handles auth — if we got here, bootstrap succeeded
-  // which means the user is authenticated.
+  // If we got here, the surface session succeeded — user is authenticated.
 })

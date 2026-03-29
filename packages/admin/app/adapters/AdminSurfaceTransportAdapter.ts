@@ -27,8 +27,6 @@ interface SurfaceListResult {
 
 /**
  * Transport adapter that talks to the /admin/surface/* endpoints.
- *
- * Replaces JsonApiTransportAdapter when the host supports the admin surface contract.
  */
 export class AdminSurfaceTransportAdapter implements TransportAdapter {
   constructor(

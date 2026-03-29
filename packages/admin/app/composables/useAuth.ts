@@ -26,27 +26,8 @@ export function useAuth() {
 
   async function login(username: string, password: string): Promise<void> {
     const runtime = getRuntime()
-    const strategy = runtime.bootstrap.auth.strategy
-
-    if (strategy === 'redirect') {
-      const returnTo = window.location.pathname
-      window.location.href = runtime.auth.getLoginUrl(returnTo)
-      return
-    }
-
-    // Embedded strategy — POST to loginEndpoint
-    const endpoint = runtime.bootstrap.auth.loginEndpoint
-    if (!endpoint) throw new Error('No loginEndpoint configured for embedded auth strategy')
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    })
-    if (!response.ok) throw new Error('Login failed')
-
-    const session = await runtime.auth.getSession()
-    currentUser.value = session?.account ?? null
+    const returnTo = window.location.pathname
+    window.location.href = runtime.auth.getLoginUrl(returnTo)
   }
 
   async function logout(): Promise<void> {

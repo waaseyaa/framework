@@ -1,10 +1,6 @@
-import { BootstrapAuthAdapter } from '../adapters/BootstrapAuthAdapter'
-import { JsonApiTransportAdapter } from '../adapters/JsonApiTransportAdapter'
+import { SessionAuthAdapter } from '../adapters/SessionAuthAdapter'
 import { AdminSurfaceTransportAdapter } from '../adapters/AdminSurfaceTransportAdapter'
-import { ADMIN_CONTRACT_VERSION, isContractCompatible } from '../contracts/version'
-import type { AdminBootstrap } from '../contracts/bootstrap'
-import type { AdminRuntime } from '../contracts/runtime'
-import type { AdminSession } from '../contracts/auth'
+import type { AdminRuntime, AdminAuthConfig } from '../contracts/runtime'
 import type { CatalogEntry } from '../contracts/catalog'
 
 interface SurfaceSession {
@@ -35,10 +31,10 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
   const config = useRuntimeConfig()
   const baseUrl = (config.public.baseUrl as string) || ''
   const surfacePath = `${baseUrl}/admin/surface`
+  const loginUrl = `${baseUrl}/login`
 
-  // ── Try surface endpoints first (version negotiation) ──────────
+  // ── Fetch session from AdminSurface API ──────────────────────────
 
-  let useSurface = false
   let surfaceSession: SurfaceSession | null = null
   let surfaceCatalog: SurfaceCatalogEntry[] | null = null
 
@@ -47,6 +43,7 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
       ignoreResponseError: true,
       credentials: 'include',
     })
+
     if (sessionRes && sessionRes.ok && sessionRes.data) {
       surfaceSession = sessionRes.data
 
@@ -56,124 +53,56 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
       })
       if (catalogRes && catalogRes.ok && catalogRes.data) {
         surfaceCatalog = catalogRes.data.entities
-        useSurface = true
       }
     } else if (sessionRes && !sessionRes.ok && sessionRes.error?.status === 401) {
-      // Surface endpoint exists but user is not authenticated — redirect to login
       if (import.meta.client) {
-        window.location.href = `${baseUrl}/login`
+        window.location.href = loginUrl
       }
       return { provide: { admin: null } }
     }
   } catch {
-    // Surface not available — fall through to legacy bootstrap
+    // Surface API not available
+    console.error('[waaseyaa:admin] AdminSurface API not available')
+    throw createError({
+      statusCode: 503,
+      message: 'Unable to reach the admin API. Ensure the PHP backend is running with an AdminSurfaceHost registered.',
+      fatal: true,
+    })
   }
 
-  if (useSurface && surfaceSession && surfaceCatalog) {
-    const catalog: CatalogEntry[] = surfaceCatalog.map(entry => ({
-      id: entry.id,
-      label: entry.label,
-      description: entry.description,
-      group: entry.group,
-      disabled: entry.disabled,
-      capabilities: entry.capabilities,
-    }))
-
-    const transport = new AdminSurfaceTransportAdapter(surfacePath)
-
-    const session: AdminSession = {
-      account: surfaceSession.account,
-      tenant: { ...surfaceSession.tenant, scopingStrategy: 'server' },
-      features: surfaceSession.features,
+  if (!surfaceSession || !surfaceCatalog) {
+    if (import.meta.client) {
+      window.location.href = loginUrl
     }
-
-    // Build a synthetic bootstrap for backward compatibility
-    const bootstrap: AdminBootstrap = {
-      version: ADMIN_CONTRACT_VERSION,
-      auth: { strategy: 'redirect', loginUrl: `${baseUrl}/login` },
-      account: session.account,
-      tenant: session.tenant,
-      transport: { strategy: 'custom' },
-      entities: catalog,
-      features: session.features,
-    }
-
-    const auth = new BootstrapAuthAdapter(bootstrap)
-
-    const runtime: AdminRuntime = {
-      bootstrap,
-      auth,
-      transport,
-      catalog,
-      tenant: session.tenant,
-    }
-
-    return { provide: { admin: runtime } }
+    return { provide: { admin: null } }
   }
 
-  // ── Legacy bootstrap fallback ──────────────────────────────────
+  // ── Build runtime from surface response ──────────────────────────
 
-  let bootstrap: AdminBootstrap
+  const catalog: CatalogEntry[] = surfaceCatalog.map(entry => ({
+    id: entry.id,
+    label: entry.label,
+    description: entry.description,
+    group: entry.group,
+    disabled: entry.disabled,
+    capabilities: entry.capabilities,
+  }))
 
-  if (import.meta.client && window.__WAASEYAA_ADMIN__) {
-    bootstrap = window.__WAASEYAA_ADMIN__
-  } else {
-    let response: AdminBootstrap | null = null
-    let fetchError: unknown = null
+  const account = surfaceSession.account
+  const tenant = { ...surfaceSession.tenant, scopingStrategy: 'server' as const }
+  const authConfig: AdminAuthConfig = { strategy: 'redirect', loginUrl }
 
-    try {
-      response = await $fetch<AdminBootstrap>(`${baseUrl}/admin/bootstrap`, {
-        ignoreResponseError: true,
-        credentials: 'include',
-        onResponseError({ response: res }) {
-          if (res.status === 401 || res.status === 403) {
-            // Auth failure — will redirect to login below
-          }
-        },
-      })
-    } catch (err) {
-      fetchError = err
-    }
-
-    if (fetchError) {
-      // Network, CORS, or timeout error — not an auth issue
-      const message = fetchError instanceof Error ? fetchError.message : String(fetchError)
-      console.error('[waaseyaa:admin] Bootstrap fetch failed (network/CORS/timeout):', message)
-      throw createError({
-        statusCode: 503,
-        message: `Unable to reach the admin API: ${message}`,
-        fatal: true,
-      })
-    }
-
-    if (!response) {
-      // HTTP error (401/403) — redirect to login
-      if (import.meta.client) {
-        window.location.href = `${baseUrl}/login`
-      }
-      return { provide: { admin: null } }
-    }
-    bootstrap = response
-  }
-
-  // Validate contract version compatibility (warn only during pre-stable)
-  if (!isContractCompatible(bootstrap.version)) {
-    console.warn(`[waaseyaa:admin] Contract version mismatch: client ${ADMIN_CONTRACT_VERSION}, server ${bootstrap.version ?? 'unknown'}`)
-  }
-
-  // Instantiate legacy adapters
-  const auth = new BootstrapAuthAdapter(bootstrap)
-  const apiPath = bootstrap.transport?.apiPath ?? '/api'
-  const resolvedApiPath = `${baseUrl}${apiPath}`
-  const tenant = { id: 'default', name: 'Default', scopingStrategy: 'server' as const, ...bootstrap.tenant }
-  const transport = new JsonApiTransportAdapter(resolvedApiPath, tenant)
+  const auth = new SessionAuthAdapter(account, tenant, authConfig, surfaceSession.features)
+  const transport = new AdminSurfaceTransportAdapter(surfacePath)
 
   const runtime: AdminRuntime = {
-    bootstrap,
     auth,
+    authConfig,
     transport,
-    catalog: bootstrap.entities ?? [],
+    catalog,
     tenant,
+    account,
+    features: surfaceSession.features,
   }
 
   return { provide: { admin: runtime } }

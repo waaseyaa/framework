@@ -1,10 +1,8 @@
 import type { AdminRuntime } from '../contracts/runtime'
 import type { CatalogEntry, CatalogCapabilities } from '../contracts/catalog'
 import type { AdminTenant } from '../contracts/auth'
-import type { AdminBootstrap } from '../contracts/bootstrap'
 
 export function useAdmin(): {
-  bootstrap: AdminBootstrap
   catalog: CatalogEntry[]
   tenant: AdminTenant
   hasCapability: (entityType: string, cap: keyof CatalogCapabilities) => boolean
@@ -22,7 +20,6 @@ export function useAdmin(): {
   }
 
   return {
-    bootstrap: $admin.bootstrap,
     catalog: $admin.catalog,
     tenant: $admin.tenant,
     hasCapability,
