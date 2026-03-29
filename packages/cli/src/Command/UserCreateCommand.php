@@ -40,7 +40,7 @@ class UserCreateCommand extends Command
 
         $email = $input->getOption('email');
         if ($email !== null) {
-            $values['email'] = $email;
+            $values['mail'] = $email;
         }
 
         $role = $input->getOption('role');
