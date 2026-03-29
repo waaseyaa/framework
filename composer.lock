@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "56e7ca7f20b93e85df09a736ed6a3fb7",
+    "content-hash": "289127057e0f9f05815fa43a8d949a4c",
     "packages": [
         {
             "name": "doctrine/dbal",
@@ -2988,12 +2988,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/admin-surface",
-                "reference": "00f43e3b8377ee69e7384e864be3242e80174425"
+                "reference": "8159ff756ecb7fcc43b2dd53963fa38a458b9322"
             },
             "require": {
                 "php": ">=8.4",
                 "waaseyaa/access": "@dev",
-                "waaseyaa/api": "@dev",
                 "waaseyaa/entity": "@dev",
                 "waaseyaa/foundation": "@dev",
                 "waaseyaa/routing": "@dev"
@@ -8713,6 +8712,7 @@
     "minimum-stability": "dev",
     "stability-flags": {
         "waaseyaa/access": 20,
+        "waaseyaa/admin-surface": 20,
         "waaseyaa/ai-agent": 20,
         "waaseyaa/ai-pipeline": 20,
         "waaseyaa/ai-schema": 20,
