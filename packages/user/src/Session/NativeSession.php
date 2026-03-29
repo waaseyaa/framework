@@ -24,7 +24,7 @@ final class NativeSession implements SessionInterface
 
         session_set_cookie_params([
             'httponly' => true,
-            'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+            'secure' => $this->isSecureConnection(),
             'samesite' => 'Lax',
         ]);
 
@@ -114,6 +114,15 @@ final class NativeSession implements SessionInterface
     public function clear(): void
     {
         $_SESSION = [];
+    }
+
+    public function isSecureConnection(): bool
+    {
+        if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+            return true;
+        }
+
+        return isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https';
     }
 
     public function isStarted(): bool

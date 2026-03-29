@@ -23,6 +23,7 @@ final class NativeSessionTest extends TestCase
     protected function tearDown(): void
     {
         $_SESSION = [];
+        unset($_SERVER['HTTPS'], $_SERVER['HTTP_X_FORWARDED_PROTO']);
     }
 
     #[Test]
@@ -102,6 +103,43 @@ final class NativeSessionTest extends TestCase
     {
         $this->expectException(\RuntimeException::class);
         $this->session->getMetadataBag();
+    }
+
+    #[Test]
+    public function isSecureConnectionReturnsTrueWhenHttpsServerVarSet(): void
+    {
+        $_SERVER['HTTPS'] = 'on';
+        self::assertTrue($this->session->isSecureConnection());
+    }
+
+    #[Test]
+    public function isSecureConnectionReturnsFalseWhenHttpsIsOff(): void
+    {
+        $_SERVER['HTTPS'] = 'off';
+        self::assertFalse($this->session->isSecureConnection());
+    }
+
+    #[Test]
+    public function isSecureConnectionReturnsFalseOnPlainHttp(): void
+    {
+        unset($_SERVER['HTTPS'], $_SERVER['HTTP_X_FORWARDED_PROTO']);
+        self::assertFalse($this->session->isSecureConnection());
+    }
+
+    #[Test]
+    public function isSecureConnectionReturnsTrueWhenForwardedProtoIsHttps(): void
+    {
+        unset($_SERVER['HTTPS']);
+        $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https';
+        self::assertTrue($this->session->isSecureConnection());
+    }
+
+    #[Test]
+    public function isSecureConnectionReturnsFalseWhenForwardedProtoIsHttp(): void
+    {
+        unset($_SERVER['HTTPS']);
+        $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'http';
+        self::assertFalse($this->session->isSecureConnection());
     }
 
     #[Test]

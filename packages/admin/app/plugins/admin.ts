@@ -30,8 +30,21 @@ interface SurfaceResult<T> {
 export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRuntime | null } }> => {
   const config = useRuntimeConfig()
   const baseUrl = (config.public.baseUrl as string) || ''
-  const surfacePath = `${baseUrl}/admin/surface`
-  const loginUrl = `${baseUrl}/login`
+  const surfacePath = '/_surface'
+
+  // ── Skip auth check on login page (prevents redirect loop) ─────
+  if (import.meta.client) {
+    const path = window.location.pathname.replace(/\/+$/, '')
+    if (path.endsWith('/login') && !path.endsWith('-login')) {
+      return { provide: { admin: null } }
+    }
+  }
+  if (import.meta.server) {
+    const route = useRoute()
+    if (route.path === '/login') {
+      return { provide: { admin: null } }
+    }
+  }
 
   // ── Fetch session from AdminSurface API ──────────────────────────
 
@@ -55,9 +68,7 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
         surfaceCatalog = catalogRes.data.entities
       }
     } else if (sessionRes && !sessionRes.ok && sessionRes.error?.status === 401) {
-      if (import.meta.client) {
-        window.location.href = loginUrl
-      }
+      await navigateTo('/login', { replace: true })
       return { provide: { admin: null } }
     }
   } catch {
@@ -71,9 +82,7 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
   }
 
   if (!surfaceSession || !surfaceCatalog) {
-    if (import.meta.client) {
-      window.location.href = loginUrl
-    }
+    await navigateTo('/login', { replace: true })
     return { provide: { admin: null } }
   }
 
@@ -90,7 +99,7 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
 
   const account = surfaceSession.account
   const tenant = { ...surfaceSession.tenant, scopingStrategy: 'server' as const }
-  const authConfig: AdminAuthConfig = { strategy: 'redirect', loginUrl }
+  const authConfig: AdminAuthConfig = { strategy: 'redirect', loginUrl: '/login' }
 
   const auth = new SessionAuthAdapter(account, tenant, authConfig, surfaceSession.features)
   const transport = new AdminSurfaceTransportAdapter(surfacePath)
