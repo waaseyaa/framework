@@ -1,12 +1,27 @@
 <script setup lang="ts">
 import { useLanguage } from '~/composables/useLanguage'
 import { useAdmin } from '~/composables/useAdmin'
+import { useEntity } from '~/composables/useEntity'
 import { groupEntityTypes } from '~/composables/useNavGroups'
 
 const { t, entityLabel } = useLanguage()
 const { catalog } = useAdmin()
+const { runAction } = useEntity()
 
 const navGroups = computed(() => groupEntityTypes(catalog))
+
+const pipelineTypes = ref<Set<string>>(new Set())
+
+onMounted(async () => {
+  for (const et of catalog) {
+    try {
+      await runAction(et.id, 'board-config')
+      pipelineTypes.value.add(et.id)
+    } catch {
+      // No pipeline for this type
+    }
+  }
+})
 </script>
 
 <template>
@@ -16,14 +31,21 @@ const navGroups = computed(() => groupEntityTypes(catalog))
     </NuxtLink>
     <template v-for="group in navGroups" :key="group.key">
       <div class="nav-section">{{ t(group.labelKey) }}</div>
-      <NuxtLink
-        v-for="et in group.entityTypes"
-        :key="et.id"
-        :to="`/${et.id}`"
-        class="nav-item"
-      >
-        {{ entityLabel(et.id, et.label) }}
-      </NuxtLink>
+      <template v-for="et in group.entityTypes" :key="et.id">
+        <NuxtLink
+          :to="`/${et.id}`"
+          class="nav-item"
+        >
+          {{ entityLabel(et.id, et.label) }}
+        </NuxtLink>
+        <NuxtLink
+          v-if="pipelineTypes.has(et.id)"
+          :to="`/${et.id}/pipeline`"
+          class="nav-item nav-item--sub"
+        >
+          {{ entityLabel(et.id, et.label) }} Pipeline
+        </NuxtLink>
+      </template>
     </template>
   </nav>
 </template>
@@ -47,6 +69,7 @@ const navGroups = computed(() => groupEntityTypes(catalog))
 }
 .nav-item:hover { background: var(--color-bg); }
 .nav-item.router-link-active { color: var(--color-primary); font-weight: 500; }
+.nav-item--sub { padding-left: 32px; font-size: 13px; color: var(--color-muted); }
 .nav-error {
   padding: 8px 16px;
   font-size: 12px;
