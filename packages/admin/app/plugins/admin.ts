@@ -1,7 +1,7 @@
 import { BootstrapAuthAdapter } from '../adapters/BootstrapAuthAdapter'
 import { JsonApiTransportAdapter } from '../adapters/JsonApiTransportAdapter'
 import { AdminSurfaceTransportAdapter } from '../adapters/AdminSurfaceTransportAdapter'
-import { ADMIN_CONTRACT_VERSION } from '../contracts/version'
+import { ADMIN_CONTRACT_VERSION, isContractCompatible } from '../contracts/version'
 import type { AdminBootstrap } from '../contracts/bootstrap'
 import type { AdminRuntime } from '../contracts/runtime'
 import type { AdminSession } from '../contracts/auth'
@@ -156,11 +156,11 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
     bootstrap = response
   }
 
-  // Validate contract version
-  if (bootstrap.version !== ADMIN_CONTRACT_VERSION) {
+  // Validate contract version compatibility
+  if (!isContractCompatible(bootstrap.version)) {
     throw createError({
       statusCode: 500,
-      message: `Admin contract version mismatch: expected ${ADMIN_CONTRACT_VERSION}, got ${bootstrap.version}`,
+      message: `Admin contract version incompatible: client ${ADMIN_CONTRACT_VERSION}, server ${bootstrap.version}`,
       fatal: true,
     })
   }

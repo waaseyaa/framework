@@ -7,7 +7,7 @@ import type {
   AdminSurfaceListResult,
 } from './types'
 
-export const ADMIN_SURFACE_VERSION = '1.0' as const
+export const ADMIN_SURFACE_VERSION = '0.1' as const
 
 /**
  * The canonical contract between the admin SPA and any Waaseyaa host application.

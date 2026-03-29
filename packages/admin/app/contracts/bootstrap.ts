@@ -1,9 +1,7 @@
 import type { AdminAccount, AdminTenant } from './auth'
 import type { CatalogEntry } from './catalog'
-import { ADMIN_CONTRACT_VERSION } from './version'
-
 export interface AdminBootstrap {
-  version: typeof ADMIN_CONTRACT_VERSION
+  version: string
   auth: AdminAuthConfig
   account: AdminAccount
   tenant: AdminTenant
