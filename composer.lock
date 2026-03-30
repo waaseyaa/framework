@@ -4,8 +4,62 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "289127057e0f9f05815fa43a8d949a4c",
+    "content-hash": "4646aa0c83663ddd1a043e6519ffd1d3",
     "packages": [
+        {
+            "name": "deployer/deployer",
+            "version": "v7.5.12",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/deployphp/deployer.git",
+                "reference": "efc71dac9ccc86b3f9946e75d50cb106b775aae2"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/deployphp/deployer/zipball/efc71dac9ccc86b3f9946e75d50cb106b775aae2",
+                "reference": "efc71dac9ccc86b3f9946e75d50cb106b775aae2",
+                "shasum": ""
+            },
+            "require": {
+                "ext-json": "*",
+                "php": "^8.0|^7.3"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.64",
+                "pestphp/pest": "^3.3",
+                "phpstan/phpstan": "^1.4",
+                "phpunit/php-code-coverage": "^11.0",
+                "phpunit/phpunit": "^11.4"
+            },
+            "bin": [
+                "bin/dep"
+            ],
+            "type": "library",
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Anton Medvedev",
+                    "email": "anton@medv.io"
+                }
+            ],
+            "description": "Deployment Tool",
+            "homepage": "https://deployer.org",
+            "support": {
+                "docs": "https://deployer.org/docs",
+                "issues": "https://github.com/deployphp/deployer/issues",
+                "source": "https://github.com/deployphp/deployer"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/sponsors/antonmedv",
+                    "type": "github"
+                }
+            ],
+            "time": "2025-02-19T16:45:27+00:00"
+        },
         {
             "name": "doctrine/dbal",
             "version": "4.4.3",
@@ -2988,11 +3042,12 @@
             "dist": {
                 "type": "path",
                 "url": "packages/admin-surface",
-                "reference": "8159ff756ecb7fcc43b2dd53963fa38a458b9322"
+                "reference": "00f43e3b8377ee69e7384e864be3242e80174425"
             },
             "require": {
                 "php": ">=8.4",
                 "waaseyaa/access": "@dev",
+                "waaseyaa/api": "@dev",
                 "waaseyaa/entity": "@dev",
                 "waaseyaa/foundation": "@dev",
                 "waaseyaa/routing": "@dev"
@@ -3511,6 +3566,81 @@
             }
         },
         {
+            "name": "waaseyaa/deployer",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/deployer",
+                "reference": "753edfa6fdffa240e6279941b23e1b2aafef6612"
+            },
+            "require": {
+                "deployer/deployer": "^7.0",
+                "php": ">=8.4"
+            },
+            "type": "library",
+            "extra": {
+                "waaseyaa": {
+                    "layer": 6
+                },
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Shared Deployer recipe for Waaseyaa applications",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/engagement",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/engagement",
+                "reference": "1310cc6ee926149ea5eb71dec87b61b1bab91c3b"
+            },
+            "require": {
+                "php": ">=8.4",
+                "waaseyaa/access": "^0.1",
+                "waaseyaa/entity": "^0.1",
+                "waaseyaa/foundation": "^0.1"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "extra": {
+                "waaseyaa": {
+                    "providers": [
+                        "Waaseyaa\\Engagement\\EngagementServiceProvider"
+                    ]
+                },
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Engagement\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Engagement\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Social engagement entities (reactions, comments, follows) for Waaseyaa",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
             "name": "waaseyaa/entity",
             "version": "dev-main",
             "dist": {
@@ -3736,7 +3866,7 @@
         },
         {
             "name": "waaseyaa/github",
-            "version": "dev-main",
+            "version": "dev-fix/750-missing-path-repos",
             "dist": {
                 "type": "path",
                 "url": "packages/github",
@@ -4391,7 +4521,7 @@
         },
         {
             "name": "waaseyaa/oauth-provider",
-            "version": "dev-main",
+            "version": "dev-fix/750-missing-path-repos",
             "dist": {
                 "type": "path",
                 "url": "packages/oauth-provider",
@@ -8724,6 +8854,8 @@
         "waaseyaa/cli": 20,
         "waaseyaa/config": 20,
         "waaseyaa/database-legacy": 20,
+        "waaseyaa/deployer": 20,
+        "waaseyaa/engagement": 20,
         "waaseyaa/entity": 20,
         "waaseyaa/entity-storage": 20,
         "waaseyaa/field": 20,
