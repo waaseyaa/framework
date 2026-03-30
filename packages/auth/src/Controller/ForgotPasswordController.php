@@ -56,8 +56,10 @@ final class ForgotPasswordController
 
         // 5. Look up user by email
         $storage = $this->entityTypeManager->getStorage('user');
-        $user = $storage->loadByKey('mail', $email);
+        $entity = $storage->loadByKey('mail', $email);
 
+        /** @var \Waaseyaa\User\User|null $user */
+        $user = $entity;
         if ($user !== null) {
             $ttl = $this->config->tokenTtl('password_reset');
             $token = $this->tokenRepo->createToken($user->id(), 'password_reset', $ttl);

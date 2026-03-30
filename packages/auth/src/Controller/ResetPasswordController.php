@@ -41,10 +41,13 @@ final class ResetPasswordController
 
         // 4. Load user
         $storage = $this->entityTypeManager->getStorage('user');
-        $user = $storage->load($tokenData['user_id']);
-        if ($user === null) {
+        $entity = $storage->load($tokenData['user_id']);
+        if ($entity === null) {
             return new JsonResponse(['error' => 'user_not_found'], 422);
         }
+
+        /** @var \Waaseyaa\User\User $user */
+        $user = $entity;
 
         // 5. Update password
         $user->setRawPassword($password);
