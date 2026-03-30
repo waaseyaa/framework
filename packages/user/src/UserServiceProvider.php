@@ -27,6 +27,12 @@ final class UserServiceProvider extends ServiceProvider
                     'description' => 'The email address of the user.',
                     'weight' => 5,
                 ],
+                'email_verified' => [
+                    'type' => 'boolean',
+                    'label' => 'Email verified',
+                    'description' => 'Whether the user has verified their email address.',
+                    'weight' => 6,
+                ],
                 'status' => [
                     'type' => 'boolean',
                     'label' => 'Active',

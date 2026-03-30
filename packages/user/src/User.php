@@ -262,4 +262,24 @@ final class User extends ContentEntityBase implements AccountInterface
     {
         return $this->set('status', $active ? 1 : 0);
     }
+
+    // -----------------------------------------------------------------
+    // Email verification
+    // -----------------------------------------------------------------
+
+    /**
+     * Whether the user's email address has been verified.
+     */
+    public function isEmailVerified(): bool
+    {
+        return (int) ($this->get('email_verified') ?? 0) === 1;
+    }
+
+    /**
+     * Set the email verification status.
+     */
+    public function setEmailVerified(bool $verified): static
+    {
+        return $this->set('email_verified', $verified ? 1 : 0);
+    }
 }
