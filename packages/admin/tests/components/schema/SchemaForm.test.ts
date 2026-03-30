@@ -5,26 +5,31 @@ import { flushPromises } from '@vue/test-utils'
 import SchemaForm from '~/components/schema/SchemaForm.vue'
 import { userSchema } from '../../fixtures/schemas'
 
-// Register schema endpoints for various entity types used in tests
-registerEndpoint('/api/schema/user', () => ({
-  meta: { schema: userSchema },
-}))
+// Register schema endpoints — transport POSTs to /_surface/{type}/action/schema
+registerEndpoint('/_surface/user/action/schema', {
+  method: 'POST',
+  handler: () => ({ ok: true, data: userSchema }),
+})
 
-registerEndpoint('/api/schema/user_create', () => ({
-  meta: { schema: userSchema },
-}))
+registerEndpoint('/_surface/user_create/action/schema', {
+  method: 'POST',
+  handler: () => ({ ok: true, data: userSchema }),
+})
 
-registerEndpoint('/api/schema/user_create_err', () => ({
-  meta: { schema: userSchema },
-}))
+registerEndpoint('/_surface/user_create_err/action/schema', {
+  method: 'POST',
+  handler: () => ({ ok: true, data: userSchema }),
+})
 
-registerEndpoint('/api/schema/user_edit', () => ({
-  meta: { schema: userSchema },
-}))
+registerEndpoint('/_surface/user_edit/action/schema', {
+  method: 'POST',
+  handler: () => ({ ok: true, data: userSchema }),
+})
 
-registerEndpoint('/api/schema/user_edit_patch', () => ({
-  meta: { schema: userSchema },
-}))
+registerEndpoint('/_surface/user_edit_patch/action/schema', {
+  method: 'POST',
+  handler: () => ({ ok: true, data: userSchema }),
+})
 
 const schemaWithDefaults = {
   ...userSchema,
@@ -54,9 +59,10 @@ const schemaWithDefaults = {
   },
 }
 
-registerEndpoint('/api/schema/node_defaults', () => ({
-  meta: { schema: schemaWithDefaults },
-}))
+registerEndpoint('/_surface/node_defaults/action/schema', {
+  method: 'POST',
+  handler: () => ({ ok: true, data: schemaWithDefaults }),
+})
 
 // Reset modules to clear schema cache
 beforeEach(() => {
@@ -65,7 +71,8 @@ beforeEach(() => {
 
 describe('SchemaForm loading and error states', () => {
   it('shows error state when schema fetch fails', async () => {
-    registerEndpoint('/api/schema/user_err_state', {
+    registerEndpoint('/_surface/user_err_state/action/schema', {
+      method: 'POST',
       handler: () => {
         throw createError({ statusCode: 404, statusMessage: 'Not Found' })
       },
@@ -91,9 +98,10 @@ describe('SchemaForm loading and error states', () => {
 describe('SchemaForm submit — create mode (no entityId)', () => {
   it('emits saved event with resource on successful create', async () => {
     const resource = { type: 'user', id: '5', attributes: { name: 'alice' } }
-    registerEndpoint('/api/user_create', {
+    registerEndpoint('/_surface/user_create/action/create', {
       method: 'POST',
       handler: () => ({
+        ok: true,
         data: resource,
       }),
     })
@@ -126,7 +134,7 @@ describe('SchemaForm submit — create mode (no entityId)', () => {
   })
 
   it('emits error event when create fails', async () => {
-    registerEndpoint('/api/user_create_err', {
+    registerEndpoint('/_surface/user_create_err/action/create', {
       method: 'POST',
       handler: () => {
         throw createError({ statusCode: 422, statusMessage: 'Validation failed' })
@@ -146,9 +154,10 @@ describe('SchemaForm submit — create mode (no entityId)', () => {
 
 describe('SchemaForm submit — edit mode (with entityId)', () => {
   it('loads existing entity attributes into form', async () => {
-    registerEndpoint('/api/user_edit/3', {
+    registerEndpoint('/_surface/user_edit/3', {
       method: 'GET',
       handler: () => ({
+        ok: true,
         data: { type: 'user', id: '3', attributes: { name: 'bob' } },
       }),
     })
@@ -170,12 +179,14 @@ describe('SchemaForm submit — edit mode (with entityId)', () => {
 
   it('emits saved event after PATCH when entityId is provided', async () => {
     const updated = { type: 'user', id: '3', attributes: { name: 'bob-updated' } }
-    registerEndpoint('/api/user_edit_patch/3', () => ({
+    registerEndpoint('/_surface/user_edit_patch/3', () => ({
+      ok: true,
       data: { type: 'user', id: '3', attributes: { name: 'bob' } },
     }))
-    registerEndpoint('/api/user_edit_patch/3', {
-      method: 'PATCH',
+    registerEndpoint('/_surface/user_edit_patch/action/update', {
+      method: 'POST',
       handler: () => ({
+        ok: true,
         data: updated,
       }),
     })

@@ -5,10 +5,14 @@ import Dashboard from '~/pages/index.vue'
 
 describe('Dashboard onboarding', () => {
   it('shows onboarding prompt when no content types exist', async () => {
-    registerEndpoint('/api/node_type', () => ({
-      jsonapi: { version: '1.1' },
-      data: [],
-      meta: { total: 0, offset: 0, limit: 1 },
+    registerEndpoint('/_surface/node_type', () => ({
+      ok: true,
+      data: {
+        entities: [],
+        total: 0,
+        offset: 0,
+        limit: 1,
+      },
     }))
 
     const wrapper = await mountSuspended(Dashboard)

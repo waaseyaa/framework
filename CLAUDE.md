@@ -162,6 +162,7 @@ Design docs in `docs/plans/` are session artifacts (implementation history). Spe
 - Named constructor parameters: `new EntityType(id: 'node', label: 'Content', ...)`
 - `final class` by default for concrete implementations
 - Admin SPA: Nuxt 3 + Vue 3 + TypeScript. Composables in `packages/admin/app/composables/`, i18n in `packages/admin/app/i18n/en.json`
+- Brand color: Deep Teal (`#0d4f4f` → `#0f766e` → `#14b8a6`). Chosen to be distinct from Drupal (blue), Laravel (red), Django/Nuxt (green), Strapi (purple). Auth CSS tokens and AdminShell `--color-primary` use this palette.
 - Frontend entry point: `public/index.php` (PHP built-in server front controller)
 
 ## Architecture Gotchas
@@ -222,6 +223,9 @@ Design docs in `docs/plans/` are session artifacts (implementation history). Spe
 - **`EntityRepository` auto-validation**: When `EntityValidator` is injected, `save()` validates against `EntityType::getConstraints()` and throws `EntityValidationException` on failure. Pass `validate: false` to bypass for migrations/bulk imports. `saveMany()` also respects the `validate` parameter.
 - **`saveMany()`/`deleteMany()` use UnitOfWork**: Batch operations wrap all writes in a single transaction via `UnitOfWork`. Events are buffered and dispatched only after successful commit. Requires `$database` to be non-null (throws `LogicException` otherwise).
 - **Kernel Bootstrap directory**: Extracted bootstrappers live in `packages/foundation/src/Kernel/Bootstrap/` — `DatabaseBootstrapper`, `ManifestBootstrapper`, `ProviderRegistry`, `AccessPolicyRegistry`. AbstractKernel delegates to these.
+- **Admin plugin runs on ALL pages including `/login`**: The async admin plugin (`packages/admin/app/plugins/admin.ts`) fetches `/_surface/session` on every page. It must skip the auth check when `window.location.pathname` ends with `/login`, otherwise 401 → redirect → 401 loop. `useRoute()` is unreliable in async plugin context — use `window.location.pathname` on client.
+- **Nuxt `.env` changes require dev server restart**: HMR picks up source file changes but NOT `.env` changes. Runtime config from `.env` is read at server startup only. Clear `.nuxt/` cache if values seem stale after restart.
+- **Git worktrees can't run Nuxt dev server**: Worktrees share source via symlinks but not `node_modules/.vite/` or `.nuxt/`. Vite module resolution fails with MIME type errors. Run E2E tests against the main repo's dev server, not from worktrees.
 
 ## Testing
 - Integration tests in `tests/Integration/PhaseN/` — one directory per implementation phase

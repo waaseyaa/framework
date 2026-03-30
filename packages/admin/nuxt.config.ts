@@ -27,7 +27,7 @@ export default defineNuxtConfig({
 
   routeRules: {
     '/api/**': { proxy: `${backendUrl}/api/**` },
-    '/admin/surface/**': { proxy: `${backendUrl}/admin/surface/**` },
+    '/_surface/**': { proxy: `${backendUrl}/admin/surface/**` },
   },
 
   runtimeConfig: {

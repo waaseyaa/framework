@@ -73,8 +73,8 @@ function onLocaleChange(event: Event) {
   --topbar-height: 48px;
   --color-bg: #f5f5f5;
   --color-surface: #fff;
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
+  --color-primary: #0f766e;
+  --color-primary-hover: #0d4f4f;
   --color-danger: #dc2626;
   --color-text: #1f2937;
   --color-muted: #6b7280;
