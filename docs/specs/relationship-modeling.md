@@ -149,3 +149,5 @@ v0.9 adds shared framework fixtures in `tests/Support/WorkflowFixturePack.php`:
 - `corpusSnapshot()` and `corpusHash()` for deterministic hash regression gates.
 
 Downstream integration suites consume this shared corpus directly (SSR/search/MCP/discovery) to avoid drift across package-level tests.
+
+<!-- Last reviewed: 2026-03-30 — test file reorganization only, no spec changes needed -->

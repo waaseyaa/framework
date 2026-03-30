@@ -506,3 +506,5 @@ packages/mcp/
       TraversalTools.php
   composer.json
 ```
+
+<!-- Last reviewed: 2026-03-30 — test file reorganization only, no spec changes needed -->

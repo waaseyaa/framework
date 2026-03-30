@@ -153,11 +153,13 @@ The `$accessHandler` and `$account` follow the **paired nullable** pattern: both
 9. Generates pagination links and meta (`total`, `offset`, `limit`).
 10. Returns `JsonApiDocument::fromCollection()`.
 
-**`show(string $entityTypeId, int|string $id): JsonApiDocument`**
+**`show(string $entityTypeId, int|string $id, array $query = []): JsonApiDocument`**
 
 1. Loads entity by ID or UUID via `loadByIdOrUuid()`.
 2. Checks view access. Returns 403 if denied.
-3. Serializes and returns `JsonApiDocument::fromResource()`.
+3. Serializes via `$serializer->serialize()`.
+4. Applies sparse fieldsets if `fields[type]` is in the query (filters attributes via `array_intersect_key`, matching `index()` behavior).
+5. Returns `JsonApiDocument::fromResource()`.
 
 **`store(string $entityTypeId, array $data): JsonApiDocument`**
 
