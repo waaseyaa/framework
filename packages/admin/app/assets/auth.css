@@ -1,7 +1,7 @@
 /* Auth screen theming tokens — override these in your app stylesheet */
 :root {
   /* Brand panel */
-  --waaseyaa-auth-brand-bg: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%);
+  --waaseyaa-auth-brand-bg: linear-gradient(135deg, #0d4f4f 0%, #0f766e 50%, #14b8a6 100%);
   --waaseyaa-auth-brand-color: #ffffff;
   --waaseyaa-auth-brand-logo: none;
   --waaseyaa-auth-brand-logo-size: 48px;
@@ -13,13 +13,13 @@
 
   /* Inputs */
   --waaseyaa-auth-input-border: #d1d5db;
-  --waaseyaa-auth-input-focus: #2563eb;
-  --waaseyaa-auth-input-focus-ring: rgba(37, 99, 235, 0.15);
+  --waaseyaa-auth-input-focus: #0f766e;
+  --waaseyaa-auth-input-focus-ring: rgba(15, 118, 110, 0.15);
   --waaseyaa-auth-input-radius: 6px;
 
   /* Button */
-  --waaseyaa-auth-btn-bg: #2563eb;
-  --waaseyaa-auth-btn-hover: #1d4ed8;
+  --waaseyaa-auth-btn-bg: #0f766e;
+  --waaseyaa-auth-btn-hover: #0d4f4f;
   --waaseyaa-auth-btn-color: #ffffff;
   --waaseyaa-auth-btn-radius: 6px;
 
