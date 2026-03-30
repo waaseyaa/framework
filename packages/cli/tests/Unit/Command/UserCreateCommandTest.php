@@ -57,7 +57,7 @@ class UserCreateCommandTest extends TestCase
             ->method('create')
             ->with([
                 'name' => 'admin',
-                'email' => 'admin@example.com',
+                'mail' => 'admin@example.com',
                 'roles' => ['administrator'],
             ])
             ->willReturn($mockEntity);

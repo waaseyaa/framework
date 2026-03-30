@@ -61,6 +61,139 @@ export function useAuth() {
     }
   }
 
+  async function register(
+    name: string,
+    email: string,
+    password: string,
+    inviteToken?: string,
+  ): Promise<LoginResult> {
+    try {
+      const res = await $fetch<{
+        data?: { id: string; name: string; email: string; roles: string[] }
+        errors?: Array<{ status: string; title: string; detail?: string }>
+      }>('/api/auth/register', {
+        method: 'POST',
+        body: { name, email, password, ...(inviteToken ? { invite_token: inviteToken } : {}) },
+        credentials: 'include',
+        ignoreResponseError: true,
+      })
+
+      if (res?.data?.id) {
+        const account: AdminAccount = {
+          id: String(res.data.id),
+          name: res.data.name,
+          email: res.data.email,
+          roles: res.data.roles,
+        }
+        currentUser.value = account
+        authChecked.value = true
+        return { success: true, account }
+      }
+
+      const detail = res?.errors?.[0]?.detail || 'Registration failed.'
+      return { success: false, error: detail }
+    } catch {
+      return { success: false, error: 'Unable to connect to server' }
+    }
+  }
+
+  async function forgotPassword(email: string): Promise<{ ok: boolean; message?: string; error?: string }> {
+    try {
+      const res = await $fetch<{
+        message?: string
+        errors?: Array<{ status: string; title: string; detail?: string }>
+      }>('/api/auth/forgot-password', {
+        method: 'POST',
+        body: { email },
+        credentials: 'include',
+        ignoreResponseError: true,
+      })
+
+      if (res?.errors?.length) {
+        const detail = res.errors[0]?.detail || 'Request failed.'
+        return { ok: false, error: detail }
+      }
+
+      return { ok: true, message: res?.message }
+    } catch {
+      return { ok: false, error: 'Unable to connect to server' }
+    }
+  }
+
+  async function resetPassword(
+    token: string,
+    password: string,
+    passwordConfirmation: string,
+  ): Promise<{ ok: boolean; message?: string; error?: string }> {
+    try {
+      const res = await $fetch<{
+        message?: string
+        errors?: Array<{ status: string; title: string; detail?: string }>
+      }>('/api/auth/reset-password', {
+        method: 'POST',
+        body: { token, password, password_confirmation: passwordConfirmation },
+        credentials: 'include',
+        ignoreResponseError: true,
+      })
+
+      if (res?.errors?.length) {
+        const detail = res.errors[0]?.detail || 'Password reset failed.'
+        return { ok: false, error: detail }
+      }
+
+      return { ok: true, message: res?.message }
+    } catch {
+      return { ok: false, error: 'Unable to connect to server' }
+    }
+  }
+
+  async function verifyEmail(token: string): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const res = await $fetch<{
+        errors?: Array<{ status: string; title: string; detail?: string }>
+      }>('/api/auth/verify-email', {
+        method: 'POST',
+        body: { token },
+        credentials: 'include',
+        ignoreResponseError: true,
+      })
+
+      if (res?.errors?.length) {
+        const detail = res.errors[0]?.detail || 'Email verification failed.'
+        return { ok: false, error: detail }
+      }
+
+      if (currentUser.value) {
+        currentUser.value = { ...currentUser.value, emailVerified: true }
+      }
+
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Unable to connect to server' }
+    }
+  }
+
+  async function resendVerification(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const res = await $fetch<{
+        errors?: Array<{ status: string; title: string; detail?: string }>
+      }>('/api/auth/resend-verification', {
+        method: 'POST',
+        credentials: 'include',
+        ignoreResponseError: true,
+      })
+
+      if (res?.errors?.length) {
+        const detail = res.errors[0]?.detail || 'Failed to resend verification email.'
+        return { ok: false, error: detail }
+      }
+
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Unable to connect to server' }
+    }
+  }
+
   async function logout(): Promise<void> {
     try {
       await $fetch('/api/auth/logout', {
@@ -75,5 +208,16 @@ export function useAuth() {
     authChecked.value = false
   }
 
-  return { currentUser, isAuthenticated, checkAuth, login, logout }
+  return {
+    currentUser,
+    isAuthenticated,
+    checkAuth,
+    login,
+    register,
+    forgotPassword,
+    resetPassword,
+    verifyEmail,
+    resendVerification,
+    logout,
+  }
 }

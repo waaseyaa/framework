@@ -27,6 +27,12 @@ final class UserServiceProvider extends ServiceProvider
                     'description' => 'The email address of the user.',
                     'weight' => 5,
                 ],
+                'email_verified' => [
+                    'type' => 'boolean',
+                    'label' => 'Email verified',
+                    'description' => 'Whether the user has verified their email address.',
+                    'weight' => 6,
+                ],
                 'status' => [
                     'type' => 'boolean',
                     'label' => 'Active',
@@ -58,10 +64,6 @@ final class UserServiceProvider extends ServiceProvider
 
         $this->singleton(UserBlockService::class, fn() => new UserBlockService(
             $this->resolve(EntityTypeManager::class),
-        ));
-
-        $this->singleton(PasswordResetTokenRepository::class, fn() => new PasswordResetTokenRepository(
-            $this->resolve(\PDO::class),
         ));
 
         $config = $this->config ?? [];

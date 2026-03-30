@@ -3,16 +3,16 @@ definePageMeta({ layout: false })
 
 const config = useRuntimeConfig()
 const route = useRoute()
-const { login } = useAuth()
+const { register } = useAuth()
 
 const logoUrl = config.public.logoUrl as string | undefined
-const authConfig = config.public.auth as Record<string, unknown> | undefined
-const registrationMode = authConfig?.registration ?? 'admin'
-const showRegister = registrationMode === 'open' || registrationMode === 'invite'
+const registrationMode = (config.public.auth as Record<string, unknown>)?.registration ?? 'admin'
+const requireVerifiedEmail = (config.public.auth as Record<string, unknown>)?.requireVerifiedEmail === true
+const inviteToken = route.query.token as string | undefined
 
-// Validate returnTo is a local path to prevent open redirect attacks
-const rawReturnTo = (route.query.returnTo as string) || '/'
-const returnTo = rawReturnTo.startsWith('/') && !rawReturnTo.startsWith('//') ? rawReturnTo : '/'
+if (registrationMode === 'admin') {
+  await navigateTo('/login')
+}
 
 const error = ref<string>('')
 const loading = ref<boolean>(false)
@@ -27,15 +27,30 @@ onMounted(() => {
   }
 })
 
-async function handleSubmit(credentials: { username: string; password: string }) {
+async function handleSubmit(credentials: {
+  name: string
+  email: string
+  password: string
+  confirmPassword: string
+}) {
+  if (credentials.password !== credentials.confirmPassword) {
+    error.value = 'Passwords do not match.'
+    return
+  }
+
   error.value = ''
   loading.value = true
   try {
-    const result = await login(credentials.username, credentials.password)
+    const result = await register(
+      credentials.name,
+      credentials.email,
+      credentials.password,
+      inviteToken,
+    )
     if (result.success) {
-      await navigateTo(returnTo)
+      await navigateTo(requireVerifiedEmail ? '/verify-email' : '/')
     } else {
-      error.value = result.error ?? 'Login failed'
+      error.value = result.error ?? 'Registration failed.'
     }
   } finally {
     loading.value = false
@@ -47,14 +62,7 @@ async function handleSubmit(credentials: { username: string; password: string })
   <div :class="['auth-page', { minimal: hidePanel }]">
     <AuthBrandPanel v-if="!hidePanel" :logo-url="logoUrl" />
     <div class="auth-form-panel">
-      <div>
-        <AuthLoginForm :error="error" :loading="loading" @submit="handleSubmit" />
-        <div class="auth-page-links">
-          <NuxtLink v-if="showRegister" to="/register" class="auth-page-link">Create account</NuxtLink>
-          <span v-else />
-          <NuxtLink to="/forgot-password" class="auth-page-link">Forgot password?</NuxtLink>
-        </div>
-      </div>
+      <AuthRegisterForm :error="error" :loading="loading" @submit="handleSubmit" />
     </div>
   </div>
 </template>
@@ -84,22 +92,6 @@ async function handleSubmit(credentials: { username: string; password: string })
   max-width: 420px;
   margin: 0 auto;
   background: var(--waaseyaa-auth-page-bg);
-}
-
-.auth-page-links {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 1rem;
-  font-size: 0.875rem;
-}
-
-.auth-page-link {
-  color: var(--waaseyaa-auth-btn-bg);
-  text-decoration: none;
-}
-
-.auth-page-link:hover {
-  text-decoration: underline;
 }
 
 @media (max-width: 767px) {

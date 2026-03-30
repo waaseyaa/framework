@@ -1,6 +1,6 @@
 # Admin SPA
 
-<!-- Spec reviewed 2026-03-28 — telescope E2E tests stabilized -->
+<!-- Spec reviewed 2026-03-30 — Phase 2 auth component tests added -->
 
 ## Package
 
@@ -292,6 +292,13 @@ packages/admin/app/
       DriftScoreChart.vue          # Drift score indicator (0–100 with color intensity)
       EventStreamViewer.vue        # Expandable event log with collapsible rows
       ValidationReportCard.vue     # Validation report display with severity styling
+    auth/
+      LoginForm.vue                # Username/password form with error/loading props
+      RegisterForm.vue             # Name/email/password/confirm form
+      ForgotPasswordForm.vue       # Email-only form with success state
+      ResetPasswordForm.vue        # New password + confirm form
+      BrandPanel.vue               # App branding sidebar with optional logo/tagline
+      VerificationBanner.vue       # Email verification banner with resend + dismiss
     IngestSummaryWidget.vue        # Ingestion status counters + NC sync panel
     onboarding/
       OnboardingPrompt.vue         # Onboarding guide prompt
@@ -362,6 +369,88 @@ File-based routing via Nuxt 3:
 | `/:entityType/create`    | `pages/[entityType]/create.vue`          | Create form          |
 | `/:entityType/:id`       | `pages/[entityType]/[id].vue`            | Edit form            |
 
+## Auth Phase 2 — Registration, Password Reset, Email Verification
+
+### New Pages
+
+| Route | Page File | Access | Purpose |
+|-------|-----------|--------|---------|
+| `/register` | `pages/register.vue` | Public | Open/invite registration form |
+| `/forgot-password` | `pages/forgot-password.vue` | Public | Request password reset email |
+| `/reset-password` | `pages/reset-password.vue` | Public | Consume reset token, set new password |
+| `/verify-email` | `pages/verify-email.vue` | Public | Verify email; auto-submits `?token=` if present |
+
+All new pages use the Split Panel layout with CSS variable theming (`--color-primary` deep teal palette) matching the Phase 1 login page. None use `AdminShell`.
+
+### publicAuthPaths — Plugin Auth Skip
+
+**File:** `packages/admin/app/plugins/admin.ts`
+
+The admin plugin fetches `/_surface/session` on every page load to resolve the current user. Pages that must be reachable before authentication are listed in a `publicAuthPaths` array:
+
+```ts
+const publicAuthPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email']
+```
+
+The plugin checks `window.location.pathname` (not `useRoute()` — unreliable in async plugin context) and skips the session fetch for matching paths. This prevents the 401 → redirect → 401 loop that would otherwise occur on public auth pages.
+
+### ensureVerifiedEmail Middleware
+
+**File:** `packages/admin/app/middleware/auth.global.ts`
+
+When `runtimeConfig.public.requireVerifiedEmail` is true, the global auth middleware enforces email verification gating:
+
+- If `currentUser.email_verified` is false and the current path is not in the skip list, `navigateTo('/verify-email')`.
+- Skipped paths: `/login`, `/register`, `/forgot-password`, `/reset-password`, `/verify-email`.
+
+When `requireVerifiedEmail` is false (default), unverified users reach the AdminShell but see `VerificationBanner`.
+
+### VerificationBanner Component
+
+**File:** `packages/admin/app/components/auth/VerificationBanner.vue`
+
+Rendered inside `AdminShell` when `auth.require_verified_email` is false and the current user's `email_verified` is false. Features:
+
+- Persistent but dismissible. Dismissal stored in `localStorage` keyed by user ID to prevent cross-account leakage on shared machines.
+- Inline "Resend verification" button; reflects `Retry-After` header for cooldown display.
+- Disappears reactively when `useAuth().currentUser.email_verified` becomes true.
+
+### Runtime Config Additions
+
+New keys exposed via `useRuntimeConfig().public`:
+
+| Key | Env Var | Default | Purpose |
+|-----|---------|---------|---------|
+| `registrationMode` | `NUXT_PUBLIC_REGISTRATION_MODE` | `'admin'` | Controls whether `/register` link appears on login page |
+| `requireVerifiedEmail` | `NUXT_PUBLIC_REQUIRE_VERIFIED_EMAIL` | `'0'` | Drives `ensureVerifiedEmail` middleware |
+
+### useAuth Extensions
+
+`packages/admin/app/composables/useAuth.ts` extended with:
+
+```ts
+register(data: { name: string; email: string; password: string; invite_token?: string }): Promise<void>
+forgotPassword(email: string): Promise<void>
+resetPassword(data: { token: string; password: string; password_confirmation: string }): Promise<void>
+verifyEmail(token: string): Promise<void>
+resendVerification(): Promise<void>
+```
+
+All methods use `$fetch` with `credentials: 'include'` targeting `/api/auth/*` (proxied to PHP backend).
+
+### Routing — Updated Table
+
+| Route | Page File | Purpose |
+|-------|-----------|---------|
+| `/` | `pages/index.vue` | Dashboard |
+| `/:entityType` | `pages/[entityType]/index.vue` | Entity list |
+| `/:entityType/create` | `pages/[entityType]/create.vue` | Create form |
+| `/:entityType/:id` | `pages/[entityType]/[id].vue` | Edit form |
+| `/register` | `pages/register.vue` | Registration (open/invite mode) |
+| `/forgot-password` | `pages/forgot-password.vue` | Request password reset |
+| `/reset-password` | `pages/reset-password.vue` | Consume reset token |
+| `/verify-email` | `pages/verify-email.vue` | Email verification |
+
 ## Accessibility
 
 - Skip-to-content link: `<a href="#main-content" class="skip-link">`
@@ -397,6 +486,28 @@ Playwright config: `packages/admin/playwright.config.ts`. Tests live in `package
 - Web server: auto-starts `npm run dev` with 120s timeout; reuses existing server outside CI
 - CI: `forbidOnly` enforced, 2 retries, trace on first retry; dashboard tests use `networkidle` wait and `main`-scoped role-based selectors to avoid sidebar duplicates
 - Reports: HTML reporter; `playwright-report/` and `test-results/` are gitignored
+
+### Vitest (Component & Composable Tests)
+
+Config: `packages/admin/vitest.config.ts`. Environment: `nuxt` (via `@nuxt/test-utils`). Coverage: v8 provider.
+
+```bash
+cd packages/admin && npm test          # single run
+cd packages/admin && npm run test:watch # watch mode
+cd packages/admin && npm run test:coverage # with coverage
+```
+
+Test files live in `packages/admin/tests/`:
+- `tests/components/auth/LoginForm.spec.ts` — login form rendering, emit, error/loading states
+- `tests/components/auth/BrandPanel.spec.ts` — brand panel rendering, logo, tagline
+- `tests/components/auth/RegisterForm.spec.ts` — registration form fields, emit, error/loading states
+- `tests/components/auth/ForgotPasswordForm.spec.ts` — email field, emit, success/error states
+- `tests/components/auth/ResetPasswordForm.spec.ts` — password fields, emit, error/loading states
+- `tests/components/auth/VerificationBanner.spec.ts` — visibility, dismiss, localStorage persistence, resend
+- `tests/composables/useAuth.spec.ts` — auth composable state and methods
+- `tests/unit/composables/useAuth.test.ts` — auth composable unit tests
+
+Pattern: `mountSuspended()` from `@nuxt/test-utils/runtime` for component mounting. Props via `props: {}`, emits via `wrapper.emitted()`.
 
 ### Backend Testing
 
@@ -435,11 +546,24 @@ Backend JSON:API and schema endpoints are tested via PHPUnit integration tests i
 | `packages/admin/app/components/widgets/DateTimeInput.vue` | Datetime-local input widget |
 | `packages/admin/app/components/widgets/EntityAutocomplete.vue` | Typeahead entity reference widget |
 | `packages/admin/app/components/widgets/HiddenField.vue` | Hidden field (renders nothing) |
+| `packages/admin/app/components/auth/LoginForm.vue` | Login form component |
+| `packages/admin/app/components/auth/RegisterForm.vue` | Registration form component |
+| `packages/admin/app/components/auth/ForgotPasswordForm.vue` | Forgot password form component |
+| `packages/admin/app/components/auth/ResetPasswordForm.vue` | Reset password form component |
+| `packages/admin/app/components/auth/BrandPanel.vue` | Auth page branding panel |
+| `packages/admin/app/components/auth/VerificationBanner.vue` | Email verification banner (banner mode) |
 | `packages/admin/app/pages/index.vue` | Dashboard page |
 | `packages/admin/app/pages/[entityType]/index.vue` | Entity list page |
 | `packages/admin/app/pages/[entityType]/create.vue` | Entity create page |
 | `packages/admin/app/pages/[entityType]/[id].vue` | Entity edit page |
 | `packages/admin/app/components/IngestSummaryWidget.vue` | Ingestion status counters + NC sync panel |
+| `packages/admin/app/components/auth/VerificationBanner.vue` | Email verification banner (banner mode) |
+| `packages/admin/app/pages/register.vue` | Registration page (open/invite mode) |
+| `packages/admin/app/pages/forgot-password.vue` | Forgot password page |
+| `packages/admin/app/pages/reset-password.vue` | Reset password page (consumes token) |
+| `packages/admin/app/pages/verify-email.vue` | Email verification page |
+| `packages/admin/app/middleware/auth.global.ts` | Global auth + ensureVerifiedEmail middleware |
+| `packages/admin/app/plugins/admin.ts` | Admin plugin with publicAuthPaths auth skip |
 | `packages/admin/app/i18n/en.json` | English translation strings |
 | `packages/admin/app/i18n/fr.json` | French translation strings |
 | `packages/admin/playwright.config.ts` | Playwright E2E test configuration |

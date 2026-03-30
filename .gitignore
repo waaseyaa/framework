@@ -44,3 +44,7 @@ packages/admin/test-results/
 
 # Smoke test screenshots
 smoke-*.png
+
+# Node/Vitest temp artifacts
+node-compile-cache/
+.superpowers/

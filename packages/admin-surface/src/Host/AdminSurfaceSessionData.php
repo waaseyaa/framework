@@ -17,6 +17,7 @@ final readonly class AdminSurfaceSessionData
      * @param string[] $roles
      * @param string[] $policies
      * @param string|null $email
+     * @param bool|null   $emailVerified
      * @param string   $tenantId
      * @param string   $tenantName
      * @param array<string, bool> $features
@@ -27,6 +28,7 @@ final readonly class AdminSurfaceSessionData
         public array $roles,
         public array $policies,
         public ?string $email = null,
+        public ?bool $emailVerified = null,
         public string $tenantId = 'default',
         public string $tenantName = 'Default',
         public array $features = [],
@@ -42,6 +44,7 @@ final readonly class AdminSurfaceSessionData
                 'id' => $this->accountId,
                 'name' => $this->accountName,
                 'email' => $this->email,
+                'emailVerified' => $this->emailVerified,
                 'roles' => $this->roles,
             ],
             'tenant' => [
