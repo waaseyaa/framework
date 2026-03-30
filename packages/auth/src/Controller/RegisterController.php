@@ -33,12 +33,10 @@ final class RegisterController
         // 2. Rate limiting: 5 attempts per IP per 15 minutes
         $ip = $request->getClientIp() ?? 'unknown';
         $rateLimitKey = 'register:' . $ip;
-
-        $this->rateLimiter->hit($rateLimitKey, 900);
-
         if ($this->rateLimiter->tooManyAttempts($rateLimitKey, 5)) {
             return new JsonResponse(['error' => 'too_many_attempts'], 429);
         }
+        $this->rateLimiter->hit($rateLimitKey, 900);
 
         // 3. Parse JSON body
         $body = json_decode((string) $request->getContent(), true) ?? [];
@@ -108,14 +106,19 @@ final class RegisterController
             $this->tokenRepo->consumeToken($inviteTokenData['id']);
         }
 
-        // 10. Open mode + mail configured: send verification email
-        if ($this->config->registration === 'open' && $this->authMailer->isConfigured()) {
+        // 10. Open mode: send verification email (or dev-log)
+        if ($this->config->registration === 'open') {
             $verifyToken = $this->tokenRepo->createToken(
                 $user->id(),
                 'email_verification',
                 $this->config->tokenTtl('email_verification'),
             );
-            $this->authMailer->sendEmailVerification($user, $verifyToken);
+
+            if ($this->authMailer->isConfigured()) {
+                $this->authMailer->sendEmailVerification($user, $verifyToken);
+            } elseif ($this->config->mailMissingPolicy === \Waaseyaa\Auth\Config\MailMissingPolicy::DevLog) {
+                error_log('[RegisterController] Email verification URL for ' . $email . ': /verify-email?token=' . $verifyToken);
+            }
         }
 
         // 11. Send welcome email (best-effort)

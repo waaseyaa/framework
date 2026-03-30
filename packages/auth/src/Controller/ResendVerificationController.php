@@ -36,7 +36,6 @@ final class ResendVerificationController
 
         // 3. Rate limit: 3 per user per hour
         $rateLimitKey = 'resend_verification:' . $userId;
-        $this->rateLimiter->hit($rateLimitKey, 3600);
         if ($this->rateLimiter->tooManyAttempts($rateLimitKey, 3)) {
             return new JsonResponse(
                 ['error' => 'too_many_attempts'],
@@ -44,6 +43,7 @@ final class ResendVerificationController
                 ['Retry-After' => '3600'],
             );
         }
+        $this->rateLimiter->hit($rateLimitKey, 3600);
 
         // 4. Revoke existing tokens and create a new one
         $this->tokenRepo->revokeTokensForUser($userId, 'email_verification');

@@ -42,17 +42,17 @@ final class ForgotPasswordController
 
         // 4. Rate limit: 3 per email per 15 min, 10 per IP per hour
         $emailKey = 'forgot:email:' . $email;
-        $this->rateLimiter->hit($emailKey, 900);
         if ($this->rateLimiter->tooManyAttempts($emailKey, 3)) {
             return new JsonResponse(['error' => 'too_many_attempts'], 429);
         }
 
         $ip = $request->getClientIp() ?? 'unknown';
         $ipKey = 'forgot:ip:' . $ip;
-        $this->rateLimiter->hit($ipKey, 3600);
         if ($this->rateLimiter->tooManyAttempts($ipKey, 10)) {
             return new JsonResponse(['error' => 'too_many_attempts'], 429);
         }
+        $this->rateLimiter->hit($emailKey, 900);
+        $this->rateLimiter->hit($ipKey, 3600);
 
         // 5. Look up user by email
         $storage = $this->entityTypeManager->getStorage('user');
