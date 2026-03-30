@@ -41,6 +41,10 @@ export default defineNuxtConfig({
       docsUrl: process.env.NUXT_PUBLIC_DOCS_URL ?? 'https://github.com/jonesrussell/waaseyaa',
       // Base URL for subpath mounting (e.g. "/admin"). Used by admin plugin for bootstrap resolution.
       baseUrl: process.env.NUXT_PUBLIC_BASE_URL ?? '',
+      auth: {
+        registration: process.env.NUXT_PUBLIC_AUTH_REGISTRATION ?? 'admin',
+        requireVerifiedEmail: process.env.NUXT_PUBLIC_AUTH_REQUIRE_VERIFIED_EMAIL === '1',
+      },
     },
   },
 })
