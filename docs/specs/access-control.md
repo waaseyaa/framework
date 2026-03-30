@@ -452,6 +452,73 @@ Policies and permissions are discovered at build time via `PackageManifestCompil
 
 Layer discipline: Foundation (layer 0) uses string constants for attribute class names to avoid importing from higher layers. `ReflectionClass::getAttributes()` accepts string class names.
 
+## Auth Controllers (Phase 2)
+
+**Package:** `packages/auth/`
+**Registered by:** `AuthServiceProvider` — registers `AuthConfig`, `AuthTokenRepository`, and routes five controllers.
+
+### Endpoint Access Requirements
+
+| Endpoint | Route option | Controller |
+|----------|-------------|------------|
+| `POST /api/auth/register` | `_public: true` | `RegisterController` |
+| `POST /api/auth/forgot-password` | `_public: true` | `ForgotPasswordController` |
+| `POST /api/auth/reset-password` | `_public: true` | `ResetPasswordController` |
+| `POST /api/auth/verify-email` | `_public: true` | `VerifyEmailController` |
+| `POST /api/auth/resend-verification` | `_authenticated: true` | `ResendVerificationController` |
+
+`ResendVerificationController` requires an active authenticated session. `AccessChecker` short-circuits with `unauthenticated` (401) if the `_account` attribute on the request is anonymous. The other four endpoints are public — no session required.
+
+### Rate Limiting
+
+All auth endpoints apply rate limiting via `RateLimiter` keyed on IP or user identity:
+
+| Endpoint | Limit |
+|----------|-------|
+| `POST /api/auth/register` | 5 per IP per 15 min |
+| `POST /api/auth/forgot-password` | 3 per email per 15 min, 10 per IP per hour |
+| `POST /api/auth/reset-password` | 10 per IP per hour |
+| `POST /api/auth/verify-email` | 10 per IP per hour |
+| `POST /api/auth/resend-verification` | 3 per user per hour |
+
+Rate limit responses return 429 with a `Retry-After` header.
+
+### Anti-Enumeration
+
+All user-facing responses from `ForgotPasswordController` and `RegisterController` are generic — the system never reveals whether an account exists for a given email. Constant-time comparisons are used where needed to prevent timing side-channels.
+
+### AuthTokenRepository
+
+Replaces `PasswordResetTokenRepository` (which used raw PDO). Uses `DatabaseInterface` (DBAL). Tokens are 64-char hex strings hashed with HMAC-SHA256 using `auth.token_secret` from config. Plain tokens are never persisted.
+
+**Token types and default TTLs:**
+
+| Type | Default TTL | Notes |
+|------|-------------|-------|
+| `password_reset` | 1 hour | Single-use; revokes previous tokens for same user |
+| `email_verification` | 24 hours | Single-use; revokes previous tokens for same user |
+| `invite` | 7 days | Single-use; `user_id` is NULL |
+
+### Auth Configuration
+
+Registered under `auth` key in `config/waaseyaa.php`:
+
+```php
+'auth' => [
+    'registration' => 'admin',        // 'admin' | 'open' | 'invite'
+    'require_verified_email' => false, // true = block unverified users from AdminShell
+    'mail_missing_policy' => null,     // null = auto (dev-log in dev, fail in prod)
+    'token_secret' => env('AUTH_TOKEN_SECRET', ''),
+    'token_ttl' => [
+        'password_reset' => 3600,
+        'email_verification' => 86400,
+        'invite' => 604800,
+    ],
+],
+```
+
+`mail_missing_policy` auto-resolves: `dev-log` when `APP_ENV` is `local`/`development`; `fail` in production. Explicit values `'dev-log'`, `'fail'`, and `'silent'` override the auto behavior.
+
 ## File Reference
 
 ```
