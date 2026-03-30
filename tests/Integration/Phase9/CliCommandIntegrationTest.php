@@ -233,7 +233,7 @@ final class CliCommandIntegrationTest extends TestCase
         $user = $this->userStorage->load(1);
         $this->assertNotNull($user);
         $this->assertSame('testuser', $user->get('name'));
-        $this->assertSame('test@example.com', $user->get('email'));
+        $this->assertSame('test@example.com', $user->get('mail'));
     }
 
     #[Test]
