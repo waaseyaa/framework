@@ -230,6 +230,9 @@ Design docs in `docs/plans/` are session artifacts (implementation history). Spe
 - **PHPUnit void method mocking**: `createMock()` + `willReturn(null)` on void methods throws `IncompatibleReturnValueException`. Use `createStub()` for classes with void methods, or omit `willReturn()` entirely.
 - **`database-legacy` package namespace is `Waaseyaa\Database`**: Despite the directory being `packages/database-legacy/`, the PHP namespace is `Waaseyaa\Database`, NOT `Waaseyaa\DatabaseLegacy`. Always check `composer.json` autoload for the canonical namespace.
 - **Auth config in admin SPA**: `runtimeConfig.public.auth` provides `registration` (admin/open/invite) and `requireVerifiedEmail` (boolean). Cast as `Record<string, unknown>` in TypeScript to safely access nested keys. Controlled by `NUXT_PUBLIC_AUTH_REGISTRATION` and `NUXT_PUBLIC_AUTH_REQUIRE_VERIFIED_EMAIL` env vars.
+- **DBAL empty IN/NOT IN returns no results**: `condition('id', [], 'IN')` and `condition('id', [], 'NOT IN')` both return empty results — DBAL silently produces no matches. Callers must guard against empty arrays before building IN conditions.
+- **JsonApiResource::toArray() omits empty keys**: `attributes` and `relationships` are omitted from serialized output when empty, not set to `[]`. Tests should use `assertArrayNotHasKey` for empty fields, not `assertEmpty`.
+- **Sparse fieldsets filter attributes only**: Both `index()` and `show()` in `JsonApiController` only filter `attributes` via `array_intersect_key`, preserving `relationships` unconditionally. Consistent internally but diverges from strict JSON:API spec (which says `fields[type]` covers both).
 
 ## Testing
 - Integration tests in `tests/Integration/PhaseN/` — one directory per implementation phase
@@ -239,6 +242,7 @@ Design docs in `docs/plans/` are session artifacts (implementation history). Spe
 - Use `ArrayLoader` for Twig tests (no filesystem needed)
 - All storage can be in-memory: MemoryStorage (config), MemoryBackend (cache), InMemoryEntityStorage (entities), DBALDatabase::createSqlite() (SQL with :memory:)
 - Test cache file handling with corrupt files (`<?php throw new \RuntimeException("corrupt");`) and wrong return types (`<?php return "not an array";`) to verify recovery paths
+- Contract tests in `packages/*/tests/Contract/` — abstract base classes verify interface compliance, concrete tests per implementation. Use `#[CoversNothing]` for contract tests.
 - Test access policies with anonymous classes implementing intersection types (`AccessPolicyInterface & FieldAccessPolicyInterface`) — PHPUnit `createMock()` can't mock intersection types, so use real anonymous classes with inline logic
 - Frontend tests: `cd packages/admin && npm test` — Vitest with `@nuxt/test-utils` nuxt environment
 - Frontend build verification: `cd packages/admin && npm run build` — TypeScript compilation check
