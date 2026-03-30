@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Auth;
 
+use Waaseyaa\Auth\Config;
+use Waaseyaa\Auth\Token;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -16,15 +18,18 @@ final class AuthServiceProvider extends ServiceProvider
 
         $this->singleton(RateLimiter::class, fn() => new RateLimiter());
 
-        $this->singleton(PasswordResetManager::class, fn() => new PasswordResetManager(
-            secret: $this->config['auth_secret'] ?? $this->config['app_secret'] ?? 'change-me',
-            tokenLifetimeSeconds: (int) ($this->config['password_reset_lifetime'] ?? 3600),
-        ));
+        $authConfig = $this->config['auth'] ?? [];
+        $appEnv = $this->config['app_env'] ?? ($_ENV['APP_ENV'] ?? 'production');
 
-        $this->singleton(EmailVerifier::class, fn() => new EmailVerifier(
-            secret: $this->config['auth_secret'] ?? $this->config['app_secret'] ?? 'change-me',
-            urlLifetimeSeconds: (int) ($this->config['email_verification_lifetime'] ?? 3600),
-        ));
+        $this->singleton(Config\AuthConfig::class, fn() => Config\AuthConfig::fromArray($authConfig, $appEnv));
+
+        $this->singleton(Token\AuthTokenRepositoryInterface::class, function () use ($authConfig) {
+            $secret = $authConfig['token_secret'] ?? ($this->config['app_secret'] ?? 'change-me');
+            $db = $this->resolve(\Waaseyaa\DatabaseLegacy\DatabaseInterface::class);
+            $repo = new Token\AuthTokenRepository($db, $secret);
+            $repo->ensureSchema();
+            return $repo;
+        });
 
         $this->singleton(TwoFactorManager::class, fn() => new TwoFactorManager());
     }
