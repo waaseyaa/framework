@@ -24,8 +24,9 @@ packages/admin/.nuxtrc
 packages/admin/.output/
 packages/admin/node_modules/
 
-# Storage (compiled artifacts)
-storage/
+# Storage (compiled artifacts, database files)
+storage/*
+!storage/.gitkeep
 
 # Environment
 .env
