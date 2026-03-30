@@ -5,10 +5,18 @@ declare(strict_types=1);
 namespace Waaseyaa\Auth;
 
 use Waaseyaa\Auth\Config;
+use Waaseyaa\Auth\Controller\ForgotPasswordController;
+use Waaseyaa\Auth\Controller\RegisterController;
+use Waaseyaa\Auth\Controller\ResendVerificationController;
+use Waaseyaa\Auth\Controller\ResetPasswordController;
+use Waaseyaa\Auth\Controller\VerifyEmailController;
 use Waaseyaa\Auth\Token;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Routing\RouteBuilder;
+use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\User\AuthMailer;
 
 final class AuthServiceProvider extends ServiceProvider
 {
@@ -32,6 +40,83 @@ final class AuthServiceProvider extends ServiceProvider
         });
 
         $this->singleton(TwoFactorManager::class, fn() => new TwoFactorManager());
+    }
+
+    public function routes(WaaseyaaRouter $router, ?EntityTypeManager $entityTypeManager = null): void
+    {
+        $authConfig = $this->resolve(Config\AuthConfig::class);
+        $tokenRepo = $this->resolve(Token\AuthTokenRepositoryInterface::class);
+        $rateLimiter = $this->resolve(RateLimiter::class);
+        $authMailer = $this->resolve(AuthMailer::class);
+
+        $router->addRoute(
+            'api.auth.register',
+            RouteBuilder::create('/api/auth/register')
+                ->controller(new RegisterController(
+                    config: $authConfig,
+                    entityTypeManager: $entityTypeManager ?? $this->resolve(EntityTypeManager::class),
+                    tokenRepo: $tokenRepo,
+                    authMailer: $authMailer,
+                    rateLimiter: $rateLimiter,
+                ))
+                ->allowAll()
+                ->methods('POST')
+                ->build(),
+        );
+
+        $router->addRoute(
+            'api.auth.forgot_password',
+            RouteBuilder::create('/api/auth/forgot-password')
+                ->controller(new ForgotPasswordController(
+                    config: $authConfig,
+                    entityTypeManager: $entityTypeManager ?? $this->resolve(EntityTypeManager::class),
+                    tokenRepo: $tokenRepo,
+                    authMailer: $authMailer,
+                    rateLimiter: $rateLimiter,
+                ))
+                ->allowAll()
+                ->methods('POST')
+                ->build(),
+        );
+
+        $router->addRoute(
+            'api.auth.reset_password',
+            RouteBuilder::create('/api/auth/reset-password')
+                ->controller(new ResetPasswordController(
+                    entityTypeManager: $entityTypeManager ?? $this->resolve(EntityTypeManager::class),
+                    tokenRepo: $tokenRepo,
+                ))
+                ->allowAll()
+                ->methods('POST')
+                ->build(),
+        );
+
+        $router->addRoute(
+            'api.auth.verify_email',
+            RouteBuilder::create('/api/auth/verify-email')
+                ->controller(new VerifyEmailController(
+                    entityTypeManager: $entityTypeManager ?? $this->resolve(EntityTypeManager::class),
+                    tokenRepo: $tokenRepo,
+                ))
+                ->allowAll()
+                ->methods('POST')
+                ->build(),
+        );
+
+        $router->addRoute(
+            'api.auth.resend_verification',
+            RouteBuilder::create('/api/auth/resend-verification')
+                ->controller(new ResendVerificationController(
+                    config: $authConfig,
+                    entityTypeManager: $entityTypeManager ?? $this->resolve(EntityTypeManager::class),
+                    tokenRepo: $tokenRepo,
+                    authMailer: $authMailer,
+                    rateLimiter: $rateLimiter,
+                ))
+                ->requireAuthentication()
+                ->methods('POST')
+                ->build(),
+        );
     }
 
     /**
