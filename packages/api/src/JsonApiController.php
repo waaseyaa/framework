@@ -120,8 +120,9 @@ final class JsonApiController
     /**
      * GET single — retrieve a specific entity.
      *
-     * @param string     $entityTypeId The entity type.
-     * @param int|string $id           The entity ID.
+     * @param string               $entityTypeId The entity type.
+     * @param int|string           $id           The entity ID.
+     * @param array<string, mixed> $query        Query parameters (supports 'fields' for sparse fieldsets).
      */
     public function show(string $entityTypeId, int|string $id, array $query = []): JsonApiDocument
     {
