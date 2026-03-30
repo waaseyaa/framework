@@ -1,6 +1,6 @@
 # Admin SPA
 
-<!-- Spec reviewed 2026-03-28 — telescope E2E tests stabilized -->
+<!-- Spec reviewed 2026-03-30 — Phase 2 auth component tests added -->
 
 ## Package
 
@@ -292,6 +292,13 @@ packages/admin/app/
       DriftScoreChart.vue          # Drift score indicator (0–100 with color intensity)
       EventStreamViewer.vue        # Expandable event log with collapsible rows
       ValidationReportCard.vue     # Validation report display with severity styling
+    auth/
+      LoginForm.vue                # Username/password form with error/loading props
+      RegisterForm.vue             # Name/email/password/confirm form
+      ForgotPasswordForm.vue       # Email-only form with success state
+      ResetPasswordForm.vue        # New password + confirm form
+      BrandPanel.vue               # App branding sidebar with optional logo/tagline
+      VerificationBanner.vue       # Email verification banner with resend + dismiss
     IngestSummaryWidget.vue        # Ingestion status counters + NC sync panel
     onboarding/
       OnboardingPrompt.vue         # Onboarding guide prompt
@@ -480,6 +487,28 @@ Playwright config: `packages/admin/playwright.config.ts`. Tests live in `package
 - CI: `forbidOnly` enforced, 2 retries, trace on first retry; dashboard tests use `networkidle` wait and `main`-scoped role-based selectors to avoid sidebar duplicates
 - Reports: HTML reporter; `playwright-report/` and `test-results/` are gitignored
 
+### Vitest (Component & Composable Tests)
+
+Config: `packages/admin/vitest.config.ts`. Environment: `nuxt` (via `@nuxt/test-utils`). Coverage: v8 provider.
+
+```bash
+cd packages/admin && npm test          # single run
+cd packages/admin && npm run test:watch # watch mode
+cd packages/admin && npm run test:coverage # with coverage
+```
+
+Test files live in `packages/admin/tests/`:
+- `tests/components/auth/LoginForm.spec.ts` — login form rendering, emit, error/loading states
+- `tests/components/auth/BrandPanel.spec.ts` — brand panel rendering, logo, tagline
+- `tests/components/auth/RegisterForm.spec.ts` — registration form fields, emit, error/loading states
+- `tests/components/auth/ForgotPasswordForm.spec.ts` — email field, emit, success/error states
+- `tests/components/auth/ResetPasswordForm.spec.ts` — password fields, emit, error/loading states
+- `tests/components/auth/VerificationBanner.spec.ts` — visibility, dismiss, localStorage persistence, resend
+- `tests/composables/useAuth.spec.ts` — auth composable state and methods
+- `tests/unit/composables/useAuth.test.ts` — auth composable unit tests
+
+Pattern: `mountSuspended()` from `@nuxt/test-utils/runtime` for component mounting. Props via `props: {}`, emits via `wrapper.emitted()`.
+
 ### Backend Testing
 
 Backend JSON:API and schema endpoints are tested via PHPUnit integration tests in `tests/Integration/PhaseN/`. The admin SPA relies on these endpoints being correct.
@@ -517,6 +546,12 @@ Backend JSON:API and schema endpoints are tested via PHPUnit integration tests i
 | `packages/admin/app/components/widgets/DateTimeInput.vue` | Datetime-local input widget |
 | `packages/admin/app/components/widgets/EntityAutocomplete.vue` | Typeahead entity reference widget |
 | `packages/admin/app/components/widgets/HiddenField.vue` | Hidden field (renders nothing) |
+| `packages/admin/app/components/auth/LoginForm.vue` | Login form component |
+| `packages/admin/app/components/auth/RegisterForm.vue` | Registration form component |
+| `packages/admin/app/components/auth/ForgotPasswordForm.vue` | Forgot password form component |
+| `packages/admin/app/components/auth/ResetPasswordForm.vue` | Reset password form component |
+| `packages/admin/app/components/auth/BrandPanel.vue` | Auth page branding panel |
+| `packages/admin/app/components/auth/VerificationBanner.vue` | Email verification banner (banner mode) |
 | `packages/admin/app/pages/index.vue` | Dashboard page |
 | `packages/admin/app/pages/[entityType]/index.vue` | Entity list page |
 | `packages/admin/app/pages/[entityType]/create.vue` | Entity create page |
