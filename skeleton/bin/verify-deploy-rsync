@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Fail CI if deploy rsync uses an unanchored docs/ exclude (drops templates/docs/, etc.).
+# See docs/specs/per-site-convergence-audit.md in the Waaseyaa monorepo.
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+if [[ ! -d .github/workflows ]]; then
+    echo "verify-deploy-rsync: skip (no .github/workflows)"
+    exit 0
+fi
+
+bad=0
+shopt -s nullglob
+for wf in .github/workflows/*.yml .github/workflows/*.yaml; do
+    [[ -f "$wf" ]] || continue
+    # After the opening quote, 'docs/' means "any path segment named docs" in rsync.
+    # Use '/docs/' to exclude only the repository-root docs/ tree.
+    if grep -qE -- "--exclude=['\"]docs/" "$wf"; then
+        echo "verify-deploy-rsync: ERROR: $wf uses unanchored --exclude='docs/' (use --exclude='/docs/' for repo-root docs only)." >&2
+        bad=1
+    fi
+done
+
+if [[ $bad -ne 0 ]]; then
+    if [[ -d templates/docs ]]; then
+        echo "verify-deploy-rsync: This repo has templates/docs/; an unanchored exclude would omit it from deploy artifacts." >&2
+    fi
+    exit 1
+fi
+
+echo "verify-deploy-rsync: OK"

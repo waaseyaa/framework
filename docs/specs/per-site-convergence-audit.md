@@ -38,6 +38,20 @@ The script ends with `./bin/waaseyaa-version --report-only` so a committed `.waa
 
 `composer validate --no-check-publish` fails (exit `2`) when `composer.lock` is out of date relative to `composer.json`; run `composer update --lock` (or a targeted `composer update`) and commit the lockfile.
 
+### Deploy artifact (rsync)
+
+CI/deploy workflows that assemble a release with `rsync` must **not** use an unanchored `docs/` exclude (`--exclude='docs/'`). In rsync, that pattern matches **any** directory named `docs` anywhere in the tree (including `templates/docs/` for Twig). Exclude only the repository-root documentation tree:
+
+```text
+--exclude='/docs/'
+```
+
+Run `./bin/verify-deploy-rsync` (from the skeleton) in CI to enforce this. It is also invoked from `./bin/waaseyaa-audit-site`.
+
+Apps that serve on-disk guides from `docs/guides/` while omitting other `docs/` content (e.g. audits) should keep `/docs/` anchored and **add a second** `rsync` of `docs/guides/` into the artifact, as [waaseyaa.org](https://github.com/waaseyaa/waaseyaa.org) does.
+
+Optional deeper check (nightly / `workflow_dispatch` only): after reproducing the deploy `rsync` into a temp directory, run `ARTIFACT_DIR=... ./bin/deploy-artifact-smoke` from the skeleton. Paths default to `/`; add `scripts/deploy-smoke-routes.txt` for more URLs.
+
 ---
 
 ## 1. Provenance and version alignment

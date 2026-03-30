@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Optional pre-release HTTP check against a directory that already matches CI deploy output.
+#
+# 1. Build the tree the same way your deploy job does (e.g. composer install --no-dev + rsync).
+# 2. export ARTIFACT_DIR=/absolute/path/to/that/tree
+# 3. Optionally add scripts/deploy-smoke-routes.txt (one URL path per line; lines starting with # ignored).
+#
+# Usage: ARTIFACT_DIR=/path/to/build ./bin/deploy-artifact-smoke [port]
+# Suggested: run from workflow_dispatch or a scheduled workflow, not every PR.
+set -euo pipefail
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PORT="${1:-9875}"
+ARTIFACT_DIR="${ARTIFACT_DIR:-}"
+
+if [[ -z "$ARTIFACT_DIR" ]]; then
+    echo "deploy-artifact-smoke: set ARTIFACT_DIR to the built artifact root" >&2
+    exit 1
+fi
+
+if [[ ! -f "$ARTIFACT_DIR/public/index.php" ]]; then
+    echo "deploy-artifact-smoke: expected public/index.php under ARTIFACT_DIR" >&2
+    exit 1
+fi
+
+ROUTES_FILE="$REPO_ROOT/scripts/deploy-smoke-routes.txt"
+paths=("/")
+if [[ -f "$ROUTES_FILE" ]]; then
+    mapfile -t paths < <(grep -v '^[[:space:]]*#' "$ROUTES_FILE" | grep -v '^[[:space:]]*$' || true)
+    if [[ ${#paths[@]} -eq 0 ]]; then
+        paths=("/")
+    fi
+fi
+
+cd "$ARTIFACT_DIR"
+php -S "127.0.0.1:$PORT" public/index.php >/tmp/waaseyaa-deploy-smoke-php.log 2>&1 &
+PID=$!
+trap 'kill "$PID" 2>/dev/null || true' EXIT
+sleep 2
+
+if ! command -v curl >/dev/null 2>&1; then
+    echo "deploy-artifact-smoke: curl is required" >&2
+    exit 1
+fi
+
+fail=0
+for p in "${paths[@]}"; do
+    code=$(curl -sS -o /tmp/waaseyaa-deploy-smoke-body -w "%{http_code}" "http://127.0.0.1:$PORT${p}" || echo "000")
+    if [[ "$code" != "200" ]]; then
+        echo "deploy-artifact-smoke: FAIL ${p} -> HTTP ${code}" >&2
+        fail=1
+    fi
+done
+
+if [[ "$fail" -ne 0 ]]; then
+    exit 1
+fi
+
+echo "deploy-artifact-smoke: OK"
