@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Auth;
 
-use Waaseyaa\Auth\Config;
 use Waaseyaa\Auth\Controller\ForgotPasswordController;
 use Waaseyaa\Auth\Controller\RegisterController;
 use Waaseyaa\Auth\Controller\ResendVerificationController;
 use Waaseyaa\Auth\Controller\ResetPasswordController;
 use Waaseyaa\Auth\Controller\VerifyEmailController;
-use Waaseyaa\Auth\Token;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
