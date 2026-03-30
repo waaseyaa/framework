@@ -129,8 +129,14 @@ composer install                    # Install dependencies
 php -S localhost:8080 -t public     # Dev server
 ./vendor/bin/phpunit                # Run tests
 bin/waaseyaa                        # CLI
+bin/waaseyaa-version                # Framework provenance (path SHA, lockfile, drift vs golden)
+bin/waaseyaa-audit-site             # Mechanical convergence preflight (validate + bins + provenance)
 bin/waaseyaa sync-rules             # Update framework rules from Waaseyaa
 ```
+
+Set `WAASEYAA_GOLDEN_SHA` or add `.waaseyaa-golden-sha` for CI drift gates (see `docs/specs/version-provenance.md` in the framework repo).
+
+**Per-site convergence audits:** follow [per-site-convergence-audit.md](https://github.com/waaseyaa/framework/blob/main/docs/specs/per-site-convergence-audit.md) in the Waaseyaa monorepo; record findings under `docs/audits/` per that spec.
 
 ## Codified Context
 

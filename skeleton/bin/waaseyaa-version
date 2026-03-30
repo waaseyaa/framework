@@ -1,0 +1,19 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Standalone framework provenance (no full Waaseyaa kernel boot).
+ * Same logic as: php bin/waaseyaa waaseyaa:version
+ *
+ * Options: --json, --strict (explicit default: fail on drift), --report-only (always exit 0)
+ */
+$root = dirname(__DIR__);
+require $root . '/vendor/autoload.php';
+
+use Waaseyaa\CLI\Provenance\ComposerProvenanceReporter;
+
+$argv = $_SERVER['argv'] ?? [];
+
+exit(ComposerProvenanceReporter::main($root, $argv));

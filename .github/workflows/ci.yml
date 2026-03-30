@@ -43,6 +43,11 @@ jobs:
       - name: Validate composer.json
         run: composer validate
 
+      - name: Framework provenance (lockfile vs checkout SHA)
+        env:
+          WAASEYAA_GOLDEN_SHA: ${{ github.sha }}
+        run: php -r "require 'vendor/autoload.php'; exit(Waaseyaa\\CLI\\Provenance\\ComposerProvenanceReporter::main(getcwd(), []));"
+
       - name: Check PHP syntax
         run: find packages/*/src -name '*.php' -print0 | xargs -0 -n1 php -l
 

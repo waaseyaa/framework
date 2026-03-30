@@ -66,6 +66,7 @@ use Waaseyaa\CLI\Command\TypeDisableCommand;
 use Waaseyaa\CLI\Command\TypeEnableCommand;
 use Waaseyaa\CLI\Command\UserCreateCommand;
 use Waaseyaa\CLI\Command\UserRoleCommand;
+use Waaseyaa\CLI\Command\WaaseyaaVersionCommand;
 use Waaseyaa\CLI\Command\WorkflowScaffoldCommand;
 use Waaseyaa\CLI\WaaseyaaApplication;
 use Waaseyaa\Config\Cache\ConfigCacheCompiler;
@@ -246,6 +247,7 @@ final class ConsoleKernel extends AbstractKernel
                 $this->projectRoot . '/vendor/waaseyaa/foundation/.claude/rules',
                 $this->projectRoot . '/.claude/rules',
             ),
+            new WaaseyaaVersionCommand($this->projectRoot),
         ]);
 
         $migrationsProvider = fn() => $this->migrationLoader->loadAll();
@@ -267,7 +269,9 @@ final class ConsoleKernel extends AbstractKernel
 
     private function shouldUseMinimalConsole(): bool
     {
-        return $this->requestedCommandName() === 'optimize:manifest';
+        $name = $this->requestedCommandName();
+
+        return $name === 'optimize:manifest' || $name === 'waaseyaa:version';
     }
 
     private function requestedCommandName(): ?string
@@ -293,12 +297,18 @@ final class ConsoleKernel extends AbstractKernel
     {
         $app = new WaaseyaaApplication();
         $app->setAutoExit(false);
-        $app->registerCommands([
-            new OptimizeManifestCommand(new PackageManifestCompiler(
-                basePath: $this->projectRoot,
-                storagePath: $this->projectRoot . '/storage',
-            )),
-        ]);
+        if ($this->requestedCommandName() === 'waaseyaa:version') {
+            $app->registerCommands([
+                new WaaseyaaVersionCommand($this->projectRoot),
+            ]);
+        } else {
+            $app->registerCommands([
+                new OptimizeManifestCommand(new PackageManifestCompiler(
+                    basePath: $this->projectRoot,
+                    storagePath: $this->projectRoot . '/storage',
+                )),
+            ]);
+        }
 
         return $app->run();
     }

@@ -3866,7 +3866,7 @@
         },
         {
             "name": "waaseyaa/github",
-            "version": "dev-fix/750-missing-path-repos",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/github",
@@ -4521,7 +4521,7 @@
         },
         {
             "name": "waaseyaa/oauth-provider",
-            "version": "dev-fix/750-missing-path-repos",
+            "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/oauth-provider",
@@ -4691,7 +4691,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/relationship",
-                "reference": "b01cb17cfd4bcf783443154734e319b4f7316c31"
+                "reference": "da701eb247fb4b117a3872b07dbb345ebf7ea566"
             },
             "require": {
                 "php": ">=8.4",
@@ -4714,6 +4714,11 @@
             "autoload": {
                 "psr-4": {
                     "Waaseyaa\\Relationship\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Relationship\\Tests\\": "tests/"
                 }
             },
             "license": [
@@ -8806,11 +8811,13 @@
             "dist": {
                 "type": "path",
                 "url": "packages/testing",
-                "reference": "206cd547140bf44e04441f063055cf0744b63842"
+                "reference": "530a7a00fbc42dcd6fd150d30725b069c8f65dde"
             },
             "require": {
                 "php": ">=8.4",
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^10.5",
+                "symfony/event-dispatcher": "^7.0",
+                "waaseyaa/graphql": "@dev"
             },
             "type": "library",
             "extra": {

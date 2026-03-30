@@ -26,7 +26,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/ingestion/*` | `waaseyaa:ingestion` | `docs/specs/ingestion-defaults.md` |
 | `defaults/*`, `bin/check-no-secrets`, `bin/check-ingestion-defaults` | `waaseyaa:security-defaults` | `docs/specs/security-defaults.md` |
 | `packages/foundation/src/Diagnostic/*`, `packages/cli/src/Command/Health*`, `packages/cli/src/Command/SchemaCheck*` | `waaseyaa:operator-diagnostics` | `docs/specs/operator-diagnostics.md`, `docs/specs/operations-playbooks.md` |
-| `packages/foundation/*`, `packages/cache/*`, `packages/database-legacy/*`, `packages/plugin/*`, `packages/i18n/*`, `packages/queue/*`, `packages/state/*`, `packages/validation/*`, `packages/typed-data/*`, `packages/testing/*`, `packages/http-client/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md`, `docs/specs/package-discovery.md`, `docs/specs/plugin-extension-points.md`, `docs/specs/external-extension-sdk.md`, `docs/specs/extension-compatibility-matrix.md`, `docs/specs/extension-release-playbook.md`, `docs/specs/extension-author-onboarding.md` |
+| `packages/foundation/*`, `packages/cache/*`, `packages/database-legacy/*`, `packages/plugin/*`, `packages/i18n/*`, `packages/queue/*`, `packages/state/*`, `packages/validation/*`, `packages/typed-data/*`, `packages/testing/*`, `packages/http-client/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md`, `docs/specs/package-discovery.md`, `docs/specs/plugin-extension-points.md`, `docs/specs/external-extension-sdk.md`, `docs/specs/extension-compatibility-matrix.md`, `docs/specs/version-provenance.md`, `docs/specs/extension-release-playbook.md`, `docs/specs/extension-author-onboarding.md` |
 | `packages/mcp/*` | `waaseyaa:mcp-endpoint` | `docs/specs/mcp-endpoint.md` |
 | `public/index.php`, `packages/*/src/Middleware/*` | `waaseyaa:middleware-pipeline` | `docs/specs/middleware-pipeline.md` |
 | `packages/note/*` | — | `docs/specs/ingestion-defaults.md` |
@@ -45,7 +45,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/notification/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md` |
 | `packages/cms/*`, `packages/core/*`, `packages/full/*` | — (metapackages) | — |
 
-| GitHub issues, milestones, new features, roadmap | — | `docs/specs/workflow.md`, `docs/specs/v1.5-verification-gate-contract.md`, `docs/specs/v1.6-verification-gate-contract.md` |
+| GitHub issues, milestones, new features, roadmap | — | `docs/specs/workflow.md`, `docs/specs/per-site-convergence-audit.md`, `docs/specs/v1.5-verification-gate-contract.md`, `docs/specs/v1.6-verification-gate-contract.md` |
 | `skills/waaseyaa/app-development/*` | — | — |
 | `skills/waaseyaa/framework-extraction/*` | — | `docs/specs/extraction-log.md` |
 | `docs/audits/*` | — | — |

@@ -43,7 +43,7 @@
     },
     "scripts": {
         "post-create-project-cmd": [
-            "chmod +x bin/waaseyaa",
+            "chmod +x bin/waaseyaa bin/waaseyaa-version bin/waaseyaa-audit-site",
             "php bin/post-create-setup.php"
         ]
     },
