@@ -177,6 +177,27 @@ final class SqlEntityQueryEdgeCaseTest extends TestCase
     }
 
     #[Test]
+    public function queryWithEmptyArrayInOperatorReturnsNoResults(): void
+    {
+        $query = new SqlEntityQuery($this->entityType, $this->database);
+        $ids = $query->condition('id', [], 'IN')->execute();
+
+        // Empty IN() matches nothing — no rows satisfy "id IN ()".
+        $this->assertSame([], $ids);
+    }
+
+    #[Test]
+    public function queryWithEmptyArrayNotInOperatorReturnsNoResults(): void
+    {
+        $query = new SqlEntityQuery($this->entityType, $this->database);
+        $ids = $query->condition('id', [], 'NOT IN')->execute();
+
+        // DBAL produces empty parameter list for NOT IN(), which matches nothing.
+        // This is a known DBAL behavior — callers should guard against empty arrays.
+        $this->assertSame([], $ids);
+    }
+
+    #[Test]
     public function queryOnDataFieldWithOperators(): void
     {
         // Insert entities via raw SQL with _data JSON containing a "score" field.

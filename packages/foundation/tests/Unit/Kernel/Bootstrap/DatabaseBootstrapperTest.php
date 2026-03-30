@@ -63,6 +63,7 @@ final class DatabaseBootstrapperTest extends TestCase
 
         $this->assertInstanceOf(DatabaseInterface::class, $database);
         $this->assertDirectoryExists($this->tempDir . '/custom');
+        $this->assertFileExists($dbPath);
     }
 
     #[Test]
@@ -77,6 +78,7 @@ final class DatabaseBootstrapperTest extends TestCase
 
             $this->assertInstanceOf(DatabaseInterface::class, $database);
             $this->assertDirectoryExists($this->tempDir . '/envdir');
+            $this->assertFileExists($dbPath);
         } finally {
             putenv('WAASEYAA_DB');
         }
@@ -96,5 +98,6 @@ final class DatabaseBootstrapperTest extends TestCase
 
         // The default path creates storage/ under project root.
         $this->assertDirectoryExists($projectRoot . '/storage');
+        $this->assertFileExists($projectRoot . '/storage/waaseyaa.sqlite');
     }
 }

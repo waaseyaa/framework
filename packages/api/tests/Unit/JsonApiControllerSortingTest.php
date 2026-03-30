@@ -236,6 +236,25 @@ final class JsonApiControllerSortingTest extends TestCase
         $this->assertSame($second->uuid(), $array['data'][1]['id']);
     }
 
+    // --- Sort by nonexistent field ---
+
+    #[Test]
+    public function indexSortByNonexistentFieldReturnsDefaultOrder(): void
+    {
+        $first = $this->createAndSaveEntity(['title' => 'Zulu']);
+        $second = $this->createAndSaveEntity(['title' => 'Alpha']);
+
+        $doc = $this->controller->index('article', [
+            'sort' => 'nonexistent_field',
+        ]);
+        $array = $doc->toArray();
+
+        // Sorting by a nonexistent field is a silent no-op — insertion order preserved.
+        $this->assertCount(2, $array['data']);
+        $this->assertSame($first->uuid(), $array['data'][0]['id']);
+        $this->assertSame($second->uuid(), $array['data'][1]['id']);
+    }
+
     // --- Helpers ---
 
     private function createAndSaveEntity(array $values): TestEntity

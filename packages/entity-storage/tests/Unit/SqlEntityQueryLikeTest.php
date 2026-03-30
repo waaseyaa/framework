@@ -67,6 +67,20 @@ final class SqlEntityQueryLikeTest extends TestCase
     }
 
     #[Test]
+    public function containsOperatorEscapesPercentWildcard(): void
+    {
+        $this->storage->save($this->storage->create(['title' => '100% Complete']));
+        $this->storage->save($this->storage->create(['title' => '100 items found']));
+
+        $ids = $this->storage->getQuery()
+            ->condition('title', '100%', 'CONTAINS')
+            ->execute();
+
+        // Only the entity with a literal "100%" should match, not "100 items found".
+        $this->assertCount(1, $ids);
+    }
+
+    #[Test]
     public function containsOperatorIsCaseInsensitive(): void
     {
         $this->storage->save($this->storage->create(['title' => 'Hello World']));

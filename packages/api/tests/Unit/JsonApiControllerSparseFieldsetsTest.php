@@ -153,9 +153,8 @@ final class JsonApiControllerSparseFieldsetsTest extends TestCase
         $this->assertCount(1, $array['data']);
         // id and type still present.
         $this->assertSame('article', $array['data'][0]['type']);
-        // Attributes should be empty or null when requesting no fields.
-        $attributes = $array['data'][0]['attributes'] ?? [];
-        $this->assertEmpty($attributes);
+        // When all attributes are filtered out, the key is omitted from the resource.
+        $this->assertArrayNotHasKey('attributes', $array['data'][0]);
     }
 
     #[Test]
@@ -169,9 +168,8 @@ final class JsonApiControllerSparseFieldsetsTest extends TestCase
         $array = $doc->toArray();
 
         $this->assertCount(1, $array['data']);
-        // Attributes should be empty or null since the requested field doesn't exist.
-        $attributes = $array['data'][0]['attributes'] ?? [];
-        $this->assertEmpty($attributes);
+        // When no requested fields match, attributes key is omitted from the resource.
+        $this->assertArrayNotHasKey('attributes', $array['data'][0]);
     }
 
     #[Test]
@@ -185,9 +183,11 @@ final class JsonApiControllerSparseFieldsetsTest extends TestCase
         $array = $doc->toArray();
 
         $this->assertCount(1, $array['data']);
-        // Relationships key should still be present (even if empty) per JSON:API spec.
-        // The sparse fieldsets filter only applies to attributes, not relationships.
-        $this->assertSame('article', $array['data'][0]['type']);
+        // Sparse fieldsets filter only applies to attributes, not relationships.
+        // Verify attributes are filtered to only the requested field.
+        $this->assertSame(['title' => 'Post'], $array['data'][0]['attributes']);
+        // Relationships key is omitted when entity has no relationships (TestEntity has none).
+        $this->assertArrayNotHasKey('relationships', $array['data'][0]);
     }
 
     #[Test]
@@ -259,6 +259,65 @@ final class JsonApiControllerSparseFieldsetsTest extends TestCase
         $this->assertArrayHasKey('title', $array['data'][0]['attributes']);
         $this->assertArrayHasKey('body', $array['data'][0]['attributes']);
         $this->assertArrayHasKey('summary', $array['data'][0]['attributes']);
+    }
+
+    // --- Sparse Fieldsets on Show (GET single) ---
+
+    #[Test]
+    public function showWithSparseFieldsetsIncludesOnlyRequestedFields(): void
+    {
+        $entity = $this->createAndSaveEntity(['title' => 'Post', 'body' => 'Content', 'summary' => 'Brief']);
+
+        $doc = $this->controller->show('article', $entity->uuid(), [
+            'fields' => ['article' => 'title'],
+        ]);
+        $array = $doc->toArray();
+
+        $this->assertArrayHasKey('title', $array['data']['attributes']);
+        $this->assertArrayNotHasKey('body', $array['data']['attributes']);
+        $this->assertArrayNotHasKey('summary', $array['data']['attributes']);
+    }
+
+    #[Test]
+    public function showWithSparseFieldsetsPreservesIdAndType(): void
+    {
+        $entity = $this->createAndSaveEntity(['title' => 'Post', 'body' => 'Content']);
+
+        $doc = $this->controller->show('article', $entity->uuid(), [
+            'fields' => ['article' => 'title'],
+        ]);
+        $array = $doc->toArray();
+
+        $this->assertSame('article', $array['data']['type']);
+        $this->assertSame($entity->uuid(), $array['data']['id']);
+        $this->assertSame(['title' => 'Post'], $array['data']['attributes']);
+    }
+
+    #[Test]
+    public function showWithoutSparseFieldsetsReturnsAllAttributes(): void
+    {
+        $entity = $this->createAndSaveEntity(['title' => 'Post', 'body' => 'Content']);
+
+        $doc = $this->controller->show('article', $entity->uuid());
+        $array = $doc->toArray();
+
+        $this->assertArrayHasKey('title', $array['data']['attributes']);
+        $this->assertArrayHasKey('body', $array['data']['attributes']);
+    }
+
+    #[Test]
+    public function showWithSparseFieldsetsForDifferentTypeIsIgnored(): void
+    {
+        $entity = $this->createAndSaveEntity(['title' => 'Post', 'body' => 'Content']);
+
+        $doc = $this->controller->show('article', $entity->uuid(), [
+            'fields' => ['page' => 'title'],
+        ]);
+        $array = $doc->toArray();
+
+        // Fieldset for 'page' doesn't apply to 'article' — all attributes returned.
+        $this->assertArrayHasKey('title', $array['data']['attributes']);
+        $this->assertArrayHasKey('body', $array['data']['attributes']);
     }
 
     // --- Helpers ---

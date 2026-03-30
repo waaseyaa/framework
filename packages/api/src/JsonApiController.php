@@ -123,7 +123,7 @@ final class JsonApiController
      * @param string     $entityTypeId The entity type.
      * @param int|string $id           The entity ID.
      */
-    public function show(string $entityTypeId, int|string $id): JsonApiDocument
+    public function show(string $entityTypeId, int|string $id, array $query = []): JsonApiDocument
     {
         if (!$this->entityTypeManager->hasDefinition($entityTypeId)) {
             return $this->errorDocument(
@@ -150,6 +150,23 @@ final class JsonApiController
         }
 
         $resource = $this->serializer->serialize($entity, $this->accessHandler, $this->account);
+
+        // Apply sparse fieldsets per JSON:API spec.
+        $parsedQuery = (new QueryParser())->parse($query);
+        if (isset($parsedQuery->sparseFieldsets[$entityTypeId])) {
+            $allowedFields = $parsedQuery->sparseFieldsets[$entityTypeId];
+            $resource = new JsonApiResource(
+                type: $resource->type,
+                id: $resource->id,
+                attributes: array_intersect_key(
+                    $resource->attributes,
+                    array_flip($allowedFields),
+                ),
+                relationships: $resource->relationships,
+                links: $resource->links,
+                meta: $resource->meta,
+            );
+        }
 
         return JsonApiDocument::fromResource(
             $resource,
