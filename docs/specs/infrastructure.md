@@ -1,6 +1,6 @@
 # Infrastructure
 
-<!-- Spec reviewed 2026-03-30 — ControllerDispatcher rate limiter addition reviewed, no spec changes needed -->
+<!-- Spec reviewed 2026-03-30 — DatabaseBootstrapper mkdir + ControllerDispatcher rate limiter reviewed, no spec changes needed -->
 
 Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, migration system, kernel bootstrapping (including environment resolution and debug mode), service provider discovery, and queue workers.
 
