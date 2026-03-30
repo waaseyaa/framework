@@ -34,6 +34,8 @@ From the app repository root (after `composer install`):
 
 This does **not** replace Sections 3–5 (entity/provider/API review); it only validates a minimal deterministic subset. Failing preflight is a **required fix** before claiming audit complete.
 
+The script ends with `./bin/waaseyaa-version --report-only` so a committed `.waaseyaa-golden-sha` that lags a local path checkout does not fail preflight. Enforce golden alignment with `./bin/waaseyaa-version --strict` (or default without `--report-only`) in CI or before release.
+
 `composer validate --no-check-publish` fails (exit `2`) when `composer.lock` is out of date relative to `composer.json`; run `composer update --lock` (or a targeted `composer update`) and commit the lockfile.
 
 ---

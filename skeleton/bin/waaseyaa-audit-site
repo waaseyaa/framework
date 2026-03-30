@@ -19,5 +19,5 @@ err() {
 composer validate --no-check-publish
 composer install --no-interaction --dry-run
 
-./bin/waaseyaa-version
+./bin/waaseyaa-version --report-only
 echo "waaseyaa-audit-site: OK"
