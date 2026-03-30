@@ -58,7 +58,9 @@
         { "type": "path", "url": "packages/notification" },
         { "type": "path", "url": "packages/http-client" },
         { "type": "path", "url": "packages/oauth-provider" },
-        { "type": "path", "url": "packages/messaging" }
+        { "type": "path", "url": "packages/messaging" },
+        { "type": "path", "url": "packages/deployer" },
+        { "type": "path", "url": "packages/engagement" }
     ],
     "require": {
         "php": ">=8.4",
@@ -78,6 +80,8 @@
         "waaseyaa/cli": "@dev",
         "waaseyaa/config": "@dev",
         "waaseyaa/database-legacy": "@dev",
+        "waaseyaa/deployer": "@dev",
+        "waaseyaa/engagement": "@dev",
         "waaseyaa/entity": "@dev",
         "waaseyaa/entity-storage": "@dev",
         "waaseyaa/field": "@dev",
