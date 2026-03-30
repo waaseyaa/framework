@@ -1,17 +1,20 @@
 // packages/admin/tests/unit/composables/useEntity.test.ts
-// The useEntity composable now delegates to $admin.transport (provided by the admin plugin).
-// The admin plugin runs via the /bootstrap mock in tests/setup.ts, providing a real
-// JsonApiTransportAdapter. These tests verify the composable correctly delegates.
+// The useEntity composable delegates to $admin.transport (AdminSurfaceTransportAdapter).
+// The transport calls /_surface/* endpoints with SurfaceResult<T> envelope { ok, data }.
 import { describe, it, expect, vi } from 'vitest'
 import { registerEndpoint } from '@nuxt/test-utils/runtime'
 import { useEntity } from '~/composables/useEntity'
 
 describe('useEntity (adapter-backed)', () => {
   it('list delegates to transport and returns result', async () => {
-    registerEndpoint('/api/node', () => ({
-      jsonapi: { version: '1.1' },
-      data: [{ type: 'node', id: '1', attributes: { title: 'Hello' } }],
-      meta: { total: 1, offset: 0, limit: 25 },
+    registerEndpoint('/_surface/node', () => ({
+      ok: true,
+      data: {
+        entities: [{ type: 'node', id: '1', attributes: { title: 'Hello' } }],
+        total: 1,
+        offset: 0,
+        limit: 25,
+      },
     }))
     const { list } = useEntity()
     const result = await list('node')
@@ -20,7 +23,8 @@ describe('useEntity (adapter-backed)', () => {
   })
 
   it('get delegates to transport and returns resource', async () => {
-    registerEndpoint('/api/node/5', () => ({
+    registerEndpoint('/_surface/node/5', () => ({
+      ok: true,
       data: { type: 'node', id: '5', attributes: { title: 'Post' } },
     }))
     const { get } = useEntity()
@@ -30,9 +34,10 @@ describe('useEntity (adapter-backed)', () => {
   })
 
   it('create delegates to transport', async () => {
-    registerEndpoint('/api/node', {
+    registerEndpoint('/_surface/node/action/create', {
       method: 'POST',
       handler: () => ({
+        ok: true,
         data: { type: 'node', id: '6', attributes: { title: 'New' } },
       }),
     })

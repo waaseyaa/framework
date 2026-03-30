@@ -1,14 +1,19 @@
 import { describe, it, expect } from 'vitest'
-import { ADMIN_CONTRACT_VERSION } from '~/contracts'
+import type { AdminRuntime } from '~/contracts/runtime'
 
-describe('bootstrap version validation', () => {
-  it('accepts matching contract version', () => {
-    const bootstrap = { version: ADMIN_CONTRACT_VERSION }
-    expect(bootstrap.version).toBe('1.0')
+describe('admin plugin', () => {
+  it('provides AdminRuntime with expected shape via $admin', () => {
+    const { $admin } = useNuxtApp() as unknown as { $admin: AdminRuntime }
+    expect($admin).toBeTruthy()
+    expect($admin.transport).toBeTruthy()
+    expect($admin.catalog).toBeInstanceOf(Array)
+    expect($admin.tenant).toBeTruthy()
+    expect($admin.account).toBeTruthy()
   })
 
-  it('rejects mismatched contract version', () => {
-    const bootstrap = { version: '2.0' }
-    expect(bootstrap.version).not.toBe(ADMIN_CONTRACT_VERSION)
+  it('catalog contains entity types from surface API', () => {
+    const { $admin } = useNuxtApp() as unknown as { $admin: AdminRuntime }
+    expect($admin.catalog.length).toBeGreaterThan(0)
+    expect($admin.catalog[0].id).toBe('user')
   })
 })

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { JsonApiTransportAdapter } from '~/adapters/JsonApiTransportAdapter'
+import { AdminSurfaceTransportAdapter } from '~/adapters/AdminSurfaceTransportAdapter'
 import { TransportError } from '~/contracts'
 
 function mockFetchResponse(data: any, status = 200) {
@@ -10,28 +10,35 @@ function mockFetchResponse(data: any, status = 200) {
   } as unknown as Response)
 }
 
-function makeAdapter(fetchFn: typeof fetch, apiPath = '/api') {
-  return new JsonApiTransportAdapter(apiPath, { id: 'default', name: 'Test', scopingStrategy: 'server' }, fetchFn)
+function makeAdapter(fetchFn: typeof fetch, basePath = '/_surface') {
+  return new AdminSurfaceTransportAdapter(basePath, fetchFn)
 }
 
-describe('JsonApiTransportAdapter', () => {
+describe('AdminSurfaceTransportAdapter', () => {
   describe('list', () => {
-    it('sends GET to /api/{type} and normalizes JSON:API response', async () => {
-      const jsonApiResponse = {
-        jsonapi: { version: '1.1' },
-        data: [{ type: 'node', id: '1', attributes: { title: 'Hello' } }],
-        meta: { total: 1, offset: 0, limit: 25 },
+    it('sends GET to /_surface/{type} and normalizes response', async () => {
+      const surfaceResponse = {
+        ok: true,
+        data: {
+          entities: [{ type: 'node', id: '1', attributes: { title: 'Hello' } }],
+          total: 1,
+          offset: 0,
+          limit: 25,
+        },
       }
-      const fetchFn = mockFetchResponse(jsonApiResponse)
+      const fetchFn = mockFetchResponse(surfaceResponse)
       const adapter = makeAdapter(fetchFn)
       const result = await adapter.list('node')
-      expect(fetchFn).toHaveBeenCalledWith('/api/node', expect.objectContaining({ method: 'GET' }))
+      expect(fetchFn).toHaveBeenCalledWith('/_surface/node', expect.objectContaining({ method: 'GET' }))
       expect(result.data).toEqual([{ type: 'node', id: '1', attributes: { title: 'Hello' } }])
       expect(result.meta.total).toBe(1)
     })
 
     it('sends pagination and sort query params', async () => {
-      const fetchFn = mockFetchResponse({ data: [], meta: { total: 0, offset: 0, limit: 10 } })
+      const fetchFn = mockFetchResponse({
+        ok: true,
+        data: { entities: [], total: 0, offset: 0, limit: 10 },
+      })
       const adapter = makeAdapter(fetchFn)
       await adapter.list('node', { page: { offset: 20, limit: 10 }, sort: '-title' })
       const calledUrl = fetchFn.mock.calls[0][0] as string
@@ -42,8 +49,9 @@ describe('JsonApiTransportAdapter', () => {
   })
 
   describe('get', () => {
-    it('sends GET to /api/{type}/{id} and returns EntityResource', async () => {
+    it('sends GET to /_surface/{type}/{id} and returns EntityResource', async () => {
       const fetchFn = mockFetchResponse({
+        ok: true,
         data: { type: 'node', id: '5', attributes: { title: 'Post' } },
       })
       const adapter = makeAdapter(fetchFn)
@@ -53,45 +61,51 @@ describe('JsonApiTransportAdapter', () => {
   })
 
   describe('create', () => {
-    it('sends POST with JSON:API body', async () => {
-      const resource = { type: 'node', id: '6', attributes: { title: 'New' } }
-      const fetchFn = mockFetchResponse({ data: resource }, 201)
+    it('sends POST to /_surface/{type}/action/create', async () => {
+      const fetchFn = mockFetchResponse({
+        ok: true,
+        data: { type: 'node', id: '6', attributes: { title: 'New' } },
+      }, 201)
       const adapter = makeAdapter(fetchFn)
       await adapter.create('node', { title: 'New' })
-      const [, opts] = fetchFn.mock.calls[0]
+      const [url, opts] = fetchFn.mock.calls[0]
+      expect(url).toBe('/_surface/node/action/create')
       expect(opts.method).toBe('POST')
       const body = JSON.parse(opts.body)
-      expect(body.data.type).toBe('node')
-      expect(body.data.attributes.title).toBe('New')
+      expect(body.attributes.title).toBe('New')
     })
   })
 
   describe('update', () => {
-    it('sends PATCH with JSON:API body including id', async () => {
+    it('sends POST to /_surface/{type}/action/update with id and attributes', async () => {
       const fetchFn = mockFetchResponse({
+        ok: true,
         data: { type: 'node', id: '3', attributes: { title: 'Updated' } },
       })
       const adapter = makeAdapter(fetchFn)
       await adapter.update('node', '3', { title: 'Updated' })
       const [url, opts] = fetchFn.mock.calls[0]
-      expect(url).toBe('/api/node/3')
-      expect(opts.method).toBe('PATCH')
+      expect(url).toBe('/_surface/node/action/update')
+      expect(opts.method).toBe('POST')
       const body = JSON.parse(opts.body)
-      expect(body.data.id).toBe('3')
+      expect(body.id).toBe('3')
+      expect(body.attributes.title).toBe('Updated')
     })
   })
 
   describe('remove', () => {
-    it('sends DELETE to /api/{type}/{id}', async () => {
-      const fetchFn = mockFetchResponse(null, 204)
+    it('sends POST to /_surface/{type}/action/delete', async () => {
+      const fetchFn = mockFetchResponse({ ok: true }, 204)
       const adapter = makeAdapter(fetchFn)
       await adapter.remove('node', '5')
-      expect(fetchFn).toHaveBeenCalledWith('/api/node/5', expect.objectContaining({ method: 'DELETE' }))
+      const [url, opts] = fetchFn.mock.calls[0]
+      expect(url).toBe('/_surface/node/action/delete')
+      expect(opts.method).toBe('POST')
     })
   })
 
   describe('schema', () => {
-    it('extracts schema from meta.schema', async () => {
+    it('extracts schema from /_surface/{type}/action/schema', async () => {
       const schema = {
         $schema: 'https://json-schema.org/draft-07/schema#',
         title: 'Content',
@@ -102,7 +116,7 @@ describe('JsonApiTransportAdapter', () => {
         'x-revisionable': false,
         properties: { title: { type: 'string' } },
       }
-      const fetchFn = mockFetchResponse({ meta: { schema } })
+      const fetchFn = mockFetchResponse({ ok: true, data: schema })
       const adapter = makeAdapter(fetchFn)
       const result = await adapter.schema('node')
       expect(result).toEqual(schema)
@@ -111,7 +125,10 @@ describe('JsonApiTransportAdapter', () => {
 
   describe('search', () => {
     it('sends STARTS_WITH filter query', async () => {
-      const fetchFn = mockFetchResponse({ data: [] })
+      const fetchFn = mockFetchResponse({
+        ok: true,
+        data: { entities: [], total: 0, offset: 0, limit: 10 },
+      })
       const adapter = makeAdapter(fetchFn)
       await adapter.search('user', 'name', 'jo', 10)
       const calledUrl = fetchFn.mock.calls[0][0] as string
@@ -133,7 +150,7 @@ describe('JsonApiTransportAdapter', () => {
   describe('error handling', () => {
     it('throws TransportError on 404', async () => {
       const fetchFn = mockFetchResponse(
-        { errors: [{ status: '404', title: 'Not Found' }] },
+        { ok: false, error: { status: 404, title: 'Not Found' } },
         404,
       )
       const adapter = makeAdapter(fetchFn)
@@ -143,33 +160,11 @@ describe('JsonApiTransportAdapter', () => {
 
     it('throws TransportError on 422', async () => {
       const fetchFn = mockFetchResponse(
-        { errors: [{ status: '422', title: 'Unprocessable', detail: 'Title required' }] },
+        { ok: false, error: { status: 422, title: 'Unprocessable', detail: 'Title required' } },
         422,
       )
       const adapter = makeAdapter(fetchFn)
       await expect(adapter.create('node', {})).rejects.toThrow(TransportError)
-    })
-  })
-
-  describe('tenant header', () => {
-    it('does NOT send X-Tenant-Id when scopingStrategy is server', async () => {
-      const fetchFn = mockFetchResponse({ data: [] })
-      const adapter = makeAdapter(fetchFn)
-      await adapter.list('node')
-      const headers = fetchFn.mock.calls[0][1].headers
-      expect(headers['X-Tenant-Id']).toBeUndefined()
-    })
-
-    it('sends X-Tenant-Id when scopingStrategy is header', async () => {
-      const fetchFn = mockFetchResponse({ data: [] })
-      const adapter = new JsonApiTransportAdapter(
-        '/api',
-        { id: 'tenant-42', name: 'Acme', scopingStrategy: 'header' },
-        fetchFn,
-      )
-      await adapter.list('node')
-      const headers = fetchFn.mock.calls[0][1].headers
-      expect(headers['X-Tenant-Id']).toBe('tenant-42')
     })
   })
 })
