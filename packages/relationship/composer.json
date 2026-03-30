@@ -8,6 +8,11 @@
             "Waaseyaa\\Relationship\\": "src/"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "Waaseyaa\\Relationship\\Tests\\": "tests/"
+        }
+    },
     "require": {
         "php": ">=8.4",
         "waaseyaa/access": "^0.1",
