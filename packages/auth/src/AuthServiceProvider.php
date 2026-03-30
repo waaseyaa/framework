@@ -25,7 +25,7 @@ final class AuthServiceProvider extends ServiceProvider
 
         $this->singleton(Token\AuthTokenRepositoryInterface::class, function () use ($authConfig) {
             $secret = $authConfig['token_secret'] ?? ($this->config['app_secret'] ?? 'change-me');
-            $db = $this->resolve(\Waaseyaa\DatabaseLegacy\DatabaseInterface::class);
+            $db = $this->resolve(\Waaseyaa\Database\DatabaseInterface::class);
             $repo = new Token\AuthTokenRepository($db, $secret);
             $repo->ensureSchema();
             return $repo;
