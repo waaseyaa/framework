@@ -1,6 +1,6 @@
 # Infrastructure
 
-<!-- Spec reviewed 2026-03-31 — DatabaseBootstrapper @mkdir suppression, CS fixes, GraphQL NamedType::name(), ConfigLoaderTest NullLogger injection -->
+<!-- Spec reviewed 2026-03-31 — DatabaseBootstrapper @mkdir suppression, CS fixes, GraphQL NamedType::name(), ConfigLoaderTest NullLogger injection, login session flush fix (#813) -->
 
 Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, migration system, kernel bootstrapping (including environment resolution and debug mode), service provider discovery, and queue workers.
 
@@ -835,6 +835,8 @@ Reads Vite `manifest.json` files to resolve source paths to hashed asset URLs. M
 File: `packages/foundation/src/Http/ControllerDispatcher.php`
 
 Routes a matched controller name to the appropriate handler. Receives controller identifier, route params, and request context, then delegates to JSON:API controllers, discovery endpoints, SSR, MCP, or other handlers. Central dispatch hub for `HttpKernel`.
+
+**Auth login handler** (`auth.login`): Validates credentials via `AuthController::findUserByName()` + `User::checkPassword()`, sets `$_SESSION['waaseyaa_uid']`, then calls `session_regenerate_id(true)` (session fixation prevention) and `session_write_close()` to flush the `Set-Cookie` header before `ResponseSender::json()` terminates with `exit`.
 
 ### CorsHandler
 
