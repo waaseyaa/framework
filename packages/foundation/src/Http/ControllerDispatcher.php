@@ -687,7 +687,7 @@ final class ControllerDispatcher
                     ResponseSender::json($result['statusCode'], $payload);
                 })(),
 
-                $controller === 'auth.login' => (function () use ($body): never {
+                $controller === 'auth.login' => (function () use ($httpRequest): never {
                     // @todo Replace in-memory RateLimiter with cache-backed implementation
                     // for PHP-FPM deployments. In-memory state is per-process only.
                     static $rateLimiter = null;
@@ -704,7 +704,8 @@ final class ControllerDispatcher
                         ], ['Retry-After' => '60']);
                     }
 
-                    $safeBody = $body ?? [];
+                    $raw = $httpRequest->getContent();
+                    $safeBody = ($raw !== '') ? (json_decode($raw, true) ?? []) : [];
                     $username = is_string($safeBody['username'] ?? null) ? trim((string) $safeBody['username']) : '';
                     $password = is_string($safeBody['password'] ?? null) ? (string) $safeBody['password'] : '';
 
