@@ -12,6 +12,7 @@ const STATE_KEY = 'waaseyaa.auth.user'
 const CHECKED_KEY = 'waaseyaa.auth.checked'
 
 export function useAuth() {
+  const { apiFetch } = useApi()
   const currentUser = useState<AdminAccount | null>(STATE_KEY, () => null)
   const authChecked = useState<boolean>(CHECKED_KEY, () => false)
   const isAuthenticated = computed(() => currentUser.value !== null)
@@ -19,9 +20,7 @@ export function useAuth() {
   async function checkAuth(): Promise<void> {
     if (authChecked.value) return
     try {
-      const res = await $fetch<{ data?: AdminAccount }>('/api/user/me', {
-        baseURL: '/',
-        credentials: 'include',
+      const res = await apiFetch<{ data?: AdminAccount }>('/api/user/me', {
         ignoreResponseError: true,
       })
       currentUser.value = res?.data?.id ? (res.data as AdminAccount) : null
@@ -33,14 +32,12 @@ export function useAuth() {
 
   async function login(username: string, password: string): Promise<LoginResult> {
     try {
-      const res = await $fetch<{
+      const res = await apiFetch<{
         data?: { id: string; name: string; email: string; roles: string[] }
         errors?: Array<{ status: string; title: string; detail?: string }>
       }>('/api/auth/login', {
         method: 'POST',
-        baseURL: '/',
         body: { username, password },
-        credentials: 'include',
         ignoreResponseError: true,
       })
 
@@ -70,14 +67,12 @@ export function useAuth() {
     inviteToken?: string,
   ): Promise<LoginResult> {
     try {
-      const res = await $fetch<{
+      const res = await apiFetch<{
         data?: { id: string; name: string; email: string; roles: string[] }
         errors?: Array<{ status: string; title: string; detail?: string }>
       }>('/api/auth/register', {
         method: 'POST',
-        baseURL: '/',
         body: { name, email, password, ...(inviteToken ? { invite_token: inviteToken } : {}) },
-        credentials: 'include',
         ignoreResponseError: true,
       })
 
@@ -102,14 +97,12 @@ export function useAuth() {
 
   async function forgotPassword(email: string): Promise<{ ok: boolean; message?: string; error?: string }> {
     try {
-      const res = await $fetch<{
+      const res = await apiFetch<{
         message?: string
         errors?: Array<{ status: string; title: string; detail?: string }>
       }>('/api/auth/forgot-password', {
         method: 'POST',
-        baseURL: '/',
         body: { email },
-        credentials: 'include',
         ignoreResponseError: true,
       })
 
@@ -130,14 +123,12 @@ export function useAuth() {
     passwordConfirmation: string,
   ): Promise<{ ok: boolean; message?: string; error?: string }> {
     try {
-      const res = await $fetch<{
+      const res = await apiFetch<{
         message?: string
         errors?: Array<{ status: string; title: string; detail?: string }>
       }>('/api/auth/reset-password', {
         method: 'POST',
-        baseURL: '/',
         body: { token, password, password_confirmation: passwordConfirmation },
-        credentials: 'include',
         ignoreResponseError: true,
       })
 
@@ -154,13 +145,11 @@ export function useAuth() {
 
   async function verifyEmail(token: string): Promise<{ ok: boolean; error?: string }> {
     try {
-      const res = await $fetch<{
+      const res = await apiFetch<{
         errors?: Array<{ status: string; title: string; detail?: string }>
       }>('/api/auth/verify-email', {
         method: 'POST',
-        baseURL: '/',
         body: { token },
-        credentials: 'include',
         ignoreResponseError: true,
       })
 
@@ -181,12 +170,10 @@ export function useAuth() {
 
   async function resendVerification(): Promise<{ ok: boolean; error?: string }> {
     try {
-      const res = await $fetch<{
+      const res = await apiFetch<{
         errors?: Array<{ status: string; title: string; detail?: string }>
       }>('/api/auth/resend-verification', {
         method: 'POST',
-        baseURL: '/',
-        credentials: 'include',
         ignoreResponseError: true,
       })
 
@@ -203,10 +190,8 @@ export function useAuth() {
 
   async function logout(): Promise<void> {
     try {
-      await $fetch('/api/auth/logout', {
+      await apiFetch('/api/auth/logout', {
         method: 'POST',
-        baseURL: '/',
-        credentials: 'include',
         ignoreResponseError: true,
       })
     } catch {

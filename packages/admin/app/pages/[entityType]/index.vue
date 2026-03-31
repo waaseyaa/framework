@@ -2,8 +2,10 @@
 import { useLanguage } from '~/composables/useLanguage'
 import { useSchema } from '~/composables/useSchema'
 import { useAdmin } from '~/composables/useAdmin'
+import { useApi } from '~/composables/useApi'
 
 const route = useRoute()
+const { apiFetch } = useApi()
 const { t, entityLabel: translateEntityLabel } = useLanguage()
 const { catalog, getEntity, hasCapability } = useAdmin()
 
@@ -43,7 +45,7 @@ async function disableType(force = false) {
   actionError.value = null
   try {
     const query = force ? '?force=1' : ''
-    await $fetch(`/api/entity-types/${entityType.value}/disable${query}`, { method: 'POST' })
+    await apiFetch(`/api/entity-types/${entityType.value}/disable${query}`, { method: 'POST' })
     localDisabledOverride.value = true
     showDisableConfirm.value = false
   } catch (e: any) {
@@ -59,7 +61,7 @@ async function enableType() {
   actionLoading.value = true
   actionError.value = null
   try {
-    await $fetch(`/api/entity-types/${entityType.value}/enable`, { method: 'POST' })
+    await apiFetch(`/api/entity-types/${entityType.value}/enable`, { method: 'POST' })
     localDisabledOverride.value = false
   } catch (e: any) {
     actionError.value = e?.data?.errors?.[0]?.detail ?? e?.message ?? t('error_generic')
