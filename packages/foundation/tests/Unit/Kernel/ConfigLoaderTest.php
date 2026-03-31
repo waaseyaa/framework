@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Foundation\Kernel\ConfigLoader;
+use Waaseyaa\Foundation\Log\NullLogger;
 
 #[CoversClass(ConfigLoader::class)]
 final class ConfigLoaderTest extends TestCase
@@ -53,6 +54,7 @@ final class ConfigLoaderTest extends TestCase
     #[Test]
     public function returns_empty_array_for_non_array_return(): void
     {
+        ConfigLoader::setLogger(new NullLogger());
         $path = $this->tempDir . '/config.php';
         file_put_contents($path, '<?php return "not an array";');
 
