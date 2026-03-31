@@ -234,6 +234,8 @@ Design docs in `docs/plans/` are session artifacts (implementation history). Spe
 - **DBAL empty IN/NOT IN returns no results**: `condition('id', [], 'IN')` and `condition('id', [], 'NOT IN')` both return empty results — DBAL silently produces no matches. Callers must guard against empty arrays before building IN conditions.
 - **JsonApiResource::toArray() omits empty keys**: `attributes` and `relationships` are omitted from serialized output when empty, not set to `[]`. Tests should use `assertArrayNotHasKey` for empty fields, not `assertEmpty`.
 - **Sparse fieldsets filter attributes only**: Both `index()` and `show()` in `JsonApiController` only filter `attributes` via `array_intersect_key`, preserving `relationships` unconditionally. Consistent internally but diverges from strict JSON:API spec (which says `fields[type]` covers both).
+- **Mail has two parallel APIs**: `MailDriverInterface` (used by `AuthMailer`) and `MailerInterface` (used by `MailChannel` in notification package). Both are active — do not delete `Mailer`, `MailerInterface`, or `Envelope` without first migrating `MailChannel` and `NotificationServiceProvider`. See #798 for the consolidation plan.
+- **Nuxt async plugins can't call composables**: `defineNuxtPlugin(async () => ...)` runs outside the composable lifecycle. Use raw `$fetch` with explicit `baseURL: '/'` and `credentials: 'include'` in plugins. Composables like `useApi()` work only in `<script setup>`, composables, and middleware.
 
 ## Testing
 - Integration tests in `tests/Integration/PhaseN/` — one directory per implementation phase
