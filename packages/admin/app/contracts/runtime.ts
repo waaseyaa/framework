@@ -4,7 +4,7 @@ import type { CatalogEntry } from './catalog'
 import type { AdminTenant, AdminAccount } from './auth'
 
 export interface AdminAuthConfig {
-  strategy: 'redirect'
+  strategy: 'redirect' | 'embedded'
   loginUrl: string
 }
 
