@@ -68,7 +68,7 @@ final class UserServiceProvider extends ServiceProvider
 
         $config = $this->config ?? [];
         $this->singleton(AuthMailer::class, fn() => new AuthMailer(
-            driver: $this->resolve(MailDriverInterface::class),
+            driver: fn() => $this->resolve(MailDriverInterface::class),
             twig: \Waaseyaa\SSR\SsrServiceProvider::getTwigEnvironment(),
             baseUrl: $config['app']['url'] ?? '',
             appName: $config['app']['name'] ?? 'Waaseyaa',

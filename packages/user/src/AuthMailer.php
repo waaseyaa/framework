@@ -11,21 +11,34 @@ use Waaseyaa\Mail\MailMessage;
 
 class AuthMailer
 {
+    private ?MailDriverInterface $resolvedDriver = null;
+
     public function __construct(
-        private readonly MailDriverInterface $driver,
+        private readonly MailDriverInterface|\Closure $driver,
         private readonly Environment $twig,
         private readonly string $baseUrl,
         private readonly string $appName,
     ) {}
 
+    private function driver(): MailDriverInterface
+    {
+        if ($this->resolvedDriver === null) {
+            $this->resolvedDriver = $this->driver instanceof \Closure
+                ? ($this->driver)()
+                : $this->driver;
+        }
+
+        return $this->resolvedDriver;
+    }
+
     public function isConfigured(): bool
     {
-        return $this->driver->isConfigured();
+        return $this->driver()->isConfigured();
     }
 
     public function sendPasswordReset(FieldableInterface $user, string $token): void
     {
-        if (!$this->driver->isConfigured()) {
+        if (!$this->driver()->isConfigured()) {
             return;
         }
 
@@ -37,7 +50,7 @@ class AuthMailer
         $html = $this->twig->render('email/password-reset.html.twig', $vars);
         $text = $this->twig->render('email/password-reset.txt.twig', $vars);
 
-        $this->driver->send(new MailMessage(
+        $this->driver()->send(new MailMessage(
             from: '',
             to: $user->get('mail'),
             subject: "Reset your {$this->appName} password",
@@ -48,7 +61,7 @@ class AuthMailer
 
     public function sendEmailVerification(FieldableInterface $user, string $token): void
     {
-        if (!$this->driver->isConfigured()) {
+        if (!$this->driver()->isConfigured()) {
             return;
         }
 
@@ -60,7 +73,7 @@ class AuthMailer
         $html = $this->twig->render('email/email-verification.html.twig', $vars);
         $text = $this->twig->render('email/email-verification.txt.twig', $vars);
 
-        $this->driver->send(new MailMessage(
+        $this->driver()->send(new MailMessage(
             from: '',
             to: $user->get('mail'),
             subject: "Verify your email for {$this->appName}",
@@ -71,7 +84,7 @@ class AuthMailer
 
     public function sendWelcome(FieldableInterface $user): void
     {
-        if (!$this->driver->isConfigured()) {
+        if (!$this->driver()->isConfigured()) {
             return;
         }
 
@@ -83,7 +96,7 @@ class AuthMailer
         $html = $this->twig->render('email/welcome.html.twig', $vars);
         $text = $this->twig->render('email/welcome.txt.twig', $vars);
 
-        $this->driver->send(new MailMessage(
+        $this->driver()->send(new MailMessage(
             from: '',
             to: $user->get('mail'),
             subject: "Welcome to {$this->appName}",
