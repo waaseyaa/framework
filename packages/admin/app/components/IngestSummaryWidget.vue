@@ -2,10 +2,12 @@
 import { useLanguage } from '~/composables/useLanguage'
 import { useEntity, type JsonApiResource } from '~/composables/useEntity'
 import { useAdmin } from '~/composables/useAdmin'
+import { useApi } from '~/composables/useApi'
 
 const { t } = useLanguage()
 const { list } = useEntity()
 const { catalog } = useAdmin()
+const { apiFetch } = useApi()
 
 const counts = ref<Record<string, number>>({
   pending_review: 0,
@@ -64,7 +66,7 @@ onMounted(fetchCounts)
 
 async function fetchNcSyncStatus() {
   try {
-    const result = await $fetch<{ status: typeof ncSync.value }>('/api/admin/nc-sync-status')
+    const result = await apiFetch<{ status: typeof ncSync.value }>('/api/admin/nc-sync-status')
     ncSync.value = result.status ?? null
   } catch {
     ncSync.value = null
