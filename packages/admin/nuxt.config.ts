@@ -27,7 +27,7 @@ export default defineNuxtConfig({
 
   routeRules: {
     '/api/**': { proxy: `${backendUrl}/api/**` },
-    '/_surface/**': { proxy: `${backendUrl}/admin/surface/**` },
+    '/_surface/**': { proxy: `${backendUrl}/admin/_surface/**` },
   },
 
   runtimeConfig: {
@@ -40,7 +40,7 @@ export default defineNuxtConfig({
       // Quickstart docs link used by onboarding prompt.
       docsUrl: process.env.NUXT_PUBLIC_DOCS_URL ?? 'https://github.com/jonesrussell/waaseyaa',
       // Base URL for subpath mounting (e.g. "/admin"). Used by admin plugin for bootstrap resolution.
-      baseUrl: process.env.NUXT_PUBLIC_BASE_URL ?? '',
+      baseUrl: process.env.NUXT_PUBLIC_BASE_URL ?? '/admin',
       auth: {
         registration: process.env.NUXT_PUBLIC_AUTH_REGISTRATION ?? 'admin',
         requireVerifiedEmail: process.env.NUXT_PUBLIC_AUTH_REQUIRE_VERIFIED_EMAIL === '1',
