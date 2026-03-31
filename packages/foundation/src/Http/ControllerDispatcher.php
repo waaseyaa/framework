@@ -733,6 +733,8 @@ final class ControllerDispatcher
 
                     $rateLimiter->clear($rateLimitKey);
                     $_SESSION['waaseyaa_uid'] = $user->id();
+                    session_regenerate_id(true);
+                    session_write_close();
                     ResponseSender::json(200, [
                         'jsonapi' => ['version' => '1.1'],
                         'data' => [
