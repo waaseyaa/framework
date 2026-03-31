@@ -31,7 +31,7 @@ const backendUrl = process.env.NUXT_BACKEND_URL ?? 'http://127.0.0.1:8080'
 
 routeRules: {
   '/api/**': { proxy: `${backendUrl}/api/**` },
-  '/_surface/**': { proxy: `${backendUrl}/admin/_surface/**` },
+  '/admin/_surface/**': { proxy: `${backendUrl}/admin/_surface/**` },
 },
 ```
 
