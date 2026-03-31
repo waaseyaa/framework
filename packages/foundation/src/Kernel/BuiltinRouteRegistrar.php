@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Kernel;
 
-use Waaseyaa\Api\JsonApiRouteProvider;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Routing\RouteBuilder;
@@ -20,16 +19,21 @@ final class BuiltinRouteRegistrar
 {
     /**
      * @param list<ServiceProvider> $providers
+     * @param list<object> $routeProviders
      */
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
         private readonly array $providers = [],
+        private readonly array $routeProviders = [],
     ) {}
 
     public function register(WaaseyaaRouter $router): void
     {
-        $routeProvider = new JsonApiRouteProvider($this->entityTypeManager);
-        $routeProvider->registerRoutes($router);
+        foreach ($this->routeProviders as $routeProvider) {
+            if (method_exists($routeProvider, 'registerRoutes')) {
+                $routeProvider->registerRoutes($router);
+            }
+        }
 
         $router->addRoute(
             'api.schema.show',
@@ -142,38 +146,6 @@ final class BuiltinRouteRegistrar
                 ->allowAll()
                 ->jsonApi()
                 ->methods('GET', 'POST')
-                ->build(),
-        );
-
-        if (class_exists(\Waaseyaa\GraphQL\GraphQlRouteProvider::class)) {
-            $graphQlRouteProvider = new \Waaseyaa\GraphQL\GraphQlRouteProvider();
-            $graphQlRouteProvider->registerRoutes($router);
-        }
-
-        $router->addRoute(
-            'api.user.me',
-            RouteBuilder::create('/api/user/me')
-                ->controller('user.me')
-                ->allowAll()
-                ->methods('GET')
-                ->build(),
-        );
-
-        $router->addRoute(
-            'api.auth.login',
-            RouteBuilder::create('/api/auth/login')
-                ->controller('auth.login')
-                ->allowAll()
-                ->methods('POST')
-                ->build(),
-        );
-
-        $router->addRoute(
-            'api.auth.logout',
-            RouteBuilder::create('/api/auth/logout')
-                ->controller('auth.logout')
-                ->allowAll()
-                ->methods('POST')
                 ->build(),
         );
 

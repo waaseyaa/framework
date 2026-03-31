@@ -8,6 +8,8 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Mail\MailDriverInterface;
+use Waaseyaa\Routing\RouteBuilder;
+use Waaseyaa\Routing\WaaseyaaRouter;
 
 final class UserServiceProvider extends ServiceProvider
 {
@@ -73,5 +75,35 @@ final class UserServiceProvider extends ServiceProvider
             baseUrl: $config['app']['url'] ?? '',
             appName: $config['app']['name'] ?? 'Waaseyaa',
         ));
+    }
+
+    public function routes(WaaseyaaRouter $router, ?EntityTypeManager $entityTypeManager = null): void
+    {
+        $router->addRoute(
+            'api.user.me',
+            RouteBuilder::create('/api/user/me')
+                ->controller('user.me')
+                ->allowAll()
+                ->methods('GET')
+                ->build(),
+        );
+
+        $router->addRoute(
+            'api.auth.login',
+            RouteBuilder::create('/api/auth/login')
+                ->controller('auth.login')
+                ->allowAll()
+                ->methods('POST')
+                ->build(),
+        );
+
+        $router->addRoute(
+            'api.auth.logout',
+            RouteBuilder::create('/api/auth/logout')
+                ->controller('auth.logout')
+                ->allowAll()
+                ->methods('POST')
+                ->build(),
+        );
     }
 }
