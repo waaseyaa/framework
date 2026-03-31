@@ -1,4 +1,18 @@
+pre-commit:
+  parallel: true
+  commands:
+    php-cs:
+      glob: "*.php"
+      run: vendor/bin/pint --dirty --quiet
+
 pre-push:
+  parallel: true
   commands:
     spec-drift:
       run: tools/drift-detector.sh 5
+    typecheck:
+      glob: "packages/admin/**/*.{ts,vue}"
+      run: cd packages/admin && npx nuxi typecheck
+    phpstan:
+      glob: "*.php"
+      run: composer phpstan
