@@ -16,3 +16,6 @@ pre-push:
     phpstan:
       glob: "*.php"
       run: composer phpstan
+    phpunit:
+      glob: "*.php"
+      run: ./vendor/bin/phpunit --testsuite Unit
