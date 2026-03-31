@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\Mail;
 
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Mail\Driver\NullMailDriver;
+use Waaseyaa\Mail\Driver\SendGridDriver;
 use Waaseyaa\Mail\Transport\ArrayTransport;
 use Waaseyaa\Mail\Transport\LocalTransport;
 use Waaseyaa\Mail\Transport\TransportInterface;
@@ -31,5 +33,13 @@ final class MailServiceProvider extends ServiceProvider
             transport: $this->resolve(TransportInterface::class),
             defaultFrom: $fromAddress,
         ));
+
+        $sendgridKey = $mailConfig['sendgrid_api_key'] ?? '';
+        $fromName = $mailConfig['from_name'] ?? '';
+
+        $this->singleton(MailDriverInterface::class, fn(): MailDriverInterface => match (true) {
+            $sendgridKey !== '' => new SendGridDriver($sendgridKey, $fromAddress, $fromName),
+            default => new NullMailDriver(),
+        });
     }
 }
