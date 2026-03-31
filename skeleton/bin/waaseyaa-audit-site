@@ -2,7 +2,8 @@
 # Mechanical convergence preflight for Waaseyaa apps.
 # See docs/specs/per-site-convergence-audit.md in the Waaseyaa monorepo.
 set -euo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
 
 err() {
@@ -19,6 +20,15 @@ err() {
 [[ -x bin/verify-deploy-rsync ]] || err "bin/verify-deploy-rsync not executable (run: chmod +x bin/verify-deploy-rsync)"
 
 ./bin/verify-deploy-rsync
+
+# Canonical HTTP entry (see docs/specs/http-entry-point.md). Set WAASEYAA_AUDIT_SKIP_PUBLIC_INDEX=1 for documented exceptions.
+if [[ "${WAASEYAA_AUDIT_SKIP_PUBLIC_INDEX:-}" == "1" ]]; then
+    echo "waaseyaa-audit-site: skipping public/index.php check (WAASEYAA_AUDIT_SKIP_PUBLIC_INDEX=1)"
+elif [[ -f public/index.php ]]; then
+    GOLDEN="$SCRIPT_DIR/golden-public-index.php"
+    [[ -f "$GOLDEN" ]] || err "golden-public-index.php missing (expected next to this script)"
+    cmp -s public/index.php "$GOLDEN" || err "public/index.php must match bin/golden-public-index.php byte-for-byte (copy from waaseyaa skeleton)"
+fi
 
 composer validate --no-check-publish
 composer install --no-interaction --dry-run

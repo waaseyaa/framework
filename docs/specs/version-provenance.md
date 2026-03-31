@@ -41,7 +41,7 @@ Options:
 
 ## GraphQL schema contract tests (`waaseyaa/testing`)
 
-The canonical base is `Waaseyaa\Testing\GraphQL\AbstractGraphQlSchemaContractTestCase` in the `waaseyaa/testing` split package. Consumers need a `waaseyaa/testing` install that includes the `GraphQL/` namespace (land monorepo + split, then `composer update waaseyaa/testing`). Until that revision is in every lockfile, an app may keep a **short-lived mirror** under its own test namespace (same implementation) and delete it once the split package ships the class.
+The canonical base is `Waaseyaa\Testing\GraphQL\AbstractGraphQlSchemaContractTestCase` in the `waaseyaa/testing` split package. Consumers should depend on `waaseyaa/testing` and extend that class. If the split repository has not yet published `src/GraphQL/` for a given tag, use a **path** repository to `packages/testing` in the monorepo (or CI checkout of `waaseyaa/framework`) until split parity catches up—do not duplicate the class in app repos.
 
 ## Compatibility matrix
 

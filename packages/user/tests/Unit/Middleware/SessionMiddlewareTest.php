@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\User\Tests\Unit\Middleware;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
@@ -350,5 +351,76 @@ final class SessionMiddlewareTest extends TestCase
         $middleware->process($request, $next);
 
         $this->assertSame($existingSession, $capturedSession);
+    }
+
+    #[Test]
+    #[RunInSeparateProcess]
+    public function applies_session_cookie_ini_when_configured(): void
+    {
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $keys = [
+            'session.cookie_httponly',
+            'session.cookie_secure',
+            'session.cookie_samesite',
+            'session.use_strict_mode',
+        ];
+        $saved = [];
+        foreach ($keys as $key) {
+            $saved[$key] = ini_get($key);
+        }
+
+        try {
+            $_SERVER['HTTPS'] = 'on';
+            $middleware = new SessionMiddleware($storage, null, null, [
+                'httponly' => true,
+                'secure' => 'auto',
+                'samesite' => 'Lax',
+                'use_strict_mode' => true,
+            ]);
+            $method = new \ReflectionMethod(SessionMiddleware::class, 'applySessionCookieIni');
+            $method->setAccessible(true);
+            $method->invoke($middleware);
+
+            $this->assertSame('1', ini_get('session.cookie_httponly'));
+            $this->assertSame('1', ini_get('session.cookie_secure'));
+            $this->assertSame('Lax', ini_get('session.cookie_samesite'));
+            $this->assertSame('1', ini_get('session.use_strict_mode'));
+        } finally {
+            foreach ($saved as $key => $value) {
+                if ($value !== false && $value !== '') {
+                    ini_set($key, $value);
+                } else {
+                    ini_restore($key);
+                }
+            }
+            unset($_SERVER['HTTPS']);
+        }
+    }
+
+    #[Test]
+    #[RunInSeparateProcess]
+    public function secure_auto_respects_x_forwarded_proto(): void
+    {
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $savedSecure = ini_get('session.cookie_secure');
+        try {
+            unset($_SERVER['HTTPS']);
+            $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https';
+            $middleware = new SessionMiddleware($storage, null, null, [
+                'secure' => 'auto',
+            ]);
+            $method = new \ReflectionMethod(SessionMiddleware::class, 'applySessionCookieIni');
+            $method->setAccessible(true);
+            $method->invoke($middleware);
+
+            $this->assertSame('1', ini_get('session.cookie_secure'));
+        } finally {
+            if ($savedSecure !== false && $savedSecure !== '') {
+                ini_set('session.cookie_secure', $savedSecure);
+            } else {
+                ini_restore('session.cookie_secure');
+            }
+            unset($_SERVER['HTTP_X_FORWARDED_PROTO']);
+        }
     }
 }

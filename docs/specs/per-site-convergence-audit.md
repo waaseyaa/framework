@@ -34,6 +34,8 @@ From the app repository root (after `composer install`):
 
 This does **not** replace Sections 3–5 (entity/provider/API review); it only validates a minimal deterministic subset. Failing preflight is a **required fix** before claiming audit complete.
 
+When `bin/golden-public-index.php` is present next to `waaseyaa-audit-site`, the script requires `public/index.php` to match it **byte-for-byte** (canonical Waaseyaa HTTP entry). See [`http-entry-point.md`](./http-entry-point.md). Legacy apps may set `WAASEYAA_AUDIT_SKIP_PUBLIC_INDEX=1` only when the deviation is documented in Section 8.
+
 The script ends with `./bin/waaseyaa-version --report-only` so a committed `.waaseyaa-golden-sha` that lags a local path checkout does not fail preflight. Enforce golden alignment with `./bin/waaseyaa-version --strict` (or default without `--report-only`) in CI or before release.
 
 `composer validate --no-check-publish` fails (exit `2`) when `composer.lock` is out of date relative to `composer.json`; run `composer update --lock` (or a targeted `composer update`) and commit the lockfile.
@@ -99,6 +101,8 @@ Compare the app’s layout and Composer metadata to the skeleton. Deviations are
 | `config.optimize-autoloader` | `true` |
 | `bin/waaseyaa-version` | Present; executable (`chmod +x` or equivalent in CI) |
 | `bin/waaseyaa` | Present for standard apps |
+| `public/index.php` | Byte-identical to [`skeleton/public/index.php`](../skeleton/public/index.php) (compare to [`skeleton/bin/golden-public-index.php`](../skeleton/bin/golden-public-index.php)); enforced by `waaseyaa-audit-site` when `bin/golden-public-index.php` exists |
+| `bin/golden-public-index.php` | Shipped next to `waaseyaa-audit-site` when using the mechanical preflight from the skeleton |
 
 ---
 

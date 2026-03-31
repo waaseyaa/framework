@@ -28,7 +28,8 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/foundation/src/Diagnostic/*`, `packages/cli/src/Command/Health*`, `packages/cli/src/Command/SchemaCheck*` | `waaseyaa:operator-diagnostics` | `docs/specs/operator-diagnostics.md`, `docs/specs/operations-playbooks.md` |
 | `packages/foundation/*`, `packages/cache/*`, `packages/database-legacy/*`, `packages/plugin/*`, `packages/i18n/*`, `packages/queue/*`, `packages/state/*`, `packages/validation/*`, `packages/typed-data/*`, `packages/testing/*`, `packages/http-client/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md`, `docs/specs/package-discovery.md`, `docs/specs/plugin-extension-points.md`, `docs/specs/external-extension-sdk.md`, `docs/specs/extension-compatibility-matrix.md`, `docs/specs/version-provenance.md`, `docs/specs/extension-release-playbook.md`, `docs/specs/extension-author-onboarding.md` |
 | `packages/mcp/*` | `waaseyaa:mcp-endpoint` | `docs/specs/mcp-endpoint.md` |
-| `public/index.php`, `packages/*/src/Middleware/*` | `waaseyaa:middleware-pipeline` | `docs/specs/middleware-pipeline.md` |
+| `public/index.php` | `waaseyaa:middleware-pipeline` | `docs/specs/http-entry-point.md` |
+| `packages/*/src/Middleware/*` | `waaseyaa:middleware-pipeline` | `docs/specs/middleware-pipeline.md` |
 | `packages/note/*` | — | `docs/specs/ingestion-defaults.md` |
 | `packages/relationship/*` | — | `docs/specs/relationship-modeling.md`, `docs/specs/relationship-inference-contract.md` |
 | `packages/graphql/*` | — | — |

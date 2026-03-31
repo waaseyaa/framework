@@ -42,8 +42,9 @@
         "sort-packages": true
     },
     "scripts": {
+        "audit-site": "./bin/waaseyaa-audit-site",
         "post-create-project-cmd": [
-            "chmod +x bin/waaseyaa bin/waaseyaa-version bin/waaseyaa-audit-site",
+            "chmod +x bin/waaseyaa bin/waaseyaa-version bin/verify-deploy-rsync bin/waaseyaa-audit-site",
             "php bin/post-create-setup.php"
         ]
     },

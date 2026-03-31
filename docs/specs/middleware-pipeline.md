@@ -190,13 +190,16 @@ $authResponse = $pipeline->handle(
 **Implements:** `HttpMiddlewareInterface`
 
 Behavior:
-1. Reads `$_SESSION['waaseyaa_uid']` (or `$request->attributes->get('_session')` for testability).
-2. Loads `User` entity via `EntityStorageInterface::load($uid)`.
-3. Falls back to `AnonymousUser` if uid is null, user not found, or storage throws.
-4. Sets `AccountInterface` instance on `$request->attributes->set('_account', $account)`.
-5. Calls `$next->handle($request)`.
+1. If `session.cookie` options are configured (see `HttpKernel` / `config/waaseyaa.php`), applies matching `ini_set` calls for `session.cookie_*` and `session.use_strict_mode` **before** `session_start()`. Supported keys: `httponly` (bool), `secure` (bool or `'auto'` to enable only when the request is HTTPS or `X-Forwarded-Proto: https`), `samesite` (string), `use_strict_mode` (bool).
+2. Reads `$_SESSION['waaseyaa_uid']` (or `$request->attributes->get('_session')` for testability).
+3. Loads `User` entity via `EntityStorageInterface::load($uid)`.
+4. Falls back to `AnonymousUser` if uid is null, user not found, or storage throws.
+5. Sets `AccountInterface` instance on `$request->attributes->set('_account', $account)`.
+6. Calls `$next->handle($request)`.
 
 This middleware always calls the next handler. It never short-circuits.
+
+See also [`http-entry-point.md`](./http-entry-point.md) — do not set session ini in `public/index.php`.
 
 ### AuthorizationMiddleware
 
@@ -213,9 +216,9 @@ Behavior:
 
 This middleware can short-circuit with a 403 response.
 
-### Pre-pipeline steps in index.php
+### Pre-pipeline steps in `HttpKernel`
 
-CORS handling and route matching happen **before** the pipeline runs. The matched `Route` object is set on `$request->attributes->set('_route_object', $matchedRoute)` before the pipeline starts. This is required because `AuthorizationMiddleware` reads it from the request.
+CORS handling and route matching happen **before** the pipeline runs (inside `HttpKernel`, not in `public/index.php`). The matched `Route` object is set on `$request->attributes->set('_route_object', $matchedRoute)` before the pipeline starts. This is required because `AuthorizationMiddleware` reads it from the request.
 
 ## Middleware Discovery
 

@@ -24,11 +24,14 @@ final class SessionMiddleware implements HttpMiddlewareInterface
     /**
      * @param EntityStorageInterface $userStorage Storage for loading user entities.
      * @param AccountInterface|null $devFallback Account returned when no session UID exists. Intended for dev environments only.
+     * @param array<string, mixed>|null $sessionCookieOptions Optional session ini overrides before session_start().
+     *        Keys: httponly (bool), secure (bool|'auto' — auto uses HTTPS detection), samesite (string), use_strict_mode (bool).
      */
     public function __construct(
         private readonly EntityStorageInterface $userStorage,
         private readonly ?AccountInterface $devFallback = null,
         ?LoggerInterface $logger = null,
+        private readonly ?array $sessionCookieOptions = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -36,6 +39,7 @@ final class SessionMiddleware implements HttpMiddlewareInterface
     public function process(Request $request, HttpHandlerInterface $next): Response
     {
         if (session_status() !== \PHP_SESSION_ACTIVE && !$request->attributes->has('_session')) {
+            $this->applySessionCookieIni();
             session_start();
         }
 
@@ -55,6 +59,48 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         $request->attributes->set('_account', $account);
 
         return $next->handle($request);
+    }
+
+    private function applySessionCookieIni(): void
+    {
+        if ($this->sessionCookieOptions === null) {
+            return;
+        }
+
+        $opts = $this->sessionCookieOptions;
+
+        if (array_key_exists('httponly', $opts)) {
+            ini_set('session.cookie_httponly', filter_var($opts['httponly'], FILTER_VALIDATE_BOOLEAN) ? '1' : '0');
+        }
+
+        if (array_key_exists('secure', $opts)) {
+            $secure = $opts['secure'];
+            if ($secure === 'auto') {
+                $secure = $this->isHttpsRequest();
+            } else {
+                $secure = filter_var($secure, FILTER_VALIDATE_BOOLEAN);
+            }
+            ini_set('session.cookie_secure', $secure ? '1' : '0');
+        }
+
+        if (array_key_exists('samesite', $opts) && is_string($opts['samesite']) && $opts['samesite'] !== '') {
+            ini_set('session.cookie_samesite', $opts['samesite']);
+        }
+
+        if (array_key_exists('use_strict_mode', $opts)) {
+            ini_set('session.use_strict_mode', filter_var($opts['use_strict_mode'], FILTER_VALIDATE_BOOLEAN) ? '1' : '0');
+        }
+    }
+
+    private function isHttpsRequest(): bool
+    {
+        if (($_SERVER['HTTPS'] ?? '') === 'on') {
+            return true;
+        }
+
+        $forwarded = strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+
+        return $forwarded === 'https';
     }
 
     private function resolveAccount(Request $request): AccountInterface
