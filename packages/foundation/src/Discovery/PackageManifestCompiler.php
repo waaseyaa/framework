@@ -44,6 +44,8 @@ final class PackageManifestCompiler
         $middleware = [];
         $permissions = [];
         $policies = [];
+        $packageDeclarations = [];
+        $packages = [];
 
         // Read installed packages manifest
         $installedPath = $this->basePath . '/vendor/composer/installed.json';
@@ -77,6 +79,8 @@ final class PackageManifestCompiler
                 }
             }
         }
+
+        $packageDeclarations = $this->collectPackageDeclarations($packages);
 
         // Read root composer.json for app-level providers.
         // Composer's installed.json excludes the root package, so app providers
@@ -159,6 +163,7 @@ final class PackageManifestCompiler
             middleware: $middleware,
             permissions: $permissions,
             policies: $policies,
+            packageDeclarations: $packageDeclarations,
         );
     }
 
@@ -418,7 +423,67 @@ final class PackageManifestCompiler
             middleware: $manifest->middleware,
             permissions: $permissions,
             policies: $manifest->policies,
+            packageDeclarations: $manifest->packageDeclarations,
         );
+    }
+
+    /**
+     * Normalize package-surface and activation metadata from installed Composer packages.
+     *
+     * @param array<int, array<string, mixed>> $packages
+     * @return array<string, array{surface: 'aggregate'|'implementation'|'tooling', activation: 'discovery'|'none'|'provider'}>
+     */
+    private function collectPackageDeclarations(array $packages): array
+    {
+        $declarations = [];
+
+        foreach ($packages as $package) {
+            $name = $package['name'] ?? null;
+            if (!is_string($name) || $name === '') {
+                continue;
+            }
+
+            $type = is_string($package['type'] ?? null) ? $package['type'] : 'library';
+            $extra = is_array($package['extra']['waaseyaa'] ?? null) ? $package['extra']['waaseyaa'] : [];
+            $autoload = is_array($package['autoload'] ?? null) ? $package['autoload'] : [];
+            $psr4 = is_array($autoload['psr-4'] ?? null) ? $autoload['psr-4'] : [];
+
+            if ($type === 'metapackage') {
+                $declarations[$name] = [
+                    'surface' => 'aggregate',
+                    'activation' => 'none',
+                ];
+                continue;
+            }
+
+            $hasProviders = is_array($extra['providers'] ?? null) && $extra['providers'] !== [];
+            $hasDiscoveryAutoload = $psr4 !== [];
+
+            if ($hasProviders) {
+                $declarations[$name] = [
+                    'surface' => 'implementation',
+                    'activation' => 'provider',
+                ];
+                continue;
+            }
+
+            if ($hasDiscoveryAutoload) {
+                $declarations[$name] = [
+                    'surface' => 'implementation',
+                    'activation' => 'discovery',
+                ];
+                continue;
+            }
+
+            $declarations[$name] = [
+                'surface' => 'tooling',
+                'activation' => 'none',
+            ];
+        }
+
+        ksort($declarations);
+
+        return $declarations;
     }
 
     /**

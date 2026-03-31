@@ -8,9 +8,6 @@
         "deployer/deployer": "^7.0"
     },
     "extra": {
-        "waaseyaa": {
-            "layer": 6
-        },
         "branch-alias": {
             "dev-main": "0.1.x-dev"
         }

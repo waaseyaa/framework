@@ -27,6 +27,8 @@ final class PackageManifest
         public readonly array $permissions = [],
         /** @var array<class-string, string[]> */
         public readonly array $policies = [],
+        /** @var array<string, array{surface: 'aggregate'|'implementation'|'tooling', activation: 'discovery'|'none'|'provider'}> */
+        public readonly array $packageDeclarations = [],
     ) {}
 
     /**
@@ -37,7 +39,7 @@ final class PackageManifest
     public static function fromArray(array $data): self
     {
         $requiredKeys = ['providers', 'commands', 'routes', 'migrations', 'field_types', 'listeners', 'middleware'];
-        $optionalKeys = ['permissions', 'policies', 'formatters'];
+        $optionalKeys = ['permissions', 'policies', 'formatters', 'package_declarations'];
         $missing = array_diff($requiredKeys, array_keys($data));
 
         if ($missing !== []) {
@@ -68,6 +70,7 @@ final class PackageManifest
             middleware: $data['middleware'],
             permissions: $data['permissions'] ?? [],
             policies: $data['policies'] ?? [],
+            packageDeclarations: $data['package_declarations'] ?? [],
         );
     }
 
@@ -87,6 +90,7 @@ final class PackageManifest
             'middleware' => $this->middleware,
             'permissions' => $this->permissions,
             'policies' => $this->policies,
+            'package_declarations' => $this->packageDeclarations,
         ];
     }
 }

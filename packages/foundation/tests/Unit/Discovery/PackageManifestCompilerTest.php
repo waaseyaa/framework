@@ -56,6 +56,79 @@ final class PackageManifestCompilerTest extends TestCase
     }
 
     #[Test]
+    public function compile_collects_normalized_package_declarations(): void
+    {
+        $installed = [
+            'packages' => [
+                [
+                    'name' => 'waaseyaa/core',
+                    'type' => 'metapackage',
+                ],
+                [
+                    'name' => 'waaseyaa/deployer',
+                    'type' => 'library',
+                ],
+                [
+                    'name' => 'waaseyaa/auth',
+                    'type' => 'library',
+                    'autoload' => [
+                        'psr-4' => ['Waaseyaa\\Auth\\' => 'src/'],
+                    ],
+                    'extra' => [
+                        'waaseyaa' => [
+                            'providers' => ['Waaseyaa\\Auth\\AuthServiceProvider'],
+                        ],
+                    ],
+                ],
+                [
+                    'name' => 'waaseyaa/api',
+                    'type' => 'library',
+                    'autoload' => [
+                        'psr-4' => ['Waaseyaa\\Api\\' => 'src/'],
+                    ],
+                ],
+            ],
+        ];
+
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode($installed, JSON_THROW_ON_ERROR),
+        );
+
+        $compiler = new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage');
+        $manifest = $compiler->compile();
+
+        $this->assertSame(
+            [
+                'surface' => 'aggregate',
+                'activation' => 'none',
+            ],
+            $manifest->packageDeclarations['waaseyaa/core'] ?? null,
+        );
+        $this->assertSame(
+            [
+                'surface' => 'tooling',
+                'activation' => 'none',
+            ],
+            $manifest->packageDeclarations['waaseyaa/deployer'] ?? null,
+        );
+        $this->assertSame(
+            [
+                'surface' => 'implementation',
+                'activation' => 'provider',
+            ],
+            $manifest->packageDeclarations['waaseyaa/auth'] ?? null,
+        );
+        $this->assertSame(
+            [
+                'surface' => 'implementation',
+                'activation' => 'discovery',
+            ],
+            $manifest->packageDeclarations['waaseyaa/api'] ?? null,
+        );
+    }
+
+    #[Test]
     public function compile_handles_missing_installed_json(): void
     {
         $storagePath = $this->tempDir . '/storage';
