@@ -84,6 +84,8 @@ final class PackageManifestCompilerTest extends TestCase
         $cached = require $storagePath . '/framework/packages.php';
         $this->assertIsArray($cached);
         $this->assertArrayHasKey('providers', $cached);
+        $this->assertArrayHasKey('_manifest_inputs_fp', $cached);
+        $this->assertIsString($cached['_manifest_inputs_fp']);
     }
 
     #[Test]
@@ -118,6 +120,7 @@ final class PackageManifestCompilerTest extends TestCase
     #[Test]
     public function load_throws_stale_manifest_exception_when_cached_provider_class_is_missing(): void
     {
+        // No _manifest_inputs_fp: legacy cache must not auto-recompile before validation (StaleManifestException).
         $storagePath = $this->tempDir . '/storage';
         mkdir($storagePath . '/framework', 0o755, true);
 
@@ -232,6 +235,115 @@ final class PackageManifestCompilerTest extends TestCase
         $manifest = $compiler->load();
 
         $this->assertSame([], $manifest->providers);
+    }
+
+    #[Test]
+    public function load_recompiles_when_cached_fingerprint_mismatches_installed_json(): void
+    {
+        file_put_contents($this->tempDir . '/composer.json', json_encode(['name' => 'test/root'], JSON_THROW_ON_ERROR));
+
+        $installedV1 = [
+            'packages' => [
+                [
+                    'name' => 'waaseyaa/pkg-a',
+                    'extra' => [
+                        'waaseyaa' => [
+                            'providers' => [\stdClass::class],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode($installedV1, JSON_THROW_ON_ERROR),
+        );
+
+        $storagePath = $this->tempDir . '/storage';
+        $compiler = new PackageManifestCompiler($this->tempDir, $storagePath);
+        $compiler->compileAndCache();
+
+        $installedV2 = [
+            'packages' => [
+                [
+                    'name' => 'waaseyaa/pkg-a',
+                    'extra' => [
+                        'waaseyaa' => [
+                            'providers' => [\stdClass::class],
+                        ],
+                    ],
+                ],
+                [
+                    'name' => 'waaseyaa/pkg-b',
+                    'extra' => [
+                        'waaseyaa' => [
+                            'providers' => [\ArrayObject::class],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode($installedV2, JSON_THROW_ON_ERROR),
+        );
+
+        $manifest = $compiler->load();
+
+        $this->assertSame([\stdClass::class, \ArrayObject::class], $manifest->providers);
+    }
+
+    #[Test]
+    public function load_merges_root_providers_when_cache_incomplete_but_fingerprint_matches(): void
+    {
+        $composer = [
+            'name' => 'test/root',
+            'extra' => [
+                'waaseyaa' => [
+                    'providers' => [\ArrayObject::class],
+                ],
+            ],
+        ];
+        file_put_contents($this->tempDir . '/composer.json', json_encode($composer, JSON_THROW_ON_ERROR));
+
+        $installed = ['packages' => []];
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode($installed, JSON_THROW_ON_ERROR),
+        );
+
+        $fingerprint = hash(
+            'xxh128',
+            (string) file_get_contents($this->tempDir . '/composer.json')
+            . "\0"
+            . (string) file_get_contents($this->tempDir . '/vendor/composer/installed.json'),
+        );
+
+        $storagePath = $this->tempDir . '/storage';
+        mkdir($storagePath . '/framework', 0o755, true);
+
+        $data = [
+            'providers' => [],
+            'commands' => [],
+            'routes' => [],
+            'migrations' => [],
+            'field_types' => [],
+            'listeners' => [],
+            'middleware' => [],
+            'permissions' => [],
+            'policies' => [],
+            '_manifest_inputs_fp' => $fingerprint,
+        ];
+
+        file_put_contents(
+            $storagePath . '/framework/packages.php',
+            '<?php return ' . var_export($data, true) . ';' . "\n",
+        );
+
+        $compiler = new PackageManifestCompiler($this->tempDir, $storagePath);
+        $manifest = $compiler->load();
+
+        $this->assertSame([\ArrayObject::class], $manifest->providers);
     }
 
     #[Test]

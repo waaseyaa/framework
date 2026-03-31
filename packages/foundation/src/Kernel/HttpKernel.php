@@ -61,6 +61,30 @@ final class HttpKernel extends AbstractKernel
                 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'Application failed to boot.']],
             ]);
         }
+
+        try {
+            $this->serveHttpRequest();
+        } catch (\Throwable $e) {
+            $this->logger->critical(sprintf(
+                '[Waaseyaa] Unhandled HTTP exception: %s in %s:%d%s',
+                $e->getMessage(),
+                $e->getFile(),
+                $e->getLine(),
+                PHP_EOL.$e->getTraceAsString(),
+            ));
+            ResponseSender::json(500, [
+                'jsonapi' => ['version' => '1.1'],
+                'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'An unexpected error occurred.']],
+            ]);
+        }
+    }
+
+    /**
+     * Runs CORS, routing, middleware, and controller dispatch. Inner paths that
+     * send JSON/HTML responses call exit; uncaught throwables bubble to handle().
+     */
+    private function serveHttpRequest(): never
+    {
         $this->cacheConfigResolver = new CacheConfigResolver($this->config);
 
         $this->handleCors();
@@ -182,6 +206,8 @@ final class HttpKernel extends AbstractKernel
             new SessionMiddleware(
                 $userStorage,
                 $this->shouldUseDevFallbackAccount() ? new DevAdminAccount() : null,
+                $this->logger,
+                $this->sessionCookieOptions(),
             ),
             new CsrfMiddleware(),
             new AuthorizationMiddleware($accessChecker, $errorPageRenderer),
@@ -249,6 +275,22 @@ final class HttpKernel extends AbstractKernel
             graphqlMutationOverrides: $gqlOverrides,
         );
         $controllerDispatcher->dispatch($method, $params, $httpRequest, $queryString, $broadcastStorage, $account);
+    }
+
+    /**
+     * Optional session cookie ini overrides from config/waaseyaa.php under session.cookie.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function sessionCookieOptions(): ?array
+    {
+        $session = $this->config['session'] ?? null;
+        if (!is_array($session)) {
+            return null;
+        }
+        $cookie = $session['cookie'] ?? null;
+
+        return is_array($cookie) ? $cookie : null;
     }
 
     private function getMiddlewarePriority(object $middleware): int

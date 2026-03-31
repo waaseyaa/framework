@@ -1083,6 +1083,8 @@ public function boot(string $projectRoot): PackageManifest
 
 Instantiates `PackageManifestCompiler` with `storagePath: $projectRoot . '/storage'` and calls `load()` (cache-first, compile on miss).
 
+`storage/framework/packages.php` includes metadata key `_manifest_inputs_fp`: an `xxh128` digest of the raw contents of the project `composer.json` and `vendor/composer/installed.json`. When present and not equal to a freshly computed digest, `load()` discards the cache and recompiles (covers new/removed Composer packages and copied stale caches). Caches without `_manifest_inputs_fp` are still loaded so `StaleManifestException` can fire for missing provider classes before any rewrite. On every successful cache read, root `extra.waaseyaa` providers, commands, routes, and permissions are merged again from `composer.json` so a structurally valid cache cannot omit app-level declarations that match the current fingerprint.
+
 ### ProviderRegistry
 
 File: `packages/foundation/src/Kernel/Bootstrap/ProviderRegistry.php`

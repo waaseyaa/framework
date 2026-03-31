@@ -16,6 +16,9 @@ final class PackageManifestCompiler
     private const POLICY_ATTRIBUTE = 'Waaseyaa\\Access\\Gate\\PolicyAttribute';
     private const FORMATTER_ATTRIBUTE = 'Waaseyaa\\SSR\\Attribute\\AsFormatter';
 
+    /** @internal Cache file metadata; stripped before {@see PackageManifest::fromArray()} */
+    private const MANIFEST_INPUTS_FP_KEY = '_manifest_inputs_fp';
+
     private readonly LoggerInterface $logger;
 
     public function __construct(
@@ -78,31 +81,7 @@ final class PackageManifestCompiler
         // Read root composer.json for app-level providers.
         // Composer's installed.json excludes the root package, so app providers
         // declared in the project's extra.waaseyaa.providers must be read separately.
-        $rootComposerPath = $this->basePath . '/composer.json';
-        if (is_file($rootComposerPath)) {
-            try {
-                $rootComposer = json_decode(file_get_contents($rootComposerPath), true, 512, JSON_THROW_ON_ERROR);
-                $rootExtra = $rootComposer['extra']['waaseyaa'] ?? null;
-                if (is_array($rootExtra)) {
-                    if (isset($rootExtra['providers'])) {
-                        array_push($providers, ...$rootExtra['providers']);
-                    }
-                    if (isset($rootExtra['commands'])) {
-                        array_push($commands, ...$rootExtra['commands']);
-                    }
-                    if (isset($rootExtra['routes'])) {
-                        array_push($routes, ...$rootExtra['routes']);
-                    }
-                    if (isset($rootExtra['permissions']) && is_array($rootExtra['permissions'])) {
-                        foreach ($rootExtra['permissions'] as $permId => $permDef) {
-                            $permissions[$permId] = $permDef;
-                        }
-                    }
-                }
-            } catch (\Throwable $e) {
-                $this->logger->warning(sprintf('Failed to read root composer.json: %s', $e->getMessage()));
-            }
-        }
+        $this->mergeRootWaaseyaaIntoLists($providers, $commands, $routes, $permissions, onlyAppendMissingFromRoot: false);
 
         // Scan classes for attributes
         foreach ($this->scanClasses() as $class) {
@@ -198,7 +177,9 @@ final class PackageManifestCompiler
         }
 
         $cachePath = $dir . '/packages.php';
-        $content = '<?php return ' . var_export($manifest->toArray(), true) . ';' . "\n";
+        $payload = $manifest->toArray();
+        $payload[self::MANIFEST_INPUTS_FP_KEY] = $this->computeManifestInputsFingerprint();
+        $content = '<?php return ' . var_export($payload, true) . ';' . "\n";
         $tmpPath = $cachePath . '.tmp.' . getmypid();
 
         if (file_put_contents($tmpPath, $content) === false) {
@@ -223,7 +204,15 @@ final class PackageManifestCompiler
             try {
                 $data = require $cachePath;
                 if (is_array($data)) {
+                    $cachedFp = $data[self::MANIFEST_INPUTS_FP_KEY] ?? null;
+                    unset($data[self::MANIFEST_INPUTS_FP_KEY]);
+
+                    if ($cachedFp !== null && $cachedFp !== $this->computeManifestInputsFingerprint()) {
+                        return $this->compileAndCache();
+                    }
+
                     $manifest = PackageManifest::fromArray($data);
+                    $manifest = $this->mergeRootWaaseyaaIntoManifest($manifest);
                     $this->assertProvidersExist($manifest, $cachePath);
                     return $manifest;
                 }
@@ -301,6 +290,135 @@ final class PackageManifestCompiler
         if ($missingProviders !== []) {
             throw new StaleManifestException($missingProviders, $cachePath);
         }
+    }
+
+    /**
+     * Fingerprint of composer inputs used for declared providers/commands/routes/permissions.
+     * When this differs from the value stored in the cache, the manifest must be recompiled.
+     */
+    private function computeManifestInputsFingerprint(): string
+    {
+        $composerRaw = $this->readFileRaw($this->basePath . '/composer.json');
+        $installedRaw = $this->readFileRaw($this->basePath . '/vendor/composer/installed.json');
+
+        return hash('xxh128', $composerRaw . "\0" . $installedRaw);
+    }
+
+    private function readFileRaw(string $path): string
+    {
+        if (!is_file($path)) {
+            return '';
+        }
+
+        $contents = @file_get_contents($path);
+
+        return $contents === false ? '' : $contents;
+    }
+
+    /**
+     * @return array<string, mixed>|null Root extra.waaseyaa or null if unreadable / absent
+     */
+    private function readRootWaaseyaaExtra(): ?array
+    {
+        $rootComposerPath = $this->basePath . '/composer.json';
+        if (!is_file($rootComposerPath)) {
+            return null;
+        }
+
+        try {
+            $rootComposer = json_decode(file_get_contents($rootComposerPath), true, 512, JSON_THROW_ON_ERROR);
+            $rootExtra = $rootComposer['extra']['waaseyaa'] ?? null;
+
+            return is_array($rootExtra) ? $rootExtra : null;
+        } catch (\Throwable $e) {
+            $this->logger->warning(sprintf('Failed to read root composer.json: %s', $e->getMessage()));
+
+            return null;
+        }
+    }
+
+    /**
+     * Merge root extra.waaseyaa providers, commands, routes, and permissions into the given lists.
+     *
+     * @param list<string> $providers
+     * @param list<string> $commands
+     * @param list<string> $routes
+     * @param array<string, array{title: string, description?: string}> $permissions
+     */
+    private function mergeRootWaaseyaaIntoLists(
+        array &$providers,
+        array &$commands,
+        array &$routes,
+        array &$permissions,
+        bool $onlyAppendMissingFromRoot,
+    ): void {
+        $rootExtra = $this->readRootWaaseyaaExtra();
+        if ($rootExtra === null) {
+            return;
+        }
+
+        if (isset($rootExtra['providers']) && is_array($rootExtra['providers'])) {
+            foreach ($rootExtra['providers'] as $provider) {
+                if (!is_string($provider)) {
+                    continue;
+                }
+                if (!$onlyAppendMissingFromRoot || !in_array($provider, $providers, true)) {
+                    $providers[] = $provider;
+                }
+            }
+        }
+
+        if (isset($rootExtra['commands']) && is_array($rootExtra['commands'])) {
+            foreach ($rootExtra['commands'] as $command) {
+                if (!is_string($command)) {
+                    continue;
+                }
+                if (!$onlyAppendMissingFromRoot || !in_array($command, $commands, true)) {
+                    $commands[] = $command;
+                }
+            }
+        }
+
+        if (isset($rootExtra['routes']) && is_array($rootExtra['routes'])) {
+            foreach ($rootExtra['routes'] as $route) {
+                if (!is_string($route)) {
+                    continue;
+                }
+                if (!$onlyAppendMissingFromRoot || !in_array($route, $routes, true)) {
+                    $routes[] = $route;
+                }
+            }
+        }
+
+        if (isset($rootExtra['permissions']) && is_array($rootExtra['permissions'])) {
+            foreach ($rootExtra['permissions'] as $permId => $permDef) {
+                if (is_string($permId) && is_array($permDef)) {
+                    $permissions[$permId] = $permDef;
+                }
+            }
+        }
+    }
+
+    private function mergeRootWaaseyaaIntoManifest(PackageManifest $manifest): PackageManifest
+    {
+        $providers = $manifest->providers;
+        $commands = $manifest->commands;
+        $routes = $manifest->routes;
+        $permissions = $manifest->permissions;
+        $this->mergeRootWaaseyaaIntoLists($providers, $commands, $routes, $permissions, onlyAppendMissingFromRoot: true);
+
+        return new PackageManifest(
+            providers: $providers,
+            commands: $commands,
+            routes: $routes,
+            migrations: $manifest->migrations,
+            fieldTypes: $manifest->fieldTypes,
+            formatters: $manifest->formatters,
+            listeners: $manifest->listeners,
+            middleware: $manifest->middleware,
+            permissions: $permissions,
+            policies: $manifest->policies,
+        );
     }
 
     /**
