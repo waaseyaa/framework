@@ -80,13 +80,17 @@ final class ControllerDispatcher
         $serializer = new ResourceSerializer($this->entityTypeManager);
         $schemaPresenter = new SchemaPresenter();
 
-        // JSON body parsing only applies to routes explicitly marked as JSON:API
-        // via the _json_api route option. SSR and form-based routes receive
-        // form-encoded POST data and must not be subjected to JSON parsing.
+        // Parse JSON body for requests that send JSON content.
+        // Routes with _json_api option always get JSON parsing (backward-compat).
+        // Other routes get JSON parsing when Content-Type is application/json.
         $body = null;
         $matchedRoute = $httpRequest->attributes->get('_route_object');
         $isJsonApi = $matchedRoute !== null && $matchedRoute->getOption('_json_api') === true;
-        if ($isJsonApi && in_array($method, ['POST', 'PATCH'], true)) {
+        $isJsonContent = str_starts_with(
+            (string) $httpRequest->headers->get('Content-Type', ''),
+            'application/json',
+        );
+        if (($isJsonApi || $isJsonContent) && in_array($method, ['POST', 'PATCH', 'PUT', 'DELETE'], true)) {
             $raw = $httpRequest->getContent();
             if ($raw !== '') {
                 try {
@@ -687,7 +691,7 @@ final class ControllerDispatcher
                     ResponseSender::json($result['statusCode'], $payload);
                 })(),
 
-                $controller === 'auth.login' => (function () use ($httpRequest): never {
+                $controller === 'auth.login' => (function () use ($body): never {
                     // @todo Replace in-memory RateLimiter with cache-backed implementation
                     // for PHP-FPM deployments. In-memory state is per-process only.
                     static $rateLimiter = null;
@@ -704,8 +708,7 @@ final class ControllerDispatcher
                         ], ['Retry-After' => '60']);
                     }
 
-                    $raw = $httpRequest->getContent();
-                    $safeBody = ($raw !== '') ? (json_decode($raw, true) ?? []) : [];
+                    $safeBody = $body ?? [];
                     $username = is_string($safeBody['username'] ?? null) ? trim((string) $safeBody['username']) : '';
                     $password = is_string($safeBody['password'] ?? null) ? (string) $safeBody['password'] : '';
 
