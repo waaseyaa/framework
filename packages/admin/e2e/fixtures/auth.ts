@@ -2,14 +2,20 @@ import type { Page } from '@playwright/test'
 
 const DEV_ADMIN_ID = String(Number.MAX_SAFE_INTEGER)
 
+const unauthenticatedSessionPattern = /\/(admin\/surface|_surface)\/session/
+
 export async function mockUnauthenticatedSession(page: Page) {
   // Match both proxy path (/_surface/) and direct path (/admin/surface/)
-  await page.route(/\/(admin\/surface|_surface)\/session/, (route) =>
+  await page.route(unauthenticatedSessionPattern, (route) =>
     route.fulfill({
       status: 200,
       json: { ok: false, error: { status: 401, title: 'Unauthorized' } },
     }),
   )
+}
+
+export async function clearUnauthenticatedSession(page: Page) {
+  await page.unroute(unauthenticatedSessionPattern)
 }
 
 export async function mockLoginSuccess(page: Page, username = 'dev-admin', password = 'password') {

@@ -33,7 +33,11 @@ async function handleSubmit(credentials: { username: string; password: string })
   try {
     const result = await login(credentials.username, credentials.password)
     if (result.success) {
-      await navigateTo(returnTo)
+      // Full reload required — the admin plugin runs once at app init and
+      // needs to re-fetch /_surface/session with the new session cookie.
+      // SPA navigation (navigateTo) would leave $admin as null.
+      reloadNuxtApp({ path: returnTo })
+      return
     } else {
       error.value = result.error ?? 'Login failed'
     }

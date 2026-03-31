@@ -1,6 +1,6 @@
 # Admin SPA
 
-<!-- Spec reviewed 2026-03-31 — useApi composable, AdminAuthConfig strategy union, proxy path fix -->
+<!-- Spec reviewed 2026-03-31 — useApi composable, AdminAuthConfig strategy union, proxy path fix, login reloadNuxtApp -->
 
 ## Package
 
@@ -391,6 +391,12 @@ File-based routing via Nuxt 3:
 | `/verify-email` | `pages/verify-email.vue` | Public | Verify email; auto-submits `?token=` if present |
 
 All new pages use the Split Panel layout with CSS variable theming (`--color-primary` deep teal palette) matching the Phase 1 login page. None use `AdminShell`.
+
+### Post-Login Reload
+
+**File:** `packages/admin/app/pages/login.vue`
+
+After successful login, the page calls `reloadNuxtApp({ path: returnTo })` — NOT `navigateTo()`. This is required because the admin plugin (`admin.ts`) runs once at app initialization and caches the `/_surface/session` result. An SPA navigation would leave `$admin` as `null` (the plugin already ran and got a 401 before login). A full reload forces the plugin to re-run with the new session cookie.
 
 ### publicAuthPaths — Plugin Auth Skip
 

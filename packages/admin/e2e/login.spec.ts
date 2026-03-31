@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mockAdminBootstrapRoutes, mockEntityTypesRoute } from './fixtures/routes'
 import {
   mockUnauthenticatedSession,
+  clearUnauthenticatedSession,
   mockLoginSuccess,
 } from './fixtures/auth'
 
@@ -27,7 +28,10 @@ test.describe('Login page', () => {
     await page.fill('#login-username', 'dev-admin')
     await page.fill('#login-password', 'password')
 
-    // After login, the page navigates to / which needs auth routes
+    // After login, the app does a full page reload (reloadNuxtApp).
+    // Remove the 401 session mock and register valid session routes
+    // so the admin plugin bootstraps successfully on reload.
+    await clearUnauthenticatedSession(page)
     await mockAdminBootstrapRoutes(page)
     await mockEntityTypesRoute(page)
 
@@ -48,11 +52,20 @@ test.describe('Login page', () => {
   test('login with returnTo redirects to original page', async ({ page }) => {
     await mockUnauthenticatedSession(page)
     await mockLoginSuccess(page)
-    await mockAdminBootstrapRoutes(page)
-    await mockEntityTypesRoute(page)
     await page.goto('/login?returnTo=/user')
     await page.fill('#login-username', 'dev-admin')
     await page.fill('#login-password', 'password')
+
+    await clearUnauthenticatedSession(page)
+    await mockAdminBootstrapRoutes(page)
+    await mockEntityTypesRoute(page)
+    // Mock the user entity list for the redirect target
+    await page.route('**/api/user', (route) =>
+      route.fulfill({
+        json: { jsonapi: { version: '1.0' }, data: [], meta: { total: 0 }, links: {} },
+      }),
+    )
+
     await page.click('button[type="submit"]')
     await expect(page).toHaveURL(/\/user/)
   })
