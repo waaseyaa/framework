@@ -54,6 +54,7 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
 
   try {
     const sessionRes = await $fetch<SurfaceResult<SurfaceSession>>(`${surfacePath}/session`, {
+      baseURL: '/',
       ignoreResponseError: true,
       credentials: 'include',
     })
@@ -62,6 +63,7 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
       surfaceSession = sessionRes.data
 
       const catalogRes = await $fetch<SurfaceResult<{ entities: SurfaceCatalogEntry[] }>>(`${surfacePath}/catalog`, {
+        baseURL: '/',
         ignoreResponseError: true,
         credentials: 'include',
       })

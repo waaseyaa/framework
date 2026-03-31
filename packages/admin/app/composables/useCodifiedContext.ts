@@ -32,6 +32,7 @@ export interface ValidationReport {
 }
 
 export function useCodifiedContext() {
+  const { apiFetch } = useApi()
   const sessions = ref<CodifiedContextSession[]>([])
   const currentSession = ref<CodifiedContextSession | null>(null)
   const events = ref<CodifiedContextEvent[]>([])
@@ -43,7 +44,7 @@ export function useCodifiedContext() {
     loading.value = true
     error.value = null
     try {
-      const response = await $fetch<{ data: CodifiedContextSession[] }>(
+      const response = await apiFetch<{ data: CodifiedContextSession[] }>(
         `/api/telescope/codified-context/sessions?limit=${limit}`,
       )
       sessions.value = response.data ?? []
@@ -58,7 +59,7 @@ export function useCodifiedContext() {
     loading.value = true
     error.value = null
     try {
-      const response = await $fetch<{ data: CodifiedContextSession }>(
+      const response = await apiFetch<{ data: CodifiedContextSession }>(
         `/api/telescope/codified-context/sessions/${id}`,
       )
       currentSession.value = response.data ?? null
@@ -73,7 +74,7 @@ export function useCodifiedContext() {
     loading.value = true
     error.value = null
     try {
-      const response = await $fetch<{ data: CodifiedContextEvent[] }>(
+      const response = await apiFetch<{ data: CodifiedContextEvent[] }>(
         `/api/telescope/codified-context/sessions/${id}/events`,
       )
       events.value = response.data ?? []
@@ -88,7 +89,7 @@ export function useCodifiedContext() {
     loading.value = true
     error.value = null
     try {
-      const response = await $fetch<{ data: ValidationReport }>(
+      const response = await apiFetch<{ data: ValidationReport }>(
         `/api/telescope/codified-context/sessions/${id}/validation`,
       )
       validationReport.value = response.data ?? null
