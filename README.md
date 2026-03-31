@@ -1,96 +1,124 @@
 # Waaseyaa
 
-**Latest:** v0.1.0-alpha.4
+[![CI](https://github.com/waaseyaa/framework/actions/workflows/ci.yml/badge.svg)](https://github.com/waaseyaa/framework/actions/workflows/ci.yml)
+[![License: GPL-2.0-or-later](https://img.shields.io/badge/License-GPL--2.0--or--later-blue.svg)](LICENSE.txt)
+[![PHP 8.4+](https://img.shields.io/badge/PHP-8.4%2B-8892BF.svg)](https://www.php.net/)
 
-A modern, entity-first, AI-native content management system built on PHP 8.3+ and Symfony 7.
+A modern, entity-first, AI-native content management framework built on PHP 8.4+ and Symfony 7.
 
 Waaseyaa replaces Drupal's legacy runtime with a clean, modular architecture organized as independent Composer packages. Every subsystem — entities, fields, config, caching, routing, access control — is a standalone package with explicit interfaces, no global state, and no hidden coupling.
+
+## Features
+
+- **Entity-first architecture** — Content types, users, config, and taxonomy are all entities with a unified persistence pipeline
+- **JSON:API + GraphQL** — Dual API layer auto-generated from entity type definitions
+- **AI-native** — Entity schemas automatically generate MCP tools, enabling AI agents to create, query, and manage content
+- **Modular monorepo** — 52 independent packages organized in 7 architectural layers
+- **Nuxt 3 admin SPA** — Vue 3 + TypeScript admin interface with i18n support
+- **In-memory testable** — Every subsystem has in-memory implementations for fast, isolated testing
+- **Zero Drupal dependency** — Clean-room implementation inspired by Drupal's entity model, built on Symfony components
+
+## Requirements
+
+- PHP 8.4 or later
+- Composer 2.x
+- SQLite 3 (default) or MySQL/PostgreSQL via Doctrine DBAL
+
+## Quick Start
+
+```bash
+composer create-project waaseyaa/waaseyaa my-site
+cd my-site
+bin/waaseyaa install
+bin/waaseyaa serve
+```
+
+Create your first content:
+
+```bash
+curl -X POST http://localhost:8081/api/note \
+  -H "Content-Type: application/vnd.api+json" \
+  -d '{
+    "data": {
+      "type": "note",
+      "attributes": {
+        "title": "Hello, Waaseyaa",
+        "body": "My first note."
+      }
+    }
+  }'
+```
+
+Waaseyaa ships with a built-in `core.note` content type that is always available at boot. To define custom content types, see the [`waaseyaa/node`](packages/node) package as a reference.
 
 ## Architecture
 
 Waaseyaa is structured as 7 architectural layers with strict downward-only dependencies:
 
 ```
-Layer 6  Interfaces     cli · ssr · admin
-Layer 5  AI             ai-schema · ai-agent · ai-vector · ai-pipeline
-Layer 4  API            api · graphql
-Layer 3  Content Types  note · node · taxonomy · media · path · menu · workflows
-Layer 2  Services       access · user · routing · queue · state · validation
-Layer 1  Core Data      config · entity · field · entity-storage · database-legacy
-Layer 0  Foundation     cache · plugin · typed-data
+Layer 6  Interfaces      cli, admin, admin-surface, graphql, mcp, ssr,
+                         telescope, deployer, inertia
+Layer 5  AI              ai-schema, ai-agent, ai-vector, ai-pipeline
+Layer 4  API             api, routing
+Layer 3  Services        workflows, search, notification, billing, github
+Layer 2  Content Types   node, taxonomy, media, path, menu, note, relationship
+Layer 1  Core Data       entity, entity-storage, access, user, config, field, auth
+Layer 0  Foundation      foundation, cache, plugin, typed-data, database-legacy,
+                         testing, i18n, queue, scheduler, state, validation,
+                         mail, http-client, ingestion
 ```
 
 Three meta-packages provide convenient installation:
 
-- **`waaseyaa/core`** — Foundation + Core Data + Services (14 packages)
-- **`waaseyaa/cms`** — Core + Content Types + API + CLI (23 packages)
-- **`waaseyaa/full`** — CMS + AI + GraphQL + SSR (29 packages)
+| Meta-package | Includes |
+|---|---|
+| `waaseyaa/core` | Foundation + Core Data |
+| `waaseyaa/cms` | Core + Content Types + API + CLI |
+| `waaseyaa/full` | CMS + AI + GraphQL + SSR + Admin |
 
-## Packages
+## Entity Persistence Pipeline
 
-| Layer | Package | Description |
-|-------|---------|-------------|
-| 0 | `waaseyaa/cache` | Cache backends (Memory, Null) with tag-based invalidation |
-| 0 | `waaseyaa/plugin` | Attribute-based plugin discovery and management |
-| 0 | `waaseyaa/typed-data` | Typed data system with primitives, lists, and maps |
-| 1 | `waaseyaa/config` | Configuration management with import/export and events |
-| 1 | `waaseyaa/entity` | Entity type system with content and config entity bases |
-| 1 | `waaseyaa/field` | Field type definitions, items, and lists |
-| 1 | `waaseyaa/entity-storage` | SQL entity storage, queries, and schema management |
-| 1 | `waaseyaa/database-legacy` | PDO database abstraction with query builders |
-| 2 | `waaseyaa/access` | Permission-based access control with policy handlers |
-| 2 | `waaseyaa/user` | User entity, authentication, and session management |
-| 2 | `waaseyaa/routing` | Symfony-based routing with parameter upcasting |
-| 2 | `waaseyaa/queue` | Message queue with in-memory and sync backends |
-| 2 | `waaseyaa/state` | Key-value state storage |
-| 2 | `waaseyaa/validation` | Constraint-based entity validation |
-| 3 | `waaseyaa/note` | Built-in default content type (`core.note`) — non-deletable, always available at boot |
-| 3 | `waaseyaa/node` | Node content type with access policies |
-| 3 | `waaseyaa/taxonomy` | Vocabulary and term hierarchies |
-| 3 | `waaseyaa/media` | Media entities with type-based handling |
-| 3 | `waaseyaa/path` | URL path aliases and resolution |
-| 3 | `waaseyaa/menu` | Menu links and tree building |
-| 3 | `waaseyaa/workflows` | Editorial workflow state machines |
-| 4 | `waaseyaa/api` | JSON:API resource layer with filtering, sorting, pagination |
-| 4 | `waaseyaa/graphql` | GraphQL schema generation from entity types |
-| 5 | `waaseyaa/ai-schema` | JSON Schema and MCP tool generation from entities |
-| 5 | `waaseyaa/ai-agent` | AI agent orchestration with tool execution and audit logging |
-| 5 | `waaseyaa/ai-vector` | Vector embedding storage and similarity search |
-| 5 | `waaseyaa/ai-pipeline` | AI processing pipelines with step orchestration |
-| 6 | `waaseyaa/cli` | Symfony Console commands for install, config, entities, scaffolding |
-| 6 | `waaseyaa/ssr` | Twig component renderer with server-side rendering |
-| 6 | `waaseyaa/admin` | React + Vite admin SPA scaffold |
+All content follows a single, consistent pipeline:
 
-## Requirements
-
-- PHP 8.3 or later
-- Composer 2.x
-
-## Installation
-
-```bash
-composer create-project waaseyaa/waaseyaa my-site
-cd my-site
+```
+Entity (extends EntityBase or ContentEntityBase)
+  -> EntityType registered via EntityTypeManager
+  -> EntityStorageDriverInterface (SqlStorageDriver)
+  -> EntityRepository (hydration, events, validation)
+  -> DatabaseInterface (Doctrine DBAL)
 ```
 
-## Getting Started with Content
+## CLI
 
-Waaseyaa ships with a built-in default content type called **`core.note`** — a minimal, generic note with a title and body. It is always present at boot and cannot be deleted via API.
-
-Create your first note:
+Waaseyaa includes a comprehensive CLI built on Symfony Console:
 
 ```bash
-# POST /api/note
-curl -X POST http://localhost:8000/api/note \
-  -H "Content-Type: application/vnd.api+json" \
-  -d '{"data":{"type":"note","attributes":{"title":"Hello, Waaseyaa","tenant_id":"acme","body":"My first note."}}}'
+bin/waaseyaa install              # Set up database and initial config
+bin/waaseyaa serve                # Start the dev server
+bin/waaseyaa migrate              # Run pending migrations
+bin/waaseyaa entity-type:list     # List registered entity types
+bin/waaseyaa entity:create node   # Create an entity interactively
+bin/waaseyaa schema:check         # Detect schema drift
+bin/waaseyaa health:check         # Run diagnostic health checks
+bin/waaseyaa optimize:manifest    # Rebuild attribute-discovery manifest
+bin/waaseyaa config:export        # Export config to sync directory
+bin/waaseyaa config:import        # Import config from sync directory
 ```
 
-The `core.note` schema, lifecycle rules, and namespace policy are documented in [`defaults/README.md`](defaults/README.md).
+Code generation scaffolding:
 
-To add a custom content type, see the [`waaseyaa/node`](packages/node) package as a reference implementation.
+```bash
+bin/waaseyaa make:entity          # Generate a content entity class
+bin/waaseyaa make:entity-type     # Generate an entity type class
+bin/waaseyaa make:policy          # Generate an access policy class
+bin/waaseyaa make:provider        # Generate a service provider class
+bin/waaseyaa make:migration       # Generate a migration file
+bin/waaseyaa make:plugin          # Generate a plugin class
+bin/waaseyaa make:listener        # Generate an event listener class
+bin/waaseyaa make:job             # Generate a queue job class
+```
 
-## Running Tests
+## Testing
 
 ```bash
 # All tests
@@ -101,65 +129,21 @@ To add a custom content type, see the [`waaseyaa/node`](packages/node) package a
 
 # Integration tests only
 ./vendor/bin/phpunit --testsuite Integration
+
+# Single package
+./vendor/bin/phpunit packages/entity/tests/
+
+# Pattern matching
+./vendor/bin/phpunit --filter EntityRepository
 ```
 
-## Fixture Ergonomics
-
-Waaseyaa includes deterministic fixture helpers for workflow/graph regression setup:
+Code quality:
 
 ```bash
-# Scaffold a workflow-aware fixture scenario
-bin/waaseyaa fixture:scaffold \
-  --key water_anchor \
-  --title "Water Anchor" \
-  --bundle teaching \
-  --workflow-state published \
-  --relationship-type related \
-  --to-key river_memory \
-  --output tests/fixtures/scenarios/water_anchor.json
-
-# Refresh aggregate fixture pack + deterministic hash
-bin/waaseyaa fixture:pack:refresh \
-  --input-dir tests/fixtures/scenarios \
-  --output tests/fixtures/scenarios/pack.json
+composer cs-check    # Check code style (PHP-CS-Fixer dry-run)
+composer cs-fix      # Auto-fix code style
+composer phpstan     # Static analysis (level 5)
 ```
-
-For semantic index warm-ups tied to deterministic read-path validation:
-
-```bash
-bin/waaseyaa semantic:warm --type node --json
-```
-
-## Developer Tooling
-
-Waaseyaa includes deterministic developer tooling:
-
-```bash
-# Scaffold config payloads
-bin/waaseyaa scaffold:bundle --id article --label "Article"
-bin/waaseyaa scaffold:relationship --id related --label "Related"
-bin/waaseyaa scaffold:workflow --bundle article
-
-# Generate deterministic fixture templates
-bin/waaseyaa fixture:generate --template fanout --output tests/fixtures/scenarios/fanout.json
-
-# Render workflow/traversal/SSR debug context
-bin/waaseyaa debug:context --entity-type node --entity-id 1 --workflow-state review --relationship-counts 3:2
-
-# Generate and compare perf baselines
-bin/waaseyaa perf:baseline --snapshot-hash abc123 --threshold semantic_search:120 --threshold warm:500
-bin/waaseyaa perf:compare --baseline tests/Baselines/perf_baseline.json --current tests/Baselines/perf_current.json --json
-```
-
-For consolidated upgrade and operations runbooks, see:
-
-- `docs/specs/operations-playbooks.md`
-
-## Project Stats
-
-- **29** implementation packages + 3 meta-packages + 1 admin SPA
-- **3,919** PHP tests with **8,657** assertions + **98** frontend tests
-- **0** dependencies on Drupal core
 
 ## Key Design Principles
 
@@ -167,7 +151,24 @@ For consolidated upgrade and operations runbooks, see:
 - **Interface-first.** Public APIs are defined as interfaces. Implementations are swappable.
 - **In-memory testable.** Every subsystem has in-memory implementations for fast, isolated testing.
 - **Layered architecture.** Each layer only depends on layers below it. No circular dependencies.
-- **AI-native.** Entity schemas automatically generate MCP tools, enabling AI agents to create, read, update, and query content through structured tool calls.
+- **AI-native.** Entity schemas automatically generate MCP tools, enabling AI agents to interact with content through structured tool calls.
+
+## Contributing
+
+Contributions are welcome. Please open an issue to discuss proposed changes before submitting a pull request.
+
+```bash
+# Clone the repository
+git clone https://github.com/waaseyaa/framework.git
+cd framework
+composer install
+
+# Run the full test suite
+./vendor/bin/phpunit
+
+# Check code style
+composer cs-check
+```
 
 ## License
 
