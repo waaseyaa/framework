@@ -70,7 +70,7 @@ final class HttpKernel extends AbstractKernel
                 $e->getMessage(),
                 $e->getFile(),
                 $e->getLine(),
-                PHP_EOL.$e->getTraceAsString(),
+                PHP_EOL . $e->getTraceAsString(),
             ));
             ResponseSender::json(500, [
                 'jsonapi' => ['version' => '1.1'],

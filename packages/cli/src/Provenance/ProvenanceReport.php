@@ -54,7 +54,7 @@ final readonly class ProvenanceReport
             'pathMonorepoHead' => $this->pathMonorepoHead,
             'uniqueConstraintPatterns' => $this->uniqueConstraints,
             'constraints' => $this->constraints,
-            'packages' => array_map(static fn (InstalledWaaseyaaPackage $p) => $p->toArray(), $this->packages),
+            'packages' => array_map(static fn(InstalledWaaseyaaPackage $p) => $p->toArray(), $this->packages),
             'drift' => $this->driftMessages,
             'hasDrift' => $this->hasDrift(),
         ];

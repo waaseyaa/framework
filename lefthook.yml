@@ -3,7 +3,7 @@ pre-commit:
   commands:
     php-cs:
       glob: "*.php"
-      run: vendor/bin/pint --dirty --quiet
+      run: composer cs-fix
 
 pre-push:
   parallel: true

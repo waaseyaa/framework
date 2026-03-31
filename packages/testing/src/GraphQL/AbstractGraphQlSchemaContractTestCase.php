@@ -28,7 +28,7 @@ abstract class AbstractGraphQlSchemaContractTestCase extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->entityTypeManager = new EntityTypeManager(new EventDispatcher);
+        $this->entityTypeManager = new EntityTypeManager(new EventDispatcher());
         $this->registerEntityTypes($this->entityTypeManager);
     }
 
