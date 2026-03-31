@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI;
 
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\PermissionHandler;
 use Waaseyaa\AI\Vector\SemanticIndexWarmer;
 use Waaseyaa\Cache\CacheFactory;
@@ -77,7 +78,6 @@ use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
 use Waaseyaa\Foundation\Migration\Migrator;
 use Waaseyaa\Foundation\Schema\DefaultsSchemaRegistry;
 use Waaseyaa\Routing\WaaseyaaRouter;
-use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 final class CliCommandRegistry
 {
