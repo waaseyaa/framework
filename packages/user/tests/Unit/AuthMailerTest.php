@@ -107,6 +107,37 @@ final class AuthMailerTest extends TestCase
     }
 
     #[Test]
+    public function lazily_resolves_closure_driver_on_first_use(): void
+    {
+        $resolved = false;
+        $driver = new class($this) implements MailDriverInterface {
+            public function __construct(private readonly AuthMailerTest $test) {}
+            public function send(MailMessage $message): int
+            {
+                $this->test->sentMessages[] = $message;
+                return 202;
+            }
+            public function isConfigured(): bool { return true; }
+        };
+
+        $mailer = new AuthMailer(
+            driver: function () use (&$resolved, $driver): MailDriverInterface {
+                $resolved = true;
+                return $driver;
+            },
+            twig: $this->twig,
+            baseUrl: 'https://example.com',
+            appName: 'TestApp',
+        );
+
+        $this->assertFalse($resolved, 'Closure should not be resolved until first use');
+
+        $mailer->isConfigured();
+
+        $this->assertTrue($resolved, 'Closure should be resolved after first use');
+    }
+
+    #[Test]
     public function skips_sending_when_driver_not_configured(): void
     {
         $unconfigured = new class implements MailDriverInterface {
