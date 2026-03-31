@@ -165,7 +165,13 @@ final class HttpKernel extends AbstractKernel
         // Router setup.
         $context = new RequestContext('', $method);
         $router = new WaaseyaaRouter($context);
-        $routeRegistrar = new BuiltinRouteRegistrar($this->entityTypeManager, $this->providers);
+        $routeProviders = [
+            new \Waaseyaa\Api\JsonApiRouteProvider($this->entityTypeManager),
+        ];
+        if (class_exists(\Waaseyaa\GraphQL\GraphQlRouteProvider::class)) {
+            $routeProviders[] = new \Waaseyaa\GraphQL\GraphQlRouteProvider();
+        }
+        $routeRegistrar = new BuiltinRouteRegistrar($this->entityTypeManager, $this->providers, $routeProviders);
         $routeRegistrar->register($router);
 
         // Strip language prefix before routing so /oj/communities matches /communities.

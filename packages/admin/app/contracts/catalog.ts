@@ -1,18 +1,6 @@
-export interface CatalogEntry {
-  id: string
-  label: string
-  description?: string
-  keys?: Record<string, string>
-  group?: string
-  disabled?: boolean
-  capabilities: CatalogCapabilities
-}
+import type {
+  AdminSurfaceCatalogEntry as CatalogEntry,
+  AdminSurfaceCapabilities as CatalogCapabilities,
+} from '../../../admin-surface/contract/types'
 
-export interface CatalogCapabilities {
-  list: boolean
-  get: boolean
-  create: boolean
-  update: boolean
-  delete: boolean
-  schema: boolean
-}
+export type { CatalogEntry, CatalogCapabilities }
