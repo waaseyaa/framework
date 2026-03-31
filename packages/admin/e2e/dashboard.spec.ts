@@ -41,8 +41,8 @@ test.describe('Dashboard', () => {
   })
 
   test('shows onboarding prompt when no custom types exist', async ({ page }) => {
-    // Surface transport: GET /admin/surface/node_type
-    await page.route('**/admin/surface/node_type**', (route) =>
+    // Surface transport: GET /_surface/node_type
+    await page.route('**/_surface/node_type**', (route) =>
       route.fulfill({
         json: { ok: true, data: { entities: [], total: 0, offset: 0, limit: 25 } },
       }),

@@ -16,7 +16,7 @@ test.describe('Content type lifecycle', () => {
       { id: 'node', label: 'Content', group: 'content', disabled: true, fields: [], actions: [], capabilities: { list: true, get: true, create: true, update: true, delete: true, schema: true } },
     ]
 
-    await page.route('**/admin/surface/catalog', (route) =>
+    await page.route('**/_surface/catalog', (route) =>
       route.fulfill({
         json: { ok: true, data: { entities: lifecycleCatalog } },
       }),

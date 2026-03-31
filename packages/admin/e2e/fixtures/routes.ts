@@ -22,13 +22,13 @@ export async function mockAdminBootstrapRoutes(page: Page) {
     capabilities: entry.capabilities,
   }))
 
-  await page.route('**/admin/surface/session', (route) =>
+  await page.route('**/_surface/session', (route) =>
     route.fulfill({
       json: { ok: true, data: session },
     }),
   )
 
-  await page.route('**/admin/surface/catalog', (route) =>
+  await page.route('**/_surface/catalog', (route) =>
     route.fulfill({
       json: { ok: true, data: { entities: catalog } },
     }),
@@ -66,8 +66,8 @@ export async function mockEntityTypesRoute(page: Page) {
 
 export async function mockSchemaRoute(page: Page, entityType = 'user', schema?: EntitySchema) {
   const resolved = schema ?? (entityType === 'note' ? noteSchema : userSchema)
-  // Surface transport: POST /admin/surface/{type}/action/schema
-  await page.route(`**/admin/surface/${entityType}/action/schema`, (route) =>
+  // Surface transport: POST /_surface/{type}/action/schema
+  await page.route(`**/_surface/${entityType}/action/schema`, (route) =>
     route.fulfill({ json: { ok: true, data: resolved } }),
   )
   // Legacy JSON API fallback
@@ -77,8 +77,8 @@ export async function mockSchemaRoute(page: Page, entityType = 'user', schema?: 
 }
 
 export async function mockEntityListRoute(page: Page, entityType = 'user') {
-  // Surface transport: GET /admin/surface/{type}
-  await page.route(`**/admin/surface/${entityType}`, (route) => {
+  // Surface transport: GET /_surface/{type}
+  await page.route(`**/_surface/${entityType}`, (route) => {
     if (route.request().method() === 'GET') {
       return route.fulfill({
         json: { ok: true, data: { entities: [], total: 0, offset: 0, limit: 25 } },
@@ -100,8 +100,8 @@ export async function mockEntityListRoute(page: Page, entityType = 'user') {
 }
 
 export async function mockEntityCreateRoute(page: Page, entityType = 'user') {
-  // Surface transport: POST /admin/surface/{type}/action/create
-  await page.route(`**/admin/surface/${entityType}/action/create`, (route) =>
+  // Surface transport: POST /_surface/{type}/action/create
+  await page.route(`**/_surface/${entityType}/action/create`, (route) =>
     route.fulfill({
       json: { ok: true, data: { type: entityType, id: '99', attributes: {} } },
     }),
