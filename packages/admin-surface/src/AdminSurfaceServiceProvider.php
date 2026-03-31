@@ -68,31 +68,31 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
         // SPA can distinguish "not logged in" (SurfaceResult with ok:false) from
         // "endpoint not available" (network error). The host's resolveSession()
         // checks the account and returns null for unauthorized users.
-        $router->addRoute('admin_surface.session', RouteBuilder::create('/admin/surface/session')
+        $router->addRoute('admin_surface.session', RouteBuilder::create('/admin/_surface/session')
             ->methods('GET')
             ->requireSession()
             ->controller(fn($request) => $host->handleSession($request))
             ->build());
 
-        $router->addRoute('admin_surface.catalog', RouteBuilder::create('/admin/surface/catalog')
+        $router->addRoute('admin_surface.catalog', RouteBuilder::create('/admin/_surface/catalog')
             ->methods('GET')
             ->requireAuthentication()
             ->controller(fn($request) => $host->handleCatalog($request))
             ->build());
 
-        $router->addRoute('admin_surface.list', RouteBuilder::create('/admin/surface/{type}')
+        $router->addRoute('admin_surface.list', RouteBuilder::create('/admin/_surface/{type}')
             ->methods('GET')
             ->requireAuthentication()
             ->controller(fn($request, $type) => $host->handleList($request, $type))
             ->build());
 
-        $router->addRoute('admin_surface.get', RouteBuilder::create('/admin/surface/{type}/{id}')
+        $router->addRoute('admin_surface.get', RouteBuilder::create('/admin/_surface/{type}/{id}')
             ->methods('GET')
             ->requireAuthentication()
             ->controller(fn($request, $type, $id) => $host->handleGet($request, $type, $id))
             ->build());
 
-        $router->addRoute('admin_surface.action', RouteBuilder::create('/admin/surface/{type}/action/{action}')
+        $router->addRoute('admin_surface.action', RouteBuilder::create('/admin/_surface/{type}/action/{action}')
             ->methods('POST')
             ->requireAuthentication()
             ->controller(fn($request, $type, $action) => $host->handleAction($request, $type, $action))

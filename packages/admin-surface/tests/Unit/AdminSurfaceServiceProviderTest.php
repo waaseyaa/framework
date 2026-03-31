@@ -65,17 +65,17 @@ final class AdminSurfaceServiceProviderTest extends TestCase
 
         $collection = $router->getRouteCollection();
 
-        $this->assertSame('/admin/surface/session', $collection->get('admin_surface.session')->getPath());
-        $this->assertSame('/admin/surface/catalog', $collection->get('admin_surface.catalog')->getPath());
-        $this->assertSame('/admin/surface/{type}', $collection->get('admin_surface.list')->getPath());
-        $this->assertSame('/admin/surface/{type}/{id}', $collection->get('admin_surface.get')->getPath());
-        $this->assertSame('/admin/surface/{type}/action/{action}', $collection->get('admin_surface.action')->getPath());
+        $this->assertSame('/admin/_surface/session', $collection->get('admin_surface.session')->getPath());
+        $this->assertSame('/admin/_surface/catalog', $collection->get('admin_surface.catalog')->getPath());
+        $this->assertSame('/admin/_surface/{type}', $collection->get('admin_surface.list')->getPath());
+        $this->assertSame('/admin/_surface/{type}/{id}', $collection->get('admin_surface.get')->getPath());
+        $this->assertSame('/admin/_surface/{type}/action/{action}', $collection->get('admin_surface.action')->getPath());
     }
 
     #[Test]
     public function handleSessionReturnsSessionDataStructure(): void
     {
-        $request = Request::create('/admin/surface/session');
+        $request = Request::create('/admin/_surface/session');
 
         $result = $this->host->handleSession($request);
 
@@ -104,7 +104,7 @@ final class AdminSurfaceServiceProviderTest extends TestCase
     public function handleSessionReturnsUnauthorizedWhenSessionIsNull(): void
     {
         $host = $this->createTestHost(null);
-        $request = Request::create('/admin/surface/session');
+        $request = Request::create('/admin/_surface/session');
 
         $result = $host->handleSession($request);
 
@@ -117,7 +117,7 @@ final class AdminSurfaceServiceProviderTest extends TestCase
     #[Test]
     public function handleCatalogReturnsEntityDefinitions(): void
     {
-        $request = Request::create('/admin/surface/catalog');
+        $request = Request::create('/admin/_surface/catalog');
 
         $result = $this->host->handleCatalog($request);
 
@@ -142,7 +142,7 @@ final class AdminSurfaceServiceProviderTest extends TestCase
     public function handleCatalogReturnsUnauthorizedWhenSessionIsNull(): void
     {
         $host = $this->createTestHost(null);
-        $request = Request::create('/admin/surface/catalog');
+        $request = Request::create('/admin/_surface/catalog');
 
         $result = $host->handleCatalog($request);
 
@@ -153,7 +153,7 @@ final class AdminSurfaceServiceProviderTest extends TestCase
     #[Test]
     public function handleListReturnsEntityList(): void
     {
-        $request = Request::create('/admin/surface/article', 'GET', ['status' => 'published']);
+        $request = Request::create('/admin/_surface/article', 'GET', ['status' => 'published']);
 
         $result = $this->host->handleList($request, 'article');
 
@@ -169,7 +169,7 @@ final class AdminSurfaceServiceProviderTest extends TestCase
     public function handleListReturnsUnauthorizedWhenSessionIsNull(): void
     {
         $host = $this->createTestHost(null);
-        $request = Request::create('/admin/surface/article');
+        $request = Request::create('/admin/_surface/article');
 
         $result = $host->handleList($request, 'article');
 
@@ -180,7 +180,7 @@ final class AdminSurfaceServiceProviderTest extends TestCase
     #[Test]
     public function handleGetReturnsSingleEntity(): void
     {
-        $request = Request::create('/admin/surface/article/1');
+        $request = Request::create('/admin/_surface/article/1');
 
         $result = $this->host->handleGet($request, 'article', '1');
 
@@ -195,7 +195,7 @@ final class AdminSurfaceServiceProviderTest extends TestCase
     public function handleGetReturnsUnauthorizedWhenSessionIsNull(): void
     {
         $host = $this->createTestHost(null);
-        $request = Request::create('/admin/surface/article/1');
+        $request = Request::create('/admin/_surface/article/1');
 
         $result = $host->handleGet($request, 'article', '1');
 
