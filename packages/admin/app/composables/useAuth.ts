@@ -20,6 +20,7 @@ export function useAuth() {
     if (authChecked.value) return
     try {
       const res = await $fetch<{ data?: AdminAccount }>('/api/user/me', {
+        baseURL: '/',
         credentials: 'include',
         ignoreResponseError: true,
       })
@@ -37,6 +38,7 @@ export function useAuth() {
         errors?: Array<{ status: string; title: string; detail?: string }>
       }>('/api/auth/login', {
         method: 'POST',
+        baseURL: '/',
         body: { username, password },
         credentials: 'include',
         ignoreResponseError: true,
@@ -73,6 +75,7 @@ export function useAuth() {
         errors?: Array<{ status: string; title: string; detail?: string }>
       }>('/api/auth/register', {
         method: 'POST',
+        baseURL: '/',
         body: { name, email, password, ...(inviteToken ? { invite_token: inviteToken } : {}) },
         credentials: 'include',
         ignoreResponseError: true,
@@ -104,6 +107,7 @@ export function useAuth() {
         errors?: Array<{ status: string; title: string; detail?: string }>
       }>('/api/auth/forgot-password', {
         method: 'POST',
+        baseURL: '/',
         body: { email },
         credentials: 'include',
         ignoreResponseError: true,
@@ -131,6 +135,7 @@ export function useAuth() {
         errors?: Array<{ status: string; title: string; detail?: string }>
       }>('/api/auth/reset-password', {
         method: 'POST',
+        baseURL: '/',
         body: { token, password, password_confirmation: passwordConfirmation },
         credentials: 'include',
         ignoreResponseError: true,
@@ -153,6 +158,7 @@ export function useAuth() {
         errors?: Array<{ status: string; title: string; detail?: string }>
       }>('/api/auth/verify-email', {
         method: 'POST',
+        baseURL: '/',
         body: { token },
         credentials: 'include',
         ignoreResponseError: true,
@@ -179,6 +185,7 @@ export function useAuth() {
         errors?: Array<{ status: string; title: string; detail?: string }>
       }>('/api/auth/resend-verification', {
         method: 'POST',
+        baseURL: '/',
         credentials: 'include',
         ignoreResponseError: true,
       })
@@ -198,6 +205,7 @@ export function useAuth() {
     try {
       await $fetch('/api/auth/logout', {
         method: 'POST',
+        baseURL: '/',
         credentials: 'include',
         ignoreResponseError: true,
       })
