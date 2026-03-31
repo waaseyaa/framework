@@ -3,7 +3,7 @@ import { mockNuxtImport } from '@nuxt/test-utils/runtime'
 
 // vi.hoisted runs before all imports — safe to use in mockNuxtImport factories
 const { userRef, checkedRef } = vi.hoisted(() => {
-  const { ref } = require('vue')
+  const { ref } = require('vue') as typeof import('vue')
   return {
     userRef: ref<unknown>(null),
     checkedRef: ref<boolean>(false),
@@ -14,7 +14,7 @@ mockNuxtImport('useState', () => {
   return <T>(key: string, init: () => T) => {
     if (key === 'waaseyaa.auth.user') return userRef
     if (key === 'waaseyaa.auth.checked') return checkedRef
-    const { ref } = require('vue')
+    const { ref } = require('vue') as typeof import('vue')
     return ref<T>(init())
   }
 })

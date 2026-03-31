@@ -15,7 +15,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return navigateTo('/login')
   }
 
-  const strategy = admin.bootstrap?.auth?.strategy
+  const strategy = admin.authConfig?.strategy
   if (strategy === 'embedded') {
     const { isAuthenticated, checkAuth } = useAuth()
     await checkAuth()
