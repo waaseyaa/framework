@@ -29,7 +29,7 @@ final class DatabaseBootstrapper
         // Ensure the parent directory exists so SQLite can create the file.
         $dir = dirname($dbPath);
         if (!is_dir($dir)) {
-            mkdir($dir, 0o755, recursive: true);
+            @mkdir($dir, 0o755, recursive: true);
         }
 
         return $dbPath;
