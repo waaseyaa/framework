@@ -1,6 +1,6 @@
 # Admin SPA
 
-<!-- Spec reviewed 2026-03-30 — Phase 2 auth component tests added -->
+<!-- Spec reviewed 2026-03-31 — useApi composable, AdminAuthConfig strategy union, proxy path fix -->
 
 ## Package
 
@@ -31,13 +31,11 @@ const backendUrl = process.env.NUXT_BACKEND_URL ?? 'http://127.0.0.1:8080'
 
 routeRules: {
   '/api/**': { proxy: `${backendUrl}/api/**` },
-  '/admin/surface/**': { proxy: `${backendUrl}/admin/surface/**` },
-  '/admin/bootstrap': { proxy: `${backendUrl}/admin/bootstrap` },
-  '/login': { proxy: `${backendUrl}/login` },
+  '/_surface/**': { proxy: `${backendUrl}/admin/surface/**` },
 },
 ```
 
-All `/api/*` requests and specific `/admin/surface/*`, `/admin/bootstrap`, and `/login` routes proxy to the PHP backend defined by `NUXT_BACKEND_URL`. The default is `http://127.0.0.1:8080`, matching the repo's PHP dev server and CI workflows. The PHP backend is served by the built-in PHP server with `public/index.php` as the front controller.
+All `/api/*` requests and `/_surface/*` routes proxy to the PHP backend defined by `NUXT_BACKEND_URL`. The `/_surface/` path maps to `/admin/surface/` on the backend. The default backend is `http://127.0.0.1:8080`, matching the repo's PHP dev server and CI workflows.
 
 ### Base URL
 
@@ -61,6 +59,18 @@ Exposed via `useRuntimeConfig().public`:
 ## Composables
 
 All composables are in `packages/admin/app/composables/`. Nuxt auto-imports them.
+
+### useApi (`packages/admin/app/composables/useApi.ts`)
+
+Shared fetch wrapper for all API calls. Ensures `baseURL: '/'` (bypasses Nuxt's `app.baseURL` prefix) and `credentials: 'include'` (sends session cookie).
+
+```ts
+function useApi(): {
+  apiFetch<T>(path: string, options?: Record<string, unknown>): Promise<T>
+}
+```
+
+**All `/api/*` and `/_surface/*` calls must use `apiFetch`** — raw `$fetch` breaks when `app.baseURL` is set to a subpath like `/admin/`. The only exception is async Nuxt plugins (`defineNuxtPlugin(async () => ...)`), which can't call composables and must use `$fetch` with explicit `baseURL: '/'`.
 
 ### useEntity (`packages/admin/app/composables/useEntity.ts`)
 
@@ -93,7 +103,7 @@ interface JsonApiDocument {
 
 - `list()` uses offset-based pagination: `page[offset]`, `page[limit]`
 - `search()` uses `filter[{labelField}][operator]=STARTS_WITH` with 250ms debounce on the widget side. Minimum 2 characters required.
-- All methods use Nuxt `$fetch` (not `useFetch`) for imperative data fetching.
+- All methods should use `apiFetch` from `useApi()` for imperative data fetching (ensures correct `baseURL` and `credentials`).
 
 ### useSchema (`packages/admin/app/composables/useSchema.ts`)
 
