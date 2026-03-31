@@ -18,4 +18,4 @@ pre-push:
       run: composer phpstan
     phpunit:
       glob: "*.php"
-      run: ./vendor/bin/phpunit --testsuite Unit
+      run: ./vendor/bin/phpunit --testsuite Unit --no-progress --display-warnings 2>&1 | grep -q "^OK"

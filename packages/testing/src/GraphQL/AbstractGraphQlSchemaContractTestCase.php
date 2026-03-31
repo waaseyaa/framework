@@ -56,6 +56,8 @@ abstract class AbstractGraphQlSchemaContractTestCase extends TestCase
             $type = $type->getWrappedType();
         }
 
-        return $type->name;
+        assert($type instanceof \GraphQL\Type\Definition\NamedType);
+
+        return $type->name();
     }
 }
