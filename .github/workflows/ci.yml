@@ -81,10 +81,10 @@ jobs:
         run: composer install --no-interaction --prefer-dist
 
       - name: Run unit tests
-        run: ./vendor/bin/phpunit --testsuite Unit --log-junit build/logs/junit-unit.xml
+        run: ./vendor/bin/phpunit --testsuite Unit --no-coverage --log-junit build/logs/junit-unit.xml
 
       - name: Run integration tests
-        run: ./vendor/bin/phpunit --testsuite Integration --log-junit build/logs/junit-integration.xml
+        run: ./vendor/bin/phpunit --testsuite Integration --no-coverage --log-junit build/logs/junit-integration.xml
 
       - name: Upload test artifacts
         uses: actions/upload-artifact@v7
