@@ -1,6 +1,6 @@
 # Admin SPA
 
-<!-- Spec reviewed 2026-03-31 — useApi composable, AdminAuthConfig strategy union, proxy path fix, login reloadNuxtApp -->
+<!-- Spec reviewed 2026-03-31 — #814 baseUrl default /admin, surface proxy path fix, surfacePath prefix -->
 
 ## Package
 
@@ -31,11 +31,11 @@ const backendUrl = process.env.NUXT_BACKEND_URL ?? 'http://127.0.0.1:8080'
 
 routeRules: {
   '/api/**': { proxy: `${backendUrl}/api/**` },
-  '/_surface/**': { proxy: `${backendUrl}/admin/surface/**` },
+  '/_surface/**': { proxy: `${backendUrl}/admin/_surface/**` },
 },
 ```
 
-All `/api/*` requests and `/_surface/*` routes proxy to the PHP backend defined by `NUXT_BACKEND_URL`. The `/_surface/` path maps to `/admin/surface/` on the backend. The default backend is `http://127.0.0.1:8080`, matching the repo's PHP dev server and CI workflows.
+All `/api/*` requests and `/_surface/*` routes proxy to the PHP backend defined by `NUXT_BACKEND_URL`. The `/_surface/` path maps to `/admin/_surface/` on the backend. The default backend is `http://127.0.0.1:8080`, matching the repo's PHP dev server and CI workflows.
 
 ### Base URL
 
@@ -50,7 +50,7 @@ Exposed via `useRuntimeConfig().public`:
 | `enableRealtime` | `NUXT_PUBLIC_ENABLE_REALTIME` | `'0'` in dev, `'1'` in production | Disable SSE in dev to avoid php -S single-process request starvation |
 | `appName` | `NUXT_PUBLIC_APP_NAME` | `'Waaseyaa'` | Override site name (e.g. "Minoo") |
 | `docsUrl` | `NUXT_PUBLIC_DOCS_URL` | `'https://github.com/jonesrussell/waaseyaa'` | Quickstart docs link used by onboarding prompt |
-| `baseUrl` | `NUXT_PUBLIC_BASE_URL` | `''` | Base URL for subpath mounting, used by admin plugin for bootstrap resolution |
+| `baseUrl` | `NUXT_PUBLIC_BASE_URL` | `'/admin'` | Base URL for subpath mounting, used by admin plugin to prefix surface API paths |
 
 ### Nitro Prerender
 
@@ -62,7 +62,7 @@ All composables are in `packages/admin/app/composables/`. Nuxt auto-imports them
 
 ### useApi (`packages/admin/app/composables/useApi.ts`)
 
-Shared fetch wrapper for all API calls. Ensures `baseURL: '/'` (bypasses Nuxt's `app.baseURL` prefix) and `credentials: 'include'` (sends session cookie).
+Shared fetch wrapper for all `/api/*` calls. Ensures `baseURL: '/'` (bypasses Nuxt's `app.baseURL` prefix) and `credentials: 'include'` (sends session cookie).
 
 ```ts
 function useApi(): {
@@ -70,7 +70,7 @@ function useApi(): {
 }
 ```
 
-**All `/api/*` and `/_surface/*` calls must use `apiFetch`** — raw `$fetch` breaks when `app.baseURL` is set to a subpath like `/admin/`. The only exception is async Nuxt plugins (`defineNuxtPlugin(async () => ...)`), which can't call composables and must use `$fetch` with explicit `baseURL: '/'`.
+**All `/api/*` calls must use `apiFetch`** — raw `$fetch` breaks when `app.baseURL` is set to a subpath like `/admin/`. Surface API calls (`/_surface/*`) are handled separately by the admin plugin, which builds the full path from `runtimeConfig.public.baseUrl` (e.g. `/admin/_surface/session`). The plugin uses `$fetch` with explicit `baseURL: '/'` since async Nuxt plugins can't call composables.
 
 ### useEntity (`packages/admin/app/composables/useEntity.ts`)
 
@@ -402,7 +402,7 @@ After successful login, the page calls `reloadNuxtApp({ path: returnTo })` — N
 
 **File:** `packages/admin/app/plugins/admin.ts`
 
-The admin plugin fetches `/_surface/session` on every page load to resolve the current user. Pages that must be reachable before authentication are listed in a `publicAuthPaths` array:
+The admin plugin fetches `{baseUrl}/_surface/session` (default: `/admin/_surface/session`) on every page load to resolve the current user. Pages that must be reachable before authentication are listed in a `publicAuthPaths` array:
 
 ```ts
 const publicAuthPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email']
