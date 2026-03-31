@@ -1,6 +1,6 @@
 # Infrastructure
 
-<!-- Spec reviewed 2026-03-31 — CS fixes, GraphQL NamedType::name(), ConfigLoaderTest NullLogger injection -->
+<!-- Spec reviewed 2026-03-31 — DatabaseBootstrapper @mkdir suppression, CS fixes, GraphQL NamedType::name(), ConfigLoaderTest NullLogger injection -->
 
 Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, migration system, kernel bootstrapping (including environment resolution and debug mode), service provider discovery, and queue workers.
 
@@ -1070,7 +1070,7 @@ Class: `final class DatabaseBootstrapper`
 public function boot(string $projectRoot, array $config): DatabaseInterface
 ```
 
-Creates `DBALDatabase::createSqlite()` using path resolution: `$config['database']` → `WAASEYAA_DB` env → `$projectRoot/storage/waaseyaa.sqlite`.
+Creates `DBALDatabase::createSqlite()` using path resolution: `$config['database']` → `WAASEYAA_DB` env → `$projectRoot/storage/waaseyaa.sqlite`. Ensures the parent directory exists via `@mkdir()` (warning-suppressed — failure is expected in tests with inaccessible paths; SQLite will throw a proper exception downstream).
 
 ### ManifestBootstrapper
 
