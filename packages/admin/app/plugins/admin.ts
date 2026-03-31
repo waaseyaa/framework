@@ -30,7 +30,7 @@ interface SurfaceResult<T> {
 export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRuntime | null } }> => {
   const config = useRuntimeConfig()
   const baseUrl = (config.public.baseUrl as string) || ''
-  const surfacePath = '/_surface'
+  const surfacePath = `${baseUrl}/_surface`
 
   // ── Skip auth check on public auth pages (prevents redirect loop) ─────
   const publicAuthPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email']
