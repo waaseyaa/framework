@@ -22,6 +22,7 @@ final class PackageManifestTest extends TestCase
         $this->assertSame([], $manifest->formatters);
         $this->assertSame([], $manifest->listeners);
         $this->assertSame([], $manifest->middleware);
+        $this->assertSame([], $manifest->packageDeclarations);
     }
 
     #[Test]
@@ -33,6 +34,9 @@ final class PackageManifestTest extends TestCase
             fieldTypes: ['text' => 'App\\TextField'],
             formatters: ['string' => 'App\\PlainTextFormatter'],
             middleware: ['http' => [['class' => 'App\\Mw', 'priority' => 100]]],
+            packageDeclarations: [
+                'waaseyaa/example' => ['surface' => 'implementation', 'activation' => 'provider'],
+            ],
         );
 
         $array = $manifest->toArray();
@@ -43,6 +47,7 @@ final class PackageManifestTest extends TestCase
         $this->assertSame($manifest->fieldTypes, $restored->fieldTypes);
         $this->assertSame($manifest->formatters, $restored->formatters);
         $this->assertSame($manifest->middleware, $restored->middleware);
+        $this->assertSame($manifest->packageDeclarations, $restored->packageDeclarations);
     }
 
     #[Test]
@@ -89,6 +94,7 @@ final class PackageManifestTest extends TestCase
         $this->assertSame([], $manifest->permissions);
         $this->assertSame([], $manifest->policies);
         $this->assertSame([], $manifest->formatters);
+        $this->assertSame([], $manifest->packageDeclarations);
     }
 
     #[Test]
@@ -98,6 +104,7 @@ final class PackageManifestTest extends TestCase
         $this->assertSame([], $manifest->permissions);
         $this->assertSame([], $manifest->policies);
         $this->assertSame([], $manifest->formatters);
+        $this->assertSame([], $manifest->packageDeclarations);
     }
 
     #[Test]
@@ -114,6 +121,9 @@ final class PackageManifestTest extends TestCase
             formatters: [
                 'string' => 'App\\Formatter\\PlainTextFormatter',
             ],
+            packageDeclarations: [
+                'waaseyaa/example' => ['surface' => 'implementation', 'activation' => 'discovery'],
+            ],
         );
 
         $array = $manifest->toArray();
@@ -122,5 +132,6 @@ final class PackageManifestTest extends TestCase
         $this->assertSame($manifest->permissions, $restored->permissions);
         $this->assertSame($manifest->policies, $restored->policies);
         $this->assertSame($manifest->formatters, $restored->formatters);
+        $this->assertSame($manifest->packageDeclarations, $restored->packageDeclarations);
     }
 }
