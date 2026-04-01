@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Kernel;
 
-use Waaseyaa\Api\JsonApiRouteProvider;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Routing\RouteBuilder;
@@ -28,9 +27,6 @@ final class BuiltinRouteRegistrar
 
     public function register(WaaseyaaRouter $router): void
     {
-        $routeProvider = new JsonApiRouteProvider($this->entityTypeManager);
-        $routeProvider->registerRoutes($router);
-
         $router->addRoute(
             'api.schema.show',
             RouteBuilder::create('/api/schema/{entity_type}')
@@ -144,11 +140,6 @@ final class BuiltinRouteRegistrar
                 ->methods('GET', 'POST')
                 ->build(),
         );
-
-        if (class_exists(\Waaseyaa\GraphQL\GraphQlRouteProvider::class)) {
-            $graphQlRouteProvider = new \Waaseyaa\GraphQL\GraphQlRouteProvider();
-            $graphQlRouteProvider->registerRoutes($router);
-        }
 
         $router->addRoute(
             'api.user.me',

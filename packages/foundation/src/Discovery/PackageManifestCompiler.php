@@ -49,7 +49,13 @@ final class PackageManifestCompiler
         $installedPath = $this->basePath . '/vendor/composer/installed.json';
         if (is_file($installedPath)) {
             $installed = json_decode(file_get_contents($installedPath), true, 512, JSON_THROW_ON_ERROR);
-            $packages = $installed['packages'] ?? $installed;
+            $packages = array_map(
+                fn(array $package): array => $this->hydrateInstalledPackageMetadata(
+                    package: $package,
+                    installedMetadataDir: dirname($installedPath),
+                ),
+                $installed['packages'] ?? $installed,
+            );
 
             foreach ($packages as $package) {
                 $extra = $package['extra']['waaseyaa'] ?? null;
@@ -160,6 +166,67 @@ final class PackageManifestCompiler
             permissions: $permissions,
             policies: $policies,
         );
+    }
+
+    /**
+     * Composer path repositories can leave installed.json without local extra metadata.
+     *
+     * When install-path is present, merge the on-disk package composer.json so the
+     * canonical provider/declaration model reflects the actual local package state.
+     *
+     * @param array<string, mixed> $package
+     * @return array<string, mixed>
+     */
+    private function hydrateInstalledPackageMetadata(array $package, string $installedMetadataDir): array
+    {
+        $installPath = $package['install-path'] ?? null;
+        if (!is_string($installPath) || $installPath === '') {
+            return $package;
+        }
+
+        $composerPath = $this->resolveInstalledPackageComposerPath($installPath, $installedMetadataDir);
+        if ($composerPath === null) {
+            return $package;
+        }
+
+        try {
+            $localComposer = json_decode(file_get_contents($composerPath), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable) {
+            return $package;
+        }
+
+        if (!is_array($localComposer)) {
+            return $package;
+        }
+
+        $localExtra = is_array($localComposer['extra'] ?? null) ? $localComposer['extra'] : [];
+        $installedExtra = is_array($package['extra'] ?? null) ? $package['extra'] : [];
+        $localAutoload = is_array($localComposer['autoload'] ?? null) ? $localComposer['autoload'] : [];
+        $installedAutoload = is_array($package['autoload'] ?? null) ? $package['autoload'] : [];
+
+        return array_replace($localComposer, $package, [
+            'name' => $package['name'] ?? $localComposer['name'] ?? null,
+            'type' => $package['type'] ?? $localComposer['type'] ?? 'library',
+            'autoload' => array_replace_recursive($localAutoload, $installedAutoload),
+            'extra' => array_replace_recursive($localExtra, $installedExtra),
+        ]);
+    }
+
+    private function resolveInstalledPackageComposerPath(string $installPath, string $installedMetadataDir): ?string
+    {
+        $candidatePaths = [
+            $installedMetadataDir . '/' . $installPath . '/composer.json',
+            $this->basePath . '/' . ltrim($installPath, './') . '/composer.json',
+        ];
+
+        foreach ($candidatePaths as $candidatePath) {
+            $resolved = realpath($candidatePath);
+            if ($resolved !== false && is_file($resolved)) {
+                return $resolved;
+            }
+        }
+
+        return null;
     }
 
     /**
