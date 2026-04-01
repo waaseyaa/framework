@@ -7,6 +7,7 @@ namespace Waaseyaa\User\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\User\User;
 use Waaseyaa\User\UserServiceProvider;
 
@@ -52,5 +53,19 @@ final class UserServiceProviderTest extends TestCase
         $this->assertSame('uid', $keys['id']);
         $this->assertSame('uuid', $keys['uuid']);
         $this->assertSame('name', $keys['label']);
+    }
+
+    #[Test]
+    public function registers_auth_routes_owned_by_the_user_domain(): void
+    {
+        $provider = new UserServiceProvider();
+        $router = new WaaseyaaRouter();
+
+        $provider->routes($router);
+
+        $routes = $router->getRouteCollection();
+        $this->assertNotNull($routes->get('api.user.me'));
+        $this->assertNotNull($routes->get('api.auth.login'));
+        $this->assertNotNull($routes->get('api.auth.logout'));
     }
 }

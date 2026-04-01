@@ -1,3 +1,5 @@
+import type { AdminSurfaceAccount, AdminSurfaceTenant } from '../../../admin-surface/contract/types'
+
 export interface AuthAdapter {
   getSession(): Promise<AdminSession | null>
   refreshSession?(): Promise<AdminSession | null>
@@ -11,16 +13,10 @@ export interface AdminSession {
   features?: Record<string, boolean>
 }
 
-export interface AdminAccount {
-  id: string
-  name: string
-  email?: string
+export type AdminAccount = AdminSurfaceAccount & {
   emailVerified?: boolean
-  roles: string[]
 }
 
-export interface AdminTenant {
-  id: string
-  name: string
+export type AdminTenant = AdminSurfaceTenant & {
   scopingStrategy: 'server' | 'header'
 }

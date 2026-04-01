@@ -1,29 +1,11 @@
 import type { TransportAdapter, ListQuery, ListResult, EntityResource } from '../contracts/transport'
 import { TransportError } from '../contracts/transport'
 import type { EntitySchema } from '../contracts/schema'
-
-/**
- * Surface API response envelope.
- */
-interface SurfaceResult<T> {
-  ok: boolean
-  data?: T
-  error?: { status: number; title: string; detail?: string; source?: Record<string, string> }
-  meta?: Record<string, unknown>
-}
-
-interface SurfaceEntity {
-  type: string
-  id: string
-  attributes: Record<string, unknown>
-}
-
-interface SurfaceListResult {
-  entities: SurfaceEntity[]
-  total: number
-  offset: number
-  limit: number
-}
+import type {
+  AdminSurfaceEntity as SurfaceEntity,
+  AdminSurfaceListResult as SurfaceListResult,
+  AdminSurfaceResult as SurfaceResult,
+} from '../../../admin-surface/contract/types'
 
 /**
  * Transport adapter that talks to the /admin/surface/* endpoints.
