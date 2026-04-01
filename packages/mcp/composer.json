@@ -93,6 +93,11 @@
     "minimum-stability": "dev",
     "prefer-stable": true,
     "extra": {
+        "waaseyaa": {
+            "providers": [
+                "Waaseyaa\\Mcp\\McpServiceProvider"
+            ]
+        },
         "branch-alias": {
             "dev-main": "0.1.x-dev",
             "dev-develop/v1.1": "0.1.x-dev"
