@@ -21,8 +21,8 @@ use Waaseyaa\Mcp\Auth\BearerTokenAuth;
 use Waaseyaa\Mcp\Bridge\ToolExecutorInterface;
 use Waaseyaa\Mcp\Bridge\ToolRegistryInterface;
 use Waaseyaa\Mcp\McpEndpoint;
-use Waaseyaa\Mcp\McpRouteProvider;
 use Waaseyaa\Mcp\McpServerCard;
+use Waaseyaa\Mcp\McpServiceProvider;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
 final class McpEndpointSmokeTest extends TestCase
@@ -96,8 +96,7 @@ final class McpEndpointSmokeTest extends TestCase
 
         // --- Step 2: Route registration ---
         $router = new WaaseyaaRouter();
-        $routeProvider = new McpRouteProvider();
-        $routeProvider->registerRoutes($router);
+        (new McpServiceProvider())->routes($router);
 
         $routes = $router->getRouteCollection();
         $this->assertNotNull($routes->get('mcp.endpoint'));

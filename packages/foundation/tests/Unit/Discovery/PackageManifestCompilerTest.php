@@ -147,6 +147,24 @@ final class PackageManifestCompilerTest extends TestCase
     }
 
     #[Test]
+    public function compile_includes_mcp_provider_in_repo_manifest(): void
+    {
+        $repoRoot = dirname(__DIR__, 5);
+        $compiler = new PackageManifestCompiler($repoRoot, $repoRoot . '/storage');
+
+        $manifest = $compiler->compile();
+
+        $this->assertContains('Waaseyaa\\Mcp\\McpServiceProvider', $manifest->providers);
+        $this->assertSame(
+            [
+                'surface' => 'implementation',
+                'activation' => 'provider',
+            ],
+            $manifest->packageDeclarations['waaseyaa/mcp'] ?? null,
+        );
+    }
+
+    #[Test]
     public function compile_reads_local_package_composer_metadata_when_installed_manifest_omits_waaseyaa_extra(): void
     {
         mkdir($this->tempDir . '/packages/foundation/src', 0o755, true);
