@@ -1,6 +1,6 @@
 # Admin SPA
 
-<!-- Spec reviewed 2026-03-31 — #814 baseUrl default /admin, surface proxy path fix, surfacePath prefix -->
+<!-- Spec reviewed 2026-04-01 - post-M10 admin surface bootstrap via /admin/_surface/*, contract re-exports, C17 test-harness alignment, C18 drift remediation (#1017) -->
 
 ## Package
 
@@ -35,7 +35,7 @@ routeRules: {
 },
 ```
 
-All `/api/*` requests and `/_surface/*` routes proxy to the PHP backend defined by `NUXT_BACKEND_URL`. The `/_surface/` path maps to `/admin/_surface/` on the backend. The default backend is `http://127.0.0.1:8080`, matching the repo's PHP dev server and CI workflows.
+All `/api/*` requests and `/admin/_surface/*` requests proxy directly to the PHP backend defined by `NUXT_BACKEND_URL`. The admin runtime no longer bootstraps through a bare `/_surface/` alias. The default backend is `http://127.0.0.1:8080`, matching the repo's PHP dev server and CI workflows.
 
 ### Base URL
 
@@ -70,7 +70,7 @@ function useApi(): {
 }
 ```
 
-**All `/api/*` calls must use `apiFetch`** — raw `$fetch` breaks when `app.baseURL` is set to a subpath like `/admin/`. Surface API calls (`/_surface/*`) are handled separately by the admin plugin, which builds the full path from `runtimeConfig.public.baseUrl` (e.g. `/admin/_surface/session`). The plugin uses `$fetch` with explicit `baseURL: '/'` since async Nuxt plugins can't call composables.
+**All `/api/*` calls must use `apiFetch`** — raw `$fetch` breaks when `app.baseURL` is set to a subpath like `/admin/`. Surface API calls are handled separately by the admin plugin, which builds the full path from `runtimeConfig.public.baseUrl` (for example `/admin/_surface/session` and `/admin/_surface/catalog`). The plugin uses `$fetch` with explicit `baseURL: '/'` since async Nuxt plugins can't call composables.
 
 ### useEntity (`packages/admin/app/composables/useEntity.ts`)
 
@@ -137,6 +137,18 @@ interface EntitySchema {
 - Module-level `Map<string, EntitySchema>` cache. Call `invalidate()` to clear a single type.
 - `sortedProperties(true)` filters out system `readOnly` fields (id, uuid) and hidden widgets, but keeps `x-access-restricted` fields (rendered as disabled inputs). Sorted by `x-weight` ascending.
 - `sortedProperties(false)` returns all properties sorted by weight.
+
+### Runtime Bootstrap (`packages/admin/app/plugins/admin.ts`)
+
+The root Nuxt plugin is the authoritative bootstrap for `$admin`. On non-public auth pages it:
+
+1. Reads `runtimeConfig.public.baseUrl` (default `/admin`) and derives a `surfacePath` such as `/admin/_surface`.
+2. Fetches `SurfaceResult<AdminSurfaceSession>` from `${surfacePath}/session`.
+3. Fetches `SurfaceResult<{ entities: AdminSurfaceCatalogEntry[] }>` from `${surfacePath}/catalog` after a successful session.
+4. Builds `AdminRuntime` from `SessionAuthAdapter`, `AdminSurfaceTransportAdapter`, the resolved account/tenant, and catalog entries re-exported from `packages/admin-surface/contract/types.ts`.
+5. Returns `{ provide: { admin: runtime } }`, or `{ provide: { admin: null } }` for public auth pages and unauthenticated redirects.
+
+This plugin is the source of truth for `$admin` injection and for composables that call `useAdmin()`.
 
 ### useLanguage (`packages/admin/app/composables/useLanguage.ts`)
 

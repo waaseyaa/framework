@@ -1,5 +1,7 @@
 # Access Control
 
+<!-- Spec reviewed 2026-04-01 - post-M10 provider-owned user/auth routes, manifest-discovered policy wiring, C18 drift remediation (#1017) -->
+
 Waaseyaa's access control system spans three packages: `packages/access/` (core primitives), `packages/routing/` (route-level checks), and `packages/user/` (session resolution, password reset). This document covers entity-level and route-level access. For field-level access, see `docs/specs/field-access.md`.
 
 ## Packages
@@ -8,7 +10,7 @@ Waaseyaa's access control system spans three packages: `packages/access/` (core 
 |---------|------|----------|
 | access | `packages/access/src/` | AccessPolicyInterface, AccessResult, AccessStatus, EntityAccessHandler, AccountInterface, FieldAccessPolicyInterface, PermissionHandler, Gate, EntityAccessGate, AuthorizationMiddleware |
 | routing | `packages/routing/src/` | AccessChecker (route-level access) |
-| user | `packages/user/src/Middleware/` | SessionMiddleware (account resolution) |
+| user | `packages/user/src/` | SessionMiddleware (account resolution), UserServiceProvider (package-owned user/auth routes) |
 
 ## Core Interfaces
 
@@ -172,7 +174,7 @@ For `checkFieldAccess()` and `filterFields()`, see `docs/specs/field-access.md`.
 
 ### Policy Registration
 
-Policies are passed to the constructor or added via `addPolicy()`. In `public/index.php`, the handler is created with an array of policy instances:
+Policies are passed to the constructor or added via `addPolicy()`. In the current post-M10 boot flow, `AccessPolicyRegistry` builds the handler from `PackageManifest::$policies`, while the kernel still exposes the resulting gate to `AccessChecker` during boot:
 
 ```php
 $accessHandler = new EntityAccessHandler([
@@ -452,12 +454,24 @@ Policies and permissions are discovered at build time via `PackageManifestCompil
 
 Layer discipline: Foundation (layer 0) uses string constants for attribute class names to avoid importing from higher layers. `ReflectionClass::getAttributes()` accepts string class names.
 
-## Auth Controllers (Phase 2)
+## User/Auth HTTP Surfaces (post-M10 package ownership)
 
-**Package:** `packages/auth/`
-**Registered by:** `AuthServiceProvider` — registers `AuthConfig`, `AuthTokenRepository`, and routes five controllers.
+**Packages:** `packages/auth/`, `packages/user/`
+**Registered by:** package service providers discovered from composer metadata. `UserServiceProvider` owns the foundational request surfaces `GET /api/user/me`, `POST /api/auth/login`, and `POST /api/auth/logout`; `AuthServiceProvider` continues to own registration, password-reset, and email-verification controllers.
 
 ### Endpoint Access Requirements
+
+#### UserServiceProvider-owned routes
+
+| Endpoint | Route option | Controller |
+|----------|-------------|------------|
+| `GET /api/user/me` | `_public: true` | `user.me` |
+| `POST /api/auth/login` | `_public: true` | `auth.login` |
+| `POST /api/auth/logout` | `_public: true` | `auth.logout` |
+
+These three request surfaces are registered by `packages/user/src/UserServiceProvider.php` as part of the package-owned route model introduced by M10.
+
+#### AuthServiceProvider-owned routes
 
 | Endpoint | Route option | Controller |
 |----------|-------------|------------|
@@ -547,9 +561,10 @@ packages/access/src/
 packages/routing/src/
     AccessChecker.php                - Route option access checks (_public, _authenticated, _session, _permission, _role, _gate)
 
-packages/user/src/Middleware/
-    SessionMiddleware.php            - Resolves AccountInterface from session
-    BearerAuthMiddleware.php         - JWT and API key authentication via Bearer tokens (priority: 40)
+packages/user/src/
+    Middleware/
+        SessionMiddleware.php        - Resolves AccountInterface from session
+        BearerAuthMiddleware.php     - JWT and API key authentication via Bearer tokens (priority: 40)
 
 public/index.php                     - Front controller; wires the pipeline
 ```
