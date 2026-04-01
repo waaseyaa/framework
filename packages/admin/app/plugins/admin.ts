@@ -2,30 +2,11 @@ import { SessionAuthAdapter } from '../adapters/SessionAuthAdapter'
 import { AdminSurfaceTransportAdapter } from '../adapters/AdminSurfaceTransportAdapter'
 import type { AdminRuntime, AdminAuthConfig } from '../contracts/runtime'
 import type { CatalogEntry } from '../contracts/catalog'
-
-interface SurfaceSession {
-  account: { id: string; name: string; email?: string; roles: string[] }
-  tenant: { id: string; name: string }
-  policies: string[]
-  features?: Record<string, boolean>
-}
-
-interface SurfaceCatalogEntry {
-  id: string
-  label: string
-  description?: string
-  group?: string
-  disabled?: boolean
-  fields: unknown[]
-  actions: unknown[]
-  capabilities: { list: boolean; get: boolean; create: boolean; update: boolean; delete: boolean; schema: boolean }
-}
-
-interface SurfaceResult<T> {
-  ok: boolean
-  data?: T
-  error?: { status: number; title: string; detail?: string }
-}
+import type {
+  AdminSurfaceCatalogEntry as SurfaceCatalogEntry,
+  AdminSurfaceResult as SurfaceResult,
+  AdminSurfaceSession as SurfaceSession,
+} from '../../../admin-surface/contract/types'
 
 export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRuntime | null } }> => {
   const config = useRuntimeConfig()

@@ -65,6 +65,11 @@
     "minimum-stability": "dev",
     "prefer-stable": true,
     "extra": {
+        "waaseyaa": {
+            "providers": [
+                "Waaseyaa\\Api\\ApiServiceProvider"
+            ]
+        },
         "branch-alias": {
             "dev-main": "0.1.x-dev",
             "dev-develop/v1.1": "0.1.x-dev"
