@@ -1,6 +1,6 @@
 // packages/admin/tests/setup.ts
-// Global test setup — provides mock /_surface/* endpoints for the admin plugin.
-// The admin plugin fetches /_surface/session then /_surface/catalog to build AdminRuntime.
+// Global test setup — provides mock /admin/_surface/* endpoints for the admin plugin.
+// The admin plugin fetches /admin/_surface/session then /admin/_surface/catalog to build AdminRuntime.
 // Individual tests can override $fetch or $admin as needed.
 import { vi } from 'vitest'
 import { registerEndpoint } from '@nuxt/test-utils/runtime'
@@ -22,8 +22,8 @@ const catalogEntities = [
   { id: 'pipeline', label: 'Pipeline', capabilities: defaultCaps, fields: [], actions: [] },
 ]
 
-// /_surface/session — the admin plugin checks this first
-registerEndpoint('/_surface/session', () => ({
+// /admin/_surface/session — the admin plugin checks this first
+registerEndpoint('/admin/_surface/session', () => ({
   ok: true,
   data: {
     account: { id: '1', name: 'Admin', email: 'admin@example.com', roles: ['admin'] },
@@ -33,8 +33,8 @@ registerEndpoint('/_surface/session', () => ({
   },
 }))
 
-// /_surface/catalog — fetched after a successful session
-registerEndpoint('/_surface/catalog', () => ({
+// /admin/_surface/catalog — fetched after a successful session
+registerEndpoint('/admin/_surface/catalog', () => ({
   ok: true,
   data: {
     entities: catalogEntities,

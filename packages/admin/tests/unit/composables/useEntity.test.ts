@@ -1,13 +1,13 @@
 // packages/admin/tests/unit/composables/useEntity.test.ts
 // The useEntity composable delegates to $admin.transport (AdminSurfaceTransportAdapter).
-// The transport calls /_surface/* endpoints with SurfaceResult<T> envelope { ok, data }.
+// The transport calls /admin/_surface/* endpoints with SurfaceResult<T> envelope { ok, data }.
 import { describe, it, expect, vi } from 'vitest'
 import { registerEndpoint } from '@nuxt/test-utils/runtime'
 import { useEntity } from '~/composables/useEntity'
 
 describe('useEntity (adapter-backed)', () => {
   it('list delegates to transport and returns result', async () => {
-    registerEndpoint('/_surface/node', () => ({
+    registerEndpoint('/admin/_surface/node', () => ({
       ok: true,
       data: {
         entities: [{ type: 'node', id: '1', attributes: { title: 'Hello' } }],
@@ -23,7 +23,7 @@ describe('useEntity (adapter-backed)', () => {
   })
 
   it('get delegates to transport and returns resource', async () => {
-    registerEndpoint('/_surface/node/5', () => ({
+    registerEndpoint('/admin/_surface/node/5', () => ({
       ok: true,
       data: { type: 'node', id: '5', attributes: { title: 'Post' } },
     }))
@@ -34,7 +34,7 @@ describe('useEntity (adapter-backed)', () => {
   })
 
   it('create delegates to transport', async () => {
-    registerEndpoint('/_surface/node/action/create', {
+    registerEndpoint('/admin/_surface/node/action/create', {
       method: 'POST',
       handler: () => ({
         ok: true,
