@@ -5,7 +5,7 @@ import Dashboard from '~/pages/index.vue'
 
 describe('Dashboard onboarding', () => {
   it('shows onboarding prompt when no content types exist', async () => {
-    registerEndpoint('/_surface/node_type', () => ({
+    registerEndpoint('/admin/_surface/node_type', () => ({
       ok: true,
       data: {
         entities: [],

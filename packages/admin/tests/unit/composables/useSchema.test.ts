@@ -1,24 +1,24 @@
 // packages/admin/tests/unit/composables/useSchema.test.ts
 // useSchema delegates to $admin.transport.schema() which calls
-// POST /_surface/{type}/action/schema and expects { ok: true, data: EntitySchema }.
+// POST /admin/_surface/{type}/action/schema and expects { ok: true, data: EntitySchema }.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { registerEndpoint } from '@nuxt/test-utils/runtime'
 import { userSchema } from '../../fixtures/schemas'
 
-// Register schema endpoints for tests — the transport POSTs to /_surface/{type}/action/schema
-registerEndpoint('/_surface/user/action/schema', {
+// Register schema endpoints for tests — the transport POSTs to /admin/_surface/{type}/action/schema
+registerEndpoint('/admin/_surface/user/action/schema', {
   method: 'POST',
   handler: () => ({ ok: true, data: userSchema }),
 })
-registerEndpoint('/_surface/user_fresh/action/schema', {
+registerEndpoint('/admin/_surface/user_fresh/action/schema', {
   method: 'POST',
   handler: () => ({ ok: true, data: userSchema }),
 })
-registerEndpoint('/_surface/user_cache/action/schema', {
+registerEndpoint('/admin/_surface/user_cache/action/schema', {
   method: 'POST',
   handler: () => ({ ok: true, data: userSchema }),
 })
-registerEndpoint('/_surface/user_invalidate/action/schema', {
+registerEndpoint('/admin/_surface/user_invalidate/action/schema', {
   method: 'POST',
   handler: () => ({ ok: true, data: userSchema }),
 })
@@ -78,7 +78,7 @@ describe('useSchema fetch and caching', () => {
   })
 
   it('sets error.value when schema fetch fails', async () => {
-    registerEndpoint('/_surface/user_error/action/schema', {
+    registerEndpoint('/admin/_surface/user_error/action/schema', {
       method: 'POST',
       handler: () => {
         throw createError({ statusCode: 500, statusMessage: 'Server Error' })

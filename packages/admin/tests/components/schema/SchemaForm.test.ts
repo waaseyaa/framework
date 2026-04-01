@@ -5,28 +5,28 @@ import { flushPromises } from '@vue/test-utils'
 import SchemaForm from '~/components/schema/SchemaForm.vue'
 import { userSchema } from '../../fixtures/schemas'
 
-// Register schema endpoints — transport POSTs to /_surface/{type}/action/schema
-registerEndpoint('/_surface/user/action/schema', {
+// Register schema endpoints — transport POSTs to /admin/_surface/{type}/action/schema
+registerEndpoint('/admin/_surface/user/action/schema', {
   method: 'POST',
   handler: () => ({ ok: true, data: userSchema }),
 })
 
-registerEndpoint('/_surface/user_create/action/schema', {
+registerEndpoint('/admin/_surface/user_create/action/schema', {
   method: 'POST',
   handler: () => ({ ok: true, data: userSchema }),
 })
 
-registerEndpoint('/_surface/user_create_err/action/schema', {
+registerEndpoint('/admin/_surface/user_create_err/action/schema', {
   method: 'POST',
   handler: () => ({ ok: true, data: userSchema }),
 })
 
-registerEndpoint('/_surface/user_edit/action/schema', {
+registerEndpoint('/admin/_surface/user_edit/action/schema', {
   method: 'POST',
   handler: () => ({ ok: true, data: userSchema }),
 })
 
-registerEndpoint('/_surface/user_edit_patch/action/schema', {
+registerEndpoint('/admin/_surface/user_edit_patch/action/schema', {
   method: 'POST',
   handler: () => ({ ok: true, data: userSchema }),
 })
@@ -59,7 +59,7 @@ const schemaWithDefaults = {
   },
 }
 
-registerEndpoint('/_surface/node_defaults/action/schema', {
+registerEndpoint('/admin/_surface/node_defaults/action/schema', {
   method: 'POST',
   handler: () => ({ ok: true, data: schemaWithDefaults }),
 })
@@ -71,7 +71,7 @@ beforeEach(() => {
 
 describe('SchemaForm loading and error states', () => {
   it('shows error state when schema fetch fails', async () => {
-    registerEndpoint('/_surface/user_err_state/action/schema', {
+    registerEndpoint('/admin/_surface/user_err_state/action/schema', {
       method: 'POST',
       handler: () => {
         throw createError({ statusCode: 404, statusMessage: 'Not Found' })
@@ -98,7 +98,7 @@ describe('SchemaForm loading and error states', () => {
 describe('SchemaForm submit — create mode (no entityId)', () => {
   it('emits saved event with resource on successful create', async () => {
     const resource = { type: 'user', id: '5', attributes: { name: 'alice' } }
-    registerEndpoint('/_surface/user_create/action/create', {
+    registerEndpoint('/admin/_surface/user_create/action/create', {
       method: 'POST',
       handler: () => ({
         ok: true,
@@ -134,7 +134,7 @@ describe('SchemaForm submit — create mode (no entityId)', () => {
   })
 
   it('emits error event when create fails', async () => {
-    registerEndpoint('/_surface/user_create_err/action/create', {
+    registerEndpoint('/admin/_surface/user_create_err/action/create', {
       method: 'POST',
       handler: () => {
         throw createError({ statusCode: 422, statusMessage: 'Validation failed' })
@@ -154,7 +154,7 @@ describe('SchemaForm submit — create mode (no entityId)', () => {
 
 describe('SchemaForm submit — edit mode (with entityId)', () => {
   it('loads existing entity attributes into form', async () => {
-    registerEndpoint('/_surface/user_edit/3', {
+    registerEndpoint('/admin/_surface/user_edit/3', {
       method: 'GET',
       handler: () => ({
         ok: true,
@@ -179,11 +179,11 @@ describe('SchemaForm submit — edit mode (with entityId)', () => {
 
   it('emits saved event after PATCH when entityId is provided', async () => {
     const updated = { type: 'user', id: '3', attributes: { name: 'bob-updated' } }
-    registerEndpoint('/_surface/user_edit_patch/3', () => ({
+    registerEndpoint('/admin/_surface/user_edit_patch/3', () => ({
       ok: true,
       data: { type: 'user', id: '3', attributes: { name: 'bob' } },
     }))
-    registerEndpoint('/_surface/user_edit_patch/action/update', {
+    registerEndpoint('/admin/_surface/user_edit_patch/action/update', {
       method: 'POST',
       handler: () => ({
         ok: true,
