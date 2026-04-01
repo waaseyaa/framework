@@ -11,6 +11,7 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Routing\RequestContext;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Kernel\BuiltinRouteRegistrar;
+use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
@@ -24,9 +25,10 @@ final class BuiltinRouteRegistrarExternalRoutesTest extends TestCase
         $router = new WaaseyaaRouter(new RequestContext('', 'GET'));
         $registrar = new BuiltinRouteRegistrar(
             entityTypeManager: $entityTypeManager,
-            providers: [],
-            routeProviders: [new class {
-                public function registerRoutes(WaaseyaaRouter $router): void
+            providers: [new class extends ServiceProvider {
+                public function register(): void {}
+
+                public function routes(WaaseyaaRouter $router, ?\Waaseyaa\Entity\EntityTypeManager $entityTypeManager = null): void
                 {
                     $router->addRoute(
                         'external.route',
