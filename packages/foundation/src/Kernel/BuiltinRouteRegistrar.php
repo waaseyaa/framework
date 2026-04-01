@@ -19,22 +19,14 @@ final class BuiltinRouteRegistrar
 {
     /**
      * @param list<ServiceProvider> $providers
-     * @param list<object> $routeProviders
      */
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
         private readonly array $providers = [],
-        private readonly array $routeProviders = [],
     ) {}
 
     public function register(WaaseyaaRouter $router): void
     {
-        foreach ($this->routeProviders as $routeProvider) {
-            if (method_exists($routeProvider, 'registerRoutes')) {
-                $routeProvider->registerRoutes($router);
-            }
-        }
-
         $router->addRoute(
             'api.schema.show',
             RouteBuilder::create('/api/schema/{entity_type}')
