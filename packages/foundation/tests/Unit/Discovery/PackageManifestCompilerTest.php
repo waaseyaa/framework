@@ -129,6 +129,73 @@ final class PackageManifestCompilerTest extends TestCase
     }
 
     #[Test]
+    public function compile_includes_foundation_provider_in_repo_manifest(): void
+    {
+        $repoRoot = dirname(__DIR__, 5);
+        $compiler = new PackageManifestCompiler($repoRoot, $repoRoot . '/storage');
+
+        $manifest = $compiler->compile();
+
+        $this->assertContains('Waaseyaa\\Foundation\\FoundationServiceProvider', $manifest->providers);
+        $this->assertSame(
+            [
+                'surface' => 'implementation',
+                'activation' => 'provider',
+            ],
+            $manifest->packageDeclarations['waaseyaa/foundation'] ?? null,
+        );
+    }
+
+    #[Test]
+    public function compile_reads_local_package_composer_metadata_when_installed_manifest_omits_waaseyaa_extra(): void
+    {
+        mkdir($this->tempDir . '/packages/foundation/src', 0o755, true);
+
+        file_put_contents(
+            $this->tempDir . '/packages/foundation/composer.json',
+            json_encode([
+                'name' => 'waaseyaa/foundation',
+                'autoload' => [
+                    'psr-4' => ['Waaseyaa\\Foundation\\' => 'src/'],
+                ],
+                'extra' => [
+                    'waaseyaa' => [
+                        'providers' => ['Waaseyaa\\Foundation\\FoundationServiceProvider'],
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT),
+        );
+
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode([
+                'packages' => [
+                    [
+                        'name' => 'waaseyaa/foundation',
+                        'type' => 'library',
+                        'install-path' => '../../../packages/foundation',
+                        'autoload' => [
+                            'psr-4' => ['Waaseyaa\\Foundation\\' => 'src/'],
+                        ],
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        $compiler = new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage');
+        $manifest = $compiler->compile();
+
+        $this->assertContains('Waaseyaa\\Foundation\\FoundationServiceProvider', $manifest->providers);
+        $this->assertSame(
+            [
+                'surface' => 'implementation',
+                'activation' => 'provider',
+            ],
+            $manifest->packageDeclarations['waaseyaa/foundation'] ?? null,
+        );
+    }
+
+    #[Test]
     public function compile_handles_missing_installed_json(): void
     {
         $storagePath = $this->tempDir . '/storage';
