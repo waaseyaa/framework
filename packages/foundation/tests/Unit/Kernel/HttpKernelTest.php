@@ -44,6 +44,7 @@ final class HttpKernelTest extends TestCase
         $this->projectRoot = sys_get_temp_dir() . '/waaseyaa_http_test_' . uniqid();
         mkdir($this->projectRoot . '/config', 0755, true);
         mkdir($this->projectRoot . '/storage', 0755, true);
+        mkdir($this->projectRoot . '/vendor/composer', 0755, true);
         file_put_contents($this->projectRoot . '/config/waaseyaa.php', "<?php return ['database' => ':memory:'];");
         file_put_contents(
             $this->projectRoot . '/config/entity-types.php',
@@ -236,6 +237,64 @@ final class HttpKernelTest extends TestCase
         $this->assertNotNull($routes->get('public.home'));
         $this->assertNotNull($routes->get('public.page'));
         $this->assertTrue((bool) $routes->get('public.home')?->getOption('_render'));
+    }
+
+    #[Test]
+    public function booted_kernel_routes_include_provider_owned_request_surfaces(): void
+    {
+        $this->writeInstalledPackageProviders([
+            'waaseyaa/api' => ['Waaseyaa\\Api\\ApiServiceProvider'],
+            'waaseyaa/graphql' => ['Waaseyaa\\GraphQL\\GraphQlServiceProvider'],
+            'waaseyaa/user' => ['Waaseyaa\\User\\UserServiceProvider'],
+        ]);
+
+        $kernel = new HttpKernel($this->projectRoot);
+
+        $boot = new \ReflectionMethod(AbstractKernel::class, 'boot');
+        $boot->setAccessible(true);
+        $boot->invoke($kernel);
+
+        $entityTypeManagerProperty = new \ReflectionProperty(AbstractKernel::class, 'entityTypeManager');
+        $entityTypeManagerProperty->setAccessible(true);
+        $entityTypeManager = $entityTypeManagerProperty->getValue($kernel);
+
+        $providersProperty = new \ReflectionProperty(AbstractKernel::class, 'providers');
+        $providersProperty->setAccessible(true);
+        $providers = $providersProperty->getValue($kernel);
+
+        $router = new \Waaseyaa\Routing\WaaseyaaRouter(new \Symfony\Component\Routing\RequestContext('', 'GET'));
+        (new BuiltinRouteRegistrar($entityTypeManager, $providers))->register($router);
+
+        $routes = $router->getRouteCollection();
+        $this->assertNotNull($routes->get('api.discovery'));
+        $this->assertNotNull($routes->get('graphql.endpoint'));
+        $this->assertNotNull($routes->get('api.user.me'));
+        $this->assertNotNull($routes->get('api.auth.login'));
+        $this->assertNotNull($routes->get('api.auth.logout'));
+    }
+
+    /**
+     * @param array<string, list<string>> $providersByPackage
+     */
+    private function writeInstalledPackageProviders(array $providersByPackage): void
+    {
+        $packages = [];
+
+        foreach ($providersByPackage as $packageName => $providers) {
+            $packages[] = [
+                'name' => $packageName,
+                'extra' => [
+                    'waaseyaa' => [
+                        'providers' => $providers,
+                    ],
+                ],
+            ];
+        }
+
+        file_put_contents(
+            $this->projectRoot . '/vendor/composer/installed.json',
+            json_encode(['packages' => $packages], JSON_THROW_ON_ERROR),
+        );
     }
 
     #[Test]

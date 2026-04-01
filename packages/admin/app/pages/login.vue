@@ -11,9 +11,8 @@ const registrationMode = authConfig?.registration ?? 'admin'
 const showRegister = registrationMode === 'open' || registrationMode === 'invite'
 
 // Validate returnTo is a local path to prevent open redirect attacks
-const appBase = (config.app.baseURL as string) || '/'
-const rawReturnTo = (route.query.returnTo as string) || appBase
-const returnTo = rawReturnTo.startsWith('/') && !rawReturnTo.startsWith('//') ? rawReturnTo : appBase
+const rawReturnTo = (route.query.returnTo as string) || '/'
+const returnTo = rawReturnTo.startsWith('/') && !rawReturnTo.startsWith('//') ? rawReturnTo : '/'
 
 const error = ref<string>('')
 const loading = ref<boolean>(false)
