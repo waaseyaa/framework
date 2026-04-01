@@ -1,8 +1,10 @@
 # MCP Endpoint
 
+<!-- Spec reviewed 2026-04-01 - post-M10 McpServiceProvider registration and provider-owned MCP routes, C18 drift remediation (#1017) -->
+
 ## Overview
 
-The `waaseyaa/mcp` package exposes Waaseyaa's entity system as a remote MCP (Model Context Protocol) server over Streamable HTTP. External AI assistants (Claude Desktop, Cursor, etc.) and custom AI agents connect to a single `/mcp` endpoint to discover and invoke CRUD tools for all registered entity types. The package sits in Layer 6 (Interfaces) alongside CLI, SSR, and Admin.
+The `waaseyaa/mcp` package exposes Waaseyaa's entity system as a remote MCP (Model Context Protocol) server over Streamable HTTP. In the post-M10 baseline, package discovery loads `Waaseyaa\Mcp\McpServiceProvider` from `packages/mcp/composer.json`, and that provider owns MCP route registration. External AI assistants (Claude Desktop, Cursor, etc.) and custom AI agents connect to a single `/mcp` endpoint to discover and invoke CRUD tools for all registered entity types. The package sits in Layer 6 (Interfaces) alongside CLI, SSR, and Admin.
 
 ## Package
 
@@ -17,6 +19,7 @@ The `waaseyaa/mcp` package exposes Waaseyaa's entity system as a remote MCP (Mod
 | `src/McpEndpoint.php` | Thin HTTP handler: auth, JSON-RPC dispatch for `initialize`/`ping`/`tools/list`/`tools/call` via Bridge interfaces |
 | `src/McpController.php` | Rich tool controller: manifest, `tools/introspect`, `tools/call` dispatch to tool classes, read-cache orchestration |
 | `src/McpResponse.php` | Value object wrapping response body, status code, content type |
+| `src/McpServiceProvider.php` | Package-owned service provider that registers MCP routes via `McpRouteProvider` |
 | `src/McpRouteProvider.php` | Registers `/mcp` and `/.well-known/mcp.json` routes |
 | `src/McpServerCard.php` | Generates the `/.well-known/mcp.json` server card |
 | `src/Auth/McpAuthInterface.php` | Pluggable authentication contract |
@@ -31,6 +34,12 @@ The `waaseyaa/mcp` package exposes Waaseyaa's entity system as a remote MCP (Mod
 | `src/Tools/EditorialTools.php` | `editorial_transition`, `editorial_validate`, `editorial_publish`, `editorial_archive` implementations |
 | `src/Tools/EntityTools.php` | `get_entity`, `list_entity_types` implementations |
 | `src/Tools/TraversalTools.php` | `traverse_relationships`, `get_related_entities`, `get_knowledge_graph` implementations |
+
+## Package Discovery and Route Ownership
+
+`packages/mcp/composer.json` declares `Waaseyaa\Mcp\McpServiceProvider` in `extra.waaseyaa.providers`. During kernel boot, manifest discovery instantiates that provider and `McpServiceProvider::routes()` delegates directly to `McpRouteProvider`.
+
+This means MCP route ownership no longer depends on foundation fallback registration. The authoritative MCP HTTP surfaces are the provider-owned `/mcp` endpoint and `/.well-known/mcp.json` server card.
 
 ## McpEndpoint Class
 

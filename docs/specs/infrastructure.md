@@ -1,6 +1,6 @@
 # Infrastructure
 
-<!-- Spec reviewed 2026-03-31 — DatabaseBootstrapper @mkdir suppression, CS fixes, GraphQL NamedType::name(), ConfigLoaderTest NullLogger injection, login session flush fix (#813) -->
+<!-- Spec reviewed 2026-04-01 - post-M10 package declarations, FoundationServiceProvider registration, provider-owned routes and CLI graph, C18 drift remediation (#1017) -->
 
 Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, migration system, kernel bootstrapping (including environment resolution and debug mode), service provider discovery, and queue workers.
 
@@ -1085,7 +1085,11 @@ public function boot(string $projectRoot): PackageManifest
 
 Instantiates `PackageManifestCompiler` with `storagePath: $projectRoot . '/storage'` and calls `load()` (cache-first, compile on miss).
 
-`storage/framework/packages.php` includes metadata key `_manifest_inputs_fp`: an `xxh128` digest of the raw contents of the project `composer.json` and `vendor/composer/installed.json`. When present and not equal to a freshly computed digest, `load()` discards the cache and recompiles (covers new/removed Composer packages and copied stale caches). Caches without `_manifest_inputs_fp` are still loaded so `StaleManifestException` can fire for missing provider classes before any rewrite. On every successful cache read, root `extra.waaseyaa` providers, commands, routes, and permissions are merged again from `composer.json` so a structurally valid cache cannot omit app-level declarations that match the current fingerprint.
+`storage/framework/packages.php` includes metadata key `_manifest_inputs_fp`: an `xxh128` digest of the raw contents of the project `composer.json` and `vendor/composer/installed.json`. When present and not equal to a freshly computed digest, `load()` discards the cache and recompiles (covers new/removed Composer packages and copied stale caches). Caches without `_manifest_inputs_fp` are still loaded so `StaleManifestException` can fire for missing provider classes before any rewrite.
+
+The compiled manifest now also carries `packageDeclarations`, derived from package-local `composer.json` metadata and merged installed-package metadata. This is the post-M10 baseline used to normalize provider ownership and to verify that declared provider classes still exist before the manifest is trusted.
+
+On every successful cache read, root `extra.waaseyaa` providers, commands, routes, and permissions are merged again from `composer.json` so a structurally valid cache cannot omit app-level declarations that match the current fingerprint.
 
 ### ProviderRegistry
 
@@ -1111,6 +1115,7 @@ Discovery and registration follows a multi-phase process:
 2. **Context injection**: Each provider receives kernel context via `setKernelContext($projectRoot, $config, $manifest->formatters)` and a kernel resolver closure via `setKernelResolver()`. The resolver provides cross-provider DI — it resolves `EntityTypeManager`, `DatabaseInterface`, `EventDispatcherInterface`, and any binding registered by previously-loaded providers.
 3. **Registration**: `register()` is called on each provider, allowing them to bind interfaces to implementations.
 4. **Entity type collection**: After all providers register, entity types from `$provider->getEntityTypes()` are registered with the `EntityTypeManager`. Registration failures are logged as errors but do not halt boot.
+5. **Provider-owned surfaces**: Route and command ownership stays with the package provider or package registry that declared it. Foundation now declares only its own baseline provider (`Waaseyaa\Foundation\FoundationServiceProvider`), while package-level providers such as `ApiServiceProvider`, `UserServiceProvider`, and `McpServiceProvider` own their respective HTTP surfaces.
 
 The method returns the full list of instantiated providers. Handles instantiation failures gracefully with error logging.
 
@@ -1135,11 +1140,11 @@ Reads `$manifest->policies` (keyed by class name → entity type list), instanti
 Kernel/
     AbstractKernel.php           -- boot orchestrator, delegates to Bootstrap/ classes
     HttpKernel.php               -- HTTP request handling, cache setup, CORS
-    ConsoleKernel.php            -- CLI command registration and execution
+    ConsoleKernel.php            -- CLI bootstrapping; delegates command graph assembly to `Waaseyaa\CLI\CliCommandRegistry`
     EnvLoader.php                -- .env file parser
     ConfigLoader.php             -- config/waaseyaa.php loader
     EventListenerRegistrar.php   -- registers cache invalidation listeners
-    BuiltinRouteRegistrar.php    -- registers built-in API routes
+    BuiltinRouteRegistrar.php    -- registers shared foundation-owned HTTP routes (schema, discovery, entity-types, SSR catch-all)
     Bootstrap/
         DatabaseBootstrapper.php     -- creates DBALDatabase connection
         ManifestBootstrapper.php     -- loads/compiles PackageManifest

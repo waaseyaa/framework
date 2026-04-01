@@ -1,8 +1,16 @@
 # API Layer
 
-Technical specification for the Waaseyaa JSON:API layer and routing system. This document covers the `packages/api/` and `packages/routing/` packages, which together provide RESTful CRUD endpoints, resource serialization, query parsing, JSON Schema presentation, route building, and access checking.
+<!-- Spec reviewed 2026-04-01 - post-M10 ApiServiceProvider route ownership, package-declared API surfaces, C18 drift remediation (#1017) -->
+
+Technical specification for the Waaseyaa JSON:API layer and routing system. This document covers the `packages/api/` and `packages/routing/` packages, which together provide RESTful CRUD endpoints, resource serialization, query parsing, JSON Schema presentation, route building, and access checking. The current post-M10 baseline uses package-owned service providers for API route registration: `packages/api/composer.json` declares `Waaseyaa\Api\ApiServiceProvider`, and that provider delegates CRUD route registration to `JsonApiRouteProvider` while foundation keeps only shared infrastructure endpoints.
 
 ## Packages
+
+### Package-owned route registration
+
+`Waaseyaa\Api\ApiServiceProvider` is declared in `packages/api/composer.json` under `extra.waaseyaa.providers`. Its `routes()` method is the authoritative entry point for JSON:API CRUD route registration and delegates to `JsonApiRouteProvider` when an `EntityTypeManager` is available.
+
+Foundation still owns the shared HTTP surfaces that are not entity-package specific, including `/api/schema/{entity_type}`, `/api/openapi.json`, `/api/entity-types`, discovery endpoints, broadcast, and the SSR catch-all.
 
 ### packages/api/
 
