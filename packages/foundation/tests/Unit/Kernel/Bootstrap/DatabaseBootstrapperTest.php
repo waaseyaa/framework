@@ -110,6 +110,7 @@ final class DatabaseBootstrapperTest extends TestCase
     public function bootRefusesMissingSqliteDatabaseInProduction(): void
     {
         $dbPath = $this->tempDir . '/missing/prod.sqlite';
+        $parentDir = dirname($dbPath);
 
         $bootstrapper = new DatabaseBootstrapper();
 
@@ -118,7 +119,11 @@ final class DatabaseBootstrapperTest extends TestCase
             sprintf('Database not found at %s. In production, the database must already exist.', $dbPath),
         );
 
-        $bootstrapper->boot($this->tempDir, ['database' => $dbPath, 'environment' => 'production']);
+        try {
+            $bootstrapper->boot($this->tempDir, ['database' => $dbPath, 'environment' => 'production']);
+        } finally {
+            $this->assertDirectoryDoesNotExist($parentDir);
+        }
     }
 
     #[Test]

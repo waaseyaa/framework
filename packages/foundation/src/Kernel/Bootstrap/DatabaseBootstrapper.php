@@ -29,6 +29,10 @@ final class DatabaseBootstrapper
             $dbPath = getenv('WAASEYAA_DB') ?: $projectRoot . '/storage/waaseyaa.sqlite';
         }
 
+        if ($this->isProductionEnvironment($config) && $dbPath !== ':memory:' && !file_exists($dbPath)) {
+            return $dbPath;
+        }
+
         // Ensure the parent directory exists so SQLite can create the file.
         $dir = dirname($dbPath);
         if (!is_dir($dir)) {
