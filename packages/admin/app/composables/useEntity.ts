@@ -1,5 +1,5 @@
-import type { AdminRuntime } from '../contracts/runtime'
 import type { ListQuery, ListResult, EntityResource } from '../contracts/transport'
+import { requireAdminRuntime } from './useAdminRuntime'
 
 export type { EntityResource, ListResult, ListQuery }
 
@@ -8,8 +8,7 @@ export type { EntityResource, ListResult, ListQuery }
 export type { EntityResource as JsonApiResource }
 
 export function useEntity() {
-  const { $admin } = useNuxtApp() as unknown as { $admin: AdminRuntime }
-  const transport = $admin.transport
+  const transport = requireAdminRuntime().transport
 
   async function list(type: string, query?: ListQuery): Promise<ListResult> {
     return transport.list(type, query)

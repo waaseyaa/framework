@@ -1,6 +1,6 @@
-import type { AdminRuntime } from '../contracts/runtime'
 import type { CatalogEntry, CatalogCapabilities } from '../contracts/catalog'
 import type { AdminTenant } from '../contracts/auth'
+import { requireAdminRuntime } from './useAdminRuntime'
 
 export function useAdmin(): {
   catalog: CatalogEntry[]
@@ -8,7 +8,7 @@ export function useAdmin(): {
   hasCapability: (entityType: string, cap: keyof CatalogCapabilities) => boolean
   getEntity: (type: string) => CatalogEntry | undefined
 } {
-  const { $admin } = useNuxtApp() as unknown as { $admin: AdminRuntime }
+  const $admin = requireAdminRuntime()
 
   function hasCapability(entityType: string, cap: keyof CatalogCapabilities): boolean {
     const entry = $admin.catalog.find(e => e.id === entityType)

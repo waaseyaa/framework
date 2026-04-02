@@ -153,6 +153,13 @@ This plugin is the source of truth for `$admin` injection and for composables th
 
 `runtime.catalog` preserves each `AdminSurfaceCatalogEntry` field and action declaration and carries admin-facing metadata used by the SPA (`description`, `disabled`, optional legacy `keys`). Components that need action-aware UI state must derive it from the injected catalog rather than by issuing mount-time transport requests to discover whether an action exists. For contract builds, the admin package maintains a local TypeScript mirror of the admin-surface payload shape under `app/contracts/` so generated declarations do not import files from outside `packages/admin/app`.
 
+#### Admin Runtime Availability Contract
+
+- Admin composables that depend on `$admin` (`useAdmin()`, `useEntity()`, and `useSchema()`) require a bootstrapped admin runtime.
+- They must fail with one explicit invariant error when `$admin` is unavailable instead of relying on implicit cast failures or null dereferences.
+- Runtime absence is therefore a governed bootstrap violation, not an undefined composable state.
+- Focused unit tests assert this contract in `packages/admin/tests/unit/composables/useAdminRuntime.test.ts`.
+
 #### Shared Auth-State Hydration Contract
 
 - Shared auth state uses the stable keys:
