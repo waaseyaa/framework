@@ -6,21 +6,95 @@ import { vi } from 'vitest'
 import { registerEndpoint } from '@nuxt/test-utils/runtime'
 import type { AdminSurfaceCatalogEntry } from '../../admin-surface/contract/types'
 
-const defaultCaps = { list: true, get: true, create: true, update: true, delete: true, schema: true }
-
 const catalogEntities: AdminSurfaceCatalogEntry[] = [
-  { id: 'user', label: 'User', description: 'User accounts', disabled: false, capabilities: defaultCaps, fields: [], actions: [] },
-  { id: 'node', label: 'Content', description: 'Content entries', disabled: false, capabilities: defaultCaps, fields: [], actions: [{ id: 'board-config', label: 'Board Config', scope: 'collection' }] },
-  { id: 'node_type', label: 'Content Type', capabilities: defaultCaps, fields: [], actions: [] },
-  { id: 'taxonomy_term', label: 'Taxonomy Term', capabilities: defaultCaps, fields: [], actions: [] },
-  { id: 'taxonomy_vocabulary', label: 'Taxonomy Vocabulary', capabilities: defaultCaps, fields: [], actions: [] },
-  { id: 'media', label: 'Media', capabilities: defaultCaps, fields: [], actions: [] },
-  { id: 'media_type', label: 'Media Type', capabilities: defaultCaps, fields: [], actions: [] },
-  { id: 'path_alias', label: 'Path Alias', capabilities: defaultCaps, fields: [], actions: [] },
-  { id: 'menu', label: 'Menu', capabilities: defaultCaps, fields: [], actions: [] },
-  { id: 'menu_link', label: 'Menu Link', capabilities: defaultCaps, fields: [], actions: [] },
-  { id: 'workflow', label: 'Workflow', capabilities: defaultCaps, fields: [], actions: [] },
-  { id: 'pipeline', label: 'Pipeline', capabilities: defaultCaps, fields: [], actions: [] },
+  {
+    id: 'user',
+    label: 'User',
+    description: 'User accounts',
+    disabled: false,
+    capabilities: { list: true, get: true, create: true, update: true, delete: true, schema: true },
+    fields: [],
+    actions: [],
+  },
+  {
+    id: 'node',
+    label: 'Content',
+    description: 'Content entries',
+    disabled: false,
+    capabilities: { list: true, get: true, create: true, update: true, delete: true, schema: true },
+    fields: [],
+    actions: [{ id: 'board-config', label: 'Board Config', scope: 'collection' }],
+  },
+  {
+    id: 'node_type',
+    label: 'Content Type',
+    capabilities: { list: true, get: true, create: true, update: true, delete: true, schema: true },
+    fields: [],
+    actions: [],
+  },
+  {
+    id: 'taxonomy_term',
+    label: 'Taxonomy Term',
+    capabilities: { list: true, get: true, create: true, update: true, delete: true, schema: true },
+    fields: [],
+    actions: [],
+  },
+  {
+    id: 'taxonomy_vocabulary',
+    label: 'Taxonomy Vocabulary',
+    capabilities: { list: true, get: true, create: false, update: true, delete: false, schema: true },
+    fields: [],
+    actions: [],
+  },
+  {
+    id: 'media',
+    label: 'Media',
+    capabilities: { list: true, get: true, create: true, update: true, delete: true, schema: true },
+    fields: [],
+    actions: [],
+  },
+  {
+    id: 'media_type',
+    label: 'Media Type',
+    capabilities: { list: true, get: true, create: true, update: true, delete: true, schema: true },
+    fields: [],
+    actions: [],
+  },
+  {
+    id: 'path_alias',
+    label: 'Path Alias',
+    capabilities: { list: true, get: true, create: false, update: true, delete: true, schema: true },
+    fields: [],
+    actions: [],
+  },
+  {
+    id: 'menu',
+    label: 'Menu',
+    capabilities: { list: true, get: true, create: true, update: true, delete: false, schema: true },
+    fields: [],
+    actions: [],
+  },
+  {
+    id: 'menu_link',
+    label: 'Menu Link',
+    capabilities: { list: true, get: true, create: true, update: true, delete: true, schema: true },
+    fields: [],
+    actions: [],
+  },
+  {
+    id: 'workflow',
+    label: 'Workflow',
+    capabilities: { list: true, get: true, create: false, update: true, delete: false, schema: true },
+    fields: [],
+    actions: [],
+  },
+  {
+    id: 'pipeline',
+    label: 'Pipeline',
+    capabilities: { list: true, get: true, create: false, update: true, delete: false, schema: true },
+    fields: [],
+    actions: [],
+  },
 ]
 
 // /admin/_surface/session — the admin plugin checks this first
