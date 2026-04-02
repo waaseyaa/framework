@@ -1,6 +1,6 @@
 # Admin SPA
 
-<!-- Spec reviewed 2026-04-01 - post-M10 admin surface bootstrap via /admin/_surface/*, contract re-exports, C17 test-harness alignment, C18 drift remediation (#1017) -->
+<!-- Spec reviewed 2026-04-02 - post-M10 admin surface bootstrap via /admin/_surface/*, contract re-exports, C17 test-harness alignment, C18 drift remediation (#1017), F5 deterministic pipeline visibility -->
 
 ## Package
 
@@ -149,6 +149,8 @@ The root Nuxt plugin is the authoritative bootstrap for `$admin`. On non-public 
 5. Returns `{ provide: { admin: runtime } }`, or `{ provide: { admin: null } }` for public auth pages and unauthenticated redirects.
 
 This plugin is the source of truth for `$admin` injection and for composables that call `useAdmin()`.
+
+`runtime.catalog` preserves each `AdminSurfaceCatalogEntry` action declaration. Components that need action-aware UI state must derive it from the injected catalog rather than by issuing mount-time transport requests to discover whether an action exists.
 
 ### useLanguage (`packages/admin/app/composables/useLanguage.ts`)
 
@@ -379,6 +381,15 @@ The dashboard page uses the `useAdmin()` catalog (from the AdminSurface bootstra
 3. **Entity type card grid**: Renders a card for each catalog entry using `entityLabel(et.id, et.label)` for i18n-aware labels.
 
 Error handling uses `TransportError` from `~/contracts/transport` to distinguish 404s from other failures.
+
+## Sidebar Navigation
+
+`packages/admin/app/components/layout/NavBuilder.vue` renders grouped entity navigation from `useAdmin().catalog`.
+
+- Grouping is resolved by `groupEntityTypes(catalog)`.
+- The pipeline sub-link for an entity type is visible only when that catalog entry declares an action with `id === 'board-config'`.
+- Pipeline visibility is deterministic and must remain a pure function of `runtime.catalog`.
+- `NavBuilder` must not call `runAction(type, 'board-config')` or rely on request failures to infer whether pipeline navigation should be shown.
 
 ## Routing
 
