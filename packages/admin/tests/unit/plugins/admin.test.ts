@@ -25,4 +25,13 @@ describe('admin plugin', () => {
     expect(node?.actions).toBeInstanceOf(Array)
     expect(node?.actions).toContainEqual({ id: 'board-config', label: 'Board Config', scope: 'collection' })
   })
+
+  it('hydrates shared auth state from the bootstrap session', () => {
+    const { $admin } = useNuxtApp() as unknown as { $admin: AdminRuntime }
+    const currentUser = useState<typeof $admin.account | null>('waaseyaa.auth.user', () => null)
+    const authChecked = useState<boolean>('waaseyaa.auth.checked', () => false)
+
+    expect(currentUser.value).toEqual($admin.account)
+    expect(authChecked.value).toBe(true)
+  })
 })

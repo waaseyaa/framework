@@ -12,18 +12,27 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
   const config = useRuntimeConfig()
   const baseUrl = (config.public.baseUrl as string) || ''
   const surfacePath = `${baseUrl}/_surface`
+  const currentUser = useState<SurfaceSession['account'] | null>('waaseyaa.auth.user', () => null)
+  const authChecked = useState<boolean>('waaseyaa.auth.checked', () => false)
+
+  function syncAuthState(account: SurfaceSession['account'] | null, checked: boolean) {
+    currentUser.value = account
+    authChecked.value = checked
+  }
 
   // ── Skip auth check on public auth pages (prevents redirect loop) ─────
   const publicAuthPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email']
   if (import.meta.client) {
     const path = window.location.pathname.replace(/\/+$/, '')
     if (publicAuthPaths.some(p => path.endsWith(p))) {
+      syncAuthState(null, false)
       return { provide: { admin: null } }
     }
   }
   if (import.meta.server) {
     const route = useRoute()
     if (publicAuthPaths.includes(route.path)) {
+      syncAuthState(null, false)
       return { provide: { admin: null } }
     }
   }
@@ -52,6 +61,7 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
         surfaceCatalog = catalogRes.data.entities
       }
     } else if (sessionRes && !sessionRes.ok && sessionRes.error?.status === 401) {
+      syncAuthState(null, true)
       await navigateTo('/login', { replace: true })
       return { provide: { admin: null } }
     }
@@ -66,6 +76,7 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
   }
 
   if (!surfaceSession || !surfaceCatalog) {
+    syncAuthState(null, true)
     await navigateTo('/login', { replace: true })
     return { provide: { admin: null } }
   }
@@ -82,6 +93,8 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
     actions: entry.actions,
     capabilities: entry.capabilities,
   }))
+
+  syncAuthState(surfaceSession.account, true)
 
   const account = surfaceSession.account
   const tenant = { ...surfaceSession.tenant, scopingStrategy: 'server' as const }
