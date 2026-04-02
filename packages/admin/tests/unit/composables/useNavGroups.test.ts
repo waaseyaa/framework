@@ -7,7 +7,7 @@ const K = { id: 'id', label: 'label' }
 const C = { list: true, get: true, create: true, update: true, delete: true, schema: true }
 
 function entry(id: string, label: string): CatalogEntry {
-  return { id, label, keys: K, capabilities: C }
+  return { id, label, keys: K, capabilities: C, fields: [], actions: [] }
 }
 
 describe('humanize', () => {
@@ -57,7 +57,7 @@ describe('groupEntityTypes', () => {
 
   it('provides humanized fallback label for unknown group key', () => {
     const types: CatalogEntry[] = [
-      { id: 'elder_profile', label: 'Elder Profile', keys: K, capabilities: C, group: 'elders' },
+      { id: 'elder_profile', label: 'Elder Profile', keys: K, capabilities: C, group: 'elders', fields: [], actions: [] },
     ]
     const groups = groupEntityTypes(types)
     expect(groups).toHaveLength(1)

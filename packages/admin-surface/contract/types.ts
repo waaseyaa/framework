@@ -35,7 +35,9 @@ export interface AdminSurfaceCatalog {
 export interface AdminSurfaceCatalogEntry {
   id: string
   label: string
+  description?: string
   group?: string
+  disabled?: boolean
   fields: AdminSurfaceField[]
   actions: AdminSurfaceAction[]
   capabilities: AdminSurfaceCapabilities
