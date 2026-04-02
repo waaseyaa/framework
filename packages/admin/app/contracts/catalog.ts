@@ -3,7 +3,7 @@ import type {
   AdminSurfaceCatalogEntry,
   AdminSurfaceCapabilities as CatalogCapabilities,
   AdminSurfaceField,
-} from '../../../admin-surface/contract/types'
+} from './adminSurface'
 
 export interface CatalogEntry {
   id: string

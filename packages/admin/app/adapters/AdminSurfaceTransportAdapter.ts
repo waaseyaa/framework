@@ -5,7 +5,7 @@ import type {
   AdminSurfaceEntity as SurfaceEntity,
   AdminSurfaceListResult as SurfaceListResult,
   AdminSurfaceResult as SurfaceResult,
-} from '../../../admin-surface/contract/types'
+} from '../contracts/adminSurface'
 
 /**
  * Transport adapter that talks to the /admin/surface/* endpoints.
