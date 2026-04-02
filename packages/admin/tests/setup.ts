@@ -9,7 +9,7 @@ const defaultCaps = { list: true, get: true, create: true, update: true, delete:
 
 const catalogEntities = [
   { id: 'user', label: 'User', capabilities: defaultCaps, fields: [], actions: [] },
-  { id: 'node', label: 'Content', capabilities: defaultCaps, fields: [], actions: [] },
+  { id: 'node', label: 'Content', capabilities: defaultCaps, fields: [], actions: [{ id: 'board-config', label: 'Board Config', scope: 'collection' }] },
   { id: 'node_type', label: 'Content Type', capabilities: defaultCaps, fields: [], actions: [] },
   { id: 'taxonomy_term', label: 'Taxonomy Term', capabilities: defaultCaps, fields: [], actions: [] },
   { id: 'taxonomy_vocabulary', label: 'Taxonomy Vocabulary', capabilities: defaultCaps, fields: [], actions: [] },
