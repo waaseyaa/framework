@@ -177,16 +177,16 @@
   - Examples observed during the sweep include `Skip to main content`, `Pipeline`, `Failed to load entity`, `Save failed`, `Hide`, `Show`, `Please verify your email address.`, `Email sent — check your inbox.`, and `Dismiss`.
   - The UI therefore mixes translated and non-translated render paths inside the same surface.
 
-### F8 — realtime behavior is available in the SPA but still described as backend-incomplete
+### F8 — realtime behavior drift was stale and is now closed by verification
 - Classification: `runtime-consistency`
 - Surfaces:
   - `packages/admin/app/composables/useRealtime.ts`
   - `packages/admin/app/components/schema/SchemaList.vue`
   - `packages/admin/tests/unit/composables/useRealtime.test.ts`
 - Observation:
-  - `useRealtime()` exposes a reconnecting SSE client and `SchemaList` conditionally consumes it.
-  - The composable comment still says the `/api/broadcast` endpoint is "not yet implemented in public/index.php)".
-  - That leaves the runtime contract ambiguous: the client surface exists, but the server expectation is documented as incomplete.
+  - Follow-up verification on 2026-04-02 confirmed the original drift is no longer present.
+  - `useRealtime()` targets the canonical `/api/broadcast` SSE endpoint, `SchemaList` conditionally consumes it behind `enableRealtime`, and unit tests assert the canonical endpoint plus the default `admin` channel.
+  - No implementation change was required for F8; the finding is closed as a stale discovery observation.
 
 ### F9 — tests are strong on happy paths and narrower on degraded runtime states
 - Classification: `test-gap`
@@ -216,7 +216,7 @@
 ## Discovery Classification Summary
 
 - `runtime-consistency`
-  - F3, F4, F8
+  - F3, F4
 - `composable-contract`
   - F2
 - `component-invariant`
