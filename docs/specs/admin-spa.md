@@ -382,14 +382,14 @@ The dashboard page uses the `useAdmin()` catalog (from the AdminSurface bootstra
 
 Error handling uses `TransportError` from `~/contracts/transport` to distinguish 404s from other failures.
 
-## Sidebar Navigation
+## Navigation
 
-`packages/admin/app/components/layout/NavBuilder.vue` renders grouped entity navigation from `useAdmin().catalog`.
+`packages/admin/app/components/layout/NavBuilder.vue` and `packages/admin/app/components/pipeline/EntityViewNav.vue` derive action-aware navigation state from `useAdmin().catalog`.
 
-- Grouping is resolved by `groupEntityTypes(catalog)`.
-- The pipeline sub-link for an entity type is visible only when that catalog entry declares an action with `id === 'board-config'`.
+- Sidebar grouping is resolved by `groupEntityTypes(catalog)`.
+- The pipeline link for an entity type is visible only when that catalog entry declares an action with `id === 'board-config'`.
 - Pipeline visibility is deterministic and must remain a pure function of `runtime.catalog`.
-- `NavBuilder` must not call `runAction(type, 'board-config')` or rely on request failures to infer whether pipeline navigation should be shown.
+- Navigation components must not call `runAction(type, 'board-config')` or rely on request failures to infer whether pipeline navigation should be shown.
 
 ## Routing
 
