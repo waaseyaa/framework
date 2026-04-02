@@ -26,6 +26,8 @@ Waaseyaa replaces Drupal's legacy runtime with a clean, modular architecture org
 
 ## Quick Start
 
+The `composer create-project` target below installs the published Waaseyaa project skeleton package (`waaseyaa/waaseyaa`). This repository is the `waaseyaa/framework` monorepo that supplies the underlying framework packages.
+
 ```bash
 composer create-project waaseyaa/waaseyaa my-site
 cd my-site
