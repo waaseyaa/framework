@@ -2,7 +2,7 @@ import type {
   AdminSurfaceAction,
   AdminSurfaceCapabilities as CatalogCapabilities,
   AdminSurfaceField,
-} from '../../../admin-surface/contract/types'
+} from './adminSurface'
 
 export interface AdminRuntimeCatalogEntry {
   id: string

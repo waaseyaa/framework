@@ -146,12 +146,12 @@ The root Nuxt plugin is the authoritative bootstrap for `$admin`. On non-public 
 2. Fetches `SurfaceResult<AdminSurfaceSession>` from `${surfacePath}/session`.
 3. Fetches `SurfaceResult<{ entities: AdminSurfaceCatalogEntry[] }>` from `${surfacePath}/catalog` after a successful session.
 4. Hydrates the shared auth-state keys `waaseyaa.auth.user` and `waaseyaa.auth.checked` from the authoritative session bootstrap before returning the runtime.
-5. Builds `AdminRuntime` from `SessionAuthAdapter`, `AdminSurfaceTransportAdapter`, the resolved account/tenant, and catalog entries re-exported from `packages/admin-surface/contract/types.ts`.
+5. Builds `AdminRuntime` from `SessionAuthAdapter`, `AdminSurfaceTransportAdapter`, the resolved account/tenant, and a local admin runtime catalog contract derived from the surface bootstrap payload.
 6. Returns `{ provide: { admin: runtime } }`, or `{ provide: { admin: null } }` for public auth pages and unauthenticated redirects.
 
 This plugin is the source of truth for `$admin` injection and for composables that call `useAdmin()`.
 
-`runtime.catalog` preserves each `AdminSurfaceCatalogEntry` field and action declaration and carries admin-facing metadata used by the SPA (`description`, `disabled`, optional legacy `keys`). Components that need action-aware UI state must derive it from the injected catalog rather than by issuing mount-time transport requests to discover whether an action exists. For contract builds, the admin package maintains a local TypeScript mirror of the admin-surface payload shape under `app/contracts/` so generated declarations do not import files from outside `packages/admin/app`.
+`runtime.catalog` preserves each `AdminSurfaceCatalogEntry` field and action declaration and carries the admin-facing metadata used by the SPA (`description`, `disabled`). Components that need action-aware UI state must derive it from the injected catalog rather than by issuing mount-time transport requests to discover whether an action exists. For contract builds, the admin package maintains a local TypeScript mirror of the admin-surface payload shape under `app/contracts/` so generated declarations do not import files from outside `packages/admin/app`.
 
 #### Admin Runtime Availability Contract
 
@@ -415,6 +415,27 @@ Error handling uses `TransportError` from `~/contracts/transport` to distinguish
 - The pipeline link for an entity type is visible only when that catalog entry declares an action with `id === 'board-config'`.
 - Pipeline visibility is deterministic and must remain a pure function of `runtime.catalog`.
 - Navigation components must not call `runAction(type, 'board-config')` or rely on request failures to infer whether pipeline navigation should be shown.
+- User-facing navigation labels in `AdminShell` and `NavBuilder` route through `useLanguage()`, including the skip link and pipeline suffix.
+
+## SchemaForm / MachineNameInput Contract
+
+`packages/admin/app/components/schema/SchemaForm.vue` is the sole provider of machine-name widget coordination context.
+
+- `SchemaForm` provides a typed `SchemaFormContext` using the `schemaFormContextKey` injection key from `packages/admin/app/components/schema/schemaFormContext.ts`.
+- The context contains:
+  - `formData`
+  - `isEditMode`
+- `packages/admin/app/components/widgets/MachineNameInput.vue` requires this provider context and throws immediately when mounted outside `SchemaForm`.
+- `MachineNameInput` also requires `schema['x-source-field']` and throws immediately when that schema extension is missing.
+- Edit-mode locking is deterministic:
+  - locked when `isEditMode` is true
+  - locked when the widget `disabled` prop is true
+- Auto-generation is deterministic and derived from the declared `x-source-field` value in provided `formData`.
+- The widget must not degrade silently in production or rely on dev-only warnings for missing context.
+- Focused tests assert this contract in:
+  - `packages/admin/tests/components/widgets/MachineNameInput.test.ts`
+  - `packages/admin/tests/components/schema/SchemaForm.test.ts`
+  - `packages/admin/tests/components/schema/SchemaField.test.ts`
 
 ## Routing
 
@@ -485,6 +506,7 @@ Rendered inside `AdminShell` when `auth.require_verified_email` is false and the
 - Persistent but dismissible. Dismissal stored in `localStorage` keyed by user ID to prevent cross-account leakage on shared machines.
 - Inline "Resend verification" button; reflects `Retry-After` header for cooldown display.
 - Disappears reactively when `useAuth().currentUser.email_verified` becomes true.
+- User-facing banner text, resend state text, and dismiss `aria-label` route through `useLanguage()`.
 
 ### Runtime Config Additions
 
