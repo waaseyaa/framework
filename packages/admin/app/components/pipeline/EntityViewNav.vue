@@ -1,14 +1,12 @@
 <script setup lang="ts">
-import { useEntity } from '~/composables/useEntity'
+import { useAdmin } from '~/composables/useAdmin'
 
 const props = defineProps<{
   entityType: string
 }>()
 
-const { runAction } = useEntity()
+const { getEntity } = useAdmin()
 const route = useRoute()
-const hasPipeline = ref(false)
-const checked = ref(false)
 
 const activeTab = computed(() => {
   const path = route.path
@@ -16,20 +14,14 @@ const activeTab = computed(() => {
   return 'list'
 })
 
-onMounted(async () => {
-  try {
-    await runAction(props.entityType, 'board-config')
-    hasPipeline.value = true
-  } catch {
-    hasPipeline.value = false
-  } finally {
-    checked.value = true
-  }
+const hasPipeline = computed(() => {
+  const entry = getEntity(props.entityType)
+  return !!entry && entry.actions.some(action => action.id === 'board-config')
 })
 </script>
 
 <template>
-  <nav v-if="checked && hasPipeline" class="entity-view-nav">
+  <nav v-if="hasPipeline" class="entity-view-nav">
     <NuxtLink
       :to="`/${entityType}`"
       class="nav-tab"

@@ -16,4 +16,13 @@ describe('admin plugin', () => {
     expect($admin.catalog.length).toBeGreaterThan(0)
     expect($admin.catalog[0].id).toBe('user')
   })
+
+  it('preserves declared actions on runtime catalog entries', () => {
+    const { $admin } = useNuxtApp() as unknown as { $admin: AdminRuntime }
+    const node = $admin.catalog.find(entry => entry.id === 'node')
+
+    expect(node).toBeTruthy()
+    expect(node?.actions).toBeInstanceOf(Array)
+    expect(node?.actions).toContainEqual({ id: 'board-config', label: 'Board Config', scope: 'collection' })
+  })
 })

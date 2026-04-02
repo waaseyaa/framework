@@ -78,6 +78,8 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
     description: entry.description,
     group: entry.group,
     disabled: entry.disabled,
+    fields: entry.fields,
+    actions: entry.actions,
     capabilities: entry.capabilities,
   }))
 

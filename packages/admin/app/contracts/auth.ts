@@ -1,4 +1,4 @@
-import type { AdminSurfaceAccount, AdminSurfaceTenant } from '../../../admin-surface/contract/types'
+import type { AdminSurfaceAccount, AdminSurfaceTenant } from './adminSurface'
 
 export interface AuthAdapter {
   getSession(): Promise<AdminSession | null>

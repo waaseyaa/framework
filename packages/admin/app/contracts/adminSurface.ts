@@ -1,12 +1,3 @@
-/**
- * Shared types for the Admin Surface contract.
- *
- * These types define the integration boundary between the admin SPA
- * and any host application built on Waaseyaa.
- */
-
-// ── Session ──────────────────────────────────────────────────────
-
 export interface AdminSurfaceSession {
   account: AdminSurfaceAccount
   tenant: AdminSurfaceTenant
@@ -25,8 +16,6 @@ export interface AdminSurfaceTenant {
   id: string
   name: string
 }
-
-// ── Catalog ──────────────────────────────────────────────────────
 
 export interface AdminSurfaceCatalog {
   entities: AdminSurfaceCatalogEntry[]
@@ -52,8 +41,6 @@ export interface AdminSurfaceCapabilities {
   schema: boolean
 }
 
-// ── Fields ───────────────────────────────────────────────────────
-
 export interface AdminSurfaceField {
   name: string
   label: string
@@ -66,8 +53,6 @@ export interface AdminSurfaceField {
   options?: Record<string, unknown>
 }
 
-// ── Actions ──────────────────────────────────────────────────────
-
 export interface AdminSurfaceAction {
   id: string
   label: string
@@ -76,15 +61,11 @@ export interface AdminSurfaceAction {
   dangerous?: boolean
 }
 
-// ── Entity ───────────────────────────────────────────────────────
-
 export interface AdminSurfaceEntity {
   type: string
   id: string
   attributes: Record<string, unknown>
 }
-
-// ── Result ───────────────────────────────────────────────────────
 
 export interface AdminSurfaceResult<T> {
   ok: boolean
@@ -99,8 +80,6 @@ export interface AdminSurfaceError {
   detail?: string
   source?: Record<string, string>
 }
-
-// ── List ─────────────────────────────────────────────────────────
 
 export interface AdminSurfaceListQuery {
   page?: { offset: number; limit: number }

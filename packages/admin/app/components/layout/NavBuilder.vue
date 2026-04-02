@@ -1,27 +1,12 @@
 <script setup lang="ts">
 import { useLanguage } from '~/composables/useLanguage'
 import { useAdmin } from '~/composables/useAdmin'
-import { useEntity } from '~/composables/useEntity'
 import { groupEntityTypes } from '~/composables/useNavGroups'
 
 const { t, entityLabel } = useLanguage()
 const { catalog } = useAdmin()
-const { runAction } = useEntity()
 
 const navGroups = computed(() => groupEntityTypes(catalog))
-
-const pipelineTypes = ref<Set<string>>(new Set())
-
-onMounted(async () => {
-  for (const et of catalog) {
-    try {
-      await runAction(et.id, 'board-config')
-      pipelineTypes.value.add(et.id)
-    } catch {
-      // No pipeline for this type
-    }
-  }
-})
 </script>
 
 <template>
@@ -39,7 +24,7 @@ onMounted(async () => {
           {{ entityLabel(et.id, et.label) }}
         </NuxtLink>
         <NuxtLink
-          v-if="pipelineTypes.has(et.id)"
+          v-if="et.actions.some(action => action.id === 'board-config')"
           :to="`/${et.id}/pipeline`"
           class="nav-item nav-item--sub"
         >

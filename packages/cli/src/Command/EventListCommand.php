@@ -10,6 +10,7 @@ use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface as ContractsEventDispatcherInterface;
 
 /**
  * Lists all registered events and their listeners.
@@ -21,10 +22,17 @@ use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 final class EventListCommand extends Command
 {
     public function __construct(
-        private readonly EventDispatcherInterface $dispatcher,
+        ContractsEventDispatcherInterface $dispatcher,
     ) {
+        if (!$dispatcher instanceof EventDispatcherInterface) {
+            throw new \InvalidArgumentException('EventListCommand requires Symfony EventDispatcherInterface.');
+        }
+
+        $this->dispatcher = $dispatcher;
         parent::__construct();
     }
+
+    private readonly EventDispatcherInterface $dispatcher;
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {

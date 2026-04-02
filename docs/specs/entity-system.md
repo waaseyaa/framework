@@ -750,6 +750,8 @@ interface ConfigManagerInterface
 `import()` compares sync to active storage, creates/updates/deletes as needed, returns `ConfigImportResult`.
 `export()` clears sync storage, copies all active configs.
 
+`ConfigManager` dispatches `ConfigEvents::IMPORT` through `Symfony\Contracts\EventDispatcher\EventDispatcherInterface`. Callers may provide either the concrete Symfony dispatcher or any contracts-compatible dispatcher implementation; the manager only relies on `dispatch()`.
+
 ### Config StorageInterface
 
 File: `packages/config/src/StorageInterface.php`
@@ -973,4 +975,3 @@ class FieldType extends WaaseyaaPlugin
 ### Test fixtures
 - `packages/api/tests/Fixtures/InMemoryEntityStorage.php` -- implements EntityStorageInterface for tests
 - `packages/entity-storage/tests/Fixtures/LifecycleTrackingEntity.php` -- extends `TestStorageEntity`, records lifecycle hook calls (`preSave`, `postSave`, `preDelete`, `postDelete`) into a public `$hookLog` array for verification in tests
-
