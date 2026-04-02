@@ -170,6 +170,25 @@ final class DebugModeTest extends TestCase
     }
 
     #[Test]
+    public function boot_refuses_missing_sqlite_database_in_production(): void
+    {
+        putenv('APP_ENV=production');
+        $missingPath = $this->projectRoot . '/storage/missing.sqlite';
+        $this->writeConfig(['database' => $missingPath]);
+
+        $kernel = new class($this->projectRoot) extends AbstractKernel {
+            public function publicBoot(): void { $this->boot(); }
+        };
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage(
+            sprintf('Database not found at %s. In production, the database must already exist.', $missingPath),
+        );
+
+        $kernel->publicBoot();
+    }
+
+    #[Test]
     public function boot_allows_debug_in_local_env(): void
     {
         putenv('APP_ENV=local');

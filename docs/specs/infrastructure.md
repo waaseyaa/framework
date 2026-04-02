@@ -1072,7 +1072,15 @@ Class: `final class DatabaseBootstrapper`
 public function boot(string $projectRoot, array $config): DatabaseInterface
 ```
 
-Creates `DBALDatabase::createSqlite()` using path resolution: `$config['database']` → `WAASEYAA_DB` env → `$projectRoot/storage/waaseyaa.sqlite`. Ensures the parent directory exists via `@mkdir()` (warning-suppressed — failure is expected in tests with inaccessible paths; SQLite will throw a proper exception downstream).
+Creates `DBALDatabase::createSqlite()` using path resolution: `$config['database']` → `WAASEYAA_DB` env → `$projectRoot/storage/waaseyaa.sqlite`. In non-production environments, ensures the parent directory exists via `@mkdir()` (warning-suppressed — failure is expected in tests with inaccessible paths; SQLite will throw a proper exception downstream).
+
+Production safety contract:
+- environment resolution matches the kernel contract: config `'environment'` key → `APP_ENV` env var → `'production'`
+- when the resolved environment is `production`, file-backed SQLite paths must already exist before boot continues
+- if the resolved production SQLite file is missing, bootstrap throws `RuntimeException` with `Database not found at {path}. In production, the database must already exist.`
+- when that production guard fires, bootstrap does not create the parent directory as a side effect
+- non-production environments (`local`, `dev`, `development`, etc.) keep the existing auto-create behavior
+- `:memory:` remains allowed in all environments for explicit in-memory bootstrap/test cases
 
 ### ManifestBootstrapper
 

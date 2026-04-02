@@ -19,10 +19,15 @@ final class DatabaseBootstrapperTest extends TestCase
     {
         $this->tempDir = sys_get_temp_dir() . '/waaseyaa_test_' . uniqid();
         mkdir($this->tempDir, 0o755, recursive: true);
+        putenv('APP_ENV=local');
+        putenv('WAASEYAA_DB');
     }
 
     protected function tearDown(): void
     {
+        putenv('APP_ENV');
+        putenv('WAASEYAA_DB');
+
         // Clean up temp files recursively.
         $files = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator($this->tempDir, \FilesystemIterator::SKIP_DOTS),
@@ -99,5 +104,51 @@ final class DatabaseBootstrapperTest extends TestCase
         // The default path creates storage/ under project root.
         $this->assertDirectoryExists($projectRoot . '/storage');
         $this->assertFileExists($projectRoot . '/storage/waaseyaa.sqlite');
+    }
+
+    #[Test]
+    public function bootRefusesMissingSqliteDatabaseInProduction(): void
+    {
+        $dbPath = $this->tempDir . '/missing/prod.sqlite';
+        $parentDir = dirname($dbPath);
+
+        $bootstrapper = new DatabaseBootstrapper();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage(
+            sprintf('Database not found at %s. In production, the database must already exist.', $dbPath),
+        );
+
+        try {
+            $bootstrapper->boot($this->tempDir, ['database' => $dbPath, 'environment' => 'production']);
+        } finally {
+            $this->assertDirectoryDoesNotExist($parentDir);
+        }
+    }
+
+    #[Test]
+    public function bootAllowsMissingSqliteDatabaseOutsideProduction(): void
+    {
+        $dbPath = $this->tempDir . '/dev/dev.sqlite';
+
+        $bootstrapper = new DatabaseBootstrapper();
+        $database = $bootstrapper->boot($this->tempDir, ['database' => $dbPath, 'environment' => 'local']);
+
+        $this->assertInstanceOf(DatabaseInterface::class, $database);
+        $this->assertFileExists($dbPath);
+    }
+
+    #[Test]
+    public function bootAllowsExistingSqliteDatabaseInProduction(): void
+    {
+        $dbPath = $this->tempDir . '/prod/existing.sqlite';
+        mkdir(dirname($dbPath), 0o755, true);
+        touch($dbPath);
+
+        $bootstrapper = new DatabaseBootstrapper();
+        $database = $bootstrapper->boot($this->tempDir, ['database' => $dbPath, 'environment' => 'production']);
+
+        $this->assertInstanceOf(DatabaseInterface::class, $database);
+        $this->assertFileExists($dbPath);
     }
 }
