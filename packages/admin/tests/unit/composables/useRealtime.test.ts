@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
-import { useRealtime } from '~/composables/useRealtime'
+import { DEFAULT_REALTIME_CHANNELS, REALTIME_ENDPOINT_PATH, useRealtime } from '~/composables/useRealtime'
 
 vi.mock('vue', async () => {
   const actual = await vi.importActual<typeof import('vue')>('vue')
@@ -114,5 +114,12 @@ describe('useRealtime', () => {
 
     realtime.connect()
     expect(MockEventSource.instances).toHaveLength(1)
+  })
+
+  it('uses the canonical broadcast endpoint and default admin channel', () => {
+    useRealtime()
+
+    expect(MockEventSource.instances).toHaveLength(1)
+    expect(MockEventSource.instances[0].url).toBe(`${REALTIME_ENDPOINT_PATH}?channels=${DEFAULT_REALTIME_CHANNELS[0]}`)
   })
 })

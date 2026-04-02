@@ -8,13 +8,15 @@ export interface BroadcastMessage {
 }
 
 const MAX_RETRIES = 10
+export const REALTIME_ENDPOINT_PATH = '/api/broadcast'
+export const DEFAULT_REALTIME_CHANNELS = ['admin'] as const
 
 interface UseRealtimeOptions {
   autoConnect?: boolean
 }
 
-// Requires a server-side SSE endpoint at /api/broadcast (not yet implemented in public/index.php).
-export function useRealtime(channels: string[] = ['admin'], options: UseRealtimeOptions = {}) {
+// Runtime contract: the admin SPA consumes the backend broadcast SSE endpoint.
+export function useRealtime(channels: string[] = [...DEFAULT_REALTIME_CHANNELS], options: UseRealtimeOptions = {}) {
   const messages: Ref<BroadcastMessage[]> = ref([])
   const connected = ref(false)
   const error = ref<string | null>(null)
@@ -40,7 +42,7 @@ export function useRealtime(channels: string[] = ['admin'], options: UseRealtime
     disconnectRequested = false
 
     const channelParam = channels.join(',')
-    eventSource = new EventSource(`/api/broadcast?channels=${channelParam}`)
+    eventSource = new EventSource(`${REALTIME_ENDPOINT_PATH}?channels=${channelParam}`)
 
     eventSource.onopen = () => {
       connected.value = true

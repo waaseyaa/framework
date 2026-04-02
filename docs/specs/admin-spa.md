@@ -198,10 +198,14 @@ interface BroadcastMessage {
 
 - Endpoint: `GET /api/broadcast?channels={comma-separated}` (SSE)
 - Default channel: `['admin']`
+- Runtime constants:
+  - `REALTIME_ENDPOINT_PATH = '/api/broadcast'`
+  - `DEFAULT_REALTIME_CHANNELS = ['admin']`
 - Auto-connects on instantiation; auto-disconnects on `onUnmounted`
 - Exponential backoff reconnect: delay = `min(3000 * 2^(retryCount-1), 30000)`, max 10 retries
 - Message buffer: last 100 messages (ring buffer via `slice(-99)`)
 - Event types: `entity.saved`, `entity.deleted` (used by SchemaList for auto-refresh)
+- Invariant: the SPA realtime client targets the canonical backend broadcast SSE endpoint and default admin channel; this contract is asserted in unit tests.
 
 ## Schema-Driven Forms
 
