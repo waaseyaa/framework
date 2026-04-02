@@ -145,12 +145,26 @@ The root Nuxt plugin is the authoritative bootstrap for `$admin`. On non-public 
 1. Reads `runtimeConfig.public.baseUrl` (default `/admin`) and derives a `surfacePath` such as `/admin/_surface`.
 2. Fetches `SurfaceResult<AdminSurfaceSession>` from `${surfacePath}/session`.
 3. Fetches `SurfaceResult<{ entities: AdminSurfaceCatalogEntry[] }>` from `${surfacePath}/catalog` after a successful session.
-4. Builds `AdminRuntime` from `SessionAuthAdapter`, `AdminSurfaceTransportAdapter`, the resolved account/tenant, and catalog entries re-exported from `packages/admin-surface/contract/types.ts`.
-5. Returns `{ provide: { admin: runtime } }`, or `{ provide: { admin: null } }` for public auth pages and unauthenticated redirects.
+4. Hydrates the shared auth-state keys `waaseyaa.auth.user` and `waaseyaa.auth.checked` from the authoritative session bootstrap before returning the runtime.
+5. Builds `AdminRuntime` from `SessionAuthAdapter`, `AdminSurfaceTransportAdapter`, the resolved account/tenant, and catalog entries re-exported from `packages/admin-surface/contract/types.ts`.
+6. Returns `{ provide: { admin: runtime } }`, or `{ provide: { admin: null } }` for public auth pages and unauthenticated redirects.
 
 This plugin is the source of truth for `$admin` injection and for composables that call `useAdmin()`.
 
 `runtime.catalog` preserves each `AdminSurfaceCatalogEntry` field and action declaration and carries admin-facing metadata used by the SPA (`description`, `disabled`, optional legacy `keys`). Components that need action-aware UI state must derive it from the injected catalog rather than by issuing mount-time transport requests to discover whether an action exists. For contract builds, the admin package maintains a local TypeScript mirror of the admin-surface payload shape under `app/contracts/` so generated declarations do not import files from outside `packages/admin/app`.
+
+#### Shared Auth-State Hydration Contract
+
+- Shared auth state uses the stable keys:
+  - `waaseyaa.auth.user`
+  - `waaseyaa.auth.checked`
+- The admin plugin must hydrate these keys from the server-side `/admin/_surface/session` bootstrap.
+- Hydration must occur before composables or components consume shared auth state.
+- Public auth routes clear these keys to `null` / `false` and skip runtime bootstrap.
+- Redirecting unauthenticated flows clear the user value and mark the auth check as completed for the current bootstrap attempt.
+- Invariant:
+  - Admin SPA runtime must initialize and hydrate shared auth state using the authoritative session bootstrap keys. These keys must remain stable and consistent across runtime, composables, and components.
+- Tests assert this hydration behavior in `packages/admin/tests/unit/plugins/admin.test.ts`.
 
 ### useLanguage (`packages/admin/app/composables/useLanguage.ts`)
 
@@ -477,6 +491,12 @@ resendVerification(): Promise<void>
 
 All methods use `$fetch` with `credentials: 'include'` targeting `/api/auth/*` (proxied to PHP backend).
 
+`useAuth()` shares state through the same stable keys hydrated by the admin plugin:
+- `waaseyaa.auth.user`
+- `waaseyaa.auth.checked`
+
+That means `useAuth()` does not establish an independent session source of truth. It consumes and updates the shared bootstrap state established by `packages/admin/app/plugins/admin.ts`.
+
 ### Routing — Updated Table
 
 | Route | Page File | Purpose |
@@ -545,6 +565,7 @@ Test files live in `packages/admin/tests/`:
 - `tests/components/auth/VerificationBanner.spec.ts` — visibility, dismiss, localStorage persistence, resend
 - `tests/composables/useAuth.spec.ts` — auth composable state and methods
 - `tests/unit/composables/useAuth.test.ts` — auth composable unit tests
+- `tests/unit/plugins/admin.test.ts` — runtime bootstrap shape and shared auth-state hydration invariant
 
 Pattern: `mountSuspended()` from `@nuxt/test-utils/runtime` for component mounting. Props via `props: {}`, emits via `wrapper.emitted()`.
 
