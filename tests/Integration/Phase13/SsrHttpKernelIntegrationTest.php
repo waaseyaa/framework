@@ -265,6 +265,7 @@ declare(strict_types=1);
 
 return [
     'database' => '{$databasePath}',
+    'environment' => 'local',
     'cors_origins' => ['http://localhost:3000'],
     'ssr' => [
         'theme' => '',

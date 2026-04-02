@@ -16,7 +16,10 @@ final class DatabaseBootstrapper
      */
     public function boot(string $projectRoot, array $config): DatabaseInterface
     {
-        return DBALDatabase::createSqlite($this->resolvePath($projectRoot, $config));
+        $path = $this->resolvePath($projectRoot, $config);
+        $this->guardMissingProductionSqliteDatabase($path, $config);
+
+        return DBALDatabase::createSqlite($path);
     }
 
     private function resolvePath(string $projectRoot, array $config): string
@@ -33,5 +36,41 @@ final class DatabaseBootstrapper
         }
 
         return $dbPath;
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    private function guardMissingProductionSqliteDatabase(string $path, array $config): void
+    {
+        if (!$this->isProductionEnvironment($config)) {
+            return;
+        }
+
+        if ($path === ':memory:' || file_exists($path)) {
+            return;
+        }
+
+        throw new \RuntimeException(
+            sprintf('Database not found at %s. In production, the database must already exist.', $path),
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    private function isProductionEnvironment(array $config): bool
+    {
+        return strtolower($this->resolveEnvironment($config)) === 'production';
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    private function resolveEnvironment(array $config): string
+    {
+        $env = $config['environment'] ?? getenv('APP_ENV') ?: 'production';
+
+        return is_string($env) && $env !== '' ? $env : 'production';
     }
 }
