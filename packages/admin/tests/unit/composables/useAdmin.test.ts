@@ -1,6 +1,7 @@
 // packages/admin/tests/unit/composables/useAdmin.test.ts
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { useAdmin } from '~/composables/useAdmin'
+import { ADMIN_RUNTIME_UNAVAILABLE_MESSAGE } from '~/composables/useAdminRuntime'
 
 describe('useAdmin', () => {
   it('returns catalog from runtime', () => {
@@ -32,5 +33,18 @@ describe('useAdmin', () => {
   it('getEntity returns undefined for unknown type', () => {
     const { getEntity } = useAdmin()
     expect(getEntity('nonexistent')).toBeUndefined()
+  })
+
+  it('throws an explicit invariant error when admin runtime is unavailable', async () => {
+    vi.resetModules()
+    vi.doMock('~/composables/useAdminRuntime', () => ({
+      ADMIN_RUNTIME_UNAVAILABLE_MESSAGE,
+      requireAdminRuntime: () => {
+        throw new Error(ADMIN_RUNTIME_UNAVAILABLE_MESSAGE)
+      },
+    }))
+
+    const { useAdmin } = await import('~/composables/useAdmin')
+    expect(() => useAdmin()).toThrowError(ADMIN_RUNTIME_UNAVAILABLE_MESSAGE)
   })
 })

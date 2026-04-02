@@ -172,6 +172,10 @@ This plugin is the source of truth for `$admin` injection and for composables th
 - Invariant:
   - Admin SPA runtime must initialize and hydrate shared auth state using the authoritative session bootstrap keys. These keys must remain stable and consistent across runtime, composables, and components.
 - Tests assert this hydration behavior in `packages/admin/tests/unit/plugins/admin.test.ts`.
+- Degraded bootstrap coverage also asserts:
+  - client-side public auth routes return `admin: null` without fetching the surface API
+  - 401 session bootstrap and missing catalog bootstrap return `admin: null`, clear the shared user, and mark auth as checked
+  - unreachable surface API bootstrap fails with a fatal 503 error
 
 ### useLanguage (`packages/admin/app/composables/useLanguage.ts`)
 
@@ -605,7 +609,11 @@ Test files live in `packages/admin/tests/`:
 - `tests/components/auth/VerificationBanner.spec.ts` — visibility, dismiss, localStorage persistence, resend
 - `tests/composables/useAuth.spec.ts` — auth composable state and methods
 - `tests/unit/composables/useAuth.test.ts` — auth composable unit tests
-- `tests/unit/plugins/admin.test.ts` — runtime bootstrap shape and shared auth-state hydration invariant
+- `tests/unit/plugins/admin.test.ts` — runtime bootstrap shape, shared auth-state hydration invariant, and degraded bootstrap branches
+- `tests/unit/composables/useAdmin.test.ts` — runtime-backed admin catalog access and missing-runtime invariant
+- `tests/unit/composables/useEntity.test.ts` — transport delegation and missing-runtime invariant
+- `tests/unit/composables/useSchema.test.ts` — schema caching/error handling and missing-runtime invariant
+- `tests/components/layout/NavBuilder.test.ts` — deterministic navigation rendering for empty and action-aware catalogs
 
 Pattern: `mountSuspended()` from `@nuxt/test-utils/runtime` for component mounting. Props via `props: {}`, emits via `wrapper.emitted()`.
 

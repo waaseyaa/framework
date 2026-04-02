@@ -4,6 +4,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { registerEndpoint } from '@nuxt/test-utils/runtime'
 import { userSchema } from '../../fixtures/schemas'
+import { ADMIN_RUNTIME_UNAVAILABLE_MESSAGE } from '~/composables/useAdminRuntime'
 
 // Register schema endpoints for tests — the transport POSTs to /admin/_surface/{type}/action/schema
 registerEndpoint('/admin/_surface/user/action/schema', {
@@ -98,5 +99,19 @@ describe('useSchema fetch and caching', () => {
     // After invalidation, schema should still be loadable
     await instance.fetch()
     expect(instance.schema.value?.title).toBe('User')
+  })
+
+  it('records the explicit runtime invariant error when admin runtime is unavailable', async () => {
+    vi.doMock('~/composables/useAdminRuntime', () => ({
+      ADMIN_RUNTIME_UNAVAILABLE_MESSAGE,
+      requireAdminRuntime: () => {
+        throw new Error(ADMIN_RUNTIME_UNAVAILABLE_MESSAGE)
+      },
+    }))
+
+    const { useSchema } = await import('~/composables/useSchema')
+    const { error, fetch } = useSchema('user')
+    await fetch()
+    expect(error.value).toBe(ADMIN_RUNTIME_UNAVAILABLE_MESSAGE)
   })
 })
