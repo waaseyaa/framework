@@ -82,16 +82,25 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
 
   // ── Build runtime from surface response ──────────────────────────
 
-  const catalog: CatalogEntry[] = surfaceCatalog.map(entry => ({
-    id: entry.id,
-    label: entry.label,
-    description: entry.description,
-    group: entry.group,
-    disabled: entry.disabled,
-    fields: entry.fields,
-    actions: entry.actions,
-    capabilities: entry.capabilities,
-  }))
+  const catalog: CatalogEntry[] = surfaceCatalog.map((entry) => {
+    const description = 'description' in entry && typeof entry.description === 'string'
+      ? entry.description
+      : undefined
+    const disabled = 'disabled' in entry && typeof entry.disabled === 'boolean'
+      ? entry.disabled
+      : undefined
+
+    return {
+      id: entry.id,
+      label: entry.label,
+      group: entry.group,
+      fields: entry.fields,
+      actions: entry.actions,
+      capabilities: entry.capabilities,
+      ...(description !== undefined ? { description } : {}),
+      ...(disabled !== undefined ? { disabled } : {}),
+    }
+  })
 
   syncAuthState(surfaceSession.account, true)
 

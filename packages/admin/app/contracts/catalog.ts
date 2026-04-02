@@ -1,20 +1,19 @@
 import type {
   AdminSurfaceAction,
-  AdminSurfaceCatalogEntry,
   AdminSurfaceCapabilities as CatalogCapabilities,
   AdminSurfaceField,
-} from './adminSurface'
+} from '../../../admin-surface/contract/types'
 
-export interface CatalogEntry {
+export interface AdminRuntimeCatalogEntry {
   id: string
   label: string
   group?: string
   description?: string
   disabled?: boolean
-  keys?: { id: string; label: string }
   fields: AdminSurfaceField[]
   actions: AdminSurfaceAction[]
   capabilities: CatalogCapabilities
 }
 
-export type { AdminSurfaceCatalogEntry, CatalogCapabilities }
+export type CatalogEntry = AdminRuntimeCatalogEntry
+export type { CatalogCapabilities }

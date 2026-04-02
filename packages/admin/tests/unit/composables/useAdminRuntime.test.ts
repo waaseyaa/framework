@@ -6,9 +6,10 @@ describe('requireAdminRuntime', () => {
   it('returns the injected admin runtime when present', () => {
     const runtime = {
       catalog: [],
-      tenant: { id: 'default', name: 'Waaseyaa' },
-      account: null,
+      tenant: { id: 'default', name: 'Waaseyaa', scopingStrategy: 'server' as const },
+      account: { id: '1', name: 'Admin', email: 'admin@example.com', roles: ['admin'] },
       auth: {} as AdminRuntime['auth'],
+      authConfig: { strategy: 'redirect' as const, loginUrl: '/login' },
       transport: {} as AdminRuntime['transport'],
     } satisfies AdminRuntime
 

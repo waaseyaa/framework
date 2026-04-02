@@ -22,7 +22,7 @@ onMounted(async () => {
       const resource = await get(props.entityType, props.entityId)
       entityData.value = { id: resource.id, ...resource.attributes }
     } catch (e: any) {
-      loadError.value = e.data?.errors?.[0]?.detail ?? e.message ?? 'Failed to load entity'
+      loadError.value = e.data?.errors?.[0]?.detail ?? e.message ?? t('error_loading_entity')
     }
   }
 })
@@ -74,7 +74,7 @@ function formatValue(value: any, fieldSchema: Record<string, any>): string {
 
       <div v-if="emptyFields.length > 0" class="empty-fields-toggle">
         <button class="btn-link" @click="showEmpty = !showEmpty">
-          {{ showEmpty ? 'Hide' : 'Show' }} {{ emptyFields.length }} empty fields
+          {{ showEmpty ? t('hide') : t('show') }} {{ emptyFields.length }} {{ t('empty_fields') }}
         </button>
       </div>
 

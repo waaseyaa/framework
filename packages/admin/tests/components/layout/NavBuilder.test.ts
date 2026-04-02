@@ -54,7 +54,6 @@ describe('NavBuilder', () => {
 
   it('renders nav section headings from catalog', async () => {
     const wrapper = await mountSuspended(NavBuilder)
-    // The bootstrap mock in setup.ts provides entity types that group into sections
     const navSections = wrapper.findAll('.nav-section')
     expect(navSections.length).toBeGreaterThan(0)
   })

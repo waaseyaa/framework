@@ -64,6 +64,44 @@ registerEndpoint('/admin/_surface/node_defaults/action/schema', {
   handler: () => ({ ok: true, data: schemaWithDefaults }),
 })
 
+const machineNameSchema = {
+  $schema: 'http://json-schema.org/draft-07/schema#',
+  title: 'Content Type',
+  description: 'A content type',
+  type: 'object',
+  'x-entity-type': 'content_type',
+  'x-translatable': false,
+  'x-revisionable': false,
+  properties: {
+    title: {
+      type: 'string',
+      'x-widget': 'text',
+      'x-label': 'Title',
+      'x-weight': 0,
+      'x-required': true,
+    },
+    type: {
+      type: 'string',
+      'x-widget': 'machine_name',
+      'x-source-field': 'title',
+      'x-label': 'Machine name',
+      'x-weight': 1,
+      'x-required': true,
+    },
+  },
+  required: ['title', 'type'],
+}
+
+registerEndpoint('/admin/_surface/content_type/action/schema', {
+  method: 'POST',
+  handler: () => ({ ok: true, data: machineNameSchema }),
+})
+
+registerEndpoint('/admin/_surface/content_type_edit/action/schema', {
+  method: 'POST',
+  handler: () => ({ ok: true, data: machineNameSchema }),
+})
+
 // Reset modules to clear schema cache
 beforeEach(() => {
   vi.resetModules()
@@ -133,6 +171,22 @@ describe('SchemaForm submit — create mode (no entityId)', () => {
     expect((checkboxes[2].element as HTMLInputElement).checked).toBe(false)
   })
 
+  it('auto-generates machine name deterministically from the source field', async () => {
+    const { default: SchemaFormFresh } = await import('~/components/schema/SchemaForm.vue')
+    const wrapper = await mountSuspended(SchemaFormFresh, {
+      props: { entityType: 'content_type' },
+    })
+    await flushPromises()
+
+    const titleInput = wrapper.find('input[type="text"]:not(.field-input--machine-name)')
+    const machineNameInput = wrapper.find('.field-input--machine-name')
+
+    await titleInput.setValue('Hello World')
+    await flushPromises()
+
+    expect((machineNameInput.element as HTMLInputElement).value).toBe('hello_world')
+  })
+
   it('emits error event when create fails', async () => {
     registerEndpoint('/admin/_surface/user_create_err/action/create', {
       method: 'POST',
@@ -198,5 +252,24 @@ describe('SchemaForm submit — edit mode (with entityId)', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     expect(wrapper.emitted('saved')?.[0]).toEqual([updated])
+  })
+
+  it('locks the machine name field deterministically in edit mode', async () => {
+    registerEndpoint('/admin/_surface/content_type_edit/3', {
+      method: 'GET',
+      handler: () => ({
+        ok: true,
+        data: { type: 'content_type', id: '3', attributes: { title: 'Article', type: 'article' } },
+      }),
+    })
+
+    const { default: SchemaFormFresh } = await import('~/components/schema/SchemaForm.vue')
+    const wrapper = await mountSuspended(SchemaFormFresh, {
+      props: { entityType: 'content_type_edit', entityId: '3' },
+    })
+    await flushPromises()
+    await flushPromises()
+
+    expect(wrapper.find('.field-input--machine-name').attributes('disabled')).toBeDefined()
   })
 })

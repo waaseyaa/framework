@@ -28,7 +28,7 @@ const navGroups = computed(() => groupEntityTypes(catalog))
           :to="`/${et.id}/pipeline`"
           class="nav-item nav-item--sub"
         >
-          {{ entityLabel(et.id, et.label) }} Pipeline
+          {{ entityLabel(et.id, et.label) }} {{ t('entity_type_pipeline') }}
         </NuxtLink>
       </template>
     </template>

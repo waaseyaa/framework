@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { t } = useLanguage()
 const { currentUser, resendVerification } = useAuth()
 
 const dismissed = ref(false)
@@ -46,7 +47,7 @@ async function handleResend() {
     if (result.ok) {
       resendSuccess.value = true
     } else {
-      resendError.value = result.error ?? 'Failed to resend verification email.'
+      resendError.value = result.error ?? t('error_resend_verification')
     }
   } finally {
     resending.value = false
@@ -64,18 +65,18 @@ async function handleResend() {
           clip-rule="evenodd"
         />
       </svg>
-      <span class="banner-text">Please verify your email address.</span>
-      <span v-if="resendSuccess" class="banner-sent">Email sent — check your inbox.</span>
+      <span class="banner-text">{{ t('verify_email_prompt') }}</span>
+      <span v-if="resendSuccess" class="banner-sent">{{ t('verify_email_sent') }}</span>
       <span v-if="resendError" class="banner-error">{{ resendError }}</span>
       <button
         class="banner-resend"
         :disabled="resending"
         @click="handleResend"
       >
-        {{ resending ? 'Sending…' : 'Resend verification' }}
+        {{ resending ? t('sending') : t('resend_verification') }}
       </button>
     </div>
-    <button class="banner-dismiss" aria-label="Dismiss" @click="dismiss">
+    <button class="banner-dismiss" :aria-label="t('dismiss')" @click="dismiss">
       <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16" aria-hidden="true">
         <path
           d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"

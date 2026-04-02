@@ -3,11 +3,10 @@ import { describe, it, expect } from 'vitest'
 import { groupEntityTypes, humanize } from '~/composables/useNavGroups'
 import type { CatalogEntry } from '~/contracts'
 
-const K = { id: 'id', label: 'label' }
 const C = { list: true, get: true, create: true, update: true, delete: true, schema: true }
 
 function entry(id: string, label: string): CatalogEntry {
-  return { id, label, keys: K, capabilities: C, fields: [], actions: [] }
+  return { id, label, capabilities: C, fields: [], actions: [] }
 }
 
 describe('humanize', () => {
@@ -57,13 +56,13 @@ describe('groupEntityTypes', () => {
 
   it('provides humanized fallback label for unknown group key', () => {
     const types: CatalogEntry[] = [
-      { id: 'elder_profile', label: 'Elder Profile', keys: K, capabilities: C, group: 'elders', fields: [], actions: [] },
+      { id: 'elder_profile', label: 'Elder Profile', capabilities: C, fields: [], actions: [], group: 'elders' },
     ]
     const groups = groupEntityTypes(types)
     expect(groups).toHaveLength(1)
     expect(groups[0].key).toBe('elders')
     expect(groups[0].labelKey).toBe('nav_group_elders')
-    expect(groups[0].label).toBe('Elders') // humanized fallback
+    expect(groups[0].label).toBe('Elders')
   })
 
   it('handles all 12 registered entity types without an other group', () => {

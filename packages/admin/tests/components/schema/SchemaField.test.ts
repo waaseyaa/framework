@@ -42,15 +42,13 @@ describe('SchemaField widget dispatch', () => {
   })
 
   it('renders a machine name input for x-widget: machine_name', async () => {
-    const wrapper = await mountSuspended(SchemaField, {
+    await expect(mountSuspended(SchemaField, {
       props: {
         name: 'type',
         modelValue: '',
         schema: makeSchema('machine_name', { 'x-source-field': 'name' }),
       },
-    })
-    expect(wrapper.find('input[type="text"]').exists()).toBe(true)
-    expect(wrapper.find('.field-input--machine-name').exists()).toBe(true)
+    })).rejects.toThrow('[MachineNameInput] Missing SchemaForm provider context.')
   })
 
   it('renders a file input for x-widget: image', async () => {
