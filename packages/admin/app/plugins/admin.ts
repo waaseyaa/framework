@@ -1,5 +1,6 @@
 import { SessionAuthAdapter } from '../adapters/SessionAuthAdapter'
 import { AdminSurfaceTransportAdapter } from '../adapters/AdminSurfaceTransportAdapter'
+import { isPublicAuthPath } from '../runtime/publicAuthPaths'
 import type { AdminRuntime, AdminAuthConfig } from '../contracts/runtime'
 import type { CatalogEntry } from '../contracts/catalog'
 import type {
@@ -21,17 +22,15 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
   }
 
   // ── Skip auth check on public auth pages (prevents redirect loop) ─────
-  const publicAuthPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email']
   if (import.meta.client) {
-    const path = window.location.pathname.replace(/\/+$/, '')
-    if (publicAuthPaths.some(p => path.endsWith(p))) {
+    if (isPublicAuthPath(window.location.pathname, baseUrl)) {
       syncAuthState(null, false)
       return { provide: { admin: null } }
     }
   }
   if (import.meta.server) {
     const route = useRoute()
-    if (publicAuthPaths.includes(route.path)) {
+    if (isPublicAuthPath(route.path, baseUrl)) {
       syncAuthState(null, false)
       return { provide: { admin: null } }
     }

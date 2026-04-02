@@ -445,7 +445,14 @@ The admin plugin fetches `{baseUrl}/_surface/session` (default: `/admin/_surface
 const publicAuthPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email']
 ```
 
-The plugin checks `window.location.pathname` (not `useRoute()` — unreliable in async plugin context) and skips the session fetch for matching paths. This prevents the 401 → redirect → 401 loop that would otherwise occur on public auth pages.
+The plugin and global auth middleware both use the shared runtime normalizer in `packages/admin/app/runtime/publicAuthPaths.ts` to evaluate public auth paths.
+
+Normalization rules:
+- trailing slashes are removed before matching;
+- admin subpath prefixes (for example `/admin/login`) are reduced to canonical route paths (`/login`);
+- the governed public auth set remains `/login`, `/register`, `/forgot-password`, `/reset-password`, `/verify-email`.
+
+This keeps client bootstrap, server bootstrap, and route middleware aligned on the same public-route contract and prevents the 401 → redirect → 401 loop that would otherwise occur on public auth pages.
 
 ### ensureVerifiedEmail Middleware
 
