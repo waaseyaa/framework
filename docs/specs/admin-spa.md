@@ -173,8 +173,8 @@ This plugin is the source of truth for `$admin` injection and for composables th
   - Admin SPA runtime must initialize and hydrate shared auth state using the authoritative session bootstrap keys. These keys must remain stable and consistent across runtime, composables, and components.
 - Tests assert this hydration behavior in `packages/admin/tests/unit/plugins/admin.test.ts`.
 - Degraded bootstrap coverage also asserts:
-  - public auth routes return `admin: null` without fetching the surface API
-  - 401 session bootstrap and missing catalog bootstrap return `admin: null` and mark auth as checked
+  - client-side public auth routes return `admin: null` without fetching the surface API
+  - 401 session bootstrap and missing catalog bootstrap return `admin: null`, clear the shared user, and mark auth as checked
   - unreachable surface API bootstrap fails with a fatal 503 error
 
 ### useLanguage (`packages/admin/app/composables/useLanguage.ts`)

@@ -200,8 +200,8 @@
   - Follow-up work on 2026-04-02 added focused degraded-state coverage for:
     - explicit admin-runtime invariant failures in `useAdmin()`, `useEntity()`, and `useSchema()`
     - empty-catalog rendering in `NavBuilder`
-    - public-auth-route bootstrap skip in the admin plugin
-    - 401 session bootstrap fallback, missing catalog bootstrap fallback, and unreachable surface API handling in the admin plugin
+    - client-side public-auth-route bootstrap skip in the admin plugin
+    - 401 session bootstrap state fallback, missing catalog bootstrap state fallback, and unreachable surface API handling in the admin plugin
   - The original F9 gap is closed for the audited surfaces.
 
 ### F10 — admin bootstrap test fixtures encode broad default capabilities that may mask navigation and action assumptions
