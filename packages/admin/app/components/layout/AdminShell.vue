@@ -25,7 +25,7 @@ function onLocaleChange(event: Event) {
 
 <template>
   <div class="admin-shell">
-    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <a href="#main-content" class="skip-link">{{ t('skip_to_main_content') }}</a>
     <header class="topbar" role="banner">
       <button class="topbar-toggle" :aria-label="t('toggle_menu')" @click="toggleSidebar">
         <span class="topbar-toggle-icon">&#9776;</span>

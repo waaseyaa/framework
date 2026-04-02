@@ -47,7 +47,7 @@ describe('VerificationBanner', () => {
     mockCurrentUser.value = { id: 1, emailVerified: false }
     const wrapper = await mountSuspended(VerificationBanner)
     expect(wrapper.find('.verification-banner').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Please verify your email address')
+    expect(wrapper.text()).toContain('Please verify your email address.')
   })
 
   it('dismisses when close button is clicked', async () => {
@@ -80,7 +80,7 @@ describe('VerificationBanner', () => {
     const wrapper = await mountSuspended(VerificationBanner)
     await wrapper.find('.banner-resend').trigger('click')
     await flushPromises()
-    expect(wrapper.text()).toContain('Email sent')
+    expect(wrapper.text()).toContain('Email sent — check your inbox.')
   })
 
   it('shows error message on resend failure', async () => {

@@ -1,5 +1,6 @@
 import { SessionAuthAdapter } from '../adapters/SessionAuthAdapter'
 import { AdminSurfaceTransportAdapter } from '../adapters/AdminSurfaceTransportAdapter'
+import { isPublicAuthPath } from '../runtime/publicAuthPaths'
 import type { AdminRuntime, AdminAuthConfig } from '../contracts/runtime'
 import type { CatalogEntry } from '../contracts/catalog'
 import type {
@@ -12,18 +13,25 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
   const config = useRuntimeConfig()
   const baseUrl = (config.public.baseUrl as string) || ''
   const surfacePath = `${baseUrl}/_surface`
+  const currentUser = useState<SurfaceSession['account'] | null>('waaseyaa.auth.user', () => null)
+  const authChecked = useState<boolean>('waaseyaa.auth.checked', () => false)
+
+  function syncAuthState(account: SurfaceSession['account'] | null, checked: boolean) {
+    currentUser.value = account
+    authChecked.value = checked
+  }
 
   // ── Skip auth check on public auth pages (prevents redirect loop) ─────
-  const publicAuthPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email']
   if (import.meta.client) {
-    const path = window.location.pathname.replace(/\/+$/, '')
-    if (publicAuthPaths.some(p => path.endsWith(p))) {
+    if (isPublicAuthPath(window.location.pathname, baseUrl)) {
+      syncAuthState(null, false)
       return { provide: { admin: null } }
     }
   }
   if (import.meta.server) {
     const route = useRoute()
-    if (publicAuthPaths.includes(route.path)) {
+    if (isPublicAuthPath(route.path, baseUrl)) {
+      syncAuthState(null, false)
       return { provide: { admin: null } }
     }
   }
@@ -52,6 +60,7 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
         surfaceCatalog = catalogRes.data.entities
       }
     } else if (sessionRes && !sessionRes.ok && sessionRes.error?.status === 401) {
+      syncAuthState(null, true)
       await navigateTo('/login', { replace: true })
       return { provide: { admin: null } }
     }
@@ -66,22 +75,34 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
   }
 
   if (!surfaceSession || !surfaceCatalog) {
+    syncAuthState(null, true)
     await navigateTo('/login', { replace: true })
     return { provide: { admin: null } }
   }
 
   // ── Build runtime from surface response ──────────────────────────
 
-  const catalog: CatalogEntry[] = surfaceCatalog.map(entry => ({
-    id: entry.id,
-    label: entry.label,
-    description: entry.description,
-    group: entry.group,
-    disabled: entry.disabled,
-    fields: entry.fields,
-    actions: entry.actions,
-    capabilities: entry.capabilities,
-  }))
+  const catalog: CatalogEntry[] = surfaceCatalog.map((entry) => {
+    const description = 'description' in entry && typeof entry.description === 'string'
+      ? entry.description
+      : undefined
+    const disabled = 'disabled' in entry && typeof entry.disabled === 'boolean'
+      ? entry.disabled
+      : undefined
+
+    return {
+      id: entry.id,
+      label: entry.label,
+      group: entry.group,
+      fields: entry.fields,
+      actions: entry.actions,
+      capabilities: entry.capabilities,
+      ...(description !== undefined ? { description } : {}),
+      ...(disabled !== undefined ? { disabled } : {}),
+    }
+  })
+
+  syncAuthState(surfaceSession.account, true)
 
   const account = surfaceSession.account
   const tenant = { ...surfaceSession.tenant, scopingStrategy: 'server' as const }

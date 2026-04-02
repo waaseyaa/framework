@@ -2,6 +2,7 @@
 import { useSchema } from '~/composables/useSchema'
 import { useEntity } from '~/composables/useEntity'
 import { useLanguage } from '~/composables/useLanguage'
+import { schemaFormContextKey } from './schemaFormContext'
 
 const props = defineProps<{
   entityType: string
@@ -22,8 +23,10 @@ const saving = ref(false)
 const loadError = ref<string | null>(null)
 const isEditMode = computed(() => !!props.entityId)
 
-provide('schemaFormData', formData)
-provide('schemaFormEditMode', isEditMode)
+provide(schemaFormContextKey, {
+  formData,
+  isEditMode,
+})
 
 // Load schema, then optionally load existing entity if schema succeeded.
 onMounted(async () => {
@@ -35,7 +38,7 @@ onMounted(async () => {
       const resource = await get(props.entityType, props.entityId)
       formData.value = { ...resource.attributes }
     } catch (e: any) {
-      loadError.value = e.data?.errors?.[0]?.detail ?? e.message ?? 'Failed to load entity'
+      loadError.value = e.data?.errors?.[0]?.detail ?? e.message ?? t('error_loading_entity')
     }
   } else if (schema.value) {
     // Create mode: initialize from schema defaults.
@@ -61,7 +64,7 @@ async function onSubmit() {
       : await create(props.entityType, formData.value)
     emit('saved', resource)
   } catch (e: any) {
-    const msg = e.data?.errors?.[0]?.detail ?? e.message ?? 'Save failed'
+    const msg = e.data?.errors?.[0]?.detail ?? e.message ?? t('error_saving_entity')
     emit('error', msg)
   } finally {
     saving.value = false

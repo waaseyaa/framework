@@ -1,6 +1,6 @@
 import { ref, type Ref } from 'vue'
-import type { AdminRuntime } from '../contracts/runtime'
 import type { SchemaProperty, EntitySchema } from '../contracts/schema'
+import { requireAdminRuntime } from './useAdminRuntime'
 
 export type { SchemaProperty, EntitySchema }
 
@@ -21,8 +21,7 @@ export function useSchema(entityType: string) {
     error.value = null
 
     try {
-      const { $admin } = useNuxtApp() as unknown as { $admin: AdminRuntime }
-      schema.value = await $admin.transport.schema(entityType)
+      schema.value = await requireAdminRuntime().transport.schema(entityType)
       schemaCache.set(entityType, schema.value)
     } catch (e: any) {
       error.value = e.detail ?? e.message ?? 'Failed to load schema'

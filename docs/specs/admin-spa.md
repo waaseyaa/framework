@@ -145,12 +145,33 @@ The root Nuxt plugin is the authoritative bootstrap for `$admin`. On non-public 
 1. Reads `runtimeConfig.public.baseUrl` (default `/admin`) and derives a `surfacePath` such as `/admin/_surface`.
 2. Fetches `SurfaceResult<AdminSurfaceSession>` from `${surfacePath}/session`.
 3. Fetches `SurfaceResult<{ entities: AdminSurfaceCatalogEntry[] }>` from `${surfacePath}/catalog` after a successful session.
-4. Builds `AdminRuntime` from `SessionAuthAdapter`, `AdminSurfaceTransportAdapter`, the resolved account/tenant, and catalog entries re-exported from `packages/admin-surface/contract/types.ts`.
-5. Returns `{ provide: { admin: runtime } }`, or `{ provide: { admin: null } }` for public auth pages and unauthenticated redirects.
+4. Hydrates the shared auth-state keys `waaseyaa.auth.user` and `waaseyaa.auth.checked` from the authoritative session bootstrap before returning the runtime.
+5. Builds `AdminRuntime` from `SessionAuthAdapter`, `AdminSurfaceTransportAdapter`, the resolved account/tenant, and a local admin runtime catalog contract derived from the surface bootstrap payload.
+6. Returns `{ provide: { admin: runtime } }`, or `{ provide: { admin: null } }` for public auth pages and unauthenticated redirects.
 
 This plugin is the source of truth for `$admin` injection and for composables that call `useAdmin()`.
 
-`runtime.catalog` preserves each `AdminSurfaceCatalogEntry` field and action declaration and carries admin-facing metadata used by the SPA (`description`, `disabled`, optional legacy `keys`). Components that need action-aware UI state must derive it from the injected catalog rather than by issuing mount-time transport requests to discover whether an action exists. For contract builds, the admin package maintains a local TypeScript mirror of the admin-surface payload shape under `app/contracts/` so generated declarations do not import files from outside `packages/admin/app`.
+`runtime.catalog` preserves each `AdminSurfaceCatalogEntry` field and action declaration and carries the admin-facing metadata used by the SPA (`description`, `disabled`). Components that need action-aware UI state must derive it from the injected catalog rather than by issuing mount-time transport requests to discover whether an action exists. For contract builds, the admin package maintains a local TypeScript mirror of the admin-surface payload shape under `app/contracts/` so generated declarations do not import files from outside `packages/admin/app`.
+
+#### Admin Runtime Availability Contract
+
+- Admin composables that depend on `$admin` (`useAdmin()`, `useEntity()`, and `useSchema()`) require a bootstrapped admin runtime.
+- They must fail with one explicit invariant error when `$admin` is unavailable instead of relying on implicit cast failures or null dereferences.
+- Runtime absence is therefore a governed bootstrap violation, not an undefined composable state.
+- Focused unit tests assert this contract in `packages/admin/tests/unit/composables/useAdminRuntime.test.ts`.
+
+#### Shared Auth-State Hydration Contract
+
+- Shared auth state uses the stable keys:
+  - `waaseyaa.auth.user`
+  - `waaseyaa.auth.checked`
+- The admin plugin must hydrate these keys from the server-side `/admin/_surface/session` bootstrap.
+- Hydration must occur before composables or components consume shared auth state.
+- Public auth routes clear these keys to `null` / `false` and skip runtime bootstrap.
+- Redirecting unauthenticated flows clear the user value and mark the auth check as completed for the current bootstrap attempt.
+- Invariant:
+  - Admin SPA runtime must initialize and hydrate shared auth state using the authoritative session bootstrap keys. These keys must remain stable and consistent across runtime, composables, and components.
+- Tests assert this hydration behavior in `packages/admin/tests/unit/plugins/admin.test.ts`.
 
 ### useLanguage (`packages/admin/app/composables/useLanguage.ts`)
 
@@ -184,10 +205,14 @@ interface BroadcastMessage {
 
 - Endpoint: `GET /api/broadcast?channels={comma-separated}` (SSE)
 - Default channel: `['admin']`
+- Runtime constants:
+  - `REALTIME_ENDPOINT_PATH = '/api/broadcast'`
+  - `DEFAULT_REALTIME_CHANNELS = ['admin']`
 - Auto-connects on instantiation; auto-disconnects on `onUnmounted`
 - Exponential backoff reconnect: delay = `min(3000 * 2^(retryCount-1), 30000)`, max 10 retries
 - Message buffer: last 100 messages (ring buffer via `slice(-99)`)
 - Event types: `entity.saved`, `entity.deleted` (used by SchemaList for auto-refresh)
+- Invariant: the SPA realtime client targets the canonical backend broadcast SSE endpoint and default admin channel; this contract is asserted in unit tests.
 
 ## Schema-Driven Forms
 
@@ -390,6 +415,27 @@ Error handling uses `TransportError` from `~/contracts/transport` to distinguish
 - The pipeline link for an entity type is visible only when that catalog entry declares an action with `id === 'board-config'`.
 - Pipeline visibility is deterministic and must remain a pure function of `runtime.catalog`.
 - Navigation components must not call `runAction(type, 'board-config')` or rely on request failures to infer whether pipeline navigation should be shown.
+- User-facing navigation labels in `AdminShell` and `NavBuilder` route through `useLanguage()`, including the skip link and pipeline suffix.
+
+## SchemaForm / MachineNameInput Contract
+
+`packages/admin/app/components/schema/SchemaForm.vue` is the sole provider of machine-name widget coordination context.
+
+- `SchemaForm` provides a typed `SchemaFormContext` using the `schemaFormContextKey` injection key from `packages/admin/app/components/schema/schemaFormContext.ts`.
+- The context contains:
+  - `formData`
+  - `isEditMode`
+- `packages/admin/app/components/widgets/MachineNameInput.vue` requires this provider context and throws immediately when mounted outside `SchemaForm`.
+- `MachineNameInput` also requires `schema['x-source-field']` and throws immediately when that schema extension is missing.
+- Edit-mode locking is deterministic:
+  - locked when `isEditMode` is true
+  - locked when the widget `disabled` prop is true
+- Auto-generation is deterministic and derived from the declared `x-source-field` value in provided `formData`.
+- The widget must not degrade silently in production or rely on dev-only warnings for missing context.
+- Focused tests assert this contract in:
+  - `packages/admin/tests/components/widgets/MachineNameInput.test.ts`
+  - `packages/admin/tests/components/schema/SchemaForm.test.ts`
+  - `packages/admin/tests/components/schema/SchemaField.test.ts`
 
 ## Routing
 
@@ -431,7 +477,14 @@ The admin plugin fetches `{baseUrl}/_surface/session` (default: `/admin/_surface
 const publicAuthPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email']
 ```
 
-The plugin checks `window.location.pathname` (not `useRoute()` — unreliable in async plugin context) and skips the session fetch for matching paths. This prevents the 401 → redirect → 401 loop that would otherwise occur on public auth pages.
+The plugin and global auth middleware both use the shared runtime normalizer in `packages/admin/app/runtime/publicAuthPaths.ts` to evaluate public auth paths.
+
+Normalization rules:
+- trailing slashes are removed before matching;
+- admin subpath prefixes (for example `/admin/login`) are reduced to canonical route paths (`/login`);
+- the governed public auth set remains `/login`, `/register`, `/forgot-password`, `/reset-password`, `/verify-email`.
+
+This keeps client bootstrap, server bootstrap, and route middleware aligned on the same public-route contract and prevents the 401 → redirect → 401 loop that would otherwise occur on public auth pages.
 
 ### ensureVerifiedEmail Middleware
 
@@ -453,6 +506,7 @@ Rendered inside `AdminShell` when `auth.require_verified_email` is false and the
 - Persistent but dismissible. Dismissal stored in `localStorage` keyed by user ID to prevent cross-account leakage on shared machines.
 - Inline "Resend verification" button; reflects `Retry-After` header for cooldown display.
 - Disappears reactively when `useAuth().currentUser.email_verified` becomes true.
+- User-facing banner text, resend state text, and dismiss `aria-label` route through `useLanguage()`.
 
 ### Runtime Config Additions
 
@@ -476,6 +530,12 @@ resendVerification(): Promise<void>
 ```
 
 All methods use `$fetch` with `credentials: 'include'` targeting `/api/auth/*` (proxied to PHP backend).
+
+`useAuth()` shares state through the same stable keys hydrated by the admin plugin:
+- `waaseyaa.auth.user`
+- `waaseyaa.auth.checked`
+
+That means `useAuth()` does not establish an independent session source of truth. It consumes and updates the shared bootstrap state established by `packages/admin/app/plugins/admin.ts`.
 
 ### Routing — Updated Table
 
@@ -545,6 +605,7 @@ Test files live in `packages/admin/tests/`:
 - `tests/components/auth/VerificationBanner.spec.ts` — visibility, dismiss, localStorage persistence, resend
 - `tests/composables/useAuth.spec.ts` — auth composable state and methods
 - `tests/unit/composables/useAuth.test.ts` — auth composable unit tests
+- `tests/unit/plugins/admin.test.ts` — runtime bootstrap shape and shared auth-state hydration invariant
 
 Pattern: `mountSuspended()` from `@nuxt/test-utils/runtime` for component mounting. Props via `props: {}`, emits via `wrapper.emitted()`.
 
