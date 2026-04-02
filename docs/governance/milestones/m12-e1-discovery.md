@@ -204,7 +204,7 @@
     - 401 session bootstrap state fallback, missing catalog bootstrap state fallback, and unreachable surface API handling in the admin plugin
   - The original F9 gap is closed for the audited surfaces.
 
-### F10 — admin bootstrap test fixtures encode broad default capabilities that may mask navigation and action assumptions
+### F10 — capability fixtures were narrowed and the audited gaps are now closed
 - Classification: `test-gap`
 - Surfaces:
   - `packages/admin/tests/setup.ts`
@@ -212,9 +212,14 @@
   - `packages/admin/tests/components/layout/NavBuilder.test.ts`
   - `packages/admin/tests/pages/dashboard.test.ts`
 - Observation:
-  - Shared fixtures give most catalog entries a wide-open capability set and a uniform successful bootstrap.
-  - That keeps tests stable, but it also reduces pressure on capability-specific branches and empty/partial catalog behaviors.
-  - As a result, some admin surface assumptions are validated indirectly rather than explicitly.
+  - Follow-up work on 2026-04-02 replaced shared wide-open capability defaults with explicit per-entity capability fixtures.
+  - `NavBuilder` now uses capability-minimal test fixtures because navigation grouping and pipeline visibility are not capability-driven.
+  - `Dashboard` onboarding coverage now asserts the audited capability branches explicitly:
+    - `/node_type/create` when `node_type` is creatable
+    - fallback to the first create-capable entity type when it is not
+    - fallback to `/` when `note` is absent
+    - first-listable probe behavior when `node_type` is absent
+  - The original F10 masking gap is closed for the audited surfaces.
 
 ## Discovery Classification Summary
 
@@ -225,7 +230,6 @@
 - `component-invariant`
   - F5, F6, F7
 - `test-gap`
-  - F10
 - `spec-clarification`
   - F1
 

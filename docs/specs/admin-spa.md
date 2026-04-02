@@ -613,7 +613,8 @@ Test files live in `packages/admin/tests/`:
 - `tests/unit/composables/useAdmin.test.ts` — runtime-backed admin catalog access and missing-runtime invariant
 - `tests/unit/composables/useEntity.test.ts` — transport delegation and missing-runtime invariant
 - `tests/unit/composables/useSchema.test.ts` — schema caching/error handling and missing-runtime invariant
-- `tests/components/layout/NavBuilder.test.ts` — deterministic navigation rendering for empty and action-aware catalogs
+- `tests/components/layout/NavBuilder.test.ts` — deterministic navigation rendering for empty and action-aware catalogs using capability-minimal fixtures
+- `tests/pages/dashboard.test.ts` — onboarding prompt capability fallbacks (`node_type` create path, first create-capable fallback, root fallback when note is absent, first-listable probe when `node_type` is absent)
 
 Pattern: `mountSuspended()` from `@nuxt/test-utils/runtime` for component mounting. Props via `props: {}`, emits via `wrapper.emitted()`.
 

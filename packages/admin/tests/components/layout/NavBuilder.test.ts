@@ -24,7 +24,7 @@ vi.mock('~/composables/useEntity', () => ({
   }),
 }))
 
-const defaultCaps = { list: true, get: true, create: true, update: true, delete: true, schema: true }
+const defaultCaps = { list: false, get: false, create: false, update: false, delete: false, schema: false }
 
 function entry(overrides: Partial<CatalogEntry> & Pick<CatalogEntry, 'id' | 'label'>): CatalogEntry {
   const { id, label, ...rest } = overrides
