@@ -188,7 +188,7 @@
   - `useRealtime()` targets the canonical `/api/broadcast` SSE endpoint, `SchemaList` conditionally consumes it behind `enableRealtime`, and unit tests assert the canonical endpoint plus the default `admin` channel.
   - No implementation change was required for F8; the finding is closed as a stale discovery observation.
 
-### F9 — tests are strong on happy paths and narrower on degraded runtime states
+### F9 — degraded runtime-state coverage was backfilled and is now closed
 - Classification: `test-gap`
 - Surfaces:
   - `packages/admin/tests/unit/plugins/admin.test.ts`
@@ -197,9 +197,12 @@
   - `packages/admin/tests/unit/composables/useSchema.test.ts`
   - `packages/admin/tests/components/layout/NavBuilder.test.ts`
 - Observation:
-  - Current coverage strongly exercises the recovered happy path introduced by C17.
-  - Coverage is thinner around missing runtime injection, catalog fetch failure, surface bootstrap 401/503 branches, public-route normalization, and pipeline-discovery failure semantics.
-  - The most brittle parts of the runtime contract are therefore the least directly asserted.
+  - Follow-up work on 2026-04-02 added focused degraded-state coverage for:
+    - explicit admin-runtime invariant failures in `useAdmin()`, `useEntity()`, and `useSchema()`
+    - empty-catalog rendering in `NavBuilder`
+    - public-auth-route bootstrap skip in the admin plugin
+    - 401 session bootstrap fallback, missing catalog bootstrap fallback, and unreachable surface API handling in the admin plugin
+  - The original F9 gap is closed for the audited surfaces.
 
 ### F10 — admin bootstrap test fixtures encode broad default capabilities that may mask navigation and action assumptions
 - Classification: `test-gap`
@@ -222,7 +225,7 @@
 - `component-invariant`
   - F5, F6, F7
 - `test-gap`
-  - F9, F10
+  - F10
 - `spec-clarification`
   - F1
 

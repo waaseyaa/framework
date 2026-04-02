@@ -4,6 +4,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { registerEndpoint } from '@nuxt/test-utils/runtime'
 import { useEntity } from '~/composables/useEntity'
+import { ADMIN_RUNTIME_UNAVAILABLE_MESSAGE } from '~/composables/useAdminRuntime'
 
 describe('useEntity (adapter-backed)', () => {
   it('list delegates to transport and returns result', async () => {
@@ -50,5 +51,18 @@ describe('useEntity (adapter-backed)', () => {
     const { search } = useEntity()
     const result = await search('user', 'name', 'j')
     expect(result).toEqual([])
+  })
+
+  it('throws an explicit invariant error when admin runtime is unavailable', async () => {
+    vi.resetModules()
+    vi.doMock('~/composables/useAdminRuntime', () => ({
+      ADMIN_RUNTIME_UNAVAILABLE_MESSAGE,
+      requireAdminRuntime: () => {
+        throw new Error(ADMIN_RUNTIME_UNAVAILABLE_MESSAGE)
+      },
+    }))
+
+    const { useEntity } = await import('~/composables/useEntity')
+    expect(() => useEntity()).toThrowError(ADMIN_RUNTIME_UNAVAILABLE_MESSAGE)
   })
 })
