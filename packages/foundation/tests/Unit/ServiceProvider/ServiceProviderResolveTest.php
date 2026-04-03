@@ -112,4 +112,36 @@ final class ServiceProviderResolveTest extends TestCase
         $service = $provider->resolvePublic('test.service');
         $this->assertInstanceOf(\stdClass::class, $service);
     }
+
+    #[Test]
+    public function resolve_falls_back_to_kernel_resolver_for_unbound_service(): void
+    {
+        $kernelService = new \stdClass();
+        $kernelService->origin = 'kernel';
+
+        $provider = new class extends ServiceProvider {
+            public function register(): void {}
+        };
+        $provider->register();
+        $provider->setKernelResolver(function (string $className) use ($kernelService): ?object {
+            return $className === \stdClass::class ? $kernelService : null;
+        });
+
+        $resolved = $provider->resolve(\stdClass::class);
+        $this->assertSame($kernelService, $resolved);
+    }
+
+    #[Test]
+    public function resolve_throws_when_kernel_resolver_also_returns_null(): void
+    {
+        $provider = new class extends ServiceProvider {
+            public function register(): void {}
+        };
+        $provider->register();
+        $provider->setKernelResolver(fn(string $className): ?object => null);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('No binding registered for');
+        $provider->resolve('Nonexistent\\Service');
+    }
 }
