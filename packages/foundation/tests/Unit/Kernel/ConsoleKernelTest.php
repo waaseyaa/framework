@@ -131,7 +131,7 @@ final class ConsoleKernelTest extends TestCase
     }
 
     #[Test]
-    public function handle_fails_fast_for_non_recovery_commands_when_cached_manifest_is_stale(): void
+    public function handle_auto_recovers_from_stale_manifest_and_boots_successfully(): void
     {
         mkdir($this->projectRoot . '/storage/framework', 0755, true);
         $this->writeStaleManifestCache();
@@ -141,7 +141,8 @@ final class ConsoleKernelTest extends TestCase
         $kernel = new ConsoleKernel($this->projectRoot);
         $exitCode = $kernel->handle();
 
-        $this->assertSame(1, $exitCode);
+        // Stale manifest auto-recovers: recompiles and boots instead of failing
+        $this->assertSame(0, $exitCode);
     }
 
     private function writeStaleManifestCache(): void

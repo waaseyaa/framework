@@ -4,7 +4,6 @@ namespace Waaseyaa\Foundation\Tests\Unit\Discovery;
 
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
-use Waaseyaa\Foundation\Discovery\StaleManifestException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -276,9 +275,8 @@ final class PackageManifestCompilerTest extends TestCase
     }
 
     #[Test]
-    public function load_throws_stale_manifest_exception_when_cached_provider_class_is_missing(): void
+    public function load_auto_recovers_when_cached_provider_class_is_missing(): void
     {
-        // No _manifest_inputs_fp: legacy cache must not auto-recompile before validation (StaleManifestException).
         $storagePath = $this->tempDir . '/storage';
         mkdir($storagePath . '/framework', 0o755, true);
 
@@ -301,10 +299,10 @@ final class PackageManifestCompilerTest extends TestCase
 
         $compiler = new PackageManifestCompiler($this->tempDir, $storagePath);
 
-        $this->expectException(StaleManifestException::class);
-        $this->expectExceptionMessage('App\\Provider\\MissingProvider');
+        // Auto-recovery: stale cache is discarded, fresh manifest compiled (no missing provider)
+        $manifest = $compiler->load();
 
-        $compiler->load();
+        $this->assertNotContains('App\\Provider\\MissingProvider', $manifest->providers);
     }
 
     #[Test]
