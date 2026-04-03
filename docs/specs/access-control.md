@@ -1,6 +1,6 @@
 # Access Control
 
-<!-- Spec reviewed 2026-04-03 - trusted proxy guard added to NativeSession and SessionMiddleware (#769) -->
+<!-- Spec reviewed 2026-04-03 - trusted proxy guard: case-insensitive header, empty REMOTE_ADDR guard (#769) -->
 
 Waaseyaa's access control system spans three packages: `packages/access/` (core primitives), `packages/routing/` (route-level checks), and `packages/user/` (session resolution, password reset). This document covers entity-level and route-level access. For field-level access, see `docs/specs/field-access.md`.
 
@@ -405,7 +405,7 @@ Behavior:
 5. Calls `$next->handle($request)`.
 6. Creates `NativeSession` with `$trustedProxies` so session cookie secure flag respects proxy trust.
 
-**Trusted proxy guard:** Both `NativeSession::isSecureConnection()` and `SessionMiddleware::isHttpsRequest()` only trust `X-Forwarded-Proto` when `REMOTE_ADDR` matches a configured trusted proxy IP. Without trusted proxies configured, the header is ignored. Configure via `'trusted_proxies' => ['127.0.0.1']` in `config/waaseyaa.php`.
+**Trusted proxy guard:** Both `NativeSession::isSecureConnection()` and `SessionMiddleware::isHttpsRequest()` only trust `X-Forwarded-Proto` when `REMOTE_ADDR` matches a configured trusted proxy IP. The header comparison is case-insensitive (`HTTPS`, `Https`, `https` all match). Both methods return `false` early when `REMOTE_ADDR` is empty or missing, preventing accidental matches against empty-string entries in the trusted list. Without trusted proxies configured, the header is ignored. Only exact IP addresses are supported (no CIDR notation). Configure via `'trusted_proxies' => ['127.0.0.1']` in `config/waaseyaa.php`.
 
 Does not handle login/logout. Only resolves "who is making this request."
 
