@@ -31,44 +31,10 @@ jobs:
             framework/skeleton/ skeleton/
 
       - name: Update skeleton composer.json packages
-        env:
-          TAG_NAME: ${{ github.ref_name }}
         run: |
-          cd framework
-
-          # Collect all package names from packages/*/composer.json
-          PACKAGES=""
-          for pkg in packages/*/composer.json; do
-            NAME=$(python3 -c "import json; print(json.load(open('$pkg'))['name'])")
-            PACKAGES="$PACKAGES $NAME"
-          done
-
-          cd ../skeleton
-
-          # Build the require block dynamically
-          python3 -c "
-          import json, sys
-
-          packages = '${PACKAGES}'.strip().split()
-          with open('composer.json', 'r') as f:
-              data = json.load(f)
-
-          # Preserve php constraint and non-waaseyaa deps
-          new_require = {}
-          for key, val in data.get('require', {}).items():
-              if not key.startswith('waaseyaa/'):
-                  new_require[key] = val
-
-          # Add all framework packages with ^major.minor from tag
-          for pkg in sorted(packages):
-              new_require[pkg] = '^0.1'
-
-          data['require'] = dict(sorted(new_require.items()))
-
-          with open('composer.json', 'w') as f:
-              json.dump(data, f, indent=4)
-              f.write('\n')
-          "
+          php framework/tools/sync-skeleton-requirements.php \
+            framework/skeleton/composer.json \
+            skeleton/composer.json
 
       - name: Commit, tag, and push if changed
         env:

@@ -1,6 +1,6 @@
 # Infrastructure
 
-<!-- Spec reviewed 2026-04-01 - post-M10 package declarations, FoundationServiceProvider registration, provider-owned routes and CLI graph, C18 drift remediation (#1017) -->
+<!-- Spec reviewed 2026-04-02 - post-M10 package declarations, FoundationServiceProvider registration, provider-owned routes and CLI graph, C18 drift remediation (#1017), and production SQLite bootstrap guard follow-up (#748) -->
 
 Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, migration system, kernel bootstrapping (including environment resolution and debug mode), service provider discovery, and queue workers.
 
