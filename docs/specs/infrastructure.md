@@ -920,12 +920,6 @@ CORS origin resolution in `HttpKernel::handleCors()`:
 - Application is in development mode (`config.environment` or `APP_ENV` is dev/development/local)
 - `config.auth.dev_fallback_account` is explicitly `true`
 
-### ResponseSender
-
-File: `packages/foundation/src/Http/ResponseSender.php`
-
-Sends Symfony `Response` objects to the client. Handles header output and body streaming.
-
 ## Operator Diagnostics
 
 ### DiagnosticCode
@@ -1289,7 +1283,6 @@ Asset/
 Http/
     ControllerDispatcher.php     -- routes controller names to handlers
     CorsHandler.php              -- CORS preflight and header resolution
-    ResponseSender.php           -- sends Symfony Response to client
 Diagnostic/
     DiagnosticCode.php           -- string-backed enum of operator error codes
     DiagnosticEntry.php          -- structured diagnostic log entry

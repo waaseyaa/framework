@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Http;
 
 use Symfony\Component\HttpFoundation\File\UploadedFile;
-use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Waaseyaa\Access\AccountInterface;
@@ -139,7 +139,7 @@ final class ControllerDispatcher
             if (is_array($result)) {
                 return $this->jsonApiResponse($result['statusCode'] ?? 200, $result['body'] ?? $result);
             }
-            return $this->jsonApiResponse(200, $result);
+            return $this->jsonApiResponse(200, ['data' => $result]);
         }
 
         try {

@@ -160,18 +160,19 @@ A middleware can short-circuit by returning a response without calling `$next->h
 
 ## HTTP Pipeline Chain
 
-The production HTTP pipeline in `public/index.php` wires two middleware in this order:
+The production HTTP pipeline in `HttpKernel::serveHttpRequest()` wires middleware in priority order:
 
 ```
 SessionMiddleware -> AuthorizationMiddleware -> final handler
 ```
 
-### Wiring code (from public/index.php)
+### Wiring code (from HttpKernel::serveHttpRequest())
 
 ```php
-$pipeline = (new HttpPipeline())
-    ->withMiddleware(new SessionMiddleware($userStorage))
-    ->withMiddleware(new AuthorizationMiddleware($accessChecker));
+$pipeline = new HttpPipeline();
+foreach ($middlewares as $middleware) {
+    $pipeline = $pipeline->withMiddleware($middleware);
+}
 
 $authResponse = $pipeline->handle(
     $httpRequest,
@@ -181,6 +182,14 @@ $authResponse = $pipeline->handle(
         }
     },
 );
+```
+
+`public/index.php` is now a thin entry point that boots the kernel and sends the returned response:
+
+```php
+$kernel = new HttpKernel(dirname(__DIR__));
+$response = $kernel->handle();
+$response->send();
 ```
 
 ### SessionMiddleware
@@ -218,7 +227,7 @@ This middleware can short-circuit with a 403 response.
 
 ### Pre-pipeline steps in `HttpKernel`
 
-CORS handling and route matching happen **before** the pipeline runs (inside `HttpKernel`, not in `public/index.php`). The matched `Route` object is set on `$request->attributes->set('_route_object', $matchedRoute)` before the pipeline starts. This is required because `AuthorizationMiddleware` reads it from the request.
+CORS handling and route matching happen **before** the pipeline runs (inside `HttpKernel::serveHttpRequest()`). The matched `Route` object is set on `$request->attributes->set('_route_object', $matchedRoute)` before the pipeline starts. This is required because `AuthorizationMiddleware` reads it from the request.
 
 ## Middleware Discovery
 
@@ -378,7 +387,8 @@ All HTTP middleware implement `HttpMiddlewareInterface` and use `#[AsMiddleware(
 
 | File | Role |
 |------|------|
-| `public/index.php` | Wires CORS, route matching, `HttpPipeline` (Session + Auth), dispatch |
+| `public/index.php` | Thin entry point: boots `HttpKernel`, sends returned `Response` |
+| `HttpKernel::serveHttpRequest()` | Wires CORS, route matching, `HttpPipeline`, dispatch |
 
 ### Tests
 
