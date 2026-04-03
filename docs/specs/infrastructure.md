@@ -1164,8 +1164,6 @@ Middleware/
     HttpPipeline.php             -- onion-pattern HTTP middleware stack
     DebugHeaderMiddleware.php    -- X-Debug-Time/Memory/Request-Id headers (APP_DEBUG only)
     BodySizeLimitMiddleware.php  -- rejects oversized request bodies (413)
-    EventMiddlewareInterface.php -- process(DomainEvent, EventHandlerInterface): void (unused, pending cleanup)
-    EventHandlerInterface.php    -- handle(DomainEvent): void (unused, pending cleanup)
     JobMiddlewareInterface.php   -- process(Job, JobHandlerInterface): void
     JobHandlerInterface.php      -- handle(Job): void
     JobPipeline.php              -- onion-pattern job middleware stack

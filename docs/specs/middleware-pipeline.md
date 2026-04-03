@@ -1,6 +1,6 @@
 # Middleware Pipeline
 
-Waaseyaa implements typed middleware pipelines for three execution contexts: HTTP requests, domain events, and background jobs. Each pipeline uses the onion pattern with separate, type-safe interface pairs. Middleware is discovered via PHP 8 attributes and compiled into sorted stacks.
+Waaseyaa implements typed middleware pipelines for two execution contexts: HTTP requests and background jobs. Each pipeline uses the onion pattern with separate, type-safe interface pairs. Middleware is discovered via PHP 8 attributes and compiled into sorted stacks.
 
 ## Packages
 
@@ -13,7 +13,7 @@ Waaseyaa implements typed middleware pipelines for three execution contexts: HTT
 
 ## Three Typed Pipeline Interfaces
 
-Each pipeline context has a paired middleware interface and handler interface. They are structurally identical but type-safe to prevent cross-pipeline wiring.
+Each pipeline context has a paired middleware interface and handler interface. They are structurally identical but type-safe to prevent cross-pipeline wiring. (An Event pipeline was planned but never implemented; the interfaces were removed in #1075.)
 
 ### HTTP
 
@@ -36,27 +36,6 @@ interface HttpHandlerInterface {
 - `Request` = `Symfony\Component\HttpFoundation\Request`
 - `Response` = `Symfony\Component\HttpFoundation\Response`
 - Returns a `Response` -- the HTTP pipeline produces a value.
-
-### Event
-
-```
-packages/foundation/src/Middleware/EventMiddlewareInterface.php
-packages/foundation/src/Middleware/EventHandlerInterface.php
-packages/foundation/src/Middleware/EventPipeline.php
-```
-
-```php
-// Namespace: Waaseyaa\Foundation\Middleware
-interface EventMiddlewareInterface {
-    public function process(DomainEvent $event, EventHandlerInterface $next): void;
-}
-interface EventHandlerInterface {
-    public function handle(DomainEvent $event): void;
-}
-```
-
-- `DomainEvent` = `Waaseyaa\Foundation\Event\DomainEvent` (abstract, extends Symfony `Event`)
-- Returns `void` -- event dispatch is side-effect-only.
 
 ### Job
 
@@ -86,14 +65,13 @@ Handler interfaces follow `{Type}HandlerInterface`. Middleware interfaces follow
 | Pipeline | Handler interface | Middleware interface |
 |----------|-------------------|---------------------|
 | HTTP | `HttpHandlerInterface` | `HttpMiddlewareInterface` |
-| Event | `EventHandlerInterface` | `EventMiddlewareInterface` |
 | Job | `JobHandlerInterface` | `JobMiddlewareInterface` |
 
-All six interfaces live in `Waaseyaa\Foundation\Middleware` namespace. The design document references `JobNextHandlerInterface` but the implemented interface is `JobHandlerInterface` -- use the actual name from the codebase.
+All four interfaces live in `Waaseyaa\Foundation\Middleware` namespace. The design document references `JobNextHandlerInterface` but the implemented interface is `JobHandlerInterface` -- use the actual name from the codebase.
 
 ## Onion Pattern
 
-Each pipeline class (`HttpPipeline`, `EventPipeline`, `JobPipeline`) wraps a stack of middleware around a final handler. Execution order is outer-to-inner going in, inner-to-outer coming back.
+Each pipeline class (`HttpPipeline`, `JobPipeline`) wraps a stack of middleware around a final handler. Execution order is outer-to-inner going in, inner-to-outer coming back.
 
 ### How it works
 
@@ -142,7 +120,7 @@ final class HttpPipeline
 Key details:
 - `HttpPipeline` is immutable. `withMiddleware()` returns a new instance.
 - Empty middleware array short-circuits directly to the final handler.
-- `EventPipeline` and `JobPipeline` follow the same pattern but return `void`.
+- `JobPipeline` follows the same pattern but returns `void`.
 
 ### Execution order example
 
@@ -348,8 +326,6 @@ All HTTP middleware implement `HttpMiddlewareInterface` and use `#[AsMiddleware(
 |------|-----------|
 | `HttpMiddlewareInterface.php` | `process(Request, HttpHandlerInterface): Response` |
 | `HttpHandlerInterface.php` | `handle(Request): Response` |
-| `EventMiddlewareInterface.php` | `process(DomainEvent, EventHandlerInterface): void` |
-| `EventHandlerInterface.php` | `handle(DomainEvent): void` |
 | `JobMiddlewareInterface.php` | `process(Job, JobHandlerInterface): void` |
 | `JobHandlerInterface.php` | `handle(Job): void` |
 
@@ -358,7 +334,6 @@ All HTTP middleware implement `HttpMiddlewareInterface` and use `#[AsMiddleware(
 | File | Class |
 |------|-------|
 | `HttpPipeline.php` | `HttpPipeline` -- immutable, `withMiddleware()` returns new instance |
-| `EventPipeline.php` | `EventPipeline` -- same pattern, returns `void` |
 | `JobPipeline.php` | `JobPipeline` -- same pattern, returns `void` |
 
 ### Discovery (packages/foundation/)
