@@ -1,0 +1,10 @@
+.git
+.github
+node_modules
+vendor
+storage/*.sqlite
+tests
+phpunit.xml.dist
+*.md
+.claude
+.cursor
