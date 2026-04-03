@@ -1,6 +1,6 @@
 # Infrastructure
 
-<!-- Spec reviewed 2026-04-03 - DatabaseRateLimiter wired into ControllerDispatcher via HttpKernel (#768) -->
+<!-- Spec reviewed 2026-04-03 - RequestContextProcessor added to LogManager, wired in HttpKernel (#732) -->
 
 Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, migration system, kernel bootstrapping (including environment resolution and debug mode), service provider discovery, and queue workers.
 

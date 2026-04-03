@@ -21,6 +21,8 @@ use Waaseyaa\Cache\CacheConfiguration;
 use Waaseyaa\Cache\CacheFactory;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Http\ControllerDispatcher;
+use Waaseyaa\Foundation\Log\LogManager;
+use Waaseyaa\Foundation\Log\Processor\RequestContextProcessor;
 use Waaseyaa\Foundation\Http\CorsHandler;
 use Waaseyaa\Foundation\Http\ResponseSender;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
@@ -98,10 +100,10 @@ final class HttpKernel extends AbstractKernel
         $queryString = $_SERVER['QUERY_STRING'] ?? '';
 
         // Register request context on the logger so all subsequent log entries carry HTTP context.
-        if ($this->logger instanceof \Waaseyaa\Foundation\Log\LogManager) {
-            $this->logger->addGlobalProcessor(
-                new \Waaseyaa\Foundation\Log\Processor\RequestContextProcessor($method, $path),
-            );
+        // Note: if RequestIdProcessor is also active (via config), it writes request_id independently.
+        // This processor does not pass a request_id to avoid overwriting the config-driven one.
+        if ($this->logger instanceof LogManager) {
+            $this->logger->addGlobalProcessor(new RequestContextProcessor($method, $path));
         }
 
         // Broadcast storage for SSE.
