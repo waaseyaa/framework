@@ -14,8 +14,8 @@ Waaseyaa applications use a three-tier codified context system that enables AI c
 
 | Tier | Location | Scope | Inheritance |
 |------|----------|-------|-------------|
-| **Constitution** | `CLAUDE.md` | App-level architecture, orchestration table, conventions | Skeleton provides template; apps customize |
-| **Rules** | `.claude/rules/*.md` | Silent invariants, always active | Skeleton provides framework rules; apps may add app-specific rules |
+| **Constitution** | `CLAUDE.md` | App-level architecture, orchestration table, conventions | Project skeleton provides template; apps customize |
+| **Rules** | `.claude/rules/*.md` | Silent invariants, always active | Project skeleton provides framework rules; apps may add app-specific rules |
 | **Specs** | `docs/specs/*.md` | Domain contracts per subsystem | Apps create their own; framework specs live in Waaseyaa repo |
 
 ---
@@ -42,7 +42,7 @@ docs/specs/
 └── ... (35+ framework specs)
 ```
 
-#### Waaseyaa Skeleton (`waaseyaa/skeleton`)
+#### Waaseyaa Project Skeleton (`waaseyaa/waaseyaa`)
 
 Inherited by new apps via `composer create-project`:
 
@@ -80,7 +80,7 @@ docs/specs/
 
 ### Framework Rules (inherited via skeleton)
 
-These rules apply universally to all Waaseyaa apps. They are copied into new apps at creation time and rarely modified:
+These rules apply universally to all Waaseyaa apps. They are copied into new apps from the published project skeleton package and rarely modified:
 
 | Rule | Purpose | Modification Frequency |
 |------|---------|----------------------|
@@ -159,9 +159,9 @@ This enables AI assistants to load the right context before modifying code.
 
 | Problem | Solution |
 |---------|----------|
-| Same rule in framework + 5 apps | Skeleton distributes at creation time; apps don't re-sync |
+| Same rule in framework + 5 apps | The published project skeleton distributes it at creation time; apps don't re-sync |
 | Framework spec needed in app context | Skills reference framework specs by name; MCP federation (future) |
-| App rule that should be framework rule | Promote to framework repo + skeleton; update existing apps |
+| App rule that should be framework rule | Promote to the framework repo and published project skeleton; update existing apps |
 | Stale spec after refactor | Convention: update spec in same PR as code change |
 
 ---
@@ -170,7 +170,7 @@ This enables AI assistants to load the right context before modifying code.
 
 When creating a new Waaseyaa application:
 
-1. `composer create-project waaseyaa/skeleton my-app` — inherits rules + CLAUDE.md template
+1. `composer create-project waaseyaa/waaseyaa my-app` — installs the published project skeleton package and inherits the rules + `CLAUDE.md` template
 2. Customize `CLAUDE.md` — add app description, architecture, orchestration table
 3. Add app-specific rules to `.claude/rules/` if needed
 4. Create `docs/specs/` entries for each app domain

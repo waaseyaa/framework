@@ -4,10 +4,12 @@
 **Status:** Approved
 **Milestone:** v0.1 — Framework Identity
 
+> Historical note: This approved design predates the current published package naming. Package and onboarding references below have been normalized to the current `waaseyaa/waaseyaa` project skeleton package for discoverability; the design intent is unchanged.
+
 ## Vision
 
 Waaseyaa becomes a real, installable PHP CMS framework. A developer can run
-`composer create-project waaseyaa/project mysite`, boot the framework, define
+`composer create-project waaseyaa/waaseyaa mysite`, boot the framework, define
 custom entity types, and manage content through the admin SPA and JSON:API.
 
 v0.1 is about framework identity. v0.2 adds public rendering (SSR). v0.3+
@@ -91,7 +93,7 @@ skeleton/
 
 - GitHub Action splits monorepo on tag push
 - Each `packages/*` dir → read-only repo → Packagist package
-- `skeleton/` → `waaseyaa/project` on Packagist
+- `skeleton/` → `waaseyaa/waaseyaa` on Packagist
 - Unified versioning: all packages share the same version tag
 
 ## Scope
@@ -120,7 +122,7 @@ skeleton/
 
 ## Success Criteria
 
-1. `composer create-project waaseyaa/project mysite` works
+1. `composer create-project waaseyaa/waaseyaa mysite` works
 2. `cd mysite && bin/waaseyaa install` creates database and tables
 3. Admin SPA shows all entity types, supports CRUD
 4. JSON:API endpoints return correct responses

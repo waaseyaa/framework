@@ -1,5 +1,7 @@
 # MyClaudia Phase 1 Implementation Plan
 
+> Historical note: This implementation plan predates the current skeleton publishing workflow. Local scaffold references below have been normalized to the current monorepo layout and published package identity for discoverability.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Build MyClaudia Phase 1 — Gmail ingestion → Event/Person/Commitment entities → Day Brief v0 (web UI + CLI read-only).
@@ -27,7 +29,7 @@
 **Step 1: Copy the Waaseyaa skeleton**
 
 ```bash
-cp -r ~/dev/waaseyaa/skeleton ~/dev/myclaudia
+composer create-project waaseyaa/waaseyaa ~/dev/myclaudia --stability=dev
 cd ~/dev/myclaudia
 ```
 

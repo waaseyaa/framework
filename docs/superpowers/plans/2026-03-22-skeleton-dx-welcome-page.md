@@ -1,5 +1,7 @@
 # Skeleton DX & Welcome Page Implementation Plan
 
+> Historical note: This plan was written while the project skeleton lived under a local `skeleton/` directory in the monorepo. The local path references below have been normalized to the current published-package workflow for discoverability; the implementation intent is unchanged.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make `composer create-project waaseyaa/waaseyaa` produce a project that boots cleanly with zero manual setup, and replace the current welcome page with an ultra-minimalistic greeting that cycles through "Ahnii" and greetings from around the world in their native scripts.
@@ -76,7 +78,8 @@ Ensure `.env` is gitignored (should not be committed by users) but `.env.example
 
 ```bash
 rm -rf /home/jones/dev/irc.northcloud.one
-cd /home/jones/dev/waaseyaa/skeleton
+composer create-project waaseyaa/waaseyaa /home/jones/dev/irc.northcloud.one --stability=dev
+cd /home/jones/dev/irc.northcloud.one
 php bin/post-create-setup.php
 # Verify .env was created with a JWT secret
 cat .env
@@ -120,7 +123,8 @@ Implementation uses CSS `@keyframes` with `animation-delay` offsets on stacked `
 - [ ] **Step 2: Start dev server and verify in browser**
 
 ```bash
-cd /home/jones/dev/waaseyaa/skeleton
+composer create-project waaseyaa/waaseyaa /home/jones/dev/waaseyaa-skeleton-preview --stability=dev
+cd /home/jones/dev/waaseyaa-skeleton-preview
 WAASEYAA_DEV_FALLBACK_ACCOUNT=true php -S localhost:8080 -t public
 ```
 
