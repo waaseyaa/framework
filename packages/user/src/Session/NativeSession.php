@@ -16,6 +16,11 @@ use Symfony\Component\HttpFoundation\Session\SessionInterface;
  */
 final class NativeSession implements SessionInterface
 {
+    /** @param list<string> $trustedProxies IP addresses allowed to set X-Forwarded-Proto */
+    public function __construct(
+        private readonly array $trustedProxies = [],
+    ) {}
+
     public function start(): bool
     {
         if (session_status() === PHP_SESSION_ACTIVE) {
@@ -122,7 +127,15 @@ final class NativeSession implements SessionInterface
             return true;
         }
 
-        return isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https';
+        if ($this->trustedProxies === []) {
+            return false;
+        }
+
+        $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '';
+
+        return in_array($remoteAddr, $this->trustedProxies, true)
+            && isset($_SERVER['HTTP_X_FORWARDED_PROTO'])
+            && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https';
     }
 
     public function isStarted(): bool

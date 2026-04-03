@@ -26,12 +26,14 @@ final class SessionMiddleware implements HttpMiddlewareInterface
      * @param AccountInterface|null $devFallback Account returned when no session UID exists. Intended for dev environments only.
      * @param array<string, mixed>|null $sessionCookieOptions Optional session ini overrides before session_start().
      *        Keys: httponly (bool), secure (bool|'auto' — auto uses HTTPS detection), samesite (string), use_strict_mode (bool).
+     * @param list<string> $trustedProxies IP addresses allowed to set X-Forwarded-Proto.
      */
     public function __construct(
         private readonly EntityStorageInterface $userStorage,
         private readonly ?AccountInterface $devFallback = null,
         ?LoggerInterface $logger = null,
         private readonly ?array $sessionCookieOptions = null,
+        private readonly array $trustedProxies = [],
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -47,7 +49,7 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         // $request->getSession(). NativeSession reads/writes $_SESSION
         // directly, preserving compatibility with AuthManager.
         if (!$request->hasSession()) {
-            $request->setSession(new NativeSession());
+            $request->setSession(new NativeSession($this->trustedProxies));
         }
 
         $existingAccount = $request->attributes->get('_account');
@@ -98,9 +100,14 @@ final class SessionMiddleware implements HttpMiddlewareInterface
             return true;
         }
 
-        $forwarded = strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+        if ($this->trustedProxies === []) {
+            return false;
+        }
 
-        return $forwarded === 'https';
+        $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '';
+
+        return in_array($remoteAddr, $this->trustedProxies, true)
+            && strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
     }
 
     private function resolveAccount(Request $request): AccountInterface

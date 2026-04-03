@@ -23,7 +23,7 @@ final class NativeSessionTest extends TestCase
     protected function tearDown(): void
     {
         $_SESSION = [];
-        unset($_SERVER['HTTPS'], $_SERVER['HTTP_X_FORWARDED_PROTO']);
+        unset($_SERVER['HTTPS'], $_SERVER['HTTP_X_FORWARDED_PROTO'], $_SERVER['REMOTE_ADDR']);
     }
 
     #[Test]
@@ -127,19 +127,42 @@ final class NativeSessionTest extends TestCase
     }
 
     #[Test]
-    public function isSecureConnectionReturnsTrueWhenForwardedProtoIsHttps(): void
+    public function isSecureConnectionIgnoresForwardedProtoWithoutTrustedProxies(): void
     {
         unset($_SERVER['HTTPS']);
         $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https';
-        self::assertTrue($this->session->isSecureConnection());
+        $_SERVER['REMOTE_ADDR'] = '10.0.0.1';
+        self::assertFalse($this->session->isSecureConnection());
+    }
+
+    #[Test]
+    public function isSecureConnectionTrustsForwardedProtoFromTrustedProxy(): void
+    {
+        $session = new NativeSession(['10.0.0.1']);
+        unset($_SERVER['HTTPS']);
+        $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https';
+        $_SERVER['REMOTE_ADDR'] = '10.0.0.1';
+        self::assertTrue($session->isSecureConnection());
+    }
+
+    #[Test]
+    public function isSecureConnectionRejectsForwardedProtoFromUntrustedIp(): void
+    {
+        $session = new NativeSession(['10.0.0.1']);
+        unset($_SERVER['HTTPS']);
+        $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https';
+        $_SERVER['REMOTE_ADDR'] = '192.168.1.99';
+        self::assertFalse($session->isSecureConnection());
     }
 
     #[Test]
     public function isSecureConnectionReturnsFalseWhenForwardedProtoIsHttp(): void
     {
+        $session = new NativeSession(['10.0.0.1']);
         unset($_SERVER['HTTPS']);
         $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'http';
-        self::assertFalse($this->session->isSecureConnection());
+        $_SERVER['REMOTE_ADDR'] = '10.0.0.1';
+        self::assertFalse($session->isSecureConnection());
     }
 
     #[Test]

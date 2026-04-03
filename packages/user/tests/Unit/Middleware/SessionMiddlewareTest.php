@@ -406,9 +406,10 @@ final class SessionMiddlewareTest extends TestCase
         try {
             unset($_SERVER['HTTPS']);
             $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https';
+            $_SERVER['REMOTE_ADDR'] = '10.0.0.1';
             $middleware = new SessionMiddleware($storage, null, null, [
                 'secure' => 'auto',
-            ]);
+            ], ['10.0.0.1']);
             $method = new \ReflectionMethod(SessionMiddleware::class, 'applySessionCookieIni');
             $method->setAccessible(true);
             $method->invoke($middleware);
@@ -420,7 +421,7 @@ final class SessionMiddlewareTest extends TestCase
             } else {
                 ini_restore('session.cookie_secure');
             }
-            unset($_SERVER['HTTP_X_FORWARDED_PROTO']);
+            unset($_SERVER['HTTP_X_FORWARDED_PROTO'], $_SERVER['REMOTE_ADDR']);
         }
     }
 }

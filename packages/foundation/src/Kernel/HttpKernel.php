@@ -219,6 +219,7 @@ final class HttpKernel extends AbstractKernel
                 $this->shouldUseDevFallbackAccount() ? new DevAdminAccount() : null,
                 $this->logger,
                 $this->sessionCookieOptions(),
+                is_array($this->config['trusted_proxies'] ?? null) ? $this->config['trusted_proxies'] : [],
             ),
             new CsrfMiddleware(),
             new AuthorizationMiddleware($accessChecker, $errorPageRenderer),

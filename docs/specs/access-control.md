@@ -1,6 +1,6 @@
 # Access Control
 
-<!-- Spec reviewed 2026-04-03 - DatabaseRateLimiter wired as default in AuthServiceProvider and ControllerDispatcher (#768) -->
+<!-- Spec reviewed 2026-04-03 - trusted proxy guard added to NativeSession and SessionMiddleware (#769) -->
 
 Waaseyaa's access control system spans three packages: `packages/access/` (core primitives), `packages/routing/` (route-level checks), and `packages/user/` (session resolution, password reset). This document covers entity-level and route-level access. For field-level access, see `docs/specs/field-access.md`.
 
@@ -387,6 +387,10 @@ final class SessionMiddleware implements HttpMiddlewareInterface
 {
     public function __construct(
         private readonly EntityStorageInterface $userStorage,
+        private readonly ?AccountInterface $devFallback = null,
+        ?LoggerInterface $logger = null,
+        private readonly ?array $sessionCookieOptions = null,
+        private readonly array $trustedProxies = [],
     ) {}
 
     public function process(Request $request, HttpHandlerInterface $next): Response
@@ -399,6 +403,9 @@ Behavior:
 3. Falls back to `AnonymousUser` if: no UID in session, load fails, or loaded entity is not `AccountInterface`.
 4. Sets `$request->attributes->set('_account', $account)`.
 5. Calls `$next->handle($request)`.
+6. Creates `NativeSession` with `$trustedProxies` so session cookie secure flag respects proxy trust.
+
+**Trusted proxy guard:** Both `NativeSession::isSecureConnection()` and `SessionMiddleware::isHttpsRequest()` only trust `X-Forwarded-Proto` when `REMOTE_ADDR` matches a configured trusted proxy IP. Without trusted proxies configured, the header is ignored. Configure via `'trusted_proxies' => ['127.0.0.1']` in `config/waaseyaa.php`.
 
 Does not handle login/logout. Only resolves "who is making this request."
 
