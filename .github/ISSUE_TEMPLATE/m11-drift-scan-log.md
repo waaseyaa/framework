@@ -13,7 +13,7 @@ Choose exactly one outcome below and delete the unused section before submitting
 ### Outcome A: Clean scan, no new drift
 
 - Cadence date:
-- Steward:
+- Responsible role:
 - Commands run:
 - Surfaces reviewed:
 - Evidence links:
@@ -22,6 +22,7 @@ Choose exactly one outcome below and delete the unused section before submitting
 
 - Provisional C17+ ID:
 - Violated invariant:
+- Broken dependency expectation:
 - Affected surfaces:
 - Evidence:
 - Remediation path:
@@ -30,5 +31,5 @@ Choose exactly one outcome below and delete the unused section before submitting
 
 - [ ] #987 was used as the canonical reference
 - [ ] #991 C1-C16 were treated as resolved history
-- [ ] No protected upstream references were modified
-- [ ] No new audit surfaces were created outside the M11 governance-log family
+- [ ] No canonical governance references were modified during this logging step
+- [ ] This issue is being used as the M11 governance log record for the scan outcome
