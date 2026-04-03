@@ -774,11 +774,23 @@ File: `packages/foundation/src/Log/LogLevel.php`
 
 String-backed enum: `EMERGENCY`, `ALERT`, `CRITICAL`, `ERROR`, `WARNING`, `NOTICE`, `INFO`, `DEBUG`.
 
+### LogRecord
+
+File: `packages/foundation/src/Log/LogRecord.php`
+
+Immutable value object carrying a single log entry: `level` (LogLevel), `message` (string), `context` (array), `channel` (string, defaults to `'default'`), `timestamp` (DateTimeImmutable, defaults to now).
+
+### LogManager
+
+File: `packages/foundation/src/Log/LogManager.php`
+
+Central log orchestrator. Implements `LoggerInterface` — calling `log()` delegates to the default channel. `channel(string $name)` returns a `LoggerInterface` for the named channel; unknown channels fall back to the default. The kernel constructs a `LogManager` wrapping an `ErrorLogHandler` with `minimumLevel` from `config['log_level']`. Service providers can resolve `LoggerInterface` via the kernel resolver to get the same `LogManager` singleton.
+
 ### Logger implementations
 
 | Class | File | Purpose |
 |-------|------|---------|
-| `ErrorLogHandler` | `Log/ErrorLogHandler.php` | Delegates to `error_log()` — default when no logger configured |
+| `ErrorLogHandler` | `Log/ErrorLogHandler.php` | Delegates to `error_log()`. Constructor: `(?\Closure $writer = null, LogLevel $minimumLevel = LogLevel::DEBUG)`. Discards messages below `minimumLevel`. |
 | `FileLogger` | `Log/FileLogger.php` | Writes timestamped JSON lines to a file. Constructor: `(string $filePath, LogLevel $minimumLevel = LogLevel::DEBUG)`. Uses `LOCK_EX` for safe concurrent writes. |
 | `CompositeLogger` | `Log/CompositeLogger.php` | Fans out to multiple loggers. Constructor: `(LoggerInterface ...$loggers)`. Best-effort: one broken sink does not stop others. |
 | `NullLogger` | `Log/NullLogger.php` | No-op — for testing and disabled logging. |
@@ -1020,11 +1032,14 @@ File: `packages/foundation/src/Kernel/AbstractKernel.php`
 
 Constructor: `(string $projectRoot, ?LoggerInterface $logger = null)`
 
+Default logger is `LogManager(new ErrorLogHandler())`. After config loads, the kernel rebuilds it with `minimumLevel` from `config['log_level']`.
+
 Boot sequence (idempotent — guarded by `$this->booted` flag, set only after all steps succeed):
 
 ```
 EnvLoader::load(.env)
   → ConfigLoader::load(config/waaseyaa.php)
+  → rebuild LogManager with configured log_level
   → debug/environment safety guard
   → new EventDispatcher()
   → new EntityTypeLifecycleManager($projectRoot)
@@ -1120,7 +1135,7 @@ public function discoverAndRegister(
 Discovery and registration follows a multi-phase process:
 
 1. **Instantiation**: Each provider class from `$manifest->providers` is instantiated. Non-`ServiceProvider` instances are logged and skipped.
-2. **Context injection**: Each provider receives kernel context via `setKernelContext($projectRoot, $config, $manifest->formatters)` and a kernel resolver closure via `setKernelResolver()`. The resolver provides cross-provider DI — it resolves `EntityTypeManager`, `DatabaseInterface`, `EventDispatcherInterface`, and any binding registered by previously-loaded providers.
+2. **Context injection**: Each provider receives kernel context via `setKernelContext($projectRoot, $config, $manifest->formatters)` and a kernel resolver closure via `setKernelResolver()`. The resolver provides cross-provider DI — it resolves `EntityTypeManager`, `DatabaseInterface`, `EventDispatcherInterface`, `LoggerInterface`, and any binding registered by previously-loaded providers.
 3. **Registration**: `register()` is called on each provider, allowing them to bind interfaces to implementations.
 4. **Entity type collection**: After all providers register, entity types from `$provider->getEntityTypes()` are registered with the `EntityTypeManager`. Registration failures are logged as errors but do not halt boot.
 5. **Provider-owned surfaces**: Route and command ownership stays with the package provider or package registry that declared it. Foundation now declares only its own baseline provider (`Waaseyaa\Foundation\FoundationServiceProvider`), while package-level providers such as `ApiServiceProvider`, `UserServiceProvider`, and `McpServiceProvider` own their respective HTTP surfaces.
@@ -1201,7 +1216,9 @@ Log/
     LoggerInterface.php          -- log contract (emergency through debug + log)
     LogLevel.php                 -- string-backed enum (EMERGENCY..DEBUG)
     LoggerTrait.php              -- convenience methods delegating to log()
-    ErrorLogHandler.php          -- default logger via error_log()
+    LogRecord.php                -- immutable VO: level, message, context, channel, timestamp
+    LogManager.php               -- channel registry, implements LoggerInterface, delegates to default
+    ErrorLogHandler.php          -- error_log() with minimumLevel filtering
     FileLogger.php               -- timestamped JSON lines to file
     CompositeLogger.php          -- fan-out to multiple loggers
     NullLogger.php               -- no-op for testing

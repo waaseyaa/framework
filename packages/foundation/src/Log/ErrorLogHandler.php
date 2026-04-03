@@ -14,8 +14,10 @@ final class ErrorLogHandler implements LoggerInterface
     /**
      * @param ?\Closure(string): void $writer Custom writer for testing. Defaults to error_log().
      */
-    public function __construct(?\Closure $writer = null)
-    {
+    public function __construct(
+        ?\Closure $writer = null,
+        private readonly LogLevel $minimumLevel = LogLevel::DEBUG,
+    ) {
         $this->writer = $writer ?? static function (string $line): void {
             error_log($line);
         };
@@ -23,6 +25,10 @@ final class ErrorLogHandler implements LoggerInterface
 
     public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
     {
+        if ($level->severity() < $this->minimumLevel->severity()) {
+            return;
+        }
+
         $line = sprintf('[%s] %s', $level->value, (string) $message);
 
         if ($context !== []) {
