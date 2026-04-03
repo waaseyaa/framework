@@ -1,6 +1,6 @@
 # Access Control
 
-<!-- Spec reviewed 2026-04-03 - auth routes moved from UserServiceProvider to AuthServiceProvider (#571) -->
+<!-- Spec reviewed 2026-04-03b - auth routes moved from UserServiceProvider to AuthServiceProvider (#571), MeController fix -->
 
 Waaseyaa's access control system spans three packages: `packages/access/` (core primitives), `packages/routing/` (route-level checks), and `packages/user/` (session resolution, password reset). This document covers entity-level and route-level access. For field-level access, see `docs/specs/field-access.md`.
 
