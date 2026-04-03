@@ -1,6 +1,6 @@
 # Infrastructure
 
-<!-- Spec reviewed 2026-04-03 - DebugHeaderMiddleware added to foundation middleware (#737) -->
+<!-- Spec reviewed 2026-04-03 - trusted_proxies config wired in HttpKernel to SessionMiddleware (#769) -->
 
 Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, migration system, kernel bootstrapping (including environment resolution and debug mode), service provider discovery, and queue workers.
 
