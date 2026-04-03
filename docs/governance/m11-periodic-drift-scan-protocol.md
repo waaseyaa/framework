@@ -14,7 +14,8 @@ Note: this protocol is the backstop component of the broader M11 steady-state co
 - `#991` is resolved history for `C1` through `C16`; those cases remain closed and are not reopened by routine scans.
 - `#988` provides the governing invariants that anomalies must be evaluated against.
 - `#990` provides the dependency expectations that anomalies must be evaluated against.
-- `#999` is the governed-change record template for every new or modified governed surface since the last scan.
+- `#999` is the governed-change identity for the front-door mechanism used when intentional governed changes are recorded.
+- [.github/ISSUE_TEMPLATE/m11-governed-change.md](../../.github/ISSUE_TEMPLATE/m11-governed-change.md) is the repo-local template used to instantiate that front-door mechanism for every new or modified governed surface since the last scan.
 - The current repo state, drift detector output, milestone hygiene report, and the affected governed surfaces are the operational inputs for each scan.
 
 ## Scan Cadence
@@ -43,7 +44,7 @@ The steward selects targeted PHPUnit, Node, and integration suites based on the 
 2. Run `bin/check-milestones` and review the report for milestone drift or hygiene regressions.
 3. Run `bash tools/drift-detector.sh 5` and capture the output for spec and governance drift.
 4. Inspect the changed routes, providers, manifests, contracts, adapters, and registries that could explain the scan surface.
-5. Verify that each new or modified governed surface since the last scan has a governed-change record using template `#999`.
+5. Verify that each new or modified governed surface since the last scan has a governed-change record instantiated from the `m11-governed-change` template.
 6. Run the targeted PHPUnit, Node, and integration suites that cover the affected surfaces.
 7. Evaluate any anomalies against the `#988` invariants and the `#990` dependency expectations before classifying the result.
 8. Classify the result using the drift rules below.

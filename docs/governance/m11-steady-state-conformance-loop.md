@@ -11,7 +11,7 @@ Define the canonical steady-state governance loop for M11 so intentional changes
 - `#987` (canonical M11 reference), `#988` (governing invariants), `#990` (dependency expectations), `#991` (resolved-history boundary), and `#993` (M10 execution proof record / inherited execution-evidence baseline) are authoritative inputs for the loop.
 - [m11-periodic-drift-scan-protocol.md](./m11-periodic-drift-scan-protocol.md) defines the periodic-scan procedure used by the backstop side of the loop.
 - [m11-drift-scan-log.md](../../.github/ISSUE_TEMPLATE/m11-drift-scan-log.md) defines the repo-local logging surface for clean scans and new `C17+` findings.
-- [workflow.md](../specs/workflow.md) serves as the repo-local proxy backlink for the governed-change front door; `#999` still has no dedicated repo-local artifact today.
+- [.github/ISSUE_TEMPLATE/m11-governed-change.md](../../.github/ISSUE_TEMPLATE/m11-governed-change.md) serves as the repo-local front-door artifact for governed changes.
 
 ## Loop Components
 
