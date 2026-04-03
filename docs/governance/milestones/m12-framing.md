@@ -85,6 +85,8 @@ The following invariants must hold throughout M12:
 
 M12 operates inside the M11 steady-state governance loop and does not replace it.
 
+M11 remains the governing layer; M12 is downstream execution within that bootstrap baseline.
+
 - New drift must be logged as `C19+` in the governance log family before remediation or execution work begins.
 - Execution slices must be opened explicitly, scoped narrowly, and closed only after evidence-backed verification.
 - PRs must remain slice-local, target `main`, include clear scope and invariant statements, and carry the required governance metadata.
