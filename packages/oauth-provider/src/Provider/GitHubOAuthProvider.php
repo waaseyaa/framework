@@ -96,9 +96,11 @@ final class GitHubOAuthProvider implements OAuthProviderInterface
         $emailsData = $emailsResponse->json();
 
         $email = '';
+        $emailVerified = false;
         foreach ($emailsData as $entry) {
             if (isset($entry['primary'], $entry['verified']) && $entry['primary'] && $entry['verified']) {
                 $email = (string) $entry['email'];
+                $emailVerified = true;
                 break;
             }
         }
@@ -112,6 +114,7 @@ final class GitHubOAuthProvider implements OAuthProviderInterface
             email: $email,
             name: $name,
             avatarUrl: isset($userData['avatar_url']) ? (string) $userData['avatar_url'] : null,
+            emailVerified: $emailVerified,
         );
     }
 }

@@ -16,12 +16,14 @@ final class OAuthUserProfileTest extends TestCase
             email: 'user@example.com',
             name: 'Jane Doe',
             avatarUrl: 'https://example.com/avatar.jpg',
+            emailVerified: true,
         );
 
         self::assertSame('12345', $profile->providerId);
         self::assertSame('user@example.com', $profile->email);
         self::assertSame('Jane Doe', $profile->name);
         self::assertSame('https://example.com/avatar.jpg', $profile->avatarUrl);
+        self::assertTrue($profile->emailVerified);
     }
 
     public function testCreateWithNullAvatar(): void
@@ -33,5 +35,6 @@ final class OAuthUserProfileTest extends TestCase
         );
 
         self::assertNull($profile->avatarUrl);
+        self::assertFalse($profile->emailVerified);
     }
 }
