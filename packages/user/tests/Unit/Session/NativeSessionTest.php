@@ -166,6 +166,36 @@ final class NativeSessionTest extends TestCase
     }
 
     #[Test]
+    public function isSecureConnectionHandlesCaseInsensitiveForwardedProto(): void
+    {
+        $session = new NativeSession(['10.0.0.1']);
+        unset($_SERVER['HTTPS']);
+        $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'HTTPS';
+        $_SERVER['REMOTE_ADDR'] = '10.0.0.1';
+        self::assertTrue($session->isSecureConnection());
+    }
+
+    #[Test]
+    public function isSecureConnectionReturnsFalseWhenRemoteAddrIsMissing(): void
+    {
+        $session = new NativeSession(['10.0.0.1']);
+        unset($_SERVER['HTTPS'], $_SERVER['REMOTE_ADDR']);
+        $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https';
+        self::assertFalse($session->isSecureConnection());
+    }
+
+    #[Test]
+    public function isSecureConnectionRejectsCidrNotation(): void
+    {
+        // CIDR ranges are not supported; only exact IPs match
+        $session = new NativeSession(['10.0.0.0/8']);
+        unset($_SERVER['HTTPS']);
+        $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https';
+        $_SERVER['REMOTE_ADDR'] = '10.0.0.1';
+        self::assertFalse($session->isSecureConnection());
+    }
+
+    #[Test]
     public function getCookieParamsReturnsArray(): void
     {
         $params = $this->session->getCookieParams();

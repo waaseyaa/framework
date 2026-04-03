@@ -399,6 +399,34 @@ final class SessionMiddlewareTest extends TestCase
 
     #[Test]
     #[RunInSeparateProcess]
+    public function secure_auto_rejects_forwarded_proto_from_untrusted_ip(): void
+    {
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $savedSecure = ini_get('session.cookie_secure');
+        try {
+            unset($_SERVER['HTTPS']);
+            $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https';
+            $_SERVER['REMOTE_ADDR'] = '192.168.1.99';
+            $middleware = new SessionMiddleware($storage, null, null, [
+                'secure' => 'auto',
+            ], ['10.0.0.1']);
+            $method = new \ReflectionMethod(SessionMiddleware::class, 'applySessionCookieIni');
+            $method->setAccessible(true);
+            $method->invoke($middleware);
+
+            $this->assertSame('0', ini_get('session.cookie_secure'));
+        } finally {
+            if ($savedSecure !== false && $savedSecure !== '') {
+                ini_set('session.cookie_secure', $savedSecure);
+            } else {
+                ini_restore('session.cookie_secure');
+            }
+            unset($_SERVER['HTTP_X_FORWARDED_PROTO'], $_SERVER['REMOTE_ADDR']);
+        }
+    }
+
+    #[Test]
+    #[RunInSeparateProcess]
     public function secure_auto_respects_x_forwarded_proto(): void
     {
         $storage = $this->createMock(EntityStorageInterface::class);

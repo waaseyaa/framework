@@ -132,10 +132,12 @@ final class NativeSession implements SessionInterface
         }
 
         $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '';
+        if ($remoteAddr === '') {
+            return false;
+        }
 
         return in_array($remoteAddr, $this->trustedProxies, true)
-            && isset($_SERVER['HTTP_X_FORWARDED_PROTO'])
-            && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https';
+            && strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
     }
 
     public function isStarted(): bool

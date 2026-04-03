@@ -105,6 +105,9 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         }
 
         $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '';
+        if ($remoteAddr === '') {
+            return false;
+        }
 
         return in_array($remoteAddr, $this->trustedProxies, true)
             && strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
