@@ -11,5 +11,6 @@ final readonly class OAuthUserProfile
         public string $email,
         public string $name,
         public ?string $avatarUrl = null,
+        public bool $emailVerified = false,
     ) {}
 }

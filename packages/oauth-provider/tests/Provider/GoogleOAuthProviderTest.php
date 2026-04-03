@@ -115,10 +115,11 @@ final class GoogleOAuthProviderTest extends TestCase
     public function testGetUserProfile(): void
     {
         $responseBody = json_encode([
-            'id'      => '1234567890',
-            'email'   => 'user@example.com',
-            'name'    => 'Test User',
-            'picture' => 'https://lh3.googleusercontent.com/photo.jpg',
+            'id'             => '1234567890',
+            'email'          => 'user@example.com',
+            'verified_email' => true,
+            'name'           => 'Test User',
+            'picture'        => 'https://lh3.googleusercontent.com/photo.jpg',
         ]);
 
         $this->httpClient
@@ -134,5 +135,6 @@ final class GoogleOAuthProviderTest extends TestCase
         self::assertSame('user@example.com', $profile->email);
         self::assertSame('Test User', $profile->name);
         self::assertSame('https://lh3.googleusercontent.com/photo.jpg', $profile->avatarUrl);
+        self::assertTrue($profile->emailVerified);
     }
 }

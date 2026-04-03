@@ -105,6 +105,7 @@ final class GitHubOAuthProviderTest extends TestCase
         self::assertSame('jonesrussell42@gmail.com', $profile->email);
         self::assertSame('Russell Jones', $profile->name);
         self::assertSame('https://avatars.githubusercontent.com/u/42', $profile->avatarUrl);
+        self::assertTrue($profile->emailVerified);
     }
 
     public function testGetUserProfileFallsBackToLoginWhenNameIsNull(): void
