@@ -29,7 +29,14 @@ final class LoginController
             ], 429, ['Retry-After' => '60']);
         }
 
-        $body = json_decode((string) $request->getContent(), true) ?? [];
+        try {
+            $body = json_decode((string) $request->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return new JsonResponse([
+                'jsonapi' => ['version' => '1.1'],
+                'errors' => [['status' => '400', 'title' => 'Bad Request', 'detail' => 'Request body is not valid JSON.']],
+            ], 400);
+        }
         $username = is_string($body['username'] ?? null) ? trim((string) $body['username']) : '';
         $password = is_string($body['password'] ?? null) ? (string) $body['password'] : '';
 
@@ -54,11 +61,16 @@ final class LoginController
 
         $this->rateLimiter->clear($rateLimitKey);
 
-        if (session_status() === \PHP_SESSION_ACTIVE) {
-            $_SESSION['waaseyaa_uid'] = $user->id();
-            session_regenerate_id(true);
-            session_write_close();
+        if (session_status() !== \PHP_SESSION_ACTIVE) {
+            return new JsonResponse([
+                'jsonapi' => ['version' => '1.1'],
+                'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'Session not available. Login cannot be completed.']],
+            ], 500);
         }
+
+        $_SESSION['waaseyaa_uid'] = $user->id();
+        session_regenerate_id(true);
+        session_write_close();
 
         return new JsonResponse([
             'jsonapi' => ['version' => '1.1'],

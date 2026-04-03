@@ -104,7 +104,7 @@ final class ControllerDispatcher
 
         parse_str($queryString, $query);
 
-        // Handle callable controllers (closures registered by service providers).
+        // Handle callable controllers (invocable objects or closures registered by service providers).
         if (is_callable($controller)) {
             $result = $controller($httpRequest, ...array_filter($params, fn($k) => !str_starts_with($k, '_'), ARRAY_FILTER_USE_KEY));
             if ($result instanceof \Waaseyaa\SSR\SsrResponse) {

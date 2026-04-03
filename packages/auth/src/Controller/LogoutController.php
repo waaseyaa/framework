@@ -12,8 +12,9 @@ final class LogoutController
     public function __invoke(Request $request): JsonResponse
     {
         if (session_status() === \PHP_SESSION_ACTIVE) {
-            session_destroy();
+            $_SESSION = [];
             session_regenerate_id(true);
+            session_destroy();
         }
 
         return new JsonResponse([
