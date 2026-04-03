@@ -64,9 +64,9 @@ final class SqliteEmbeddingStorageTest extends TestCase
     public function logsDimensionMismatchForObservability(): void
     {
         $lines = [];
-        $logger = new \Waaseyaa\Foundation\Log\ErrorLogHandler(static function (string $line) use (&$lines): void {
+        $logger = new \Waaseyaa\Foundation\Log\LogManager(new \Waaseyaa\Foundation\Log\Handler\ErrorLogHandler(writer: static function (string $line) use (&$lines): void {
             $lines[] = $line;
-        });
+        }));
         $storage = new SqliteEmbeddingStorage($this->pdo, logger: $logger);
 
         $storage->store('node', '1', [1.0, 0.0, 0.0]);

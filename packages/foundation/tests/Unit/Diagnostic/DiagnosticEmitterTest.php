@@ -133,9 +133,9 @@ final class DiagnosticEmitterTest extends TestCase
     public function emitWritesToLogger(): void
     {
         $lines = [];
-        $logger = new \Waaseyaa\Foundation\Log\ErrorLogHandler(static function (string $line) use (&$lines): void {
+        $logger = new \Waaseyaa\Foundation\Log\LogManager(new \Waaseyaa\Foundation\Log\Handler\ErrorLogHandler(writer: static function (string $line) use (&$lines): void {
             $lines[] = $line;
-        });
+        }));
         $emitter = new DiagnosticEmitter($logger);
 
         $emitter->emit(DiagnosticCode::NAMESPACE_RESERVED, 'core.foo blocked.', []);
@@ -148,16 +148,16 @@ final class DiagnosticEmitterTest extends TestCase
     public function emitLogLineIsValidJson(): void
     {
         $lines = [];
-        $logger = new \Waaseyaa\Foundation\Log\ErrorLogHandler(static function (string $line) use (&$lines): void {
+        $logger = new \Waaseyaa\Foundation\Log\LogManager(new \Waaseyaa\Foundation\Log\Handler\ErrorLogHandler(writer: static function (string $line) use (&$lines): void {
             $lines[] = $line;
-        });
+        }));
         $emitter = new DiagnosticEmitter($logger);
 
         $emitter->emit(DiagnosticCode::DEFAULT_TYPE_DISABLED, 'All disabled.', ['count' => 2]);
 
         $raw = $lines[0] ?? '';
 
-        // ErrorLogHandler formats as "[level] message". Extract the JSON part.
+        // TextFormatter formats as "[timestamp] [level] [channel] message". Extract the JSON part.
         $jsonStart = strpos($raw, '{');
         $this->assertNotFalse($jsonStart, 'Log line should contain a JSON object');
 
