@@ -121,9 +121,9 @@ final class SsrPageHandler
                 $renderController = new RenderController($twig);
                 $pathResponse = $renderController->tryRenderPathTemplate($aliasLookupPath, $account);
                 if ($pathResponse !== null) {
-                    $headers = $pathResponse->headers;
+                    $headers = $this->extractHeaders($pathResponse);
                     $headers['Cache-Control'] = $cacheControlHeader;
-                    return $this->htmlResult($pathResponse->statusCode, $pathResponse->content, $headers);
+                    return $this->htmlResult($pathResponse->getStatusCode(), (string) $pathResponse->getContent(), $headers);
                 }
                 $response = $renderController->renderNotFound($aliasLookupPath, $account);
                 $headers = $this->extractHeaders($response);
@@ -287,10 +287,7 @@ final class SsrPageHandler
             return $response;
         }
 
-        $cacheMaxAge = $this->cacheConfigResolver->resolveRenderCacheMaxAge();
-        $headers = $this->extractHeaders($response);
-        $headers['Cache-Control'] = $this->cacheConfigResolver->cacheControlHeaderForRender($account, $cacheMaxAge);
-        return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
+        return $this->htmlResult(500, '<h1>Internal Server Error</h1>', []);
     }
 
     /**
