@@ -42,61 +42,11 @@ abstract class DomainEvent extends Event
 
 All properties are `public readonly`. There are no getter methods.
 
-### Three-channel dispatch
+### Event dispatch
 
-EventBus dispatches every DomainEvent through three channels in order:
+Domain events use Symfony's `EventDispatcherInterface` directly. There is no custom EventBus wrapper. Service providers register listeners via `$dispatcher->addListener()` or `$dispatcher->addSubscriber()`.
 
-```
-DomainEvent dispatched
-    |
-    1. EventStore::append()        -- optional, for event sourcing
-    |
-    2. Sync listeners              -- Symfony EventDispatcher, wrapped by EventPipeline middleware
-    |                                 Cache invalidation, access index updates, validation side-effects
-    |                                 Must complete before response.
-    |
-    3. Async listeners             -- Symfony Messenger ($asyncBus->dispatch())
-    |                                 AI re-embedding, search re-indexing, webhook delivery
-    |
-    4. Broadcast listeners         -- BroadcasterInterface ($broadcaster->broadcast())
-                                     Admin SPA real-time updates via SSE
-```
-
-File: `packages/foundation/src/Event/EventBus.php`
-
-```php
-namespace Waaseyaa\Foundation\Event;
-
-final class EventBus
-{
-    public function __construct(
-        private readonly EventDispatcherInterface $syncDispatcher,
-        private readonly MessageBusInterface $asyncBus,
-        private readonly BroadcasterInterface $broadcaster,
-        private readonly ?EventStoreInterface $eventStore = null,
-        private readonly ?EventPipeline $eventPipeline = null,
-    ) {}
-
-    public function dispatch(DomainEvent $event): void;
-}
-```
-
-When `$eventPipeline` is non-null, sync dispatch is wrapped in the event middleware pipeline. When null, sync dispatch calls the dispatcher directly.
-
-### Event attributes
-
-| Attribute | Target | File | Purpose |
-|-----------|--------|------|---------|
-| `#[Listener(priority: 0)]` | CLASS | `packages/foundation/src/Event/Attribute/Listener.php` | Mark class as event listener; event type inferred from `__invoke()` parameter |
-| `#[Async]` | METHOD | `packages/foundation/src/Event/Attribute/Async.php` | Route listener through Messenger async bus |
-| `#[Broadcast(channel: '...')]` | CLASS | `packages/foundation/src/Event/Attribute/Broadcast.php` | Route listener through SSE broadcaster |
-
-### Supporting interfaces
-
-| Interface | File | Method |
-|-----------|------|--------|
-| `EventStoreInterface` | `packages/foundation/src/Event/EventStoreInterface.php` | `append(DomainEvent $event): void` |
-| `BroadcasterInterface` | `packages/foundation/src/Event/BroadcasterInterface.php` | `broadcast(DomainEvent $event): void` |
+The `Broadcasting\` subsystem (`SseBroadcaster`, `BroadcastMessage`, `BroadcasterInterface`) handles real-time SSE delivery to the admin SPA independently of the event dispatcher.
 
 ### Best-effort side effects
 
@@ -1214,22 +1164,14 @@ Kernel/
         AccessPolicyRegistry.php     -- discovers access policies and wires EntityAccessHandler
 Event/
     DomainEvent.php              -- abstract base for all domain events
-    EventBus.php                 -- three-channel dispatcher (sync/async/broadcast)
-    EventStoreInterface.php      -- append-only event store
-    BroadcasterInterface.php     -- SSE/real-time broadcast
-    Attribute/
-        Listener.php             -- #[Listener(priority: 0)]
-        Async.php                -- #[Async] on method
-        Broadcast.php            -- #[Broadcast(channel: '...')]
 Middleware/
     HttpMiddlewareInterface.php  -- process(Request, HttpHandlerInterface): Response
     HttpHandlerInterface.php     -- handle(Request): Response
     HttpPipeline.php             -- onion-pattern HTTP middleware stack
     DebugHeaderMiddleware.php    -- X-Debug-Time/Memory/Request-Id headers (APP_DEBUG only)
     BodySizeLimitMiddleware.php  -- rejects oversized request bodies (413)
-    EventMiddlewareInterface.php -- process(DomainEvent, EventHandlerInterface): void
-    EventHandlerInterface.php    -- handle(DomainEvent): void
-    EventPipeline.php            -- onion-pattern event middleware stack
+    EventMiddlewareInterface.php -- process(DomainEvent, EventHandlerInterface): void (unused, pending cleanup)
+    EventHandlerInterface.php    -- handle(DomainEvent): void (unused, pending cleanup)
     JobMiddlewareInterface.php   -- process(Job, JobHandlerInterface): void
     JobHandlerInterface.php      -- handle(Job): void
     JobPipeline.php              -- onion-pattern job middleware stack
