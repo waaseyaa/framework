@@ -21,10 +21,11 @@ use Waaseyaa\Cache\CacheConfiguration;
 use Waaseyaa\Cache\CacheFactory;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Http\ControllerDispatcher;
-use Waaseyaa\Foundation\Log\LogManager;
-use Waaseyaa\Foundation\Log\Processor\RequestContextProcessor;
 use Waaseyaa\Foundation\Http\CorsHandler;
 use Waaseyaa\Foundation\Http\ResponseSender;
+use Waaseyaa\Foundation\Log\LogManager;
+use Waaseyaa\Foundation\Log\Processor\RequestContextProcessor;
+use Waaseyaa\Foundation\Middleware\DebugHeaderMiddleware;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
 use Waaseyaa\Routing\WaaseyaaRouter;
@@ -222,6 +223,12 @@ final class HttpKernel extends AbstractKernel
             new CsrfMiddleware(),
             new AuthorizationMiddleware($accessChecker, $errorPageRenderer),
         ];
+
+        if ($this->isDebugMode()) {
+            $middlewares[] = new DebugHeaderMiddleware(
+                startTime: $_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true),
+            );
+        }
 
         // Collect middleware contributed by service providers.
         foreach ($this->providers as $provider) {
