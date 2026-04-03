@@ -22,7 +22,10 @@ final class AuthServiceProvider extends ServiceProvider
     {
         $this->singleton(AuthManager::class, fn() => new AuthManager());
 
-        $this->singleton(RateLimiterInterface::class, fn() => new RateLimiter());
+        $this->singleton(RateLimiterInterface::class, function () {
+            $db = $this->resolve(\Waaseyaa\Database\DatabaseInterface::class);
+            return new DatabaseRateLimiter($db);
+        });
 
         $authConfig = $this->config['auth'] ?? [];
         $appEnv = $this->config['app_env'] ?? ($_ENV['APP_ENV'] ?? 'production');

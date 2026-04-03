@@ -14,8 +14,7 @@ final class DatabaseRateLimiter implements RateLimiterInterface
 
     public function __construct(
         private readonly DatabaseInterface $database,
-    ) {
-    }
+    ) {}
 
     public function hit(string $key, int $decaySeconds): void
     {
