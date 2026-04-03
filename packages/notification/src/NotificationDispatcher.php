@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Notification;
 
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Queue\QueueInterface;
 
 /**
@@ -14,14 +16,18 @@ final class NotificationDispatcher
     /** @var array<string, ChannelInterface> */
     private readonly array $channels;
 
+    private readonly LoggerInterface $logger;
+
     /**
      * @param array<string, ChannelInterface> $channels
      */
     public function __construct(
         private readonly QueueInterface $queue,
         array $channels,
+        ?LoggerInterface $logger = null,
     ) {
         $this->channels = $channels;
+        $this->logger = $logger ?? new NullLogger();
     }
 
     /**
@@ -39,7 +45,7 @@ final class NotificationDispatcher
             try {
                 $this->channels[$channelName]->send($notifiable, $notification);
             } catch (\Throwable $e) {
-                error_log("[notification] Channel {$channelName} failed: {$e->getMessage()}");
+                $this->logger->error("Channel {$channelName} failed: {$e->getMessage()}");
             }
         }
     }

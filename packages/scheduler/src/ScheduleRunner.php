@@ -4,18 +4,25 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Scheduler;
 
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Queue\QueueInterface;
 use Waaseyaa\Scheduler\Lock\LockInterface;
 use Waaseyaa\Scheduler\Storage\ScheduleStateRepository;
 
 final class ScheduleRunner
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly ScheduleInterface $schedule,
         private readonly QueueInterface $queue,
         private readonly LockInterface $lock,
         private readonly ?ScheduleStateRepository $stateRepository = null,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function run(\DateTimeInterface $now): ScheduleRunResult
     {
@@ -40,7 +47,7 @@ final class ScheduleRunner
                 $ran[] = $task->name;
             } catch (\Throwable $e) {
                 $this->stateRepository?->recordRun($task->name, 'failed: ' . $e->getMessage());
-                error_log("[scheduler] Task {$task->name} failed: {$e->getMessage()}");
+                $this->logger->error("Task {$task->name} failed: {$e->getMessage()}");
             } finally {
                 if ($task->preventOverlap) {
                     $this->lock->release($task->name);

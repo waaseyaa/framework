@@ -11,17 +11,24 @@ use Waaseyaa\Auth\Config\MailMissingPolicy;
 use Waaseyaa\Auth\RateLimiter;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\User\AuthMailer;
 
 final class ResendVerificationController
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly AuthConfig $config,
         private readonly EntityTypeManager $entityTypeManager,
         private readonly AuthTokenRepositoryInterface $tokenRepo,
         private readonly AuthMailer $authMailer,
         private readonly RateLimiter $rateLimiter,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function __invoke(Request $request): JsonResponse
     {
@@ -66,7 +73,7 @@ final class ResendVerificationController
                 $this->authMailer->sendEmailVerification($user, $verifyToken);
             } elseif ($this->config->mailMissingPolicy === MailMissingPolicy::DevLog) {
                 // 7. DevLog policy: log URL
-                error_log('[ResendVerificationController] Email verification URL for user ' . $userId . ': /verify-email?token=' . $verifyToken);
+                $this->logger->info('Email verification URL for user ' . $userId . ': /verify-email?token=' . $verifyToken);
             }
         }
 
