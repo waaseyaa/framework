@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Kernel;
 
-use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Component\Routing\RequestContext;
@@ -25,6 +24,7 @@ use Waaseyaa\Foundation\Http\CorsHandler;
 use Waaseyaa\Foundation\Log\LogManager;
 use Waaseyaa\Foundation\Log\Processor\RequestContextProcessor;
 use Waaseyaa\Foundation\Middleware\DebugHeaderMiddleware;
+use Waaseyaa\Foundation\Http\JsonApiResponseTrait;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
 use Waaseyaa\Routing\WaaseyaaRouter;
@@ -46,6 +46,8 @@ use Waaseyaa\User\Middleware\SessionMiddleware;
  */
 final class HttpKernel extends AbstractKernel
 {
+    use JsonApiResponseTrait;
+
     private ?RenderCache $renderCache = null;
     private ?CacheBackendInterface $discoveryCache = null;
     private ?CacheBackendInterface $mcpReadCache = null;
@@ -377,18 +379,4 @@ final class HttpKernel extends AbstractKernel
         return ($authConfig['dev_fallback_account'] ?? false) === true;
     }
 
-    /**
-     * Build a JSON:API response with correct content type and encoding.
-     *
-     * @param array<string, mixed> $data
-     * @param array<string, string> $headers
-     */
-    private function jsonApiResponse(int $status, array $data, array $headers = []): JsonResponse
-    {
-        $response = new JsonResponse($data, $status, $headers);
-        $response->setEncodingOptions(JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
-        $response->headers->set('Content-Type', 'application/vnd.api+json');
-
-        return $response;
-    }
 }
