@@ -7,7 +7,6 @@ namespace Waaseyaa\Foundation\Discovery;
 use Waaseyaa\Foundation\Attribute\AsEntityType;
 use Waaseyaa\Foundation\Attribute\AsFieldType;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
-use Waaseyaa\Foundation\Event\Attribute\Listener;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
@@ -40,7 +39,6 @@ final class PackageManifestCompiler
         $migrations = [];
         $fieldTypes = [];
         $formatters = [];
-        $listeners = [];
         $middleware = [];
         $permissions = [];
         $policies = [];
@@ -109,27 +107,6 @@ final class PackageManifestCompiler
                 }
             }
 
-            foreach ($ref->getAttributes(Listener::class) as $attr) {
-                try {
-                    $instance = $attr->newInstance();
-                    $invoke = $ref->getMethod('__invoke');
-                    $params = $invoke->getParameters();
-                    if (count($params) > 0) {
-                        $eventType = $params[0]->getType();
-                        if ($eventType instanceof \ReflectionNamedType) {
-                            $eventClass = $eventType->getName();
-                            $listeners[$eventClass][] = [
-                                'class' => $class,
-                                'priority' => $instance->priority,
-                            ];
-                        }
-                    }
-                } catch (\ReflectionException) {
-                    // Skip listeners with missing __invoke or invalid signatures
-                    continue;
-                }
-            }
-
             foreach ($ref->getAttributes(AsMiddleware::class) as $attr) {
                 $instance = $attr->newInstance();
                 $middleware[$instance->pipeline][] = [
@@ -153,11 +130,6 @@ final class PackageManifestCompiler
             usort($stack, fn(array $a, array $b) => $b['priority'] <=> $a['priority']);
         }
 
-        // Sort listeners by priority (descending)
-        foreach ($listeners as &$eventListeners) {
-            usort($eventListeners, fn(array $a, array $b) => $b['priority'] <=> $a['priority']);
-        }
-
         return new PackageManifest(
             providers: $providers,
             commands: $commands,
@@ -165,7 +137,7 @@ final class PackageManifestCompiler
             migrations: $migrations,
             fieldTypes: $fieldTypes,
             formatters: $formatters,
-            listeners: $listeners,
+            listeners: [],
             middleware: $middleware,
             permissions: $permissions,
             policies: $policies,
@@ -616,7 +588,6 @@ final class PackageManifestCompiler
                 }
 
                 $hasDiscoveryAttribute = !empty($ref->getAttributes(AsFieldType::class))
-                    || !empty($ref->getAttributes(Listener::class))
                     || !empty($ref->getAttributes(AsMiddleware::class))
                     || !empty($ref->getAttributes(AsEntityType::class))
                     || !empty($ref->getAttributes(self::POLICY_ATTRIBUTE))
