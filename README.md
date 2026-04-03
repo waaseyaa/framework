@@ -29,9 +29,11 @@ Waaseyaa replaces Drupal's legacy runtime with a clean, modular architecture org
 ```bash
 composer create-project waaseyaa/waaseyaa my-site
 cd my-site
-bin/waaseyaa install
+./vendor/bin/phpunit
 bin/waaseyaa serve
 ```
+
+The scaffold now creates `tests/Unit` and `tests/Integration`, so the default PHPUnit command is usable immediately. For static or marketing-style sites, you can start from the clean scaffold, add a `SiteServiceProvider`, `PageController`, Twig templates, and a small regression test before wiring deploy infrastructure.
 
 Create your first content:
 
@@ -50,6 +52,26 @@ curl -X POST http://localhost:8081/api/note \
 ```
 
 Waaseyaa ships with a built-in `core.note` content type that is always available at boot. To define custom content types, see the [`waaseyaa/node`](packages/node) package as a reference.
+
+## Fresh App Workflow
+
+Use this minimal sequence for a new public-facing site:
+
+```bash
+composer create-project waaseyaa/waaseyaa my-site --stability=dev
+cd my-site
+./vendor/bin/phpunit
+php bin/waaseyaa optimize:manifest
+bin/waaseyaa serve
+```
+
+When turning the scaffold into a site:
+
+1. Add a failing integration test for your public routes and rendered HTML.
+2. Register your site provider in `composer.json` under `extra.waaseyaa.providers`.
+3. Add your `PageController`, `SiteServiceProvider`, shared Twig layout, and site templates.
+4. Re-run PHPUnit and `php bin/waaseyaa optimize:manifest`.
+5. Add repo-local deployment files (`deploy.php`, `.github/workflows/*`) only after the site passes locally.
 
 ## Architecture
 
