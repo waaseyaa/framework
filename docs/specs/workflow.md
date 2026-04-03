@@ -85,4 +85,4 @@ At session start, `bin/check-milestones` runs automatically. Claude must read th
 
 The script exits 0 always. Output is a warning surface for Claude and contributors, not a CI gate.
 
-For steady-state drift scans and C17+ logging, use [docs/governance/m11-periodic-drift-scan-protocol.md](../governance/m11-periodic-drift-scan-protocol.md) and the [M11 drift-scan log issue template](../../.github/ISSUE_TEMPLATE/m11-drift-scan-log.md).
+The top-level M11 steady-state conformance artifact is [docs/governance/m11-steady-state-conformance-loop.md](../governance/m11-steady-state-conformance-loop.md); governed changes enter that loop through `#999`, and this workflow spec serves as the repo-local front-door proxy for that path. For steady-state drift scans and C17+ logging, use [docs/governance/m11-periodic-drift-scan-protocol.md](../governance/m11-periodic-drift-scan-protocol.md) and the [M11 drift-scan log issue template](../../.github/ISSUE_TEMPLATE/m11-drift-scan-log.md).

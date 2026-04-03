@@ -4,6 +4,8 @@
 
 Define the canonical M11 steady-state process for periodically scanning the repo for governance drift, recording clean scans with evidence, and escalating confirmed anomalies into new C17+ issues under M11.
 
+Note: this protocol is the backstop component of the broader M11 steady-state conformance loop; see [m11-steady-state-conformance-loop.md](./m11-steady-state-conformance-loop.md).
+
 ## Authoritative Inputs
 
 - `#987` is the authoritative governance reference for the M11 drift-scan loop.
