@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Auth;
 
-final class RateLimiter
+final class RateLimiter implements RateLimiterInterface
 {
     /** @var array<string, array{count: int, resetAt: int}> */
     private array $attempts = [];
