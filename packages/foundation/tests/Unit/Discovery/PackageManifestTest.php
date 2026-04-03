@@ -20,7 +20,6 @@ final class PackageManifestTest extends TestCase
         $this->assertSame([], $manifest->migrations);
         $this->assertSame([], $manifest->fieldTypes);
         $this->assertSame([], $manifest->formatters);
-        $this->assertSame([], $manifest->listeners);
         $this->assertSame([], $manifest->middleware);
         $this->assertSame([], $manifest->packageDeclarations);
     }
@@ -71,7 +70,6 @@ final class PackageManifestTest extends TestCase
             'routes' => [],
             'migrations' => [],
             'field_types' => [],
-            'listeners' => [],
             'middleware' => [],
             'permissions' => [],
             'policies' => [],
@@ -87,7 +85,6 @@ final class PackageManifestTest extends TestCase
             'routes' => [],
             'migrations' => [],
             'field_types' => [],
-            'listeners' => [],
             'middleware' => [],
         ]);
 

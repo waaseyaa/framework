@@ -20,8 +20,6 @@ final class PackageManifest
         /** @var array<string, class-string> */
         public readonly array $formatters = [],
         /** @var array<string, list<array{class: string, priority: int}>> */
-        public readonly array $listeners = [],
-        /** @var array<string, list<array{class: string, priority: int}>> */
         public readonly array $middleware = [],
         /** @var array<string, array{title: string, description?: string}> */
         public readonly array $permissions = [],
@@ -38,7 +36,7 @@ final class PackageManifest
      */
     public static function fromArray(array $data): self
     {
-        $requiredKeys = ['providers', 'commands', 'routes', 'migrations', 'field_types', 'listeners', 'middleware'];
+        $requiredKeys = ['providers', 'commands', 'routes', 'migrations', 'field_types', 'middleware'];
         $optionalKeys = ['permissions', 'policies', 'formatters', 'package_declarations'];
         $missing = array_diff($requiredKeys, array_keys($data));
 
@@ -66,7 +64,6 @@ final class PackageManifest
             migrations: $data['migrations'],
             fieldTypes: $data['field_types'],
             formatters: $data['formatters'] ?? [],
-            listeners: $data['listeners'],
             middleware: $data['middleware'],
             permissions: $data['permissions'] ?? [],
             policies: $data['policies'] ?? [],
@@ -86,7 +83,6 @@ final class PackageManifest
             'migrations' => $this->migrations,
             'field_types' => $this->fieldTypes,
             'formatters' => $this->formatters,
-            'listeners' => $this->listeners,
             'middleware' => $this->middleware,
             'permissions' => $this->permissions,
             'policies' => $this->policies,
