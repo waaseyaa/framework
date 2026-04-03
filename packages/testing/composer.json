@@ -1,16 +1,12 @@
 {
     "name": "waaseyaa/testing",
-    "description": "Testing utilities for Waaseyaa \u2014 base test case, entity factories, GraphQL schema contract base, and helper traits.",
+    "description": "Testing utilities for Waaseyaa \u2014 base test case, entity factories, and helper traits.",
     "type": "library",
     "license": "GPL-2.0-or-later",
-    "repositories": [
-        { "type": "path", "url": "../graphql" }
-    ],
     "require": {
         "php": ">=8.4",
         "phpunit/phpunit": "^10.5",
-        "symfony/event-dispatcher": "^7.0",
-        "waaseyaa/graphql": "@dev"
+        "symfony/event-dispatcher": "^7.0"
     },
     "autoload": {
         "psr-4": {
