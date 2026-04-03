@@ -59,6 +59,9 @@ final class ProviderRegistry
                 if ($className === \Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class) {
                     return $dispatcher;
                 }
+                if ($className === \Waaseyaa\Foundation\Log\LoggerInterface::class) {
+                    return $this->logger;
+                }
                 if ($className === \PDO::class) {
                     assert($database instanceof \Waaseyaa\Database\DBALDatabase);
                     $pdo = $database->getConnection()->getNativeConnection();

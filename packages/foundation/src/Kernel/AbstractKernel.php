@@ -25,6 +25,8 @@ use Waaseyaa\Foundation\Kernel\Bootstrap\ManifestBootstrapper;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistry;
 use Waaseyaa\Foundation\Log\ErrorLogHandler;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\LogLevel;
+use Waaseyaa\Foundation\Log\LogManager;
 use Waaseyaa\Foundation\Migration\MigrationLoader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
@@ -54,13 +56,15 @@ abstract class AbstractKernel
 
     private ?KnowledgeToolingExtensionRunner $knowledgeExtensionRunner = null;
     private bool $booted = false;
-    protected readonly LoggerInterface $logger;
+    protected LoggerInterface $logger;
 
     public function __construct(
         protected readonly string $projectRoot,
         ?LoggerInterface $logger = null,
     ) {
-        $this->logger = $logger ?? new ErrorLogHandler();
+        $this->logger = $logger ?? new LogManager(
+            new ErrorLogHandler(),
+        );
     }
 
     /**
@@ -78,6 +82,12 @@ abstract class AbstractKernel
         EnvLoader::load($this->projectRoot . '/.env');
 
         $this->config = ConfigLoader::load($this->projectRoot . '/config/waaseyaa.php');
+
+        // Upgrade default logger with configured log level.
+        if ($this->logger instanceof LogManager) {
+            $level = LogLevel::fromName((string) ($this->config['log_level'] ?? 'warning')) ?? LogLevel::WARNING;
+            $this->logger = new LogManager(new ErrorLogHandler(minimumLevel: $level));
+        }
 
         // Safety guard: refuse to boot with debug enabled in production.
         if ($this->isDebugMode() && !$this->isDevelopmentMode()) {
