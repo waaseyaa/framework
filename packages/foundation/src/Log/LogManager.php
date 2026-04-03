@@ -70,6 +70,8 @@ final class LogManager implements LoggerInterface
             foreach ($stackChannels as $ref) {
                 if (isset($handlers[$ref])) {
                     $stackHandlers[] = $handlers[$ref];
+                } else {
+                    error_log(sprintf('[log] Stack channel "%s" references unknown channel "%s"', $name, $ref));
                 }
             }
             $handlers[$name] = new StackHandler(...$stackHandlers);

@@ -21,6 +21,9 @@ final class StreamHandler implements HandlerInterface
         ?FormatterInterface $formatter = null,
         private readonly LogLevel $minimumLevel = LogLevel::DEBUG,
     ) {
+        if (!is_resource($stream)) {
+            throw new \InvalidArgumentException('StreamHandler requires a valid stream resource.');
+        }
         $this->formatter = $formatter ?? new TextFormatter();
     }
 
