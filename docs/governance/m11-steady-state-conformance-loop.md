@@ -12,7 +12,7 @@ Define the canonical steady-state governance loop for M11 under the post-executi
 - [m11-post-execution-governance-bootstrap.md](./m11-post-execution-governance-bootstrap.md) is the top-level post-execution governance baseline for M11.
 - [m11-periodic-drift-scan-protocol.md](./m11-periodic-drift-scan-protocol.md) defines the periodic-scan procedure used by the backstop side of the loop.
 - [m11-drift-scan-log.md](../../.github/ISSUE_TEMPLATE/m11-drift-scan-log.md) defines the repo-local logging surface for clean scans and new `C17+` findings.
-- [workflow.md](../specs/workflow.md) serves as the repo-local proxy backlink for the governed-change front door beneath that baseline; `#999` still has no dedicated repo-local artifact today.
+- [.github/ISSUE_TEMPLATE/m11-governed-change.md](../../.github/ISSUE_TEMPLATE/m11-governed-change.md) serves as the repo-local front-door artifact for governed changes.
 
 ## Loop Components
 
