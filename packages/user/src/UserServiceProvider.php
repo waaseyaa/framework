@@ -73,7 +73,7 @@ final class UserServiceProvider extends ServiceProvider
             driver: fn() => $this->resolve(MailDriverInterface::class),
             twig: \Waaseyaa\SSR\SsrServiceProvider::getTwigEnvironment(),
             baseUrl: $config['app']['url'] ?? throw new \RuntimeException(
-                "app.url is not configured. Add 'app' => ['url' => 'https://yourapp.com'] to your config/waaseyaa.php."
+                "app.url is not configured. Add 'app' => ['url' => 'https://yourapp.com'] to your config/waaseyaa.php.",
             ),
             appName: $config['app']['name'] ?? 'Waaseyaa',
         ));

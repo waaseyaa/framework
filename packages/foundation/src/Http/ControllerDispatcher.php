@@ -21,6 +21,7 @@ use Waaseyaa\Api\JsonApiDocument;
 use Waaseyaa\Api\OpenApi\OpenApiGenerator;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Api\Schema\SchemaPresenter;
+use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Entity\EntityTypeIdNormalizer;
 use Waaseyaa\Entity\EntityTypeLifecycleManager;
@@ -58,6 +59,7 @@ final class ControllerDispatcher
         private readonly array $config,
         /** @var array<string, array{args?: array<string, mixed>, resolve?: callable}> */
         private readonly array $graphqlMutationOverrides = [],
+        private readonly ?RateLimiterInterface $rateLimiter = null,
         ?LoggerInterface $logger = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
@@ -692,12 +694,7 @@ final class ControllerDispatcher
                 })(),
 
                 $controller === 'auth.login' => (function () use ($body): never {
-                    // @todo Replace in-memory RateLimiter with cache-backed implementation
-                    // for PHP-FPM deployments. In-memory state is per-process only.
-                    static $rateLimiter = null;
-                    if ($rateLimiter === null) {
-                        $rateLimiter = new \Waaseyaa\Auth\RateLimiter();
-                    }
+                    $rateLimiter = $this->rateLimiter ?? new \Waaseyaa\Auth\RateLimiter();
 
                     $rateLimitKey = 'login:' . ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
 
