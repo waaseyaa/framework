@@ -784,15 +784,45 @@ Immutable value object carrying a single log entry: `level` (LogLevel), `message
 
 File: `packages/foundation/src/Log/LogManager.php`
 
-Central log orchestrator. Implements `LoggerInterface` — calling `log()` delegates to the default channel. `channel(string $name)` returns a `LoggerInterface` for the named channel; unknown channels fall back to the default. The kernel constructs a `LogManager` wrapping an `ErrorLogHandler` with `minimumLevel` from `config['log_level']`. Service providers can resolve `LoggerInterface` via the kernel resolver to get the same `LogManager` singleton.
+Central log orchestrator. Implements `LoggerInterface` — calling `log()` delegates to the default channel. Constructor accepts `LoggerInterface|HandlerInterface` for the default handler (legacy loggers are wrapped in `LegacyLoggerHandler`). `channel(string $name)` returns a `ChannelLogger` for the named channel; unknown channels fall back to the default. `fromConfig(array $config)` static factory builds channels from config (two-pass: non-stack handlers first, then stack handlers that reference other channels).
 
-### Logger implementations
+The kernel constructs `LogManager(new Handler\ErrorLogHandler())` at startup, then upgrades it after config loads: if `config['logging']['channels']` exists, uses `LogManager::fromConfig()`; otherwise falls back to `log_level` config with a single `Handler\ErrorLogHandler(minimumLevel: $level)`.
+
+### ChannelLogger
+
+File: `packages/foundation/src/Log/ChannelLogger.php`
+
+Scoped `LoggerInterface` that stamps a channel name on every `LogRecord` before delegating to a `HandlerInterface`. Created by `LogManager::channel()`.
+
+### Handler pipeline
+
+| Interface/Class | File | Purpose |
+|-------|------|---------|
+| `HandlerInterface` | `Log/Handler/HandlerInterface.php` | Contract: `handle(LogRecord $record): void` |
+| `ErrorLogHandler` | `Log/Handler/ErrorLogHandler.php` | Delegates to `error_log()`. Constructor: `(?FormatterInterface $formatter = null, LogLevel $minimumLevel = LogLevel::DEBUG, ?\Closure $writer = null)`. Discards messages below `minimumLevel`. |
+| `FileHandler` | `Log/Handler/FileHandler.php` | Appends formatted record to a file with `LOCK_EX`. Constructor: `(string $path, ?FormatterInterface $formatter = null, LogLevel $minimumLevel = LogLevel::DEBUG)`. |
+| `StackHandler` | `Log/Handler/StackHandler.php` | Fan-out to multiple handlers. Constructor: `(HandlerInterface ...$handlers)`. Best-effort: catches `\Throwable` per handler so one failure doesn't stop others. |
+| `NullHandler` | `Log/Handler/NullHandler.php` | Discards all records — for testing and disabled logging. |
+| `StreamHandler` | `Log/Handler/StreamHandler.php` | Writes to `php://stderr` or any stream resource. Constructor validates resource type; throws `\InvalidArgumentException` on non-resource. |
+| `LegacyLoggerHandler` | `Log/LegacyLoggerHandler.php` | Adapts Phase A `LoggerInterface` implementations to `HandlerInterface`. Internal, used by `LogManager` for backward compatibility. |
+
+### Formatter pipeline
+
+| Interface/Class | File | Purpose |
+|-------|------|---------|
+| `FormatterInterface` | `Log/Formatter/FormatterInterface.php` | Contract: `format(LogRecord $record): string` |
+| `TextFormatter` | `Log/Formatter/TextFormatter.php` | Format: `[timestamp] [level] [channel] message {context}`. Omits context braces when empty. |
+| `JsonFormatter` | `Log/Formatter/JsonFormatter.php` | One JSON object per line with all fields: timestamp, level, channel, message, context. |
+
+### Legacy logger implementations
+
+These Phase A loggers still exist for backward compatibility but new code should use `HandlerInterface` implementations:
 
 | Class | File | Purpose |
 |-------|------|---------|
-| `ErrorLogHandler` | `Log/ErrorLogHandler.php` | Delegates to `error_log()`. Constructor: `(?\Closure $writer = null, LogLevel $minimumLevel = LogLevel::DEBUG)`. Discards messages below `minimumLevel`. |
-| `FileLogger` | `Log/FileLogger.php` | Writes timestamped JSON lines to a file. Constructor: `(string $filePath, LogLevel $minimumLevel = LogLevel::DEBUG)`. Uses `LOCK_EX` for safe concurrent writes. |
-| `CompositeLogger` | `Log/CompositeLogger.php` | Fans out to multiple loggers. Constructor: `(LoggerInterface ...$loggers)`. Best-effort: one broken sink does not stop others. |
+| `ErrorLogHandler` | `Log/ErrorLogHandler.php` | Legacy `LoggerInterface` impl. Delegates to `error_log()` with `minimumLevel` filtering. |
+| `FileLogger` | `Log/FileLogger.php` | Writes timestamped JSON lines to a file. |
+| `CompositeLogger` | `Log/CompositeLogger.php` | Fans out to multiple loggers. |
 | `NullLogger` | `Log/NullLogger.php` | No-op — for testing and disabled logging. |
 
 `LoggerTrait` provides convenience methods (`emergency()`, `error()`, etc.) that delegate to `log()`.
@@ -1032,14 +1062,14 @@ File: `packages/foundation/src/Kernel/AbstractKernel.php`
 
 Constructor: `(string $projectRoot, ?LoggerInterface $logger = null)`
 
-Default logger is `LogManager(new ErrorLogHandler())`. After config loads, the kernel rebuilds it with `minimumLevel` from `config['log_level']`.
+Default logger is `LogManager(new Handler\ErrorLogHandler())`. After config loads, the kernel rebuilds it: if `config['logging']['channels']` exists, uses `LogManager::fromConfig()`; otherwise uses `Handler\ErrorLogHandler(minimumLevel: $level)` from `config['log_level']`.
 
 Boot sequence (idempotent — guarded by `$this->booted` flag, set only after all steps succeed):
 
 ```
 EnvLoader::load(.env)
   → ConfigLoader::load(config/waaseyaa.php)
-  → rebuild LogManager with configured log_level
+  → rebuild LogManager (fromConfig if logging.channels exists, else log_level fallback)
   → debug/environment safety guard
   → new EventDispatcher()
   → new EntityTypeLifecycleManager($projectRoot)
@@ -1217,11 +1247,24 @@ Log/
     LogLevel.php                 -- string-backed enum (EMERGENCY..DEBUG)
     LoggerTrait.php              -- convenience methods delegating to log()
     LogRecord.php                -- immutable VO: level, message, context, channel, timestamp
-    LogManager.php               -- channel registry, implements LoggerInterface, delegates to default
-    ErrorLogHandler.php          -- error_log() with minimumLevel filtering
-    FileLogger.php               -- timestamped JSON lines to file
-    CompositeLogger.php          -- fan-out to multiple loggers
-    NullLogger.php               -- no-op for testing
+    LogManager.php               -- channel registry, implements LoggerInterface, fromConfig() factory
+    ChannelLogger.php            -- scoped LoggerInterface stamping channel on LogRecords
+    LegacyLoggerHandler.php      -- adapts LoggerInterface to HandlerInterface (internal)
+    ErrorLogHandler.php          -- legacy error_log() LoggerInterface impl
+    FileLogger.php               -- legacy timestamped JSON lines to file
+    CompositeLogger.php          -- legacy fan-out to multiple loggers
+    NullLogger.php               -- legacy no-op for testing
+    Handler/
+        HandlerInterface.php     -- handle(LogRecord): void
+        ErrorLogHandler.php      -- error_log() with formatter + minimumLevel
+        FileHandler.php          -- append to file with LOCK_EX
+        StackHandler.php         -- fan-out, best-effort per handler
+        NullHandler.php          -- discard all records
+        StreamHandler.php        -- write to php://stderr or stream resource
+    Formatter/
+        FormatterInterface.php   -- format(LogRecord): string
+        TextFormatter.php        -- [timestamp] [level] [channel] message {context}
+        JsonFormatter.php        -- one JSON object per line
 RateLimit/
     RateLimiterInterface.php     -- attempt(key, max, window): {allowed, remaining, retryAfter}
     InMemoryRateLimiter.php      -- sliding-window in-memory implementation

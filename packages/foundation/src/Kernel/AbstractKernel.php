@@ -23,7 +23,7 @@ use Waaseyaa\Foundation\Kernel\Bootstrap\AccessPolicyRegistry;
 use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ManifestBootstrapper;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistry;
-use Waaseyaa\Foundation\Log\ErrorLogHandler;
+use Waaseyaa\Foundation\Log\Handler\ErrorLogHandler as HandlerErrorLogHandler;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LogLevel;
 use Waaseyaa\Foundation\Log\LogManager;
@@ -63,7 +63,7 @@ abstract class AbstractKernel
         ?LoggerInterface $logger = null,
     ) {
         $this->logger = $logger ?? new LogManager(
-            new ErrorLogHandler(),
+            new HandlerErrorLogHandler(),
         );
     }
 
@@ -83,10 +83,15 @@ abstract class AbstractKernel
 
         $this->config = ConfigLoader::load($this->projectRoot . '/config/waaseyaa.php');
 
-        // Upgrade default logger with configured log level.
+        // Upgrade logger from config.
         if ($this->logger instanceof LogManager) {
-            $level = LogLevel::fromName((string) ($this->config['log_level'] ?? 'warning')) ?? LogLevel::WARNING;
-            $this->logger = new LogManager(new ErrorLogHandler(minimumLevel: $level));
+            $loggingConfig = $this->config['logging'] ?? [];
+            if (is_array($loggingConfig) && isset($loggingConfig['channels'])) {
+                $this->logger = LogManager::fromConfig($loggingConfig);
+            } else {
+                $level = LogLevel::fromName((string) ($this->config['log_level'] ?? 'warning')) ?? LogLevel::WARNING;
+                $this->logger = new LogManager(new HandlerErrorLogHandler(minimumLevel: $level));
+            }
         }
 
         // Safety guard: refuse to boot with debug enabled in production.
