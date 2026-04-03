@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Notification\Job;
 
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Notification\ChannelInterface;
 use Waaseyaa\Notification\NotifiableInterface;
 use Waaseyaa\Notification\NotificationInterface;
@@ -17,12 +19,17 @@ use Waaseyaa\Queue\Handler\HandlerInterface;
  */
 final class SendNotificationHandler implements HandlerInterface
 {
+    private readonly LoggerInterface $logger;
+
     /**
      * @param array<string, ChannelInterface> $channels
      */
     public function __construct(
         private readonly array $channels,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function supports(object $message): bool
     {
@@ -43,7 +50,7 @@ final class SendNotificationHandler implements HandlerInterface
             try {
                 $this->channels[$channelName]->send($notifiable, $notification);
             } catch (\Throwable $e) {
-                error_log("[notification] Async channel {$channelName} failed: {$e->getMessage()}");
+                $this->logger->error("Async channel {$channelName} failed: {$e->getMessage()}");
                 throw $e; // Let the worker handle retry
             }
         }

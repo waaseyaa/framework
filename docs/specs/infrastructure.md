@@ -100,7 +100,7 @@ When `$eventPipeline` is non-null, sync dispatch is wrapped in the event middlew
 
 ### Best-effort side effects
 
-Event listeners for non-critical operations (broadcasting, logging, cache invalidation) must wrap in try-catch and log via `error_log()` to avoid crashing the primary request. The project does not use `psr/log`.
+Event listeners for non-critical operations (broadcasting, logging, cache invalidation) must wrap in try-catch and log via `LoggerInterface` to avoid crashing the primary request. The project does not use `psr/log`; use `Waaseyaa\Foundation\Log\LoggerInterface` with `NullLogger` as the default fallback. Reserve `error_log()` only for last-resort fallbacks inside the logging infrastructure itself.
 
 ## Cache System
 

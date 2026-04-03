@@ -483,6 +483,8 @@ These three request surfaces are registered by `packages/user/src/UserServicePro
 
 `ResendVerificationController` requires an active authenticated session. `AccessChecker` short-circuits with `unauthenticated` (401) if the `_account` attribute on the request is anonymous. The other four endpoints are public — no session required.
 
+All auth controllers accept an optional `?LoggerInterface $logger` (defaults to `NullLogger`). DevLog-mode verification/reset URLs and best-effort email failures are logged via this interface rather than `error_log()`.
+
 ### Rate Limiting
 
 All auth endpoints apply rate limiting via `RateLimiter` keyed on IP or user identity:

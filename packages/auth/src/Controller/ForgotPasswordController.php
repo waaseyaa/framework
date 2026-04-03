@@ -11,17 +11,24 @@ use Waaseyaa\Auth\Config\MailMissingPolicy;
 use Waaseyaa\Auth\RateLimiter;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\User\AuthMailer;
 
 final class ForgotPasswordController
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly AuthConfig $config,
         private readonly EntityTypeManager $entityTypeManager,
         private readonly AuthTokenRepositoryInterface $tokenRepo,
         private readonly AuthMailer $authMailer,
         private readonly RateLimiter $rateLimiter,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function __invoke(Request $request): JsonResponse
     {
@@ -69,7 +76,7 @@ final class ForgotPasswordController
                 $this->authMailer->sendPasswordReset($user, $token);
             } elseif ($this->config->mailMissingPolicy === MailMissingPolicy::DevLog) {
                 // 7. User found + not configured + DevLog: log reset URL
-                error_log('[ForgotPasswordController] Password reset URL for ' . $email . ': /reset-password?token=' . $token);
+                $this->logger->info('Password reset URL for ' . $email . ': /reset-password?token=' . $token);
             }
             // Silent policy: create token but do nothing
         }

@@ -10,18 +10,25 @@ use Waaseyaa\Auth\Config\AuthConfig;
 use Waaseyaa\Auth\RateLimiter;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\User\AuthMailer;
 use Waaseyaa\User\User;
 
 final class RegisterController
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly AuthConfig $config,
         private readonly EntityTypeManager $entityTypeManager,
         private readonly AuthTokenRepositoryInterface $tokenRepo,
         private readonly AuthMailer $authMailer,
         private readonly RateLimiter $rateLimiter,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function __invoke(Request $request): JsonResponse
     {
@@ -117,7 +124,7 @@ final class RegisterController
             if ($this->authMailer->isConfigured()) {
                 $this->authMailer->sendEmailVerification($user, $verifyToken);
             } elseif ($this->config->mailMissingPolicy === \Waaseyaa\Auth\Config\MailMissingPolicy::DevLog) {
-                error_log('[RegisterController] Email verification URL for ' . $email . ': /verify-email?token=' . $verifyToken);
+                $this->logger->info('Email verification URL for ' . $email . ': /verify-email?token=' . $verifyToken);
             }
         }
 
@@ -125,7 +132,7 @@ final class RegisterController
         try {
             $this->authMailer->sendWelcome($user);
         } catch (\Throwable $e) {
-            error_log('[RegisterController] Welcome email failed: ' . $e->getMessage());
+            $this->logger->warning('Welcome email failed: ' . $e->getMessage());
         }
 
         // 12. Auto-login: regenerate session, set waaseyaa_uid
