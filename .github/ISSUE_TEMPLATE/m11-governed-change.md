@@ -14,6 +14,8 @@ Note: consult [m11-steady-state-conformance-loop.md](../../docs/governance/m11-s
 ## Canonical Reference
 
 - Relevant sections of #987:
+- #991 resolved-history boundary check:
+- #993 inherited execution-evidence baseline check:
 - Alignment or extension note:
 
 ## Surface Impact Declaration
