@@ -102,7 +102,7 @@ Use `waaseyaa_search_specs` MCP tool to find specs affected by a change when the
 5. Add to `SchemaPresenter` if JSON Schema output is needed — set `x-access-restricted` for view-only fields
 
 **Adding middleware:**
-1. Implement `HttpMiddlewareInterface` (or `EventMiddlewareInterface` / `JobMiddlewareInterface`)
+1. Implement `HttpMiddlewareInterface` (or `JobMiddlewareInterface`)
 2. Add `#[AsMiddleware(priority: N)]` attribute — higher priority runs first (outer onion layer)
 3. Middleware is auto-discovered by `PackageManifestCompiler` via attribute scanning
 4. Follow handler naming: `{Type}HandlerInterface` for handler, `{Type}MiddlewareInterface` for middleware
