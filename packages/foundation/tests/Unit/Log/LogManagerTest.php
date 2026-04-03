@@ -15,7 +15,6 @@ use Waaseyaa\Foundation\Log\Handler\NullHandler;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LogLevel;
 use Waaseyaa\Foundation\Log\LogManager;
-use Waaseyaa\Foundation\Log\NullLogger;
 
 #[CoversClass(LogManager::class)]
 final class LogManagerTest extends TestCase
@@ -96,17 +95,22 @@ final class LogManagerTest extends TestCase
     public function legacy_logger_interface_accepted(): void
     {
         $messages = [];
-        $legacy = new \Waaseyaa\Foundation\Log\ErrorLogHandler(
-            writer: static function (string $line) use (&$messages): void {
-                $messages[] = $line;
-            },
-        );
+        $legacy = new class ($messages) implements LoggerInterface {
+            use \Waaseyaa\Foundation\Log\LoggerTrait;
+
+            public function __construct(private array &$messages) {}
+
+            public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
+            {
+                $this->messages[] = $level->value . ':' . $message;
+            }
+        };
         $manager = new LogManager($legacy);
 
         $manager->error('legacy test');
 
         $this->assertCount(1, $messages);
-        $this->assertStringContainsString('legacy test', $messages[0]);
+        $this->assertSame('error:legacy test', $messages[0]);
     }
 
     #[Test]
@@ -209,5 +213,71 @@ final class LogManagerTest extends TestCase
         $manager = LogManager::fromConfig([]);
 
         $this->assertInstanceOf(LogManager::class, $manager);
+    }
+
+    #[Test]
+    public function from_config_global_processors(): void
+    {
+        $tmpFile = sys_get_temp_dir() . '/waaseyaa_proc_test_' . uniqid() . '.log';
+
+        try {
+            $config = [
+                'default' => 'file',
+                'processors' => ['request_id', 'hostname'],
+                'channels' => [
+                    'file' => [
+                        'type' => 'file',
+                        'path' => $tmpFile,
+                        'level' => 'debug',
+                        'formatter' => 'json',
+                    ],
+                ],
+            ];
+
+            $manager = LogManager::fromConfig($config);
+            $manager->info('processor test');
+
+            $content = trim(file_get_contents($tmpFile));
+            $decoded = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+            $this->assertArrayHasKey('request_id', $decoded['context']);
+            $this->assertArrayHasKey('hostname', $decoded['context']);
+        } finally {
+            if (file_exists($tmpFile)) {
+                unlink($tmpFile);
+            }
+        }
+    }
+
+    #[Test]
+    public function from_config_per_channel_processors(): void
+    {
+        $tmpFile = sys_get_temp_dir() . '/waaseyaa_perchan_test_' . uniqid() . '.log';
+
+        try {
+            $config = [
+                'default' => 'file',
+                'channels' => [
+                    'file' => [
+                        'type' => 'file',
+                        'path' => $tmpFile,
+                        'level' => 'debug',
+                        'formatter' => 'json',
+                        'processors' => ['memory_usage'],
+                    ],
+                ],
+            ];
+
+            $manager = LogManager::fromConfig($config);
+            $manager->info('memory test');
+
+            $content = trim(file_get_contents($tmpFile));
+            $decoded = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+            $this->assertArrayHasKey('memory_peak_mb', $decoded['context']);
+            $this->assertIsNumeric($decoded['context']['memory_peak_mb']);
+        } finally {
+            if (file_exists($tmpFile)) {
+                unlink($tmpFile);
+            }
+        }
     }
 }

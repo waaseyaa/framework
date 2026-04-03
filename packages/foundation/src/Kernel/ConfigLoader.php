@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Kernel;
 
-use Waaseyaa\Foundation\Log\ErrorLogHandler;
+use Waaseyaa\Foundation\Log\Handler\ErrorLogHandler;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\LogManager;
 
 final class ConfigLoader
 {
@@ -18,7 +19,7 @@ final class ConfigLoader
 
     private static function logger(): LoggerInterface
     {
-        return self::$logger ??= new ErrorLogHandler();
+        return self::$logger ??= new LogManager(new ErrorLogHandler());
     }
 
     /**

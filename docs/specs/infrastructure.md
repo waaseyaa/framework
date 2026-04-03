@@ -792,7 +792,7 @@ The kernel constructs `LogManager(new Handler\ErrorLogHandler())` at startup, th
 
 File: `packages/foundation/src/Log/ChannelLogger.php`
 
-Scoped `LoggerInterface` that stamps a channel name on every `LogRecord` before delegating to a `HandlerInterface`. Created by `LogManager::channel()`.
+Scoped `LoggerInterface` that stamps a channel name on every `LogRecord`, runs processors (global + per-channel), then delegates to a `HandlerInterface`. Created by `LogManager::channel()`. Constructor: `(string $channel, HandlerInterface $handler, array $processors = [])`. Processor failures are best-effort: caught, logged via `error_log()`, pipeline continues.
 
 ### Handler pipeline
 
@@ -814,18 +814,26 @@ Scoped `LoggerInterface` that stamps a channel name on every `LogRecord` before 
 | `TextFormatter` | `Log/Formatter/TextFormatter.php` | Format: `[timestamp] [level] [channel] message {context}`. Omits context braces when empty. |
 | `JsonFormatter` | `Log/Formatter/JsonFormatter.php` | One JSON object per line with all fields: timestamp, level, channel, message, context. |
 
-### Legacy logger implementations
+### Processor pipeline
 
-These Phase A loggers still exist for backward compatibility but new code should use `HandlerInterface` implementations:
+Processors enrich `LogRecord` context before handlers receive the record. Execution order: global processors first, then per-channel processors.
+
+| Interface/Class | File | Purpose |
+|-------|------|---------|
+| `ProcessorInterface` | `Log/Processor/ProcessorInterface.php` | Contract: `process(LogRecord $record): LogRecord`. Must return a new record, not mutate input. |
+| `RequestIdProcessor` | `Log/Processor/RequestIdProcessor.php` | Adds `request_id` (UUID hex) to context. Same ID for all records within a single processor instance. |
+| `HostnameProcessor` | `Log/Processor/HostnameProcessor.php` | Adds `hostname` to context. Defaults to `gethostname()`. |
+| `MemoryUsageProcessor` | `Log/Processor/MemoryUsageProcessor.php` | Adds `memory_peak_mb` (float) to context. |
+
+### Legacy logger implementations
 
 | Class | File | Purpose |
 |-------|------|---------|
-| `ErrorLogHandler` | `Log/ErrorLogHandler.php` | Legacy `LoggerInterface` impl. Delegates to `error_log()` with `minimumLevel` filtering. |
-| `FileLogger` | `Log/FileLogger.php` | Writes timestamped JSON lines to a file. |
-| `CompositeLogger` | `Log/CompositeLogger.php` | Fans out to multiple loggers. |
-| `NullLogger` | `Log/NullLogger.php` | No-op — for testing and disabled logging. |
+| `NullLogger` | `Log/NullLogger.php` | No-op — for testing and disabled logging. Widely used across packages. |
 
 `LoggerTrait` provides convenience methods (`emergency()`, `error()`, etc.) that delegate to `log()`.
+
+Removed in Phase C: `FileLogger`, `CompositeLogger`, legacy `ErrorLogHandler` (at `Log/ErrorLogHandler.php`). Use `Handler\ErrorLogHandler`, `Handler\FileHandler`, `Handler\StackHandler` instead.
 
 ## Rate Limiting
 
@@ -1248,12 +1256,9 @@ Log/
     LoggerTrait.php              -- convenience methods delegating to log()
     LogRecord.php                -- immutable VO: level, message, context, channel, timestamp
     LogManager.php               -- channel registry, implements LoggerInterface, fromConfig() factory
-    ChannelLogger.php            -- scoped LoggerInterface stamping channel on LogRecords
+    ChannelLogger.php            -- scoped LoggerInterface: stamps channel, runs processors, delegates
     LegacyLoggerHandler.php      -- adapts LoggerInterface to HandlerInterface (internal)
-    ErrorLogHandler.php          -- legacy error_log() LoggerInterface impl
-    FileLogger.php               -- legacy timestamped JSON lines to file
-    CompositeLogger.php          -- legacy fan-out to multiple loggers
-    NullLogger.php               -- legacy no-op for testing
+    NullLogger.php               -- no-op for testing (widely used)
     Handler/
         HandlerInterface.php     -- handle(LogRecord): void
         ErrorLogHandler.php      -- error_log() with formatter + minimumLevel
@@ -1265,6 +1270,11 @@ Log/
         FormatterInterface.php   -- format(LogRecord): string
         TextFormatter.php        -- [timestamp] [level] [channel] message {context}
         JsonFormatter.php        -- one JSON object per line
+    Processor/
+        ProcessorInterface.php   -- process(LogRecord): LogRecord (immutable enrichment)
+        RequestIdProcessor.php   -- adds request_id (UUID hex) to context
+        HostnameProcessor.php    -- adds hostname to context
+        MemoryUsageProcessor.php -- adds memory_peak_mb to context
 RateLimit/
     RateLimiterInterface.php     -- attempt(key, max, window): {allowed, remaining, retryAfter}
     InMemoryRateLimiter.php      -- sliding-window in-memory implementation

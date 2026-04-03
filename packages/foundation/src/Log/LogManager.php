@@ -13,6 +13,10 @@ use Waaseyaa\Foundation\Log\Handler\HandlerInterface;
 use Waaseyaa\Foundation\Log\Handler\NullHandler;
 use Waaseyaa\Foundation\Log\Handler\StackHandler;
 use Waaseyaa\Foundation\Log\Handler\StreamHandler;
+use Waaseyaa\Foundation\Log\Processor\HostnameProcessor;
+use Waaseyaa\Foundation\Log\Processor\MemoryUsageProcessor;
+use Waaseyaa\Foundation\Log\Processor\ProcessorInterface;
+use Waaseyaa\Foundation\Log\Processor\RequestIdProcessor;
 
 final class LogManager implements LoggerInterface
 {
@@ -20,6 +24,12 @@ final class LogManager implements LoggerInterface
 
     /** @var array<string, HandlerInterface> */
     private array $handlers = [];
+
+    /** @var list<ProcessorInterface> */
+    private array $globalProcessors = [];
+
+    /** @var array<string, list<ProcessorInterface>> */
+    private array $channelProcessors = [];
 
     private string $defaultChannel;
 
@@ -51,8 +61,18 @@ final class LogManager implements LoggerInterface
             return new self(new ErrorLogHandler());
         }
 
+        // Build global processors.
+        $globalProcessors = [];
+        foreach (($config['processors'] ?? []) as $processorName) {
+            $processor = self::buildProcessor($processorName);
+            if ($processor !== null) {
+                $globalProcessors[] = $processor;
+            }
+        }
+
         // First pass: build non-stack handlers.
         $handlers = [];
+        $channelProcessorMap = [];
         $stackConfigs = [];
         foreach ($channelConfigs as $name => $channelConfig) {
             $type = $channelConfig['type'] ?? 'errorlog';
@@ -61,6 +81,18 @@ final class LogManager implements LoggerInterface
                 continue;
             }
             $handlers[$name] = self::buildHandler($channelConfig);
+
+            // Per-channel processors.
+            $perChannel = [];
+            foreach (($channelConfig['processors'] ?? []) as $processorName) {
+                $processor = self::buildProcessor($processorName);
+                if ($processor !== null) {
+                    $perChannel[] = $processor;
+                }
+            }
+            if ($perChannel !== []) {
+                $channelProcessorMap[$name] = $perChannel;
+            }
         }
 
         // Second pass: build stack handlers.
@@ -84,6 +116,8 @@ final class LogManager implements LoggerInterface
         }
 
         $manager->defaultChannel = $defaultName;
+        $manager->globalProcessors = $globalProcessors;
+        $manager->channelProcessors = $channelProcessorMap;
 
         return $manager;
     }
@@ -97,7 +131,13 @@ final class LogManager implements LoggerInterface
     {
         $handler = $this->handlers[$name] ?? $this->handlers[$this->defaultChannel];
 
-        return new ChannelLogger($name, $handler);
+        // Merge global + per-channel processors.
+        $processors = array_merge(
+            $this->globalProcessors,
+            $this->channelProcessors[$name] ?? [],
+        );
+
+        return new ChannelLogger($name, $handler, $processors);
     }
 
     public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
@@ -108,6 +148,24 @@ final class LogManager implements LoggerInterface
             context: $context,
             channel: $this->defaultChannel,
         );
+
+        // Run global processors on default channel.
+        foreach ($this->globalProcessors as $processor) {
+            try {
+                $record = $processor->process($record);
+            } catch (\Throwable $e) {
+                error_log(sprintf('[log] Processor %s failed: %s', $processor::class, $e->getMessage()));
+            }
+        }
+
+        // Run per-channel processors for default channel.
+        foreach (($this->channelProcessors[$this->defaultChannel] ?? []) as $processor) {
+            try {
+                $record = $processor->process($record);
+            } catch (\Throwable $e) {
+                error_log(sprintf('[log] Processor %s failed: %s', $processor::class, $e->getMessage()));
+            }
+        }
 
         $this->handlers[$this->defaultChannel]->handle($record);
     }
@@ -140,6 +198,16 @@ final class LogManager implements LoggerInterface
         return match ($name) {
             'json' => new JsonFormatter(),
             default => new TextFormatter(),
+        };
+    }
+
+    private static function buildProcessor(string $name): ?ProcessorInterface
+    {
+        return match ($name) {
+            'request_id' => new RequestIdProcessor(),
+            'hostname' => new HostnameProcessor(),
+            'memory_usage' => new MemoryUsageProcessor(),
+            default => null,
         };
     }
 }
