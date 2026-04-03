@@ -280,4 +280,40 @@ final class LogManagerTest extends TestCase
             }
         }
     }
+
+    #[Test]
+    public function add_global_processor_at_runtime(): void
+    {
+        $tmpFile = sys_get_temp_dir() . '/waaseyaa_addproc_test_' . uniqid() . '.log';
+
+        try {
+            $config = [
+                'default' => 'file',
+                'channels' => [
+                    'file' => [
+                        'type' => 'file',
+                        'path' => $tmpFile,
+                        'level' => 'debug',
+                        'formatter' => 'json',
+                    ],
+                ],
+            ];
+
+            $manager = LogManager::fromConfig($config);
+            $manager->addGlobalProcessor(
+                new \Waaseyaa\Foundation\Log\Processor\RequestContextProcessor('GET', '/api/nodes', 'req-test-1'),
+            );
+            $manager->info('runtime processor test');
+
+            $content = trim(file_get_contents($tmpFile));
+            $decoded = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+            $this->assertSame('GET', $decoded['context']['http_method']);
+            $this->assertSame('/api/nodes', $decoded['context']['uri']);
+            $this->assertSame('req-test-1', $decoded['context']['request_id']);
+        } finally {
+            if (file_exists($tmpFile)) {
+                unlink($tmpFile);
+            }
+        }
+    }
 }

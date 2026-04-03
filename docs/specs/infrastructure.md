@@ -1,6 +1,6 @@
 # Infrastructure
 
-<!-- Spec reviewed 2026-04-03 - DatabaseRateLimiter wired into ControllerDispatcher via HttpKernel (#768) -->
+<!-- Spec reviewed 2026-04-03 - RequestContextProcessor added to LogManager, wired in HttpKernel (#732) -->
 
 Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, migration system, kernel bootstrapping (including environment resolution and debug mode), service provider discovery, and queue workers.
 
@@ -784,7 +784,7 @@ Immutable value object carrying a single log entry: `level` (LogLevel), `message
 
 File: `packages/foundation/src/Log/LogManager.php`
 
-Central log orchestrator. Implements `LoggerInterface` — calling `log()` delegates to the default channel. Constructor accepts `LoggerInterface|HandlerInterface` for the default handler (legacy loggers are wrapped in `LegacyLoggerHandler`). `channel(string $name)` returns a `ChannelLogger` for the named channel; unknown channels fall back to the default. `fromConfig(array $config)` static factory builds channels from config (two-pass: non-stack handlers first, then stack handlers that reference other channels).
+Central log orchestrator. Implements `LoggerInterface` — calling `log()` delegates to the default channel. Constructor accepts `LoggerInterface|HandlerInterface` for the default handler (legacy loggers are wrapped in `LegacyLoggerHandler`). `channel(string $name)` returns a `ChannelLogger` for the named channel; unknown channels fall back to the default. `fromConfig(array $config)` static factory builds channels from config (two-pass: non-stack handlers first, then stack handlers that reference other channels). `addGlobalProcessor(ProcessorInterface $processor)` allows runtime registration of processors (used by `HttpKernel` to add `RequestContextProcessor` after request resolution).
 
 The kernel constructs `LogManager(new Handler\ErrorLogHandler())` at startup, then upgrades it after config loads: if `config['logging']['channels']` exists, uses `LogManager::fromConfig()`; otherwise falls back to `log_level` config with a single `Handler\ErrorLogHandler(minimumLevel: $level)`.
 
@@ -824,6 +824,7 @@ Processors enrich `LogRecord` context before handlers receive the record. Execut
 | `RequestIdProcessor` | `Log/Processor/RequestIdProcessor.php` | Adds `request_id` (UUID hex) to context. Same ID for all records within a single processor instance. |
 | `HostnameProcessor` | `Log/Processor/HostnameProcessor.php` | Adds `hostname` to context. Defaults to `gethostname()`. |
 | `MemoryUsageProcessor` | `Log/Processor/MemoryUsageProcessor.php` | Adds `memory_peak_mb` (float) to context. |
+| `RequestContextProcessor` | `Log/Processor/RequestContextProcessor.php` | Adds `http_method`, `uri`, and optional `request_id` to context. Registered by `HttpKernel` during request handling. |
 
 ### Legacy logger implementations
 
@@ -1276,7 +1277,8 @@ Log/
         ProcessorInterface.php   -- process(LogRecord): LogRecord (immutable enrichment)
         RequestIdProcessor.php   -- adds request_id (UUID hex) to context
         HostnameProcessor.php    -- adds hostname to context
-        MemoryUsageProcessor.php -- adds memory_peak_mb to context
+        MemoryUsageProcessor.php    -- adds memory_peak_mb to context
+        RequestContextProcessor.php -- adds http_method, uri, request_id to context (HTTP requests)
 RateLimit/
     RateLimiterInterface.php     -- attempt(key, max, window): {allowed, remaining, retryAfter}
     InMemoryRateLimiter.php      -- sliding-window in-memory implementation
