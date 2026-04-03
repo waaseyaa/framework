@@ -2,6 +2,8 @@
 
 Documents the drift detection strategy for specs, templates, config, and policies.
 
+For steady-state drift scans and C17+ logging, follow [docs/governance/m11-periodic-drift-scan-protocol.md](../../docs/governance/m11-periodic-drift-scan-protocol.md) and the [M11 drift-scan log issue template](../../.github/ISSUE_TEMPLATE/m11-drift-scan-log.md).
+
 ## What is Drift?
 
 Drift occurs when the codebase diverges from its codified context (specs, CLAUDE.md, contracts).
