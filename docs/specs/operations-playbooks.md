@@ -128,6 +128,33 @@ Use this as the default runbook for upgrades, baseline refreshes, and verificati
    - `php bin/waaseyaa fixture:pack:refresh --input-dir tests/fixtures/scenarios --output tests/fixtures/scenarios/fixture-pack.aggregate.json`
 3. Verify repeated refresh runs keep the same aggregate hash.
 
+### Playbook G: Fresh App Bootstrap And Site Bring-Up
+
+1. Scaffold the app:
+   - `composer create-project waaseyaa/waaseyaa my-site --stability=dev`
+2. Verify the clean scaffold before customization:
+   - `cd my-site`
+   - `./vendor/bin/phpunit`
+   - `php bin/waaseyaa optimize:manifest`
+3. Add a failing public-site test first:
+   - route registration,
+   - shared layout rendering,
+   - key page headings / links.
+4. Add app-level provider registration in `composer.json`:
+   - `extra.waaseyaa.providers`
+5. Implement only the app-specific surface:
+   - `src/Controller/PageController.php`
+   - `src/Provider/SiteServiceProvider.php`
+   - `templates/*.html.twig`
+   - `public/css/site.css`
+6. Re-run verification:
+   - `./vendor/bin/phpunit`
+   - `php bin/waaseyaa optimize:manifest`
+7. Only after green verification, add repo-local deploy files:
+   - `deploy.php`
+   - `.github/workflows/ci.yml`
+   - `.github/workflows/deploy.yml`
+
 ## CLI Command Reference
 
 ### Queue Operations
