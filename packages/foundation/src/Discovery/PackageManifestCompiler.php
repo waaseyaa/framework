@@ -299,7 +299,19 @@ final class PackageManifestCompiler
             }
         }
 
-        return $this->compileAndCache();
+        $manifest = $this->compileAndCache();
+
+        try {
+            $this->assertProvidersExist($manifest, $cachePath);
+        } catch (StaleManifestException $e) {
+            $this->logger->error(sprintf(
+                'Provider class(es) not found after recompile: %s. '
+                . 'Fix the provider declaration in composer.json or run: php bin/waaseyaa optimize:manifest',
+                implode(', ', $e->missingProviders()),
+            ));
+        }
+
+        return $manifest;
     }
 
     /**

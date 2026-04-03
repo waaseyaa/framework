@@ -4,6 +4,9 @@ namespace Waaseyaa\Foundation\Tests\Unit\Discovery;
 
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\LoggerTrait;
+use Waaseyaa\Foundation\Log\LogLevel;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -848,6 +851,51 @@ final class PackageManifestCompilerTest extends TestCase
 
         // Non-existent directory is skipped — empty manifest.
         $this->assertSame([], $manifest->policies);
+    }
+
+    #[Test]
+    public function load_logs_error_and_returns_manifest_when_provider_permanently_missing(): void
+    {
+        $composer = [
+            'name' => 'test/root',
+            'extra' => [
+                'waaseyaa' => [
+                    'providers' => ['App\\Provider\\PermanentlyMissing'],
+                ],
+            ],
+        ];
+        file_put_contents($this->tempDir . '/composer.json', json_encode($composer, JSON_THROW_ON_ERROR));
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => []], JSON_THROW_ON_ERROR),
+        );
+
+        $storagePath = $this->tempDir . '/storage';
+
+        $logger = new class implements LoggerInterface {
+            use LoggerTrait;
+
+            /** @var list<array{level: LogLevel, message: string}> */
+            public array $messages = [];
+
+            public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
+            {
+                $this->messages[] = ['level' => $level, 'message' => (string) $message];
+            }
+        };
+
+        $compiler = new PackageManifestCompiler($this->tempDir, $storagePath, $logger);
+        $manifest = $compiler->load();
+
+        // Manifest is returned despite missing provider (no crash, no recompile loop)
+        $this->assertContains('App\\Provider\\PermanentlyMissing', $manifest->providers);
+
+        // Error (not warning) is logged with actionable guidance
+        $errorMessages = array_filter($logger->messages, fn($m) => $m['level'] === LogLevel::ERROR);
+        $this->assertNotEmpty($errorMessages, 'Expected an error log for permanently missing provider');
+        $errorMessage = array_values($errorMessages)[0]['message'];
+        $this->assertStringContainsString('PermanentlyMissing', $errorMessage);
+        $this->assertStringContainsString('composer.json', $errorMessage);
     }
 
     private function removeDir(string $dir): void
