@@ -146,9 +146,7 @@ final class AuthServiceProvider extends ServiceProvider
         $router->addRoute(
             'api.user.me',
             RouteBuilder::create('/api/user/me')
-                ->controller(new MeController(
-                    entityTypeManager: $entityTypeManager ?? $this->resolve(EntityTypeManager::class),
-                ))
+                ->controller(new MeController())
                 ->allowAll()
                 ->methods('GET')
                 ->build(),
