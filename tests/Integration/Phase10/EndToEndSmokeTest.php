@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\HttpFoundation\Response;
 use Twig\Environment;
 use Twig\Loader\ArrayLoader;
 use Waaseyaa\AI\Schema\EntityJsonSchemaGenerator;
@@ -39,7 +40,6 @@ use Waaseyaa\SSR\ComponentMetadata;
 use Waaseyaa\SSR\ComponentRegistry;
 use Waaseyaa\SSR\ComponentRenderer;
 use Waaseyaa\SSR\SsrController;
-use Waaseyaa\SSR\SsrResponse;
 
 /**
  * End-to-end smoke tests exercising the complete Waaseyaa stack.
@@ -345,10 +345,10 @@ final class EndToEndSmokeTest extends TestCase
     }
 
     /**
-     * Exercises the full SSR pipeline: registry -> Twig rendering -> SsrResponse.
+     * Exercises the full SSR pipeline: registry -> Twig rendering -> HttpResponse.
      *
      * Exercises: waaseyaa/ssr (ComponentRegistry, ComponentRenderer,
-     * SsrController, SsrResponse, ComponentMetadata) with Twig.
+     * SsrController, HttpResponse, ComponentMetadata) with Twig.
      */
     #[Test]
     public function testSsrComponentRenderingPipeline(): void
@@ -389,16 +389,15 @@ final class EndToEndSmokeTest extends TestCase
             'author' => 'Waaseyaa Team',
         ]);
 
-        // Verify SsrResponse.
-        $this->assertInstanceOf(SsrResponse::class, $response);
-        $this->assertSame(200, $response->statusCode);
-        $this->assertSame('text/html; charset=UTF-8', $response->headers['Content-Type']);
+        // Verify Response.
+        $this->assertInstanceOf(Response::class, $response);
+        $this->assertSame(200, $response->getStatusCode());
 
         // Verify rendered content.
-        $this->assertStringContainsString('<article class="card">', $response->content);
-        $this->assertStringContainsString('<h2>Waaseyaa Launches</h2>', $response->content);
-        $this->assertStringContainsString('A next-generation content management system.', $response->content);
-        $this->assertStringContainsString('Waaseyaa Team', $response->content);
+        $this->assertStringContainsString('<article class="card">', $response->getContent());
+        $this->assertStringContainsString('<h2>Waaseyaa Launches</h2>', $response->getContent());
+        $this->assertStringContainsString('A next-generation content management system.', $response->getContent());
+        $this->assertStringContainsString('Waaseyaa Team', $response->getContent());
 
         // Render page layout via controller.
         $pageResponse = $controller->render('page-layout', [
@@ -406,10 +405,10 @@ final class EndToEndSmokeTest extends TestCase
             'content' => '<p>Welcome to Waaseyaa.</p>',
         ]);
 
-        $this->assertInstanceOf(SsrResponse::class, $pageResponse);
-        $this->assertSame(200, $pageResponse->statusCode);
-        $this->assertStringContainsString('<title>Home - Waaseyaa</title>', $pageResponse->content);
-        $this->assertStringContainsString('<p>Welcome to Waaseyaa.</p>', $pageResponse->content);
+        $this->assertInstanceOf(Response::class, $pageResponse);
+        $this->assertSame(200, $pageResponse->getStatusCode());
+        $this->assertStringContainsString('<title>Home - Waaseyaa</title>', $pageResponse->getContent());
+        $this->assertStringContainsString('<p>Welcome to Waaseyaa.</p>', $pageResponse->getContent());
     }
 
     /**

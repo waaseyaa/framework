@@ -35,6 +35,10 @@
         {
             "type": "path",
             "url": "../access"
+        },
+        {
+            "type": "path",
+            "url": "../foundation"
         }
     ],
     "require": {
@@ -44,6 +48,7 @@
         "waaseyaa/config": "^0.1",
         "waaseyaa/entity": "^0.1",
         "waaseyaa/field": "^0.1",
+        "waaseyaa/foundation": "^0.1",
         "waaseyaa/routing": "^0.1",
         "twig/twig": "^3.0"
     },

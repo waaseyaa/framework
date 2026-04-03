@@ -21,6 +21,7 @@ Foundation still owns the shared HTTP surfaces that are not entity-package speci
 | `src/JsonApiDocument.php` | `Waaseyaa\Api` | JSON:API document value object (data, errors, meta, links, included) |
 | `src/JsonApiResource.php` | `Waaseyaa\Api` | JSON:API resource value object (type, id, attributes, relationships) |
 | `src/JsonApiError.php` | `Waaseyaa\Api` | JSON:API error value object with static factory methods |
+| `src/JsonResponseTrait.php` | `Waaseyaa\Api` | Trait providing `json()` helper (returns Symfony `JsonResponse`) and `jsonBody()` request parser |
 | `src/JsonApiRouteProvider.php` | `Waaseyaa\Api` | Auto-registers five CRUD routes per entity type |
 | `src/Query/QueryParser.php` | `Waaseyaa\Api\Query` | Parses `$_GET` into ParsedQuery (filters, sorts, pagination, sparse fieldsets) |
 | `src/Query/QueryApplier.php` | `Waaseyaa\Api\Query` | Applies ParsedQuery to EntityQueryInterface |

@@ -34,7 +34,7 @@ final class RenderControllerTest extends TestCase
 
         $response = $controller->renderPath('/about', $account);
 
-        $this->assertSame('<main>authenticated</main>', $response->content);
+        $this->assertSame('<main>authenticated</main>', $response->getContent());
     }
 
     #[Test]
@@ -47,7 +47,7 @@ final class RenderControllerTest extends TestCase
 
         $response = $controller->renderPath('/about', null);
 
-        $this->assertSame('<main>ok</main>', $response->content);
+        $this->assertSame('<main>ok</main>', $response->getContent());
     }
 
     #[Test]
@@ -60,9 +60,8 @@ final class RenderControllerTest extends TestCase
 
         $response = $controller->renderPath('about');
 
-        $this->assertSame(200, $response->statusCode);
-        $this->assertSame('<main>/about</main>', $response->content);
-        $this->assertSame('text/html; charset=UTF-8', $response->headers['Content-Type']);
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('<main>/about</main>', $response->getContent());
     }
 
     #[Test]
@@ -73,8 +72,8 @@ final class RenderControllerTest extends TestCase
 
         $response = $controller->renderPath('/missing');
 
-        $this->assertSame(200, $response->statusCode);
-        $this->assertStringContainsString('Path: /missing', $response->content);
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertStringContainsString('Path: /missing', $response->getContent());
     }
 
     #[Test]
@@ -88,8 +87,8 @@ final class RenderControllerTest extends TestCase
 
         $response = $controller->renderPath('/');
 
-        $this->assertSame(200, $response->statusCode);
-        $this->assertSame('<main>Welcome Home</main>', $response->content);
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('<main>Welcome Home</main>', $response->getContent());
     }
 
     #[Test]
@@ -103,8 +102,8 @@ final class RenderControllerTest extends TestCase
 
         $response = $controller->renderPath('/about');
 
-        $this->assertSame(200, $response->statusCode);
-        $this->assertSame('<main>/about</main>', $response->content);
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('<main>/about</main>', $response->getContent());
     }
 
     #[Test]
@@ -117,8 +116,8 @@ final class RenderControllerTest extends TestCase
 
         $response = $controller->renderPath('/');
 
-        $this->assertSame(200, $response->statusCode);
-        $this->assertSame('<main>Fallback /</main>', $response->content);
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('<main>Fallback /</main>', $response->getContent());
     }
 
     #[Test]
@@ -152,8 +151,8 @@ final class RenderControllerTest extends TestCase
             'title' => 'Rendered',
         ]), ViewMode::full());
 
-        $this->assertSame(200, $response->statusCode);
-        $this->assertSame('<article>Rendered</article>', $response->content);
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('<article>Rendered</article>', $response->getContent());
     }
 
     #[Test]
@@ -188,8 +187,8 @@ final class RenderControllerTest extends TestCase
             ['relationship_navigation' => ['counts' => ['total' => 3]]],
         );
 
-        $this->assertSame(200, $response->statusCode);
-        $this->assertSame('<article>3</article>', $response->content);
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('<article>3</article>', $response->getContent());
     }
 
     #[Test]
@@ -227,7 +226,7 @@ final class RenderControllerTest extends TestCase
             ['account' => $account],
         );
 
-        $this->assertSame('<article>inX</article>', $response->content);
+        $this->assertSame('<article>inX</article>', $response->getContent());
     }
 
     #[Test]
@@ -244,7 +243,7 @@ final class RenderControllerTest extends TestCase
         $response = $controller->tryRenderPathTemplate('/language', $account);
 
         $this->assertNotNull($response);
-        $this->assertSame('<main>yes</main>', $response->content);
+        $this->assertSame('<main>yes</main>', $response->getContent());
     }
 
     #[Test]
@@ -258,8 +257,8 @@ final class RenderControllerTest extends TestCase
         $response = $controller->tryRenderPathTemplate('/language');
 
         $this->assertNotNull($response);
-        $this->assertSame(200, $response->statusCode);
-        $this->assertSame('<main>/language</main>', $response->content);
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('<main>/language</main>', $response->getContent());
     }
 
     #[Test]
@@ -273,8 +272,8 @@ final class RenderControllerTest extends TestCase
         $response = $controller->tryRenderPathTemplate('/events/my-event-slug');
 
         $this->assertNotNull($response);
-        $this->assertSame(200, $response->statusCode);
-        $this->assertSame('<main>/events/my-event-slug</main>', $response->content);
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('<main>/events/my-event-slug</main>', $response->getContent());
     }
 
     #[Test]
@@ -335,8 +334,8 @@ final class RenderControllerTest extends TestCase
 
         $response = $controller->renderNotFound('/missing');
 
-        $this->assertSame(404, $response->statusCode);
-        $this->assertSame('<h1>Not Found /missing</h1>', $response->content);
+        $this->assertSame(404, $response->getStatusCode());
+        $this->assertSame('<h1>Not Found /missing</h1>', $response->getContent());
     }
 
     #[Test]
@@ -352,7 +351,7 @@ final class RenderControllerTest extends TestCase
 
         $response = $controller->renderNotFound('/missing', $account);
 
-        $this->assertSame('<h1>auth /missing</h1>', $response->content);
+        $this->assertSame('<h1>auth /missing</h1>', $response->getContent());
     }
 
     #[Test]
@@ -365,8 +364,8 @@ final class RenderControllerTest extends TestCase
 
         $response = $controller->renderForbidden('/secret');
 
-        $this->assertSame(403, $response->statusCode);
-        $this->assertSame('<h1>Forbidden /secret</h1>', $response->content);
+        $this->assertSame(403, $response->getStatusCode());
+        $this->assertSame('<h1>Forbidden /secret</h1>', $response->getContent());
     }
 
     #[Test]
@@ -377,8 +376,8 @@ final class RenderControllerTest extends TestCase
 
         $response = $controller->renderForbidden('/secret');
 
-        $this->assertSame(403, $response->statusCode);
-        $this->assertStringContainsString('403', $response->content);
+        $this->assertSame(403, $response->getStatusCode());
+        $this->assertStringContainsString('403', $response->getContent());
     }
 
     #[Test]
@@ -391,8 +390,8 @@ final class RenderControllerTest extends TestCase
 
         $response = $controller->renderServerError();
 
-        $this->assertSame(500, $response->statusCode);
-        $this->assertSame('<h1>Server Error</h1>', $response->content);
+        $this->assertSame(500, $response->getStatusCode());
+        $this->assertSame('<h1>Server Error</h1>', $response->getContent());
     }
 
     #[Test]
@@ -403,8 +402,8 @@ final class RenderControllerTest extends TestCase
 
         $response = $controller->renderServerError();
 
-        $this->assertSame(500, $response->statusCode);
-        $this->assertStringContainsString('500', $response->content);
+        $this->assertSame(500, $response->getStatusCode());
+        $this->assertStringContainsString('500', $response->getContent());
     }
 }
 

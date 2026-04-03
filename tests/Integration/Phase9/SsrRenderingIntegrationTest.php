@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\Phase9;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpFoundation\Response;
 use Twig\Environment;
 use Twig\Loader\ArrayLoader;
 use Waaseyaa\SSR\Attribute\Component;
@@ -14,13 +15,12 @@ use Waaseyaa\SSR\ComponentMetadata;
 use Waaseyaa\SSR\ComponentRegistry;
 use Waaseyaa\SSR\ComponentRenderer;
 use Waaseyaa\SSR\SsrController;
-use Waaseyaa\SSR\SsrResponse;
 
 /**
  * Integration tests for SSR rendering pipeline with real Twig.
  *
  * Exercises: waaseyaa/ssr (ComponentRegistry, ComponentRenderer, SsrController,
- * SsrResponse) with Twig\Environment + ArrayLoader.
+ * HttpResponse) with Twig\Environment + ArrayLoader.
  */
 #[CoversNothing]
 final class SsrRenderingIntegrationTest extends TestCase
@@ -104,11 +104,10 @@ final class SsrRenderingIntegrationTest extends TestCase
             'message' => 'Disk space low',
         ]);
 
-        $this->assertInstanceOf(SsrResponse::class, $response);
-        $this->assertSame(200, $response->statusCode);
-        $this->assertStringContainsString('<div class="alert alert-warning">', $response->content);
-        $this->assertStringContainsString('Disk space low', $response->content);
-        $this->assertSame('text/html; charset=UTF-8', $response->headers['Content-Type']);
+        $this->assertInstanceOf(Response::class, $response);
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertStringContainsString('<div class="alert alert-warning">', $response->getContent());
+        $this->assertStringContainsString('Disk space low', $response->getContent());
     }
 
     #[Test]

@@ -107,9 +107,9 @@ final class SsrPageHandler
             $aliasLookupPath = $language['alias_path'];
             if ($aliasLookupPath === '/') {
                 $response = (new RenderController($twig))->renderPath('/', $account);
-                $headers = $response->headers;
+                $headers = $this->extractHeaders($response);
                 $headers['Cache-Control'] = $cacheControlHeader;
-                return $this->htmlResult($response->statusCode, $response->content, $headers);
+                return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
             }
 
             $resolved = null;
@@ -121,23 +121,23 @@ final class SsrPageHandler
                 $renderController = new RenderController($twig);
                 $pathResponse = $renderController->tryRenderPathTemplate($aliasLookupPath, $account);
                 if ($pathResponse !== null) {
-                    $headers = $pathResponse->headers;
+                    $headers = $this->extractHeaders($pathResponse);
                     $headers['Cache-Control'] = $cacheControlHeader;
-                    return $this->htmlResult($pathResponse->statusCode, $pathResponse->content, $headers);
+                    return $this->htmlResult($pathResponse->getStatusCode(), (string) $pathResponse->getContent(), $headers);
                 }
                 $response = $renderController->renderNotFound($aliasLookupPath, $account);
-                $headers = $response->headers;
+                $headers = $this->extractHeaders($response);
                 $headers['Cache-Control'] = $cacheControlHeader;
-                return $this->htmlResult($response->statusCode, $response->content, $headers);
+                return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
             }
 
             $targetStorage = $this->entityTypeManager->getStorage($resolved->entityTypeId);
             $entity = $targetStorage->load($resolved->entityId);
             if ($entity === null) {
                 $response = (new RenderController($twig))->renderNotFound($aliasLookupPath, $account);
-                $headers = $response->headers;
+                $headers = $this->extractHeaders($response);
                 $headers['Cache-Control'] = $cacheControlHeader;
-                return $this->htmlResult($response->statusCode, $response->content, $headers);
+                return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
             }
 
             $previewRequested = $this->isPreviewRequested($httpRequest);
@@ -145,9 +145,9 @@ final class SsrPageHandler
             $visibility = $visibilityResolver->canRender($entity, $account, $previewRequested);
             if ($visibility->isForbidden()) {
                 $response = (new RenderController($twig))->renderForbidden($aliasLookupPath, $account);
-                $headers = $response->headers;
+                $headers = $this->extractHeaders($response);
                 $headers['Cache-Control'] = $cacheControlHeader;
-                return $this->htmlResult($response->statusCode, $response->content, $headers);
+                return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
             }
 
             $formatterRegistry = SsrServiceProvider::getFormatterRegistry()
@@ -195,9 +195,9 @@ final class SsrPageHandler
                     $cacheVariantLangcode,
                 );
                 if ($cached !== null) {
-                    $headers = array_merge($cached->headers, $surrogateHeaders);
+                    $headers = array_merge($this->extractHeaders($cached), $surrogateHeaders);
                     $headers['Cache-Control'] = $cacheControlHeader;
-                    return $this->htmlResult($cached->statusCode, $cached->content, $headers);
+                    return $this->htmlResult($cached->getStatusCode(), (string) $cached->getContent(), $headers);
                 }
             }
 
@@ -210,7 +210,7 @@ final class SsrPageHandler
                 && !$previewRequested
                 && $this->renderCache !== null
                 && $entity->id() !== null
-                && $response->statusCode === 200
+                && $response->getStatusCode() === 200
             ) {
                 $this->renderCache->set(
                     $resolved->entityTypeId,
@@ -222,9 +222,9 @@ final class SsrPageHandler
                 );
             }
 
-            $headers = array_merge($response->headers, $surrogateHeaders);
+            $headers = array_merge($this->extractHeaders($response), $surrogateHeaders);
             $headers['Cache-Control'] = $cacheControlHeader;
-            return $this->htmlResult($response->statusCode, $response->content, $headers);
+            return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
         } catch (\Throwable $e) {
             $this->logger->error(sprintf('Render pipeline failed: %s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine()));
             return $this->jsonResult(500, [
@@ -273,7 +273,7 @@ final class SsrPageHandler
                 && $route->getOption('_render') === true;
             if (!$isRenderRoute) {
                 $this->logger->warning(sprintf(
-                    'Controller %s::%s returned SsrResponse on a non-render route. '
+                    'Controller %s::%s returned HttpResponse on a non-render route. '
                     . 'Add ->render() to the RouteBuilder chain to fix SSR dispatch.',
                     $class,
                     $method,
@@ -287,10 +287,7 @@ final class SsrPageHandler
             return $response;
         }
 
-        $cacheMaxAge = $this->cacheConfigResolver->resolveRenderCacheMaxAge();
-        $headers = $response->headers;
-        $headers['Cache-Control'] = $this->cacheConfigResolver->cacheControlHeaderForRender($account, $cacheMaxAge);
-        return $this->htmlResult($response->statusCode, $response->content, $headers);
+        return $this->htmlResult(500, '<h1>Internal Server Error</h1>', []);
     }
 
     /**
@@ -699,5 +696,22 @@ final class SsrPageHandler
     private function jsonResult(int $status, array $content, array $headers = []): array
     {
         return ['type' => 'json', 'status' => $status, 'content' => $content, 'headers' => $headers];
+    }
+
+    /**
+     * Extract headers from a Symfony Response as a flat string-keyed array.
+     *
+     * @return array<string, string>
+     */
+    private function extractHeaders(HttpResponse $response): array
+    {
+        $headers = [];
+        foreach ($response->headers->all() as $name => $values) {
+            if (is_array($values) && $values !== []) {
+                $headers[$name] = $values[0];
+            }
+        }
+
+        return $headers;
     }
 }

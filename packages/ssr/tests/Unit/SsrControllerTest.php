@@ -9,7 +9,7 @@ use Waaseyaa\SSR\ComponentMetadata;
 use Waaseyaa\SSR\ComponentRegistry;
 use Waaseyaa\SSR\ComponentRenderer;
 use Waaseyaa\SSR\SsrController;
-use Waaseyaa\SSR\SsrResponse;
+use Symfony\Component\HttpFoundation\Response;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -47,9 +47,9 @@ final class SsrControllerTest extends TestCase
             'body' => 'Page content.',
         ]);
 
-        $this->assertInstanceOf(SsrResponse::class, $response);
-        $this->assertSame('<h1>Welcome</h1><div>Page content.</div>', $response->content);
-        $this->assertSame(200, $response->statusCode);
+        $this->assertInstanceOf(Response::class, $response);
+        $this->assertSame('<h1>Welcome</h1><div>Page content.</div>', $response->getContent());
+        $this->assertSame(200, $response->getStatusCode());
     }
 
     #[Test]
@@ -62,9 +62,9 @@ final class SsrControllerTest extends TestCase
 
         $response = $this->controller->renderObject($component);
 
-        $this->assertInstanceOf(SsrResponse::class, $response);
-        $this->assertSame('<h1>Object Page</h1><div>Object content.</div>', $response->content);
-        $this->assertSame(200, $response->statusCode);
+        $this->assertInstanceOf(Response::class, $response);
+        $this->assertSame('<h1>Object Page</h1><div>Object content.</div>', $response->getContent());
+        $this->assertSame(200, $response->getStatusCode());
     }
 }
 

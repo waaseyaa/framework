@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\SSR;
 
+use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Cache\TagAwareCacheInterface;
 
@@ -13,7 +14,7 @@ final class RenderCache
         private readonly CacheBackendInterface $backend,
     ) {}
 
-    public function get(string $entityTypeId, int|string $entityId, string $viewMode, string $langcode): ?SsrResponse
+    public function get(string $entityTypeId, int|string $entityId, string $viewMode, string $langcode): ?Response
     {
         $item = $this->backend->get(self::buildKey($entityTypeId, $entityId, $viewMode, $langcode));
         if ($item === false || !$item->valid || !is_array($item->data)) {
@@ -24,11 +25,12 @@ final class RenderCache
         $statusCode = is_int($item->data['status_code'] ?? null) ? $item->data['status_code'] : 200;
         $headers = is_array($item->data['headers'] ?? null) ? $item->data['headers'] : [];
 
-        return new SsrResponse(
-            content: $content,
-            statusCode: $statusCode,
-            headers: $this->normalizeHeaders($headers),
-        );
+        $response = new Response($content, $statusCode);
+        foreach ($this->normalizeHeaders($headers) as $name => $value) {
+            $response->headers->set($name, $value);
+        }
+
+        return $response;
     }
 
     public function set(
@@ -36,19 +38,27 @@ final class RenderCache
         int|string $entityId,
         string $viewMode,
         string $langcode,
-        SsrResponse $response,
+        Response $response,
         int $maxAge,
     ): void {
         $expire = max(0, $maxAge) > 0
             ? time() + max(0, $maxAge)
             : CacheBackendInterface::PERMANENT;
 
+        /** @var array<string, string> $headerArray */
+        $headerArray = [];
+        foreach ($response->headers->all() as $name => $values) {
+            if (is_array($values) && $values !== []) {
+                $headerArray[$name] = $values[0];
+            }
+        }
+
         $this->backend->set(
             self::buildKey($entityTypeId, $entityId, $viewMode, $langcode),
             [
-                'content' => $response->content,
-                'status_code' => $response->statusCode,
-                'headers' => $response->headers,
+                'content' => $response->getContent(),
+                'status_code' => $response->getStatusCode(),
+                'headers' => $headerArray,
             ],
             $expire,
             self::buildTags($entityTypeId, $entityId),
