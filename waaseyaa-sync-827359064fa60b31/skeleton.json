@@ -1,8 +1,0 @@
-{
-    "require": {
-        "php": ">=8.4",
-        "waaseyaa/foundation": "^0.1",
-        "waaseyaa/entity": "^0.1",
-        "waaseyaa/cache": "^0.1"
-    }
-}
