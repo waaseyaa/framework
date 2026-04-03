@@ -21,7 +21,6 @@ use Waaseyaa\Api\JsonApiDocument;
 use Waaseyaa\Api\OpenApi\OpenApiGenerator;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Api\Schema\SchemaPresenter;
-use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Entity\EntityTypeIdNormalizer;
 use Waaseyaa\Entity\EntityTypeLifecycleManager;
@@ -32,7 +31,6 @@ use Waaseyaa\Mcp\McpController;
 use Waaseyaa\Media\File;
 use Waaseyaa\Media\LocalFileRepository;
 use Waaseyaa\SSR\SsrPageHandler;
-use Waaseyaa\User\Http\AuthController;
 
 /**
  * Routes a matched controller name to the appropriate handler.
@@ -59,7 +57,6 @@ final class ControllerDispatcher
         private readonly array $config,
         /** @var array<string, array{args?: array<string, mixed>, resolve?: callable}> */
         private readonly array $graphqlMutationOverrides = [],
-        private readonly ?RateLimiterInterface $rateLimiter = null,
         ?LoggerInterface $logger = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
@@ -678,77 +675,6 @@ final class ControllerDispatcher
                         ResponseSender::json($result['status'], $result['content'], $result['headers']);
                     }
                     ResponseSender::html($result['status'], $result['content'], $result['headers']);
-                })(),
-
-                $controller === 'user.me' => (function () use ($account): never {
-                    $authController = new AuthController();
-                    $result = $authController->me($account);
-                    $payload = ['jsonapi' => ['version' => '1.1']];
-                    if (isset($result['data'])) {
-                        $payload['data'] = $result['data'];
-                    }
-                    if (isset($result['errors'])) {
-                        $payload['errors'] = $result['errors'];
-                    }
-                    ResponseSender::json($result['statusCode'], $payload);
-                })(),
-
-                $controller === 'auth.login' => (function () use ($body): never {
-                    $rateLimiter = $this->rateLimiter ?? new \Waaseyaa\Auth\RateLimiter();
-
-                    $rateLimitKey = 'login:' . ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
-
-                    if ($rateLimiter->tooManyAttempts($rateLimitKey, 5)) {
-                        ResponseSender::json(429, [
-                            'jsonapi' => ['version' => '1.1'],
-                            'errors' => [['status' => '429', 'title' => 'Too Many Requests', 'detail' => 'Too many login attempts. Please try again later.']],
-                        ], ['Retry-After' => '60']);
-                    }
-
-                    $safeBody = $body ?? [];
-                    $username = is_string($safeBody['username'] ?? null) ? trim((string) $safeBody['username']) : '';
-                    $password = is_string($safeBody['password'] ?? null) ? (string) $safeBody['password'] : '';
-
-                    if ($username === '' || $password === '') {
-                        ResponseSender::json(400, [
-                            'jsonapi' => ['version' => '1.1'],
-                            'errors' => [['status' => '400', 'title' => 'Bad Request', 'detail' => 'username and password are required.']],
-                        ]);
-                    }
-
-                    $userStorage = $this->entityTypeManager->getStorage('user');
-                    $authController = new AuthController();
-                    $user = $authController->findUserByName($userStorage, $username);
-
-                    if ($user === null || !$user->isActive() || !$user->checkPassword($password)) {
-                        $rateLimiter->hit($rateLimitKey, 60);
-                        ResponseSender::json(401, [
-                            'jsonapi' => ['version' => '1.1'],
-                            'errors' => [['status' => '401', 'title' => 'Unauthorized', 'detail' => 'Invalid credentials.']],
-                        ]);
-                    }
-
-                    $rateLimiter->clear($rateLimitKey);
-                    $_SESSION['waaseyaa_uid'] = $user->id();
-                    session_regenerate_id(true);
-                    session_write_close();
-                    ResponseSender::json(200, [
-                        'jsonapi' => ['version' => '1.1'],
-                        'data' => [
-                            'id' => $user->id(),
-                            'name' => $user->getName(),
-                            'email' => $user->getEmail(),
-                            'roles' => $user->getRoles(),
-                        ],
-                    ]);
-                })(),
-
-                $controller === 'auth.logout' => (function (): never {
-                    if (session_status() === PHP_SESSION_ACTIVE) {
-                        session_destroy();
-                        session_regenerate_id(true);
-                    }
-                    ResponseSender::json(200, ['jsonapi' => ['version' => '1.1'], 'meta' => ['message' => 'Logged out.']]);
                 })(),
 
                 default => (function () use ($controller): never {

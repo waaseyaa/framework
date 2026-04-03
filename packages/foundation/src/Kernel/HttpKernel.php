@@ -13,7 +13,6 @@ use Waaseyaa\Access\Gate\EntityAccessGate;
 use Waaseyaa\Access\Middleware\AuthorizationMiddleware;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
-use Waaseyaa\Auth\DatabaseRateLimiter;
 use Waaseyaa\Cache\Backend\DatabaseBackend;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Cache\CacheConfigResolver;
@@ -291,7 +290,6 @@ final class HttpKernel extends AbstractKernel
             projectRoot: $this->projectRoot,
             config: $this->config,
             graphqlMutationOverrides: $gqlOverrides,
-            rateLimiter: new DatabaseRateLimiter($this->database),
         );
         $controllerDispatcher->dispatch($method, $params, $httpRequest, $queryString, $broadcastStorage, $account);
     }
