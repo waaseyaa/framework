@@ -1,6 +1,6 @@
 # Access Control
 
-<!-- Spec reviewed 2026-04-03 - trusted proxy guard: case-insensitive header, empty REMOTE_ADDR guard (#769) -->
+<!-- Spec reviewed 2026-04-03c - auth controller review fixes: JSON_THROW_ON_ERROR, session guard, AccountInterface null check (#571) -->
 
 Waaseyaa's access control system spans three packages: `packages/access/` (core primitives), `packages/routing/` (route-level checks), and `packages/user/` (session resolution, password reset). This document covers entity-level and route-level access. For field-level access, see `docs/specs/field-access.md`.
 
@@ -10,7 +10,7 @@ Waaseyaa's access control system spans three packages: `packages/access/` (core 
 |---------|------|----------|
 | access | `packages/access/src/` | AccessPolicyInterface, AccessResult, AccessStatus, EntityAccessHandler, AccountInterface, FieldAccessPolicyInterface, PermissionHandler, Gate, EntityAccessGate, AuthorizationMiddleware |
 | routing | `packages/routing/src/` | AccessChecker (route-level access) |
-| user | `packages/user/src/` | SessionMiddleware (account resolution), UserServiceProvider (package-owned user/auth routes) |
+| user | `packages/user/src/` | SessionMiddleware (account resolution), UserServiceProvider (user entity type registration) |
 
 ## Core Interfaces
 
@@ -464,31 +464,24 @@ Layer discipline: Foundation (layer 0) uses string constants for attribute class
 ## User/Auth HTTP Surfaces (post-M10 package ownership)
 
 **Packages:** `packages/auth/`, `packages/user/`
-**Registered by:** package service providers discovered from composer metadata. `UserServiceProvider` owns the foundational request surfaces `GET /api/user/me`, `POST /api/auth/login`, and `POST /api/auth/logout`; `AuthServiceProvider` continues to own registration, password-reset, and email-verification controllers.
+**Registered by:** package service providers discovered from composer metadata. `AuthServiceProvider` owns all auth-related request surfaces: login, logout, me, registration, password-reset, and email-verification controllers. These controllers are callable objects (implementing `__invoke(Request): JsonResponse`) registered via `RouteBuilder::controller()`.
 
 ### Endpoint Access Requirements
-
-#### UserServiceProvider-owned routes
-
-| Endpoint | Route option | Controller |
-|----------|-------------|------------|
-| `GET /api/user/me` | `_public: true` | `user.me` |
-| `POST /api/auth/login` | `_public: true` | `auth.login` |
-| `POST /api/auth/logout` | `_public: true` | `auth.logout` |
-
-These three request surfaces are registered by `packages/user/src/UserServiceProvider.php` as part of the package-owned route model introduced by M10.
 
 #### AuthServiceProvider-owned routes
 
 | Endpoint | Route option | Controller |
 |----------|-------------|------------|
+| `POST /api/auth/login` | `_public: true` | `LoginController` |
+| `POST /api/auth/logout` | `_public: true` | `LogoutController` |
+| `GET /api/user/me` | `_public: true` | `MeController` |
 | `POST /api/auth/register` | `_public: true` | `RegisterController` |
 | `POST /api/auth/forgot-password` | `_public: true` | `ForgotPasswordController` |
 | `POST /api/auth/reset-password` | `_public: true` | `ResetPasswordController` |
 | `POST /api/auth/verify-email` | `_public: true` | `VerifyEmailController` |
 | `POST /api/auth/resend-verification` | `_authenticated: true` | `ResendVerificationController` |
 
-`ResendVerificationController` requires an active authenticated session. `AccessChecker` short-circuits with `unauthenticated` (401) if the `_account` attribute on the request is anonymous. The other four endpoints are public — no session required.
+`ResendVerificationController` requires an active authenticated session. `AccessChecker` short-circuits with `unauthenticated` (401) if the `_account` attribute on the request is anonymous. The other seven endpoints are public — no session required. `LoginController` applies its own rate limiting (5 attempts per IP per 60s).
 
 All auth controllers accept an optional `?LoggerInterface $logger` (defaults to `NullLogger`). DevLog-mode verification/reset URLs and best-effort email failures are logged via this interface rather than `error_log()`.
 

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Waaseyaa\Auth;
 
 use Waaseyaa\Auth\Controller\ForgotPasswordController;
+use Waaseyaa\Auth\Controller\LoginController;
+use Waaseyaa\Auth\Controller\LogoutController;
+use Waaseyaa\Auth\Controller\MeController;
 use Waaseyaa\Auth\Controller\RegisterController;
 use Waaseyaa\Auth\Controller\ResendVerificationController;
 use Waaseyaa\Auth\Controller\ResetPasswordController;
@@ -116,6 +119,36 @@ final class AuthServiceProvider extends ServiceProvider
                 ))
                 ->requireAuthentication()
                 ->methods('POST')
+                ->build(),
+        );
+
+        $router->addRoute(
+            'api.auth.login',
+            RouteBuilder::create('/api/auth/login')
+                ->controller(new LoginController(
+                    entityTypeManager: $entityTypeManager ?? $this->resolve(EntityTypeManager::class),
+                    rateLimiter: $rateLimiter,
+                ))
+                ->allowAll()
+                ->methods('POST')
+                ->build(),
+        );
+
+        $router->addRoute(
+            'api.auth.logout',
+            RouteBuilder::create('/api/auth/logout')
+                ->controller(new LogoutController())
+                ->allowAll()
+                ->methods('POST')
+                ->build(),
+        );
+
+        $router->addRoute(
+            'api.user.me',
+            RouteBuilder::create('/api/user/me')
+                ->controller(new MeController())
+                ->allowAll()
+                ->methods('GET')
                 ->build(),
         );
     }

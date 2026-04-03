@@ -1,6 +1,6 @@
 # Infrastructure
 
-<!-- Spec reviewed 2026-04-03 - trusted_proxies config wired in HttpKernel to SessionMiddleware (#769) -->
+<!-- Spec reviewed 2026-04-03b - callable dispatch comment fix, auth controller review fixes (#571) -->
 
 Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, migration system, kernel bootstrapping (including environment resolution and debug mode), service provider discovery, and queue workers.
 
@@ -887,9 +887,7 @@ File: `packages/foundation/src/Http/ControllerDispatcher.php`
 
 Routes a matched controller name to the appropriate handler. Receives controller identifier, route params, and request context, then delegates to JSON:API controllers, discovery endpoints, SSR, MCP, or other handlers. Central dispatch hub for `HttpKernel`.
 
-Constructor accepts an optional `?RateLimiterInterface $rateLimiter` (from `Waaseyaa\Auth`). `HttpKernel` injects a `DatabaseRateLimiter` backed by the kernel's DBAL connection. When null (e.g., in tests), the login handler falls back to the in-memory `RateLimiter`.
-
-**Auth login handler** (`auth.login`): Applies rate limiting (5 attempts per IP per 60s) via the injected `RateLimiterInterface`, then validates credentials via `AuthController::findUserByName()` + `User::checkPassword()`, sets `$_SESSION['waaseyaa_uid']`, then calls `session_regenerate_id(true)` (session fixation prevention) and `session_write_close()` to flush the `Set-Cookie` header before `ResponseSender::json()` terminates with `exit`.
+Handles callable controllers (objects with `__invoke(Request): JsonResponse`) and string controller keys. Callable controllers are invoked directly and their `Response` is sent. String keys are matched via a `match` expression to built-in handlers (JSON:API, SSR, media upload, discovery, MCP, GraphQL, etc.). Auth routes (`login`, `logout`, `me`) were extracted to dedicated controller classes in `packages/auth/src/Controller/` and are now registered as callables via `AuthServiceProvider`.
 
 ### CorsHandler
 
