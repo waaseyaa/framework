@@ -84,3 +84,5 @@ At session start, `bin/check-milestones` runs automatically. Claude must read th
 - Open milestones with no open issues (possibly stale)
 
 The script exits 0 always. Output is a warning surface for Claude and contributors, not a CI gate.
+
+For steady-state drift scans and C17+ logging, use [docs/governance/m11-periodic-drift-scan-protocol.md](../governance/m11-periodic-drift-scan-protocol.md) and the [M11 drift-scan log issue template](../../.github/ISSUE_TEMPLATE/m11-drift-scan-log.md).
