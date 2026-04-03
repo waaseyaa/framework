@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Kernel;
 
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Component\Routing\RequestContext;
@@ -21,7 +22,6 @@ use Waaseyaa\Cache\CacheFactory;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Http\ControllerDispatcher;
 use Waaseyaa\Foundation\Http\CorsHandler;
-use Waaseyaa\Foundation\Http\ResponseSender;
 use Waaseyaa\Foundation\Log\LogManager;
 use Waaseyaa\Foundation\Log\Processor\RequestContextProcessor;
 use Waaseyaa\Foundation\Middleware\DebugHeaderMiddleware;
@@ -42,7 +42,7 @@ use Waaseyaa\User\Middleware\SessionMiddleware;
  *
  * Boots the application, handles CORS, matches routes, runs the
  * authorization pipeline (Session -> Authorization), and dispatches
- * to controllers. The handle() method is terminal (returns never).
+ * to controllers. Returns a Symfony Response for the caller to send.
  */
 final class HttpKernel extends AbstractKernel
 {
@@ -53,20 +53,21 @@ final class HttpKernel extends AbstractKernel
     private ?DiscoveryApiHandler $discoveryHandler = null;
     private ?SsrPageHandler $ssrPageHandler = null;
 
-    public function handle(): never
+    public function handle(): HttpResponse
     {
         try {
             $this->boot();
         } catch (\Throwable $e) {
             $this->logger->critical(sprintf("Boot failed: %s in %s:%d\n%s", $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString()));
-            ResponseSender::json(500, [
+
+            return $this->jsonApiResponse(500, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'Application failed to boot.']],
             ]);
         }
 
         try {
-            $this->serveHttpRequest();
+            return $this->serveHttpRequest();
         } catch (\Throwable $e) {
             $this->logger->critical(sprintf(
                 '[Waaseyaa] Unhandled HTTP exception: %s in %s:%d%s',
@@ -75,7 +76,8 @@ final class HttpKernel extends AbstractKernel
                 $e->getLine(),
                 PHP_EOL . $e->getTraceAsString(),
             ));
-            ResponseSender::json(500, [
+
+            return $this->jsonApiResponse(500, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'An unexpected error occurred.']],
             ]);
@@ -83,19 +85,22 @@ final class HttpKernel extends AbstractKernel
     }
 
     /**
-     * Runs CORS, routing, middleware, and controller dispatch. Inner paths that
-     * send JSON/HTML responses call exit; uncaught throwables bubble to handle().
+     * Runs CORS, routing, middleware, and controller dispatch. Returns a
+     * Symfony Response; uncaught throwables bubble to handle().
      */
-    private function serveHttpRequest(): never
+    private function serveHttpRequest(): HttpResponse
     {
         $this->cacheConfigResolver = new CacheConfigResolver($this->config);
 
-        $this->handleCors();
+        $corsResponse = $this->handleCors();
+        if ($corsResponse !== null) {
+            return $corsResponse;
+        }
 
         $method = $_SERVER['REQUEST_METHOD'];
         $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
         if (!is_string($path)) {
-            ResponseSender::json(400, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '400', 'title' => 'Bad Request', 'detail' => 'Malformed request URI.']]]);
+            return $this->jsonApiResponse(400, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '400', 'title' => 'Bad Request', 'detail' => 'Malformed request URI.']]]);
         }
         $queryString = $_SERVER['QUERY_STRING'] ?? '';
 
@@ -185,12 +190,12 @@ final class HttpKernel extends AbstractKernel
         try {
             $params = $router->match($path);
         } catch (\Symfony\Component\Routing\Exception\ResourceNotFoundException) {
-            ResponseSender::json(404, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => 'No route matches the requested path.']]]);
+            return $this->jsonApiResponse(404, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => 'No route matches the requested path.']]]);
         } catch (\Symfony\Component\Routing\Exception\MethodNotAllowedException) {
-            ResponseSender::json(405, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '405', 'title' => 'Method Not Allowed', 'detail' => "Method {$method} is not allowed for this route."]]]);
+            return $this->jsonApiResponse(405, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '405', 'title' => 'Method Not Allowed', 'detail' => "Method {$method} is not allowed for this route."]]]);
         } catch (\Throwable $e) {
             $this->logger->critical(sprintf("Routing error: %s in %s:%d\n%s", $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString()));
-            ResponseSender::json(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'A routing error occurred.']]]);
+            return $this->jsonApiResponse(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'A routing error occurred.']]]);
         }
 
         // Authorization pipeline.
@@ -256,18 +261,19 @@ final class HttpKernel extends AbstractKernel
             );
         } catch (\Throwable $e) {
             $this->logger->critical(sprintf("Authorization pipeline error: %s in %s:%d\n%s", $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString()));
-            ResponseSender::json(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'An authorization error occurred.']]]);
+
+            return $this->jsonApiResponse(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'An authorization error occurred.']]]);
         }
 
         if ($authResponse->getStatusCode() >= 400) {
-            $authResponse->send();
-            exit;
+            return $authResponse;
         }
 
         $account = $httpRequest->attributes->get('_account');
         if (!$account instanceof AccountInterface) {
             $this->logger->error('_account attribute missing or invalid after authorization pipeline.');
-            ResponseSender::json(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'Account resolution failed.']]]);
+
+            return $this->jsonApiResponse(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'Account resolution failed.']]]);
         }
 
         // Collect GraphQL mutation overrides from providers.
@@ -291,7 +297,7 @@ final class HttpKernel extends AbstractKernel
             config: $this->config,
             graphqlMutationOverrides: $gqlOverrides,
         );
-        $controllerDispatcher->dispatch($method, $params, $httpRequest, $queryString, $broadcastStorage, $account);
+        return $controllerDispatcher->dispatch($method, $params, $httpRequest, $queryString, $broadcastStorage, $account);
     }
 
     /**
@@ -324,7 +330,7 @@ final class HttpKernel extends AbstractKernel
         return $instance->priority;
     }
 
-    private function handleCors(): void
+    private function handleCors(): ?HttpResponse
     {
         $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
         $allowedOrigins = $this->config['cors_origins'] ?? ['http://localhost:3000', 'http://127.0.0.1:3000'];
@@ -338,14 +344,18 @@ final class HttpKernel extends AbstractKernel
             allowDevLocalhostPorts: $this->isDevelopmentMode(),
         );
 
+        $corsHeaders = [];
         foreach ($corsHandler->resolveCorsHeaders($origin) as $header) {
             header($header);
+            [$name, $value] = explode(': ', $header, 2);
+            $corsHeaders[$name] = $value;
         }
 
         if ($corsHandler->isCorsPreflightRequest($_SERVER['REQUEST_METHOD'] ?? 'GET')) {
-            http_response_code(204);
-            exit;
+            return new HttpResponse('', 204, $corsHeaders);
         }
+
+        return null;
     }
 
     private function shouldUseDevFallbackAccount(?string $sapi = null): bool
@@ -367,6 +377,18 @@ final class HttpKernel extends AbstractKernel
         return ($authConfig['dev_fallback_account'] ?? false) === true;
     }
 
+    /**
+     * Build a JSON:API response with correct content type and encoding.
+     *
+     * @param array<string, mixed> $data
+     * @param array<string, string> $headers
+     */
+    private function jsonApiResponse(int $status, array $data, array $headers = []): JsonResponse
+    {
+        $response = new JsonResponse($data, $status, $headers);
+        $response->setEncodingOptions(JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
+        $response->headers->set('Content-Type', 'application/vnd.api+json');
 
-
+        return $response;
+    }
 }

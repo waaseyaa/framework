@@ -381,11 +381,6 @@ parameters:
 			path: packages/foundation/src/Http/ControllerDispatcher.php
 
 		-
-			message: "#^Parameter \\#2 \\$data of static method Waaseyaa\\\\Foundation\\\\Http\\\\ResponseSender\\:\\:json\\(\\) expects array\\<string, mixed\\>, mixed given\\.$#"
-			count: 1
-			path: packages/foundation/src/Http/ControllerDispatcher.php
-
-		-
 			message: "#^Call to an undefined method Symfony\\\\Contracts\\\\EventDispatcher\\\\EventDispatcherInterface\\:\\:addListener\\(\\)\\.$#"
 			count: 10
 			path: packages/foundation/src/Kernel/EventListenerRegistrar.php
