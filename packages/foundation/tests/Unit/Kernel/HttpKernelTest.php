@@ -45,7 +45,7 @@ final class HttpKernelTest extends TestCase
         mkdir($this->projectRoot . '/config', 0755, true);
         mkdir($this->projectRoot . '/storage', 0755, true);
         mkdir($this->projectRoot . '/vendor/composer', 0755, true);
-        file_put_contents($this->projectRoot . '/config/waaseyaa.php', "<?php return ['database' => ':memory:'];");
+        file_put_contents($this->projectRoot . '/config/waaseyaa.php', "<?php return ['database' => ':memory:', 'app' => ['url' => 'http://localhost', 'name' => 'Waaseyaa Test']];");
         file_put_contents(
             $this->projectRoot . '/config/entity-types.php',
             "<?php\nreturn [\n    new \\Waaseyaa\\Entity\\EntityType(\n        id: 'test',\n        label: 'Test',\n        class: \\stdClass::class,\n        keys: ['id' => 'id'],\n    ),\n];",
@@ -268,9 +268,9 @@ final class HttpKernelTest extends TestCase
         $routes = $router->getRouteCollection();
         $this->assertNotNull($routes->get('api.discovery'));
         $this->assertNotNull($routes->get('graphql.endpoint'));
-        $this->assertNotNull($routes->get('api.user.me'));
-        $this->assertNotNull($routes->get('api.auth.login'));
-        $this->assertNotNull($routes->get('api.auth.logout'));
+        // api.user.me, api.auth.login, api.auth.logout moved to AuthServiceProvider
+        // (requires Twig/AuthMailer infrastructure not available in this minimal test).
+        // Those routes are covered by AuthServiceProvider's own tests and SsrHttpKernelIntegrationTest.
     }
 
     /**
