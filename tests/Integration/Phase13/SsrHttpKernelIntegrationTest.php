@@ -266,6 +266,7 @@ declare(strict_types=1);
 return [
     'database' => '{$databasePath}',
     'environment' => 'local',
+    'app' => ['url' => 'http://localhost', 'name' => 'Waaseyaa Test'],
     'cors_origins' => ['http://localhost:3000'],
     'ssr' => [
         'theme' => '',
