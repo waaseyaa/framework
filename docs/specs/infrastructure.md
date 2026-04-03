@@ -1,6 +1,6 @@
 # Infrastructure
 
-<!-- Spec reviewed 2026-04-03 - RequestContextProcessor added to LogManager, wired in HttpKernel (#732) -->
+<!-- Spec reviewed 2026-04-03 - DebugHeaderMiddleware added to foundation middleware (#737) -->
 
 Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, migration system, kernel bootstrapping (including environment resolution and debug mode), service provider discovery, and queue workers.
 
@@ -1227,6 +1227,8 @@ Middleware/
     HttpMiddlewareInterface.php  -- process(Request, HttpHandlerInterface): Response
     HttpHandlerInterface.php     -- handle(Request): Response
     HttpPipeline.php             -- onion-pattern HTTP middleware stack
+    DebugHeaderMiddleware.php    -- X-Debug-Time/Memory/Request-Id headers (APP_DEBUG only)
+    BodySizeLimitMiddleware.php  -- rejects oversized request bodies (413)
     EventMiddlewareInterface.php -- process(DomainEvent, EventHandlerInterface): void
     EventHandlerInterface.php    -- handle(DomainEvent): void
     EventPipeline.php            -- onion-pattern event middleware stack
