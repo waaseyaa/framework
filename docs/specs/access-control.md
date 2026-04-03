@@ -1,6 +1,6 @@
 # Access Control
 
-<!-- Spec reviewed 2026-04-01 - post-M10 provider-owned user/auth routes, manifest-discovered policy wiring, C18 drift remediation (#1017) -->
+<!-- Spec reviewed 2026-04-03 - DatabaseRateLimiter wired as default in AuthServiceProvider and ControllerDispatcher (#768) -->
 
 Waaseyaa's access control system spans three packages: `packages/access/` (core primitives), `packages/routing/` (route-level checks), and `packages/user/` (session resolution, password reset). This document covers entity-level and route-level access. For field-level access, see `docs/specs/field-access.md`.
 
@@ -489,7 +489,7 @@ All auth controllers accept an optional `?LoggerInterface $logger` (defaults to 
 
 ### Rate Limiting
 
-All auth endpoints apply rate limiting via `RateLimiterInterface` keyed on IP or user identity. Two implementations exist: `RateLimiter` (in-memory, resets per process) and `DatabaseRateLimiter` (SQLite-backed via `DatabaseInterface`, persists across restarts). `AuthServiceProvider` registers the in-memory implementation by default; apps needing persistence can override the binding:
+All auth endpoints apply rate limiting via `RateLimiterInterface` keyed on IP or user identity. Two implementations exist: `RateLimiter` (in-memory, resets per process) and `DatabaseRateLimiter` (SQLite-backed via `DatabaseInterface`, persists across restarts). `AuthServiceProvider` registers `DatabaseRateLimiter` by default, resolving `DatabaseInterface` from the container. `HttpKernel` also injects a `DatabaseRateLimiter` into `ControllerDispatcher` for the login endpoint. The in-memory `RateLimiter` remains as a fallback when no `RateLimiterInterface` is injected (e.g., in tests):
 
 | Endpoint | Limit |
 |----------|-------|
