@@ -289,7 +289,11 @@ final class PackageManifestCompiler
                     return $manifest;
                 }
             } catch (StaleManifestException $e) {
-                throw $e;
+                $this->logger->warning(sprintf(
+                    'Stale package manifest detected (missing: %s). Auto-recompiling.',
+                    implode(', ', $e->missingProviders()),
+                ));
+                // Fall through to compileAndCache()
             } catch (\Throwable) {
                 // Corrupt cache — recompile
             }

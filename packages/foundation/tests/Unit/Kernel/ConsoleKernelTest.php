@@ -117,31 +117,18 @@ final class ConsoleKernelTest extends TestCase
     }
 
     #[Test]
-    public function handle_allows_optimize_manifest_when_cached_manifest_is_stale(): void
+    public function handle_auto_recovers_from_stale_manifest_for_any_command(): void
     {
         mkdir($this->projectRoot . '/storage/framework', 0755, true);
         $this->writeStaleManifestCache();
 
-        $_SERVER['argv'] = ['waaseyaa', 'optimize:manifest', '--no-ansi'];
-
-        $kernel = new ConsoleKernel($this->projectRoot);
-        $exitCode = $kernel->handle();
-
-        $this->assertSame(0, $exitCode);
-    }
-
-    #[Test]
-    public function handle_fails_fast_for_non_recovery_commands_when_cached_manifest_is_stale(): void
-    {
-        mkdir($this->projectRoot . '/storage/framework', 0755, true);
-        $this->writeStaleManifestCache();
-
+        // Any command triggers auto-recovery, not just optimize:manifest
         $_SERVER['argv'] = ['waaseyaa', 'route:list', '--no-ansi'];
 
         $kernel = new ConsoleKernel($this->projectRoot);
         $exitCode = $kernel->handle();
 
-        $this->assertSame(1, $exitCode);
+        $this->assertSame(0, $exitCode);
     }
 
     private function writeStaleManifestCache(): void
