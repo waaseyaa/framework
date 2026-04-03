@@ -4,7 +4,7 @@ about: Record a clean periodic drift scan or log newly detected C17+ drift under
 labels: governance, conformance
 ---
 
-Note: consult [m11-steady-state-conformance-loop.md](../../docs/governance/m11-steady-state-conformance-loop.md) for the full governance model; use this template only to log scan outcomes.
+Note: consult [m11-post-execution-governance-bootstrap.md](../../docs/governance/m11-post-execution-governance-bootstrap.md) for the top-level governance baseline and [m11-steady-state-conformance-loop.md](../../docs/governance/m11-steady-state-conformance-loop.md) for the operating loop; use this template only to log scan outcomes.
 
 ## Outcome
 
