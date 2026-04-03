@@ -6,7 +6,9 @@ namespace Waaseyaa\Foundation\Http;
 
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Vector\EmbeddingProviderFactory;
@@ -37,8 +39,8 @@ use Waaseyaa\SSR\SsrPageHandler;
  *
  * Receives the controller identifier, route params, and request context,
  * then delegates to JSON:API controllers, discovery endpoints, SSR,
- * media upload, or app-level controllers. All branches are terminal
- * (return never) — the dispatcher sends HTTP responses directly.
+ * media upload, or app-level controllers. Returns a Symfony Response
+ * object; the caller (HttpKernel) is responsible for sending it.
  */
 final class ControllerDispatcher
 {
@@ -74,7 +76,7 @@ final class ControllerDispatcher
         string $queryString,
         BroadcastStorage $broadcastStorage,
         AccountInterface $account,
-    ): never {
+    ): HttpResponse {
         $controller = $params['_controller'] ?? '';
         $serializer = new ResourceSerializer($this->entityTypeManager);
         $schemaPresenter = new SchemaPresenter();
@@ -95,7 +97,7 @@ final class ControllerDispatcher
                 try {
                     $body = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
                 } catch (\JsonException) {
-                    ResponseSender::json(400, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '400', 'title' => 'Bad Request', 'detail' => 'Invalid JSON in request body.']]]);
+                    return $this->jsonApiResponse(400, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '400', 'title' => 'Bad Request', 'detail' => 'Invalid JSON in request body.']]]);
                 }
             } else {
                 $body = [];
@@ -108,48 +110,46 @@ final class ControllerDispatcher
         if (is_callable($controller)) {
             $result = $controller($httpRequest, ...array_filter($params, fn($k) => !str_starts_with($k, '_'), ARRAY_FILTER_USE_KEY));
             if ($result instanceof \Waaseyaa\SSR\SsrResponse) {
-                ResponseSender::html($result->statusCode, $result->content, $result->headers);
+                return $this->htmlResponse($result->statusCode, $result->content, $result->headers);
             }
             if ($result instanceof \Waaseyaa\Inertia\InertiaResponse) {
                 $pageObject = $result->toPageObject();
                 $pageObject['url'] = $httpRequest->getRequestUri();
 
                 if ($httpRequest->headers->get('X-Inertia') === 'true') {
-                    ResponseSender::json(200, $pageObject, [
+                    return $this->jsonApiResponse(200, $pageObject, [
                         'X-Inertia' => 'true',
                         'Vary' => 'X-Inertia',
                     ]);
                 }
 
                 $renderer = new \Waaseyaa\Inertia\RootTemplateRenderer();
-                ResponseSender::html(200, $renderer->render($pageObject));
+                return $this->htmlResponse(200, $renderer->render($pageObject));
             }
             if ($result instanceof \Symfony\Component\HttpFoundation\RedirectResponse
                 && $httpRequest->headers->get('X-Inertia') === 'true'
                 && in_array($httpRequest->getMethod(), ['PUT', 'PATCH', 'DELETE'], true)
             ) {
                 $result->setStatusCode(303);
-                $result->send();
-                exit;
+                return $result;
             }
             if ($result instanceof \Symfony\Component\HttpFoundation\Response) {
-                $result->send();
-                exit;
+                return $result;
             }
             if (is_array($result)) {
-                ResponseSender::json($result['statusCode'] ?? 200, $result['body'] ?? $result);
+                return $this->jsonApiResponse($result['statusCode'] ?? 200, $result['body'] ?? $result);
             }
-            ResponseSender::json(200, $result);
+            return $this->jsonApiResponse(200, $result);
         }
 
         try {
-            match (true) {
-                $controller === 'openapi' => (function (): never {
+            return match (true) {
+                $controller === 'openapi' => (function (): HttpResponse {
                     $openApi = new OpenApiGenerator($this->entityTypeManager);
-                    ResponseSender::json(200, $openApi->generate());
+                    return $this->jsonApiResponse(200, $openApi->generate());
                 })(),
 
-                $controller === 'entity_types' => (function (): never {
+                $controller === 'entity_types' => (function (): HttpResponse {
                     $disabledIds = $this->lifecycleManager->getDisabledTypeIds();
                     $types = [];
                     foreach ($this->entityTypeManager->getDefinitions() as $id => $def) {
@@ -163,17 +163,17 @@ final class ControllerDispatcher
                             'disabled' => in_array($id, $disabledIds, true),
                         ];
                     }
-                    ResponseSender::json(200, ['data' => $types]);
+                    return $this->jsonApiResponse(200, ['data' => $types]);
                 })(),
 
-                $controller === 'entity_type.disable' => (function () use ($params, $query, $account): never {
+                $controller === 'entity_type.disable' => (function () use ($params, $query, $account): HttpResponse {
                     $rawTypeId = (string) ($params['entity_type'] ?? '');
                     $normalizer = new EntityTypeIdNormalizer($this->entityTypeManager);
                     $typeId = $normalizer->normalize($rawTypeId);
                     $force = filter_var($query['force'] ?? false, FILTER_VALIDATE_BOOL);
 
                     if ($rawTypeId === '' || !$this->entityTypeManager->hasDefinition($typeId)) {
-                        ResponseSender::json(404, [
+                        return $this->jsonApiResponse(404, [
                             'errors' => [[
                                 'status' => '404',
                                 'title' => 'Not Found',
@@ -183,7 +183,7 @@ final class ControllerDispatcher
                     }
 
                     if ($this->lifecycleManager->isDisabled($typeId)) {
-                        ResponseSender::json(200, ['data' => ['id' => $typeId, 'disabled' => true]]);
+                        return $this->jsonApiResponse(200, ['data' => ['id' => $typeId, 'disabled' => true]]);
                     }
 
                     $definitions = array_keys($this->entityTypeManager->getDefinitions());
@@ -194,7 +194,7 @@ final class ControllerDispatcher
                     ));
 
                     if ($enabledCount === 0 && !$force) {
-                        ResponseSender::json(409, [
+                        return $this->jsonApiResponse(409, [
                             'errors' => [[
                                 'status' => '409',
                                 'title' => 'Conflict',
@@ -204,16 +204,16 @@ final class ControllerDispatcher
                     }
 
                     $this->lifecycleManager->disable($typeId, (string) $account->id());
-                    ResponseSender::json(200, ['data' => ['id' => $typeId, 'disabled' => true]]);
+                    return $this->jsonApiResponse(200, ['data' => ['id' => $typeId, 'disabled' => true]]);
                 })(),
 
-                $controller === 'entity_type.enable' => (function () use ($params, $account): never {
+                $controller === 'entity_type.enable' => (function () use ($params, $account): HttpResponse {
                     $rawTypeId = (string) ($params['entity_type'] ?? '');
                     $normalizer = new EntityTypeIdNormalizer($this->entityTypeManager);
                     $typeId = $normalizer->normalize($rawTypeId);
 
                     if ($rawTypeId === '' || !$this->entityTypeManager->hasDefinition($typeId)) {
-                        ResponseSender::json(404, [
+                        return $this->jsonApiResponse(404, [
                             'errors' => [[
                                 'status' => '404',
                                 'title' => 'Not Found',
@@ -223,95 +223,96 @@ final class ControllerDispatcher
                     }
 
                     if (!$this->lifecycleManager->isDisabled($typeId)) {
-                        ResponseSender::json(200, ['data' => ['id' => $typeId, 'disabled' => false]]);
+                        return $this->jsonApiResponse(200, ['data' => ['id' => $typeId, 'disabled' => false]]);
                     }
 
                     $this->lifecycleManager->enable($typeId, (string) $account->id());
-                    ResponseSender::json(200, ['data' => ['id' => $typeId, 'disabled' => false]]);
+                    return $this->jsonApiResponse(200, ['data' => ['id' => $typeId, 'disabled' => false]]);
                 })(),
 
-                $controller === 'broadcast' => (function () use ($broadcastStorage, $query): never {
+                $controller === 'broadcast' => (function () use ($broadcastStorage, $query): HttpResponse {
                     $channels = BroadcastController::parseChannels($query['channels'] ?? 'admin');
                     if ($channels === []) {
                         $channels = ['admin'];
                     }
 
-                    header('Content-Type: text/event-stream');
-                    header('Cache-Control: no-cache');
-                    header('Connection: keep-alive');
-                    header('X-Accel-Buffering: no');
-
-                    echo "event: connected\ndata: " . json_encode(['channels' => $channels], JSON_THROW_ON_ERROR) . "\n\n";
-                    if (ob_get_level() > 0) {
-                        ob_flush();
-                    }
-                    flush();
-
-                    $cursor = 0;
-                    $lastKeepalive = time();
-
-                    while (connection_aborted() === 0) {
-                        try {
-                            $messages = $broadcastStorage->poll($cursor, $channels);
-                        } catch (\Throwable $e) {
-                            $this->logger->error(sprintf('SSE poll error: %s', $e->getMessage()));
-                            echo "event: error\ndata: " . json_encode(['message' => 'Broadcast poll failed'], JSON_THROW_ON_ERROR) . "\n\n";
-                            if (ob_get_level() > 0) {
-                                ob_flush();
-                            }
-                            flush();
-                            usleep(5_000_000);
-                            continue;
+                    return new StreamedResponse(function () use ($broadcastStorage, $channels): void {
+                        echo "event: connected\ndata: " . json_encode(['channels' => $channels], JSON_THROW_ON_ERROR) . "\n\n";
+                        if (ob_get_level() > 0) {
+                            ob_flush();
                         }
+                        flush();
 
-                        foreach ($messages as $msg) {
-                            $cursor = $msg['id'];
+                        $cursor = 0;
+                        $lastKeepalive = time();
+
+                        while (connection_aborted() === 0) {
                             try {
-                                $frame = "event: {$msg['event']}\ndata: " . json_encode($msg, JSON_THROW_ON_ERROR) . "\n\n";
-                                echo $frame;
-                            } catch (\JsonException $e) {
-                                $this->logger->error(sprintf('SSE json_encode error for event %s: %s', $msg['event'] ?? 'unknown', $e->getMessage()));
-                            }
-                        }
-
-                        if ($messages !== []) {
-                            if (ob_get_level() > 0) {
-                                ob_flush();
-                            }
-                            flush();
-                        }
-
-                        $now = time();
-                        if (($now - $lastKeepalive) >= 30) {
-                            echo ": keepalive\n\n";
-                            if (ob_get_level() > 0) {
-                                ob_flush();
-                            }
-                            flush();
-                            $lastKeepalive = $now;
-                            try {
-                                $broadcastStorage->prune(300);
+                                $messages = $broadcastStorage->poll($cursor, $channels);
                             } catch (\Throwable $e) {
-                                $this->logger->warning(sprintf('SSE prune error: %s', $e->getMessage()));
+                                $this->logger->error(sprintf('SSE poll error: %s', $e->getMessage()));
+                                echo "event: error\ndata: " . json_encode(['message' => 'Broadcast poll failed'], JSON_THROW_ON_ERROR) . "\n\n";
+                                if (ob_get_level() > 0) {
+                                    ob_flush();
+                                }
+                                flush();
+                                usleep(5_000_000);
+                                continue;
                             }
+
+                            foreach ($messages as $msg) {
+                                $cursor = $msg['id'];
+                                try {
+                                    $frame = "event: {$msg['event']}\ndata: " . json_encode($msg, JSON_THROW_ON_ERROR) . "\n\n";
+                                    echo $frame;
+                                } catch (\JsonException $e) {
+                                    $this->logger->error(sprintf('SSE json_encode error for event %s: %s', $msg['event'] ?? 'unknown', $e->getMessage()));
+                                }
+                            }
+
+                            if ($messages !== []) {
+                                if (ob_get_level() > 0) {
+                                    ob_flush();
+                                }
+                                flush();
+                            }
+
+                            $now = time();
+                            if (($now - $lastKeepalive) >= 30) {
+                                echo ": keepalive\n\n";
+                                if (ob_get_level() > 0) {
+                                    ob_flush();
+                                }
+                                flush();
+                                $lastKeepalive = $now;
+                                try {
+                                    $broadcastStorage->prune(300);
+                                } catch (\Throwable $e) {
+                                    $this->logger->warning(sprintf('SSE prune error: %s', $e->getMessage()));
+                                }
+                            }
+
+                            usleep(500_000);
                         }
-
-                        usleep(500_000);
-                    }
-                    exit;
+                    }, 200, [
+                        'Content-Type' => 'text/event-stream',
+                        'Cache-Control' => 'no-cache',
+                        'Connection' => 'keep-alive',
+                        'X-Accel-Buffering' => 'no',
+                    ]);
                 })(),
 
-                $controller === 'media.upload' => (function () use ($httpRequest, $account, $serializer): never {
-                    $this->handleMediaUpload($httpRequest, $account, $serializer);
+                $controller === 'media.upload' => (function () use ($httpRequest, $account, $serializer): HttpResponse {
+                    return $this->handleMediaUpload($httpRequest, $account, $serializer);
                 })(),
 
-                $controller === 'search.semantic' => (function () use ($query, $account, $serializer): never {
+                $controller === 'search.semantic' => (function () use ($query, $account, $serializer): HttpResponse {
                     $searchQuery = is_string($query['q'] ?? null) ? trim((string) $query['q']) : '';
                     $entityType = is_string($query['type'] ?? null) ? trim((string) $query['type']) : '';
                     $limit = is_numeric($query['limit'] ?? null) ? (int) $query['limit'] : 10;
 
                     if ($searchQuery === '' || $entityType === '') {
-                        ResponseSender::json(400, [
+                        return $this->jsonApiResponse(400, [
                             'jsonapi' => ['version' => '1.1'],
                             'errors' => [[
                                 'status' => '400',
@@ -322,7 +323,7 @@ final class ControllerDispatcher
                     }
 
                     if (!class_exists(SqliteEmbeddingStorage::class)) {
-                        ResponseSender::json(501, [
+                        return $this->jsonApiResponse(501, [
                             'jsonapi' => ['version' => '1.1'],
                             'errors' => [[
                                 'status' => '501',
@@ -345,14 +346,14 @@ final class ControllerDispatcher
                     );
 
                     $document = $controller->search($searchQuery, $entityType, $limit);
-                    ResponseSender::json($document->statusCode, $document->toArray());
+                    return $this->jsonApiResponse($document->statusCode, $document->toArray());
                 })(),
 
-                $controller === 'discovery.topic_hub' => (function () use ($params, $query, $account): never {
+                $controller === 'discovery.topic_hub' => (function () use ($params, $query, $account): HttpResponse {
                     $entityType = is_string($params['entity_type'] ?? null) ? trim((string) $params['entity_type']) : '';
                     $entityId = $params['id'] ?? null;
                     if ($entityType === '' || !is_scalar($entityId) || trim((string) $entityId) === '') {
-                        ResponseSender::json(400, [
+                        return $this->jsonApiResponse(400, [
                             'jsonapi' => ['version' => '1.1'],
                             'errors' => [[
                                 'status' => '400',
@@ -373,7 +374,7 @@ final class ControllerDispatcher
                     $cacheKey = $this->discoveryHandler->buildDiscoveryCacheKey('hub', $entityType, (string) $entityId, $resolvedOptions);
                     $cached = $this->discoveryHandler->getDiscoveryCachedResponse($cacheKey, $account);
                     if ($cached !== null) {
-                        ResponseSender::json(200, $cached, [
+                        return $this->jsonApiResponse(200, $cached, [
                             'Cache-Control' => 'public, max-age=120',
                             'X-Waaseyaa-Discovery-Cache' => 'HIT',
                         ]);
@@ -382,14 +383,14 @@ final class ControllerDispatcher
                     $payload = $service->topicHub($entityType, (string) $entityId, $resolvedOptions);
 
                     [$dPayload, $dHeaders] = $this->discoveryHandler->prepareDiscoveryResponse(200, ['data' => $payload], $cacheKey, $account);
-                    ResponseSender::json(200, $dPayload, $dHeaders);
+                    return $this->jsonApiResponse(200, $dPayload, $dHeaders);
                 })(),
 
-                $controller === 'discovery.cluster' => (function () use ($params, $query, $account): never {
+                $controller === 'discovery.cluster' => (function () use ($params, $query, $account): HttpResponse {
                     $entityType = is_string($params['entity_type'] ?? null) ? trim((string) $params['entity_type']) : '';
                     $entityId = $params['id'] ?? null;
                     if ($entityType === '' || !is_scalar($entityId) || trim((string) $entityId) === '') {
-                        ResponseSender::json(400, [
+                        return $this->jsonApiResponse(400, [
                             'jsonapi' => ['version' => '1.1'],
                             'errors' => [[
                                 'status' => '400',
@@ -410,7 +411,7 @@ final class ControllerDispatcher
                     $cacheKey = $this->discoveryHandler->buildDiscoveryCacheKey('cluster', $entityType, (string) $entityId, $resolvedOptions);
                     $cached = $this->discoveryHandler->getDiscoveryCachedResponse($cacheKey, $account);
                     if ($cached !== null) {
-                        ResponseSender::json(200, $cached, [
+                        return $this->jsonApiResponse(200, $cached, [
                             'Cache-Control' => 'public, max-age=120',
                             'X-Waaseyaa-Discovery-Cache' => 'HIT',
                         ]);
@@ -419,14 +420,14 @@ final class ControllerDispatcher
                     $payload = $service->clusterPage($entityType, (string) $entityId, $resolvedOptions);
 
                     [$dPayload, $dHeaders] = $this->discoveryHandler->prepareDiscoveryResponse(200, ['data' => $payload], $cacheKey, $account);
-                    ResponseSender::json(200, $dPayload, $dHeaders);
+                    return $this->jsonApiResponse(200, $dPayload, $dHeaders);
                 })(),
 
-                $controller === 'discovery.timeline' => (function () use ($params, $query, $account): never {
+                $controller === 'discovery.timeline' => (function () use ($params, $query, $account): HttpResponse {
                     $entityType = is_string($params['entity_type'] ?? null) ? trim((string) $params['entity_type']) : '';
                     $entityId = $params['id'] ?? null;
                     if ($entityType === '' || !is_scalar($entityId) || trim((string) $entityId) === '') {
-                        ResponseSender::json(400, [
+                        return $this->jsonApiResponse(400, [
                             'jsonapi' => ['version' => '1.1'],
                             'errors' => [[
                                 'status' => '400',
@@ -450,7 +451,7 @@ final class ControllerDispatcher
                     $cacheKey = $this->discoveryHandler->buildDiscoveryCacheKey('timeline', $entityType, (string) $entityId, $resolvedOptions);
                     $cached = $this->discoveryHandler->getDiscoveryCachedResponse($cacheKey, $account);
                     if ($cached !== null) {
-                        ResponseSender::json(200, $cached, [
+                        return $this->jsonApiResponse(200, $cached, [
                             'Cache-Control' => 'public, max-age=120',
                             'X-Waaseyaa-Discovery-Cache' => 'HIT',
                         ]);
@@ -459,14 +460,14 @@ final class ControllerDispatcher
                     $payload = $service->timeline($entityType, (string) $entityId, $resolvedOptions);
 
                     [$dPayload, $dHeaders] = $this->discoveryHandler->prepareDiscoveryResponse(200, ['data' => $payload], $cacheKey, $account);
-                    ResponseSender::json(200, $dPayload, $dHeaders);
+                    return $this->jsonApiResponse(200, $dPayload, $dHeaders);
                 })(),
 
-                $controller === 'discovery.endpoint' => (function () use ($params, $query, $account): never {
+                $controller === 'discovery.endpoint' => (function () use ($params, $query, $account): HttpResponse {
                     $entityType = is_string($params['entity_type'] ?? null) ? trim((string) $params['entity_type']) : '';
                     $entityId = $params['id'] ?? null;
                     if ($entityType === '' || !is_scalar($entityId) || trim((string) $entityId) === '') {
-                        ResponseSender::json(400, [
+                        return $this->jsonApiResponse(400, [
                             'jsonapi' => ['version' => '1.1'],
                             'errors' => [[
                                 'status' => '400',
@@ -479,7 +480,7 @@ final class ControllerDispatcher
                     $resolvedId = (string) $entityId;
                     $resolvedEntity = $this->discoveryHandler->loadDiscoveryEntity($entityType, $resolvedId);
                     if ($resolvedEntity === null || !$this->discoveryHandler->isDiscoveryEntityPublic($entityType, $resolvedEntity->toArray())) {
-                        ResponseSender::json(404, [
+                        return $this->jsonApiResponse(404, [
                             'jsonapi' => ['version' => '1.1'],
                             'errors' => [[
                                 'status' => '404',
@@ -499,7 +500,7 @@ final class ControllerDispatcher
                     $cacheKey = $this->discoveryHandler->buildDiscoveryCacheKey('endpoint', $entityType, $resolvedId, $resolvedOptions);
                     $cached = $this->discoveryHandler->getDiscoveryCachedResponse($cacheKey, $account);
                     if ($cached !== null) {
-                        ResponseSender::json(200, $cached, [
+                        return $this->jsonApiResponse(200, $cached, [
                             'Cache-Control' => 'public, max-age=120',
                             'X-Waaseyaa-Discovery-Cache' => 'HIT',
                         ]);
@@ -509,7 +510,7 @@ final class ControllerDispatcher
                     if ($entityType !== 'relationship') {
                         $payload = $service->endpointPage($entityType, $resolvedId, $resolvedOptions);
                         [$dPayload, $dHeaders] = $this->discoveryHandler->prepareDiscoveryResponse(200, ['data' => $payload], $cacheKey, $account);
-                        ResponseSender::json(200, $dPayload, $dHeaders);
+                        return $this->jsonApiResponse(200, $dPayload, $dHeaders);
                     }
 
                     $values = $resolvedEntity->toArray();
@@ -524,7 +525,7 @@ final class ControllerDispatcher
                         || $toId === ''
                         || !$this->discoveryHandler->isDiscoveryEndpointPairPublic($fromType, $fromId, $toType, $toId)
                     ) {
-                        ResponseSender::json(404, [
+                        return $this->jsonApiResponse(404, [
                             'jsonapi' => ['version' => '1.1'],
                             'errors' => [[
                                 'status' => '404',
@@ -541,12 +542,12 @@ final class ControllerDispatcher
                         'limit' => $resolvedOptions['limit'],
                     ]);
                     [$dPayload, $dHeaders] = $this->discoveryHandler->prepareDiscoveryResponse(200, ['data' => $payload], $cacheKey, $account);
-                    ResponseSender::json(200, $dPayload, $dHeaders);
+                    return $this->jsonApiResponse(200, $dPayload, $dHeaders);
                 })(),
 
-                $controller === 'mcp.endpoint' => (function () use ($method, $httpRequest, $account, $serializer): never {
+                $controller === 'mcp.endpoint' => (function () use ($method, $httpRequest, $account, $serializer): HttpResponse {
                     if (!class_exists(SqliteEmbeddingStorage::class)) {
-                        ResponseSender::json(501, [
+                        return $this->jsonApiResponse(501, [
                             'jsonapi' => ['version' => '1.1'],
                             'errors' => [[
                                 'status' => '501',
@@ -570,12 +571,12 @@ final class ControllerDispatcher
                     );
 
                     if ($method === 'GET') {
-                        ResponseSender::json(200, $mcp->manifest());
+                        return $this->jsonApiResponse(200, $mcp->manifest());
                     }
 
                     $raw = trim($httpRequest->getContent());
                     if ($raw === '') {
-                        ResponseSender::json(400, [
+                        return $this->jsonApiResponse(400, [
                             'jsonrpc' => '2.0',
                             'id' => null,
                             'error' => ['code' => -32700, 'message' => 'Parse error'],
@@ -585,7 +586,7 @@ final class ControllerDispatcher
                     try {
                         $rpc = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
                     } catch (\JsonException) {
-                        ResponseSender::json(400, [
+                        return $this->jsonApiResponse(400, [
                             'jsonrpc' => '2.0',
                             'id' => null,
                             'error' => ['code' => -32700, 'message' => 'Parse error'],
@@ -593,17 +594,17 @@ final class ControllerDispatcher
                     }
 
                     if (!is_array($rpc)) {
-                        ResponseSender::json(400, [
+                        return $this->jsonApiResponse(400, [
                             'jsonrpc' => '2.0',
                             'id' => null,
                             'error' => ['code' => -32600, 'message' => 'Invalid request'],
                         ]);
                     }
 
-                    ResponseSender::json(200, $mcp->handleRpc($rpc));
+                    return $this->jsonApiResponse(200, $mcp->handleRpc($rpc));
                 })(),
 
-                $controller === 'graphql.endpoint' => (function () use ($method, $httpRequest, $account, $queryString): never {
+                $controller === 'graphql.endpoint' => (function () use ($method, $httpRequest, $account, $queryString): HttpResponse {
                     // Prefer the middleware-resolved session account over the
                     // route-level $account, which is AnonymousUser on allowAll() routes.
                     $resolvedAccount = $httpRequest->attributes->get('_account');
@@ -620,33 +621,33 @@ final class ControllerDispatcher
                     }
                     parse_str($queryString, $queryParams);
                     $result = $endpoint->handle($method, $httpRequest->getContent(), $queryParams);
-                    ResponseSender::json($result['statusCode'], $result['body']);
+                    return $this->jsonApiResponse($result['statusCode'], $result['body']);
                 })(),
 
-                $controller === 'render.page' => (function () use ($params, $query, $account, $httpRequest): never {
+                $controller === 'render.page' => (function () use ($params, $query, $account, $httpRequest): HttpResponse {
                     $requestedViewMode = is_string($query['view_mode'] ?? null)
                         ? trim((string) $query['view_mode'])
                         : 'full';
                     $result = $this->ssrPageHandler->handleRenderPage((string) ($params['path'] ?? '/'), $account, $httpRequest, $requestedViewMode);
                     if ($result['type'] === 'json') {
-                        ResponseSender::json($result['status'], $result['content'], $result['headers']);
+                        return $this->jsonApiResponse($result['status'], $result['content'], $result['headers']);
                     }
-                    ResponseSender::html($result['status'], $result['content'], $result['headers']);
+                    return $this->htmlResponse($result['status'], $result['content'], $result['headers']);
                 })(),
 
-                str_contains($controller, 'SchemaController') => (function () use ($account, $params, $schemaPresenter): never {
+                str_contains($controller, 'SchemaController') => (function () use ($account, $params, $schemaPresenter): HttpResponse {
                     $schemaController = new SchemaController($this->entityTypeManager, $schemaPresenter, $this->accessHandler, $account);
                     $document = $schemaController->show($params['entity_type']);
-                    ResponseSender::json($document->statusCode, $document->toArray());
+                    return $this->jsonApiResponse($document->statusCode, $document->toArray());
                 })(),
 
-                str_contains($controller, 'ApiDiscoveryController') => (function () use ($account): never {
+                str_contains($controller, 'ApiDiscoveryController') => (function () use ($account): HttpResponse {
                     $discoveryController = new \Waaseyaa\Api\ApiDiscoveryController($this->entityTypeManager);
                     $result = $discoveryController->discover();
-                    ResponseSender::json(200, ['jsonapi' => ['version' => '1.1'], ...$result]);
+                    return $this->jsonApiResponse(200, ['jsonapi' => ['version' => '1.1'], ...$result]);
                 })(),
 
-                str_contains($controller, 'JsonApiController') => (function () use ($serializer, $account, $params, $query, $body, $method): never {
+                str_contains($controller, 'JsonApiController') => (function () use ($serializer, $account, $params, $query, $body, $method): HttpResponse {
                     $jsonApiController = new JsonApiController($this->entityTypeManager, $serializer, $this->accessHandler, $account);
                     $entityTypeId = $params['_entity_type'];
                     $id = $params['id'] ?? null;
@@ -662,24 +663,23 @@ final class ControllerDispatcher
                             statusCode: 400,
                         ),
                     };
-                    ResponseSender::json($document->statusCode, $document->toArray());
+                    return $this->jsonApiResponse($document->statusCode, $document->toArray());
                 })(),
 
-                str_contains($controller, '::') => (function () use ($controller, $params, $query, $account, $httpRequest): never {
+                str_contains($controller, '::') => (function () use ($controller, $params, $query, $account, $httpRequest): HttpResponse {
                     $result = $this->ssrPageHandler->dispatchAppController($controller, $params, $query, $account, $httpRequest);
                     if ($result instanceof HttpResponse) {
-                        $result->send();
-                        exit;
+                        return $result;
                     }
                     if ($result['type'] === 'json') {
-                        ResponseSender::json($result['status'], $result['content'], $result['headers']);
+                        return $this->jsonApiResponse($result['status'], $result['content'], $result['headers']);
                     }
-                    ResponseSender::html($result['status'], $result['content'], $result['headers']);
+                    return $this->htmlResponse($result['status'], $result['content'], $result['headers']);
                 })(),
 
-                default => (function () use ($controller): never {
+                default => (function () use ($controller): HttpResponse {
                     $this->logger->error(sprintf('Unknown controller: %s', $controller));
-                    ResponseSender::json(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'Unknown route handler.']]]);
+                    return $this->jsonApiResponse(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'Unknown route handler.']]]);
                 })(),
             };
         } catch (\Throwable $e) {
@@ -703,7 +703,7 @@ final class ControllerDispatcher
                 ];
             }
 
-            ResponseSender::json(500, [
+            return $this->jsonApiResponse(500, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [$error],
             ]);
@@ -714,10 +714,10 @@ final class ControllerDispatcher
         HttpRequest $httpRequest,
         AccountInterface $account,
         ResourceSerializer $serializer,
-    ): never {
+    ): HttpResponse {
         $contentType = strtolower((string) $httpRequest->headers->get('Content-Type', ''));
         if (!str_starts_with($contentType, 'multipart/form-data')) {
-            ResponseSender::json(415, [
+            return $this->jsonApiResponse(415, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [[
                     'status' => '415',
@@ -729,7 +729,7 @@ final class ControllerDispatcher
 
         $uploadedFile = $httpRequest->files->get('file');
         if (!$uploadedFile instanceof UploadedFile) {
-            ResponseSender::json(400, [
+            return $this->jsonApiResponse(400, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [[
                     'status' => '400',
@@ -740,7 +740,7 @@ final class ControllerDispatcher
         }
 
         if (!$uploadedFile->isValid()) {
-            ResponseSender::json(400, [
+            return $this->jsonApiResponse(400, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [[
                     'status' => '400',
@@ -753,7 +753,7 @@ final class ControllerDispatcher
         $maxBytes = $this->resolveUploadMaxBytes();
         $size = (int) ($uploadedFile->getSize() ?? 0);
         if ($size > $maxBytes) {
-            ResponseSender::json(413, [
+            return $this->jsonApiResponse(413, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [[
                     'status' => '413',
@@ -766,7 +766,7 @@ final class ControllerDispatcher
         $mimeType = (string) ($uploadedFile->getMimeType() ?: $uploadedFile->getClientMimeType() ?: 'application/octet-stream');
         $allowedMimeTypes = $this->resolveAllowedUploadMimeTypes();
         if (!$this->isAllowedMimeType($mimeType, $allowedMimeTypes)) {
-            ResponseSender::json(415, [
+            return $this->jsonApiResponse(415, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [[
                     'status' => '415',
@@ -779,7 +779,7 @@ final class ControllerDispatcher
         $filesRoot = $this->resolveFilesRootDir();
         $publicRoot = rtrim($filesRoot, '/') . '/public';
         if (!is_dir($publicRoot) && !mkdir($publicRoot, 0755, true) && !is_dir($publicRoot)) {
-            ResponseSender::json(500, [
+            return $this->jsonApiResponse(500, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [[
                     'status' => '500',
@@ -794,7 +794,7 @@ final class ControllerDispatcher
         $relativePath = date('Y/m') . '/' . uniqid('upload_', true) . '_' . $safeName;
         $targetDir = $publicRoot . '/' . dirname($relativePath);
         if (!is_dir($targetDir) && !mkdir($targetDir, 0755, true) && !is_dir($targetDir)) {
-            ResponseSender::json(500, [
+            return $this->jsonApiResponse(500, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [[
                     'status' => '500',
@@ -808,7 +808,7 @@ final class ControllerDispatcher
             $uploadedFile->move($targetDir, basename($relativePath));
         } catch (\Throwable $e) {
             $this->logger->error(sprintf('Upload move failed: %s', $e->getMessage()));
-            ResponseSender::json(500, [
+            return $this->jsonApiResponse(500, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [[
                     'status' => '500',
@@ -840,7 +840,7 @@ final class ControllerDispatcher
 
         $createAccess = $this->accessHandler->checkCreateAccess('media', $bundle, $account);
         if (!$createAccess->isAllowed()) {
-            ResponseSender::json(403, [
+            return $this->jsonApiResponse(403, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [[
                     'status' => '403',
@@ -871,7 +871,7 @@ final class ControllerDispatcher
         $mediaStorage->save($media);
 
         $resource = $serializer->serialize($media, $this->accessHandler, $account);
-        ResponseSender::json(201, [
+        return $this->jsonApiResponse(201, [
             'jsonapi' => ['version' => '1.1'],
             'data' => $resource->toArray(),
             'links' => ['self' => "/api/media/{$resource->id}"],
@@ -986,4 +986,28 @@ final class ControllerDispatcher
         return '/files/' . ltrim($path, '/');
     }
 
+    /**
+     * Build a JSON:API response with correct content type and encoding.
+     *
+     * @param array<string, mixed> $data
+     * @param array<string, string> $headers
+     */
+    private function jsonApiResponse(int $status, array $data, array $headers = []): JsonResponse
+    {
+        $response = new JsonResponse($data, $status, $headers);
+        $response->setEncodingOptions(JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
+        $response->headers->set('Content-Type', 'application/vnd.api+json');
+
+        return $response;
+    }
+
+    /**
+     * Build an HTML response.
+     *
+     * @param array<string, string> $headers
+     */
+    private function htmlResponse(int $status, string $html, array $headers = []): HttpResponse
+    {
+        return new HttpResponse($html, $status, array_merge(['Content-Type' => 'text/html; charset=UTF-8'], $headers));
+    }
 }

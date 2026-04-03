@@ -52,10 +52,10 @@ final class ControllerDispatcherTest extends TestCase
     }
 
     #[Test]
-    public function dispatch_method_has_never_return_type(): void
+    public function dispatch_method_returns_http_response(): void
     {
         $ref = new \ReflectionMethod(ControllerDispatcher::class, 'dispatch');
-        $this->assertSame('never', $ref->getReturnType()?->getName());
+        $this->assertSame('Symfony\Component\HttpFoundation\Response', $ref->getReturnType()?->getName());
     }
 
     #[Test]
