@@ -485,6 +485,8 @@ These three request surfaces are registered by `packages/user/src/UserServicePro
 
 All auth controllers accept an optional `?LoggerInterface $logger` (defaults to `NullLogger`). DevLog-mode verification/reset URLs and best-effort email failures are logged via this interface rather than `error_log()`.
 
+**Required configuration:** `UserServiceProvider` registers `AuthMailer` with `baseUrl` from `$config['app']['url']`. If `app.url` is not set in `config/waaseyaa.php`, registration throws a `RuntimeException` with remediation guidance. An empty base URL would produce malformed password-reset and email-verification links (e.g., `http:///reset-password?token=...`).
+
 ### Rate Limiting
 
 All auth endpoints apply rate limiting via `RateLimiter` keyed on IP or user identity:

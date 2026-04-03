@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\User\User;
+use Waaseyaa\User\AuthMailer;
 use Waaseyaa\User\UserServiceProvider;
 
 #[CoversClass(UserServiceProvider::class)]
@@ -53,6 +54,18 @@ final class UserServiceProviderTest extends TestCase
         $this->assertSame('uid', $keys['id']);
         $this->assertSame('uuid', $keys['uuid']);
         $this->assertSame('name', $keys['label']);
+    }
+
+    #[Test]
+    public function throws_when_app_url_not_configured(): void
+    {
+        $provider = new UserServiceProvider();
+        $provider->register();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('app.url is not configured');
+
+        $provider->resolve(AuthMailer::class);
     }
 
     #[Test]
