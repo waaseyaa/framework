@@ -489,7 +489,7 @@ All auth controllers accept an optional `?LoggerInterface $logger` (defaults to 
 
 ### Rate Limiting
 
-All auth endpoints apply rate limiting via `RateLimiter` keyed on IP or user identity:
+All auth endpoints apply rate limiting via `RateLimiterInterface` keyed on IP or user identity. Two implementations exist: `RateLimiter` (in-memory, resets per process) and `DatabaseRateLimiter` (SQLite-backed via `DatabaseInterface`, persists across restarts). `AuthServiceProvider` registers the in-memory implementation by default; apps needing persistence can override the binding:
 
 | Endpoint | Limit |
 |----------|-------|
