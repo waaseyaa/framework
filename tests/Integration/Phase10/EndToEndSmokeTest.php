@@ -39,7 +39,7 @@ use Waaseyaa\SSR\ComponentMetadata;
 use Waaseyaa\SSR\ComponentRegistry;
 use Waaseyaa\SSR\ComponentRenderer;
 use Waaseyaa\SSR\SsrController;
-use Waaseyaa\SSR\SsrResponse;
+use Waaseyaa\Foundation\Http\HttpResponse;
 
 /**
  * End-to-end smoke tests exercising the complete Waaseyaa stack.
@@ -345,10 +345,10 @@ final class EndToEndSmokeTest extends TestCase
     }
 
     /**
-     * Exercises the full SSR pipeline: registry -> Twig rendering -> SsrResponse.
+     * Exercises the full SSR pipeline: registry -> Twig rendering -> HttpResponse.
      *
      * Exercises: waaseyaa/ssr (ComponentRegistry, ComponentRenderer,
-     * SsrController, SsrResponse, ComponentMetadata) with Twig.
+     * SsrController, HttpResponse, ComponentMetadata) with Twig.
      */
     #[Test]
     public function testSsrComponentRenderingPipeline(): void
@@ -389,8 +389,8 @@ final class EndToEndSmokeTest extends TestCase
             'author' => 'Waaseyaa Team',
         ]);
 
-        // Verify SsrResponse.
-        $this->assertInstanceOf(SsrResponse::class, $response);
+        // Verify HttpResponse.
+        $this->assertInstanceOf(HttpResponse::class, $response);
         $this->assertSame(200, $response->statusCode);
         $this->assertSame('text/html; charset=UTF-8', $response->headers['Content-Type']);
 
@@ -406,7 +406,7 @@ final class EndToEndSmokeTest extends TestCase
             'content' => '<p>Welcome to Waaseyaa.</p>',
         ]);
 
-        $this->assertInstanceOf(SsrResponse::class, $pageResponse);
+        $this->assertInstanceOf(HttpResponse::class, $pageResponse);
         $this->assertSame(200, $pageResponse->statusCode);
         $this->assertStringContainsString('<title>Home - Waaseyaa</title>', $pageResponse->content);
         $this->assertStringContainsString('<p>Welcome to Waaseyaa.</p>', $pageResponse->content);

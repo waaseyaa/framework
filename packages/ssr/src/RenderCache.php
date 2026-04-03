@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\SSR;
 
 use Waaseyaa\Cache\CacheBackendInterface;
+use Waaseyaa\Foundation\Http\HttpResponse;
 use Waaseyaa\Cache\TagAwareCacheInterface;
 
 final class RenderCache
@@ -13,7 +14,7 @@ final class RenderCache
         private readonly CacheBackendInterface $backend,
     ) {}
 
-    public function get(string $entityTypeId, int|string $entityId, string $viewMode, string $langcode): ?SsrResponse
+    public function get(string $entityTypeId, int|string $entityId, string $viewMode, string $langcode): ?HttpResponse
     {
         $item = $this->backend->get(self::buildKey($entityTypeId, $entityId, $viewMode, $langcode));
         if ($item === false || !$item->valid || !is_array($item->data)) {
@@ -24,7 +25,7 @@ final class RenderCache
         $statusCode = is_int($item->data['status_code'] ?? null) ? $item->data['status_code'] : 200;
         $headers = is_array($item->data['headers'] ?? null) ? $item->data['headers'] : [];
 
-        return new SsrResponse(
+        return new HttpResponse(
             content: $content,
             statusCode: $statusCode,
             headers: $this->normalizeHeaders($headers),
@@ -36,7 +37,7 @@ final class RenderCache
         int|string $entityId,
         string $viewMode,
         string $langcode,
-        SsrResponse $response,
+        HttpResponse $response,
         int $maxAge,
     ): void {
         $expire = max(0, $maxAge) > 0

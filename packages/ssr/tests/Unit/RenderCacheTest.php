@@ -9,7 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Cache\Backend\MemoryBackend;
 use Waaseyaa\SSR\RenderCache;
-use Waaseyaa\SSR\SsrResponse;
+use Waaseyaa\Foundation\Http\HttpResponse;
 
 #[CoversClass(RenderCache::class)]
 final class RenderCacheTest extends TestCase
@@ -19,7 +19,7 @@ final class RenderCacheTest extends TestCase
     {
         $backend = new MemoryBackend();
         $cache = new RenderCache($backend);
-        $response = new SsrResponse(
+        $response = new HttpResponse(
             content: '<article>cached</article>',
             statusCode: 200,
             headers: ['X-Test' => '1'],
@@ -46,8 +46,8 @@ final class RenderCacheTest extends TestCase
         $backend = new MemoryBackend();
         $cache = new RenderCache($backend);
 
-        $cache->set('node', 99, 'full', 'en', new SsrResponse('<p>n99</p>'), 300);
-        $cache->set('node', 100, 'full', 'en', new SsrResponse('<p>n100</p>'), 300);
+        $cache->set('node', 99, 'full', 'en', new HttpResponse('<p>n99</p>'), 300);
+        $cache->set('node', 100, 'full', 'en', new HttpResponse('<p>n100</p>'), 300);
 
         $cache->invalidateEntity('node', 99);
 

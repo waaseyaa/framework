@@ -2,9 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Waaseyaa\SSR;
+namespace Waaseyaa\Foundation\Http;
 
-final class SsrResponse
+/**
+ * Lightweight HTTP response DTO for controllers that don't need Symfony's Response object.
+ *
+ * Used by SSR rendering, JSON:API trait, and any controller returning raw HTML or redirects.
+ */
+final class HttpResponse
 {
     /**
      * @param array<string, string> $headers
@@ -16,7 +21,7 @@ final class SsrResponse
     ) {}
 
     /**
-     * HTTP redirect for app controllers that return {@see SsrResponse} (no Symfony Response needed).
+     * HTTP redirect for app controllers that return {@see HttpResponse} (no Symfony Response needed).
      *
      * @param non-empty-string $location URL or path for the `Location` header (caller must validate safety).
      */

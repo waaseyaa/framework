@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace Waaseyaa\SSR\Tests\Unit;
+namespace Waaseyaa\Foundation\Tests\Unit\Http;
 
-use Waaseyaa\SSR\SsrResponse;
+use Waaseyaa\Foundation\Http\HttpResponse;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
-#[CoversClass(SsrResponse::class)]
-final class SsrResponseTest extends TestCase
+#[CoversClass(HttpResponse::class)]
+final class HttpResponseTest extends TestCase
 {
     #[Test]
     public function constructionWithDefaults(): void
     {
-        $response = new SsrResponse(content: '<h1>Hello</h1>');
+        $response = new HttpResponse(content: '<h1>Hello</h1>');
 
         $this->assertSame('<h1>Hello</h1>', $response->content);
         $this->assertSame(200, $response->statusCode);
@@ -26,7 +26,7 @@ final class SsrResponseTest extends TestCase
     public function constructionWithCustomStatusAndHeaders(): void
     {
         $headers = ['Content-Type' => 'text/plain', 'X-Custom' => 'value'];
-        $response = new SsrResponse(
+        $response = new HttpResponse(
             content: 'Not Found',
             statusCode: 404,
             headers: $headers,
@@ -40,7 +40,7 @@ final class SsrResponseTest extends TestCase
     #[Test]
     public function redirect_sets_status_and_location(): void
     {
-        $response = SsrResponse::redirect('/admin/today?chat=open');
+        $response = HttpResponse::redirect('/admin/today?chat=open');
 
         $this->assertSame('', $response->content);
         $this->assertSame(302, $response->statusCode);
@@ -50,7 +50,7 @@ final class SsrResponseTest extends TestCase
     #[Test]
     public function redirect_accepts_custom_status(): void
     {
-        $response = SsrResponse::redirect('/elsewhere', 301);
+        $response = HttpResponse::redirect('/elsewhere', 301);
 
         $this->assertSame(301, $response->statusCode);
         $this->assertSame('/elsewhere', $response->headers['Location']);
@@ -59,7 +59,7 @@ final class SsrResponseTest extends TestCase
     #[Test]
     public function propertiesAreReadonly(): void
     {
-        $reflection = new \ReflectionClass(SsrResponse::class);
+        $reflection = new \ReflectionClass(HttpResponse::class);
 
         $this->assertTrue($reflection->getProperty('content')->isReadOnly());
         $this->assertTrue($reflection->getProperty('statusCode')->isReadOnly());

@@ -14,13 +14,13 @@ use Waaseyaa\SSR\ComponentMetadata;
 use Waaseyaa\SSR\ComponentRegistry;
 use Waaseyaa\SSR\ComponentRenderer;
 use Waaseyaa\SSR\SsrController;
-use Waaseyaa\SSR\SsrResponse;
+use Waaseyaa\Foundation\Http\HttpResponse;
 
 /**
  * Integration tests for SSR rendering pipeline with real Twig.
  *
  * Exercises: waaseyaa/ssr (ComponentRegistry, ComponentRenderer, SsrController,
- * SsrResponse) with Twig\Environment + ArrayLoader.
+ * HttpResponse) with Twig\Environment + ArrayLoader.
  */
 #[CoversNothing]
 final class SsrRenderingIntegrationTest extends TestCase
@@ -104,7 +104,7 @@ final class SsrRenderingIntegrationTest extends TestCase
             'message' => 'Disk space low',
         ]);
 
-        $this->assertInstanceOf(SsrResponse::class, $response);
+        $this->assertInstanceOf(HttpResponse::class, $response);
         $this->assertSame(200, $response->statusCode);
         $this->assertStringContainsString('<div class="alert alert-warning">', $response->content);
         $this->assertStringContainsString('Disk space low', $response->content);

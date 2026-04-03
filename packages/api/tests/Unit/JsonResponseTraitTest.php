@@ -9,7 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Api\JsonResponseTrait;
-use Waaseyaa\SSR\SsrResponse;
+use Waaseyaa\Foundation\Http\HttpResponse;
 
 #[CoversClass(JsonResponseTrait::class)]
 final class JsonResponseTraitTest extends TestCase
@@ -41,7 +41,7 @@ final class JsonResponseTraitTest extends TestCase
     public function json_builds_response_with_defaults(): void
     {
         $response = $this->json(['ok' => true]);
-        $this->assertInstanceOf(SsrResponse::class, $response);
+        $this->assertInstanceOf(HttpResponse::class, $response);
         $this->assertSame('{"ok":true}', $response->content);
         $this->assertSame(200, $response->statusCode);
         $this->assertSame('application/json', $response->headers['Content-Type']);

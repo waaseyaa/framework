@@ -273,7 +273,7 @@ final class SsrPageHandler
                 && $route->getOption('_render') === true;
             if (!$isRenderRoute) {
                 $this->logger->warning(sprintf(
-                    'Controller %s::%s returned SsrResponse on a non-render route. '
+                    'Controller %s::%s returned HttpResponse on a non-render route. '
                     . 'Add ->render() to the RouteBuilder chain to fix SSR dispatch.',
                     $class,
                     $method,
