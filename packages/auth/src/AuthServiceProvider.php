@@ -22,7 +22,7 @@ final class AuthServiceProvider extends ServiceProvider
     {
         $this->singleton(AuthManager::class, fn() => new AuthManager());
 
-        $this->singleton(RateLimiter::class, fn() => new RateLimiter());
+        $this->singleton(RateLimiterInterface::class, fn() => new RateLimiter());
 
         $authConfig = $this->config['auth'] ?? [];
         $appEnv = $this->config['app_env'] ?? ($_ENV['APP_ENV'] ?? 'production');
@@ -44,7 +44,7 @@ final class AuthServiceProvider extends ServiceProvider
     {
         $authConfig = $this->resolve(Config\AuthConfig::class);
         $tokenRepo = $this->resolve(Token\AuthTokenRepositoryInterface::class);
-        $rateLimiter = $this->resolve(RateLimiter::class);
+        $rateLimiter = $this->resolve(RateLimiterInterface::class);
         $authMailer = $this->resolve(AuthMailer::class);
 
         $router->addRoute(

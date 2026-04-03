@@ -7,7 +7,7 @@ namespace Waaseyaa\Auth\Controller;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Auth\Config\AuthConfig;
-use Waaseyaa\Auth\RateLimiter;
+use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -24,7 +24,7 @@ final class RegisterController
         private readonly EntityTypeManager $entityTypeManager,
         private readonly AuthTokenRepositoryInterface $tokenRepo,
         private readonly AuthMailer $authMailer,
-        private readonly RateLimiter $rateLimiter,
+        private readonly RateLimiterInterface $rateLimiter,
         ?LoggerInterface $logger = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
