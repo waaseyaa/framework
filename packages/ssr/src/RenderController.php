@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\SSR;
 
+use Symfony\Component\HttpFoundation\Response;
 use Twig\Environment;
 use Twig\Error\LoaderError;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\EntityInterface;
-use Waaseyaa\Foundation\Http\HttpResponse;
 
 final class RenderController
 {
@@ -17,7 +17,7 @@ final class RenderController
         private readonly ?EntityRenderer $entityRenderer = null,
     ) {}
 
-    public function renderPath(string $path = '/', ?AccountInterface $account = null): HttpResponse
+    public function renderPath(string $path = '/', ?AccountInterface $account = null): Response
     {
         $normalizedPath = trim($path);
         if ($normalizedPath === '') {
@@ -47,14 +47,14 @@ final class RenderController
         foreach ($templates as $template) {
             try {
                 $html = $this->twig->render($template, $context);
-                return new HttpResponse(content: $html);
+                return new Response($html);
             } catch (LoaderError) {
                 continue;
             }
         }
 
         // Safe fallback while theme/templates are still being introduced.
-        return new HttpResponse(content: sprintf(
+        return new Response(sprintf(
             '<!doctype html><html><head><meta charset="utf-8"><title>Waaseyaa</title></head><body><main><h1>Waaseyaa</h1><p>Path: %s</p></main></body></html>',
             htmlspecialchars($normalizedPath, ENT_QUOTES, 'UTF-8'),
         ));
@@ -63,7 +63,7 @@ final class RenderController
     /**
      * @param array<string, mixed> $context
      */
-    public function renderEntity(EntityInterface $entity, ViewMode|string $viewMode = 'full', array $context = []): HttpResponse
+    public function renderEntity(EntityInterface $entity, ViewMode|string $viewMode = 'full', array $context = []): Response
     {
         if ($this->entityRenderer === null) {
             throw new \RuntimeException('EntityRenderer is required for entity rendering.');
@@ -81,16 +81,16 @@ final class RenderController
                 continue;
             }
             try {
-                return new HttpResponse(content: $this->twig->render($template, $bag));
+                return new Response($this->twig->render($template, $bag));
             } catch (LoaderError) {
                 continue;
             }
         }
 
-        return new HttpResponse(content: '<h1>Render template missing</h1>', statusCode: 500);
+        return new Response('<h1>Render template missing</h1>', 500);
     }
 
-    public function tryRenderPathTemplate(string $path, ?AccountInterface $account = null): ?HttpResponse
+    public function tryRenderPathTemplate(string $path, ?AccountInterface $account = null): ?Response
     {
         $normalizedPath = trim($path);
         if ($normalizedPath === '' || $normalizedPath === '/') {
@@ -123,7 +123,7 @@ final class RenderController
             }
             try {
                 $html = $this->twig->render($template, $context);
-                return new HttpResponse(content: $html);
+                return new Response($html);
             } catch (LoaderError) {
                 continue;
             }
@@ -145,68 +145,59 @@ final class RenderController
         return $segment . '.html.twig';
     }
 
-    public function renderNotFound(string $path, ?AccountInterface $account = null): HttpResponse
+    public function renderNotFound(string $path, ?AccountInterface $account = null): Response
     {
         $context = $this->mergeAccountIntoContext(['path' => $path], $account);
         foreach (['404.html.twig', 'ssr/404.html.twig'] as $template) {
             try {
-                return new HttpResponse(
-                    content: $this->twig->render($template, $context),
-                    statusCode: 404,
-                );
+                return new Response($this->twig->render($template, $context), 404);
             } catch (LoaderError) {
                 continue;
             }
         }
 
-        return new HttpResponse(
-            content: sprintf(
+        return new Response(
+            sprintf(
                 '<!doctype html><html><head><meta charset="utf-8"><title>404</title></head><body><main><h1>Not Found</h1><p>%s</p></main></body></html>',
                 htmlspecialchars($path, ENT_QUOTES, 'UTF-8'),
             ),
-            statusCode: 404,
+            404,
         );
     }
 
-    public function renderForbidden(string $path, ?AccountInterface $account = null): HttpResponse
+    public function renderForbidden(string $path, ?AccountInterface $account = null): Response
     {
         $context = $this->mergeAccountIntoContext(['path' => $path], $account);
         foreach (['403.html.twig', 'ssr/403.html.twig'] as $template) {
             try {
-                return new HttpResponse(
-                    content: $this->twig->render($template, $context),
-                    statusCode: 403,
-                );
+                return new Response($this->twig->render($template, $context), 403);
             } catch (LoaderError) {
                 continue;
             }
         }
 
-        return new HttpResponse(
-            content: sprintf(
+        return new Response(
+            sprintf(
                 '<!doctype html><html><head><meta charset="utf-8"><title>403</title></head><body><main><h1>Forbidden</h1><p>%s</p></main></body></html>',
                 htmlspecialchars($path, ENT_QUOTES, 'UTF-8'),
             ),
-            statusCode: 403,
+            403,
         );
     }
 
-    public function renderServerError(): HttpResponse
+    public function renderServerError(): Response
     {
         foreach (['500.html.twig', 'ssr/500.html.twig'] as $template) {
             try {
-                return new HttpResponse(
-                    content: $this->twig->render($template),
-                    statusCode: 500,
-                );
+                return new Response($this->twig->render($template), 500);
             } catch (LoaderError) {
                 continue;
             }
         }
 
-        return new HttpResponse(
-            content: '<!doctype html><html><head><meta charset="utf-8"><title>500</title></head><body><main><h1>Server Error</h1><p>Something went wrong. Please try again later.</p></main></body></html>',
-            statusCode: 500,
+        return new Response(
+            '<!doctype html><html><head><meta charset="utf-8"><title>500</title></head><body><main><h1>Server Error</h1><p>Something went wrong. Please try again later.</p></main></body></html>',
+            500,
         );
     }
 

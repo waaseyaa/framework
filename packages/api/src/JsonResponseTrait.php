@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Api;
 
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Waaseyaa\Foundation\Http\HttpResponse;
 
 trait JsonResponseTrait
 {
@@ -25,12 +25,8 @@ trait JsonResponseTrait
     }
 
     /** @param array<string, mixed> $data */
-    private function json(array $data, int $status = 200): HttpResponse
+    private function json(array $data, int $status = 200): JsonResponse
     {
-        return new HttpResponse(
-            content: json_encode($data, JSON_THROW_ON_ERROR),
-            statusCode: $status,
-            headers: ['Content-Type' => 'application/json'],
-        );
+        return new JsonResponse($data, $status);
     }
 }

@@ -107,9 +107,6 @@ final class ControllerDispatcher
         // Handle callable controllers (invocable objects or closures registered by service providers).
         if (is_callable($controller)) {
             $result = $controller($httpRequest, ...array_filter($params, fn($k) => !str_starts_with($k, '_'), ARRAY_FILTER_USE_KEY));
-            if ($result instanceof \Waaseyaa\Foundation\Http\HttpResponse) {
-                ResponseSender::html($result->statusCode, $result->content, $result->headers);
-            }
             if ($result instanceof \Waaseyaa\Inertia\InertiaResponse) {
                 $pageObject = $result->toPageObject();
                 $pageObject['url'] = $httpRequest->getRequestUri();

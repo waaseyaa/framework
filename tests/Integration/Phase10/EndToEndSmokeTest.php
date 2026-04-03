@@ -35,11 +35,11 @@ use Waaseyaa\Entity\Audit\EntityAuditLogger;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeLifecycleManager;
 use Waaseyaa\Entity\EntityTypeManager;
+use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\SSR\ComponentMetadata;
 use Waaseyaa\SSR\ComponentRegistry;
 use Waaseyaa\SSR\ComponentRenderer;
 use Waaseyaa\SSR\SsrController;
-use Waaseyaa\Foundation\Http\HttpResponse;
 
 /**
  * End-to-end smoke tests exercising the complete Waaseyaa stack.
@@ -389,16 +389,15 @@ final class EndToEndSmokeTest extends TestCase
             'author' => 'Waaseyaa Team',
         ]);
 
-        // Verify HttpResponse.
-        $this->assertInstanceOf(HttpResponse::class, $response);
-        $this->assertSame(200, $response->statusCode);
-        $this->assertSame('text/html; charset=UTF-8', $response->headers['Content-Type']);
+        // Verify Response.
+        $this->assertInstanceOf(Response::class, $response);
+        $this->assertSame(200, $response->getStatusCode());
 
         // Verify rendered content.
-        $this->assertStringContainsString('<article class="card">', $response->content);
-        $this->assertStringContainsString('<h2>Waaseyaa Launches</h2>', $response->content);
-        $this->assertStringContainsString('A next-generation content management system.', $response->content);
-        $this->assertStringContainsString('Waaseyaa Team', $response->content);
+        $this->assertStringContainsString('<article class="card">', $response->getContent());
+        $this->assertStringContainsString('<h2>Waaseyaa Launches</h2>', $response->getContent());
+        $this->assertStringContainsString('A next-generation content management system.', $response->getContent());
+        $this->assertStringContainsString('Waaseyaa Team', $response->getContent());
 
         // Render page layout via controller.
         $pageResponse = $controller->render('page-layout', [
@@ -406,10 +405,10 @@ final class EndToEndSmokeTest extends TestCase
             'content' => '<p>Welcome to Waaseyaa.</p>',
         ]);
 
-        $this->assertInstanceOf(HttpResponse::class, $pageResponse);
-        $this->assertSame(200, $pageResponse->statusCode);
-        $this->assertStringContainsString('<title>Home - Waaseyaa</title>', $pageResponse->content);
-        $this->assertStringContainsString('<p>Welcome to Waaseyaa.</p>', $pageResponse->content);
+        $this->assertInstanceOf(Response::class, $pageResponse);
+        $this->assertSame(200, $pageResponse->getStatusCode());
+        $this->assertStringContainsString('<title>Home - Waaseyaa</title>', $pageResponse->getContent());
+        $this->assertStringContainsString('<p>Welcome to Waaseyaa.</p>', $pageResponse->getContent());
     }
 
     /**

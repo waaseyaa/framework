@@ -920,12 +920,6 @@ CORS origin resolution in `HttpKernel::handleCors()`:
 - Application is in development mode (`config.environment` or `APP_ENV` is dev/development/local)
 - `config.auth.dev_fallback_account` is explicitly `true`
 
-### HttpResponse
-
-File: `packages/foundation/src/Http/HttpResponse.php`
-
-Generic HTTP response value object used by controllers that return framework-level responses (not Symfony `Response`). Properties: `content` (string), `statusCode` (int, default 200), `headers` (array, default `text/html`). Includes a `redirect()` factory method. `ControllerDispatcher` checks for `HttpResponse` instances and sends them via `ResponseSender`. Used by API's `JsonResponseTrait`, SSR controllers, and callable route handlers.
-
 ### ResponseSender
 
 File: `packages/foundation/src/Http/ResponseSender.php`
@@ -1295,7 +1289,6 @@ Asset/
 Http/
     ControllerDispatcher.php     -- routes controller names to handlers
     CorsHandler.php              -- CORS preflight and header resolution
-    HttpResponse.php             -- generic HTTP response DTO (content, statusCode, headers)
     ResponseSender.php           -- sends Symfony Response to client
 Diagnostic/
     DiagnosticCode.php           -- string-backed enum of operator error codes

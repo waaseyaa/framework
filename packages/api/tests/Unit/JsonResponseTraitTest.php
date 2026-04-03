@@ -7,9 +7,9 @@ namespace Waaseyaa\Api\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Api\JsonResponseTrait;
-use Waaseyaa\Foundation\Http\HttpResponse;
 
 #[CoversClass(JsonResponseTrait::class)]
 final class JsonResponseTraitTest extends TestCase
@@ -41,16 +41,16 @@ final class JsonResponseTraitTest extends TestCase
     public function json_builds_response_with_defaults(): void
     {
         $response = $this->json(['ok' => true]);
-        $this->assertInstanceOf(HttpResponse::class, $response);
-        $this->assertSame('{"ok":true}', $response->content);
-        $this->assertSame(200, $response->statusCode);
-        $this->assertSame('application/json', $response->headers['Content-Type']);
+        $this->assertInstanceOf(JsonResponse::class, $response);
+        $this->assertSame('{"ok":true}', $response->getContent());
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('application/json', $response->headers->get('Content-Type'));
     }
 
     #[Test]
     public function json_builds_response_with_custom_status(): void
     {
         $response = $this->json(['error' => 'not found'], 404);
-        $this->assertSame(404, $response->statusCode);
+        $this->assertSame(404, $response->getStatusCode());
     }
 }

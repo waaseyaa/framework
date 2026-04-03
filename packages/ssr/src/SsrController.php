@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\SSR;
 
-use Waaseyaa\Foundation\Http\HttpResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 final class SsrController
 {
@@ -13,24 +13,24 @@ final class SsrController
     ) {}
 
     /**
-     * Render a named component with props and return an HttpResponse.
+     * Render a named component with props and return a Response.
      *
      * @param array<string, mixed> $props
      */
-    public function render(string $componentName, array $props = []): HttpResponse
+    public function render(string $componentName, array $props = []): Response
     {
         $html = $this->renderer->render($componentName, $props);
 
-        return new HttpResponse(content: $html);
+        return new Response($html);
     }
 
     /**
-     * Render a component object and return an HttpResponse.
+     * Render a component object and return a Response.
      */
-    public function renderObject(object $component): HttpResponse
+    public function renderObject(object $component): Response
     {
         $html = $this->renderer->renderObject($component);
 
-        return new HttpResponse(content: $html);
+        return new Response($html);
     }
 }
