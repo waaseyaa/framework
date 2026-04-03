@@ -97,6 +97,13 @@ final class HttpKernel extends AbstractKernel
         }
         $queryString = $_SERVER['QUERY_STRING'] ?? '';
 
+        // Register request context on the logger so all subsequent log entries carry HTTP context.
+        if ($this->logger instanceof \Waaseyaa\Foundation\Log\LogManager) {
+            $this->logger->addGlobalProcessor(
+                new \Waaseyaa\Foundation\Log\Processor\RequestContextProcessor($method, $path),
+            );
+        }
+
         // Broadcast storage for SSE.
         $broadcastStorage = new BroadcastStorage($this->database);
         $listenerRegistrar = new EventListenerRegistrar($this->dispatcher);

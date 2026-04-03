@@ -170,6 +170,11 @@ final class LogManager implements LoggerInterface
         $this->handlers[$this->defaultChannel]->handle($record);
     }
 
+    public function addGlobalProcessor(ProcessorInterface $processor): void
+    {
+        $this->globalProcessors[] = $processor;
+    }
+
     private static function buildHandler(array $config): HandlerInterface
     {
         $type = $config['type'] ?? 'errorlog';
