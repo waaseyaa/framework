@@ -38,8 +38,9 @@ and all references when moving code.
 
 ```bash
 composer install                    # Install dependencies
-php -S localhost:8080 -t public     # Dev server
 ./vendor/bin/phpunit                # Run tests
+php bin/waaseyaa optimize:manifest  # Rebuild provider manifest
+bin/waaseyaa serve                  # Dev server
 bin/waaseyaa                        # CLI
 ```
 
