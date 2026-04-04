@@ -8,6 +8,12 @@ use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 
+/**
+ * Typed, validated view of raw Request attributes.
+ *
+ * Built once by HttpKernel, stored as `_waaseyaa_context` on the Request.
+ * Routers read this directly instead of parsing attributes individually.
+ */
 final class WaaseyaaContext
 {
     /**
