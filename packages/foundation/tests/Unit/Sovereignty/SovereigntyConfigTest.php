@@ -167,4 +167,12 @@ final class SovereigntyConfigTest extends TestCase
 
         self::assertSame(SovereigntyProfile::Local, $config->getProfile());
     }
+
+    #[Test]
+    public function createFromConfigArrayFallsBackToLocalOnInvalidProfile(): void
+    {
+        $config = SovereigntyConfig::fromArray(['sovereignty_profile' => 'bogus']);
+
+        self::assertSame(SovereigntyProfile::Local, $config->getProfile());
+    }
 }
