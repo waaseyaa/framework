@@ -11,7 +11,7 @@ use Waaseyaa\AI\Vector\SearchController;
 use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Database\DatabaseInterface;
-use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Http\JsonApiResponseTrait;
 
 final class SearchRouter implements DomainRouterInterface
@@ -24,7 +24,7 @@ final class SearchRouter implements DomainRouterInterface
     public function __construct(
         private readonly array $config,
         private readonly DatabaseInterface $database,
-        private readonly ?EntityTypeManager $entityTypeManager = null,
+        private readonly ?EntityTypeManagerInterface $entityTypeManager = null,
     ) {}
 
     public function supports(Request $request): bool
@@ -54,20 +54,27 @@ final class SearchRouter implements DomainRouterInterface
             ]);
         }
 
+        if ($this->entityTypeManager === null) {
+            return $this->jsonApiResponse(500, [
+                'jsonapi' => ['version' => '1.1'],
+                'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'EntityTypeManager is required for search.']],
+            ]);
+        }
+
         $embeddingProvider = EmbeddingProviderFactory::fromConfig($this->config);
         assert($this->database instanceof \Waaseyaa\Database\DBALDatabase);
         $embeddingStorage = new SqliteEmbeddingStorage($this->database->getConnection()->getNativeConnection());
+        $serializer = new ResourceSerializer($this->entityTypeManager);
 
-        $searchController = new SearchController($embeddingStorage, $embeddingProvider);
+        $searchController = new SearchController(
+            entityTypeManager: $this->entityTypeManager,
+            serializer: $serializer,
+            embeddingStorage: $embeddingStorage,
+            embeddingProvider: $embeddingProvider,
+        );
+
         $results = $searchController->search($searchQuery, $entityType, $limit);
 
-        $serializer = $this->entityTypeManager !== null
-            ? new ResourceSerializer($this->entityTypeManager)
-            : null;
-
-        return $this->jsonApiResponse(200, [
-            'jsonapi' => ['version' => '1.1'],
-            'data' => $results,
-        ]);
+        return $this->jsonApiResponse($results->statusCode, $results->toArray());
     }
 }
