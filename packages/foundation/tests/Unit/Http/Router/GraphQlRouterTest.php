@@ -20,7 +20,7 @@ final class GraphQlRouterTest extends TestCase
     public function supports_graphql_endpoint(): void
     {
         $etm = new EntityTypeManager(new EventDispatcher());
-        $router = new GraphQlRouter($etm, new EntityAccessHandler($etm));
+        $router = new GraphQlRouter($etm, new EntityAccessHandler());
         $request = Request::create('/api/graphql');
         $request->attributes->set('_controller', 'graphql.endpoint');
         self::assertTrue($router->supports($request));
@@ -30,7 +30,7 @@ final class GraphQlRouterTest extends TestCase
     public function does_not_support_unrelated(): void
     {
         $etm = new EntityTypeManager(new EventDispatcher());
-        $router = new GraphQlRouter($etm, new EntityAccessHandler($etm));
+        $router = new GraphQlRouter($etm, new EntityAccessHandler());
         $request = Request::create('/api/mcp');
         $request->attributes->set('_controller', 'mcp.endpoint');
         self::assertFalse($router->supports($request));
