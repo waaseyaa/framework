@@ -123,4 +123,26 @@ return [
     'Waaseyaa\Field\ComputedFieldInterface' => 'internal',
     'Waaseyaa\Auth\Token\AuthTokenRepositoryInterface' => 'internal',
     'Waaseyaa\Auth\RateLimiterInterface' => 'internal',
+
+    // Layer 2: Content Types — public
+    'Waaseyaa\Media\FileRepositoryInterface' => 'public',
+    'Waaseyaa\Path\PathAliasManagerInterface' => 'public',
+    'Waaseyaa\Relationship\VisibilityFilterInterface' => 'public',
+
+    // Layer 3: Services — public
+    'Waaseyaa\Search\SearchProviderInterface' => 'public',
+    'Waaseyaa\Search\SearchIndexerInterface' => 'public',
+    'Waaseyaa\Search\SearchIndexableInterface' => 'public',
+    'Waaseyaa\Notification\NotificationInterface' => 'public',
+    'Waaseyaa\Notification\NotifiableInterface' => 'public',
+    'Waaseyaa\Notification\NotifiableTrait' => 'public',
+    'Waaseyaa\Notification\ChannelInterface' => 'public',
+
+    // Layer 3: Services — internal
+    'Waaseyaa\Billing\StripeClientInterface' => 'internal',
+
+    // Layer 4: API — public
+    'Waaseyaa\Api\JsonResponseTrait' => 'public',
+    'Waaseyaa\Api\MutableTranslatableInterface' => 'public',
+    'Waaseyaa\Routing\Language\LanguageNegotiatorInterface' => 'public',
 ];
