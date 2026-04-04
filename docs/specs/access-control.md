@@ -558,7 +558,7 @@ packages/access/src/
         PolicyAttribute.php          - Maps policy class to entity type
         AccessDeniedException.php    - Thrown by Gate::authorize()
     RedirectValidator.php            - Open-redirect prevention (isSafe/sanitize)
-    ErrorPageRendererInterface.php   - Error page rendering contract (render -> ?Response)
+    ErrorPageRendererInterface.php   - Error page rendering contract (render -> ?Response) [@internal — not a public consumer contract]
     Middleware/
         AuthorizationMiddleware.php  - Route-level access enforcement
 

@@ -42,7 +42,6 @@ final class ProviderDrivenRouteRegistrationTest extends TestCase
             migrations: [],
             fieldTypes: [],
             formatters: [],
-            listeners: [],
             middleware: [],
             permissions: [],
             policies: [],

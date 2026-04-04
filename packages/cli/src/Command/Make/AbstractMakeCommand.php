@@ -10,6 +10,8 @@ use Symfony\Component\Console\Command\Command;
  * Base class for make:* scaffolding commands.
  *
  * Provides shared helpers for stub loading and placeholder replacement.
+ *
+ * @internal
  */
 abstract class AbstractMakeCommand extends Command
 {

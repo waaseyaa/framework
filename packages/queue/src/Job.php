@@ -9,6 +9,8 @@ namespace Waaseyaa\Queue;
  *
  * Provides a structured way to define dispatchable work units with
  * retry policies, timeouts, and failure handling.
+ *
+ * @internal
  */
 abstract class Job
 {

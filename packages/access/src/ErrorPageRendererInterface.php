@@ -7,6 +7,7 @@ namespace Waaseyaa\Access;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+/** @internal */
 interface ErrorPageRendererInterface
 {
     /**

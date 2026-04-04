@@ -36,6 +36,9 @@ use Waaseyaa\Plugin\DefaultPluginManager;
 use Waaseyaa\Plugin\Discovery\AttributeDiscovery;
 use Waaseyaa\Plugin\Extension\KnowledgeToolingExtensionRunner;
 
+/**
+ * @internal
+ */
 abstract class AbstractKernel
 {
     protected EventDispatcherInterface $dispatcher;

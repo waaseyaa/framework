@@ -6,6 +6,9 @@ namespace Waaseyaa\Plugin\Extension;
 
 use Waaseyaa\Plugin\PluginInspectionInterface;
 
+/**
+ * @internal
+ */
 interface KnowledgeToolingExtensionInterface extends PluginInspectionInterface
 {
     /**

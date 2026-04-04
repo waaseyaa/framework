@@ -9,6 +9,8 @@ namespace Waaseyaa\Ingestion;
  *
  * Applications extend this to provide their supported versions, entity types,
  * and entity-specific validation rules via validateEntityData().
+ *
+ * @internal
  */
 abstract class EnvelopeValidator implements PayloadValidatorInterface
 {
