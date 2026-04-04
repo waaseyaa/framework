@@ -315,6 +315,8 @@ final class PackageManifestCompiler
             $known = $knownMissing;
             sort($known);
 
+            // Strict equality: any change to the missing set (including shrinking)
+            // forces a one-time recompile to re-stamp the updated list.
             if ($missing === $known) {
                 $this->logger->error(sprintf(
                     'Provider class(es) still missing (known): %s. '
@@ -342,16 +344,19 @@ final class PackageManifestCompiler
     {
         $cachePath = $this->storagePath . '/framework/packages.php';
         if (!is_file($cachePath)) {
+            $this->logger->warning('Cannot stamp known-missing providers: cache file does not exist.');
             return;
         }
 
         try {
             $data = require $cachePath;
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            $this->logger->warning(sprintf('Cannot stamp known-missing providers: %s', $e->getMessage()));
             return;
         }
 
         if (!is_array($data)) {
+            $this->logger->warning('Cannot stamp known-missing providers: cache file returned non-array.');
             return;
         }
 
@@ -362,11 +367,13 @@ final class PackageManifestCompiler
         $tmpPath = $cachePath . '.tmp.' . getmypid();
 
         if (file_put_contents($tmpPath, $content) === false) {
+            $this->logger->warning(sprintf('Cannot stamp known-missing providers: failed to write %s', $tmpPath));
             return;
         }
 
         if (!rename($tmpPath, $cachePath)) {
             @unlink($tmpPath);
+            $this->logger->warning(sprintf('Cannot stamp known-missing providers: failed to rename to %s', $cachePath));
         }
     }
 
