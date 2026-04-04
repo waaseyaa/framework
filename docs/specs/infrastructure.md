@@ -1,6 +1,6 @@
 # Infrastructure
 
-<!-- Spec reviewed 2026-04-04d - parseJsonBody returns early on malformed JSON, all 10 domain routers wired in HttpKernel -->
+<!-- Spec reviewed 2026-04-04e - SovereigntyProfile/Config added to foundation, FoundationServiceProvider registers SovereigntyConfig singleton -->
 
 Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, migration system, kernel bootstrapping (including environment resolution and debug mode), service provider discovery, and queue workers.
 
@@ -894,6 +894,62 @@ Reads Vite `manifest.json` files to resolve source paths to hashed asset URLs. M
 
 `TenantAssetResolver` (`packages/foundation/src/Asset/TenantAssetResolver.php`) resolves tenant-specific asset paths.
 
+## Sovereignty Configuration
+
+File: `packages/foundation/src/Sovereignty/SovereigntyConfig.php`
+
+Provides deployment-mode defaults so applications can declare a sovereignty profile (`local`, `self_hosted`, `northops`) and get sane defaults for storage, embeddings, LLM provider, transcriber, vector store, and queue backend.
+
+### SovereigntyProfile
+
+File: `packages/foundation/src/Sovereignty/SovereigntyProfile.php`
+
+```php
+enum SovereigntyProfile: string
+{
+    case Local = 'local';
+    case SelfHosted = 'self_hosted';
+    case NorthOps = 'northops';
+}
+```
+
+### SovereigntyDefaults
+
+File: `packages/foundation/src/Sovereignty/SovereigntyDefaults.php`
+
+Maps each profile to its default settings:
+
+| Setting | `local` | `self_hosted` | `northops` |
+|---|---|---|---|
+| storage | filesystem | filesystem | s3 |
+| embeddings | sqlite | sqlite | pgvector |
+| llm_provider | ollama | ollama | api |
+| transcriber | whisper_ollama | whisper_ollama | api |
+| vector_store | sqlite | sqlite | pgvector |
+| queue_backend | sync | database | redis |
+
+### SovereigntyConfigInterface / SovereigntyConfig
+
+File: `packages/foundation/src/Sovereignty/SovereigntyConfigInterface.php`
+
+```php
+interface SovereigntyConfigInterface
+{
+    public function get(string $key): ?string;
+    public function getProfile(): SovereigntyProfile;
+    /** @return array<string, string> */
+    public function all(): array;
+}
+```
+
+`SovereigntyConfig` resolves effective settings: profile defaults merged with per-key overrides from app config. `SovereigntyConfig::fromArray($appConfig)` reads `sovereignty_profile` from the config array (defaults to `local`) and extracts recognized override keys.
+
+Registered as a singleton in `FoundationServiceProvider`:
+
+```php
+$this->singleton(SovereigntyConfigInterface::class, fn() => SovereigntyConfig::fromArray($this->config));
+```
+
 ## HTTP Utilities
 
 ### ControllerDispatcher and Domain Routers
@@ -1359,6 +1415,11 @@ Http/
         McpRouter.php                    -- MCP JSON-RPC endpoint
         SsrRouter.php                    -- server-side page rendering
         BroadcastRouter.php              -- SSE broadcast stream
+Sovereignty/
+    SovereigntyProfile.php       -- enum: Local, SelfHosted, NorthOps
+    SovereigntyDefaults.php      -- profile → default settings mapping
+    SovereigntyConfigInterface.php -- get/getProfile/all contract
+    SovereigntyConfig.php        -- effective config: profile defaults + overrides
 Diagnostic/
     DiagnosticCode.php           -- string-backed enum of operator error codes
     DiagnosticEntry.php          -- structured diagnostic log entry
