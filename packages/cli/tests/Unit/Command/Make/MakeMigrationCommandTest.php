@@ -96,7 +96,6 @@ final class MakeMigrationCommandTest extends TestCase
             routes: [],
             migrations: ['waaseyaa/node' => $packageMigDir],
             fieldTypes: [],
-            listeners: [],
             middleware: [],
         );
 
@@ -125,7 +124,6 @@ final class MakeMigrationCommandTest extends TestCase
             routes: [],
             migrations: [],
             fieldTypes: [],
-            listeners: [],
             middleware: [],
         );
 
