@@ -22,6 +22,7 @@ use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Http\ControllerDispatcher;
 use Waaseyaa\Foundation\Http\CorsHandler;
 use Waaseyaa\Foundation\Http\JsonApiResponseTrait;
+use Waaseyaa\Foundation\Http\Router as HttpRouter;
 use Waaseyaa\Foundation\Log\LogManager;
 use Waaseyaa\Foundation\Log\Processor\RequestContextProcessor;
 use Waaseyaa\Foundation\Middleware\DebugHeaderMiddleware;
@@ -104,8 +105,6 @@ final class HttpKernel extends AbstractKernel
         if (!is_string($path)) {
             return $this->jsonApiResponse(400, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '400', 'title' => 'Bad Request', 'detail' => 'Malformed request URI.']]]);
         }
-        $queryString = $_SERVER['QUERY_STRING'] ?? '';
-
         // Register request context on the logger so all subsequent log entries carry HTTP context.
         // Note: if RequestIdProcessor is also active (via config), it writes request_id independently.
         // This processor does not pass a request_id to avoid overwriting the config-driven one.
@@ -204,6 +203,10 @@ final class HttpKernel extends AbstractKernel
         $httpRequest = HttpRequest::createFromGlobals();
         $routeName = $params['_route'] ?? '';
         $matchedRoute = $router->getRouteCollection()->get($routeName);
+        // Populate request attributes from route match (controller, route params, etc.).
+        foreach ($params as $key => $value) {
+            $httpRequest->attributes->set($key, $value);
+        }
         if ($matchedRoute !== null) {
             $httpRequest->attributes->set('_route_object', $matchedRoute);
         }
@@ -286,20 +289,32 @@ final class HttpKernel extends AbstractKernel
             }
         }
 
-        // Dispatch.
-        $controllerDispatcher = new ControllerDispatcher(
-            entityTypeManager: $this->entityTypeManager,
-            database: $this->database,
-            accessHandler: $this->accessHandler,
-            lifecycleManager: $this->lifecycleManager,
-            discoveryHandler: $this->discoveryHandler,
-            ssrPageHandler: $this->ssrPageHandler,
-            mcpReadCache: $this->mcpReadCache,
-            projectRoot: $this->projectRoot,
-            config: $this->config,
-            graphqlMutationOverrides: $gqlOverrides,
-        );
-        return $controllerDispatcher->dispatch($method, $params, $httpRequest, $queryString, $broadcastStorage, $account);
+        // Populate request attributes for WaaseyaaContext::fromRequest().
+        $httpRequest->attributes->set('_broadcast_storage', $broadcastStorage);
+
+        $parsedBody = $this->parseJsonBody($httpRequest);
+        if ($parsedBody instanceof HttpResponse) {
+            return $parsedBody;
+        }
+        $httpRequest->attributes->set('_parsed_body', $parsedBody);
+
+        // Build the deterministic router chain.
+        $routers = [
+            new HttpRouter\JsonApiRouter($this->entityTypeManager, $this->accessHandler),
+            new HttpRouter\EntityTypeLifecycleRouter($this->entityTypeManager, $this->lifecycleManager),
+            new HttpRouter\SchemaRouter($this->entityTypeManager, $this->accessHandler),
+            new HttpRouter\DiscoveryRouter($this->discoveryHandler, $this->entityTypeManager),
+            new HttpRouter\SearchRouter($this->config, $this->database, $this->entityTypeManager),
+            new HttpRouter\MediaRouter($this->projectRoot, $this->config),
+            new HttpRouter\GraphQlRouter($this->entityTypeManager, $this->accessHandler, $gqlOverrides),
+            new HttpRouter\McpRouter($this->entityTypeManager, $this->accessHandler, $this->database, $this->config, $this->mcpReadCache),
+            new HttpRouter\SsrRouter($this->ssrPageHandler),
+            new HttpRouter\BroadcastRouter($this->logger),
+        ];
+
+        $dispatcher = new ControllerDispatcher($routers, $this->config, $this->logger);
+
+        return $dispatcher->dispatch($httpRequest);
     }
 
     /**
@@ -316,6 +331,41 @@ final class HttpKernel extends AbstractKernel
         $cookie = $session['cookie'] ?? null;
 
         return is_array($cookie) ? $cookie : null;
+    }
+
+    /**
+     * Parses JSON request body for write methods with JSON content types.
+     *
+     * Returns the decoded array, null if not applicable, or a 400 Response on malformed JSON.
+     *
+     * @return array<string, mixed>|HttpResponse|null
+     */
+    private function parseJsonBody(HttpRequest $request): array|HttpResponse|null
+    {
+        if (!in_array($request->getMethod(), ['POST', 'PATCH', 'PUT', 'DELETE'], true)) {
+            return null;
+        }
+
+        $contentType = $request->headers->get('Content-Type', '');
+        if (!str_contains($contentType, 'application/json') && !str_contains($contentType, 'application/vnd.api+json')) {
+            return null;
+        }
+
+        $raw = $request->getContent();
+        if ($raw === '') {
+            return null;
+        }
+
+        try {
+            $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+
+            return is_array($decoded) ? $decoded : null;
+        } catch (\JsonException) {
+            return $this->jsonApiResponse(400, [
+                'jsonapi' => ['version' => '1.1'],
+                'errors' => [['status' => '400', 'title' => 'Bad Request', 'detail' => 'Invalid JSON in request body.']],
+            ]);
+        }
     }
 
     private function getMiddlewarePriority(object $middleware): int

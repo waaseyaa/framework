@@ -11,7 +11,6 @@ use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\JsonApiDocument;
 use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Api\ResourceSerializer;
-use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\JsonApiResponseTrait;
 
@@ -22,7 +21,6 @@ final class JsonApiRouter implements DomainRouterInterface
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
         private readonly EntityAccessHandler $accessHandler,
-        private readonly DatabaseInterface $database,
     ) {}
 
     public function supports(Request $request): bool

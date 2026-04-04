@@ -366,21 +366,6 @@ parameters:
 			path: packages/foundation/src/Discovery/PackageManifestCompiler.php
 
 		-
-			message: "#^Anonymous function has an unused use \\$account\\.$#"
-			count: 1
-			path: packages/foundation/src/Http/ControllerDispatcher.php
-
-		-
-			message: "#^Expression on left side of \\?\\? is not nullable\\.$#"
-			count: 1
-			path: packages/foundation/src/Http/ControllerDispatcher.php
-
-		-
-			message: "#^Offset 'event' on array\\{id\\: int, channel\\: string, event\\: string, data\\: array, created_at\\: float\\} on left side of \\?\\? always exists and is not nullable\\.$#"
-			count: 1
-			path: packages/foundation/src/Http/ControllerDispatcher.php
-
-		-
 			message: "#^Call to an undefined method Symfony\\\\Contracts\\\\EventDispatcher\\\\EventDispatcherInterface\\:\\:addListener\\(\\)\\.$#"
 			count: 10
 			path: packages/foundation/src/Kernel/EventListenerRegistrar.php

@@ -7,161 +7,111 @@ namespace Waaseyaa\Foundation\Tests\Unit\Http;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\EventDispatcher\EventDispatcher;
-use Waaseyaa\Access\EntityAccessHandler;
-use Waaseyaa\Cache\CacheConfigResolver;
-use Waaseyaa\Database\DBALDatabase;
-use Waaseyaa\Entity\EntityTypeLifecycleManager;
-use Waaseyaa\Entity\EntityTypeManager;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Foundation\Http\ControllerDispatcher;
-use Waaseyaa\Api\Http\DiscoveryApiHandler;
-use Waaseyaa\SSR\SsrPageHandler;
+use Waaseyaa\Foundation\Http\Router\DomainRouterInterface;
 
 #[CoversClass(ControllerDispatcher::class)]
 final class ControllerDispatcherTest extends TestCase
 {
-    private function createDispatcher(
-        string $projectRoot = '/tmp/test-project',
-        array $config = [],
-    ): ControllerDispatcher {
-        $entityTypeManager = new EntityTypeManager(new EventDispatcher());
-        $database = DBALDatabase::createSqlite();
-        $discoveryHandler = new DiscoveryApiHandler($entityTypeManager, $database);
-        $cacheConfigResolver = new CacheConfigResolver($config);
-        $ssrPageHandler = new SsrPageHandler(
-            entityTypeManager: $entityTypeManager,
-            database: $database,
-            renderCache: null,
-            cacheConfigResolver: $cacheConfigResolver,
-            discoveryHandler: $discoveryHandler,
-            projectRoot: $projectRoot,
-            config: $config,
-        );
+    #[Test]
+    public function delegates_to_first_supporting_router(): void
+    {
+        $request = Request::create('/test');
+        $request->attributes->set('_controller', 'test.action');
 
-        return new ControllerDispatcher(
-            entityTypeManager: $entityTypeManager,
-            database: $database,
-            accessHandler: new EntityAccessHandler(),
-            lifecycleManager: new EntityTypeLifecycleManager($projectRoot),
-            discoveryHandler: $discoveryHandler,
-            ssrPageHandler: $ssrPageHandler,
-            mcpReadCache: null,
-            projectRoot: $projectRoot,
-            config: $config,
-        );
+        $expected = new Response('router handled', 200);
+
+        $router = $this->createStub(DomainRouterInterface::class);
+        $router->method('supports')->willReturn(true);
+        $router->method('handle')->willReturn($expected);
+
+        $dispatcher = new ControllerDispatcher([$router]);
+        $response = $dispatcher->dispatch($request);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('router handled', $response->getContent());
     }
 
     #[Test]
-    public function dispatch_method_returns_http_response(): void
+    public function returns_404_when_no_router_supports(): void
     {
-        $ref = new \ReflectionMethod(ControllerDispatcher::class, 'dispatch');
-        $this->assertSame('Symfony\Component\HttpFoundation\Response', $ref->getReturnType()?->getName());
+        $request = Request::create('/unknown');
+        $request->attributes->set('_controller', 'unknown.action');
+
+        $router = $this->createStub(DomainRouterInterface::class);
+        $router->method('supports')->willReturn(false);
+
+        $dispatcher = new ControllerDispatcher([$router]);
+        $response = $dispatcher->dispatch($request);
+
+        $this->assertSame(404, $response->getStatusCode());
+        $this->assertStringContainsString('unknown.action', $response->getContent());
     }
 
     #[Test]
-    public function is_allowed_mime_type_matches_exact(): void
+    public function callable_controller_returns_response_directly(): void
     {
-        $dispatcher = $this->createDispatcher();
-        $this->assertTrue($dispatcher->isAllowedMimeType('image/jpeg', ['image/jpeg']));
-        $this->assertFalse($dispatcher->isAllowedMimeType('image/png', ['image/jpeg']));
+        $request = Request::create('/callable');
+        $request->attributes->set('_controller', fn(Request $r) => new Response('from callable', 200));
+
+        $dispatcher = new ControllerDispatcher([]);
+        $response = $dispatcher->dispatch($request);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('from callable', $response->getContent());
     }
 
     #[Test]
-    public function is_allowed_mime_type_supports_wildcard(): void
+    public function callable_controller_wraps_array_result(): void
     {
-        $dispatcher = $this->createDispatcher();
-        $this->assertTrue($dispatcher->isAllowedMimeType('image/jpeg', ['image/*']));
-        $this->assertTrue($dispatcher->isAllowedMimeType('image/png', ['image/*']));
-        $this->assertFalse($dispatcher->isAllowedMimeType('text/html', ['image/*']));
+        $request = Request::create('/callable-array');
+        $request->attributes->set('_controller', fn(Request $r) => ['statusCode' => 201, 'body' => ['id' => 'abc']]);
+
+        $dispatcher = new ControllerDispatcher([]);
+        $response = $dispatcher->dispatch($request);
+
+        $this->assertSame(201, $response->getStatusCode());
+        $decoded = json_decode($response->getContent(), true);
+        $this->assertSame('abc', $decoded['id']);
     }
 
     #[Test]
-    public function is_allowed_mime_type_supports_mixed_list(): void
+    public function first_match_wins_in_router_chain(): void
     {
-        $dispatcher = $this->createDispatcher();
-        $this->assertTrue($dispatcher->isAllowedMimeType('application/pdf', ['image/*', 'application/pdf']));
-        $this->assertFalse($dispatcher->isAllowedMimeType('text/html', ['image/*', 'application/pdf']));
+        $request = Request::create('/test');
+        $request->attributes->set('_controller', 'test.action');
+
+        $first = $this->createStub(DomainRouterInterface::class);
+        $first->method('supports')->willReturn(true);
+        $first->method('handle')->willReturn(new Response('first', 200));
+
+        $second = $this->createStub(DomainRouterInterface::class);
+        $second->method('supports')->willReturn(true);
+        $second->method('handle')->willReturn(new Response('second', 200));
+
+        $dispatcher = new ControllerDispatcher([$first, $second]);
+        $response = $dispatcher->dispatch($request);
+
+        $this->assertSame('first', $response->getContent());
     }
 
     #[Test]
-    public function resolve_files_root_dir_defaults_to_storage_files(): void
+    public function router_exception_returns_500(): void
     {
-        $dispatcher = $this->createDispatcher(projectRoot: '/var/www/myapp');
-        $this->assertSame('/var/www/myapp/storage/files', $dispatcher->resolveFilesRootDir());
-    }
+        $request = Request::create('/error');
+        $request->attributes->set('_controller', 'error.action');
 
-    #[Test]
-    public function resolve_files_root_dir_uses_configured_path(): void
-    {
-        $dispatcher = $this->createDispatcher(
-            projectRoot: '/var/www/myapp',
-            config: ['files_dir' => '/mnt/uploads'],
-        );
-        $this->assertSame('/mnt/uploads', $dispatcher->resolveFilesRootDir());
-    }
+        $router = $this->createStub(DomainRouterInterface::class);
+        $router->method('supports')->willReturn(true);
+        $router->method('handle')->willThrowException(new \RuntimeException('boom'));
 
-    #[Test]
-    public function resolve_upload_max_bytes_defaults_to_ten_megabytes(): void
-    {
-        $dispatcher = $this->createDispatcher();
-        $this->assertSame(10 * 1024 * 1024, $dispatcher->resolveUploadMaxBytes());
-    }
+        $dispatcher = new ControllerDispatcher([$router]);
+        $response = $dispatcher->dispatch($request);
 
-    #[Test]
-    public function resolve_upload_max_bytes_uses_configured_value(): void
-    {
-        $dispatcher = $this->createDispatcher(config: ['upload_max_bytes' => 5_000_000]);
-        $this->assertSame(5_000_000, $dispatcher->resolveUploadMaxBytes());
-    }
-
-    #[Test]
-    public function resolve_allowed_upload_mime_types_has_sensible_defaults(): void
-    {
-        $dispatcher = $this->createDispatcher();
-        $types = $dispatcher->resolveAllowedUploadMimeTypes();
-
-        $this->assertContains('image/jpeg', $types);
-        $this->assertContains('image/png', $types);
-        $this->assertContains('application/pdf', $types);
-    }
-
-    #[Test]
-    public function resolve_allowed_upload_mime_types_uses_configured_list(): void
-    {
-        $dispatcher = $this->createDispatcher(config: [
-            'upload_allowed_mime_types' => ['text/csv', 'application/json'],
-        ]);
-        $types = $dispatcher->resolveAllowedUploadMimeTypes();
-
-        $this->assertSame(['text/csv', 'application/json'], $types);
-    }
-
-    #[Test]
-    public function sanitize_upload_filename_replaces_special_characters(): void
-    {
-        $dispatcher = $this->createDispatcher();
-        $this->assertSame('my_photo_.jpg', $dispatcher->sanitizeUploadFilename('my photo?.jpg'));
-    }
-
-    #[Test]
-    public function sanitize_upload_filename_returns_fallback_for_dangerous_names(): void
-    {
-        $dispatcher = $this->createDispatcher();
-        $this->assertSame('upload.bin', $dispatcher->sanitizeUploadFilename('../../'));
-        $this->assertSame('upload.bin', $dispatcher->sanitizeUploadFilename('..'));
-    }
-
-    #[Test]
-    public function build_public_file_url_from_public_uri(): void
-    {
-        $dispatcher = $this->createDispatcher();
-        $this->assertSame('/files/images/photo.jpg', $dispatcher->buildPublicFileUrl('public://images/photo.jpg'));
-    }
-
-    #[Test]
-    public function build_public_file_url_from_relative_path(): void
-    {
-        $dispatcher = $this->createDispatcher();
-        $this->assertSame('/files/tmp/doc.pdf', $dispatcher->buildPublicFileUrl('tmp/doc.pdf'));
+        $this->assertSame(500, $response->getStatusCode());
+        $decoded = json_decode($response->getContent(), true);
+        $this->assertSame('500', $decoded['errors'][0]['status']);
     }
 }

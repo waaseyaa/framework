@@ -47,32 +47,14 @@ final class GraphQlRouter implements DomainRouterInterface
         );
 
         if ($this->mutationOverrides !== []) {
-            $endpoint->registerMutationOverrides($this->mutationOverrides);
+            $endpoint = $endpoint->withMutationOverrides($this->mutationOverrides);
         }
 
-        $queryString = $request->getQueryString() ?? '';
-
-        if ($ctx->method === 'GET') {
-            parse_str($queryString, $getQuery);
-            $graphqlQuery = is_string($getQuery['query'] ?? null) ? $getQuery['query'] : '';
-            $variablesRaw = $getQuery['variables'] ?? null;
-            $variables = is_string($variablesRaw)
-                ? (json_decode($variablesRaw, true) ?? [])
-                : (is_array($variablesRaw) ? $variablesRaw : []);
-            $result = $endpoint->execute($graphqlQuery, $variables);
-        } else {
-            $raw = $request->getContent();
-            try {
-                $payload = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-            } catch (\JsonException) {
-                return $this->jsonApiResponse(400, [
-                    'errors' => [['message' => 'Invalid JSON in GraphQL request body.']],
-                ]);
-            }
-            $graphqlQuery = is_string($payload['query'] ?? null) ? $payload['query'] : '';
-            $variables = is_array($payload['variables'] ?? null) ? $payload['variables'] : [];
-            $result = $endpoint->execute($graphqlQuery, $variables);
-        }
+        $result = $endpoint->handle(
+            $ctx->method,
+            $request->getContent(),
+            $request->query->all(),
+        );
 
         return $this->jsonApiResponse(200, $result);
     }

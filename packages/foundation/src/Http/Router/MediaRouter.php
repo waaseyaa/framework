@@ -7,8 +7,6 @@ namespace Waaseyaa\Foundation\Http\Router;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Waaseyaa\Api\ResourceSerializer;
-use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\JsonApiResponseTrait;
 use Waaseyaa\Media\LocalFileRepository;
 
@@ -22,7 +20,6 @@ final class MediaRouter implements DomainRouterInterface
     public function __construct(
         private readonly string $projectRoot,
         private readonly array $config,
-        private readonly EntityTypeManager $entityTypeManager,
     ) {}
 
     public function supports(Request $request): bool
@@ -33,15 +30,13 @@ final class MediaRouter implements DomainRouterInterface
     public function handle(Request $request): Response
     {
         $ctx = WaaseyaaContext::fromRequest($request);
-        $serializer = new ResourceSerializer($this->entityTypeManager);
 
-        return $this->handleMediaUpload($request, $ctx, $serializer);
+        return $this->handleMediaUpload($request, $ctx);
     }
 
     private function handleMediaUpload(
         Request $httpRequest,
         WaaseyaaContext $ctx,
-        ResourceSerializer $serializer,
     ): Response {
         $contentType = strtolower((string) $httpRequest->headers->get('Content-Type', ''));
         if (!str_starts_with($contentType, 'multipart/form-data')) {
@@ -74,7 +69,7 @@ final class MediaRouter implements DomainRouterInterface
             ]);
         }
 
-        $mimeType = $uploadedFile->getMimeType() ?? $uploadedFile->getClientMimeType() ?? 'application/octet-stream';
+        $mimeType = $uploadedFile->getMimeType() ?? $uploadedFile->getClientMimeType();
         $allowedMimeTypes = $this->resolveAllowedUploadMimeTypes();
         if (!$this->isAllowedMimeType($mimeType, $allowedMimeTypes)) {
             return $this->jsonApiResponse(415, [
@@ -90,12 +85,25 @@ final class MediaRouter implements DomainRouterInterface
             mkdir($filesRoot, 0o755, true);
         }
 
+        $uri = 'public://' . $safeName;
+        $destPath = $filesRoot . '/' . $safeName;
+        $uploadedFile->move(dirname($destPath), basename($destPath));
+
+        $file = new \Waaseyaa\Media\File(
+            uri: $uri,
+            filename: $safeName,
+            mimeType: $mimeType,
+            size: (int) filesize($destPath),
+            ownerId: $ctx->account->isAuthenticated() ? (int) $ctx->account->id() : null,
+            createdTime: time(),
+        );
+
         $repo = new LocalFileRepository($filesRoot);
-        $file = $repo->store($uploadedFile->getRealPath(), $safeName, $mimeType);
+        $repo->save($file);
 
         $fileUrl = $this->buildPublicFileUrl($file->uri);
         $fileData = [
-            'id' => $file->uuid,
+            'id' => $safeName,
             'type' => 'file',
             'attributes' => [
                 'filename' => $file->filename,
@@ -103,7 +111,7 @@ final class MediaRouter implements DomainRouterInterface
                 'url' => $fileUrl,
                 'mime_type' => $file->mimeType,
                 'size' => $file->size,
-                'created' => $file->created,
+                'created' => $file->createdTime,
             ],
         ];
 
