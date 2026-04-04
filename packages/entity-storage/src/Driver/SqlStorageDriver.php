@@ -6,6 +6,7 @@ namespace Waaseyaa\EntityStorage\Driver;
 
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\EntityStorage\Connection\ConnectionResolverInterface;
+use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
 
 /**
  * SQL-based storage driver.
@@ -24,6 +25,7 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
     public function __construct(
         private readonly ConnectionResolverInterface $connectionResolver,
         private readonly string $idKey = 'id',
+        private readonly ?CommunityScope $communityScope = null,
     ) {}
 
     public function read(string $entityType, string $id, ?string $langcode = null): ?array
@@ -33,6 +35,10 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
         $query = $db->select($entityType)
             ->fields($entityType)
             ->condition($this->idKey, $id);
+
+        if ($this->communityScope?->isActive()) {
+            $query->condition('community_id', $this->communityScope->getCommunityId());
+        }
 
         if ($langcode !== null) {
             $translationTable = $entityType . '_translations';
@@ -63,10 +69,12 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
     {
         $db = $this->getDatabase();
 
-        // Check if row already exists.
-        $existing = $this->read($entityType, $id);
+        // Use a scope-unaware existence check: a row with this ID must trigger
+        // UPDATE regardless of which community it belongs to, preventing a
+        // duplicate INSERT when the active community differs from the stored one.
+        $rowExists = $this->rowExistsById($db, $entityType, $id);
 
-        if ($existing === null) {
+        if (!$rowExists) {
             // Insert.
             $db->insert($entityType)
                 ->fields(array_keys($values))
@@ -82,10 +90,15 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
                 $updateFields[$key] = $value;
             }
 
-            $db->update($entityType)
+            $update = $db->update($entityType)
                 ->fields($updateFields)
-                ->condition($this->idKey, $id)
-                ->execute();
+                ->condition($this->idKey, $id);
+
+            if ($this->communityScope?->isActive()) {
+                $update->condition('community_id', $this->communityScope->getCommunityId());
+            }
+
+            $update->execute();
         }
     }
 
@@ -101,21 +114,29 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
                 ->execute();
         }
 
-        $db->delete($entityType)
-            ->condition($this->idKey, $id)
-            ->execute();
+        $delete = $db->delete($entityType)
+            ->condition($this->idKey, $id);
+
+        if ($this->communityScope?->isActive()) {
+            $delete->condition('community_id', $this->communityScope->getCommunityId());
+        }
+
+        $delete->execute();
     }
 
     public function exists(string $entityType, string $id): bool
     {
         $db = $this->getDatabase();
 
-        $result = $db->select($entityType)
+        $query = $db->select($entityType)
             ->fields($entityType, [$this->idKey])
-            ->condition($this->idKey, $id)
-            ->execute();
+            ->condition($this->idKey, $id);
 
-        foreach ($result as $row) {
+        if ($this->communityScope?->isActive()) {
+            $query->condition('community_id', $this->communityScope->getCommunityId());
+        }
+
+        foreach ($query->execute() as $_row) {
             return true;
         }
 
@@ -128,6 +149,10 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
 
         $query = $db->select($entityType)
             ->countQuery();
+
+        if ($this->communityScope?->isActive()) {
+            $query->condition('community_id', $this->communityScope->getCommunityId());
+        }
 
         foreach ($criteria as $field => $value) {
             $query->condition($this->resolveField($db, $entityType, $field), $value);
@@ -153,6 +178,10 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
 
         $query = $db->select($entityType)
             ->fields($entityType);
+
+        if ($this->communityScope?->isActive()) {
+            $query->condition('community_id', $this->communityScope->getCommunityId());
+        }
 
         foreach ($criteria as $field => $value) {
             $query->condition($this->resolveField($db, $entityType, $field), $value);
@@ -190,10 +219,15 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
         string $langcode,
     ): ?array {
         // Load base entity first.
-        $baseResult = $db->select($entityType)
+        $baseQuery = $db->select($entityType)
             ->fields($entityType)
-            ->condition($this->idKey, $id)
-            ->execute();
+            ->condition($this->idKey, $id);
+
+        if ($this->communityScope?->isActive()) {
+            $baseQuery->condition('community_id', $this->communityScope->getCommunityId());
+        }
+
+        $baseResult = $baseQuery->execute();
 
         $base = null;
         foreach ($baseResult as $row) {
@@ -244,6 +278,26 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
         }
 
         return "json_extract(_data, '\$." . $field . "')";
+    }
+
+    /**
+     * Scope-unaware existence check by primary key only.
+     *
+     * Used by write() to detect INSERT vs UPDATE without letting community
+     * scope cause a false "not found" that would produce a duplicate INSERT.
+     */
+    private function rowExistsById(DatabaseInterface $db, string $entityType, string $id): bool
+    {
+        $result = $db->select($entityType)
+            ->fields($entityType, [$this->idKey])
+            ->condition($this->idKey, $id)
+            ->execute();
+
+        foreach ($result as $_row) {
+            return true;
+        }
+
+        return false;
     }
 
     private function getDatabase(): DatabaseInterface
