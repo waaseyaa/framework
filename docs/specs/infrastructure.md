@@ -1,6 +1,6 @@
 # Infrastructure
 
-<!-- Spec reviewed 2026-04-04c - Unit 6: ControllerDispatcher rewritten as thin delegator, HttpKernel builds router chain, PHPStan fixes in GraphQlRouter/JsonApiRouter/MediaRouter -->
+<!-- Spec reviewed 2026-04-04d - parseJsonBody returns early on malformed JSON, all 10 domain routers wired in HttpKernel -->
 
 Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, migration system, kernel bootstrapping (including environment resolution and debug mode), service provider discovery, and queue workers.
 
