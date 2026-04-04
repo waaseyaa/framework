@@ -2,7 +2,24 @@
 
 Subsystem specification for the Waaseyaa entity, entity-storage, field, and config packages. Covers entity interfaces, storage implementations, query building, field definitions, config entities, and lifecycle events.
 
-**Internal interfaces:** `ComputedFieldInterface` (`packages/field/src/`) is `@internal` — it is an implementation detail for computed fields, not a consumer contract.
+## Public Surface
+
+Authoritative dispositions are in `docs/public-surface-map.php`, verified by `PublicSurfaceVerificationTest`.
+
+**Public API** (stable, semver-protected):
+
+| Package | Interfaces/Classes |
+|---------|-------------------|
+| entity | `EntityInterface`, `EntityBase`, `ContentEntityBase`, `ContentEntityInterface`, `ConfigEntityBase`, `ConfigEntityInterface`, `EntityTypeInterface`, `EntityTypeManagerInterface`, `FieldableInterface`, `RevisionableInterface`, `TranslatableInterface`, `RevisionableEntityTrait`, `EntityRepositoryInterface`, `EntityEventFactoryInterface`, `EntityStorageInterface`, `RevisionableStorageInterface`, `EntityQueryInterface` |
+| entity-storage | `EntityStorageDriverInterface`, `ConnectionResolverInterface` |
+| field | `FieldItemInterface`, `FieldItemListInterface`, `FieldDefinitionInterface`, `FieldTypeInterface`, `FieldFormatterInterface`, `FieldTypeManagerInterface`, `FieldItemBase`, `ViewModeConfigInterface` |
+| config | `ConfigInterface`, `ConfigFactoryInterface`, `ConfigManagerInterface`, `StorageInterface`, `TranslatableConfigFactoryInterface` |
+
+**`@internal`** (implementation details, may change without notice):
+
+| Package | Interface/Class | Reason |
+|---------|----------------|--------|
+| field | `ComputedFieldInterface` | Implementation detail for computed fields, not a consumer contract |
 
 ## Packages
 

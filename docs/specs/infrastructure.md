@@ -4,6 +4,38 @@
 
 Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, migration system, kernel bootstrapping (including environment resolution and debug mode), service provider discovery, and queue workers.
 
+## Public Surface
+
+Authoritative dispositions are in `docs/public-surface-map.php`, verified by `PublicSurfaceVerificationTest`.
+
+**Public API** (stable, semver-protected):
+
+| Package | Interfaces/Classes |
+|---------|-------------------|
+| foundation | `AssetManagerInterface`, `BroadcasterInterface`, `HealthCheckerInterface`, `LoggerInterface`, `HandlerInterface`, `FormatterInterface`, `ProcessorInterface`, `LoggerTrait`, `HttpHandlerInterface`, `HttpMiddlewareInterface`, `JobHandlerInterface`, `JobMiddlewareInterface`, `RateLimiterInterface`, `SchemaRegistryInterface`, `ServiceProviderInterface`, `ServiceProvider`, `DomainEvent`, `WaaseyaaException`, `JsonApiResponseTrait`, `DomainRouterInterface`, `Migration` |
+| cache | `CacheBackendInterface`, `CacheFactoryInterface`, `CacheTagsInvalidatorInterface`, `TagAwareCacheInterface` |
+| database-legacy | `DatabaseInterface`, `SelectInterface`, `InsertInterface`, `UpdateInterface`, `DeleteInterface`, `SchemaInterface`, `TransactionInterface` |
+| plugin | `PluginInspectionInterface`, `PluginManagerInterface`, `PluginBase` |
+| typed-data | `TypedDataInterface`, `DataDefinitionInterface`, `ComplexDataInterface`, `ListInterface`, `PrimitiveInterface`, `TypedDataManagerInterface` |
+| i18n | `LanguageManagerInterface`, `TranslatorInterface` |
+| queue | `QueueInterface` |
+| testing | `CreatesApplication`, `InteractsWithApi`, `InteractsWithAuth`, `InteractsWithEvents`, `RefreshDatabase` |
+
+**`@internal`** (implementation details, may change without notice):
+
+| Package | Interface/Class | Reason |
+|---------|----------------|--------|
+| foundation | `AbstractKernel` | Entry-point orchestrator, not a consumer contract |
+| foundation | `TenantResolverInterface` | Multi-tenancy seam not yet stabilized |
+| plugin | `PluginDiscoveryInterface`, `KnowledgeToolingExtensionInterface`, `PluginFactoryInterface` | Discovery/factory internals |
+| queue | `HandlerInterface`, `TransportInterface`, `FailedJobRepositoryInterface`, `Job` | Queue backend internals |
+| scheduler | `LockInterface`, `ScheduleInterface` | Scheduler internals |
+| state | `StateInterface` | State machine internals |
+| mail | `MailerInterface`, `MailDriverInterface`, `TransportInterface` | Consolidation pending (#798) |
+| http-client | `HttpClientInterface` | Minimal wrapper, not yet stable |
+| ingestion | `PayloadValidatorInterface`, `EnvelopeValidator` | Ingestion validation internals |
+| testing | `WaaseyaaTestCase`, `AbstractGraphQlSchemaContractTestCase` | Test base classes, not consumer API |
+
 ## Packages
 
 | Package | Namespace | Layer | Purpose |
