@@ -531,6 +531,24 @@ Note: SQLite cannot add a primary key to an existing table. `addPrimaryKey()` th
 
 **Distinction from SchemaPresenter**: `SchemaInterface` is a database DDL abstraction in `packages/database-legacy/` for creating/altering tables. It is unrelated to `SchemaPresenter` (`packages/api/src/Schema/SchemaPresenter.php`), which generates JSON Schema output from entity field definitions for the API layer. `SchemaPresenter` works with `EntityType::getFieldDefinitions()` and does not use `SchemaInterface`.
 
+### SchemaRegistryInterface (ingestion payload schemas)
+
+File: `packages/foundation/src/Schema/SchemaRegistryInterface.php`
+
+```php
+interface SchemaRegistryInterface
+{
+    /** @return list<SchemaEntry> Schemas sorted by entity type ID */
+    public function list(): array;
+
+    public function get(string $id): ?SchemaEntry;
+}
+```
+
+Registry of JSON Schema definitions used to validate ingestion payloads. `DefaultsSchemaRegistry` loads schemas from the `defaults/` directory and caches them on first access. Consumers use this interface when they need to look up or enumerate available payload schemas — for example, the `SchemaListCommand` CLI command and `PayloadValidator`.
+
+**Note:** This is the ingestion schema registry, not the database DDL schema system above. See `docs/specs/ingestion-defaults.md` for ingestion contract details.
+
 ## Migration System
 
 The migration system uses Doctrine DBAL (same as the database layer). It lives in `packages/foundation/src/Migration/`.
@@ -800,6 +818,8 @@ interface RateLimiterInterface
 }
 ```
 
+Single method: `attempt(key, maxAttempts, windowSeconds)` returns a result array with `allowed` (bool), `remaining` (int), and `retryAfter` (?int seconds). Consumers use this interface when they need to enforce per-key rate limits — e.g. `RateLimitMiddleware` wraps HTTP endpoints, and auth controllers use it for login attempt throttling. Inject `RateLimiterInterface`; the default binding is `InMemoryRateLimiter`.
+
 ### InMemoryRateLimiter
 
 File: `packages/foundation/src/RateLimit/InMemoryRateLimiter.php`
@@ -807,6 +827,19 @@ File: `packages/foundation/src/RateLimit/InMemoryRateLimiter.php`
 Sliding-window rate limiter stored in memory. Resets per-process. Used by `RateLimitMiddleware`.
 
 ## Asset Management
+
+### AssetManagerInterface
+
+File: `packages/foundation/src/Asset/AssetManagerInterface.php`
+
+```php
+interface AssetManagerInterface
+{
+    public function url(string $path, string $bundle = 'admin'): string;
+}
+```
+
+Resolves logical asset paths to hashed, cache-busted URLs. Consumers use this interface when generating `<script>` or `<link>` tags for frontend bundles — primarily SSR and the admin SPA host. Inject `AssetManagerInterface`; the default binding is `ViteAssetManager`.
 
 ### ViteAssetManager
 
@@ -905,6 +938,12 @@ final class DiagnosticEmitter
 
 Emits structured JSON diagnostic log entries. Returns `DiagnosticEntry` for callers that need to inspect or re-throw.
 
+### HealthCheckerInterface
+
+File: `packages/foundation/src/Diagnostic/HealthCheckerInterface.php`
+
+Contract for running operator health checks. Consumers use this interface when they need to programmatically query system health — e.g. the `health:check` CLI command and any monitoring integration. Inject `HealthCheckerInterface`; the default binding is `HealthChecker`. Results are `HealthCheckResult` value objects with pass/warn/fail status.
+
 ### HealthChecker
 
 File: `packages/foundation/src/Diagnostic/HealthChecker.php`
@@ -929,6 +968,22 @@ final class HealthChecker implements HealthCheckerInterface
 ```
 
 Three check groups: boot (entity type registry), runtime (database connectivity, schema drift, storage directories), and ingestion (log size, error rate). Results are `HealthCheckResult` value objects with pass/warn/fail status.
+
+## Internal Interfaces
+
+These foundation interfaces are `@internal` and not part of the public consumer API. They are listed here for completeness and to prevent accidental exposure.
+
+### TenantResolverInterface
+
+File: `packages/foundation/src/Tenant/TenantResolverInterface.php`
+
+`@internal` — tenant resolution is not yet a consumer-facing contract. The interface exists for framework use only and may change without notice. Do not inject or implement this interface in application code.
+
+### Mail interfaces
+
+Files: `packages/mail/src/MailerInterface.php`, `packages/mail/src/MailDriverInterface.php`, `packages/mail/src/Transport/TransportInterface.php`
+
+`@internal` — the mail package currently has two parallel APIs (`MailDriverInterface` used by `AuthMailer`; `MailerInterface` used by `MailChannel` in the notification package). These will be consolidated in #798. Until consolidation is complete, these interfaces are internal implementation details. Application code should not depend on them directly — use the higher-level `AuthMailer` or notification channels instead.
 
 ## Queue System
 
