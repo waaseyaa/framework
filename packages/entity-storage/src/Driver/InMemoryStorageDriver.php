@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\EntityStorage\Driver;
 
+use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
+
 /**
  * In-memory storage driver for testing.
  *
@@ -12,6 +14,10 @@ namespace Waaseyaa\EntityStorage\Driver;
  */
 final class InMemoryStorageDriver implements EntityStorageDriverInterface
 {
+    public function __construct(
+        private readonly ?CommunityScope $communityScope = null,
+    ) {}
+
     /**
      * Main storage: entityType => id => values.
      *
@@ -33,6 +39,13 @@ final class InMemoryStorageDriver implements EntityStorageDriverInterface
         }
 
         $base = $this->store[$entityType][$id];
+
+        if ($this->communityScope?->isActive()) {
+            $communityId = $this->communityScope->getCommunityId();
+            if (($base['community_id'] ?? null) !== $communityId) {
+                return null;
+            }
+        }
 
         if ($langcode !== null && isset($this->translations[$entityType][$id][$langcode])) {
             $translation = $this->translations[$entityType][$id][$langcode];
@@ -95,19 +108,39 @@ final class InMemoryStorageDriver implements EntityStorageDriverInterface
 
     public function remove(string $entityType, string $id): void
     {
+        if ($this->communityScope?->isActive()) {
+            $row = $this->store[$entityType][$id] ?? null;
+            if ($row === null || ($row['community_id'] ?? null) !== $this->communityScope->getCommunityId()) {
+                return;
+            }
+        }
+
         unset($this->store[$entityType][$id]);
         unset($this->translations[$entityType][$id]);
     }
 
     public function exists(string $entityType, string $id): bool
     {
-        return isset($this->store[$entityType][$id]);
+        if (!isset($this->store[$entityType][$id])) {
+            return false;
+        }
+
+        if ($this->communityScope?->isActive()) {
+            $communityId = $this->communityScope->getCommunityId();
+            return ($this->store[$entityType][$id]['community_id'] ?? null) === $communityId;
+        }
+
+        return true;
     }
 
     public function count(string $entityType, array $criteria = []): int
     {
         if (!isset($this->store[$entityType])) {
             return 0;
+        }
+
+        if ($this->communityScope?->isActive()) {
+            $criteria['community_id'] = $this->communityScope->getCommunityId();
         }
 
         if (empty($criteria)) {
@@ -132,6 +165,10 @@ final class InMemoryStorageDriver implements EntityStorageDriverInterface
     ): array {
         if (!isset($this->store[$entityType])) {
             return [];
+        }
+
+        if ($this->communityScope?->isActive()) {
+            $criteria['community_id'] = $this->communityScope->getCommunityId();
         }
 
         $results = [];

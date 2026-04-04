@@ -429,19 +429,68 @@ public function findBy(string $entityType, array $criteria = [], ?array $orderBy
 #### SqlStorageDriver
 
 File: `packages/entity-storage/src/Driver/SqlStorageDriver.php`
-Constructor: `(ConnectionResolverInterface $connectionResolver, string $idKey = 'id')`
+Constructor: `(ConnectionResolverInterface $connectionResolver, string $idKey = 'id', ?CommunityScope $communityScope = null)`
 
 Handles raw SQL I/O. Supports translation tables: if `{entityType}_translations` table exists, `read()` merges translation data over base values.
+
+When `$communityScope` is injected and active, all read/findBy/count/exists/remove operations add `WHERE community_id = ?` automatically. The `write()` method uses a scope-unaware existence check (raw ID lookup) to avoid duplicate INSERTs when the active community differs from the stored row's community, but scopes the UPDATE path to prevent cross-community overwrites. See **Community Scoping** section below.
 
 #### InMemoryStorageDriver
 
 File: `packages/entity-storage/src/Driver/InMemoryStorageDriver.php`
+Constructor: `(?CommunityScope $communityScope = null)`
 
-In-memory storage for testing. Additional methods beyond the interface:
+In-memory storage for testing. Accepts an optional `CommunityScope` and applies the same community isolation logic as `SqlStorageDriver` — all read/findBy/count/exists/remove operations are scoped when the context is active.
+
+Additional methods beyond the interface:
 - `writeTranslation(string $entityType, string $id, string $langcode, array $values): void`
 - `deleteTranslation(string $entityType, string $id, string $langcode): void`
 - `getAvailableLanguages(string $entityType, string $id): string[]`
 - `clear(): void`
+
+### Community Scoping (Multi-tenancy)
+
+Waaseyaa supports row-level multi-tenancy via community-scoped query isolation. All entity queries are automatically restricted to the active community when a `CommunityContext` is set.
+
+#### HasCommunityInterface / HasCommunityTrait
+
+File: `packages/entity/src/Community/HasCommunityInterface.php`
+
+Marker interface for entities that participate in community-scoped tenancy:
+
+```php
+interface HasCommunityInterface
+{
+    public function getCommunityId(): ?string;
+    public function setCommunityId(string $communityId): void;
+}
+```
+
+`HasCommunityTrait` provides the default implementation via `ContentEntityBase::get/set('community_id')`. Entities must declare `community_id` as a schema column.
+
+#### CommunityScope
+
+File: `packages/entity-storage/src/Tenancy/CommunityScope.php`
+
+Strategy object injected into storage drivers at **wiring time**. Service providers check `is_a($entityType->getClass(), HasCommunityInterface::class, true)` and inject `CommunityScope` only for community-aware entity types. Config entities and system entities receive no `CommunityScope`.
+
+```php
+final class CommunityScope
+{
+    public function __construct(CommunityContextInterface $context);
+    public function isActive(): bool;
+    public function getCommunityId(): string;  // throws LogicException if not active
+}
+```
+
+#### Wiring pattern
+
+```php
+// In an app service provider — only for entities implementing HasCommunityInterface:
+$scope  = $this->resolve(CommunityScope::class);
+$driver = new SqlStorageDriver($resolver, communityScope: $scope);
+$repo   = new EntityRepository($entityType, $driver, $dispatcher);
+```
 
 ### Connection Resolution
 
@@ -917,6 +966,8 @@ class FieldType extends WaaseyaaPlugin
 ## File Reference
 
 ### packages/entity/src/
+- `Community/HasCommunityInterface.php` -- marker interface for community-scoped entities; checked at wiring time
+- `Community/HasCommunityTrait.php` -- provides getCommunityId()/setCommunityId() via ContentEntityBase get/set
 - `EntityInterface.php` -- core entity contract
 - `EntityBase.php` -- abstract base with values array, UUID generation, enforceIsNew, lifecycle hooks (preSave/postSave/preDelete/postDelete)
 - `ContentEntityInterface.php` -- extends EntityInterface + FieldableInterface
@@ -952,8 +1003,9 @@ class FieldType extends WaaseyaaPlugin
 - `EntityRepository.php` -- high-level repository with language fallback
 - `UnitOfWork.php` -- transaction wrapper with event buffering
 - `Driver/EntityStorageDriverInterface.php` -- low-level I/O SPI
-- `Driver/SqlStorageDriver.php` -- SQL driver with translation table support
-- `Driver/InMemoryStorageDriver.php` -- in-memory driver for testing
+- `Driver/SqlStorageDriver.php` -- SQL driver with translation table support; accepts optional `CommunityScope`
+- `Driver/InMemoryStorageDriver.php` -- in-memory driver for testing; accepts optional `CommunityScope`
+- `Tenancy/CommunityScope.php` -- community isolation strategy injected into drivers at wiring time
 - `Connection/ConnectionResolverInterface.php` -- multi-tenancy seam
 - `Connection/SingleConnectionResolver.php` -- single-tenant default
 

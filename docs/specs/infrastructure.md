@@ -1,6 +1,6 @@
 # Infrastructure
 
-<!-- Spec reviewed 2026-04-04e - SovereigntyProfile/Config added to foundation, FoundationServiceProvider registers SovereigntyConfig singleton -->
+<!-- Spec reviewed 2026-04-04 - SovereigntyProfile/Config added to foundation, FoundationServiceProvider registers SovereigntyConfig singleton; CommunityContext/CommunityMiddleware added for community-scoped query isolation -->
 
 Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, migration system, kernel bootstrapping (including environment resolution and debug mode), service provider discovery, and queue workers.
 
@@ -949,6 +949,44 @@ Registered as a singleton in `FoundationServiceProvider`:
 ```php
 $this->singleton(SovereigntyConfigInterface::class, fn() => SovereigntyConfig::fromArray($this->config));
 ```
+
+## Community Context
+
+Request-scoped community isolation for multi-tenant sovereign apps. When a `CommunityContext` is active, entity storage drivers that are wired with `CommunityScope` automatically restrict all queries to the active community.
+
+### CommunityContextInterface / CommunityContext
+
+File: `packages/foundation/src/Community/CommunityContextInterface.php`
+File: `packages/foundation/src/Community/CommunityContext.php`
+
+```php
+interface CommunityContextInterface
+{
+    public function set(string $communityId): void;
+    public function get(): ?string;
+    public function clear(): void;
+    public function isActive(): bool;
+}
+```
+
+`CommunityContext` is a mutable singleton registered in `FoundationServiceProvider`:
+
+```php
+$this->singleton(CommunityContextInterface::class, CommunityContext::class);
+```
+
+### CommunityMiddleware
+
+File: `packages/foundation/src/Community/CommunityMiddleware.php`
+Attribute: `#[AsMiddleware(pipeline: 'http', priority: 20)]`
+
+Resolves the active community from the incoming request and sets it on `CommunityContextInterface` for the duration of the request. Clears the context in a `finally` block after the response.
+
+**Resolution order (first match wins):**
+1. Route parameter `community_id` (e.g. `/community/{community_id}/...`)
+2. Session key `waaseyaa_community_id` (requires `SessionMiddleware` priority 30 to have run first)
+
+When no community is resolved (CLI, admin superuser, unauthenticated), the context remains inactive and queries are unscoped.
 
 ## HTTP Utilities
 
