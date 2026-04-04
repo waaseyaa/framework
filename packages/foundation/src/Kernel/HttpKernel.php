@@ -291,7 +291,12 @@ final class HttpKernel extends AbstractKernel
 
         // Populate request attributes for WaaseyaaContext::fromRequest().
         $httpRequest->attributes->set('_broadcast_storage', $broadcastStorage);
-        $httpRequest->attributes->set('_parsed_body', $this->parseJsonBody($httpRequest));
+
+        $parsedBody = $this->parseJsonBody($httpRequest);
+        if ($parsedBody instanceof HttpResponse) {
+            return $parsedBody;
+        }
+        $httpRequest->attributes->set('_parsed_body', $parsedBody);
 
         // Build the deterministic router chain.
         $routers = [
@@ -329,10 +334,18 @@ final class HttpKernel extends AbstractKernel
     }
 
     /**
-     * @return array<string, mixed>|null
+     * Parses JSON request body for write methods with JSON content types.
+     *
+     * Returns the decoded array, null if not applicable, or a 400 Response on malformed JSON.
+     *
+     * @return array<string, mixed>|HttpResponse|null
      */
-    private function parseJsonBody(HttpRequest $request): ?array
+    private function parseJsonBody(HttpRequest $request): array|HttpResponse|null
     {
+        if (!in_array($request->getMethod(), ['POST', 'PATCH', 'PUT', 'DELETE'], true)) {
+            return null;
+        }
+
         $contentType = $request->headers->get('Content-Type', '');
         if (!str_contains($contentType, 'application/json') && !str_contains($contentType, 'application/vnd.api+json')) {
             return null;
@@ -348,7 +361,10 @@ final class HttpKernel extends AbstractKernel
 
             return is_array($decoded) ? $decoded : null;
         } catch (\JsonException) {
-            return null;
+            return $this->jsonApiResponse(400, [
+                'jsonapi' => ['version' => '1.1'],
+                'errors' => [['status' => '400', 'title' => 'Bad Request', 'detail' => 'Invalid JSON in request body.']],
+            ]);
         }
     }
 
