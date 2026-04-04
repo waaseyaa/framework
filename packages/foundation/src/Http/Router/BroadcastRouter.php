@@ -42,7 +42,7 @@ final class BroadcastRouter implements DomainRouterInterface
             }
             flush();
 
-            $cursor = null;
+            $cursor = 0;
             $lastKeepalive = time();
 
             while (connection_aborted() === 0) {
@@ -60,14 +60,12 @@ final class BroadcastRouter implements DomainRouterInterface
                 }
 
                 foreach ($messages as $msg) {
-                    if (isset($msg['cursor'])) {
-                        $cursor = $msg['cursor'];
-                    }
+                    $cursor = $msg['id'];
                     try {
                         $frame = "event: {$msg['event']}\ndata: " . json_encode($msg, JSON_THROW_ON_ERROR) . "\n\n";
                         echo $frame;
                     } catch (\JsonException $e) {
-                        $logger->error(sprintf('SSE json_encode error for event %s: %s', $msg['event'] ?? 'unknown', $e->getMessage()));
+                        $logger->error(sprintf('SSE json_encode error for event %s: %s', $msg['event'], $e->getMessage()));
                     }
                 }
 

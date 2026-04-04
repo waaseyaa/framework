@@ -1,6 +1,6 @@
 # Infrastructure
 
-<!-- Spec reviewed 2026-04-04a - EventBus/ResponseSender removal, ControllerDispatcher refactor, @internal annotations, HttpKernel import order fix -->
+<!-- Spec reviewed 2026-04-04b - DomainRouterInterface + 10 domain routers (#571), ControllerDispatcher now delegates to router chain -->
 
 Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, migration system, kernel bootstrapping (including environment resolution and debug mode), service provider discovery, and queue workers.
 
@@ -864,13 +864,48 @@ Reads Vite `manifest.json` files to resolve source paths to hashed asset URLs. M
 
 ## HTTP Utilities
 
-### ControllerDispatcher
+### ControllerDispatcher and Domain Routers
 
 File: `packages/foundation/src/Http/ControllerDispatcher.php`
 
-Routes a matched controller name to the appropriate handler. Receives controller identifier, route params, and request context, then delegates to JSON:API controllers, discovery endpoints, SSR, MCP, or other handlers. Central dispatch hub for `HttpKernel`. Uses `JsonApiResponseTrait` for JSON:API response construction.
+Routes a matched controller name to the appropriate handler. Central dispatch hub for `HttpKernel`.
 
-Handles callable controllers (objects with `__invoke(Request): JsonResponse`) and string controller keys. Callable controllers are invoked directly and their `Response` is sent. String keys are matched via a `match` expression to built-in handlers (JSON:API, SSR, media upload, discovery, MCP, GraphQL, etc.). Auth routes (`login`, `logout`, `me`) were extracted to dedicated controller classes in `packages/auth/src/Controller/` and are now registered as callables via `AuthServiceProvider`.
+Handles callable controllers (objects with `__invoke(Request): JsonResponse`) directly. String controller keys are delegated to domain-specific routers in `packages/foundation/src/Http/Router/`.
+
+#### DomainRouterInterface
+
+File: `packages/foundation/src/Http/Router/DomainRouterInterface.php`
+
+```php
+interface DomainRouterInterface
+{
+    public function supports(Request $request): bool;
+    public function handle(Request $request): Response;
+}
+```
+
+Deterministic chain: `HttpKernel` iterates routers in order; first `supports()` match wins.
+
+#### WaaseyaaContext
+
+File: `packages/foundation/src/Http/Router/WaaseyaaContext.php`
+
+Typed value object built once from the request via `WaaseyaaContext::fromRequest()`. Provides `account`, `parsedBody`, `query`, `method`, and `broadcastStorage` to routers.
+
+#### Domain Routers
+
+| Router | Controller key(s) | Purpose |
+|--------|-------------------|---------|
+| `JsonApiRouter` | `jsonapi.*` | JSON:API CRUD delegation to `JsonApiController` |
+| `EntityTypeLifecycleRouter` | `entity_types`, `entity_type.disable`, `entity_type.enable` | Entity type listing and lifecycle management |
+| `SchemaRouter` | `openapi`, `schema.*` | OpenAPI and JSON Schema endpoints |
+| `DiscoveryRouter` | `discovery.topic_hub`, `discovery.cluster`, `discovery.timeline`, `discovery.endpoint` | Discovery API for topic hubs, clusters, timelines |
+| `SearchRouter` | `search.semantic` | Semantic search via embedding storage |
+| `MediaRouter` | `media.upload` | File upload with MIME validation, size limits, sanitization |
+| `GraphQlRouter` | `graphql.endpoint` | GraphQL query/mutation execution |
+| `McpRouter` | `mcp.endpoint` | MCP JSON-RPC endpoint |
+| `SsrRouter` | `render.page` | Server-side page rendering |
+| `BroadcastRouter` | `broadcast.stream` | SSE broadcast stream via `StreamedResponse` |
 
 ### CorsHandler
 
@@ -1276,9 +1311,22 @@ Asset/
     ViteAssetManager.php         -- reads Vite manifest.json for hashed URLs
     TenantAssetResolver.php      -- tenant-specific asset path resolution
 Http/
-    ControllerDispatcher.php     -- routes controller names to handlers
-    JsonApiResponseTrait.php     -- shared JSON:API response builder (used by HttpKernel and ControllerDispatcher)
+    ControllerDispatcher.php     -- routes controller names to domain routers
+    JsonApiResponseTrait.php     -- shared JSON:API response builder
     CorsHandler.php              -- CORS preflight and header resolution
+    Router/
+        DomainRouterInterface.php        -- supports(Request)/handle(Request) contract
+        WaaseyaaContext.php              -- typed request context value object
+        JsonApiRouter.php                -- JSON:API CRUD delegation
+        EntityTypeLifecycleRouter.php    -- entity type listing and lifecycle
+        SchemaRouter.php                 -- OpenAPI and JSON Schema endpoints
+        DiscoveryRouter.php              -- topic hub, cluster, timeline, endpoint
+        SearchRouter.php                 -- semantic search
+        MediaRouter.php                  -- file upload with validation
+        GraphQlRouter.php                -- GraphQL execution
+        McpRouter.php                    -- MCP JSON-RPC endpoint
+        SsrRouter.php                    -- server-side page rendering
+        BroadcastRouter.php              -- SSE broadcast stream
 Diagnostic/
     DiagnosticCode.php           -- string-backed enum of operator error codes
     DiagnosticEntry.php          -- structured diagnostic log entry

@@ -27,6 +27,7 @@ return [
     'Waaseyaa\Foundation\Event\DomainEvent' => 'public',
     'Waaseyaa\Foundation\Exception\WaaseyaaException' => 'public',
     'Waaseyaa\Foundation\Http\JsonApiResponseTrait' => 'public',
+    'Waaseyaa\Foundation\Http\Router\DomainRouterInterface' => 'public',
     'Waaseyaa\Foundation\Migration\Migration' => 'public',
     'Waaseyaa\Cache\CacheBackendInterface' => 'public',
     'Waaseyaa\Cache\CacheFactoryInterface' => 'public',
