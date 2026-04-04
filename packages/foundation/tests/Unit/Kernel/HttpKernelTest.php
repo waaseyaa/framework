@@ -20,9 +20,6 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\CorsHandler;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
-use Waaseyaa\Access\EntityAccessHandler;
-use Waaseyaa\Entity\EntityTypeLifecycleManager;
-use Waaseyaa\Foundation\Http\ControllerDispatcher;
 use Waaseyaa\SSR\SsrPageHandler;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Kernel\BuiltinRouteRegistrar;
@@ -300,43 +297,43 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function allows_wildcard_upload_mime_types(): void
     {
-        $dispatcher = $this->createControllerDispatcher();
-        $this->assertTrue($dispatcher->isAllowedMimeType('image/jpeg', ['image/*']));
-        $this->assertTrue($dispatcher->isAllowedMimeType('application/pdf', ['image/*', 'application/pdf']));
-        $this->assertFalse($dispatcher->isAllowedMimeType('text/html', ['image/*', 'application/pdf']));
+        $router = $this->createMediaRouter();
+        $this->assertTrue($router->isAllowedMimeType('image/jpeg', ['image/*']));
+        $this->assertTrue($router->isAllowedMimeType('application/pdf', ['image/*', 'application/pdf']));
+        $this->assertFalse($router->isAllowedMimeType('text/html', ['image/*', 'application/pdf']));
     }
 
     #[Test]
     public function resolves_files_root_dir_defaults_to_storage_files(): void
     {
-        $dispatcher = $this->createControllerDispatcher(projectRoot: '/var/www/myapp');
-        $this->assertSame('/var/www/myapp/storage/files', $dispatcher->resolveFilesRootDir());
+        $router = $this->createMediaRouter(projectRoot: '/var/www/myapp');
+        $this->assertSame('/var/www/myapp/storage/files', $router->resolveFilesRootDir());
     }
 
     #[Test]
     public function resolves_files_root_dir_uses_configured_path_when_set(): void
     {
-        $dispatcher = $this->createControllerDispatcher(
+        $router = $this->createMediaRouter(
             projectRoot: '/var/www/myapp',
-            config: ['files_dir' => '/mnt/uploads'],
+            config: ['files_root' => '/mnt/uploads'],
         );
-        $this->assertSame('/mnt/uploads', $dispatcher->resolveFilesRootDir());
+        $this->assertSame('/mnt/uploads', $router->resolveFilesRootDir());
     }
 
     #[Test]
     public function builds_public_file_url_from_public_uri(): void
     {
-        $dispatcher = $this->createControllerDispatcher();
-        $this->assertSame('/files/images/photo.jpg', $dispatcher->buildPublicFileUrl('public://images/photo.jpg'));
-        $this->assertSame('/files/tmp/doc.pdf', $dispatcher->buildPublicFileUrl('tmp/doc.pdf'));
+        $router = $this->createMediaRouter();
+        $this->assertSame('/files/images/photo.jpg', $router->buildPublicFileUrl('public://images/photo.jpg'));
+        $this->assertSame('/files/tmp/doc.pdf', $router->buildPublicFileUrl('tmp/doc.pdf'));
     }
 
     #[Test]
     public function sanitizes_uploaded_filename(): void
     {
-        $dispatcher = $this->createControllerDispatcher();
-        $this->assertSame('my_photo_.jpg', $dispatcher->sanitizeUploadFilename('my photo?.jpg'));
-        $this->assertSame('upload.bin', $dispatcher->sanitizeUploadFilename('../../'));
+        $router = $this->createMediaRouter();
+        $this->assertSame('my_photo_.jpg', $router->sanitizeUploadFilename('my photo?.jpg'));
+        $this->assertSame('upload.bin', $router->sanitizeUploadFilename('../../'));
     }
 
     #[Test]
@@ -831,35 +828,11 @@ final class HttpKernelTest extends TestCase
         $this->assertContains('discovery:direction:both', $tags);
     }
 
-    private function createControllerDispatcher(
+    private function createMediaRouter(
         string $projectRoot = '/tmp/test-project',
         array $config = [],
-    ): ControllerDispatcher {
-        $entityTypeManager = new EntityTypeManager(new EventDispatcher());
-        $database = DBALDatabase::createSqlite();
-        $discoveryHandler = new DiscoveryApiHandler($entityTypeManager, $database);
-        $cacheConfigResolver = new CacheConfigResolver($config);
-        $ssrPageHandler = new SsrPageHandler(
-            entityTypeManager: $entityTypeManager,
-            database: $database,
-            renderCache: null,
-            cacheConfigResolver: $cacheConfigResolver,
-            discoveryHandler: $discoveryHandler,
-            projectRoot: $projectRoot,
-            config: $config,
-        );
-
-        return new ControllerDispatcher(
-            entityTypeManager: $entityTypeManager,
-            database: $database,
-            accessHandler: new EntityAccessHandler(),
-            lifecycleManager: new EntityTypeLifecycleManager($projectRoot),
-            discoveryHandler: $discoveryHandler,
-            ssrPageHandler: $ssrPageHandler,
-            mcpReadCache: null,
-            projectRoot: $projectRoot,
-            config: $config,
-        );
+    ): \Waaseyaa\Foundation\Http\Router\MediaRouter {
+        return new \Waaseyaa\Foundation\Http\Router\MediaRouter($projectRoot, $config);
     }
 
     private function createSsrPageHandler(array $config = []): SsrPageHandler
