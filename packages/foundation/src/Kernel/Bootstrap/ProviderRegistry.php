@@ -38,7 +38,11 @@ final class ProviderRegistry
 
         foreach ($manifest->providers as $providerClass) {
             if (!class_exists($providerClass)) {
-                $this->logger->warning(sprintf('Provider class not found: %s', $providerClass));
+                $this->logger->warning(sprintf(
+                    'Provider class not found: %s. '
+                    . 'Fix the declaration in composer.json or run: php bin/waaseyaa optimize:manifest',
+                    $providerClass,
+                ));
                 continue;
             }
 

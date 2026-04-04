@@ -1172,7 +1172,7 @@ public function discoverAndRegister(
 
 Discovery and registration follows a multi-phase process:
 
-1. **Instantiation**: Each provider class from `$manifest->providers` is instantiated. Non-`ServiceProvider` instances are logged and skipped.
+1. **Instantiation**: Each provider class from `$manifest->providers` is instantiated. Missing classes are logged with actionable remediation guidance (fix `composer.json` or run `optimize:manifest`) and skipped. Non-`ServiceProvider` instances are also logged and skipped.
 2. **Context injection**: Each provider receives kernel context via `setKernelContext($projectRoot, $config, $manifest->formatters)` and a kernel resolver closure via `setKernelResolver()`. The resolver provides cross-provider DI — it resolves `EntityTypeManager`, `DatabaseInterface`, `EventDispatcherInterface`, `LoggerInterface`, and any binding registered by previously-loaded providers.
 3. **Registration**: `register()` is called on each provider, allowing them to bind interfaces to implementations.
 4. **Entity type collection**: After all providers register, entity types from `$provider->getEntityTypes()` are registered with the `EntityTypeManager`. Registration failures are logged as errors but do not halt boot.
