@@ -18,6 +18,9 @@ final class PackageManifestCompiler
     /** @internal Cache file metadata; stripped before {@see PackageManifest::fromArray()} */
     private const MANIFEST_INPUTS_FP_KEY = '_manifest_inputs_fp';
 
+    /** @internal Providers confirmed missing after recompile; prevents repeated recompile on next request */
+    private const KNOWN_MISSING_PROVIDERS_KEY = '_known_missing_providers';
+
     private readonly LoggerInterface $logger;
 
     public function __construct(
@@ -248,28 +251,33 @@ final class PackageManifestCompiler
                 $data = require $cachePath;
                 if (is_array($data)) {
                     $cachedFp = $data[self::MANIFEST_INPUTS_FP_KEY] ?? null;
-                    unset($data[self::MANIFEST_INPUTS_FP_KEY]);
+                    $knownMissing = $data[self::KNOWN_MISSING_PROVIDERS_KEY] ?? [];
+                    unset($data[self::MANIFEST_INPUTS_FP_KEY], $data[self::KNOWN_MISSING_PROVIDERS_KEY]);
 
                     if ($cachedFp !== null && $cachedFp !== $this->computeManifestInputsFingerprint()) {
-                        return $this->compileAndCache();
+                        return $this->compileValidateAndCache($cachePath);
                     }
 
                     $manifest = PackageManifest::fromArray($data);
                     $manifest = $this->mergeRootWaaseyaaIntoManifest($manifest);
-                    $this->assertProvidersExist($manifest, $cachePath);
-                    return $manifest;
+
+                    return $this->validateCachedProviders($manifest, $cachePath, $knownMissing);
                 }
-            } catch (StaleManifestException $e) {
-                $this->logger->warning(sprintf(
-                    'Stale package manifest detected (missing: %s). Auto-recompiling.',
-                    implode(', ', $e->missingProviders()),
-                ));
-                // Fall through to compileAndCache()
+            } catch (StaleManifestException) {
+                // New missing providers — fall through to compileAndCache()
             } catch (\Throwable) {
                 // Corrupt cache — recompile
             }
         }
 
+        return $this->compileValidateAndCache($cachePath);
+    }
+
+    /**
+     * Compile, validate providers, stamp known-missing if needed, and return the manifest.
+     */
+    private function compileValidateAndCache(string $cachePath): PackageManifest
+    {
         $manifest = $this->compileAndCache();
 
         try {
@@ -280,9 +288,86 @@ final class PackageManifestCompiler
                 . 'Fix the provider declaration in composer.json or run: php bin/waaseyaa optimize:manifest',
                 implode(', ', $e->missingProviders()),
             ));
+            $this->stampKnownMissing($e->missingProviders());
         }
 
         return $manifest;
+    }
+
+    /**
+     * Validate cached manifest providers, returning the manifest if valid or known-missing,
+     * or throwing to trigger recompile for newly missing providers.
+     *
+     * @param list<string> $knownMissing Providers already identified as permanently missing
+     * @throws StaleManifestException When missing providers are new (not previously known)
+     */
+    private function validateCachedProviders(
+        PackageManifest $manifest,
+        string $cachePath,
+        array $knownMissing,
+    ): PackageManifest {
+        try {
+            $this->assertProvidersExist($manifest, $cachePath);
+            return $manifest;
+        } catch (StaleManifestException $e) {
+            $missing = $e->missingProviders();
+            sort($missing);
+            $known = $knownMissing;
+            sort($known);
+
+            if ($missing === $known) {
+                $this->logger->error(sprintf(
+                    'Provider class(es) still missing (known): %s. '
+                    . 'Fix the provider declaration in composer.json or run: php bin/waaseyaa optimize:manifest',
+                    implode(', ', $missing),
+                ));
+                return $manifest;
+            }
+
+            $this->logger->warning(sprintf(
+                'Stale package manifest detected (missing: %s). Auto-recompiling.',
+                implode(', ', $missing),
+            ));
+            throw $e;
+        }
+    }
+
+    /**
+     * Record permanently missing providers in the cache file so subsequent
+     * requests skip recompilation for the same set of missing classes.
+     *
+     * @param list<string> $missingProviders
+     */
+    private function stampKnownMissing(array $missingProviders): void
+    {
+        $cachePath = $this->storagePath . '/framework/packages.php';
+        if (!is_file($cachePath)) {
+            return;
+        }
+
+        try {
+            $data = require $cachePath;
+        } catch (\Throwable) {
+            return;
+        }
+
+        if (!is_array($data)) {
+            return;
+        }
+
+        sort($missingProviders);
+        $data[self::KNOWN_MISSING_PROVIDERS_KEY] = $missingProviders;
+
+        $content = '<?php return ' . var_export($data, true) . ';' . "\n";
+        $tmpPath = $cachePath . '.tmp.' . getmypid();
+
+        if (file_put_contents($tmpPath, $content) === false) {
+            return;
+        }
+
+        if (!rename($tmpPath, $cachePath)) {
+            @unlink($tmpPath);
+        }
     }
 
     /**
