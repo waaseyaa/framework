@@ -2,6 +2,8 @@
 
 Subsystem specification for the Waaseyaa entity, entity-storage, field, and config packages. Covers entity interfaces, storage implementations, query building, field definitions, config entities, and lifecycle events.
 
+**Internal interfaces:** `ComputedFieldInterface` (`packages/field/src/`) is `@internal` — it is an implementation detail for computed fields, not a consumer contract.
+
 ## Packages
 
 | Package | Path | Namespace | Purpose |

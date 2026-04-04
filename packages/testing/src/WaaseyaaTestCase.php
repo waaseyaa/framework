@@ -16,6 +16,8 @@ use Waaseyaa\Testing\Traits\InteractsWithEvents;
  * event interaction, and common assertion methods. Extend this
  * class instead of PHPUnit\Framework\TestCase for tests that
  * need the Waaseyaa application environment.
+ *
+ * @internal
  */
 abstract class WaaseyaaTestCase extends TestCase
 {

@@ -8,6 +8,8 @@ use Waaseyaa\Telescope\TelescopeEntry;
 
 /**
  * Interface for telescope entry storage backends.
+ *
+ * @internal
  */
 interface TelescopeStoreInterface
 {

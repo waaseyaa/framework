@@ -102,7 +102,7 @@ Use `waaseyaa_search_specs` MCP tool to find specs affected by a change when the
 5. Add to `SchemaPresenter` if JSON Schema output is needed — set `x-access-restricted` for view-only fields
 
 **Adding middleware:**
-1. Implement `HttpMiddlewareInterface` (or `EventMiddlewareInterface` / `JobMiddlewareInterface`)
+1. Implement `HttpMiddlewareInterface` (or `JobMiddlewareInterface`)
 2. Add `#[AsMiddleware(priority: N)]` attribute — higher priority runs first (outer onion layer)
 3. Middleware is auto-discovered by `PackageManifestCompiler` via attribute scanning
 4. Follow handler naming: `{Type}HandlerInterface` for handler, `{Type}MiddlewareInterface` for middleware
@@ -193,7 +193,7 @@ Design docs in `docs/plans/` are session artifacts (implementation history). Spe
 - **SchemaPresenter `x-access-restricted`**: JSON Schema extension marking fields viewable but not editable. The admin SPA reads this to show disabled widgets instead of hiding the field. Distinct from system `readOnly` (id, uuid) which hides the field from forms entirely.
 - **GraphQL `totalCount` = full dataset**: `totalCount` in list queries reflects the full storage count, not the access-filtered subset. `items` contains only entities the caller can access. This matches Relay/Apollo/Hasura conventions, ensures stable pagination, and avoids leaking content (only existence). Do not "fix" this to return filtered counts — it is intentional (see #436).
 - **Stale specs cause bad code**: When refactoring a subsystem, update the relevant `docs/specs/` file. Stale specs cause agents to generate code conflicting with recent changes. Run `tools/drift-detector.sh` to find affected specs.
-- **`sendJson()` in `index.php` exits**: The front controller's `sendJson()` helper sends a JSON:API response and calls `exit`. Code after a `sendJson()` call is unreachable — no `return` needed.
+- **Response flow is return-based**: `HttpKernel::handle()` and `ControllerDispatcher::dispatch()` return Symfony `Response` objects. `public/index.php` calls `$response->send()`. No `exit` in framework internals.
 - **Account sentinel IDs**: `AnonymousUser` uses `id: 0`, `DevAdminAccount` uses `PHP_INT_MAX`. Never use `1` or other low integers for non-real accounts — they collide with auto-increment UIDs.
 - **`PackageManifestCompiler` prefers optimized autoloader**: `scanClasses()` tries `autoload_classmap.php` first, then falls back to PSR-4 directory scanning with a warning log. The classmap under default `composer install` has entries (Composer internals, polyfill stubs) but no `Waaseyaa\` classes — the fallback triggers on missing Waaseyaa entries, not an empty classmap. Run `composer dump-autoload --optimize` for faster, more reliable discovery.
 - **Dev-mode SAPI guard**: Use `PHP_SAPI === 'cli-server'` to gate dev-only behavior (e.g., `DevAdminAccount` in `index.php`). Classes with constructor guards must also allow `cli` SAPI for PHPUnit to instantiate them.

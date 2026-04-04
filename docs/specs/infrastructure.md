@@ -1,6 +1,6 @@
 # Infrastructure
 
-<!-- Spec reviewed 2026-04-03b - callable dispatch comment fix, auth controller review fixes (#571) -->
+<!-- Spec reviewed 2026-04-03c - M4 public surface unification, @internal annotations, HttpKernel import order fix -->
 
 Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, migration system, kernel bootstrapping (including environment resolution and debug mode), service provider discovery, and queue workers.
 
@@ -42,61 +42,11 @@ abstract class DomainEvent extends Event
 
 All properties are `public readonly`. There are no getter methods.
 
-### Three-channel dispatch
+### Event dispatch
 
-EventBus dispatches every DomainEvent through three channels in order:
+Domain events use Symfony's `EventDispatcherInterface` directly. There is no custom EventBus wrapper. Service providers register listeners via `$dispatcher->addListener()` or `$dispatcher->addSubscriber()`.
 
-```
-DomainEvent dispatched
-    |
-    1. EventStore::append()        -- optional, for event sourcing
-    |
-    2. Sync listeners              -- Symfony EventDispatcher, wrapped by EventPipeline middleware
-    |                                 Cache invalidation, access index updates, validation side-effects
-    |                                 Must complete before response.
-    |
-    3. Async listeners             -- Symfony Messenger ($asyncBus->dispatch())
-    |                                 AI re-embedding, search re-indexing, webhook delivery
-    |
-    4. Broadcast listeners         -- BroadcasterInterface ($broadcaster->broadcast())
-                                     Admin SPA real-time updates via SSE
-```
-
-File: `packages/foundation/src/Event/EventBus.php`
-
-```php
-namespace Waaseyaa\Foundation\Event;
-
-final class EventBus
-{
-    public function __construct(
-        private readonly EventDispatcherInterface $syncDispatcher,
-        private readonly MessageBusInterface $asyncBus,
-        private readonly BroadcasterInterface $broadcaster,
-        private readonly ?EventStoreInterface $eventStore = null,
-        private readonly ?EventPipeline $eventPipeline = null,
-    ) {}
-
-    public function dispatch(DomainEvent $event): void;
-}
-```
-
-When `$eventPipeline` is non-null, sync dispatch is wrapped in the event middleware pipeline. When null, sync dispatch calls the dispatcher directly.
-
-### Event attributes
-
-| Attribute | Target | File | Purpose |
-|-----------|--------|------|---------|
-| `#[Listener(priority: 0)]` | CLASS | `packages/foundation/src/Event/Attribute/Listener.php` | Mark class as event listener; event type inferred from `__invoke()` parameter |
-| `#[Async]` | METHOD | `packages/foundation/src/Event/Attribute/Async.php` | Route listener through Messenger async bus |
-| `#[Broadcast(channel: '...')]` | CLASS | `packages/foundation/src/Event/Attribute/Broadcast.php` | Route listener through SSE broadcaster |
-
-### Supporting interfaces
-
-| Interface | File | Method |
-|-----------|------|--------|
-| `EventStoreInterface` | `packages/foundation/src/Event/EventStoreInterface.php` | `append(DomainEvent $event): void` |
-| `BroadcasterInterface` | `packages/foundation/src/Event/BroadcasterInterface.php` | `broadcast(DomainEvent $event): void` |
+The `Broadcasting\` subsystem (`SseBroadcaster`, `BroadcastMessage`, `BroadcasterInterface`) handles real-time SSE delivery to the admin SPA independently of the event dispatcher.
 
 ### Best-effort side effects
 
@@ -581,6 +531,24 @@ Note: SQLite cannot add a primary key to an existing table. `addPrimaryKey()` th
 
 **Distinction from SchemaPresenter**: `SchemaInterface` is a database DDL abstraction in `packages/database-legacy/` for creating/altering tables. It is unrelated to `SchemaPresenter` (`packages/api/src/Schema/SchemaPresenter.php`), which generates JSON Schema output from entity field definitions for the API layer. `SchemaPresenter` works with `EntityType::getFieldDefinitions()` and does not use `SchemaInterface`.
 
+### SchemaRegistryInterface (ingestion payload schemas)
+
+File: `packages/foundation/src/Schema/SchemaRegistryInterface.php`
+
+```php
+interface SchemaRegistryInterface
+{
+    /** @return list<SchemaEntry> Schemas sorted by entity type ID */
+    public function list(): array;
+
+    public function get(string $id): ?SchemaEntry;
+}
+```
+
+Registry of JSON Schema definitions used to validate ingestion payloads. `DefaultsSchemaRegistry` loads schemas from the `defaults/` directory and caches them on first access. Consumers use this interface when they need to look up or enumerate available payload schemas — for example, the `SchemaListCommand` CLI command and `PayloadValidator`.
+
+**Note:** This is the ingestion schema registry, not the database DDL schema system above. See `docs/specs/ingestion-defaults.md` for ingestion contract details.
+
 ## Migration System
 
 The migration system uses Doctrine DBAL (same as the database layer). It lives in `packages/foundation/src/Migration/`.
@@ -850,6 +818,8 @@ interface RateLimiterInterface
 }
 ```
 
+Single method: `attempt(key, maxAttempts, windowSeconds)` returns a result array with `allowed` (bool), `remaining` (int), and `retryAfter` (?int seconds). Consumers use this interface when they need to enforce per-key rate limits — e.g. `RateLimitMiddleware` wraps HTTP endpoints, and auth controllers use it for login attempt throttling. Inject `RateLimiterInterface`; the default binding is `InMemoryRateLimiter`.
+
 ### InMemoryRateLimiter
 
 File: `packages/foundation/src/RateLimit/InMemoryRateLimiter.php`
@@ -857,6 +827,19 @@ File: `packages/foundation/src/RateLimit/InMemoryRateLimiter.php`
 Sliding-window rate limiter stored in memory. Resets per-process. Used by `RateLimitMiddleware`.
 
 ## Asset Management
+
+### AssetManagerInterface
+
+File: `packages/foundation/src/Asset/AssetManagerInterface.php`
+
+```php
+interface AssetManagerInterface
+{
+    public function url(string $path, string $bundle = 'admin'): string;
+}
+```
+
+Resolves logical asset paths to hashed, cache-busted URLs. Consumers use this interface when generating `<script>` or `<link>` tags for frontend bundles — primarily SSR and the admin SPA host. Inject `AssetManagerInterface`; the default binding is `ViteAssetManager`.
 
 ### ViteAssetManager
 
@@ -885,7 +868,7 @@ Reads Vite `manifest.json` files to resolve source paths to hashed asset URLs. M
 
 File: `packages/foundation/src/Http/ControllerDispatcher.php`
 
-Routes a matched controller name to the appropriate handler. Receives controller identifier, route params, and request context, then delegates to JSON:API controllers, discovery endpoints, SSR, MCP, or other handlers. Central dispatch hub for `HttpKernel`.
+Routes a matched controller name to the appropriate handler. Receives controller identifier, route params, and request context, then delegates to JSON:API controllers, discovery endpoints, SSR, MCP, or other handlers. Central dispatch hub for `HttpKernel`. Uses `JsonApiResponseTrait` for JSON:API response construction.
 
 Handles callable controllers (objects with `__invoke(Request): JsonResponse`) and string controller keys. Callable controllers are invoked directly and their `Response` is sent. String keys are matched via a `match` expression to built-in handlers (JSON:API, SSR, media upload, discovery, MCP, GraphQL, etc.). Auth routes (`login`, `logout`, `me`) were extracted to dedicated controller classes in `packages/auth/src/Controller/` and are now registered as callables via `AuthServiceProvider`.
 
@@ -919,12 +902,6 @@ CORS origin resolution in `HttpKernel::handleCors()`:
 - PHP SAPI is `cli-server` (built-in dev server)
 - Application is in development mode (`config.environment` or `APP_ENV` is dev/development/local)
 - `config.auth.dev_fallback_account` is explicitly `true`
-
-### ResponseSender
-
-File: `packages/foundation/src/Http/ResponseSender.php`
-
-Sends Symfony `Response` objects to the client. Handles header output and body streaming.
 
 ## Operator Diagnostics
 
@@ -961,6 +938,12 @@ final class DiagnosticEmitter
 
 Emits structured JSON diagnostic log entries. Returns `DiagnosticEntry` for callers that need to inspect or re-throw.
 
+### HealthCheckerInterface
+
+File: `packages/foundation/src/Diagnostic/HealthCheckerInterface.php`
+
+Contract for running operator health checks. Consumers use this interface when they need to programmatically query system health — e.g. the `health:check` CLI command and any monitoring integration. Inject `HealthCheckerInterface`; the default binding is `HealthChecker`. Results are `HealthCheckResult` value objects with pass/warn/fail status.
+
 ### HealthChecker
 
 File: `packages/foundation/src/Diagnostic/HealthChecker.php`
@@ -985,6 +968,22 @@ final class HealthChecker implements HealthCheckerInterface
 ```
 
 Three check groups: boot (entity type registry), runtime (database connectivity, schema drift, storage directories), and ingestion (log size, error rate). Results are `HealthCheckResult` value objects with pass/warn/fail status.
+
+## Internal Interfaces
+
+These foundation interfaces are `@internal` and not part of the public consumer API. They are listed here for completeness and to prevent accidental exposure.
+
+### TenantResolverInterface
+
+File: `packages/foundation/src/Tenant/TenantResolverInterface.php`
+
+`@internal` — tenant resolution is not yet a consumer-facing contract. The interface exists for framework use only and may change without notice. Do not inject or implement this interface in application code.
+
+### Mail interfaces
+
+Files: `packages/mail/src/MailerInterface.php`, `packages/mail/src/MailDriverInterface.php`, `packages/mail/src/Transport/TransportInterface.php`
+
+`@internal` — the mail package currently has two parallel APIs (`MailDriverInterface` used by `AuthMailer`; `MailerInterface` used by `MailChannel` in the notification package). These will be consolidated in #798. Until consolidation is complete, these interfaces are internal implementation details. Application code should not depend on them directly — use the higher-level `AuthMailer` or notification channels instead.
 
 ## Queue System
 
@@ -1214,22 +1213,12 @@ Kernel/
         AccessPolicyRegistry.php     -- discovers access policies and wires EntityAccessHandler
 Event/
     DomainEvent.php              -- abstract base for all domain events
-    EventBus.php                 -- three-channel dispatcher (sync/async/broadcast)
-    EventStoreInterface.php      -- append-only event store
-    BroadcasterInterface.php     -- SSE/real-time broadcast
-    Attribute/
-        Listener.php             -- #[Listener(priority: 0)]
-        Async.php                -- #[Async] on method
-        Broadcast.php            -- #[Broadcast(channel: '...')]
 Middleware/
     HttpMiddlewareInterface.php  -- process(Request, HttpHandlerInterface): Response
     HttpHandlerInterface.php     -- handle(Request): Response
     HttpPipeline.php             -- onion-pattern HTTP middleware stack
     DebugHeaderMiddleware.php    -- X-Debug-Time/Memory/Request-Id headers (APP_DEBUG only)
     BodySizeLimitMiddleware.php  -- rejects oversized request bodies (413)
-    EventMiddlewareInterface.php -- process(DomainEvent, EventHandlerInterface): void
-    EventHandlerInterface.php    -- handle(DomainEvent): void
-    EventPipeline.php            -- onion-pattern event middleware stack
     JobMiddlewareInterface.php   -- process(Job, JobHandlerInterface): void
     JobHandlerInterface.php      -- handle(Job): void
     JobPipeline.php              -- onion-pattern job middleware stack
@@ -1288,8 +1277,8 @@ Asset/
     TenantAssetResolver.php      -- tenant-specific asset path resolution
 Http/
     ControllerDispatcher.php     -- routes controller names to handlers
+    JsonApiResponseTrait.php     -- shared JSON:API response builder (used by HttpKernel and ControllerDispatcher)
     CorsHandler.php              -- CORS preflight and header resolution
-    ResponseSender.php           -- sends Symfony Response to client
 Diagnostic/
     DiagnosticCode.php           -- string-backed enum of operator error codes
     DiagnosticEntry.php          -- structured diagnostic log entry

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Billing;
 
+/** @internal */
 interface StripeClientInterface
 {
     /**

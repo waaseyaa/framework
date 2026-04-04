@@ -6,6 +6,7 @@ namespace Waaseyaa\Field;
 
 use Waaseyaa\Entity\EntityInterface;
 
+/** @internal */
 interface ComputedFieldInterface
 {
     public function compute(EntityInterface $entity): mixed;

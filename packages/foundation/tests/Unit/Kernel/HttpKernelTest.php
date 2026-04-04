@@ -71,11 +71,11 @@ final class HttpKernelTest extends TestCase
     }
 
     #[Test]
-    public function handle_is_never_return_type(): void
+    public function handle_returns_http_response(): void
     {
         $ref = new \ReflectionMethod(HttpKernel::class, 'handle');
 
-        $this->assertSame('never', $ref->getReturnType()?->getName());
+        $this->assertSame('Symfony\Component\HttpFoundation\Response', $ref->getReturnType()?->getName());
     }
 
     #[Test]
@@ -577,8 +577,7 @@ final class HttpKernelTest extends TestCase
         $providersProp->setAccessible(true);
         $providersProp->setValue($kernel, [$provider]);
 
-        // Build the serviceResolver closure the same way HttpKernel::handle() does.
-        // We replicate the closure since handle() is `never`-return and untestable directly.
+        // Build the serviceResolver closure the same way HttpKernel::serveHttpRequest() does.
         $serviceResolver = \Closure::bind(function (string $className): ?object {
             foreach ($this->providers as $provider) {
                 if (isset($provider->getBindings()[$className])) {

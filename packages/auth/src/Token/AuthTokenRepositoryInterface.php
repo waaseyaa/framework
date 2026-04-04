@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Auth\Token;
 
+/** @internal */
 interface AuthTokenRepositoryInterface
 {
     /**

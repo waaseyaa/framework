@@ -9,6 +9,8 @@ namespace Waaseyaa\Ingestion;
  *
  * Implementations check required fields, version compatibility,
  * entity type support, and entity-specific data constraints.
+ *
+ * @internal
  */
 interface PayloadValidatorInterface
 {

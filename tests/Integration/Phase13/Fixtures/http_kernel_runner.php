@@ -51,4 +51,5 @@ register_shutdown_function(static function (): void {
 });
 
 $kernel = new HttpKernel($projectRoot);
-$kernel->handle();
+$response = $kernel->handle();
+$response->send();
