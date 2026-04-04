@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\State;
 
+/**
+ * @internal
+ */
 interface StateInterface
 {
     public function get(string $key, mixed $default = null): mixed;

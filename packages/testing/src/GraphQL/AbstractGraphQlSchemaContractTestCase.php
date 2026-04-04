@@ -20,6 +20,8 @@ use Waaseyaa\GraphQL\Schema\SchemaFactory;
 /**
  * Base for integration tests that assert GraphQL schema shape from registered
  * {@see EntityType} definitions via {@see SchemaFactory}, without a full kernel boot.
+ *
+ * @internal
  */
 abstract class AbstractGraphQlSchemaContractTestCase extends TestCase
 {

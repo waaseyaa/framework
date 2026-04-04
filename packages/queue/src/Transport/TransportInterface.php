@@ -8,6 +8,8 @@ namespace Waaseyaa\Queue\Transport;
  * Abstraction for queue transport backends.
  *
  * Handles the low-level storage and retrieval of serialized job payloads.
+ *
+ * @internal
  */
 interface TransportInterface
 {

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Mail;
 
+/**
+ * @internal
+ */
 interface MailDriverInterface
 {
     /**
