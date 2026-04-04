@@ -12,6 +12,9 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistry;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\LoggerTrait;
+use Waaseyaa\Foundation\Log\LogLevel;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
@@ -82,10 +85,51 @@ final class ProviderRegistryTest extends TestCase
         $this->assertInstanceOf(\stdClass::class, $resolved);
         $this->assertSame('from-source', $resolved->origin);
     }
+    #[Test]
+    public function missing_provider_warning_includes_remediation_guidance(): void
+    {
+        $logger = new class implements LoggerInterface {
+            use LoggerTrait;
+
+            /** @var list<array{level: LogLevel, message: string}> */
+            public array $messages = [];
+
+            public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
+            {
+                $this->messages[] = ['level' => $level, 'message' => (string) $message];
+            }
+        };
+
+        $registry = new ProviderRegistry($logger);
+        $database = DBALDatabase::createSqlite(':memory:');
+        $dispatcher = new EventDispatcher();
+        $entityTypeManager = new EntityTypeManager($dispatcher);
+
+        $manifest = new PackageManifest(
+            providers: ['App\\Provider\\NonexistentProvider'],
+        );
+
+        $registry->discoverAndRegister(
+            manifest: $manifest,
+            projectRoot: sys_get_temp_dir(),
+            config: [],
+            entityTypeManager: $entityTypeManager,
+            database: $database,
+            dispatcher: $dispatcher,
+        );
+
+        $warnings = array_filter($logger->messages, fn($m) => $m['level'] === LogLevel::WARNING);
+        $this->assertNotEmpty($warnings);
+
+        $warning = array_values($warnings)[0]['message'];
+        $this->assertStringContainsString('NonexistentProvider', $warning);
+        $this->assertStringContainsString('optimize:manifest', $warning);
+        $this->assertStringContainsString('composer.json', $warning);
+    }
 }
 
 /**
- * @internal Test fixture — provider that resolves EntityTypeManager from kernel.
+ * @internal Test fixture ��� provider that resolves EntityTypeManager from kernel.
  */
 final class KernelResolverTestProvider extends ServiceProvider
 {
