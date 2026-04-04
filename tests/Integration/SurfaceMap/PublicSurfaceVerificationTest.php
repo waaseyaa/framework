@@ -75,7 +75,7 @@ final class PublicSurfaceVerificationTest extends TestCase
                 continue;
             }
             $disposition = $surfaceMap[$fqn] ?? null;
-            if ($disposition === 'internal' || $disposition === 'remove') {
+            if ($disposition !== null && $disposition !== 'public') {
                 $rc = new \ReflectionClass($fqn);
                 $doc = $rc->getDocComment();
                 if ($doc === false || !str_contains($doc, '@internal')) {
@@ -88,7 +88,7 @@ final class PublicSurfaceVerificationTest extends TestCase
             [],
             $missingAnnotation,
             sprintf(
-                "%d element(s) marked 'internal' in surface map lack @internal annotation:\n%s",
+                "%d non-public element(s) in surface map lack @internal annotation:\n%s",
                 count($missingAnnotation),
                 implode("\n", $missingAnnotation),
             ),
