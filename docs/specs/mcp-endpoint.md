@@ -133,7 +133,7 @@ Dispatches JSON-RPC methods:
 
 Tool logic is extracted from `McpController` into dedicated classes extending `McpTool`.
 
-### McpTool (Abstract Base)
+### McpTool (Abstract Base, `@internal`)
 
 ```php
 abstract class McpTool
