@@ -10,7 +10,6 @@ use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\JsonApiResponseTrait;
-use Waaseyaa\Media\File;
 use Waaseyaa\Media\LocalFileRepository;
 
 final class MediaRouter implements DomainRouterInterface
