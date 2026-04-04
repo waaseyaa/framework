@@ -10,6 +10,9 @@ use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 
+/**
+ * @internal
+ */
 abstract class McpTool
 {
     public function __construct(

@@ -9,6 +9,8 @@ use Waaseyaa\Telescope\Storage\TelescopeStoreInterface;
 
 /**
  * Storage interface for codified context entries with domain-specific query methods.
+ *
+ * @internal
  */
 interface CodifiedContextStoreInterface extends TelescopeStoreInterface
 {

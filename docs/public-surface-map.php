@@ -145,4 +145,35 @@ return [
     'Waaseyaa\Api\JsonResponseTrait' => 'public',
     'Waaseyaa\Api\MutableTranslatableInterface' => 'public',
     'Waaseyaa\Routing\Language\LanguageNegotiatorInterface' => 'public',
+
+    // Layer 5: AI — public
+    'Waaseyaa\AI\Agent\AgentInterface' => 'public',
+    'Waaseyaa\AI\Agent\ToolRegistryInterface' => 'public',
+    'Waaseyaa\AI\Agent\Provider\ProviderInterface' => 'public',
+    'Waaseyaa\AI\Agent\Provider\StreamingProviderInterface' => 'public',
+    'Waaseyaa\AI\Pipeline\PipelineStepInterface' => 'public',
+    'Waaseyaa\AI\Vector\VectorStoreInterface' => 'public',
+    'Waaseyaa\AI\Vector\EmbeddingProviderInterface' => 'public',
+    'Waaseyaa\AI\Vector\EmbeddingInterface' => 'public',
+    'Waaseyaa\AI\Vector\EmbeddingStorageInterface' => 'public',
+
+    // Layer 6: Interfaces — public
+    'Waaseyaa\CLI\Ingestion\SourceConnectorInterface' => 'public',
+    'Waaseyaa\AdminSurface\Action\SurfaceActionHandler' => 'public',
+    'Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost' => 'public',
+    'Waaseyaa\Mcp\Bridge\ToolExecutorInterface' => 'public',
+    'Waaseyaa\Mcp\Bridge\ToolRegistryInterface' => 'public',
+    'Waaseyaa\Mcp\Auth\McpAuthInterface' => 'public',
+    'Waaseyaa\SSR\ThemeInterface' => 'public',
+
+    // Layer 1: Core Data — public (discovered during L5-L6 scan)
+    'Waaseyaa\OAuthProvider\OAuthProviderInterface' => 'public',
+    'Waaseyaa\OAuthProvider\SessionInterface' => 'public',
+
+    // Layer 6: Interfaces — internal
+    'Waaseyaa\Telescope\Storage\TelescopeStoreInterface' => 'internal',
+    'Waaseyaa\Telescope\CodifiedContext\Validator\EmbeddingProviderInterface' => 'internal',
+    'Waaseyaa\Telescope\CodifiedContext\Storage\CodifiedContextStoreInterface' => 'internal',
+    'Waaseyaa\CLI\Command\Make\AbstractMakeCommand' => 'internal',
+    'Waaseyaa\Mcp\Tools\McpTool' => 'internal',
 ];
