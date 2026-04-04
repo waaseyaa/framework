@@ -895,6 +895,168 @@ final class PackageManifestCompilerTest extends TestCase
         $this->assertStringContainsString('composer.json', $errorMessage);
     }
 
+    #[Test]
+    public function load_does_not_recompile_on_subsequent_requests_when_provider_permanently_missing(): void
+    {
+        $composer = [
+            'name' => 'test/root',
+            'extra' => [
+                'waaseyaa' => [
+                    'providers' => ['App\\Provider\\PermanentlyMissing'],
+                ],
+            ],
+        ];
+        file_put_contents($this->tempDir . '/composer.json', json_encode($composer, JSON_THROW_ON_ERROR));
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => []], JSON_THROW_ON_ERROR),
+        );
+
+        $storagePath = $this->tempDir . '/storage';
+
+        $logger = new class implements LoggerInterface {
+            use LoggerTrait;
+
+            /** @var list<array{level: LogLevel, message: string}> */
+            public array $messages = [];
+
+            public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
+            {
+                $this->messages[] = ['level' => $level, 'message' => (string) $message];
+            }
+        };
+
+        // First load: compiles, detects permanently missing, logs error
+        $compiler = new PackageManifestCompiler($this->tempDir, $storagePath, $logger);
+        $compiler->load();
+
+        $logger->messages = [];
+
+        // Second load (simulates next request): should NOT recompile
+        $compiler2 = new PackageManifestCompiler($this->tempDir, $storagePath, $logger);
+        $manifest = $compiler2->load();
+
+        // Manifest returned with the missing provider (it's declared in composer.json)
+        $this->assertContains('App\\Provider\\PermanentlyMissing', $manifest->providers);
+
+        // Should NOT have a warning about stale manifest (which would indicate recompile)
+        $warningMessages = array_filter($logger->messages, fn($m) => $m['level'] === LogLevel::WARNING);
+        $this->assertEmpty(
+            $warningMessages,
+            'Expected no recompile warning on second load — provider was already known-missing',
+        );
+
+        // Should still log an error about the missing provider
+        $errorMessages = array_filter($logger->messages, fn($m) => $m['level'] === LogLevel::ERROR);
+        $this->assertNotEmpty($errorMessages, 'Expected error log for permanently missing provider');
+    }
+
+    #[Test]
+    public function load_recompiles_when_known_missing_set_changes(): void
+    {
+        $composer = [
+            'name' => 'test/root',
+            'extra' => [
+                'waaseyaa' => [
+                    'providers' => ['App\\Provider\\MissingA'],
+                ],
+            ],
+        ];
+        file_put_contents($this->tempDir . '/composer.json', json_encode($composer, JSON_THROW_ON_ERROR));
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => []], JSON_THROW_ON_ERROR),
+        );
+
+        $storagePath = $this->tempDir . '/storage';
+
+        $logger = new class implements LoggerInterface {
+            use LoggerTrait;
+
+            /** @var list<array{level: LogLevel, message: string}> */
+            public array $messages = [];
+
+            public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
+            {
+                $this->messages[] = ['level' => $level, 'message' => (string) $message];
+            }
+        };
+
+        // First load: stamps MissingA as known-missing
+        $compiler = new PackageManifestCompiler($this->tempDir, $storagePath, $logger);
+        $compiler->load();
+
+        // Now change composer.json to declare a different missing provider
+        $composer['extra']['waaseyaa']['providers'] = ['App\\Provider\\MissingA', 'App\\Provider\\MissingB'];
+        file_put_contents($this->tempDir . '/composer.json', json_encode($composer, JSON_THROW_ON_ERROR));
+
+        $logger->messages = [];
+
+        // Second load: fingerprint changed, so full recompile (new missing set)
+        $compiler2 = new PackageManifestCompiler($this->tempDir, $storagePath, $logger);
+        $manifest = $compiler2->load();
+
+        $this->assertContains('App\\Provider\\MissingA', $manifest->providers);
+        $this->assertContains('App\\Provider\\MissingB', $manifest->providers);
+
+        // Should have logged error (post-recompile), confirming recompile happened
+        $errorMessages = array_filter($logger->messages, fn($m) => $m['level'] === LogLevel::ERROR);
+        $this->assertNotEmpty($errorMessages, 'Expected recompile when known-missing set changes');
+    }
+
+    #[Test]
+    public function load_clears_known_missing_when_provider_is_fixed(): void
+    {
+        $composer = [
+            'name' => 'test/root',
+            'extra' => [
+                'waaseyaa' => [
+                    'providers' => ['App\\Provider\\PermanentlyMissing'],
+                ],
+            ],
+        ];
+        file_put_contents($this->tempDir . '/composer.json', json_encode($composer, JSON_THROW_ON_ERROR));
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => []], JSON_THROW_ON_ERROR),
+        );
+
+        $storagePath = $this->tempDir . '/storage';
+
+        $logger = new class implements LoggerInterface {
+            use LoggerTrait;
+
+            /** @var list<array{level: LogLevel, message: string}> */
+            public array $messages = [];
+
+            public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
+            {
+                $this->messages[] = ['level' => $level, 'message' => (string) $message];
+            }
+        };
+
+        // First load: stamps as known-missing
+        $compiler = new PackageManifestCompiler($this->tempDir, $storagePath, $logger);
+        $compiler->load();
+
+        // Fix: remove the bad provider from composer.json
+        $composer['extra']['waaseyaa']['providers'] = [\stdClass::class];
+        file_put_contents($this->tempDir . '/composer.json', json_encode($composer, JSON_THROW_ON_ERROR));
+
+        $logger->messages = [];
+
+        // Second load: fingerprint changed, recompile picks up the fix
+        $compiler2 = new PackageManifestCompiler($this->tempDir, $storagePath, $logger);
+        $manifest = $compiler2->load();
+
+        $this->assertContains(\stdClass::class, $manifest->providers);
+        $this->assertNotContains('App\\Provider\\PermanentlyMissing', $manifest->providers);
+
+        // No errors — the fix worked
+        $errorMessages = array_filter($logger->messages, fn($m) => $m['level'] === LogLevel::ERROR);
+        $this->assertEmpty($errorMessages, 'No error expected after fixing the provider declaration');
+    }
+
     private function removeDir(string $dir): void
     {
         if (!is_dir($dir)) {
