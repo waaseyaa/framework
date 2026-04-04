@@ -1,6 +1,6 @@
 # Infrastructure
 
-<!-- Spec reviewed 2026-04-03c - M4 public surface unification, @internal annotations, HttpKernel import order fix -->
+<!-- Spec reviewed 2026-04-04a - EventBus/ResponseSender removal, ControllerDispatcher refactor, @internal annotations, HttpKernel import order fix -->
 
 Specification for the foundational infrastructure layer of Waaseyaa CMS: domain events, cache system, database abstraction, query builder, migration system, kernel bootstrapping (including environment resolution and debug mode), service provider discovery, and queue workers.
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Waaseyaa\Testing\GraphQL;
+namespace Waaseyaa\GraphQL\Testing;
 
 use GraphQL\Type\Definition\NonNull;
 use GraphQL\Type\Definition\Type;

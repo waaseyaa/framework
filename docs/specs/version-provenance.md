@@ -39,9 +39,9 @@ Options:
 - `--strict` — fail on drift when golden SHA is configured; same exit semantics as omitting `--report-only` (documentation / CI clarity only)
 - `--report-only` — print drift but exit `0` (transitional CI)
 
-## GraphQL schema contract tests (`waaseyaa/testing`)
+## GraphQL schema contract tests (`waaseyaa/graphql`)
 
-The canonical base is `Waaseyaa\Testing\GraphQL\AbstractGraphQlSchemaContractTestCase` in the `waaseyaa/testing` split package. Consumers should depend on `waaseyaa/testing` and extend that class. If the split repository has not yet published `src/GraphQL/` for a given tag, use a **path** repository to `packages/testing` in the monorepo (or CI checkout of `waaseyaa/framework`) until split parity catches up—do not duplicate the class in app repos.
+The canonical base is `Waaseyaa\GraphQL\Testing\AbstractGraphQlSchemaContractTestCase` in the `waaseyaa/graphql` split package. Consumers should depend on `waaseyaa/graphql` and extend that class. If the split repository has not yet published `src/Testing/` for a given tag, use a **path** repository to `packages/graphql` in the monorepo (or CI checkout of `waaseyaa/framework`) until split parity catches up—do not duplicate the class in app repos.
 
 ## Compatibility matrix
 

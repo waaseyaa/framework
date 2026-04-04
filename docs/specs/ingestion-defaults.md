@@ -1,5 +1,7 @@
 # Ingestion Defaults
 
+<!-- Spec reviewed 2026-04-04a - @internal annotations added to EnvelopeValidator and PayloadValidatorInterface, no behavioral changes -->
+
 ## Purpose
 
 Defines the ingestion pipeline's envelope schema, validation rules, canonical error format, structured logging, and CI enforcement. All ingestion operations follow these conventions to ensure predictable, operator-diagnosable behavior.

@@ -126,7 +126,7 @@ Manual / agent review (no single automated gate yet).
 
 | Check | Pass |
 |-------|------|
-| Schema contract tests | `SchemaContractTest` (or equivalent) extends `Waaseyaa\Testing\GraphQL\AbstractGraphQlSchemaContractTestCase` when `waaseyaa/testing` includes the GraphQL namespace; otherwise a **short-lived mirror** per [version-provenance.md](./version-provenance.md) |
+| Schema contract tests | `SchemaContractTest` (or equivalent) extends `Waaseyaa\GraphQL\Testing\AbstractGraphQlSchemaContractTestCase` from `waaseyaa/graphql` |
 | Tests pass | `./vendor/bin/phpunit` includes contract tests green |
 | Legacy JSON:API | No JSON:API controllers **unless** explicitly required and listed in Section 8 |
 
