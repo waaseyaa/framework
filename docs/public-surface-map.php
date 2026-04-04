@@ -77,7 +77,7 @@ return [
     'Waaseyaa\Ingestion\PayloadValidatorInterface' => 'internal',
     'Waaseyaa\Ingestion\EnvelopeValidator' => 'internal',
     'Waaseyaa\Testing\WaaseyaaTestCase' => 'internal',
-    'Waaseyaa\Testing\GraphQL\AbstractGraphQlSchemaContractTestCase' => 'internal',
+    'Waaseyaa\GraphQL\Testing\AbstractGraphQlSchemaContractTestCase' => 'internal',
 
     // Layer 1: Core Data — public
     'Waaseyaa\Entity\EntityInterface' => 'public',
