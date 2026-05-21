@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-05-21T18:08:54.095271+00:00",
+  "friendly_name": "ai agent bimaaji tools",
+  "mission_id": "01KS5VKR5BS3AVWT8D6G1Y5G5H",
+  "mission_number": null,
+  "mission_slug": "ai-agent-bimaaji-tools-01KS5VKR",
+  "mission_type": "software-dev",
+  "slug": "ai-agent-bimaaji-tools-01KS5VKR",
+  "target_branch": "main"
+}
