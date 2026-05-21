@@ -1,0 +1,120 @@
+work_packages:
+  - id: WP01
+    title: "Audit + ServiceProvider scaffold"
+    dependencies: []
+    owned_files:
+      - "packages/bimaaji/src/BimaajiServiceProvider.php"
+      - "packages/bimaaji/composer.json"
+      - "packages/routing/src/WaaseyaaRouter.php"
+      - "packages/bimaaji/tests/Unit/BimaajiServiceProviderTest.php"
+      - "phpstan-dead-code-baseline.neon"
+    authoritative_surface: "packages/bimaaji/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-001
+      - FR-002
+      - FR-003
+      - FR-004
+      - FR-009
+      - NFR-002
+      - C-001
+      - C-003
+      - C-006
+    subtasks:
+      - T001
+      - T002
+      - T003
+      - T004
+      - T005
+      - T006
+      - T007
+    prompt_file: "tasks/WP01-serviceprovider-scaffold-and-audit.md"
+
+  - id: WP02
+    title: "CLI command — graph:dump"
+    dependencies:
+      - WP01
+    owned_files:
+      - "packages/bimaaji/src/Command/GraphDumpHandler.php"
+      - "tests/Integration/PhaseN/Bimaaji/GraphDumpCommandTest.php"
+    authoritative_surface: "packages/bimaaji/src/Command/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-005
+      - FR-006
+      - FR-011
+      - FR-012
+      - FR-013
+      - NFR-003
+      - NFR-004
+      - C-002
+    subtasks:
+      - T008
+      - T009
+      - T010
+      - T011
+      - T012
+    prompt_file: "tasks/WP02-graph-dump-cli-command.md"
+
+  - id: WP03
+    title: "Booted-pipeline integration test"
+    dependencies:
+      - WP01
+    owned_files:
+      - "tests/Integration/PhaseN/Bimaaji/ApplicationGraphIntegrationTest.php"
+    authoritative_surface: "tests/Integration/PhaseN/Bimaaji/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-010
+      - NFR-001
+      - SC-005
+    subtasks:
+      - T013
+      - T014
+      - T015
+      - T020
+    prompt_file: "tasks/WP03-booted-pipeline-integration-test.md"
+
+  - id: WP04
+    title: "README + spec + docs refresh"
+    dependencies:
+      - WP01
+    owned_files:
+      - "packages/bimaaji/README.md"
+      - "docs/specs/bimaaji.md"
+      - "CLAUDE.md"
+      - "CHANGELOG.md"
+    authoritative_surface: "packages/bimaaji/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-007
+      - FR-008
+      - SC-003
+      - SC-004
+    subtasks:
+      - T016
+      - T017
+      - T018
+      - T019
+    prompt_file: "tasks/WP04-readme-and-docs-refresh.md"
+
+  - id: WP05
+    title: "Cross-mission gate + full verify"
+    dependencies:
+      - WP02
+      - WP03
+      - WP04
+    owned_files:
+      - "kitty-specs/bimaaji-wakeup-01KS5VEY/verification.md"
+    authoritative_surface: "kitty-specs/bimaaji-wakeup-01KS5VEY/"
+    execution_mode: "planning_artifact"
+    requirement_refs:
+      - SC-005
+      - SC-006
+      - C-005
+      - C-006
+      - C-007
+    subtasks:
+      - T021
+      - T022
+    prompt_file: "tasks/WP05-cross-mission-gate-and-verify.md"
