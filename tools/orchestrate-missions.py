@@ -152,10 +152,10 @@ def dispatch_claude(prompt_text: str, *, model: str, cwd: Path,
     """
     log.info(f"dispatching {label} ({model}) in {cwd}")
     cmd = ["claude", "-p", "--model", model,
-           "--dangerously-skip-permissions",
-           "--cwd", str(cwd)]
+           "--dangerously-skip-permissions"]
     proc = subprocess.run(cmd, input=prompt_text, text=True,
-                          capture_output=True, timeout=timeout, check=False)
+                          capture_output=True, timeout=timeout,
+                          check=False, cwd=str(cwd))
     ok = proc.returncode == 0
     if not ok:
         log.err(f"{label} returned exit={proc.returncode}: {proc.stderr[:500]}")
