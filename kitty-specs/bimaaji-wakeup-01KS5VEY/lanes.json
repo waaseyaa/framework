@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "mission_slug": "bimaaji-wakeup-01KS5VEY",
+  "mission_id": "01KS5VEY633EJ2FR9TV2X64QVY",
+  "mission_branch": "kitty/mission-bimaaji-wakeup-01KS5VEY",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01",
+        "WP02",
+        "WP03"
+      ],
+      "write_scope": [
+        "packages/bimaaji/composer.json",
+        "packages/bimaaji/src/BimaajiServiceProvider.php",
+        "packages/bimaaji/src/Command/GraphDumpHandler.php",
+        "packages/bimaaji/tests/Unit/BimaajiServiceProviderTest.php",
+        "packages/routing/src/WaaseyaaRouter.php",
+        "phpstan-dead-code-baseline.neon",
+        "tests/Integration/PhaseN/Bimaaji/ApplicationGraphIntegrationTest.php",
+        "tests/Integration/PhaseN/Bimaaji/GraphDumpCommandTest.php"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "artifact-rendering",
+        "legacy-cleanup",
+        "tests"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    },
+    {
+      "lane_id": "lane-planning",
+      "wp_ids": [
+        "WP04",
+        "WP05"
+      ],
+      "write_scope": [
+        "CHANGELOG.md",
+        "CLAUDE.md",
+        "docs/specs/bimaaji.md",
+        "kitty-specs/bimaaji-wakeup-01KS5VEY/verification.md",
+        "packages/bimaaji/README.md"
+      ],
+      "predicted_surfaces": [
+        "planning"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-05-21T19:13:42.117287+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": [
+    "WP04",
+    "WP05"
+  ],
+  "collapse_report": {
+    "events": [
+      {
+        "wp_a": "WP02",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP02 depends on WP01"
+      },
+      {
+        "wp_a": "WP03",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP03 depends on WP01"
+      }
+    ],
+    "total_merges": 2,
+    "independent_wps_collapsed": 0,
+    "by_rule": {
+      "dependency": 2
+    }
+  }
+}
