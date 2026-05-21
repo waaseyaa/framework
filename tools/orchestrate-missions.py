@@ -1,6 +1,27 @@
 #!/usr/bin/env python3
 """Drive Spec Kitty missions end-to-end with sonnet implement / opus review.
 
+STATUS (2026-05-21): Skeleton — validated through the prework loop (M1 reaches
+`implement` state) and `list-ready` parsing. The per-WP implement/review/
+transition/accept/merge calls have additional required args (--actor, --policy
+JSON, --to, evidence flags) that need verification before running end-to-end.
+The sub-agents dispatched via `claude -p` must also handle the lane worktree
+lifecycle (composer install, branch creation, transition emission) which is
+encoded in the prompt but not battle-tested.
+
+To complete the end-to-end loop, the remaining work is:
+1. Verify accept-mission, merge-mission CLI signatures (`spec-kitty
+   orchestrator-api accept-mission --help`).
+2. Verify the `transition` call signature when a sub-agent emits it (the
+   sub-agent prompt instructs it to call `spec-kitty orchestrator-api
+   transition --to <lane> --policy '{}'` — confirm policy format).
+3. End-to-end test on M1 (already past tasks-finalize) with one WP to ensure
+   the sonnet implement → opus review → transition → next WP loop closes.
+
+The skeleton handles: prework state advance through discovery/specify/research/
+plan/tasks_outline/tasks_packages/tasks_finalize, list-ready parsing, and the
+overall mission loop shape.
+
 Wraps the spec-kitty CLI (`next`, `agent mission`, `orchestrator-api`) and
 dispatches Claude Code sub-sessions via the `claude -p` CLI to do the actual
 implementation and review work. Each phase's prompt is read from the file
@@ -131,12 +152,19 @@ def sk_finalize_tasks(mission: str) -> tuple[bool, str]:
 
 
 def sk_orch(args: list[str]) -> dict[str, Any]:
-    """Call spec-kitty orchestrator-api; return parsed JSON."""
-    proc = run(["spec-kitty", "orchestrator-api", *args, "--json"]
-               if "--json" not in args else ["spec-kitty", "orchestrator-api", *args])
+    """Call spec-kitty orchestrator-api; return parsed `data` payload.
+
+    The orchestrator-api wraps responses in
+    {contract_version, command, success, data, error_code, ...}; we unwrap
+    `data` for caller convenience. The CLI always emits JSON — never pass --json.
+    """
+    proc = run(["spec-kitty", "orchestrator-api", *args])
     if proc.returncode != 0:
-        raise RuntimeError(f"orchestrator-api {' '.join(args)} failed: {proc.stderr}")
-    return json.loads(proc.stdout)
+        raise RuntimeError(f"orchestrator-api {' '.join(args)} failed: {proc.stderr or proc.stdout}")
+    envelope = json.loads(proc.stdout)
+    if not envelope.get("success", True):
+        raise RuntimeError(f"orchestrator-api error: {envelope.get('error_code')} {envelope}")
+    return envelope.get("data", envelope)
 
 
 # --- Sub-agent dispatch via `claude -p` -------------------------------------
@@ -249,18 +277,20 @@ def drive_prework(mission: str, log: Logger, max_retries: int = 3) -> bool:
 def list_ready_wps(mission: str) -> list[dict[str, Any]]:
     """Return list of WP dicts ready for implementation."""
     data = sk_orch(["list-ready", "--mission", mission])
-    return data.get("ready_wps", []) or data.get("ready", []) or []
+    # API returns ready_work_packages: [{wp_id, lane, dependencies_satisfied}]
+    return data.get("ready_work_packages", []) or data.get("ready_wps", []) or []
 
 
 def implement_wp(mission: str, wp: dict[str, Any], log: Logger,
                  max_rejection_cycles: int) -> bool:
-    wp_id = wp.get("id") or wp.get("wp_id")
+    wp_id = wp.get("wp_id") or wp.get("id")
     if not wp_id:
         log.err(f"  malformed WP entry: {wp}")
         return False
     log.info(f"--- WP {wp_id}: implement ---")
     # Transition to in_progress.
-    sk_orch(["start-implementation", "--mission", mission, "--wp", wp_id])
+    sk_orch(["start-implementation", "--mission", mission, "--wp", wp_id,
+             "--actor", "sonnet", "--policy", "{}"])
     # Find the WP worktree (spec-kitty creates `.worktrees/<slug>-<mid8>-lane-X/`)
     state = sk_state(mission)
     worktree = state.get("workspace_path") or REPO_ROOT
@@ -286,7 +316,8 @@ def implement_wp(mission: str, wp: dict[str, Any], log: Logger,
             log.warn(f"  {wp_id} impl cycle {cycle+1} failed; retrying")
             continue
         # Review.
-        sk_orch(["start-review", "--mission", mission, "--wp", wp_id])
+        sk_orch(["start-review", "--mission", mission, "--wp", wp_id,
+                 "--actor", "opus", "--policy", "{}"])
         review_prompt = (
             f"You are reviewing {wp_id} of mission `{mission}` in the lane worktree at "
             f"{worktree}. The WP spec is at {wp_file}. Run `git diff main` to see the "
