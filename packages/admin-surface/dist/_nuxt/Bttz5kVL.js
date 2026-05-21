@@ -1,1 +1,0 @@
-import{r as o}from"./C4t5QcT8.js";function s(){const t=o();function a(n,i){return t.catalog.find(r=>r.id===n)?.capabilities[i]??!1}function e(n){return t.catalog.find(i=>i.id===n)}return{catalog:t.catalog,tenant:t.tenant,ui:t.ui,hasCapability:a,getEntity:e}}export{s as u};

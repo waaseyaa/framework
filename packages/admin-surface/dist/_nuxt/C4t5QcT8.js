@@ -1,1 +1,0 @@
-import{a0 as e}from"./DSq__MVW.js";const i="Admin runtime is unavailable. Ensure the admin plugin has bootstrapped before calling admin composables.";function a(r=e()){const n=r.$admin;if(!n)throw new Error(i);return n}export{a as r};
