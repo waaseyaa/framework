@@ -173,7 +173,12 @@ def read_prompt_file(state: dict[str, Any]) -> str:
 
 PREWORK_STEPS = {
     "discovery", "specify", "research", "plan",
-    "tasks_outline", "tasks_packages",
+    "tasks_outline", "tasks_packages", "tasks_finalize",
+    "finalize_tasks",  # alternate spelling some spec-kitty versions emit
+}
+DONE_WITH_PREWORK = {
+    "implement", "implementing", "review", "in_review",
+    "accept", "accepting", "merged", "done", "complete",
 }
 
 
@@ -188,7 +193,7 @@ def drive_prework(mission: str, log: Logger, max_retries: int = 3) -> bool:
         state = sk_state(mission)
         s = state.get("mission_state")
         log.info(f"prework state={s} action={state.get('action')}")
-        if s in {"implement", "review", "accept", "merged"}:
+        if s in DONE_WITH_PREWORK:
             return True
         if s in PREWORK_STEPS:
             # Try to advance via --result success first; if the guard fails,
