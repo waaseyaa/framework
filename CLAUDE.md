@@ -146,6 +146,14 @@ When the mapping is not obvious, search under `docs/specs/` (e.g. `rg -n "TopicO
 6. Verify with `bin/waaseyaa schedule:list` — your tasks should appear grouped under the class FQCN
 7. To disable a built-in entry: add its FQCN to `schedule.disabled_entries` in configuration
 
+**Adding a Bimaaji graph section provider:**
+1. Implement `Waaseyaa\Bimaaji\Graph\GraphSectionProviderInterface` — `getKey(): string` returns the section identifier; `provide(): GraphSection` returns the versioned payload.
+2. Mark with `@api` in PHPDoc if the class is part of a public extension surface (dead-code detector gates on this).
+3. Bind it in your package's `ServiceProvider::register()`. The canonical tag is `BimaajiServiceProvider::SECTION_PROVIDER_TAG` (`bimaaji.section_provider`) — use it for forward-compatibility with future tagged-collection container support.
+4. Constructor dependencies must be container-resolvable; lean on the kernel-services bus when crossing package boundaries.
+5. Verify by resolving `Waaseyaa\Bimaaji\Graph\ApplicationGraphGenerator` from the container — the framework's default `BimaajiServiceProvider` only composes the six built-in providers, so a downstream provider currently needs to either (a) rebind `ApplicationGraphGenerator` with its own iterable that includes the new provider, or (b) wait for the tagged-collection resolution feature scheduled for M3's container work.
+6. Read `docs/specs/bimaaji.md` "Implementation Status" before adding mutation-side behavior — the validated mutation pipeline (`MutationValidator` → `PatchSet`) belongs to bimaaji's mutation surface, not graph providers.
+
 ## Workflow (Spec Kitty–first)
 
 Substantive work is driven by **[Spec Kitty](https://github.com/Priivacy-ai/spec-kitty)** missions and work packages (`.kittify/`, `spec-kitty next`, dashboard); **GitHub** is the PR/CI/releases surface and optional issue visibility. Full rules: `docs/specs/workflow.md` (versioning, PR traceability).

@@ -1,5 +1,29 @@
 # Bimaaji — Application Graph & Agent Mutation Layer
 
+<!-- Spec reviewed 2026-05-21 - M1 (bimaaji-wakeup-01KS5VEY) flipped Implementation Status from "scaffolding only" to "shipped". -->
+
+## Implementation Status
+
+**Shipped (as of M1 `bimaaji-wakeup-01KS5VEY`):**
+
+- `BimaajiServiceProvider` is auto-discovered via `extra.waaseyaa.providers` in `packages/bimaaji/composer.json`.
+- `ApplicationGraphGenerator` is bound as a container singleton, wired with the six default `GraphSectionProvider` implementations (admin, entities, jsonapi, public_surface, routing, sovereignty).
+- Each default provider's constructor dependencies (`EntityTypeManagerInterface`, `RouteCollection`, `SovereigntyProfile`) resolve from the kernel-services bus. `RouteCollection` falls back to `WaaseyaaRouter::getRouteCollection()`; `SovereigntyProfile` falls back to `SovereigntyProfile::Local`.
+- `BimaajiServiceProvider` implements `HasNativeCommandsInterface` (empty stub; the `graph:dump` command lands in WP02 of M1).
+- Unit test coverage at `packages/bimaaji/tests/Unit/BimaajiServiceProviderTest.php` (7 tests, 38 assertions: binding identity, tagged collection, six-section output, lazy resolution, capability interface, RouteCollection fallback).
+
+**In progress (M1 follow-up WPs):**
+
+- WP02 — `bin/waaseyaa graph:dump [--section=…] [--format=json|yaml] [--strict]` CLI command (FR-005, FR-006, FR-011..FR-013).
+- WP03 — booted-kernel integration test under `tests/Integration/PhaseN/Bimaaji/` (FR-010, NFR-001, SC-005).
+- WP05 — cross-mission gate proving M2 needs no further bimaaji wiring (verification artifact at `kitty-specs/bimaaji-wakeup-01KS5VEY/verification.md`).
+
+**Deferred (post-M1):**
+
+- MCP transport (M3 `bimaaji-mcp-bridge-01KS5VS8`) — supersedes the 2026-05-20 PHP-only deferral tracked in [#1463](https://github.com/waaseyaa/framework/issues/1463).
+- In-process `ai-agent` tool sources (M2 `ai-agent-bimaaji-tools-01KS5VKR`).
+- Per-client guidelines/skills install command (M5 `bimaaji-install-command-01KS5W0S`).
+
 ## Purpose
 
 Bimaaji provides machine-readable introspection of a booted Waaseyaa application and a safe mutation protocol for AI agents. It answers: "What does this application contain, and how can an agent safely change it?"
