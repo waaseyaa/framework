@@ -212,13 +212,22 @@ final class BimaajiServiceProviderTest extends TestCase
     }
 
     #[Test]
-    public function implements_has_native_commands_interface_with_empty_stub(): void
+    public function implements_has_native_commands_interface_and_yields_graph_dump(): void
     {
         $provider = new BimaajiServiceProvider();
         self::assertInstanceOf(HasNativeCommandsInterface::class, $provider);
-        self::assertSame([], iterator_to_array((function () use ($provider): \Generator {
+
+        $commands = iterator_to_array((function () use ($provider): \Generator {
             yield from $provider->nativeCommands();
-        })()));
+        })());
+
+        self::assertCount(1, $commands, 'BimaajiServiceProvider yields exactly one native command (graph:dump).');
+        $command = $commands[0];
+        self::assertInstanceOf(\Waaseyaa\CLI\CommandDefinition::class, $command);
+        self::assertSame('graph:dump', $command->name);
+        // Three flags: --section (required value), --format (required value), --strict (none/boolean).
+        $optionNames = array_map(static fn(\Waaseyaa\CLI\OptionDefinition $opt): string => $opt->name, $command->options);
+        self::assertSame(['section', 'format', 'strict'], $optionNames);
     }
 
     #[Test]

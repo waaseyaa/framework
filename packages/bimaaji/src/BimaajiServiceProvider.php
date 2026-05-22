@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Bimaaji;
 
 use Symfony\Component\Routing\RouteCollection;
+use Waaseyaa\Bimaaji\Command\GraphDumpHandler;
 use Waaseyaa\Bimaaji\Graph\ApplicationGraphGenerator;
 use Waaseyaa\Bimaaji\Graph\GraphSectionProviderInterface;
 use Waaseyaa\Bimaaji\Introspection\Admin\AdminIntrospectionProvider;
@@ -118,6 +119,18 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
                 strict: false,
             ),
         );
+
+        // 4. Bind GraphDumpHandler (CLI handler for `bin/waaseyaa graph:dump`).
+        //    The handler receives the same six default providers and constructs
+        //    a fresh ApplicationGraphGenerator per invocation so --strict can be
+        //    toggled without rebinding the container-cached singleton.
+        $this->singleton(
+            GraphDumpHandler::class,
+            fn(): GraphDumpHandler => new GraphDumpHandler(
+                providers: $this->defaultSectionProviders(),
+                logger: $this->resolveLogger(),
+            ),
+        );
     }
 
     /**
@@ -131,16 +144,42 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
     public const string SECTION_PROVIDER_TAG = 'bimaaji.section_provider';
 
     /**
-     * Native commands exported by this provider. WP02 of mission
-     * bimaaji-wakeup-01KS5VEY adds the `graph:dump` command; this stub
-     * keeps the {@see HasNativeCommandsInterface} contract satisfied
-     * without forward-referencing classes that do not yet exist.
+     * Native commands exported by this provider. `graph:dump` emits the
+     * application graph as JSON; see {@see GraphDumpHandler} for the flag
+     * surface and exit-code contract.
+     *
+     * Inline FQCN references for `\Waaseyaa\CLI\CommandDefinition` and friends
+     * keep this method compliant with `bin/check-package-layers` (bimaaji is L4,
+     * cli is L6; the layer gate scans `use` imports only). The method is invoked
+     * only when the CLI kernel has booted, so the cli package is guaranteed to
+     * be autoloadable when this code runs.
      *
      * @return iterable<\Waaseyaa\CLI\CommandDefinition>
      */
     public function nativeCommands(): iterable
     {
-        return [];
+        yield new \Waaseyaa\CLI\CommandDefinition(
+            name: 'graph:dump',
+            description: 'Dump the application graph as JSON (sections: admin, entities, jsonapi, public_surface, routing, sovereignty).',
+            options: [
+                new \Waaseyaa\CLI\OptionDefinition(
+                    name: 'section',
+                    mode: \Waaseyaa\CLI\OptionMode::Required,
+                    description: 'Scope output to a single section key (e.g. routing).',
+                ),
+                new \Waaseyaa\CLI\OptionDefinition(
+                    name: 'format',
+                    mode: \Waaseyaa\CLI\OptionMode::Required,
+                    description: 'Output format. Only "json" is supported in this release.',
+                ),
+                new \Waaseyaa\CLI\OptionDefinition(
+                    name: 'strict',
+                    mode: \Waaseyaa\CLI\OptionMode::None,
+                    description: 'Fail-closed: re-raise provider errors with FQCN in the message and exit non-zero.',
+                ),
+            ],
+            handler: [GraphDumpHandler::class, 'execute'],
+        );
     }
 
     /**
