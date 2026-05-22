@@ -20,6 +20,34 @@ For the tool catalogue (8 stock tools + remote MCP source) see **[`packages/ai-t
 | **Messenger worker** | `packages/ai-agent/src/Message/{RunAgent,RunAgentHandler}.php` | Consumes the `RunAgent` message; CAS-guarded against duplicate delivery (NFR-015). |
 | **Scheduler** | `packages/scheduler/src/Schedule/Ai/AgentScheduleEntries.php` | Daily purge + 5-minute stalled-run reaper. |
 
+## Bimaaji-backed tools
+
+Four `#[AsAgentTool]` adapters expose [bimaaji](../bimaaji/README.md)'s application-graph introspection and validated-mutation surface to the embedded agent runtime. Discovered via the package-manifest compiler; their dependencies (`ApplicationGraphGenerator`, `MutationValidator`, `PatchGenerator`) resolve from the container after `BimaajiServiceProvider::register()`.
+
+| Tool name | Capability | Class | Purpose |
+|---|---|---|---|
+| `bimaaji_introspect_graph` | `bimaaji.read` | `Waaseyaa\AI\Agent\Tool\Bimaaji\IntrospectGraphTool` | Full application-graph snapshot (six default sections). |
+| `bimaaji_introspect_section` | `bimaaji.read` | `Waaseyaa\AI\Agent\Tool\Bimaaji\IntrospectSectionTool` | Section-scoped payload (`admin`, `entities`, `jsonapi`, `public_surface`, `routing`, `sovereignty`). |
+| `bimaaji_propose_mutation` | `bimaaji.mutate` | `Waaseyaa\AI\Agent\Tool\Bimaaji\ProposeMutationTool` | Validate a proposed schema mutation against the current graph; returns the full `MutationResult` envelope (status + errors). |
+| `bimaaji_generate_patch` | `bimaaji.mutate` | `Waaseyaa\AI\Agent\Tool\Bimaaji\GeneratePatchTool` | Re-validate the request and emit a `PatchSet` in memory (never touches the filesystem — the consuming agent loop decides what to do with the patches). |
+
+**Capabilities:** `bimaaji.read` is generally safe to grant; `bimaaji.mutate` is default-off per AD-02 and should be granted only to agents that need to propose schema changes. The mutation tools enforce the deny via `AbstractAgentTool::requireCapability()`; rejected calls surface as `AgentToolResult::error(summary: 'forbidden')` and are recorded in the audit log.
+
+**Example — run the reference demo agent inline:**
+
+```bash
+bin/waaseyaa ai:run "Introspect the entities section, propose adding a 'nickname' field to User, then generate the patch." \
+    --agent=bimaaji_demo --inline
+```
+
+`bimaaji_demo` (`packages/ai-agent/tests/Fixture/BimaajiDemoAgent.php`) is the test-only reference agent that wires the four tools into a single introspect → propose → generate workflow. Real production agents should mirror its shape — declare the four tool names in `tools:` and gate the agent on `bimaaji.read`; per-tool capabilities are enforced inside each tool.
+
+**See also:**
+
+- M2 mission spec — [`kitty-specs/ai-agent-bimaaji-tools-01KS5VKR/`](../../kitty-specs/ai-agent-bimaaji-tools-01KS5VKR/)
+- Tool-shape contract (SC-004 surface map) — [`kitty-specs/ai-agent-bimaaji-tools-01KS5VKR/verification.md`](../../kitty-specs/ai-agent-bimaaji-tools-01KS5VKR/verification.md)
+- Bimaaji subsystem spec — [`docs/specs/bimaaji.md`](../../docs/specs/bimaaji.md)
+
 ## Extension points
 
 Register agent bundles and tools via attribute discovery — the package-manifest compiler scans both.
