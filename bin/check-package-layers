@@ -144,6 +144,8 @@ KERNEL_EXEMPT_FILES = {
         "kernel-adjacent route registrar wired from HttpKernel",
     "foundation/src/Http/Router/SearchRouter.php":
         "kernel-adjacent route registrar wired from HttpKernel",
+    "foundation/src/Http/Router/TranslationRouter.php":
+        "kernel-adjacent route registrar wired from HttpKernel",
     "foundation/src/Http/Router/WorkflowDefinitionsApiRouter.php":
         "kernel-adjacent route registrar wired from HttpKernel",
     "foundation/src/Http/Router/WaaseyaaContext.php":
