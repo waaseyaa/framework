@@ -1,7 +1,7 @@
 {
-  "event_count": 2,
-  "last_event_id": "01KS8MRT505TCHFK3GR61X2EHS",
-  "materialized_at": "2026-05-22T20:07:02.560352+00:00",
+  "event_count": 3,
+  "last_event_id": "01KS8N5V0CG76QVS1ETSSX8R0Y",
+  "materialized_at": "2026-05-22T20:14:09.421029+00:00",
   "mission_number": "",
   "mission_slug": "ai-agent-bimaaji-tools-01KS5VKR",
   "mission_type": "software-dev",
@@ -10,7 +10,7 @@
     "blocked": 0,
     "canceled": 0,
     "claimed": 0,
-    "done": 2,
+    "done": 3,
     "for_review": 0,
     "in_progress": 0,
     "in_review": 0,
@@ -30,6 +30,13 @@
       "lane": "done",
       "last_event_id": "01KS8MRT505TCHFK3GR61X2EHS",
       "last_transition_at": "2026-05-22T20:07:02.560352+00:00"
+    },
+    "WP05": {
+      "actor": "opus",
+      "force_count": 1,
+      "lane": "done",
+      "last_event_id": "01KS8N5V0CG76QVS1ETSSX8R0Y",
+      "last_transition_at": "2026-05-22T20:14:09.421029+00:00"
     }
   }
 }
