@@ -10,6 +10,7 @@
         <testsuite name="Unit">
             <directory>packages/*/tests/Unit</directory>
             <directory>packages/*/tests/Backend</directory>
+            <directory>packages/ai-agent/tests/Contract</directory>
             <directory>packages/api/tests/Contract</directory>
             <directory>packages/config/tests/Contract</directory>
             <directory>packages/entity/tests/Contract</directory>
