@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Tests\Integration\PhaseN\Bimaaji;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Routing\RouteCollection;
@@ -89,6 +90,45 @@ final class ApplicationGraphIntegrationTest extends TestCase
             self::assertArrayHasKey('data', $array, "Section \"{$key}\" toArray() must include 'data'.");
             self::assertSame($key, $array['key'], "Section \"{$key}\" toArray() key field must echo the section key.");
         }
+    }
+
+    /**
+     * SC-005 cross-mission gate: M2 (`ai-agent-bimaaji-tools-01KS5VKR`) and its first
+     * work package must be able to resolve `ApplicationGraphGenerator` from the container
+     * with only a `composer install` against the framework — no additional service-provider
+     * edits inside `packages/bimaaji/`. This test is the CI proof of that contract: a
+     * regression here means M2 cannot start without further M1 surgery and the dependency
+     * graph documented in `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md` is
+     * already broken.
+     *
+     * Marked `#[CoversNothing]` because this is a contract/gate test, not coverage for the
+     * generator — that's the FR-010 suite above.
+     */
+    #[Test]
+    #[CoversNothing]
+    public function crossMissionGateSc005(): void
+    {
+        $generator = $this->generator();
+
+        self::assertInstanceOf(
+            ApplicationGraphGenerator::class,
+            $generator,
+            'SC-005: ApplicationGraphGenerator must be resolvable from the container without any bimaaji changes in M2.',
+        );
+
+        $graph = $generator->generate();
+
+        self::assertInstanceOf(
+            ApplicationGraph::class,
+            $graph,
+            'SC-005: generate() must return an ApplicationGraph instance.',
+        );
+
+        self::assertGreaterThanOrEqual(
+            1,
+            count($graph->sections),
+            'SC-005: ApplicationGraph must contain at least one section so M2 can iterate immediately.',
+        );
     }
 
     #[Test]
