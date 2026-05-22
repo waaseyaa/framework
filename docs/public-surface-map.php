@@ -438,6 +438,8 @@ return [
     'Waaseyaa\AI\Observability\Recorder\TraceRecorderInterface' => 'public',
     'Waaseyaa\AI\Observability\Value\BudgetDecision' => 'public',
     'Waaseyaa\Bimaaji\Graph\GraphSectionProviderInterface' => 'public',
+    'Waaseyaa\Bimaaji\Install\ClientTransformerInterface' => 'public',
+    'Waaseyaa\Bimaaji\Install\Client\AbstractSingleFileClientTransformer' => 'public',
 
     // Layer 6: Interfaces — public
     'Waaseyaa\CLI\Ingestion\SourceConnectorInterface' => 'public',
