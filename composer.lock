@@ -3456,7 +3456,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-agent",
-                "reference": "44f049a5e1bb6639d4cf9502e0c8099a2dbd13cd"
+                "reference": "3269ae99ad6ab0bb4c71007d769d2a2735456157"
             },
             "require": {
                 "php": ">=8.5",
@@ -3467,6 +3467,7 @@
                 "waaseyaa/ai-schema": "^0.1.0-alpha.188",
                 "waaseyaa/ai-tools": "^0.1.0-alpha.188",
                 "waaseyaa/api": "^0.1.0-alpha.188",
+                "waaseyaa/bimaaji": "^0.1.0-alpha.188",
                 "waaseyaa/database-legacy": "^0.1.0-alpha.188",
                 "waaseyaa/entity": "^0.1.0-alpha.188",
                 "waaseyaa/entity-storage": "^0.1.0-alpha.188",
