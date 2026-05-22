@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 return [
     // Layer 0: Foundation — public
+    'Waaseyaa\AgentOutput\FormatterInterface' => 'public',
     'Waaseyaa\Foundation\Asset\AssetManagerInterface' => 'public',
     'Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface' => 'public',
     'Waaseyaa\Foundation\Diagnostic\DiagnosticCode' => 'public',
