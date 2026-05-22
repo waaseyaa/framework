@@ -1,0 +1,125 @@
+work_packages:
+  - id: WP01
+    title: "Source content audit + spec scaffold"
+    dependencies: []
+    owned_files:
+      - "skills/waaseyaa/"
+      - "docs/specs/bimaaji-install.md"
+    authoritative_surface: "skills/waaseyaa/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-004
+      - FR-010
+      - C-003
+    subtasks:
+      - T001
+      - T002
+    prompt_file: "tasks/WP01-source-content-audit.md"
+
+  - id: WP02
+    title: "Client transformers + per-client unit tests"
+    dependencies:
+      - WP01
+    owned_files:
+      - "packages/bimaaji/src/Install/ClientTransformerInterface.php"
+      - "packages/bimaaji/src/Install/Client/ClaudeClientTransformer.php"
+      - "packages/bimaaji/src/Install/Client/CursorClientTransformer.php"
+      - "packages/bimaaji/src/Install/Client/CodexClientTransformer.php"
+      - "packages/bimaaji/src/Install/Client/CopilotClientTransformer.php"
+      - "packages/bimaaji/src/Install/Client/GeminiClientTransformer.php"
+      - "packages/bimaaji/src/Install/Client/WindsurfClientTransformer.php"
+      - "packages/bimaaji/src/Install/Client/JunieClientTransformer.php"
+      - "packages/bimaaji/tests/Unit/Install/"
+    authoritative_surface: "packages/bimaaji/src/Install/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-003
+      - FR-004
+      - FR-005
+      - C-001
+      - C-003
+    subtasks:
+      - T003
+      - T004
+      - T005
+      - T006
+      - T007
+    prompt_file: "tasks/WP02-client-transformers.md"
+
+  - id: WP03
+    title: "BimaajiInstallCommand + flags + prompts"
+    dependencies:
+      - WP02
+    owned_files:
+      - "packages/bimaaji/src/Command/BimaajiInstallCommand.php"
+      - "packages/bimaaji/src/BimaajiServiceProvider.php"
+    authoritative_surface: "packages/bimaaji/src/Command/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-001
+      - FR-002
+      - FR-006
+      - FR-007
+      - FR-008
+      - FR-009
+      - NFR-001
+      - NFR-002
+      - NFR-003
+      - NFR-004
+      - C-002
+      - C-004
+    subtasks:
+      - T008
+      - T009
+      - T010
+    prompt_file: "tasks/WP03-install-command.md"
+
+  - id: WP04
+    title: "Integration tests"
+    dependencies:
+      - WP03
+    owned_files:
+      - "tests/Integration/PhaseN/BimaajiInstall/InstallCommandTest.php"
+      - "tests/Integration/PhaseN/BimaajiInstall/InstallCommandDryRunTest.php"
+      - "tests/Integration/PhaseN/BimaajiInstall/InstallCommandPreservesHandEditsTest.php"
+      - "tests/Integration/PhaseN/BimaajiInstall/InstallCommandSandboxTest.php"
+      - "tests/Integration/PhaseN/BimaajiInstall/InstallCommandUnknownClientTest.php"
+    authoritative_surface: "tests/Integration/PhaseN/BimaajiInstall/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-011
+      - FR-012
+      - SC-001
+      - SC-002
+      - SC-003
+      - SC-004
+      - SC-005
+    subtasks:
+      - T011
+      - T012
+      - T013
+      - T014
+      - T015
+    prompt_file: "tasks/WP04-integration-tests.md"
+
+  - id: WP05
+    title: "Docs + verify"
+    dependencies:
+      - WP04
+    owned_files:
+      - "docs/specs/bimaaji-install.md"
+      - "packages/bimaaji/README.md"
+      - "CHANGELOG.md"
+      - "kitty-specs/bimaaji-install-command-01KS5W0S/verification.md"
+    authoritative_surface: "kitty-specs/bimaaji-install-command-01KS5W0S/"
+    execution_mode: "planning_artifact"
+    requirement_refs:
+      - FR-010
+      - FR-013
+      - SC-006
+      - C-005
+      - C-006
+    subtasks:
+      - T016
+      - T017
+    prompt_file: "tasks/WP05-docs-and-verify.md"

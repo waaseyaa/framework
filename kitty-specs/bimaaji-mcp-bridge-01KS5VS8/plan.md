@@ -1,108 +1,173 @@
-# Implementation Plan: [FEATURE]
-*Path: [templates/plan-template.md](templates/plan-template.md)*
+# Implementation Plan — bimaaji-mcp-bridge-01KS5VS8
 
+**Mission:** `bimaaji-mcp-bridge-01KS5VS8`
+**Status:** Plan
+**Spec:** [spec.md](spec.md)
+**Design doc:** `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md` §M3
+**Depends on:** M1 `bimaaji-wakeup-01KS5VEY` (merged). Soft-depends on M2 `ai-agent-bimaaji-tools-01KS5VKR` (reuses M2's tool-API shape).
+**Supersedes:** 2026-05-20 M-G `bimaaji-mcp-strategic-direction-01KS3SZB` "PHP-only" deferral.
+**Closes:** GitHub #1463 via merge-commit footer.
 
-**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
-**Input**: Feature specification from `/kitty-specs/[###-feature-name]/spec.md`
+## Branch contract
 
-**Note**: This template is filled in by the `/spec-kitty.plan` command. See `src/specify_cli/missions/software-dev/command-templates/plan.md` for the execution workflow.
+- Current branch at plan time: `main`
+- Planning + base branch: `main`
+- Merge target: `main`
 
-The planner will not begin until all planning questions have been answered—capture those answers in this document before progressing to later phases.
+## Engineering alignment
 
-## Summary
+Exposes bimaaji over MCP via `packages/mcp/` (Layer 6). Ten tools total: 8 read tools (default-on under `bimaaji.read`) and 2 write tools (opt-in via `bimaaji.mutate`). Write tools return `PatchSet`s — the MCP server never writes to disk (C-003). MCP transport is stdio only (no HTTP, C-002). Tool naming uses the `bimaaji_` prefix (FR-006, NFR-005) for namespacing against other registered MCP tools.
 
-[Extract from feature spec: primary requirement + technical approach from research]
+This mission reverses M-G's "PHP-only" deferral (C-005 / FR-007 / SC-004): the doctrine spec at `docs/specs/mcp-endpoint.md` keeps the original 2026-05-20 section with a supersession annotation so the audit trail survives, and adds a new "Bimaaji MCP bridge" section documenting the 10 tools.
 
-## Technical Context
+## Architecture decisions
 
-<!--
-  ACTION REQUIRED: Replace the content in this section with the technical details
-  for the project. The structure here is presented in advisory capacity to guide
-  the iteration process.
--->
+### AD-01 — Tool location and namespace
 
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]  
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]  
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]  
-**Testing**: [Project-specific test approach or NEEDS CLARIFICATION]
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
-**Project Type**: [single/web/mobile - determines source structure]  
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
-**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
-**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+All ten tools live under `packages/mcp/src/Tool/Bimaaji/` in namespace `Waaseyaa\Mcp\Tool\Bimaaji\`. mcp is L6, bimaaji is L4 — downward import is allowed. Each tool class imports `Waaseyaa\Bimaaji\*` directly via `use` statements (no inline-FQCN trick needed). (C-001)
 
-## Charter Check
+### AD-02 — Read-tool inventory (FR-002, all `capability: bimaaji.read`)
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+| Tool | Delegates to | Returns |
+|---|---|---|
+| `bimaaji_application_info` | `ApplicationGraphGenerator::generate()->toArray()` | Full graph (all 6 sections) |
+| `bimaaji_list_routes` | `RoutingIntrospectionProvider->provide()->toArray()` | Routing section only |
+| `bimaaji_list_jsonapi` | `JsonApiIntrospectionProvider->provide()->toArray()` | JsonApi section only |
+| `bimaaji_list_entities` | `EntityIntrospectionProvider->provide()->toArray()` | Entities section only |
+| `bimaaji_list_admin` | `AdminIntrospectionProvider->provide()->toArray()` | Admin section only |
+| `bimaaji_sovereignty_profile` | `SovereigntyIntrospectionProvider->provide()->toArray()` | Sovereignty section only |
+| `bimaaji_public_surface` | `PublicSurfaceProvider->provide()->toArray()` | PublicSurface section only |
+| `bimaaji_search_specs` | (see AD-04 — spec-search backend) | `docs/specs/*.md` search results |
 
-[Gates determined based on charter file]
+The seven section-scoped tools are convenience wrappers that save the agent from learning the section-key vocabulary. `bimaaji_application_info` is the full-graph entry point for agents that want everything.
 
-## Project Structure
+### AD-03 — Write-tool inventory (FR-003, both `capability: bimaaji.mutate`)
 
-### Documentation (this feature)
+| Tool | Delegates to | Returns |
+|---|---|---|
+| `bimaaji_propose_mutation` | `MutationValidator::validate()` | `MutationResult::toArray()` |
+| `bimaaji_generate_patch` | `PatchGenerator::generate()` | `PatchSet::toArray()` |
 
-```
-kitty-specs/[###-feature]/
-├── plan.md              # This file (/spec-kitty.plan command output)
-├── research.md          # Phase 0 output (/spec-kitty.plan command)
-├── data-model.md        # Phase 1 output (/spec-kitty.plan command)
-├── quickstart.md        # Phase 1 output (/spec-kitty.plan command)
-├── contracts/           # Phase 1 output (/spec-kitty.plan command)
-└── tasks.md             # Phase 2 output (/spec-kitty.tasks command - NOT created by /spec-kitty.plan)
-```
+Both inherit M2's tool-API shape (SC-004 from M2). If M2 is merged first, the M3 tools import M2's tool classes and wrap them as MCP tools without re-implementing argument validation or envelope construction. If M2 is not yet merged, M3 implements the shape itself and M2 inherits the M3 contract (less ideal — M2 is the designated shape-defining mission).
 
-### Source Code (repository root)
-<!--
-  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
-  for this feature. Delete unused options and expand the chosen structure with
-  real paths (e.g., apps/admin, packages/something). The delivered plan must
-  not include Option labels.
--->
+### AD-04 — `bimaaji_search_specs` backend
 
-```
-# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
-src/
-├── models/
-├── services/
-├── cli/
-└── lib/
+Not a thin adapter. Implementation options (planner picks at WP02 time):
 
-tests/
-├── contract/
-├── integration/
-└── unit/
+1. **Use `Waaseyaa\Bimaaji\Spec\SpecIndexProvider`** if it ships with M1 — the spec-search backend bimaaji already has.
+2. **Grep-based fallback:** simple text search over `docs/specs/*.md` using `glob()` + `file_get_contents()` + substring or PCRE match. Returns `{file, section_title, snippet, line_number}`.
 
-# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
-backend/
-├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
-└── tests/
+Option 2 is the WP02 default unless inspection reveals `SpecIndexProvider` is already container-resolvable and well-tested. (FR-005)
 
-frontend/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-└── tests/
+### AD-05 — Capability gating mechanism (FR-004)
 
-# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
-api/
-└── [same as backend above]
+The MCP server holds a per-session capability set. Defaults: `['bimaaji.read']`. Opt-in to mutation via one of three documented mechanisms (planner picks one at WP03 time, documents the others as future extension):
 
-ios/ or android/
-└── [platform-specific structure: feature modules, UI flows, platform tests]
-```
+1. **CLI flag:** `bin/waaseyaa mcp:serve --capability=bimaaji.mutate`
+2. **Env var:** `WAASEYAA_MCP_CAPABILITIES=bimaaji.read,bimaaji.mutate`
+3. **Config file:** `config/mcp.php` `capabilities` array
 
-**Structure Decision**: [Document the selected structure and reference the real
-directories captured above]
+WP03 ships at least the env var path because env vars work uniformly across all MCP clients (Claude Code, Cursor, etc., all support env passthrough). CLI flag is a follow-up.
 
-## Complexity Tracking
+The capability check fires at tool-dispatch time, before any tool work. Rejection returns within 5 ms (NFR-003) and the envelope leaks no detail beyond `{ error: { code: 'capability_required', capability: 'bimaaji.mutate' } }`.
 
-*Fill ONLY if Charter Check has violations that must be justified*
+### AD-06 — Logging (NFR-004)
 
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
+Each tool invocation logs `{tool, capability_set, outcome}` via `Waaseyaa\Foundation\Log\LoggerInterface`. Outcomes: `success`, `capability_denied`, `sovereignty_denied`, `error`. No PII (the spec is explicit — no patch content, no user identifiers). Logging is best-effort: a logger failure must not crash the tool dispatch (per CLAUDE.md gotcha).
+
+### AD-07 — Tool-name uniqueness gate (NFR-005)
+
+`packages/mcp/`'s registry probably enforces uniqueness at registration time. If it doesn't, WP01 adds a registration-time assertion (`array_key_exists` check) that throws on duplicate. The `bimaaji_` prefix discipline keeps M3's tools from colliding with other framework-registered MCP tools (e.g. `agent_*`, `migration_*`, etc.).
+
+### AD-08 — Doctrine spec edits (FR-007, FR-008, C-005)
+
+`docs/specs/mcp-endpoint.md`:
+- Existing 2026-05-20 "Bimaaji MCP positioning (PHP-only)" section is **preserved verbatim** with a supersession callout at the top pointing to this mission and the new section.
+- New "Bimaaji MCP bridge" section enumerates the 10 tools, capability gating, session-config mechanism, and the M-G → M3 transition rationale.
+
+`docs/specs/bimaaji.md`:
+- New "MCP exposure" subsection enumerating the 10 tools and pointing to `mcp-endpoint.md` for transport details.
+
+## Test strategy
+
+### Integration tests (`tests/Integration/PhaseN/Mcp/`)
+
+| Test | Coverage | Key assertions |
+|---|---|---|
+| `BimaajiMcpReadTest` | FR-002, FR-009, SC-001 | All 8 read tools list, each returns a non-error envelope |
+| `BimaajiMcpMutateTest` | FR-003, FR-010, SC-002, SC-003 | With `bimaaji.mutate` granted, both write tools execute; PatchSet non-empty; **no disk writes** before/after snapshot |
+| `BimaajiMcpCapabilityTest` | FR-004, FR-011, NFR-003 | Default capability set; mutation attempt returns `capability_required` error within 5 ms; no side effects |
+
+Boot pattern: the WP01 MCP-server smoke test establishes the minimum kernel + MCP-server harness; WP02/WP03 reuse it.
+
+### Charter / governance
+
+`.kittify/charter/charter.md` absent. Skipped.
+
+## WP breakdown
+
+| WP | Title | Depends on | Authoritative surface | LOC est. |
+|---|---|---|---|---|
+| **WP01** | Cross-mission gate + MCP infrastructure audit | — | `tests/Integration/PhaseN/Mcp/BimaajiMcpBootSmokeTest.php` (+ minimal mcp registration if missing) | ~150 |
+| **WP02** | 8 read tools + spec-search backend | WP01 | `packages/mcp/src/Tool/Bimaaji/{ApplicationInfoTool,List*Tool,SovereigntyProfileTool,PublicSurfaceTool,SearchSpecsTool}.php` + `BimaajiMcpReadTest.php` | ~400 |
+| **WP03** | Capability gating + 2 mutation tools | WP02 | `packages/mcp/src/{Capability/*,Tool/Bimaaji/{ProposeMutation,GeneratePatch}Tool}.php` + 2 integration tests | ~350 |
+| **WP04** | Doctrine spec edits + supersession | WP03 | `docs/specs/mcp-endpoint.md`, `docs/specs/bimaaji.md`, `packages/mcp/README.md` | ~150 |
+| **WP05** | Cross-mission gate + verify + #1463 close | WP04 | `kitty-specs/bimaaji-mcp-bridge-01KS5VS8/verification.md` + manual smoke test against Claude Code | ~80 |
+
+## File-change summary
+
+| Layer | Path | Action |
+|---|---|---|
+| L6 mcp src | `packages/mcp/src/Tool/Bimaaji/*.php` | create x10 (WP02 ×8, WP03 ×2) |
+| L6 mcp src | `packages/mcp/src/Capability/SessionCapabilities.php` (or similar) | create (WP03) |
+| L6 mcp src | `packages/mcp/src/ServiceProvider.php` | edit (WP02 — register the tool family) |
+| L6 mcp tests | `tests/Integration/PhaseN/Mcp/BimaajiMcp{Boot,Read,Mutate,Capability}Test.php` | create x4 (WP01 + WP02 + WP03) |
+| Spec | `docs/specs/mcp-endpoint.md` | edit (WP04 — supersession + new section) |
+| Spec | `docs/specs/bimaaji.md` | edit (WP04 — MCP exposure section) |
+| L6 mcp docs | `packages/mcp/README.md` | edit (WP04) |
+| Root docs | `CHANGELOG.md` | edit `[Unreleased]` (WP05) |
+| Mission | `kitty-specs/bimaaji-mcp-bridge-01KS5VS8/verification.md` | create (WP05) |
+
+## Risk analysis
+
+### R1 — `packages/mcp/` is too immature to host the bridge (MEDIUM)
+
+**Likelihood:** Medium per spec Assumption: "If `packages/mcp/` is too immature... re-scope to build registration mechanism + bimaaji as first consumer."
+**Mitigation:** WP01's first action is the audit. If a tool-registration mechanism doesn't exist, WP01 adds the minimum needed (attribute-based discovery OR service-tag, planner picks). Re-scope notice in `verification.md` if the bar moves materially.
+
+### R2 — Coordination with M2 (MEDIUM)
+
+**Likelihood:** Medium if M3 starts before M2 merges. M2 owns the tool-API shape M3 wraps.
+**Mitigation:** WP01 imports M2's tool argument schemas explicitly. If M2 not yet on main, WP01 reads M2's `wps.yaml` + `tasks/WP02-read-tools.md` + `tasks/WP03-mutation-tools.md` for the canonical contract, then files the bimaaji MCP tools with the same shape. M2's WP05 verification.md is the SC-004 anchor.
+
+### R3 — Large stdio payload (LOW)
+
+**Likelihood:** Low. MCP stdio uses length-prefixed framing; large frames work in modern clients.
+**Mitigation:** WP01 confirms `packages/mcp/`'s stdio handler doesn't cap frame size. If a cap exists, document it in `docs/specs/mcp-endpoint.md` and surface it to the agent in the tool description.
+
+### R4 — Tool-name collision (LOW)
+
+**Likelihood:** Low. `bimaaji_` prefix discipline + NFR-005 uniqueness gate.
+**Mitigation:** WP02 registers all tools through a single ServiceProvider entry point; the registry-uniqueness check (or a custom assertion in WP01) catches collisions at boot time.
+
+### R5 — Capability mechanism doesn't pass through MCP clients (LOW)
+
+**Likelihood:** Low. All major MCP clients pass env vars to the server process. CLI args are less universally supported.
+**Mitigation:** WP03 ships the env var path first (FR-004). CLI flag and config-file paths follow once the env var path is proven.
+
+### R6 — `SpecIndexProvider` doesn't exist or isn't container-bound (LOW)
+
+**Likelihood:** Low — the spec references it, but provider readiness depends on M1's actual scope.
+**Mitigation:** WP02's AD-04 fallback (grep-based search) is the documented escape hatch. Plan tracks this as a hard call-out so the implementer doesn't try to wire something that isn't there.
+
+## Dependencies on downstream missions
+
+- **M5** (`bimaaji-install-command-01KS5W0S`) likely ships per-client config snippets for `bin/waaseyaa mcp:serve` that this mission's WP05 references. M3's spec doesn't gate on M5 but coordinates documentation phrasing.
+
+## Charter / governance check
+
+`.kittify/charter/charter.md` not present. Skipped.
+
+## Out of scope (per spec)
+
+Per spec §Out of scope: no Node scaffolding, no HTTP transport, no HITL inside the server, no multi-tenant capability tokens, no new providers/operations/guardrails, no per-client install commands (M5).

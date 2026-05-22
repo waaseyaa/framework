@@ -1,0 +1,122 @@
+work_packages:
+  - id: WP01
+    title: "Cross-mission gate + container audit"
+    dependencies: []
+    owned_files:
+      - "tests/Integration/PhaseN/AgentRuntime/BimaajiBindingsAuditTest.php"
+      - "packages/bimaaji/src/BimaajiServiceProvider.php"
+    authoritative_surface: "tests/Integration/PhaseN/AgentRuntime/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - C-006
+      - SC-006
+    subtasks:
+      - T001
+      - T002
+      - T003
+    prompt_file: "tasks/WP01-cross-mission-gate-and-container-audit.md"
+
+  - id: WP02
+    title: "Read tools (IntrospectGraphTool + IntrospectSectionTool)"
+    dependencies:
+      - WP01
+    owned_files:
+      - "packages/ai-agent/src/Tool/Bimaaji/IntrospectGraphTool.php"
+      - "packages/ai-agent/src/Tool/Bimaaji/IntrospectSectionTool.php"
+      - "packages/ai-agent/tests/Contract/Bimaaji/IntrospectGraphToolTest.php"
+      - "packages/ai-agent/tests/Contract/Bimaaji/IntrospectSectionToolTest.php"
+      - "packages/ai-agent/tests/Contract/Bimaaji/BimaajiToolCapabilityTest.php"
+    authoritative_surface: "packages/ai-agent/src/Tool/Bimaaji/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-001
+      - FR-002
+      - FR-005
+      - FR-006
+      - FR-008
+      - FR-009
+      - FR-010
+      - NFR-001
+      - NFR-003
+      - NFR-004
+      - C-001
+      - C-003
+    subtasks:
+      - T004
+      - T005
+      - T006
+      - T007
+    prompt_file: "tasks/WP02-read-tools.md"
+
+  - id: WP03
+    title: "Mutation tools (ProposeMutationTool + GeneratePatchTool)"
+    dependencies:
+      - WP01
+    owned_files:
+      - "packages/ai-agent/src/Tool/Bimaaji/ProposeMutationTool.php"
+      - "packages/ai-agent/src/Tool/Bimaaji/GeneratePatchTool.php"
+      - "packages/ai-agent/tests/Contract/Bimaaji/ProposeMutationToolTest.php"
+      - "packages/ai-agent/tests/Contract/Bimaaji/GeneratePatchToolTest.php"
+    authoritative_surface: "packages/ai-agent/src/Tool/Bimaaji/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-003
+      - FR-004
+      - FR-005
+      - FR-009
+      - NFR-002
+      - NFR-003
+      - C-001
+      - C-005
+      - SC-005
+    subtasks:
+      - T008
+      - T009
+      - T010
+    prompt_file: "tasks/WP03-mutation-tools.md"
+
+  - id: WP04
+    title: "Reference agent + end-to-end integration"
+    dependencies:
+      - WP02
+      - WP03
+    owned_files:
+      - "packages/ai-agent/tests/Fixture/BimaajiDemoAgent.php"
+      - "tests/Integration/PhaseN/AgentRuntime/BimaajiAgentRunTest.php"
+      - "tests/Integration/PhaseN/AgentRuntime/BimaajiAgentRunCapabilityTest.php"
+    authoritative_surface: "tests/Integration/PhaseN/AgentRuntime/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-007
+      - FR-011
+      - SC-001
+      - SC-002
+      - SC-003
+    subtasks:
+      - T011
+      - T012
+      - T013
+    prompt_file: "tasks/WP04-reference-agent-and-integration.md"
+
+  - id: WP05
+    title: "Docs + cross-mission surface map (SC-004) + verify"
+    dependencies:
+      - WP02
+      - WP03
+      - WP04
+    owned_files:
+      - "packages/ai-agent/README.md"
+      - "CHANGELOG.md"
+      - "kitty-specs/ai-agent-bimaaji-tools-01KS5VKR/verification.md"
+    authoritative_surface: "kitty-specs/ai-agent-bimaaji-tools-01KS5VKR/"
+    execution_mode: "planning_artifact"
+    requirement_refs:
+      - FR-012
+      - SC-004
+      - SC-006
+      - C-006
+      - C-007
+    subtasks:
+      - T014
+      - T015
+    prompt_file: "tasks/WP05-docs-and-verify.md"

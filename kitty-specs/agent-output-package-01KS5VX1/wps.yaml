@@ -1,0 +1,159 @@
+work_packages:
+  - id: WP01
+    title: "Package scaffold + AgentDetector"
+    dependencies: []
+    owned_files:
+      - "packages/agent-output/composer.json"
+      - "packages/agent-output/README.md"
+      - "packages/agent-output/src/AgentDetector.php"
+      - "packages/agent-output/tests/Unit/AgentDetectorTest.php"
+      - "packages/agent-output/tests/Unit/AgentDetectorTimingTest.php"
+    authoritative_surface: "packages/agent-output/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-001
+      - FR-002
+      - FR-010
+      - NFR-001
+      - C-001
+    subtasks:
+      - T001
+      - T002
+      - T003
+    prompt_file: "tasks/WP01-package-scaffold-and-detector.md"
+
+  - id: WP02
+    title: "FormatterInterface + PhpUnitFormatter + schema spec"
+    dependencies:
+      - WP01
+    owned_files:
+      - "packages/agent-output/src/FormatterInterface.php"
+      - "packages/agent-output/src/Formatter/PhpUnitFormatter.php"
+      - "packages/agent-output/tests/Contract/PhpUnitFormatterTest.php"
+      - "docs/specs/agent-output.md"
+    authoritative_surface: "packages/agent-output/src/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-003
+      - FR-004
+      - FR-007
+      - FR-008
+      - FR-011
+      - FR-014
+      - NFR-003
+      - C-001
+      - C-004
+    subtasks:
+      - T004
+      - T005
+      - T006
+      - T007
+    prompt_file: "tasks/WP02-formatter-interface-and-phpunit.md"
+
+  - id: WP03
+    title: "Remaining 7 formatters"
+    dependencies:
+      - WP02
+    owned_files:
+      - "packages/agent-output/src/Formatter/PestFormatter.php"
+      - "packages/agent-output/src/Formatter/PhpStanFormatter.php"
+      - "packages/agent-output/src/Formatter/PackageLayersFormatter.php"
+      - "packages/agent-output/src/Formatter/DeadCodeFormatter.php"
+      - "packages/agent-output/src/Formatter/GetQueryBindingsFormatter.php"
+      - "packages/agent-output/src/Formatter/ComposerPolicyFormatter.php"
+      - "packages/agent-output/src/Formatter/DriftDetectorFormatter.php"
+      - "packages/agent-output/tests/Contract/*Test.php"
+    authoritative_surface: "packages/agent-output/src/Formatter/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-004
+      - FR-008
+      - FR-011
+      - NFR-003
+      - C-001
+      - C-004
+    subtasks:
+      - T008
+      - T009
+      - T010
+      - T011
+      - T012
+      - T013
+      - T014
+    prompt_file: "tasks/WP03-remaining-formatters.md"
+
+  - id: WP04
+    title: "CLI integration (--output=json + auto-detect)"
+    dependencies:
+      - WP03
+    owned_files:
+      - "phpunit.xml.dist"
+      - "phpstan.neon"
+      - "bin/check-package-layers"
+      - "bin/check-dead-code"
+      - "bin/check-getquery-bindings"
+      - "bin/check-composer-policy"
+      - "tools/drift-detector.sh"
+      - "tests/Integration/PhaseN/AgentOutput/PhpUnitJsonOutputTest.php"
+      - "tests/Integration/PhaseN/AgentOutput/PackageLayersJsonOutputTest.php"
+      - "tests/Integration/PhaseN/AgentOutput/HumanOutputUnchangedTest.php"
+    authoritative_surface: "tests/Integration/PhaseN/AgentOutput/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-005
+      - FR-006
+      - FR-009
+      - FR-012
+      - FR-013
+      - SC-002
+      - C-002
+      - C-004
+    subtasks:
+      - T015
+      - T016
+      - T017
+      - T018
+    prompt_file: "tasks/WP04-cli-integration.md"
+
+  - id: WP05
+    title: "Release pipeline + extension docs"
+    dependencies:
+      - WP04
+    owned_files:
+      - ".github/workflows/split.yml"
+      - "CLAUDE.md"
+      - "CHANGELOG.md"
+      - "packages/agent-output/README.md"
+    authoritative_surface: ".github/workflows/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-015
+      - FR-016
+      - SC-004
+      - SC-005
+      - C-005
+    subtasks:
+      - T019
+      - T020
+      - T021
+    prompt_file: "tasks/WP05-release-pipeline.md"
+
+  - id: WP06
+    title: "Token-reduction verification + composer verify"
+    dependencies:
+      - WP05
+    owned_files:
+      - "kitty-specs/agent-output-package-01KS5VX1/verification.md"
+      - "tests/Integration/PhaseN/AgentOutput/TokenReductionSmokeTest.php"
+    authoritative_surface: "kitty-specs/agent-output-package-01KS5VX1/"
+    execution_mode: "planning_artifact"
+    requirement_refs:
+      - NFR-004
+      - SC-001
+      - SC-006
+      - C-006
+      - C-007
+    subtasks:
+      - T022
+      - T023
+    prompt_file: "tasks/WP06-token-reduction-and-verify.md"

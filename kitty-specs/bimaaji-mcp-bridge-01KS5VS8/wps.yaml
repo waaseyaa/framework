@@ -1,0 +1,121 @@
+work_packages:
+  - id: WP01
+    title: "Cross-mission gate + MCP infrastructure audit"
+    dependencies: []
+    owned_files:
+      - "tests/Integration/PhaseN/Mcp/BimaajiMcpBootSmokeTest.php"
+      - "packages/mcp/src/ServiceProvider.php"
+    authoritative_surface: "tests/Integration/PhaseN/Mcp/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - NFR-001
+      - NFR-005
+      - C-001
+      - C-006
+    subtasks:
+      - T001
+      - T002
+      - T003
+    prompt_file: "tasks/WP01-cross-mission-gate-and-mcp-audit.md"
+
+  - id: WP02
+    title: "8 read tools + spec-search backend"
+    dependencies:
+      - WP01
+    owned_files:
+      - "packages/mcp/src/Tool/Bimaaji/ApplicationInfoTool.php"
+      - "packages/mcp/src/Tool/Bimaaji/ListRoutesTool.php"
+      - "packages/mcp/src/Tool/Bimaaji/ListJsonApiTool.php"
+      - "packages/mcp/src/Tool/Bimaaji/ListEntitiesTool.php"
+      - "packages/mcp/src/Tool/Bimaaji/ListAdminTool.php"
+      - "packages/mcp/src/Tool/Bimaaji/SovereigntyProfileTool.php"
+      - "packages/mcp/src/Tool/Bimaaji/PublicSurfaceTool.php"
+      - "packages/mcp/src/Tool/Bimaaji/SearchSpecsTool.php"
+      - "tests/Integration/PhaseN/Mcp/BimaajiMcpReadTest.php"
+    authoritative_surface: "packages/mcp/src/Tool/Bimaaji/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-001
+      - FR-002
+      - FR-005
+      - FR-006
+      - FR-009
+      - NFR-002
+      - C-001
+      - C-004
+    subtasks:
+      - T004
+      - T005
+      - T006
+      - T007
+    prompt_file: "tasks/WP02-read-tools.md"
+
+  - id: WP03
+    title: "Capability gating + 2 mutation tools"
+    dependencies:
+      - WP02
+    owned_files:
+      - "packages/mcp/src/Capability/SessionCapabilities.php"
+      - "packages/mcp/src/Tool/Bimaaji/ProposeMutationTool.php"
+      - "packages/mcp/src/Tool/Bimaaji/GeneratePatchTool.php"
+      - "tests/Integration/PhaseN/Mcp/BimaajiMcpMutateTest.php"
+      - "tests/Integration/PhaseN/Mcp/BimaajiMcpCapabilityTest.php"
+    authoritative_surface: "packages/mcp/src/Capability/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-003
+      - FR-004
+      - FR-010
+      - FR-011
+      - NFR-003
+      - NFR-004
+      - SC-002
+      - SC-003
+      - C-003
+    subtasks:
+      - T008
+      - T009
+      - T010
+      - T011
+    prompt_file: "tasks/WP03-capability-and-mutation-tools.md"
+
+  - id: WP04
+    title: "Doctrine spec edits + supersession"
+    dependencies:
+      - WP03
+    owned_files:
+      - "docs/specs/mcp-endpoint.md"
+      - "docs/specs/bimaaji.md"
+      - "packages/mcp/README.md"
+    authoritative_surface: "docs/specs/"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-007
+      - FR-008
+      - SC-004
+      - C-005
+    subtasks:
+      - T012
+      - T013
+    prompt_file: "tasks/WP04-doctrine-spec-edits.md"
+
+  - id: WP05
+    title: "Cross-mission gate + verify + #1463 close"
+    dependencies:
+      - WP04
+    owned_files:
+      - "kitty-specs/bimaaji-mcp-bridge-01KS5VS8/verification.md"
+      - "CHANGELOG.md"
+    authoritative_surface: "kitty-specs/bimaaji-mcp-bridge-01KS5VS8/"
+    execution_mode: "planning_artifact"
+    requirement_refs:
+      - FR-012
+      - SC-001
+      - SC-005
+      - SC-006
+      - C-006
+      - C-007
+    subtasks:
+      - T014
+      - T015
+    prompt_file: "tasks/WP05-verify-and-issue-close.md"
