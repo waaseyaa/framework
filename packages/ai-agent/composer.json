@@ -63,6 +63,10 @@
         {
             "type": "path",
             "url": "../typed-data"
+        },
+        {
+            "type": "path",
+            "url": "../bimaaji"
         }
     ],
     "require": {
@@ -74,6 +78,7 @@
         "waaseyaa/ai-schema": "^0.1.0-alpha.188",
         "waaseyaa/ai-tools": "^0.1.0-alpha.188",
         "waaseyaa/api": "^0.1.0-alpha.188",
+        "waaseyaa/bimaaji": "^0.1.0-alpha.188",
         "waaseyaa/database-legacy": "^0.1.0-alpha.188",
         "waaseyaa/entity": "^0.1.0-alpha.188",
         "waaseyaa/entity-storage": "^0.1.0-alpha.188",
