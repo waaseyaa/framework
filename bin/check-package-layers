@@ -35,6 +35,7 @@ LAYER_BY_SHORT = {
     "mercure": 0,
     "analytics": 0,
     "oauth-provider": 0,
+    "agent-output": 0,
     # 1 — Core data (testing ships entity fixtures; composer requires entity — see CLAUDE.md)
     "entity": 1,
     "entity-storage": 1,
@@ -207,6 +208,7 @@ def is_kernel_exempt(rel_to_packages: str) -> bool:
 
 NS_PREFIX_TO_SHORT = {
     "Foundation": "foundation",
+    "AgentOutput": "agent-output",
     "Cache": "cache",
     "Plugin": "plugin",
     "TypedData": "typed-data",
