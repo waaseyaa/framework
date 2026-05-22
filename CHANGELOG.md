@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **bimaaji**: `BimaajiServiceProvider` now binds `MutationValidator`, `PatchGenerator`, and `SovereigntyGuardrails` as container-resolvable singletons. M1 left these container-invisible because no consumer needed them; M2 WP01 (`ai-agent-bimaaji-tools-01KS5VKR`) wires them up under the documented C-002 exception so M2 WP03's mutation-tool adapters can resolve them without further bimaaji surgery.
 - **bimaaji**: `bin/waaseyaa graph:dump` CLI command emits the application graph as JSON. Three flags: `--section=<key>` scopes output to a single section (admin/entities/jsonapi/public_surface/routing/sovereignty), `--strict` fails closed on provider errors with the throwable class name in the stderr message, and `--format` is reserved for a future yaml backend (only `json` accepted in beta). Output is byte-for-byte stable across runs for MCP consumers that diff snapshots. Closes M1 WP02 of mission `bimaaji-wakeup-01KS5VEY` (see `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md`).
 
 ## [0.1.0-alpha.188] - 2026-05-21
