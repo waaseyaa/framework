@@ -14,6 +14,9 @@ use Waaseyaa\Bimaaji\Introspection\JsonApi\JsonApiIntrospectionProvider;
 use Waaseyaa\Bimaaji\Introspection\PublicSurface\PublicSurfaceProvider;
 use Waaseyaa\Bimaaji\Introspection\Routing\RoutingIntrospectionProvider;
 use Waaseyaa\Bimaaji\Introspection\Sovereignty\SovereigntyIntrospectionProvider;
+use Waaseyaa\Bimaaji\Mutation\MutationValidator;
+use Waaseyaa\Bimaaji\Patch\PatchGenerator;
+use Waaseyaa\Bimaaji\Policy\SovereigntyGuardrails;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -129,6 +132,37 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
             fn(): GraphDumpHandler => new GraphDumpHandler(
                 providers: $this->defaultSectionProviders(),
                 logger: $this->resolveLogger(),
+            ),
+        );
+
+        // 5. Bind the mutation-side surface (MutationValidator, PatchGenerator,
+        //    SovereigntyGuardrails) so cross-package consumers (M2 ai-agent
+        //    tools, M3 mcp bridge) can resolve them via container::get(...).
+        //    M1 did not enumerate these bindings; M2's plan AD-04 documents
+        //    this as the expected WP01 follow-up under a one-line C-002
+        //    exception. See kitty-specs/ai-agent-bimaaji-tools-01KS5VKR/plan.md.
+        $this->singleton(
+            PatchGenerator::class,
+            fn(): PatchGenerator => new PatchGenerator(),
+        );
+
+        $this->singleton(
+            SovereigntyGuardrails::class,
+            fn(): SovereigntyGuardrails => SovereigntyGuardrails::withDefaultRules(
+                $this->resolveSovereigntyProfile(),
+            ),
+        );
+
+        // MutationValidator captures the application graph at construction.
+        // Bound as a singleton with the graph snapshotted on first resolve —
+        // consumers that need a fresh validator after schema mutations must
+        // call $this->resolve(MutationValidator::class) explicitly after
+        // re-registering the generator (or rebind on a per-request scope in
+        // an application-level provider).
+        $this->singleton(
+            MutationValidator::class,
+            fn(): MutationValidator => new MutationValidator(
+                $this->resolve(ApplicationGraphGenerator::class)->generate(),
             ),
         );
     }
