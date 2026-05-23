@@ -1,7 +1,7 @@
 {
-  "event_count": 1,
-  "last_event_id": "01KS8NV0F4TRVA52SCEGRA3XH2",
-  "materialized_at": "2026-05-22T20:25:43.140030+00:00",
+  "event_count": 2,
+  "last_event_id": "01KSAXYDQF6J7J382GK4VM2AW0",
+  "materialized_at": "2026-05-23T17:25:52.514827+00:00",
   "mission_number": "",
   "mission_slug": "agent-output-package-01KS5VX1",
   "mission_type": "software-dev",
@@ -10,7 +10,7 @@
     "blocked": 0,
     "canceled": 0,
     "claimed": 0,
-    "done": 1,
+    "done": 2,
     "for_review": 0,
     "in_progress": 0,
     "in_review": 0,
@@ -23,6 +23,13 @@
       "lane": "done",
       "last_event_id": "01KS8NV0F4TRVA52SCEGRA3XH2",
       "last_transition_at": "2026-05-22T20:25:43.140030+00:00"
+    },
+    "WP06": {
+      "actor": "claude",
+      "force_count": 1,
+      "lane": "done",
+      "last_event_id": "01KSAXYDQF6J7J382GK4VM2AW0",
+      "last_transition_at": "2026-05-23T17:25:52.514827+00:00"
     }
   }
 }
