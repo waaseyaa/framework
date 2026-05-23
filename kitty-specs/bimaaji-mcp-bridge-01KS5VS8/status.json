@@ -1,7 +1,7 @@
 {
-  "event_count": 1,
-  "last_event_id": "01KS9C27GQDXCVD9JXM2062PXP",
-  "materialized_at": "2026-05-23T02:54:08.407554+00:00",
+  "event_count": 2,
+  "last_event_id": "01KSANJVB4V81QXGFJ1EGM9XDZ",
+  "materialized_at": "2026-05-23T14:59:44.612428+00:00",
   "mission_number": "",
   "mission_slug": "bimaaji-mcp-bridge-01KS5VS8",
   "mission_type": "software-dev",
@@ -10,7 +10,7 @@
     "blocked": 0,
     "canceled": 0,
     "claimed": 0,
-    "done": 1,
+    "done": 2,
     "for_review": 0,
     "in_progress": 0,
     "in_review": 0,
@@ -23,6 +23,13 @@
       "lane": "done",
       "last_event_id": "01KS9C27GQDXCVD9JXM2062PXP",
       "last_transition_at": "2026-05-23T02:54:08.407554+00:00"
+    },
+    "WP02": {
+      "actor": "opus",
+      "force_count": 1,
+      "lane": "done",
+      "last_event_id": "01KSANJVB4V81QXGFJ1EGM9XDZ",
+      "last_transition_at": "2026-05-23T14:59:44.612428+00:00"
     }
   }
 }
