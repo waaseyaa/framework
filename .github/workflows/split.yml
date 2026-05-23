@@ -29,6 +29,7 @@ jobs:
           - { local: 'packages/http-client', remote: 'http-client' }
           - { local: 'packages/github', remote: 'github' }
           - { local: 'packages/ingestion', remote: 'ingestion' }
+          - { local: 'packages/agent-output', remote: 'agent-output' }
           - { local: 'packages/deployer', remote: 'deployer' }
           # Layer 1: Core Data
           - { local: 'packages/entity', remote: 'entity' }
