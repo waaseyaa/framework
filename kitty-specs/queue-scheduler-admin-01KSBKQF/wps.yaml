@@ -1,0 +1,74 @@
+work_packages:
+  - id: WP01
+    title: "Queue admin (failed-jobs MVP)"
+    dependencies: []
+    owned_files:
+      - "packages/api/src/Controller/QueueController.php"
+      - "packages/api/tests/Unit/Controller/QueueControllerTest.php"
+      - "packages/admin/app/pages/admin/queue.vue"
+      - "packages/admin/app/composables/useQueueJobs.ts"
+      - "packages/admin/app/components/admin/QueueJobRow.vue"
+      - "packages/admin/app/components/admin/QueuePayloadModal.vue"
+      - "packages/admin/test/unit/composables/useQueueJobs.test.ts"
+      - "packages/admin/e2e/queue.spec.ts"
+    authoritative_surface: "packages/api/src/Controller/QueueController.php + packages/admin/app/pages/admin/queue.vue"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-001
+      - FR-002
+      - FR-003
+      - FR-004
+      - FR-005
+      - FR-006
+      - FR-007
+      - FR-015
+      - FR-016
+      - NFR-001
+      - NFR-002
+      - C-001
+      - C-002
+    subtasks:
+      - T001
+      - T002
+      - T003
+      - T004
+      - T005
+    prompt_file: "tasks/WP01-queue-admin.md"
+
+  - id: WP02
+    title: "Scheduler admin"
+    dependencies:
+      - WP01
+    owned_files:
+      - "packages/scheduler/src/ScheduleRunner.php"
+      - "packages/scheduler/tests/Unit/ScheduleRunnerTest.php"
+      - "packages/api/src/Controller/SchedulerController.php"
+      - "packages/api/tests/Unit/Controller/SchedulerControllerTest.php"
+      - "packages/admin/app/pages/admin/scheduler.vue"
+      - "packages/admin/app/composables/useScheduledTasks.ts"
+      - "packages/admin/app/components/admin/SchedulerTaskRow.vue"
+      - "packages/admin/test/unit/composables/useScheduledTasks.test.ts"
+      - "packages/admin/e2e/scheduler.spec.ts"
+      - "docs/specs/admin-spa.md"
+    authoritative_surface: "packages/scheduler/src/ScheduleRunner.php + packages/api/src/Controller/SchedulerController.php + packages/admin/app/pages/admin/scheduler.vue"
+    execution_mode: "code_change"
+    requirement_refs:
+      - FR-008
+      - FR-009
+      - FR-010
+      - FR-011
+      - FR-012
+      - FR-013
+      - FR-014
+      - FR-015
+      - NFR-001
+      - NFR-002
+      - NFR-003
+      - C-002
+    subtasks:
+      - T006
+      - T007
+      - T008
+      - T009
+      - T010
+    prompt_file: "tasks/WP02-scheduler-admin.md"
