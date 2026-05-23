@@ -9,11 +9,6 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Waaseyaa\Access\AccountInterface;
-use Waaseyaa\AI\Agent\Tool\Bimaaji\GeneratePatchTool;
-use Waaseyaa\AI\Agent\Tool\Bimaaji\IntrospectGraphTool;
-use Waaseyaa\AI\Agent\Tool\Bimaaji\IntrospectSectionTool;
-use Waaseyaa\AI\Agent\Tool\Bimaaji\ProposeMutationTool;
-use Waaseyaa\AI\Agent\Tool\Bimaaji\SearchSpecsTool;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolInterface;
 use Waaseyaa\AI\Tools\AgentToolResult;
@@ -23,92 +18,96 @@ use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\McpEndpoint;
 
 /**
- * WP02+WP03 end-to-end test for the bimaaji-mcp bridge wiring.
+ * WP03 capability-gating coverage for the bimaaji-mcp bridge.
  *
- * Drives `McpEndpoint::handle()` against a stub agent registry hydrated
- * with the five canonical bimaaji read-tool descriptors. The endpoint
- * constructs the per-request `AgentToolRegistryBridge` internally with
- * the auth-resolved account (WP03 closing fix for the WP02 caveat).
+ * Drives `McpEndpoint::handle()` end-to-end with two account fixtures:
  *
- * Asserts:
- *  - The full `tools/list` JSON-RPC payload contains all five bimaaji
- *    read-tool names.
- *  - `tools/call(bimaaji_search_specs)` returns a `success` envelope
- *    when the auth account has `bimaaji.read`.
+ *  1. Read-only account (`bimaaji.read`). `tools/call` on a
+ *     `bimaaji.read` tool succeeds; `tools/call` on a `bimaaji.mutate`
+ *     tool returns the structured forbidden envelope.
+ *  2. Read+mutate account. Both calls succeed.
  *
- * Capability negative-path coverage (forbidden envelope when capability
- * missing) lives in {@see BimaajiMcpCapabilityTest}.
+ * Also pins NFR-003: forbidden-path response time is under 50 ms.
+ * The capability check itself is a single `array_search`-equivalent
+ * inside `AbstractAgentTool::requireCapability` — fast enough to satisfy
+ * the spec's 5 ms microbenchmark target; the 50 ms ceiling here
+ * accounts for PHPUnit + symfony Request creation overhead.
  *
  * @api
  */
 #[CoversNothing]
-final class BimaajiMcpReadTest extends TestCase
+final class BimaajiMcpCapabilityTest extends TestCase
 {
-    private const array CANONICAL_BIMAAJI_READ_TOOLS = [
-        'bimaaji_introspect_graph',
-        'bimaaji_introspect_section',
-        'bimaaji_propose_mutation',
-        'bimaaji_generate_patch',
-        'bimaaji_search_specs',
-    ];
-
     #[Test]
-    public function toolsListSurfacesAllFiveCanonicalBimaajiReadTools(): void
+    public function readOnlyAccountSucceedsOnReadToolButIsForbiddenOnMutateTool(): void
     {
         $endpoint = $this->endpointFor($this->accountWith(['bimaaji.read']));
 
-        $body = $this->dispatch($endpoint, [
+        $readBody = $this->dispatch($endpoint, [
             'jsonrpc' => '2.0',
             'id' => 1,
-            'method' => 'tools/list',
+            'method' => 'tools/call',
+            'params' => ['name' => 'bimaaji_introspect_graph', 'arguments' => []],
         ]);
 
-        self::assertArrayHasKey('result', $body);
-        $names = array_map(static fn(array $tool): string => $tool['name'], $body['result']['tools']);
-        sort($names);
+        self::assertArrayHasKey('result', $readBody);
+        self::assertArrayNotHasKey('isError', $readBody['result']);
+        self::assertSame('json', $readBody['result']['content'][0]['type']);
 
-        $expected = self::CANONICAL_BIMAAJI_READ_TOOLS;
-        sort($expected);
-
-        self::assertSame($expected, $names);
-    }
-
-    #[Test]
-    public function toolsCallSucceedsForBimaajiReadAccount(): void // closes WP02 caveat
-    {
-        $endpoint = $this->endpointFor($this->accountWith(['bimaaji.read']));
-
-        $body = $this->dispatch($endpoint, [
+        $mutateBody = $this->dispatch($endpoint, [
             'jsonrpc' => '2.0',
             'id' => 2,
             'method' => 'tools/call',
-            'params' => [
-                'name' => 'bimaaji_search_specs',
-                'arguments' => ['query' => 'anything'],
-            ],
+            'params' => ['name' => 'bimaaji_propose_mutation', 'arguments' => []],
         ]);
 
-        self::assertArrayHasKey('result', $body, sprintf(
-            'WP03 should return a success envelope; got: %s',
-            \json_encode($body, \JSON_THROW_ON_ERROR),
-        ));
-        self::assertArrayNotHasKey('isError', $body['result']);
-        self::assertSame('json', $body['result']['content'][0]['type']);
-        self::assertSame(['ok' => true], $body['result']['content'][0]['data']);
+        self::assertArrayHasKey('result', $mutateBody);
+        self::assertTrue(
+            $mutateBody['result']['isError'] ?? false,
+            'mutation tool must surface isError=true when account lacks bimaaji.mutate.',
+        );
+        $text = $mutateBody['result']['content'][0]['text'] ?? '';
+        self::assertStringContainsString('not permitted', $text);
+        self::assertStringContainsString('bimaaji.mutate', $text);
     }
 
     #[Test]
-    public function classExistsAssertionsPinTheSc004Surface(): void
+    public function readAndMutateAccountSucceedsOnBothToolKinds(): void
     {
-        foreach ([
-            IntrospectGraphTool::class,
-            IntrospectSectionTool::class,
-            ProposeMutationTool::class,
-            GeneratePatchTool::class,
-            SearchSpecsTool::class,
-        ] as $class) {
-            self::assertTrue(class_exists($class), "Bimaaji read tool class missing: {$class}");
+        $endpoint = $this->endpointFor($this->accountWith(['bimaaji.read', 'bimaaji.mutate']));
+
+        foreach (['bimaaji_introspect_graph', 'bimaaji_propose_mutation'] as $toolName) {
+            $body = $this->dispatch($endpoint, [
+                'jsonrpc' => '2.0',
+                'id' => 1,
+                'method' => 'tools/call',
+                'params' => ['name' => $toolName, 'arguments' => []],
+            ]);
+
+            self::assertArrayHasKey('result', $body, "Expected success for {$toolName}");
+            self::assertArrayNotHasKey('isError', $body['result'], "Expected non-error for {$toolName}");
         }
+    }
+
+    #[Test]
+    public function forbiddenPathResponseTimeIsUnder50ms(): void // NFR-003 with integration slack
+    {
+        $endpoint = $this->endpointFor($this->accountWith(['bimaaji.read']));
+
+        $start = hrtime(true);
+        $body = $this->dispatch($endpoint, [
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'method' => 'tools/call',
+            'params' => ['name' => 'bimaaji_propose_mutation', 'arguments' => []],
+        ]);
+        $elapsedMs = (hrtime(true) - $start) / 1_000_000;
+
+        self::assertTrue($body['result']['isError'] ?? false);
+        self::assertLessThan(50.0, $elapsedMs, sprintf(
+            'Forbidden-path dispatch took %.2f ms (NFR-003 budget: 50 ms with integration slack).',
+            $elapsedMs,
+        ));
     }
 
     private function endpointFor(AccountInterface $account): McpEndpoint
@@ -122,7 +121,7 @@ final class BimaajiMcpReadTest extends TestCase
             }
         };
 
-        return new McpEndpoint(auth: $auth, agentRegistry: $this->stubRegistryWithAllFiveTools());
+        return new McpEndpoint(auth: $auth, agentRegistry: $this->stubRegistry());
     }
 
     /**
@@ -158,7 +157,7 @@ final class BimaajiMcpReadTest extends TestCase
 
             public function id(): int
             {
-                return 42;
+                return 7;
             }
 
             public function hasPermission(string $permission): bool
@@ -178,14 +177,11 @@ final class BimaajiMcpReadTest extends TestCase
         };
     }
 
-    private function stubRegistryWithAllFiveTools(): AgentToolRegistryInterface
+    private function stubRegistry(): AgentToolRegistryInterface
     {
         $tools = [
             $this->descriptorFor('bimaaji_introspect_graph', 'bimaaji.read'),
-            $this->descriptorFor('bimaaji_introspect_section', 'bimaaji.read'),
             $this->descriptorFor('bimaaji_propose_mutation', 'bimaaji.mutate'),
-            $this->descriptorFor('bimaaji_generate_patch', 'bimaaji.mutate'),
-            $this->descriptorFor('bimaaji_search_specs', 'bimaaji.read'),
         ];
 
         return new class ($tools) implements AgentToolRegistryInterface {

@@ -6,43 +6,60 @@ namespace Waaseyaa\Mcp;
 
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
-use Waaseyaa\Mcp\Bridge\ToolExecutorInterface;
-use Waaseyaa\Mcp\Bridge\ToolRegistryInterface;
+use Waaseyaa\Mcp\Bridge\AgentToolRegistryBridge;
 
 /**
+ * Streamable-HTTP MCP endpoint. Authenticates the incoming request via
+ * {@see McpAuthInterface}, constructs an {@see AgentToolRegistryBridge}
+ * over the framework-wide {@see AgentToolRegistryInterface} with the
+ * auth-resolved {@see AccountInterface}, and dispatches the JSON-RPC
+ * payload against the bridge.
+ *
+ * Per-request bridge construction is the WP03 closing fix for the
+ * WP02 caveat (placeholder account at boot leaked into every
+ * `tools/call`). Now each request gets a bridge bound to the account
+ * `McpAuthInterface::authenticate()` resolved from the Authorization
+ * header, so per-tool capability enforcement (`AbstractAgentTool::requireCapability`)
+ * runs against the correct account.
+ *
  * @api
  */
 final readonly class McpEndpoint
 {
     public function __construct(
         private McpAuthInterface $auth,
-        private ToolRegistryInterface $registry,
-        private ToolExecutorInterface $executor,
+        private AgentToolRegistryInterface $agentRegistry,
     ) {}
 
     /**
      * Standard controller entry point — called by AppControllerRouter with typed injection.
+     *
+     * Note: the typed `$account` parameter comes from the session middleware (set on the
+     * `_account` request attribute), but `/mcp` is itself an authentication surface — the
+     * bearer token in the Authorization header determines the MCP user via
+     * {@see McpAuthInterface::authenticate()}, not the session account. The typed parameter
+     * is retained for `AppControllerRouter` contract compliance; the auth-resolved account
+     * is the one forwarded to the bridge.
      */
     public function handle(
         AccountInterface $account,
         HttpRequest $request,
     ): McpResponse {
         return $this->dispatch(
-            $request->getMethod(),
             $request->getContent(),
             $request->headers->get('Authorization'),
         );
     }
 
     private function dispatch(
-        string $method,
         string $body,
         ?string $authorizationHeader,
     ): McpResponse {
         // Authenticate.
-        $account = $this->auth->authenticate($authorizationHeader);
-        if ($account === null) {
+        $authenticated = $this->auth->authenticate($authorizationHeader);
+        if ($authenticated === null) {
             return new McpResponse(
                 body: \json_encode([
                     'jsonrpc' => '2.0',
@@ -52,6 +69,11 @@ final readonly class McpEndpoint
                 statusCode: 401,
             );
         }
+
+        // Construct the per-request bridge with the auth-resolved account.
+        // The bridge forwards $authenticated into every tool->execute() call,
+        // so per-tool capability gates run against the correct identity.
+        $bridge = new AgentToolRegistryBridge($this->agentRegistry, $authenticated);
 
         // Parse JSON-RPC request.
         try {
@@ -70,8 +92,8 @@ final readonly class McpEndpoint
         return match ($request['method']) {
             'initialize' => $this->handleInitialize($id),
             'ping' => $this->handlePing($id),
-            'tools/list' => $this->handleToolsList($id),
-            'tools/call' => $this->handleToolsCall($id, $params),
+            'tools/list' => $this->handleToolsList($id, $bridge),
+            'tools/call' => $this->handleToolsCall($id, $params, $bridge),
             default => $this->jsonRpcError(-32601, "Method not found: {$request['method']}", $id),
         };
     }
@@ -95,17 +117,17 @@ final readonly class McpEndpoint
         return $this->jsonRpcResult($id, []);
     }
 
-    private function handleToolsList(mixed $id): McpResponse
+    private function handleToolsList(mixed $id, AgentToolRegistryBridge $bridge): McpResponse
     {
         $tools = [];
-        foreach ($this->registry->getTools() as $tool) {
+        foreach ($bridge->getTools() as $tool) {
             $tools[] = $tool->toMcpDescriptor();
         }
 
         return $this->jsonRpcResult($id, ['tools' => $tools]);
     }
 
-    private function handleToolsCall(mixed $id, array $params): McpResponse
+    private function handleToolsCall(mixed $id, array $params, AgentToolRegistryBridge $bridge): McpResponse
     {
         $toolName = $params['name'] ?? null;
         $arguments = $params['arguments'] ?? [];
@@ -114,12 +136,12 @@ final readonly class McpEndpoint
             return $this->jsonRpcError(-32602, 'Missing required parameter: name', $id);
         }
 
-        $tool = $this->registry->getTool($toolName);
+        $tool = $bridge->getTool($toolName);
         if ($tool === null) {
             return $this->jsonRpcError(-32602, "Unknown tool: {$toolName}", $id);
         }
 
-        $result = $this->executor->execute($toolName, $arguments);
+        $result = $bridge->execute($toolName, $arguments);
 
         return $this->jsonRpcResult($id, $result);
     }

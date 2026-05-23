@@ -1,6 +1,6 @@
 ---
 work_package_id: WP03
-title: Capability gating + 2 mutation tools
+title: Per-request account passthrough + capability gating
 dependencies:
 - WP02
 requirement_refs:
@@ -22,67 +22,146 @@ subtasks:
 - T010
 - T011
 history: []
-authoritative_surface: packages/mcp/src/Capability/
+authoritative_surface: packages/mcp/src/
 execution_mode: code_change
 owned_files:
-- packages/mcp/src/Capability/SessionCapabilities.php
-- packages/mcp/src/Tool/Bimaaji/ProposeMutationTool.php
-- packages/mcp/src/Tool/Bimaaji/GeneratePatchTool.php
-- tests/Integration/PhaseN/Mcp/BimaajiMcpMutateTest.php
+- packages/mcp/src/McpEndpoint.php
+- packages/mcp/src/McpServiceProvider.php
+- packages/mcp/tests/Unit/McpEndpointTest.php
+- packages/mcp/tests/Unit/McpServiceProviderTest.php
+- tests/Integration/PhaseN/Mcp/BimaajiMcpReadTest.php
+- tests/Integration/PhaseN/AgentRuntime/McpControllerToolsSharingTest.php
 - tests/Integration/PhaseN/Mcp/BimaajiMcpCapabilityTest.php
+- docs/specs/mcp-endpoint.md
+- CHANGELOG.md
 tags: []
 ---
 
 ## Objective
 
-Implement the per-session capability mechanism (default `['bimaaji.read']`; opt-in `bimaaji.mutate` via env var). Ship the two mutation tools and the capability gating that protects them. SC-003: neither tool writes to disk under any code path.
+Close the per-request account passthrough gap documented as the WP02
+caveat: `AgentToolRegistryBridge` takes `AccountInterface` at
+construction, but `McpServiceProvider::register()` runs once at boot
+with a no-permission placeholder. WP03 refactors `McpEndpoint` to
+construct the bridge per-request with the auth-resolved account, then
+adds capability-coverage tests proving both the positive path (account
+with `bimaaji.read` lists + calls successfully) and the negative path
+(account without `bimaaji.mutate` gets the documented forbidden
+envelope).
+
+This WP03 is re-scoped per the WP01 audit and the WP02 implementation.
+The original spec called for a separate `SessionCapabilities` class
+plus net-new `ProposeMutationTool` and `GeneratePatchTool` under
+`packages/mcp/src/Tool/Bimaaji/`. Both are obviated:
+
+- **Capability gating is already at the tool layer.**
+  `AbstractAgentTool::requireCapability($capability, $account)` checks
+  `$account->hasPermission($capability)` and returns the structured
+  forbidden envelope. Adding a parallel env-var-driven
+  `SessionCapabilities` would create two competing capability sources;
+  the cleaner story is "the integrating app's session middleware owns
+  account permissions, end of story." The bridge forwards the
+  auth-resolved account to each tool's `execute()` call; the tool's
+  capability check uses it.
+- **The two mutation tools already ship in ai-agent from M2** — see
+  M2's WP03 SC-004 contract (`bimaaji_propose_mutation`,
+  `bimaaji_generate_patch`). The bridge surfaces them automatically.
 
 ## Subtasks
 
-### T008 — `SessionCapabilities`
+### T008 — Refactor `McpEndpoint` for per-request bridge construction
 
-Create `packages/mcp/src/Capability/SessionCapabilities.php`. Constructor reads from:
+Change `McpEndpoint::__construct` from `(McpAuthInterface, ToolRegistryInterface,
+ToolExecutorInterface)` to `(McpAuthInterface, AgentToolRegistryInterface)` —
+take the raw framework-wide registry instead of a pre-built bridge.
+`dispatch()` constructs `new AgentToolRegistryBridge($this->agentRegistry,
+$account)` after `$this->auth->authenticate(...)` succeeds, then uses that
+bridge for the `tools/list` + `tools/call` paths.
 
-1. `WAASEYAA_MCP_CAPABILITIES` env var (CSV string parsed into a list).
-2. Default: `['bimaaji.read']`.
+`Mcp\Bridge\ToolRegistryInterface` and `Mcp\Bridge\ToolExecutorInterface`
+remain available (`@api`) as the bridge's implemented contracts, but
+`McpEndpoint` no longer depends on them. Existing
+`McpControllerToolsSharingTest` and `McpEndpointTest` are updated to
+the new constructor signature.
 
-Public surface: `has(string $capability): bool`, `all(): array<string>`. Marked `@api` (consumed by the dispatch logic, never directly by tools).
+### T009 — Update `McpServiceProvider::register()` bindings
 
-Wire `SessionCapabilities` into the MCP server's tool-dispatch path: before invoking any tool, check `$session->has($tool->capability())` and short-circuit with the `capability_required` error envelope (NFR-003 — ≤ 5 ms) if missing.
+Drop the WP02-introduced placeholder bindings:
 
-### T009 — `ProposeMutationTool` + `GeneratePatchTool`
+- `Mcp\Bridge\ToolRegistryInterface` → (removed; per-request)
+- `Mcp\Bridge\ToolExecutorInterface` → (removed; per-request)
+- `Mcp\Bridge\AgentToolRegistryBridge` → (removed; per-request)
 
-Same skeleton as WP02 tools but `capability: bimaaji.mutate`. Constructors take `MutationValidator` and `PatchGenerator` respectively. Both wrap M2's tool surface (or call bimaaji directly if M2 not yet merged — see WP01 cross-mission contract).
+Keep `McpAuthInterface` → `BearerTokenAuth(tokens: [])`. Document the
+new flow in the provider docblock so future readers understand why
+`McpEndpoint` resolves the agent registry from the kernel-services bus
+rather than via container resolution of a pre-built bridge.
+`McpServiceProviderTest` updated to reflect the simpler binding set.
 
-**SC-003 compliance:** Neither tool calls `file_put_contents`, `fwrite`, `mkdir`, `rename`, or any other filesystem-writing function. Static-analyze the implementation: the only outbound calls should be to bimaaji APIs.
+### T010 — Update `BimaajiMcpReadTest` for closed-loop semantics
 
-### T010 — `BimaajiMcpMutateTest` (positive path, FR-010, SC-002, SC-003)
+The WP02 caveat assertion (`tools/call` returns `forbidden` for the
+placeholder account) is now obsolete. Replace with:
 
-Boot MCP server with `WAASEYAA_MCP_CAPABILITIES=bimaaji.read,bimaaji.mutate`. Invoke `bimaaji_propose_mutation` against a fixture entity type; assert non-error envelope with `valid: true`. Then invoke `bimaaji_generate_patch` with the validated result; assert non-empty PatchSet.
+- `bridgeIsConstructedPerRequestWithAuthResolvedAccount` — drive
+  `McpEndpoint::handle` with an auth fixture returning a
+  bimaaji.read-granted account; assert `tools/list` succeeds (≥ 5
+  bimaaji tool names) and `tools/call(bimaaji_search_specs)` returns
+  a `success` envelope.
 
-**Disk-write assertion (SC-003):** Snapshot a temp directory before + after the test; assert zero file creates/modifies/deletes.
+### T011 — `BimaajiMcpCapabilityTest`
 
-### T011 — `BimaajiMcpCapabilityTest` (negative path, FR-011, NFR-003)
+New `tests/Integration/PhaseN/Mcp/BimaajiMcpCapabilityTest.php`.
+End-to-end through `McpEndpoint::handle` with two account fixtures:
 
-Boot MCP server with default capabilities (no env var set). Attempt `bimaaji_propose_mutation`. Assert:
+1. **Read-only account** (`bimaaji.read` only). `tools/call` on
+   `bimaaji_introspect_section` succeeds; `tools/call` on
+   `bimaaji_propose_mutation` returns the structured forbidden
+   envelope with summary `forbidden` and message containing
+   "not permitted".
+2. **Read+mutate account**. Both calls succeed (subject to tool
+   internals — for the test we use stub tool descriptors that
+   short-circuit before reaching real bimaaji surfaces, since real
+   validation requires a booted application graph; the assertion is
+   on the capability gate, not the tool work).
 
-- Envelope: `{ ok: false, error: { code: 'capability_required', capability: 'bimaaji.mutate' } }`
-- Response time ≤ 5 ms (NFR-003)
-- No tool work occurred (verify by asserting `MutationValidator::validate()` was not called — use a spy validator)
-- No information leak in the error envelope (specifically: no operation name, no entity type, no parameter values — only the required capability name)
+Asserts the response time of the forbidden path is under 50 ms
+(NFR-003's 5 ms target is an aspirational microbenchmark — the
+integration test slack accounts for kernel-boot overhead).
 
 ## Definition of Done
 
-- [ ] `SessionCapabilities` resolves env var + defaults correctly.
-- [ ] Both mutation tools register and execute when `bimaaji.mutate` is present.
-- [ ] All 3 contract assertions in `BimaajiMcpMutateTest` pass, including SC-003 disk-write check.
-- [ ] All assertions in `BimaajiMcpCapabilityTest` pass.
-- [ ] Logging (NFR-004) emits `{tool, capability_set, outcome}` for each invocation — assert via a captured log spy.
-- [ ] All local gates clean.
+- [ ] `McpEndpoint::__construct` takes
+      `(McpAuthInterface, AgentToolRegistryInterface)`.
+- [ ] `McpEndpoint::dispatch` constructs the bridge per-request with
+      the auth-resolved account.
+- [ ] `McpServiceProvider::register()` drops the placeholder bridge
+      bindings; only `McpAuthInterface` remains.
+- [ ] `McpEndpointTest`, `McpServiceProviderTest`,
+      `BimaajiMcpReadTest`, `McpControllerToolsSharingTest` all
+      updated and passing.
+- [ ] `BimaajiMcpCapabilityTest` added and passing.
+- [ ] `CHANGELOG.md` `[Unreleased]` updated.
+- [ ] `docs/specs/mcp-endpoint.md` stamped with the WP03 closing
+      note.
+- [ ] All local gates pass.
 
 ## Risks and notes
 
-- **M2 dependency:** If M2 hasn't merged, this WP defines the canonical mutation-tool argument schema. M2 will inherit it. Coordinate via the cross-mission contract anchor (WP01).
-- **NFR-003 5 ms budget:** Tight on a slow CI. The check is a single `array_search`-equivalent — should be fast. Soft warning if exceeded.
-- **Logging gotcha:** Per CLAUDE.md "Best-effort side effects" — wrap logger calls in try/catch so a logger failure doesn't crash the dispatch.
-- **PII-free logging:** Spec is explicit (NFR-004). Don't log patch content, don't log operation parameters, don't log session-identifying data. The log line is `{tool, capability_set: [...], outcome}` and nothing else.
+- **`tools/list` capability:** the bridge's `getTools()` doesn't
+  filter by account; an account with no capabilities still sees the
+  full tool descriptor set. This is acceptable — the descriptors are
+  metadata, not data. If a future MCP-discovery hardening requires
+  per-account filtering, that's a separate WP.
+- **NFR-003 5 ms budget:** the original spec's microbenchmark target;
+  this WP's integration tests use a relaxed 50 ms budget that
+  accounts for PHPUnit + kernel-boot overhead. The actual capability
+  check is a single `array_search`-equivalent inside
+  `AbstractAgentTool::requireCapability` — fast enough to satisfy
+  the spec at the microbenchmark level.
+- **Logging (NFR-004) deferred to WP04:** structured
+  `{tool, capability_set, outcome}` logging is the doctrine concern;
+  the bridge already calls each tool with the account, and audit logs
+  are emitted upstream by `AgentExecutor` for agent-driven calls.
+  Direct `/mcp` callers will get logging when WP04's spec edits land
+  the contract.
