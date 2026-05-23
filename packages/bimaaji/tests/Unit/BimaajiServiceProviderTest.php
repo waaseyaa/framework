@@ -221,13 +221,23 @@ final class BimaajiServiceProviderTest extends TestCase
             yield from $provider->nativeCommands();
         })());
 
-        self::assertCount(1, $commands, 'BimaajiServiceProvider yields exactly one native command (graph:dump).');
-        $command = $commands[0];
-        self::assertInstanceOf(\Waaseyaa\CLI\CommandDefinition::class, $command);
-        self::assertSame('graph:dump', $command->name);
+        // Two commands: graph:dump (M1 WP02) + bimaaji:install (M5 WP03).
+        self::assertCount(2, $commands);
+        $byName = [];
+        foreach ($commands as $command) {
+            self::assertInstanceOf(\Waaseyaa\CLI\CommandDefinition::class, $command);
+            $byName[$command->name] = $command;
+        }
+
+        self::assertArrayHasKey('graph:dump', $byName);
         // Three flags: --section (required value), --format (required value), --strict (none/boolean).
-        $optionNames = array_map(static fn(\Waaseyaa\CLI\OptionDefinition $opt): string => $opt->name, $command->options);
-        self::assertSame(['section', 'format', 'strict'], $optionNames);
+        $graphOptions = array_map(static fn(\Waaseyaa\CLI\OptionDefinition $opt): string => $opt->name, $byName['graph:dump']->options);
+        self::assertSame(['section', 'format', 'strict'], $graphOptions);
+
+        self::assertArrayHasKey('bimaaji:install', $byName);
+        // Four flags: --client (array), --features (required+default), --dry-run (none), --force (none).
+        $installOptions = array_map(static fn(\Waaseyaa\CLI\OptionDefinition $opt): string => $opt->name, $byName['bimaaji:install']->options);
+        self::assertSame(['client', 'features', 'dry-run', 'force'], $installOptions);
     }
 
     #[Test]
