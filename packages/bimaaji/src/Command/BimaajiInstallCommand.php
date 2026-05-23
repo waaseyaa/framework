@@ -110,6 +110,10 @@ final class BimaajiInstallCommand
                 $summary['unchanged'],
                 $summary['skipped'],
             ));
+
+            if ($summary['errors'] > 0) {
+                $exitCode = 1;
+            }
         }
 
         return $exitCode;
@@ -170,7 +174,7 @@ final class BimaajiInstallCommand
 
     /**
      * @param list<ParsedSkill> $skills
-     * @return array{written: int, unchanged: int, skipped: int}
+     * @return array{written: int, unchanged: int, skipped: int, errors: int}
      */
     private function installForClient(
         \Waaseyaa\CLI\CliIO $io,
@@ -183,11 +187,13 @@ final class BimaajiInstallCommand
         $written = 0;
         $unchanged = 0;
         $skipped = 0;
+        $errors = 0;
 
         foreach ($transformer->targetFiles($skills) as $file) {
             $resolved = $this->resolveAndAssertInSandbox($io, $file, $projectRoot);
             if ($resolved === null) {
                 $skipped++;
+                $errors++;
                 continue;
             }
 
@@ -215,6 +221,7 @@ final class BimaajiInstallCommand
                         $file->path,
                     ));
                     $skipped++;
+                    $errors++;
                     continue;
                 }
                 if (!$io->confirm(sprintf('Overwrite %s?', $file->path), default: false)) {
@@ -225,13 +232,14 @@ final class BimaajiInstallCommand
 
             if (!$this->writeFile($resolved, $file->content, $io)) {
                 $skipped++;
+                $errors++;
                 continue;
             }
 
             $written++;
         }
 
-        return ['written' => $written, 'unchanged' => $unchanged, 'skipped' => $skipped];
+        return ['written' => $written, 'unchanged' => $unchanged, 'skipped' => $skipped, 'errors' => $errors];
     }
 
     private function resolveAndAssertInSandbox(\Waaseyaa\CLI\CliIO $io, TargetFile $file, string $projectRoot): ?string
@@ -246,23 +254,19 @@ final class BimaajiInstallCommand
 
         $intended = $projectRoot . DIRECTORY_SEPARATOR . $file->path;
 
-        // realpath may not resolve until the file exists; assert the textual
-        // prefix instead, on the canonicalised parent directory.
-        $parentDir = dirname($intended);
-        $parts = explode(DIRECTORY_SEPARATOR, $parentDir);
-        $accumulated = '';
-        foreach ($parts as $part) {
-            if ($part === '') {
-                $accumulated = DIRECTORY_SEPARATOR;
-                continue;
-            }
-            $accumulated = rtrim($accumulated, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $part;
-            $resolved = realpath($accumulated);
-            if ($resolved !== false && !str_starts_with($resolved . DIRECTORY_SEPARATOR, $projectRoot . DIRECTORY_SEPARATOR)) {
+        // The textual guard above already blocks `..` and absolute paths, so the
+        // would-be target is textually inside $projectRoot. Only do a realpath
+        // check on the *nearest existing ancestor* — that catches symlink-based
+        // escapes (e.g. someone replaced a project subdirectory with a symlink
+        // pointing outside the root) without rejecting on healthy ancestors
+        // that legitimately sit above the project root (`/`, `/home`, etc.).
+        $existingAncestor = $this->findNearestExistingAncestor(dirname($intended));
+        if ($existingAncestor !== null) {
+            $resolved = realpath($existingAncestor);
+            if ($resolved === false || !str_starts_with($resolved . DIRECTORY_SEPARATOR, $projectRoot . DIRECTORY_SEPARATOR)) {
                 $io->error(sprintf(
-                    'bimaaji:install: rejected target outside project root: %s resolves to %s (project root: %s).',
+                    'bimaaji:install: rejected target outside project root: %s resolves outside project root (project root: %s).',
                     $file->path,
-                    $resolved,
                     $projectRoot,
                 ));
                 return null;
@@ -270,6 +274,22 @@ final class BimaajiInstallCommand
         }
 
         return $intended;
+    }
+
+    private function findNearestExistingAncestor(string $path): ?string
+    {
+        while ($path !== '' && $path !== DIRECTORY_SEPARATOR && $path !== '.') {
+            if (is_dir($path)) {
+                return $path;
+            }
+            $parent = dirname($path);
+            if ($parent === $path) {
+                break;
+            }
+            $path = $parent;
+        }
+
+        return null;
     }
 
     private function writeFile(string $absolutePath, string $contents, \Waaseyaa\CLI\CliIO $io): bool
