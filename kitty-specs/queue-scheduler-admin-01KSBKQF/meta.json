@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-05-23T23:46:34.409994+00:00",
+  "friendly_name": "queue scheduler admin",
+  "mission_id": "01KSBKQFEWXHZA0E7M9CBH2DKP",
+  "mission_number": null,
+  "mission_slug": "queue-scheduler-admin-01KSBKQF",
+  "mission_type": "software-dev",
+  "slug": "queue-scheduler-admin-01KSBKQF",
+  "target_branch": "main"
+}
