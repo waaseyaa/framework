@@ -1,5 +1,6 @@
 # Bimaaji — Application Graph & Agent Mutation Layer
 
+<!-- Spec reviewed 2026-05-23 - M3 WP04 (bimaaji-mcp-bridge-01KS5VS8): added "MCP exposure" subsection enumerating the five bimaaji #[AsAgentTool] adapters surfaced over MCP through AgentToolRegistryBridge. Updated Implementation Status to flip M2 + M3 from "Deferred" to "Shipped". Bound SpecIndexProvider as a container singleton in BimaajiServiceProvider (WP02). -->
 <!-- Spec reviewed 2026-05-21 - M1 (bimaaji-wakeup-01KS5VEY) flipped Implementation Status from "scaffolding only" to "shipped". -->
 
 ## Implementation Status
@@ -18,10 +19,21 @@
 - WP03 — booted-kernel integration test under `tests/Integration/PhaseN/Bimaaji/` (FR-010, NFR-001, SC-005).
 - WP05 — cross-mission gate proving M2 needs no further bimaaji wiring (verification artifact at `kitty-specs/bimaaji-wakeup-01KS5VEY/verification.md`).
 
-**Deferred (post-M1):**
+**Shipped (M2 `ai-agent-bimaaji-tools-01KS5VKR`, 2026-05-22):**
 
-- MCP transport (M3 `bimaaji-mcp-bridge-01KS5VS8`) — supersedes the 2026-05-20 PHP-only deferral tracked in [#1463](https://github.com/waaseyaa/framework/issues/1463).
-- In-process `ai-agent` tool sources (M2 `ai-agent-bimaaji-tools-01KS5VKR`).
+- Four `#[AsAgentTool]` adapters under `packages/ai-agent/src/Tool/Bimaaji/`: `IntrospectGraphTool`, `IntrospectSectionTool`, `ProposeMutationTool`, `GeneratePatchTool`. Contract tests under `packages/ai-agent/tests/Contract/Bimaaji/`. Reference `BimaajiDemoAgent` + end-to-end agent-runtime tests prove the introspect → propose → generate flow against an in-memory SQLite kernel.
+- `BimaajiServiceProvider` now binds `MutationValidator`, `PatchGenerator`, and `SovereigntyGuardrails` as container singletons (M2 WP01 follow-up).
+- SC-004 surface contract pinned at `kitty-specs/ai-agent-bimaaji-tools-01KS5VKR/verification.md`.
+
+**Shipped (M3 `bimaaji-mcp-bridge-01KS5VS8`, 2026-05-23):**
+
+- Bimaaji surfaced over MCP via `packages/mcp/`'s new bridge architecture (`McpEndpoint` + per-request `AgentToolRegistryBridge`). See "MCP exposure" below for the tool inventory and `docs/specs/mcp-endpoint.md` § "Bimaaji MCP bridge" for the transport contract.
+- New fifth bimaaji tool: `bimaaji_search_specs` (substring search over `docs/specs/*.md` via `SpecIndexProvider`).
+- `SpecIndexProvider` is now container-bound singleton in `BimaajiServiceProvider`.
+- M3 supersedes the 2026-05-20 PHP-only deferral that closed [#1463](https://github.com/waaseyaa/framework/issues/1463).
+
+**Deferred (post-M3):**
+
 - Per-client guidelines/skills install command (M5 `bimaaji-install-command-01KS5W0S`).
 
 ## Purpose
@@ -147,3 +159,29 @@ packages/bimaaji/
 2. **Non-fatal provider failures** — A broken introspection provider logs a warning and is omitted from the graph, unless strict mode is enabled.
 3. **Versioned graph schema** — The top-level graph and each section carry version strings for backward compatibility.
 4. **No spec bodies in graph** — `spec_index` contains file paths and metadata, not full spec content, to keep the graph compact.
+
+## MCP exposure
+
+Bimaaji's surface is exposed to external MCP clients (Claude Code,
+Cursor, Claude Desktop, etc.) via five `#[AsAgentTool]` adapters living
+in `packages/ai-agent/src/Tool/Bimaaji/`. `packages/mcp/`'s
+`AgentToolRegistryBridge` adapts the framework-wide
+`Waaseyaa\AI\Tools\ToolRegistryInterface` to MCP's
+`tools/list` + `tools/call` envelope — no per-tool MCP code exists.
+
+| Tool name | Capability | Delegates to |
+|---|---|---|
+| `bimaaji_introspect_graph` | `bimaaji.read` | `ApplicationGraphGenerator::generate()->toArray()` |
+| `bimaaji_introspect_section` | `bimaaji.read` | `ApplicationGraphGenerator::generate()->getSection($key)` |
+| `bimaaji_propose_mutation` | `bimaaji.mutate` | `MutationValidator::validate()` |
+| `bimaaji_generate_patch` | `bimaaji.mutate` | `PatchGenerator::generate()` — never writes to disk |
+| `bimaaji_search_specs` | `bimaaji.read` | `SpecIndexProvider` + substring search over `docs/specs/*.md` |
+
+Capability gating runs at the tool layer:
+`AbstractAgentTool::requireCapability($cap, $account)` checks
+`$account->hasPermission($cap)` and returns a `forbidden` envelope on
+miss. The integrating application's permission model (typically
+session middleware + role/policy stack) owns capability grants.
+
+For full transport, authentication, and per-request bridge construction
+details — see `docs/specs/mcp-endpoint.md` § "Bimaaji MCP bridge".
