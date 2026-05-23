@@ -1,9 +1,34 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# Composer policy gate. See CLAUDE.md § "CI Gates".
+#
+# Output modes (M4 WP04B of mission `agent-output-package-01KS5VX1`):
+#
+#   --output=json    NDJSON envelope on stdout via Waaseyaa\AgentOutput\Formatter\ComposerPolicyFormatter
+#   WAASEYAA_OUTPUT=json    same effect via env var
+#
+# Default behaviour (no flag, no env var) is unchanged: human pass/fail text,
+# exit 0/1.
+set -uo pipefail
 
 ROOT_DIR="${ROOT_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 export ROOT_DIR
 
+OUTPUT_MODE="human"
+for arg in "$@"; do
+    case "$arg" in
+        --output=json) OUTPUT_MODE="json" ;;
+    esac
+done
+if [[ "${WAASEYAA_OUTPUT:-}" == "json" ]]; then
+    OUTPUT_MODE="json"
+fi
+export OUTPUT_MODE
+
+FINDINGS_FILE="$(mktemp -t waaseyaa-check-composer-policy-XXXXXX.json)"
+export FINDINGS_FILE
+trap 'rm -f "$FINDINGS_FILE"' EXIT
+
+set +e
 python3 - <<'PY'
 import json
 import os
@@ -12,6 +37,8 @@ import re
 import sys
 
 root = pathlib.Path(os.environ["ROOT_DIR"])
+output_mode = os.environ.get("OUTPUT_MODE", "human")
+findings_file = os.environ.get("FINDINGS_FILE", "")
 
 policy_id = {
     "sort_packages": "CP001",
@@ -39,6 +66,18 @@ import sys as _sys
 _CP_NEW_LIB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib", "internal-version-sync.php")
 _CP_NEW_EXPECTED_VERSION = None   # str | None — None means skip
 _CP_NEW_WARNING = None            # str | None — set when skipping with a reason
+
+
+def emit(line: str = "") -> None:
+    """Print human-readable text; suppressed in JSON mode."""
+    if output_mode == "human":
+        print(line)
+
+
+def emit_err(line: str) -> None:
+    if output_mode == "human":
+        print(line, file=sys.stderr)
+
 
 def _resolve_cp_new_expected() -> None:
     global _CP_NEW_EXPECTED_VERSION, _CP_NEW_WARNING
@@ -107,12 +146,20 @@ def _resolve_cp_new_expected() -> None:
 _resolve_cp_new_expected()
 
 
+failures_list: list[dict[str, str]] = []
+
+
 def fail_cp_new(rel_path: str, pkg: str, actual: str, expected: str) -> None:
-    print(f"FAIL [CP-NEW] {rel_path}")
-    print(f"  package:  {pkg}")
-    print(f"  actual:   {actual}")
-    print(f"  expected: {expected}")
-    print(f"  fix:      run bin/sync-internal-versions after tagging, or run WP04 backfill")
+    failures_list.append({
+        "file": rel_path,
+        "rule_code": "CP-NEW",
+        "explanation": f"{pkg}: actual={actual}, expected={expected}",
+    })
+    emit(f"FAIL [CP-NEW] {rel_path}")
+    emit(f"  package:  {pkg}")
+    emit(f"  actual:   {actual}")
+    emit(f"  expected: {expected}")
+    emit(f"  fix:      run bin/sync-internal-versions after tagging, or run WP04 backfill")
 
 # Cross-package constraints in publishable manifests must include an explicit
 # pre-release floor (alpha/beta/rc/dev), otherwise Composer can resolve a
@@ -124,9 +171,14 @@ TIGHT_FLOOR_PATTERN = re.compile(r"-(alpha|beta|rc|dev)\.")
 
 def fail(rule_key: str, rel_path: str, current: str, expected: str) -> None:
     rid = policy_id[rule_key]
-    print(f"FAIL [{rid}] {rel_path}")
-    print(f"  current: {current}")
-    print(f"  expected: {expected}")
+    failures_list.append({
+        "file": rel_path,
+        "rule_code": rid,
+        "explanation": f"current={current}; expected={expected}",
+    })
+    emit(f"FAIL [{rid}] {rel_path}")
+    emit(f"  current: {current}")
+    emit(f"  expected: {expected}")
 
 def _excluded(rel: str) -> bool:
     parts = set(rel.split("/"))
@@ -269,7 +321,7 @@ for path in in_scope:
 # ---------------------------------------------------------------------------
 
 if _CP_NEW_WARNING:
-    print(f"WARNING [CP-NEW] {_CP_NEW_WARNING}", file=sys.stderr)
+    emit_err(f"WARNING [CP-NEW] {_CP_NEW_WARNING}")
 elif _CP_NEW_EXPECTED_VERSION is not None:
     expected_constraint = f"^{_CP_NEW_EXPECTED_VERSION}"
     for path in in_scope:
@@ -293,10 +345,36 @@ elif _CP_NEW_EXPECTED_VERSION is not None:
                         errors += 1
                         fail_cp_new(rel, pkg, version, expected_constraint)
 
-if errors == 0:
-    print("OK: Composer policy checks passed")
-    sys.exit(0)
+# Persist structured findings for the bash wrapper's PHP shim.
+if findings_file:
+    try:
+        pathlib.Path(findings_file).write_text(json.dumps({
+            "files_scanned": len(in_scope),
+            "failures": failures_list,
+        }))
+    except OSError:
+        pass
 
-print(f"Composer policy check failed with {errors} violation(s)")
-sys.exit(1)
+if output_mode == "human":
+    if errors == 0:
+        print("OK: Composer policy checks passed")
+        sys.exit(0)
+    print(f"Composer policy check failed with {errors} violation(s)")
+    sys.exit(1)
+
+# JSON mode: stay silent on stdout/stderr — the bash wrapper emits the envelope.
+sys.exit(0 if errors == 0 else 1)
 PY
+PYTHON_EXIT=$?
+set -e
+
+if [[ "$OUTPUT_MODE" == "json" ]]; then
+    php -d display_errors=stderr -r '
+require getenv("ROOT_DIR") . "/vendor/autoload.php";
+$raw = @file_get_contents(getenv("FINDINGS_FILE"));
+$findings = is_string($raw) && $raw !== "" ? json_decode($raw, true, 512, JSON_THROW_ON_ERROR) : ["files_scanned" => 0, "failures" => []];
+echo (new Waaseyaa\AgentOutput\Formatter\ComposerPolicyFormatter())->format($findings);
+'
+fi
+
+exit "$PYTHON_EXIT"
