@@ -1,5 +1,6 @@
 # MCP Endpoint
 
+<!-- Spec reviewed 2026-05-23 - M3 WP04 (bimaaji-mcp-bridge-01KS5VS8): doctrine spec edits. Added supersession callout to the 2026-05-20 "Bimaaji MCP positioning (PHP-only)" section + new "Bimaaji MCP bridge" section at end of spec documenting the shipped surface (5 ai-agent tools, account-permission capability model, HTTP Streamable transport via /mcp, per-request bridge architecture, disk-write invariant, M-G → M3 transition rationale, post-WP01..WP03 file reference). Notes the divergence from the original AD-02 ten-tool inventory (collapsed to five by re-using IntrospectSection's section enumeration). -->
 <!-- Spec reviewed 2026-05-23 - M3 WP03 (bimaaji-mcp-bridge-01KS5VS8): closed the WP02 placeholder-account caveat. McpEndpoint::__construct signature changed from (McpAuthInterface, Mcp\Bridge\ToolRegistryInterface, Mcp\Bridge\ToolExecutorInterface) to (McpAuthInterface, Waaseyaa\AI\Tools\ToolRegistryInterface). McpEndpoint::dispatch() now constructs the per-request AgentToolRegistryBridge with the account McpAuthInterface::authenticate() resolved from the Authorization header — so per-tool capability gating (AbstractAgentTool::requireCapability) runs against the auth-resolved identity rather than the boot-time placeholder. McpServiceProvider::register() dropped the three placeholder bridge bindings; only McpAuthInterface remains. Mcp\Bridge\ToolRegistryInterface + ToolExecutorInterface still @api as bridge contracts but no longer container-bound. New end-to-end BimaajiMcpCapabilityTest pins both positive (read account → success) and negative (mutation tool with read-only account → forbidden envelope) paths. -->
 <!-- Spec reviewed 2026-05-23 - M3 WP02 (bimaaji-mcp-bridge-01KS5VS8): McpServiceProvider::register() now wires the bridge architecture documented in the Overview. Three new bindings — Mcp\Auth\McpAuthInterface → BearerTokenAuth(tokens: []), Mcp\Bridge\AgentToolRegistryBridge (singleton wrapping Waaseyaa\AI\Tools\ToolRegistryInterface from the kernel-services bus), and both Mcp\Bridge\ToolRegistryInterface + Mcp\Bridge\ToolExecutorInterface bound to the bridge singleton. Bridge account is a no-permission placeholder until WP03 lands per-request account passthrough (auth-resolved account from McpEndpoint::handle's typed injection). tools/list works through the bridge; tools/call returns the documented `forbidden` envelope. New end-to-end test tests/Integration/PhaseN/Mcp/BimaajiMcpReadTest.php pins both behaviours. Also added: bimaaji_search_specs ai-agent tool (in packages/ai-agent/src/Tool/Bimaaji/SearchSpecsTool.php) + SpecIndexProvider container binding in BimaajiServiceProvider. -->
 <!-- Spec reviewed 2026-05-22 - M3 WP01 (bimaaji-mcp-bridge-01KS5VS8): retired dead foundation McpRouter intercept (deleted packages/foundation/src/Http/Router/McpRouter.php + HttpKernel:411 entry + McpRouterTest); /mcp dispatch now flows exclusively through SSR AppControllerRouter → McpEndpoint::handle as already documented at line 6's note. Legacy McpController + Tools/ + Cache/ + Rpc/ classes remain in-place but unreachable from HTTP routing (still test-covered via direct instantiation in tests/Integration/Phase14/AiMcpIntegrationTest.php); a future cleanup mission may retire them. WP01 also pinned the SC-004 bimaaji surface in tests/Integration/PhaseN/Mcp/BimaajiMcpBootSmokeTest.php so M3's subsequent WPs cannot regress the four M2 tool contracts. -->
@@ -543,6 +544,13 @@ packages/mcp/
 
 ## Bimaaji MCP positioning (2026-05-20)
 
+> **Superseded 2026-05-23 by mission `bimaaji-mcp-bridge-01KS5VS8`.** The
+> 2026-05-20 PHP-only deferral was correct for the inherited broken Node
+> scaffolding but is no longer the framework's posture. See the new
+> "Bimaaji MCP bridge" section below for the active doctrine. This
+> section is preserved as the audit trail of the M-G decision and its
+> reversal (C-005).
+
 `packages/bimaaji/` ships PHP-only. Bimaaji's graph-introspection surface is intentionally NOT exposed via an MCP server in the current alpha range.
 
 If a consumer requests bimaaji-via-MCP, the path forward is **Option 2** from the M-G research mission: extend `packages/mcp/` with bimaaji tools using `Waaseyaa\Mcp\Bridge\ToolRegistryInterface` (already `@api`). No Node sidecar.
@@ -550,3 +558,140 @@ If a consumer requests bimaaji-via-MCP, the path forward is **Option 2** from th
 The prior Node-based MCP server attempt (April 2026, removed in commit `46f4c41af`) failed at Packagist's non-PHP-artifact distribution boundary; do not restore that approach.
 
 Decision artifacts: `kitty-specs/archive/bimaaji-mcp-strategic-direction-01KS3SZB/decision.md`.
+
+## Bimaaji MCP bridge
+
+Active doctrine (M3 `bimaaji-mcp-bridge-01KS5VS8`, shipped 2026-05-23).
+Exposes bimaaji over MCP via `packages/mcp/`. Reverses the
+2026-05-20 M-G "PHP-only" deferral above.
+
+### Architecture
+
+External MCP clients (Claude Code, Cursor, Claude Desktop, etc.)
+authenticate against `/mcp` over Streamable HTTP (the MCP-side
+transport this project already ships — note this differs from the M3
+spec's original "stdio only" assumption; HTTP is the canonical
+delivery). `McpEndpoint::handle()`:
+
+1. Calls `McpAuthInterface::authenticate($authorizationHeader)` to
+   resolve an `AccountInterface` from the Authorization bearer token.
+2. Constructs a per-request `AgentToolRegistryBridge` with the raw
+   framework-wide `Waaseyaa\AI\Tools\ToolRegistryInterface` plus the
+   auth-resolved account.
+3. Dispatches the JSON-RPC payload (`tools/list` / `tools/call` /
+   `initialize` / `ping`) against the bridge.
+
+The bridge forwards the auth-resolved account into every
+`AgentToolInterface::execute()` call. Each `#[AsAgentTool]` tool runs
+`AbstractAgentTool::requireCapability($capability, $account)` first
+and short-circuits with the `forbidden` envelope if the account lacks
+the required permission. There is no separate `SessionCapabilities`
+class — account permissions ARE the capability gate.
+
+### Bimaaji tool inventory (shipped)
+
+The bimaaji surface over MCP is five `#[AsAgentTool]` adapters living
+in `packages/ai-agent/src/Tool/Bimaaji/`. The bridge wraps them
+automatically; no per-tool MCP code exists.
+
+| Tool name | Capability | Delegates to |
+|---|---|---|
+| `bimaaji_introspect_graph` | `bimaaji.read` | `ApplicationGraphGenerator::generate()->toArray()` (full graph: 6 sections + version) |
+| `bimaaji_introspect_section` | `bimaaji.read` | `ApplicationGraphGenerator::generate()->getSection($key)` — `$key` ∈ {admin, entities, jsonapi, public_surface, routing, sovereignty} |
+| `bimaaji_propose_mutation` | `bimaaji.mutate` | `MutationValidator::validate()` — returns `MutationResult::toArray()` |
+| `bimaaji_generate_patch` | `bimaaji.mutate` | `PatchGenerator::generate()` — returns `PatchSet::toArray()`, never writes to disk |
+| `bimaaji_search_specs` | `bimaaji.read` | `SpecIndexProvider` + substring search over `docs/specs/*.md` |
+
+The original M3 plan AD-02 inventoried eight read tools
+(`application_info`, `list_*`, `sovereignty_profile`, `public_surface`,
+`search_specs`); the WP01 audit collapsed six of those to
+`bimaaji_introspect_section` (already parameterised by the same six
+section keys) and merged `application_info` into
+`bimaaji_introspect_graph` (full-graph entry point). Only
+`bimaaji_search_specs` was genuinely new ai-agent work.
+
+### Capability model
+
+- **Default capabilities** come from the integrating application's
+  session/role/policy stack — `$account->hasPermission($cap)` is the
+  source of truth.
+- **Read access** (`bimaaji.read`) is intended to be broadly granted
+  to authenticated accounts that operate MCP clients.
+- **Mutation access** (`bimaaji.mutate`) is opt-in per role/account;
+  the framework does not grant it by default.
+
+The M3 plan's env-var-driven `WAASEYAA_MCP_CAPABILITIES` mechanism was
+dropped during re-scope — adding a parallel capability source would
+create two competing decision points. The integrating app's
+permission model owns the answer.
+
+### Disk-write invariant (SC-003, C-003)
+
+`bimaaji_generate_patch` returns a `PatchSet` value object — content,
+diff text, target path, all in memory. The MCP server **never** writes
+to disk. The calling MCP client is responsible for any persistence
+(`fs/write_text_file` on the client side, a human-reviewed PR, etc.).
+This is asserted by
+`packages/ai-agent/tests/Contract/Bimaaji/GeneratePatchToolTest::doesNotWriteToFilesystem`.
+
+### Tool-name convention (NFR-005)
+
+All bimaaji-surfaced tools use the `bimaaji_` prefix. The
+framework-wide `AttributeToolRegistry` enforces name uniqueness
+(first-registered wins; `if (!isset($this->tools[$tool->name]))`
+guards the hydration loop). New bimaaji-adjacent tools MUST extend
+the prefix.
+
+### M-G → M3 transition rationale
+
+The 2026-05-20 M-G "PHP-only" deferral was tied to the inherited
+broken Node scaffolding (April 2026, removed in commit
+`46f4c41af`), not to a "no external transport" principle. Boost's
+shipped success and the M-G mission's own "Option 2" (extend
+`packages/mcp/`) framed PHP-hosted MCP as the right path. M3
+implements that path. #1463 is the audit trail and remains closed.
+
+### File reference (post-WP01..WP03)
+
+```
+packages/mcp/
+  src/
+    McpEndpoint.php           — JSON-RPC dispatcher; per-request bridge
+    McpResponse.php           — value object
+    McpRouteProvider.php      — registers /mcp + /.well-known/mcp.json
+    McpServerCard.php         — server-card route
+    McpServiceProvider.php    — binds McpAuthInterface default
+    Auth/
+      McpAuthInterface.php    — auth contract
+      BearerTokenAuth.php     — default (empty-token) impl
+    Bridge/
+      AgentToolRegistryBridge.php   — per-request bridge
+      ToolRegistryInterface.php     — @api (bridge contract)
+      ToolExecutorInterface.php     — @api (bridge contract)
+
+packages/ai-agent/src/Tool/Bimaaji/
+  IntrospectGraphTool.php
+  IntrospectSectionTool.php
+  ProposeMutationTool.php
+  GeneratePatchTool.php
+  SearchSpecsTool.php
+
+tests/Integration/PhaseN/Mcp/
+  BimaajiMcpBootSmokeTest.php    — SC-004 reflection pins (WP01)
+  BimaajiMcpReadTest.php         — closed-loop semantics (WP02+WP03)
+  BimaajiMcpCapabilityTest.php   — capability gating (WP03)
+```
+
+Legacy `McpController` + `Tools/*` + `Cache/` + `Rpc/*` files remain
+in-place from the pre-M3 architecture, kept alive by direct-instantiation
+tests in `tests/Integration/Phase14/AiMcpIntegrationTest.php` and the
+package's own unit tests. They are no longer reachable from HTTP
+routing (the foundation `McpRouter` was retired in WP01); a future
+cleanup mission may delete them.
+
+### See also
+
+- Mission: `kitty-specs/bimaaji-mcp-bridge-01KS5VS8/`
+- SC-004 anchor: `kitty-specs/ai-agent-bimaaji-tools-01KS5VKR/verification.md`
+- Package README: `packages/mcp/README.md`
+- Bimaaji spec (MCP exposure subsection): `docs/specs/bimaaji.md`
