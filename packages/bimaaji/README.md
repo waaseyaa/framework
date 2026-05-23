@@ -47,17 +47,64 @@ final class FooSectionProvider implements GraphSectionProviderInterface
 }
 ```
 
+## Installing guidelines / skills (`bin/waaseyaa bimaaji:install`)
+
+Ship the framework-canonical agent skill pack to a consumer project in
+per-client formats. Lifted in spirit from Laravel Boost's
+`php artisan boost:install`; framework-native, no Node runtime.
+
+```bash
+# Install for one client
+bin/waaseyaa bimaaji:install --client=claude
+
+# Install for several (comma-separated or repeated)
+bin/waaseyaa bimaaji:install --client=claude,cursor --force
+
+# Preview without writing
+bin/waaseyaa bimaaji:install --client=cursor --dry-run
+
+# Interactive client selection when omitted on a TTY
+bin/waaseyaa bimaaji:install
+```
+
+Seven launch clients: `claude`, `cursor`, `codex`, `copilot`, `gemini`,
+`windsurf`, `junie`. See
+[`docs/specs/bimaaji-install.md`](../../docs/specs/bimaaji-install.md)
+for the per-client target paths, flag semantics, interactive UX, exit
+codes, sandbox guarantees, and the five-step extension guide for
+adding new clients.
+
 ## Status
 
-Bimaaji ships **PHP-only** in the current alpha range. The MCP server bindings that previously lived under `mcp/` (Node-based `server.js` exposing `bimaaji_ping` / `bimaaji_about` tools) were removed in #1387/#1464; they never reached consumers reliably (`composer bimaaji-mcp-install` exited 254 in downstream projects because `vendor/waaseyaa/bimaaji/mcp/server.js` was not present at runtime). MCP exposure is the subject of a follow-up mission (M3 of the AI ecosystem beta tightening cluster; see `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md`). The 2026-05-20 "PHP-only" deferral tracked in [#1463](https://github.com/waaseyaa/framework/issues/1463) is being revisited as part of that follow-up.
+Bimaaji is now exposed over MCP via [`packages/mcp/`](../mcp/)'s
+per-request bridge architecture as of 2026-05-23 (M3
+`bimaaji-mcp-bridge-01KS5VS8`). Five `#[AsAgentTool]` adapters live
+in `packages/ai-agent/src/Tool/Bimaaji/` and surface automatically
+through the `AgentToolRegistryBridge` with no per-tool MCP code. See
+[`docs/specs/mcp-endpoint.md`](../../docs/specs/mcp-endpoint.md) §
+"Bimaaji MCP bridge" for the transport contract and `packages/mcp/README.md`
+for the operator-facing summary.
 
-### Consumer cleanup
+The 2026-05-20 "PHP-only" deferral that closed
+[#1463](https://github.com/waaseyaa/framework/issues/1463) was formally
+superseded by M3; the issue stays closed with a supersession comment
+linking to the M3 PR set.
 
-Projects (e.g., Minoo) that previously wired bimaaji's MCP server should:
+### Legacy MCP-server cleanup (pre-M3 consumers)
 
-1. Remove any `mcpServers.bimaaji` entry from `.claude/settings.json` (it pointed at a non-existent `vendor/waaseyaa/bimaaji/mcp/server.js`).
-2. Drop `composer bimaaji-mcp-install` from post-install hooks or contributor docs — the script body was Minoo-local and has no upstream entry point.
-3. Wait for [#1463](https://github.com/waaseyaa/framework/issues/1463) (or its replacement) before re-introducing any bimaaji MCP tooling.
+Projects (e.g., Minoo) that previously wired the deleted Node-based
+bimaaji MCP server (`vendor/waaseyaa/bimaaji/mcp/server.js`, removed
+in #1387/#1464) should:
+
+1. Remove any `mcpServers.bimaaji` entry pointing at the deleted
+   `server.js` from `.claude/settings.json`. The replacement is the
+   framework-native `/mcp` HTTP endpoint shipped by `waaseyaa/mcp`.
+2. Drop `composer bimaaji-mcp-install` from post-install hooks or
+   contributor docs — the script body was Minoo-local and has no
+   upstream entry point.
+3. Wire the new HTTP `/mcp` endpoint instead. See
+   `packages/mcp/README.md` for the `claude_desktop_config.json`
+   example fragment.
 
 ## Where to read more
 
