@@ -4,7 +4,10 @@ work_packages:
     dependencies: []
     owned_files:
       - "tests/Integration/PhaseN/Mcp/BimaajiMcpBootSmokeTest.php"
-      - "packages/mcp/src/ServiceProvider.php"
+      - "packages/foundation/src/Http/Router/McpRouter.php"
+      - "packages/foundation/src/Kernel/HttpKernel.php"
+      - "packages/foundation/tests/Unit/Http/Router/McpRouterTest.php"
+      - "docs/specs/mcp-endpoint.md"
     authoritative_surface: "tests/Integration/PhaseN/Mcp/"
     execution_mode: "code_change"
     requirement_refs:
