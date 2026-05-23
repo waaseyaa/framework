@@ -24,6 +24,7 @@ declare(strict_types=1);
 $mode = 'verify';
 $customScanDir = null;
 $customBaseline = null;
+$outputMode = getenv('WAASEYAA_OUTPUT') === 'json' ? 'json' : 'human';
 
 for ($i = 1; $i < $argc; ++$i) {
     $arg = $argv[$i];
@@ -35,8 +36,27 @@ for ($i = 1; $i < $argc; ++$i) {
         $customScanDir = $argv[++$i] ?? null;
     } elseif ($arg === '--baseline') {
         $customBaseline = $argv[++$i] ?? null;
+    } elseif ($arg === '--output=json') {
+        $outputMode = 'json';
     }
 }
+
+// JSON-mode emitter (M4 WP04B). In `generate` mode the script is interactive
+// and a human-facing operation; --output=json only affects the verify path.
+$emitJsonEnvelope = static function (int $baselineCount, int $newCount, array $offenders): void {
+    require __DIR__ . '/../vendor/autoload.php';
+    echo new \Waaseyaa\AgentOutput\Formatter\GetQueryBindingsFormatter()->format([
+        'baseline_count' => $baselineCount,
+        'new_count' => $newCount,
+        'offenders' => $offenders,
+    ]);
+};
+
+$emit = static function (string $line) use ($outputMode): void {
+    if ($outputMode === 'human') {
+        echo $line;
+    }
+};
 
 $repoRoot = dirname(__DIR__);
 $baselineFile = $customBaseline ?? ($repoRoot . '/tools/getquery-bindings-baseline.txt');
@@ -62,14 +82,25 @@ if ($mode === 'generate') {
 // Verify mode
 if (!file_exists($baselineFile)) {
     if ($offenders === []) {
-        echo "check-getquery-bindings: OK (no baseline, no offenders found)\n";
+        $emit("check-getquery-bindings: OK (no baseline, no offenders found)\n");
+        if ($outputMode === 'json') {
+            $emitJsonEnvelope(0, 0, []);
+        }
         exit(0);
     }
-    echo "ERROR: Baseline file not found: {$baselineFile}\n";
-    echo "Run 'php bin/check-getquery-bindings --generate-baseline' to create it.\n";
-    echo count($offenders) . " unbound callsite(s) found:\n";
+    $emit("ERROR: Baseline file not found: {$baselineFile}\n");
+    $emit("Run 'php bin/check-getquery-bindings --generate-baseline' to create it.\n");
+    $emit(count($offenders) . " unbound callsite(s) found:\n");
     foreach ($offenders as $entry) {
-        echo "  {$entry}\n";
+        $emit("  {$entry}\n");
+    }
+    if ($outputMode === 'json') {
+        $offenderRows = array_map(static fn(string $entry): array => [
+            'file' => explode(':', $entry, 2)[0] ?? $entry,
+            'line' => (int) (explode(':', $entry, 2)[1] ?? 0),
+            'snippet' => '',
+        ], $offenders);
+        $emitJsonEnvelope(0, count($offenders), $offenderRows);
     }
     exit(1);
 }
@@ -79,28 +110,46 @@ $baseline = loadBaseline($baselineFile);
 // Check for incomplete baseline entries (missing inline comments) — fail CI if found
 $incomplete = validateBaselineComments($baselineFile);
 if ($incomplete !== []) {
-    echo "ERROR: Incomplete baseline entries (missing mandatory inline comment):\n";
+    $emit("ERROR: Incomplete baseline entries (missing mandatory inline comment):\n");
     foreach ($incomplete as $line) {
-        echo "  {$line}\n";
+        $emit("  {$line}\n");
     }
-    echo "Each entry MUST have an inline comment: <path>:<line>  # <reason>\n";
+    $emit("Each entry MUST have an inline comment: <path>:<line>  # <reason>\n");
+    if ($outputMode === 'json') {
+        $emitJsonEnvelope(count($baseline), count($incomplete), array_map(static fn(string $line): array => [
+            'file' => trim($line),
+            'line' => 0,
+            'snippet' => 'incomplete-baseline-entry',
+        ], $incomplete));
+    }
     exit(1);
 }
 
 $newOffenders = array_diff($offenders, $baseline);
 if ($newOffenders !== []) {
     foreach ($newOffenders as $entry) {
-        echo "NEW unbound getQuery()->execute() callsite: {$entry}\n";
+        $emit("NEW unbound getQuery()->execute() callsite: {$entry}\n");
     }
     $count = count($newOffenders);
-    echo "{$count} new unbound callsite(s) found.\n";
-    echo "Fix the callsite or add it to {$baselineFile} with a mandatory exemption comment.\n";
-    echo "See CLAUDE.md § CI gates for details.\n";
+    $emit("{$count} new unbound callsite(s) found.\n");
+    $emit("Fix the callsite or add it to {$baselineFile} with a mandatory exemption comment.\n");
+    $emit("See CLAUDE.md § CI gates for details.\n");
+    if ($outputMode === 'json') {
+        $offenderRows = array_map(static fn(string $entry): array => [
+            'file' => explode(':', $entry, 2)[0] ?? $entry,
+            'line' => (int) (explode(':', $entry, 2)[1] ?? 0),
+            'snippet' => '',
+        ], array_values($newOffenders));
+        $emitJsonEnvelope(count($baseline), count($newOffenders), $offenderRows);
+    }
     exit(1);
 }
 
 $baselineCount = count($baseline);
-echo "check-getquery-bindings: OK ({$baselineCount} known exemption(s), 0 new offenders)\n";
+$emit("check-getquery-bindings: OK ({$baselineCount} known exemption(s), 0 new offenders)\n");
+if ($outputMode === 'json') {
+    $emitJsonEnvelope($baselineCount, 0, []);
+}
 exit(0);
 
 // ---------------------------------------------------------------------------
@@ -131,7 +180,7 @@ function findOffenders(array $scanDirs, string $repoRoot): array
     foreach ($scanDirs as $dir) {
         $iter = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::LEAVES_ONLY
+            RecursiveIteratorIterator::LEAVES_ONLY,
         );
 
         foreach ($iter as $file) {
@@ -259,23 +308,23 @@ function generateBaseline(array $offenders, string $baselineFile, string $repoRo
 {
     $date = date('Y-m-d');
     $header = <<<EOH
-# Baseline: getQuery() bindings exempt from CI gate
-# Format: <relative-path-from-repo-root>:<line>  # <mandatory-exemption-reason>
-# Generated by: php bin/check-getquery-bindings --generate-baseline
-# Last generated: {$date}
-#
-# Rules:
-# - One entry per unbound callsite (path:line sorted ascending).
-# - Every entry MUST have an inline comment explaining the exemption.
-# - An entry WITHOUT a comment causes CI to fail with "incomplete baseline entry".
-# - To add an exemption: append <path>:<line>  # <reason>, verify with
-#   php bin/check-getquery-bindings --verify
-# - To regenerate after a codebase change:
-#   php bin/check-getquery-bindings --generate-baseline
-#
-# TODO(WP05/M-B.1): Drive this baseline to zero — see GitHub issue for tracking.
-#
-EOH;
+        # Baseline: getQuery() bindings exempt from CI gate
+        # Format: <relative-path-from-repo-root>:<line>  # <mandatory-exemption-reason>
+        # Generated by: php bin/check-getquery-bindings --generate-baseline
+        # Last generated: {$date}
+        #
+        # Rules:
+        # - One entry per unbound callsite (path:line sorted ascending).
+        # - Every entry MUST have an inline comment explaining the exemption.
+        # - An entry WITHOUT a comment causes CI to fail with "incomplete baseline entry".
+        # - To add an exemption: append <path>:<line>  # <reason>, verify with
+        #   php bin/check-getquery-bindings --verify
+        # - To regenerate after a codebase change:
+        #   php bin/check-getquery-bindings --generate-baseline
+        #
+        # TODO(WP05/M-B.1): Drive this baseline to zero — see GitHub issue for tracking.
+        #
+        EOH;
 
     $lines = [$header];
     foreach ($offenders as $entry) {
