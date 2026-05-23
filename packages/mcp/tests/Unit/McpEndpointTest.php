@@ -12,9 +12,9 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolInterface;
 use Waaseyaa\AI\Tools\AgentToolResult;
+use Waaseyaa\AI\Tools\ToolNotFoundException;
+use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
-use Waaseyaa\Mcp\Bridge\ToolExecutorInterface;
-use Waaseyaa\Mcp\Bridge\ToolRegistryInterface;
 use Waaseyaa\Mcp\McpEndpoint;
 use Waaseyaa\Mcp\McpResponse;
 
@@ -23,25 +23,24 @@ use Waaseyaa\Mcp\McpResponse;
 final class McpEndpointTest extends TestCase
 {
     private McpAuthInterface $auth;
-    private ToolRegistryInterface $registry;
-    private ToolExecutorInterface $executor;
     private AccountInterface $account;
+    /** @var list<AgentTool> */
+    private array $tools = [];
 
     protected function setUp(): void
     {
         $this->auth = $this->createMock(McpAuthInterface::class);
-        $this->registry = $this->createMock(ToolRegistryInterface::class);
-        $this->executor = $this->createMock(ToolExecutorInterface::class);
         $this->account = $this->createMock(AccountInterface::class);
         $this->account->method('id')->willReturn(1);
+        $this->account->method('hasPermission')->willReturn(true);
+        $this->tools = [];
     }
 
     private function createEndpoint(): McpEndpoint
     {
         return new McpEndpoint(
             auth: $this->auth,
-            registry: $this->registry,
-            executor: $this->executor,
+            agentRegistry: $this->stubAgentRegistry($this->tools),
         );
     }
 
@@ -59,14 +58,18 @@ final class McpEndpointTest extends TestCase
 
     /**
      * Build a small {@see AgentTool} fixture backed by an anonymous-class
-     * {@see AgentToolInterface} that returns a canned {@see AgentToolResult}.
+     * {@see AgentToolInterface}. The impl echoes the call arguments under
+     * `{type: text, text: <json>}` so tests can assert the bridge forwarded
+     * them.
      */
     private function makeTool(string $name, array $schema = []): AgentTool
     {
         $impl = new class implements AgentToolInterface {
             public function execute(array $arguments, AccountInterface $account): AgentToolResult
             {
-                return AgentToolResult::success([['type' => 'text', 'text' => 'ok']]);
+                return AgentToolResult::success([
+                    ['type' => 'text', 'text' => \json_encode(['operation' => 'echo', ...$arguments], \JSON_THROW_ON_ERROR)],
+                ]);
             }
 
             public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
@@ -101,6 +104,48 @@ final class McpEndpointTest extends TestCase
         );
     }
 
+    /**
+     * @param list<AgentTool> $tools
+     */
+    private function stubAgentRegistry(array $tools): AgentToolRegistryInterface
+    {
+        return new class ($tools) implements AgentToolRegistryInterface {
+            /** @var array<string, AgentTool> */
+            private array $map = [];
+
+            /** @param list<AgentTool> $tools */
+            public function __construct(array $tools)
+            {
+                foreach ($tools as $tool) {
+                    $this->map[$tool->name] = $tool;
+                }
+            }
+
+            public function register(AgentTool $tool): void
+            {
+                $this->map[$tool->name] = $tool;
+            }
+
+            public function get(string $name): AgentTool
+            {
+                if (!isset($this->map[$name])) {
+                    throw ToolNotFoundException::forName($name);
+                }
+                return $this->map[$name];
+            }
+
+            public function has(string $name): bool
+            {
+                return isset($this->map[$name]);
+            }
+
+            public function all(): iterable
+            {
+                return array_values($this->map);
+            }
+        };
+    }
+
     #[Test]
     public function missingAuthHeaderReturns401(): void
     {
@@ -109,10 +154,10 @@ final class McpEndpointTest extends TestCase
         $endpoint = $this->createEndpoint();
         $response = $this->dispatch($endpoint, 'POST', '{"jsonrpc":"2.0","id":1,"method":"tools/list"}', null);
 
-        $this->assertSame(401, $response->statusCode);
+        self::assertSame(401, $response->statusCode);
         $decoded = \json_decode($response->body, true);
-        $this->assertSame(-32001, $decoded['error']['code']);
-        $this->assertSame('Unauthorized', $decoded['error']['message']);
+        self::assertSame(-32001, $decoded['error']['code']);
+        self::assertSame('Unauthorized', $decoded['error']['message']);
     }
 
     #[Test]
@@ -123,59 +168,44 @@ final class McpEndpointTest extends TestCase
         $endpoint = $this->createEndpoint();
         $response = $this->dispatch($endpoint, 'POST', '{"jsonrpc":"2.0","id":1,"method":"tools/list"}', 'Bearer bad-token');
 
-        $this->assertSame(401, $response->statusCode);
+        self::assertSame(401, $response->statusCode);
     }
 
     #[Test]
     public function toolsListReturnsToolDescriptors(): void
     {
         $this->auth->method('authenticate')->willReturn($this->account);
-
-        $tool = $this->makeTool('create_node', [
-            'type' => 'object',
-            'properties' => ['attributes' => ['type' => 'object']],
-            'required' => ['attributes'],
-        ]);
-        $this->registry->method('getTools')->willReturn([$tool]);
+        $this->tools = [
+            $this->makeTool('create_node', [
+                'type' => 'object',
+                'properties' => ['attributes' => ['type' => 'object']],
+                'required' => ['attributes'],
+            ]),
+        ];
 
         $endpoint = $this->createEndpoint();
         $response = $this->dispatch($endpoint, 'POST', \json_encode([
             'jsonrpc' => '2.0',
             'id' => 1,
             'method' => 'tools/list',
-        ]), 'Bearer valid-token');
+        ], \JSON_THROW_ON_ERROR), 'Bearer valid-token');
 
-        $this->assertSame(200, $response->statusCode);
+        self::assertSame(200, $response->statusCode);
 
         $decoded = \json_decode($response->body, true);
-        $this->assertSame('2.0', $decoded['jsonrpc']);
-        $this->assertSame(1, $decoded['id']);
-        $this->assertArrayHasKey('result', $decoded);
-        $this->assertCount(1, $decoded['result']['tools']);
-        $this->assertSame('create_node', $decoded['result']['tools'][0]['name']);
-        $this->assertArrayHasKey('inputSchema', $decoded['result']['tools'][0]);
+        self::assertSame('2.0', $decoded['jsonrpc']);
+        self::assertSame(1, $decoded['id']);
+        self::assertArrayHasKey('result', $decoded);
+        self::assertCount(1, $decoded['result']['tools']);
+        self::assertSame('create_node', $decoded['result']['tools'][0]['name']);
+        self::assertArrayHasKey('inputSchema', $decoded['result']['tools'][0]);
     }
 
     #[Test]
     public function toolsCallExecutesToolAndReturnsResult(): void
     {
         $this->auth->method('authenticate')->willReturn($this->account);
-
-        $tool = $this->makeTool('read_node');
-        $this->registry->method('getTools')->willReturn([$tool]);
-        $this->registry->method('getTool')
-            ->with('read_node')
-            ->willReturn($tool);
-
-        $this->executor
-            ->expects($this->once())
-            ->method('execute')
-            ->with('read_node', ['id' => 42])
-            ->willReturn([
-                'content' => [
-                    ['type' => 'text', 'text' => '{"operation":"read","id":42}'],
-                ],
-            ]);
+        $this->tools = [$this->makeTool('read_node')];
 
         $endpoint = $this->createEndpoint();
         $response = $this->dispatch($endpoint, 'POST', \json_encode([
@@ -186,21 +216,23 @@ final class McpEndpointTest extends TestCase
                 'name' => 'read_node',
                 'arguments' => ['id' => 42],
             ],
-        ]), 'Bearer valid-token');
+        ], \JSON_THROW_ON_ERROR), 'Bearer valid-token');
 
-        $this->assertSame(200, $response->statusCode);
+        self::assertSame(200, $response->statusCode);
 
         $decoded = \json_decode($response->body, true);
-        $this->assertSame(2, $decoded['id']);
-        $this->assertArrayHasKey('result', $decoded);
-        $this->assertSame('text', $decoded['result']['content'][0]['type']);
+        self::assertSame(2, $decoded['id']);
+        self::assertArrayHasKey('result', $decoded);
+        self::assertSame('text', $decoded['result']['content'][0]['type']);
+        // The fixture echoes the call arguments into the response text.
+        self::assertStringContainsString('"id":42', $decoded['result']['content'][0]['text']);
     }
 
     #[Test]
     public function toolsCallWithUnknownToolReturnsError(): void
     {
         $this->auth->method('authenticate')->willReturn($this->account);
-        $this->registry->method('getTool')->willReturn(null);
+        $this->tools = [];
 
         $endpoint = $this->createEndpoint();
         $response = $this->dispatch($endpoint, 'POST', \json_encode([
@@ -211,12 +243,13 @@ final class McpEndpointTest extends TestCase
                 'name' => 'nonexistent_tool',
                 'arguments' => [],
             ],
-        ]), 'Bearer valid-token');
+        ], \JSON_THROW_ON_ERROR), 'Bearer valid-token');
 
-        $this->assertSame(200, $response->statusCode);
+        self::assertSame(200, $response->statusCode);
 
         $decoded = \json_decode($response->body, true);
-        $this->assertArrayHasKey('error', $decoded);
+        self::assertArrayHasKey('error', $decoded);
+        self::assertStringContainsString('Unknown tool', $decoded['error']['message']);
     }
 
     #[Test]
@@ -227,10 +260,10 @@ final class McpEndpointTest extends TestCase
         $endpoint = $this->createEndpoint();
         $response = $this->dispatch($endpoint, 'POST', '{invalid json', 'Bearer valid-token');
 
-        $this->assertSame(200, $response->statusCode);
+        self::assertSame(200, $response->statusCode);
 
         $decoded = \json_decode($response->body, true);
-        $this->assertSame(-32700, $decoded['error']['code']);
+        self::assertSame(-32700, $decoded['error']['code']);
     }
 
     #[Test]
@@ -239,12 +272,12 @@ final class McpEndpointTest extends TestCase
         $this->auth->method('authenticate')->willReturn($this->account);
 
         $endpoint = $this->createEndpoint();
-        $response = $this->dispatch($endpoint, 'POST', \json_encode(['jsonrpc' => '2.0', 'id' => 1]), 'Bearer valid-token');
+        $response = $this->dispatch($endpoint, 'POST', \json_encode(['jsonrpc' => '2.0', 'id' => 1], \JSON_THROW_ON_ERROR), 'Bearer valid-token');
 
-        $this->assertSame(200, $response->statusCode);
+        self::assertSame(200, $response->statusCode);
 
         $decoded = \json_decode($response->body, true);
-        $this->assertSame(-32600, $decoded['error']['code']);
+        self::assertSame(-32600, $decoded['error']['code']);
     }
 
     #[Test]
@@ -255,6 +288,6 @@ final class McpEndpointTest extends TestCase
         $endpoint = $this->createEndpoint();
         $response = $this->dispatch($endpoint, 'POST', '{}', null);
 
-        $this->assertSame('application/json', $response->contentType);
+        self::assertSame('application/json', $response->contentType);
     }
 }

@@ -53,16 +53,20 @@ work_packages:
     prompt_file: "tasks/WP02-read-tools.md"
 
   - id: WP03
-    title: "Capability gating + 2 mutation tools"
+    title: "Per-request account passthrough + capability gating"
     dependencies:
       - WP02
     owned_files:
-      - "packages/mcp/src/Capability/SessionCapabilities.php"
-      - "packages/mcp/src/Tool/Bimaaji/ProposeMutationTool.php"
-      - "packages/mcp/src/Tool/Bimaaji/GeneratePatchTool.php"
-      - "tests/Integration/PhaseN/Mcp/BimaajiMcpMutateTest.php"
+      - "packages/mcp/src/McpEndpoint.php"
+      - "packages/mcp/src/McpServiceProvider.php"
+      - "packages/mcp/tests/Unit/McpEndpointTest.php"
+      - "packages/mcp/tests/Unit/McpServiceProviderTest.php"
+      - "tests/Integration/PhaseN/Mcp/BimaajiMcpReadTest.php"
+      - "tests/Integration/PhaseN/AgentRuntime/McpControllerToolsSharingTest.php"
       - "tests/Integration/PhaseN/Mcp/BimaajiMcpCapabilityTest.php"
-    authoritative_surface: "packages/mcp/src/Capability/"
+      - "docs/specs/mcp-endpoint.md"
+      - "CHANGELOG.md"
+    authoritative_surface: "packages/mcp/src/"
     execution_mode: "code_change"
     requirement_refs:
       - FR-003

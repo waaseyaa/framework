@@ -15,7 +15,6 @@ use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
-use Waaseyaa\Mcp\Bridge\AgentToolRegistryBridge;
 use Waaseyaa\Mcp\McpEndpoint;
 
 /**
@@ -79,7 +78,6 @@ final class McpControllerToolsSharingTest extends TestCase
         $registry = $this->stubRegistry($tools);
 
         $account = $this->stubAccount(1);
-        $bridge = new AgentToolRegistryBridge($registry, $account);
 
         $auth = new class ($account) implements McpAuthInterface {
             public function __construct(private readonly AccountInterface $account) {}
@@ -90,7 +88,11 @@ final class McpControllerToolsSharingTest extends TestCase
             }
         };
 
-        return new McpEndpoint(auth: $auth, registry: $bridge, executor: $bridge);
+        // WP03: McpEndpoint takes the raw agent registry; it constructs the
+        // per-request AgentToolRegistryBridge with the auth-resolved account
+        // inside dispatch(). The stub auth above returns the same $account
+        // the bridge would have been constructed with pre-WP03.
+        return new McpEndpoint(auth: $auth, agentRegistry: $registry);
     }
 
     /**
