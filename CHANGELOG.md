@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **bin/check-package-layers**: new `--output=json` flag + `WAASEYAA_OUTPUT=json` env var produce an NDJSON envelope on stdout via `Waaseyaa\AgentOutput\Formatter\PackageLayersFormatter` instead of the human-readable pass/fail line. Envelope shape: `{tool: "check-package-layers", result: "pass"|"fail", packages_scanned: int, violations: [{source, target, edge}, ...]}`. Bash detects mode → Python emits structured findings to a tmpfile → PHP shim feeds the formatter. Default (no flag, no env var) behaviour is unchanged: human pass/fail line, exit 0/1. Pattern-proving slice of M4 WP04; the same wrapper template applies to the other three `bin/check-*` scripts in WP04B. M4 WP04 (part 1) of mission `agent-output-package-01KS5VX1`.
+
 ### Changed
 
 - **docs**: M5 WP05 close-out — `docs/specs/bimaaji-install.md` filled in (Supported clients table with the seven launch-client target paths + convention citations, Flag semantics table with exit-code matrix, Interactive UX section documenting the shipped `CliIO::ask()` + `confirm()` prompts as the WP01 scaffold's reduced-scope replacement for the original `[o]verwrite/[s]kip/[d]iff/[a]ll` plan, Trust contract details, Implementation Status with PR provenance). `packages/bimaaji/README.md` adds an "Installing guidelines / skills" section with an invocation matrix and updates the Status section: M3's MCP bridge has shipped, so the README no longer describes bimaaji as PHP-only and the consumer-cleanup notes now point at the new `/mcp` HTTP endpoint. Verification artifact at `kitty-specs/bimaaji-install-command-01KS5W0S/verification.md`. M5 WP05 of mission `bimaaji-install-command-01KS5W0S`.
