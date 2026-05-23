@@ -1,12 +1,62 @@
 # Implementation Plan — bimaaji-mcp-bridge-01KS5VS8
 
 **Mission:** `bimaaji-mcp-bridge-01KS5VS8`
-**Status:** Plan
+**Status:** Plan (re-scoped after WP01 audit, 2026-05-22)
 **Spec:** [spec.md](spec.md)
 **Design doc:** `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md` §M3
-**Depends on:** M1 `bimaaji-wakeup-01KS5VEY` (merged). Soft-depends on M2 `ai-agent-bimaaji-tools-01KS5VKR` (reuses M2's tool-API shape).
+**Depends on:** M1 `bimaaji-wakeup-01KS5VEY` (merged). M2 `ai-agent-bimaaji-tools-01KS5VKR` (merged, SC-004 anchor).
 **Supersedes:** 2026-05-20 M-G `bimaaji-mcp-strategic-direction-01KS3SZB` "PHP-only" deferral.
 **Closes:** GitHub #1463 via merge-commit footer.
+
+## WP01 re-scope rationale (2026-05-22)
+
+The original plan assumed `packages/mcp/` lacked a tool-registration mechanism
+and that all ten bimaaji MCP tools (`bimaaji_application_info`,
+`bimaaji_list_*`, etc.) needed to be filed under
+`packages/mcp/src/Tool/Bimaaji/`. The WP01 audit found a more mature
+infrastructure than the spec anticipated:
+
+1. **Registration is already attribute-driven.** `#[AsAgentTool]` plus
+   `PackageManifestCompiler` populates the `agent_tools` manifest section;
+   `AttributeToolRegistry` hydrates the catalogue lazily. The mechanism is
+   shipped, bound by `AiToolsServiceProvider`, and proven by ai-agent's contract
+   test surface.
+2. **An MCP-side bridge already exists.** `Waaseyaa\Mcp\Bridge\AgentToolRegistryBridge`
+   implements `Mcp\Bridge\ToolRegistryInterface` and
+   `Mcp\Bridge\ToolExecutorInterface`, wrapping `AgentToolRegistryInterface`
+   and forwarding `AccountInterface` to every `execute()` call.
+3. **The four M2 SC-004 tools (`bimaaji_introspect_graph`,
+   `bimaaji_introspect_section`, `bimaaji_propose_mutation`,
+   `bimaaji_generate_patch`) are already first-party ai-agent tools** and the
+   bridge auto-exposes them under MCP once the McpEndpoint container
+   dependencies are bound — no `packages/mcp/src/Tool/Bimaaji/` files needed
+   for those four.
+4. **Six of the eight "new" read tools collapse into `bimaaji_introspect_section`.**
+   `IntrospectSectionTool`'s input schema already enumerates the six section
+   keys (admin, entities, jsonapi, public_surface, routing, sovereignty). The
+   genuinely net-new behaviour is `bimaaji_application_info` (full-graph
+   convenience entry — the existing `bimaaji_introspect_graph` already covers
+   this; may be merged) and `bimaaji_search_specs` (the spec-search backend
+   from AD-04).
+5. **Foundation `McpRouter` is dead in production.** It guards on a literal
+   `_controller === 'mcp.endpoint'` string that no real route ever sets —
+   only unit-test fixtures do. `McpRouteProvider` registers with the
+   `'Waaseyaa\\Mcp\\McpEndpoint::handle'` controller string instead. WP01
+   retires the foundation router so the new endpoint owns `/mcp` dispatch.
+
+The resulting WP shape (replaces the table in "WP breakdown" below):
+
+| WP | New scope |
+|---|---|
+| **WP01** | Retire foundation `McpRouter` + `BimaajiMcpBootSmokeTest` pinning SC-004 via reflection. (no new mcp tool classes) |
+| **WP02** | Wire `McpServiceProvider::register()` for `Bridge\ToolRegistryInterface` + `Bridge\ToolExecutorInterface` + `Auth\McpAuthInterface`. Add the 1–2 genuinely net-new ai-agent tools (`bimaaji_search_specs`; optional `bimaaji_application_info` if not redundant with `bimaaji_introspect_graph`). End-to-end `BimaajiMcpReadTest` exercising tool listing through the production endpoint. |
+| **WP03** | Capability gating story: per-request account passthrough into `AgentToolRegistryBridge` (currently per-construction); `BimaajiMcpCapabilityTest` proving anonymous → mutation is denied without explicit grant. No new mutation tool classes — M2's `propose_mutation` and `generate_patch` already satisfy AD-03. |
+| **WP04** | Doctrine spec edits as planned (`docs/specs/mcp-endpoint.md` supersession + new bridge section, `docs/specs/bimaaji.md` MCP exposure, `packages/mcp/README.md`). |
+| **WP05** | `kitty-specs/.../verification.md`, CHANGELOG, #1463 close. |
+
+AD-01, AD-02, AD-03 below are kept verbatim for spec-traceability but are
+superseded by this rationale. Subsequent WPs will re-spec their owned files
+against the new shape as their planning passes come up.
 
 ## Branch contract
 
