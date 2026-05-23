@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "mission_slug": "queue-scheduler-admin-01KSBKQF",
+  "mission_id": "01KSBKQFEWXHZA0E7M9CBH2DKP",
+  "mission_branch": "kitty/mission-queue-scheduler-admin-01KSBKQF",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01",
+        "WP02"
+      ],
+      "write_scope": [
+        "docs/specs/admin-spa.md",
+        "packages/admin/app/components/admin/QueueJobRow.vue",
+        "packages/admin/app/components/admin/QueuePayloadModal.vue",
+        "packages/admin/app/components/admin/SchedulerTaskRow.vue",
+        "packages/admin/app/composables/useQueueJobs.ts",
+        "packages/admin/app/composables/useScheduledTasks.ts",
+        "packages/admin/app/pages/admin/queue.vue",
+        "packages/admin/app/pages/admin/scheduler.vue",
+        "packages/admin/e2e/queue.spec.ts",
+        "packages/admin/e2e/scheduler.spec.ts",
+        "packages/admin/test/unit/composables/useQueueJobs.test.ts",
+        "packages/admin/test/unit/composables/useScheduledTasks.test.ts",
+        "packages/api/src/Controller/QueueController.php",
+        "packages/api/src/Controller/SchedulerController.php",
+        "packages/api/tests/Unit/Controller/QueueControllerTest.php",
+        "packages/api/tests/Unit/Controller/SchedulerControllerTest.php",
+        "packages/scheduler/src/ScheduleRunner.php",
+        "packages/scheduler/tests/Unit/ScheduleRunnerTest.php"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "app-shell",
+        "artifact-rendering",
+        "dashboard",
+        "legacy-cleanup",
+        "tests"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-05-23T23:54:09.873228+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": [],
+  "collapse_report": {
+    "events": [
+      {
+        "wp_a": "WP02",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP02 depends on WP01"
+      }
+    ],
+    "total_merges": 1,
+    "independent_wps_collapsed": 0,
+    "by_rule": {
+      "dependency": 1
+    }
+  }
+}
