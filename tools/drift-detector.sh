@@ -2,14 +2,54 @@
 #
 # drift-detector.sh — Detect stale specs by comparing git timestamps.
 #
-# Usage: tools/drift-detector.sh [N]
+# Usage: tools/drift-detector.sh [N] [--output=json]
 #   N = number of recent commits to check (default: 5)
+#
+# Output modes (M4 WP04C of mission `agent-output-package-01KS5VX1`):
+#
+#   --output=json    NDJSON envelope on stdout via Waaseyaa\AgentOutput\Formatter\DriftDetectorFormatter
+#   WAASEYAA_OUTPUT=json    same effect via env var
+#
+# Default behaviour (no flag, no env var) is unchanged: human-readable
+# stale/OK report, exit 0/1.
 #
 # Exit codes:
 #   0 = all specs up to date (or no specs affected)
 #   1 = one or more specs are stale or missing
 
 set -euo pipefail
+
+# --- agent-output mode dispatch (must happen before any heavy work) ---
+__DD_OUTPUT_MODE="human"
+__DD_FILTERED_ARGS=()
+for __arg in "$@"; do
+    case "$__arg" in
+        --output=json) __DD_OUTPUT_MODE="json" ;;
+        *) __DD_FILTERED_ARGS+=("$__arg") ;;
+    esac
+done
+if [[ "${WAASEYAA_OUTPUT:-}" == "json" ]]; then
+    __DD_OUTPUT_MODE="json"
+fi
+
+if [[ "$__DD_OUTPUT_MODE" == "json" ]]; then
+    # Re-exec self with the json flag stripped + env unset, capture stdout,
+    # pipe through DriftDetectorFormatter::parseRawOutput() → format().
+    set +e
+    __DD_RAW="$(WAASEYAA_OUTPUT="" "$0" "${__DD_FILTERED_ARGS[@]}" 2>&1)"
+    __DD_EXIT=$?
+    set -e
+    export __DD_RAW
+    __DD_REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+    export __DD_REPO_ROOT
+    php -d display_errors=stderr -r '
+require getenv("__DD_REPO_ROOT") . "/vendor/autoload.php";
+$raw = (string) getenv("__DD_RAW");
+$formatter = new Waaseyaa\AgentOutput\Formatter\DriftDetectorFormatter();
+echo $formatter->format($formatter->parseRawOutput($raw));
+'
+    exit "$__DD_EXIT"
+fi
 
 N="${1:-5}"
 
