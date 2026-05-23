@@ -22,20 +22,19 @@ work_packages:
     prompt_file: "tasks/WP01-cross-mission-gate-and-mcp-audit.md"
 
   - id: WP02
-    title: "8 read tools + spec-search backend"
+    title: "Bridge wiring + bimaaji_search_specs tool"
     dependencies:
       - WP01
     owned_files:
-      - "packages/mcp/src/Tool/Bimaaji/ApplicationInfoTool.php"
-      - "packages/mcp/src/Tool/Bimaaji/ListRoutesTool.php"
-      - "packages/mcp/src/Tool/Bimaaji/ListJsonApiTool.php"
-      - "packages/mcp/src/Tool/Bimaaji/ListEntitiesTool.php"
-      - "packages/mcp/src/Tool/Bimaaji/ListAdminTool.php"
-      - "packages/mcp/src/Tool/Bimaaji/SovereigntyProfileTool.php"
-      - "packages/mcp/src/Tool/Bimaaji/PublicSurfaceTool.php"
-      - "packages/mcp/src/Tool/Bimaaji/SearchSpecsTool.php"
+      - "packages/mcp/src/McpServiceProvider.php"
+      - "packages/mcp/tests/Unit/McpServiceProviderTest.php"
+      - "packages/ai-agent/src/Tool/Bimaaji/SearchSpecsTool.php"
+      - "packages/ai-agent/tests/Contract/Bimaaji/SearchSpecsToolTest.php"
+      - "packages/bimaaji/src/BimaajiServiceProvider.php"
       - "tests/Integration/PhaseN/Mcp/BimaajiMcpReadTest.php"
-    authoritative_surface: "packages/mcp/src/Tool/Bimaaji/"
+      - "docs/specs/mcp-endpoint.md"
+      - "CHANGELOG.md"
+    authoritative_surface: "packages/mcp/src/"
     execution_mode: "code_change"
     requirement_refs:
       - FR-001

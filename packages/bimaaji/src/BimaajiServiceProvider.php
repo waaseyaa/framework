@@ -17,6 +17,7 @@ use Waaseyaa\Bimaaji\Introspection\Sovereignty\SovereigntyIntrospectionProvider;
 use Waaseyaa\Bimaaji\Mutation\MutationValidator;
 use Waaseyaa\Bimaaji\Patch\PatchGenerator;
 use Waaseyaa\Bimaaji\Policy\SovereigntyGuardrails;
+use Waaseyaa\Bimaaji\Spec\SpecIndexProvider;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -165,6 +166,16 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
                 $this->resolve(ApplicationGraphGenerator::class)->generate(),
             ),
         );
+
+        // 6. Bind SpecIndexProvider so M3's bimaaji_search_specs tool (and
+        //    any future spec-aware consumer) can resolve it from the
+        //    container. Path resolution prefers config['bimaaji']['specs_directory']
+        //    and falls back to <projectRoot>/docs/specs. M3 WP02 of mission
+        //    bimaaji-mcp-bridge-01KS5VS8.
+        $this->singleton(
+            SpecIndexProvider::class,
+            fn(): SpecIndexProvider => new SpecIndexProvider($this->resolveSpecsDirectory()),
+        );
     }
 
     /**
@@ -289,5 +300,17 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
         $candidate = $this->kernelServices?->get(LoggerInterface::class);
 
         return $candidate instanceof LoggerInterface ? $candidate : new NullLogger();
+    }
+
+    private function resolveSpecsDirectory(): string
+    {
+        $configured = $this->config['bimaaji']['specs_directory'] ?? null;
+        if (is_string($configured) && $configured !== '') {
+            return $configured;
+        }
+
+        $root = $this->projectRoot !== '' ? $this->projectRoot : getcwd();
+
+        return rtrim((string) $root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'docs' . DIRECTORY_SEPARATOR . 'specs';
     }
 }

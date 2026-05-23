@@ -1,6 +1,6 @@
 ---
 work_package_id: WP02
-title: 8 read tools + spec-search backend
+title: Bridge wiring + bimaaji_search_specs tool
 dependencies:
 - WP01
 requirement_refs:
@@ -21,71 +21,139 @@ subtasks:
 - T006
 - T007
 history: []
-authoritative_surface: packages/mcp/src/Tool/Bimaaji/
+authoritative_surface: packages/mcp/src/
 execution_mode: code_change
 owned_files:
-- packages/mcp/src/Tool/Bimaaji/ApplicationInfoTool.php
-- packages/mcp/src/Tool/Bimaaji/ListRoutesTool.php
-- packages/mcp/src/Tool/Bimaaji/ListJsonApiTool.php
-- packages/mcp/src/Tool/Bimaaji/ListEntitiesTool.php
-- packages/mcp/src/Tool/Bimaaji/ListAdminTool.php
-- packages/mcp/src/Tool/Bimaaji/SovereigntyProfileTool.php
-- packages/mcp/src/Tool/Bimaaji/PublicSurfaceTool.php
-- packages/mcp/src/Tool/Bimaaji/SearchSpecsTool.php
+- packages/mcp/src/McpServiceProvider.php
+- packages/mcp/tests/Unit/McpServiceProviderTest.php
+- packages/ai-agent/src/Tool/Bimaaji/SearchSpecsTool.php
+- packages/ai-agent/tests/Contract/Bimaaji/SearchSpecsToolTest.php
+- packages/bimaaji/src/BimaajiServiceProvider.php
 - tests/Integration/PhaseN/Mcp/BimaajiMcpReadTest.php
+- docs/specs/mcp-endpoint.md
+- CHANGELOG.md
 tags: []
 ---
 
 ## Objective
 
-Ship the 8 read tools. Seven are section-scoped wrappers around M1's section providers; one (`SearchSpecsTool`) is a spec-search backend over `docs/specs/*.md`. All tools carry `capability: bimaaji.read` (the default-on capability for MCP sessions).
+Wire `McpServiceProvider::register()` so the `AgentToolRegistryBridge` is
+container-resolvable as both `Mcp\Bridge\ToolRegistryInterface` and
+`Mcp\Bridge\ToolExecutorInterface`. Add the one genuinely net-new read tool
+(`bimaaji_search_specs`) under `packages/ai-agent/src/Tool/Bimaaji/`; the
+existing M2 tools cover the other "read" entries from the original AD-02
+inventory (six of those eight collapse into `bimaaji_introspect_section`,
+the seventh — `bimaaji_application_info` — is redundant with
+`bimaaji_introspect_graph`). End-to-end integration test
+(`BimaajiMcpReadTest`) demonstrates the bridge listing the now-five
+bimaaji read tools through the container-resolved
+`Mcp\Bridge\ToolRegistryInterface`.
+
+This WP02 is re-scoped per WP01's audit and `plan.md` § "WP01 re-scope
+rationale" (2026-05-22). The original spec called for eight new
+`packages/mcp/src/Tool/Bimaaji/*.php` classes; the audit found that
+ai-agent's `#[AsAgentTool]` registry plus the pre-existing
+`AgentToolRegistryBridge` adapter already deliver those tools over MCP with
+no per-tool MCP code. The remaining work is bridge wiring + one search
+backend.
 
 ## Subtasks
 
-### T004 — Seven section-scoped tools (one per AD-02 row except SearchSpecsTool)
+### T004 — Bind `SpecIndexProvider` in `BimaajiServiceProvider`
 
-For each of `ApplicationInfoTool`, `ListRoutesTool`, `ListJsonApiTool`, `ListEntitiesTool`, `ListAdminTool`, `SovereigntyProfileTool`, `PublicSurfaceTool`:
+`SpecIndexProvider` (Layer 4 — `packages/bimaaji/src/Spec/`) is not yet
+container-resolvable. Add a singleton binding in
+`BimaajiServiceProvider::register()` constructed from a
+`resolveSpecsDirectory()` helper that prefers
+`config['bimaaji']['specs_directory']` and falls back to
+`projectRoot . '/docs/specs'`. (FR-005 backend availability.)
 
-- Class lives at `packages/mcp/src/Tool/Bimaaji/<Name>Tool.php`.
-- Marked with `#[AsMcpTool(name: 'bimaaji_<snake>', capability: 'bimaaji.read')]` (or the actual attribute name discovered in WP01).
-- Constructor takes the relevant bimaaji service (e.g. `EntityIntrospectionProvider` for `ListEntitiesTool`, `ApplicationGraphGenerator` for `ApplicationInfoTool`).
-- `execute(array $arguments = []): array` returns the AD-02 result wrapped in the standard MCP tool result envelope (whatever `packages/mcp/` defines — likely `{ ok, data, meta?, error? }` mirroring M2 AD-03).
+### T005 — `SearchSpecsTool` in ai-agent
 
-`ApplicationInfoTool` returns the full graph. The 6 section-scoped tools return only their section's payload. Each section-scoped tool's name convention matches the section key (`bimaaji_list_routes` for `routing`, `bimaaji_list_entities` for `entities`, etc.).
+Add `Waaseyaa\AI\Agent\Tool\Bimaaji\SearchSpecsTool` carrying
+`#[AsAgentTool(name: 'bimaaji_search_specs', capability: 'bimaaji.read', ...)]`.
+Constructor takes `SpecIndexProvider`. `inputSchema` requires a `query`
+string and an optional `limit` integer (default 20, max 100). `execute()`:
 
-### T005 — `SearchSpecsTool` with grep fallback
+1. Gates on `bimaaji.read` via the inherited `requireCapability()`.
+2. Validates `query` is a non-empty string (returns structured error
+   envelope on miss, mirroring `IntrospectSectionTool`).
+3. Calls `SpecIndexProvider::provide()->data` to enumerate the spec files.
+4. For each file: `file_get_contents()` + a case-insensitive substring
+   search. Captures `{file, section_title, line_number, snippet}` per
+   match — `section_title` is the nearest preceding `## ` or `### `
+   header line.
+5. Returns `AgentToolResult::success(content: [['type'=>'json',
+   'data'=>['matches'=>[...]]]], summary: 'N matches')`.
 
-`SearchSpecsTool` is non-trivial:
+No filesystem writes; no symlink following; no recursive directory walk
+(spec index already lists `docs/specs/*.md` non-recursively).
 
-1. First, check whether `Waaseyaa\Bimaaji\Spec\SpecIndexProvider` exists and is container-bound. If yes, delegate.
-2. If no (the AD-04 fallback path), implement directly: `glob(__DIR__ . '/../../../../../docs/specs/*.md')` (project-root-relative — verify the path resolves under the test kernel), iterate, do case-insensitive substring search on `query` arg, return `[{file: <path>, section_title: <##-heading>, snippet: <±80 chars around match>, line_number: <1-indexed>}, ...]`.
+Contract test pattern mirrors `IntrospectSectionToolTest`:
+`accountWithPermission()` helper, stub `SpecIndexProvider`, positive +
+forbidden + missing-arg paths.
 
-Returns `[]` for no matches (not an error). Returns an error envelope only if the query argument is empty or missing.
+### T006 — `McpServiceProvider::register()` bindings
 
-### T006 — `BimaajiMcpReadTest`
+Three bindings:
 
-Boot the WP01 smoke kernel + MCP server. For each of the 8 tools, invoke once and assert:
+| Abstract | Concrete |
+|----------|----------|
+| `Mcp\Auth\McpAuthInterface` | `BearerTokenAuth(tokens: [])` — empty by default; production overrides via the kernel-services bus or by re-binding the abstract. |
+| `Mcp\Bridge\AgentToolRegistryBridge` | Singleton: `new AgentToolRegistryBridge(registry: $kernelServices->get(AgentToolRegistryInterface::class), account: <placeholder>)`. |
+| `Mcp\Bridge\ToolRegistryInterface` | Same singleton (returns the bridge). |
+| `Mcp\Bridge\ToolExecutorInterface` | Same singleton (returns the bridge). |
 
-- Non-error envelope returned (`ok === true` or the equivalent for the project's envelope shape)
-- Payload structure matches AD-02 (full graph vs. single section vs. search results)
-- Response time ≤ NFR-002 budget (M2's read-tool budget plus ≤ 20 ms MCP serialization overhead — record actual times in the PR description)
+**Placeholder account caveat.** `AccountInterface` is a per-request
+value (set by SessionMiddleware), but `register()` runs once at boot.
+The bridge is bound with a no-permission anonymous-shaped inline
+`AccountInterface` so `tools/list` works (no permission check there) but
+`tools/call` returns `forbidden` until WP03 lands per-request account
+passthrough into the bridge. The integration test asserts both
+behaviours — listing succeeds, calling returns the documented
+`forbidden` envelope.
 
-For `SearchSpecsTool` specifically, run a query that should match (e.g. `'bimaaji'`) and one that shouldn't (`'absolutely_nothing_matches_this_query_xyzzy'`); assert the first returns ≥ 1 result, the second returns `[]`.
+Update `McpServiceProviderTest` to cover the new bindings.
 
-### T007 — ServiceProvider registration
+### T007 — `BimaajiMcpReadTest` integration test
 
-Edit `packages/mcp/src/ServiceProvider.php` (or wherever WP01 confirmed MCP tools register) to register the 8 tool classes. If attribute-based auto-discovery is the mechanism, this subtask is no-op (the attributes do the work). If explicit registration is required, add the eight lines.
+`tests/Integration/PhaseN/Mcp/BimaajiMcpReadTest.php`. Boot a minimal
+kernel with `McpServiceProvider` + `BimaajiServiceProvider` +
+`AiToolsServiceProvider` + `AiAgentServiceProvider`. Assert:
+
+1. `Mcp\Bridge\ToolRegistryInterface` resolves to an
+   `AgentToolRegistryBridge`.
+2. `getTools()` returns ≥ 5 bimaaji tools whose names match `^bimaaji_`.
+3. The five canonical bimaaji read-tool names appear:
+   `bimaaji_introspect_graph`, `bimaaji_introspect_section`,
+   `bimaaji_propose_mutation`, `bimaaji_generate_patch`,
+   `bimaaji_search_specs`.
+4. Calling `bimaaji_search_specs` through the bridge returns the
+   WP02-documented `forbidden` envelope (placeholder account has no
+   caps).
+
+Uses `#[CoversNothing]`.
 
 ## Definition of Done
 
-- [ ] All 8 tool classes exist and pass `composer phpstan`.
-- [ ] `BimaajiMcpReadTest` covers all 8 tools and passes.
-- [ ] NFR-002 timing is recorded in test output / PR description.
-- [ ] `SearchSpecsTool` handles empty / missing / non-string `query` argument with a structured error envelope.
-- [ ] cs-check, layer, composer-policy, dead-code gates clean.
+- [ ] `SpecIndexProvider` bound singleton in `BimaajiServiceProvider`.
+- [ ] `SearchSpecsTool` + contract test landed; ≥ 4 contract tests cover
+      success / missing-query / forbidden / no-matches.
+- [ ] `McpServiceProvider::register()` binds the three abstracts;
+      `McpServiceProviderTest` covers them.
+- [ ] `BimaajiMcpReadTest` exists and passes.
+- [ ] `CHANGELOG.md` `[Unreleased]` updated under `### Added`.
+- [ ] `docs/specs/mcp-endpoint.md` stamped with WP02 bindings note.
+- [ ] All local gates pass (cs-check, phpstan, layer, composer-policy,
+      dead-code, getQuery, surface-map).
 
 ## Risks and notes
 
-- **Provider FQCNs:** Verify the actual class names of the bimaaji introspection providers before writing tool constructors. They live under `packages/bimaaji/src/Introspection/<Section>/<Section>IntrospectionProvider.php` (e.g. `AdminIntrospectionProvider`, `EntityIntrospectionProvider`, `JsonApiIntrospectionProvider`, `RoutingIntrospectionProvider`, `SovereigntyIntrospectionProvider`, `PublicSurfaceProvider`). M1's `BimaajiServiceProvider` is the canonical reference.
-- **Result envelope shape:** Confirm whether `packages/mcp/` already defines a tool result envelope. If yes, reuse it. If not, mirror M2's AD-03 envelope (`{ok, data, meta?, error?}`) — and surface the inconsistency for follow-up.
-- **MCP-specific argument schemas:** Most MCP clients require declared input schemas (JSON Schema). The `#[AsMcpTool]` attribute should accept an `inputSchema` parameter — if WP01 added the attribute, define schemas now (mostly `{}` for the section-scoped tools, `{query: string}` for SearchSpecsTool).
+- **Per-request account passthrough is a WP03 concern.** The placeholder
+  account in the WP02 bridge binding makes `tools/call` always return
+  `forbidden` for capability-gated tools. This is documented in the
+  WP02 commit message and the `BimaajiMcpReadTest` docblock so reviewers
+  don't read the forbidden envelope as a regression.
+- **`SearchSpecsTool` is naïve substring search**, not BM25 or trigram —
+  AD-04 explicitly notes this. If the M3 mission later wants ranked
+  results, that's a follow-up.
