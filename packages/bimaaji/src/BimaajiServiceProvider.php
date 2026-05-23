@@ -5,9 +5,18 @@ declare(strict_types=1);
 namespace Waaseyaa\Bimaaji;
 
 use Symfony\Component\Routing\RouteCollection;
+use Waaseyaa\Bimaaji\Command\BimaajiInstallCommand;
 use Waaseyaa\Bimaaji\Command\GraphDumpHandler;
 use Waaseyaa\Bimaaji\Graph\ApplicationGraphGenerator;
 use Waaseyaa\Bimaaji\Graph\GraphSectionProviderInterface;
+use Waaseyaa\Bimaaji\Install\Client\ClaudeClientTransformer;
+use Waaseyaa\Bimaaji\Install\Client\CodexClientTransformer;
+use Waaseyaa\Bimaaji\Install\Client\CopilotClientTransformer;
+use Waaseyaa\Bimaaji\Install\Client\CursorClientTransformer;
+use Waaseyaa\Bimaaji\Install\Client\GeminiClientTransformer;
+use Waaseyaa\Bimaaji\Install\Client\JunieClientTransformer;
+use Waaseyaa\Bimaaji\Install\Client\WindsurfClientTransformer;
+use Waaseyaa\Bimaaji\Install\SkillSetParser;
 use Waaseyaa\Bimaaji\Introspection\Admin\AdminIntrospectionProvider;
 use Waaseyaa\Bimaaji\Introspection\Entity\EntityIntrospectionProvider;
 use Waaseyaa\Bimaaji\Introspection\JsonApi\JsonApiIntrospectionProvider;
@@ -176,6 +185,25 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
             SpecIndexProvider::class,
             fn(): SpecIndexProvider => new SpecIndexProvider($this->resolveSpecsDirectory()),
         );
+
+        // 7. Bind SkillSetParser + BimaajiInstallCommand so the CLI handler
+        //    can be resolved by the kernel command-dispatcher (registered in
+        //    nativeCommands() below). Skills directory resolution mirrors
+        //    resolveSpecsDirectory — config['bimaaji']['skills_directory']
+        //    with <projectRoot>/skills/waaseyaa fallback. M5 WP03 of
+        //    mission bimaaji-install-command-01KS5W0S.
+        $this->singleton(
+            SkillSetParser::class,
+            fn(): SkillSetParser => new SkillSetParser($this->resolveSkillsDirectory()),
+        );
+
+        $this->singleton(
+            BimaajiInstallCommand::class,
+            fn(): BimaajiInstallCommand => new BimaajiInstallCommand(
+                transformers: $this->defaultClientTransformers(),
+                skillSetParser: $this->resolve(SkillSetParser::class),
+            ),
+        );
     }
 
     /**
@@ -225,6 +253,54 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
             ],
             handler: [GraphDumpHandler::class, 'execute'],
         );
+
+        yield new \Waaseyaa\CLI\CommandDefinition(
+            name: 'bimaaji:install',
+            description: 'Install Waaseyaa framework guidelines + skills into a consuming project for one or more agent clients (claude, cursor, codex, copilot, gemini, windsurf, junie).',
+            options: [
+                new \Waaseyaa\CLI\OptionDefinition(
+                    name: 'client',
+                    mode: \Waaseyaa\CLI\OptionMode::Array_,
+                    description: 'Client id (repeatable or comma-separated). Available: claude, cursor, codex, copilot, gemini, windsurf, junie. Prompts interactively when omitted on a TTY.',
+                ),
+                new \Waaseyaa\CLI\OptionDefinition(
+                    name: 'features',
+                    mode: \Waaseyaa\CLI\OptionMode::Required,
+                    description: 'Comma-separated feature list. Currently advisory; reserved for future filtering.',
+                    default: 'guidelines,skills',
+                ),
+                new \Waaseyaa\CLI\OptionDefinition(
+                    name: 'dry-run',
+                    mode: \Waaseyaa\CLI\OptionMode::None,
+                    description: 'Show the would-be write set without touching the filesystem; exits 0.',
+                ),
+                new \Waaseyaa\CLI\OptionDefinition(
+                    name: 'force',
+                    mode: \Waaseyaa\CLI\OptionMode::None,
+                    description: 'Skip every confirmation prompt and overwrite existing files unconditionally.',
+                ),
+            ],
+            handler: [BimaajiInstallCommand::class, 'execute'],
+        );
+    }
+
+    /**
+     * Compose the seven default per-client transformers in stable order so
+     * the install command's registry hash is deterministic.
+     *
+     * @return list<\Waaseyaa\Bimaaji\Install\ClientTransformerInterface>
+     */
+    private function defaultClientTransformers(): array
+    {
+        return [
+            new ClaudeClientTransformer(),
+            new CodexClientTransformer(),
+            new CopilotClientTransformer(),
+            new CursorClientTransformer(),
+            new GeminiClientTransformer(),
+            new JunieClientTransformer(),
+            new WindsurfClientTransformer(),
+        ];
     }
 
     /**
@@ -312,5 +388,17 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
         $root = $this->projectRoot !== '' ? $this->projectRoot : getcwd();
 
         return rtrim((string) $root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'docs' . DIRECTORY_SEPARATOR . 'specs';
+    }
+
+    private function resolveSkillsDirectory(): string
+    {
+        $configured = $this->config['bimaaji']['skills_directory'] ?? null;
+        if (is_string($configured) && $configured !== '') {
+            return $configured;
+        }
+
+        $root = $this->projectRoot !== '' ? $this->projectRoot : getcwd();
+
+        return rtrim((string) $root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'skills' . DIRECTORY_SEPARATOR . 'waaseyaa';
     }
 }
