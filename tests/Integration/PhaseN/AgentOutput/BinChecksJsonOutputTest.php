@@ -45,6 +45,13 @@ final class BinChecksJsonOutputTest extends TestCase
             ['tool', 'result', 'baseline_count', 'new_count', 'offenders'],
             ['check-getquery-bindings'],
         ];
+        // Note: bin/check-phpstan's envelope uses `tool: phpstan` (matches
+        // the runtime tool name, not the wrapper-script filename).
+        yield 'check-phpstan' => [
+            'bin/check-phpstan',
+            ['tool', 'result', 'level', 'files_scanned', 'errors', 'failures'],
+            ['phpstan'],
+        ];
     }
 
     /**
