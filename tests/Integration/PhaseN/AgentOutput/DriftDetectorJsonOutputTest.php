@@ -54,10 +54,12 @@ final class DriftDetectorJsonOutputTest extends TestCase
         $result = $this->runScript(['5'], []);
 
         self::assertSame(0, $result['exit_code']);
-        // Default human output preserves the canonical preface and resolution.
-        self::assertStringContainsString('=== Drift Detector ===', $result['stdout']);
-        self::assertStringContainsString('Checking last 5 commits', $result['stdout']);
+        // Human mode never leaks an NDJSON envelope (regardless of which
+        // early-exit branch the script takes — CI clones may have shallow
+        // git history and hit the "Only N commits available" path that
+        // skips the canonical "=== Drift Detector ===" preface).
         self::assertStringNotContainsString('"tool":', $result['stdout']);
+        self::assertStringNotContainsString('"result":', $result['stdout']);
     }
 
     /**
