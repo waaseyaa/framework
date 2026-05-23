@@ -1,9 +1,34 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# Hard-gate package-layers check. See CLAUDE.md "Layer Architecture".
+#
+# Output modes (M4 WP04 of mission `agent-output-package-01KS5VX1`):
+#
+#   --output=json    NDJSON envelope on stdout via Waaseyaa\AgentOutput\Formatter\PackageLayersFormatter
+#   WAASEYAA_OUTPUT=json    same effect via env var
+#
+# Default behaviour (no flag, no env var) is unchanged: pass/fail human text,
+# exit 0/1.
+set -uo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 export ROOT_DIR
 
+OUTPUT_MODE="human"
+for arg in "$@"; do
+    case "$arg" in
+        --output=json) OUTPUT_MODE="json" ;;
+    esac
+done
+if [[ "${WAASEYAA_OUTPUT:-}" == "json" ]]; then
+    OUTPUT_MODE="json"
+fi
+export OUTPUT_MODE
+
+FINDINGS_FILE="$(mktemp -t waaseyaa-check-package-layers-XXXXXX.json)"
+export FINDINGS_FILE
+trap 'rm -f "$FINDINGS_FILE"' EXIT
+
+set +e
 python3 - <<'PY'
 import json
 import os
@@ -12,6 +37,8 @@ import re
 import sys
 
 root = pathlib.Path(os.environ["ROOT_DIR"])
+output_mode = os.environ.get("OUTPUT_MODE", "human")
+findings_file = os.environ.get("FINDINGS_FILE", "")
 
 # Canonical layer index (0 = foundation). Must match CLAUDE.md "Layer Architecture".
 # waaseyaa/<short> maps to directory packages/<short>/
@@ -138,8 +165,6 @@ KERNEL_EXEMPT_FILES = {
     "foundation/src/Http/Router/EntityTypeLifecycleRouter.php":
         "kernel-adjacent route registrar wired from HttpKernel",
     "foundation/src/Http/Router/JsonApiRouter.php":
-        "kernel-adjacent route registrar wired from HttpKernel",
-    "foundation/src/Http/Router/McpRouter.php":
         "kernel-adjacent route registrar wired from HttpKernel",
     "foundation/src/Http/Router/SchemaRouter.php":
         "kernel-adjacent route registrar wired from HttpKernel",
@@ -321,11 +346,26 @@ def scan_php_imports(pkg_dir: pathlib.Path, self_layer: int) -> list[tuple[str, 
 # Run checks.
 # ---------------------------------------------------------------------------
 
+def emit(line: str) -> None:
+    """Emit human-readable text; suppressed in JSON mode."""
+    if output_mode == "human":
+        print(line)
+
+
+def emit_err(line: str) -> None:
+    if output_mode == "human":
+        print(line, file=sys.stderr)
+
+
 errors = 0
+packages_scanned = 0
+violations: list[dict[str, str]] = []
 packages_dir = root / "packages"
 
 if not packages_dir.is_dir():
-    print("FAIL [PL000] packages/ not found", file=sys.stderr)
+    emit_err("FAIL [PL000] packages/ not found")
+    if output_mode == "json" and findings_file:
+        pathlib.Path(findings_file).write_text(json.dumps({"packages_scanned": 0, "violations": []}))
     sys.exit(1)
 
 for pkg_dir in sorted(packages_dir.iterdir()):
@@ -338,6 +378,7 @@ for pkg_dir in sorted(packages_dir.iterdir()):
     pkg_type = data.get("type", "library")
     if pkg_type == "metapackage" or pkg_dir.name in METAPACKAGES:
         continue
+    packages_scanned += 1
 
     name = data.get("name", "")
     short = short_from_package_name(name) if name else None
@@ -345,14 +386,16 @@ for pkg_dir in sorted(packages_dir.iterdir()):
         continue
     if short != pkg_dir.name:
         errors += 1
-        print(f"FAIL [PL001] {manifest.relative_to(root)}: name {name!r} does not match directory {pkg_dir.name!r}")
+        emit(f"FAIL [PL001] {manifest.relative_to(root)}: name {name!r} does not match directory {pkg_dir.name!r}")
+        violations.append({"source": pkg_dir.name, "target": name, "edge": "manifest-name"})
         continue
 
     if short not in LAYER_BY_SHORT:
         errors += 1
-        print(
+        emit(
             f"FAIL [PL002] {manifest.relative_to(root)}: package {short!r} missing from bin/check-package-layers LAYER_BY_SHORT — add layer and update CLAUDE.md"
         )
+        violations.append({"source": short, "target": "LAYER_BY_SHORT", "edge": "missing-layer-entry"})
         continue
 
     layer_self = LAYER_BY_SHORT[short]
@@ -370,32 +413,63 @@ for pkg_dir in sorted(packages_dir.iterdir()):
                 continue
             if dep_short not in LAYER_BY_SHORT:
                 errors += 1
-                print(
+                emit(
                     f"FAIL [PL003] {manifest.relative_to(root)} {sec}: dependency {dep_name!r} (short={dep_short!r}) not in LAYER_BY_SHORT"
                 )
+                violations.append({"source": short, "target": dep_short, "edge": sec})
                 continue
             layer_dep = LAYER_BY_SHORT[dep_short]
             if layer_dep > layer_self:
                 errors += 1
-                print(
+                emit(
                     f"FAIL [PL004] {manifest.relative_to(root)} {sec}: layer violation — "
                     f"{short} (layer {layer_self}) must not depend on {dep_short} (layer {layer_dep}). "
                     f"See CLAUDE.md Layer Architecture and GitHub #315/#316."
                 )
+                violations.append({"source": short, "target": dep_short, "edge": sec})
 
     # ----- PHP file-level `use` imports -----
     for rel, dep_short, dep_layer in scan_php_imports(pkg_dir, layer_self):
         errors += 1
-        print(
+        emit(
             f"FAIL [PL005] packages/{rel}: file-level layer violation — "
             f"{short} (layer {layer_self}) imports waaseyaa/{dep_short} (layer {dep_layer}). "
             f"If this file is kernel-adjacent, move it under {short}/src/Kernel/ or add an "
             f"entry to KERNEL_EXEMPT_FILES in bin/check-package-layers with a one-line rationale."
         )
+        violations.append({"source": short, "target": dep_short, "edge": "use"})
 
-if errors:
-    print(f"\nPackage layer check failed with {errors} error(s).", file=sys.stderr)
-    sys.exit(1)
+# Write the structured findings to FINDINGS_FILE for the bash wrapper's PHP shim,
+# regardless of mode (the wrapper only reads it in JSON mode).
+if findings_file:
+    try:
+        pathlib.Path(findings_file).write_text(json.dumps({
+            "packages_scanned": packages_scanned,
+            "violations": violations,
+        }))
+    except OSError:
+        pass
 
-print("OK — package layer constraints (composer.json + PHP file-level) satisfied.")
+if output_mode == "human":
+    if errors:
+        print(f"\nPackage layer check failed with {errors} error(s).", file=sys.stderr)
+        sys.exit(1)
+    print("OK — package layer constraints (composer.json + PHP file-level) satisfied.")
+    sys.exit(0)
+
+# JSON mode: stay silent on stdout/stderr — the bash wrapper emits the envelope.
+sys.exit(1 if errors else 0)
 PY
+PYTHON_EXIT=$?
+set -e
+
+if [[ "$OUTPUT_MODE" == "json" ]]; then
+    php -d display_errors=stderr -r '
+require getenv("ROOT_DIR") . "/vendor/autoload.php";
+$raw = @file_get_contents(getenv("FINDINGS_FILE"));
+$findings = is_string($raw) && $raw !== "" ? json_decode($raw, true, 512, JSON_THROW_ON_ERROR) : ["packages_scanned" => 0, "violations" => []];
+echo (new Waaseyaa\AgentOutput\Formatter\PackageLayersFormatter())->format($findings);
+'
+fi
+
+exit "$PYTHON_EXIT"

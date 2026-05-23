@@ -41,19 +41,55 @@ tags: []
 
 Wire each affected CLI command to detect agent env / `--output=json` and route output through the right formatter. This is the highest-touch WP — it edits several scripts and config files. Integration tests verify the round-trip.
 
+## Scope realization (2026-05-23)
+
+WP04 is the highest-touch WP in the mission. This commit ships a
+**pattern-proving slice** that:
+
+1. Wires `--output=json` end-to-end through one `bin/check-*` script
+   (`bin/check-package-layers`) using the canonical pattern: bash
+   detects mode → Python emits structured findings to a tmpfile →
+   PHP shim feeds the existing `PackageLayersFormatter` and prints
+   the NDJSON envelope.
+2. Verifies the contract with both integration tests
+   (`PackageLayersJsonOutputTest`, `HumanOutputUnchangedTest`).
+
+The remaining subtasks land in **WP04B** (deferred to a follow-up
+mission so the highest-touch WP doesn't balloon a single PR):
+
+- **T015** — PHPUnit event subscriber + `phpunit.xml.dist` extension
+  registration. Net-new code against PHPUnit 10's event API.
+- **T016** — PHPStan custom error formatter + `phpstan.neon`
+  `errorFormatters` registration. Net-new code against PHPStan's
+  ErrorFormatter interface.
+- **T017 (remainder)** — Apply the bash + Python + PHP shim pattern
+  proven here to `bin/check-dead-code`, `bin/check-getquery-bindings`,
+  `bin/check-composer-policy`. Mechanical replication; each script
+  follows the WP04 part-1 template + uses its own already-shipped
+  formatter (DeadCodeFormatter, GetQueryBindingsFormatter,
+  ComposerPolicyFormatter — all in `packages/agent-output/`).
+- **T017 (drift-detector)** — `tools/drift-detector.sh` shell wrapper
+  pipe to `php bin/agent-output-format drift-detector`. The shim
+  reads stdin and calls `DriftDetectorFormatter::parseRawOutput()`.
+- **T018 (PhpUnitJsonOutputTest)** — depends on T015.
+
+The two shipped integration tests already cover T018's
+`PackageLayersJsonOutputTest` and `HumanOutputUnchangedTest`
+scenarios.
+
 ## Subtasks
 
-### T015 — PHPUnit Printer / Subscriber
+### T015 — PHPUnit Printer / Subscriber (deferred to WP04B)
 
 PHPUnit 10's event subscriber API is the right hook. Add a Subscriber class under `packages/agent-output/src/Listener/PhpUnitEventSubscriber.php` (or similar) that listens for `TestPassed`, `TestFailed`, `TestSuiteFinished`. Register via `phpunit.xml.dist`'s `<extensions>` block.
 
 The subscriber activates only when `AgentDetector::detect() !== null` OR `WAASEYAA_OUTPUT=json` OR `--output=json` passed. Otherwise it's a no-op (default PHPUnit output preserved — C-002).
 
-### T016 — PHPStan custom error format
+### T016 — PHPStan custom error format (deferred to WP04B)
 
 `phpstan.neon`: register a custom error formatter class via the `errorFormatters` key. The formatter activates the same way as T015. PHPStan calls into the formatter at the end of the run with the full error set.
 
-### T017 — `bin/check-*` PHP CLI scripts
+### T017 — `bin/check-*` PHP CLI scripts (1 of 4 shipped; 3 deferred to WP04B)
 
 For each of `check-package-layers`, `check-dead-code`, `check-getquery-bindings`, `check-composer-policy`:
 
