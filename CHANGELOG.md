@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **docs**: M5 WP05 close-out — `docs/specs/bimaaji-install.md` filled in (Supported clients table with the seven launch-client target paths + convention citations, Flag semantics table with exit-code matrix, Interactive UX section documenting the shipped `CliIO::ask()` + `confirm()` prompts as the WP01 scaffold's reduced-scope replacement for the original `[o]verwrite/[s]kip/[d]iff/[a]ll` plan, Trust contract details, Implementation Status with PR provenance). `packages/bimaaji/README.md` adds an "Installing guidelines / skills" section with an invocation matrix and updates the Status section: M3's MCP bridge has shipped, so the README no longer describes bimaaji as PHP-only and the consumer-cleanup notes now point at the new `/mcp` HTTP endpoint. Verification artifact at `kitty-specs/bimaaji-install-command-01KS5W0S/verification.md`. M5 WP05 of mission `bimaaji-install-command-01KS5W0S`.
+
 ### Fixed
 
 - **bimaaji**: `bimaaji:install` sandbox-discipline check no longer rejects healthy target paths when the project root lives in a deep directory tree (e.g. `/home/<user>/.../<tempdir>`). The pre-fix walk-the-ancestor-chain implementation would reject on the first ancestor (`/home`) that wasn't a prefix of the project root. The new check only realpath-validates the nearest existing ancestor (catching symlink-based escapes) and falls back to textual `..`/absolute-path guarding for the remainder. M5 WP04 of mission `bimaaji-install-command-01KS5W0S`.
