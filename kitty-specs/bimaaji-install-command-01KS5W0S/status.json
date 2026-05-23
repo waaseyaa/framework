@@ -1,7 +1,7 @@
 {
-  "event_count": 2,
-  "last_event_id": "01KSAR6XQ311VBE97RS6H727TG",
-  "materialized_at": "2026-05-23T15:45:39.555410+00:00",
+  "event_count": 3,
+  "last_event_id": "01KSARSREDEFQB6NC9PNVMN3M7",
+  "materialized_at": "2026-05-23T15:55:56.749067+00:00",
   "mission_number": "",
   "mission_slug": "bimaaji-install-command-01KS5W0S",
   "mission_type": "software-dev",
@@ -10,7 +10,7 @@
     "blocked": 0,
     "canceled": 0,
     "claimed": 0,
-    "done": 2,
+    "done": 3,
     "for_review": 0,
     "in_progress": 0,
     "in_review": 0,
@@ -30,6 +30,13 @@
       "lane": "done",
       "last_event_id": "01KSAR6XQ311VBE97RS6H727TG",
       "last_transition_at": "2026-05-23T15:45:39.555410+00:00"
+    },
+    "WP04": {
+      "actor": "opus",
+      "force_count": 1,
+      "lane": "done",
+      "last_event_id": "01KSARSREDEFQB6NC9PNVMN3M7",
+      "last_transition_at": "2026-05-23T15:55:56.749067+00:00"
     }
   }
 }
