@@ -32,10 +32,40 @@ integration rather than an external dev dependency.
 
 ## Status
 
-Beta. M4 WP01 ships `AgentDetector` (env detection). Subsequent WPs add the
-formatter interface (WP02), the eight first-party formatters (WP03), CLI
-integration (WP04), release-pipeline wiring (WP05), and the empirical
-≥90%-reduction verification (WP06).
+Beta. As of M4 WP05 (2026-05-23) every M4-tracked CI gate plus PHPUnit
+honors the `--output=json` / `WAASEYAA_OUTPUT=json` contract:
 
-See `docs/specs/agent-output.md` (filed in WP02) for the envelope schema,
-formatter contract, and third-party extension guide.
+| Surface | Activation | Formatter |
+|---|---|---|
+| `bin/check-package-layers` | `--output=json` / env | `PackageLayersFormatter` |
+| `bin/check-dead-code` | `--output=json` / env | `DeadCodeFormatter` |
+| `bin/check-getquery-bindings` | `--output=json` / env | `GetQueryBindingsFormatter` |
+| `bin/check-composer-policy` | `--output=json` / env | `ComposerPolicyFormatter` |
+| `bin/check-phpstan` | `--output=json` / env | `PhpStanFormatter` |
+| `tools/drift-detector.sh` | `--output=json` / env | `DriftDetectorFormatter` |
+| `vendor/bin/phpunit` | `WAASEYAA_OUTPUT=json` (no `--output=json` because PHPUnit doesn't surface custom CLI flags) | `PhpUnitFormatter` via `AgentOutputPhpUnitExtension` |
+
+The empirical ≥90%-reduction verification (WP06) is the remaining
+mission deliverable.
+
+See `docs/specs/agent-output.md` for the envelope schema, formatter
+contract, and third-party extension guide.
+
+## First-release checklist
+
+Per the framework's three-step new-package release pattern (memory
+`feedback_new_package_release_checklist`), this package lands the
+release pipeline in WP05 + requires two manual handoff steps:
+
+1. **split.yml matrix entry** (✅ landed in WP05) — see
+   `.github/workflows/split.yml`. Without this entry, the per-package
+   subtree split never runs and consumers never see a tag.
+2. **GitHub repo provisioning** (manual): `gh repo create waaseyaa/agent-output --public`
+   — must happen BEFORE the next release tag is pushed. The split
+   workflow needs a real remote to push to.
+3. **Packagist registration** (manual, AFTER first split push): submit
+   `https://github.com/waaseyaa/agent-output` at
+   `https://packagist.org/packages/submit`. Packagist requires the
+   remote to have at least one ref it can resolve, so this step must
+   come after the first split tag lands on the new repo (typically the
+   release-cut workflow's first run after this PR merges).
