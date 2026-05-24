@@ -221,6 +221,20 @@ final class BuiltinRouteRegistrar
                 ->build(),
         );
 
+        // M4A-5 Phase 1: read-only workflow-guards matrix endpoint
+        // (mission `workflow-guards-readonly-01KSDS5W`, parent #1470). The
+        // mutation surface is deferred to M4A-5b after a persistence ADR
+        // exists (C-001). Admin-only by route option; the controller does
+        // not re-check the role (NFR-001).
+        $router->addRoute(
+            'api.workflow.guards.index',
+            RouteBuilder::create('/api/workflow-definitions/{workflow_id}/guards')
+                ->controller('Waaseyaa\\Api\\Controller\\WorkflowGuardsController::index')
+                ->requireRole('admin')
+                ->methods('GET')
+                ->build(),
+        );
+
         $ccController = 'Waaseyaa\\Api\\Controller\\CodifiedContextController';
         $router->addRoute(
             'api.telescope.agent_context.sessions',

@@ -23,6 +23,17 @@ namespace Waaseyaa\Workflows;
  *           'edit own {bundle} content',
  *       ],
  *   ]
+ *
+ * ## Workflow guard surface (M4A-5 Phase 1)
+ *
+ * The matrix can also carry a workflow-guard mapping that records, per
+ * workflow, the roles allowed to perform each named transition. The data
+ * is optional: callers that only need permission-expansion can omit it.
+ * When present, {@see snapshot()} flattens the mapping cross-producted
+ * with the configured bundles into a stable read-only row set keyed by
+ * `(workflow_id, bundle, transition)`. The guard surface is read-only;
+ * editing it is deferred to M4A-5b.
+ *
  * @api
  */
 final class AuthoringRoleMatrix
@@ -34,10 +45,16 @@ final class AuthoringRoleMatrix
      *   - label: Human-readable name
      *   - permissions: (optional) Static permissions not scoped to bundles
      *   - bundle_permissions: (optional) Templates with {bundle} placeholder
+     * @param array<string, array<string, list<string>>> $workflowGuards
+     *   Optional workflow-guard mapping keyed by `workflow_id => [transition_id => list<role>]`.
+     *   When empty (default), {@see snapshot()} and {@see forWorkflow()} return empty arrays.
+     *   The framework's editorial workflow surfaces this via
+     *   {@see EditorialTransitionAccessResolver::TRANSITION_ROLE_MATRIX}.
      */
     public function __construct(
         private readonly array $bundles,
         private readonly array $roles,
+        private readonly array $workflowGuards = [],
     ) {}
 
     /**
@@ -89,5 +106,87 @@ final class AuthoringRoleMatrix
         sort($permissions);
 
         return $permissions;
+    }
+
+    /**
+     * Flatten the workflow-guard mapping into ordered rows.
+     *
+     * Each row carries `(workflow_id, bundle, transition, required_roles)`.
+     * Rows are deterministically ordered by workflow_id, bundle, transition.
+     * When no bundles are configured, no rows are emitted (a guard without a
+     * bundle context cannot be applied).
+     *
+     * @return list<array{workflow_id: string, bundle: string, transition: string, required_roles: list<string>}>
+     */
+    public function snapshot(): array
+    {
+        $rows = [];
+
+        $workflowIds = array_keys($this->workflowGuards);
+        sort($workflowIds);
+
+        foreach ($workflowIds as $workflowId) {
+            foreach ($this->forWorkflow($workflowId) as $row) {
+                $rows[] = [
+                    'workflow_id' => $workflowId,
+                    'bundle' => $row['bundle'],
+                    'transition' => $row['transition'],
+                    'required_roles' => $row['required_roles'],
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Return the guard rows for a single workflow id.
+     *
+     * Returns an empty list when the workflow is unknown to the matrix.
+     * Rows are ordered by bundle, then transition.
+     *
+     * @return list<array{bundle: string, transition: string, required_roles: list<string>}>
+     */
+    public function forWorkflow(string $workflowId): array
+    {
+        $transitions = $this->workflowGuards[$workflowId] ?? [];
+        if ($transitions === []) {
+            return [];
+        }
+
+        $transitionIds = array_keys($transitions);
+        sort($transitionIds);
+
+        $bundles = $this->bundles;
+        sort($bundles);
+
+        $rows = [];
+        foreach ($bundles as $bundle) {
+            foreach ($transitionIds as $transitionId) {
+                $rows[] = [
+                    'bundle' => $bundle,
+                    'transition' => $transitionId,
+                    'required_roles' => $transitions[$transitionId] ?? [],
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Returns the workflow ids that carry guard data in this matrix.
+     *
+     * Used by the API service provider to verify that a requested
+     * workflow id is known before delegating to {@see forWorkflow()}.
+     *
+     * @return list<string>
+     */
+    public function knownWorkflowIds(): array
+    {
+        $ids = array_keys($this->workflowGuards);
+        sort($ids);
+
+        return $ids;
     }
 }

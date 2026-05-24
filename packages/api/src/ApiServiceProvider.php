@@ -7,10 +7,12 @@ namespace Waaseyaa\Api;
 use Waaseyaa\Api\Controller\NotificationController;
 use Waaseyaa\Api\Controller\QueueController;
 use Waaseyaa\Api\Controller\SchedulerController;
+use Waaseyaa\Api\Controller\WorkflowGuardsController;
 use Waaseyaa\Api\Http\Router\DiscoveryRouter;
 use Waaseyaa\Api\Http\Router\NotificationAdminApiRouter;
 use Waaseyaa\Api\Http\Router\QueueAdminApiRouter;
 use Waaseyaa\Api\Http\Router\SchedulerAdminApiRouter;
+use Waaseyaa\Api\Http\Router\WorkflowGuardsApiRouter;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
@@ -23,6 +25,7 @@ use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\Scheduler\ScheduleInterface;
 use Waaseyaa\Scheduler\ScheduleRunner;
 use Waaseyaa\Scheduler\Storage\ScheduleStateRepository;
+use Waaseyaa\Workflows\AuthoringRoleMatrix;
 
 final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface
 {
@@ -78,6 +81,20 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
             $routers[] = new NotificationAdminApiRouter(
                 new NotificationController($notificationDispatcher),
             );
+        }
+
+        // M4A-5 Phase 1: read-only workflow guards matrix endpoint. Same
+        // indirection pattern as the queue and scheduler blocks —
+        // WorkflowServiceProvider (Layer 3) is expected to bind
+        // AuthoringRoleMatrix; if the binding is absent (slimmed-down
+        // install) we skip wiring the router rather than crashing boot.
+        // The workflow registry is currently the same closure pattern used
+        // by WorkflowDefinitionsController (M4A-1) — left as the default
+        // so a single change point covers all admin workflow endpoints.
+        // Phase 2 (edit) follow-up: M4A-5b.
+        $matrix = $this->resolveOptional(AuthoringRoleMatrix::class);
+        if ($matrix instanceof AuthoringRoleMatrix) {
+            $routers[] = new WorkflowGuardsApiRouter(new WorkflowGuardsController($matrix));
         }
 
         return $routers;
