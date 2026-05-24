@@ -138,6 +138,7 @@
   "na": "N/A",
   "nav_group_other": "Other",
   "nav_group_custom": "Shortcuts",
+  "nav_group_operations": "Operations",
   "topbar_links": "Quick links",
 
   "entity_type_user": "User",
@@ -191,5 +192,39 @@
   "telescope_cc_contradictions": "Contradiction Checks",
 
   "bundle_filter_label": "Bundle:",
-  "bundle_filter_all": "All bundles"
+  "bundle_filter_all": "All bundles",
+
+  "queue_title": "Failed jobs",
+  "queue_empty": "No failed jobs.",
+  "queue_column_id": "ID",
+  "queue_column_queue": "Queue",
+  "queue_column_exception_class": "Exception",
+  "queue_column_exception_message": "Message",
+  "queue_column_failed_at": "Failed at",
+  "queue_column_attempts": "Attempts",
+  "queue_action_retry": "Retry",
+  "queue_action_discard": "Discard",
+  "queue_action_view": "View payload",
+  "queue_payload_title": "Payload",
+  "queue_payload_truncated": "Payload was truncated in the list response (>2 KB).",
+  "queue_confirm_discard_title": "Discard failed job?",
+  "queue_confirm_discard_body": "Permanently drop failed job {id}? This cannot be undone.",
+  "queue_pagination_summary": "Page {page} of {total} (showing up to {perPage} per page)",
+
+  "scheduler_title": "Scheduled tasks",
+  "scheduler_empty": "No scheduled tasks are registered.",
+  "scheduler_column_name": "Task",
+  "scheduler_column_description": "Description",
+  "scheduler_column_expression": "Cron",
+  "scheduler_column_timezone": "Timezone",
+  "scheduler_column_last_run_at": "Last run",
+  "scheduler_column_last_status": "Status",
+  "scheduler_column_next_run_at": "Next run",
+  "scheduler_action_trigger": "Run now",
+  "scheduler_confirm_trigger_title": "Run task now?",
+  "scheduler_confirm_trigger_body": "Trigger an immediate run of task {name}? This bypasses the cron schedule.",
+  "scheduler_status_success": "Success",
+  "scheduler_status_failed": "Failed",
+  "scheduler_status_skipped": "Skipped",
+  "scheduler_status_never": "Never run"
 }

@@ -90,6 +90,10 @@ function customSectionHeading(groupKey: string): string {
         </NuxtLink>
       </template>
     </template>
+    <div class="nav-section" data-testid="nav-section-operations">{{ t('nav_group_operations') }}</div>
+    <NuxtLink to="/workflows" class="nav-item">{{ t('workflows') }}</NuxtLink>
+    <NuxtLink to="/queue" class="nav-item" data-testid="nav-queue">{{ t('queue_title') }}</NuxtLink>
+    <NuxtLink to="/scheduler" class="nav-item" data-testid="nav-scheduler">{{ t('scheduler_title') }}</NuxtLink>
   </nav>
 </template>
 

@@ -27,12 +27,26 @@ final class SchedulerServiceProvider extends ServiceProvider
             default => fn(): InMemoryLock => new InMemoryLock(),
         });
 
+        // Bind ScheduleStateRepository as a first-class container service so
+        // the admin scheduler dashboard (M4B WP02 — Layer 4 ApiServiceProvider)
+        // can resolve it without duplicating the repository instance. Only
+        // available when a real DatabaseInterface is in the container; sync /
+        // in-memory installs don't get a state row to read from.
+        if ($driver === 'database') {
+            $this->singleton(
+                ScheduleStateRepository::class,
+                fn(): ScheduleStateRepository => new ScheduleStateRepository(
+                    $this->resolve(DatabaseInterface::class),
+                ),
+            );
+        }
+
         $this->singleton(ScheduleRunner::class, fn(): ScheduleRunner => new ScheduleRunner(
             $this->resolve(ScheduleInterface::class),
             $this->resolve(QueueInterface::class),
             $this->resolve(LockInterface::class),
             $driver === 'database'
-                ? new ScheduleStateRepository($this->resolve(DatabaseInterface::class))
+                ? $this->resolve(ScheduleStateRepository::class)
                 : null,
         ));
     }

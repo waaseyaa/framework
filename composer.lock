@@ -3781,13 +3781,14 @@
             "dist": {
                 "type": "path",
                 "url": "packages/api",
-                "reference": "4678d1b4246ad0ef7ba2e423377ad699008d1f09"
+                "reference": "75751d9f6c426165e33f8052ef805589b3dfc6a2"
             },
             "require": {
                 "php": ">=8.5",
                 "waaseyaa/access": "^0.1.0-alpha.188",
                 "waaseyaa/entity": "^0.1.0-alpha.188",
                 "waaseyaa/foundation": "^0.1.0-alpha.188",
+                "waaseyaa/queue": "^0.1.0-alpha.188",
                 "waaseyaa/routing": "^0.1.0-alpha.188",
                 "waaseyaa/workflows": "^0.1.0-alpha.188"
             },

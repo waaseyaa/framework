@@ -150,6 +150,56 @@ final class BuiltinRouteRegistrar
                 ->build(),
         );
 
+        // M4B WP01: admin queue dashboard. Failed-jobs MVP only — queued/in-flight
+        // job columns ship later once `TransportInterface::listJobs()` exists
+        // (see WP01 follow-up issue tracked under #1471).
+        $queueController = 'Waaseyaa\\Api\\Controller\\QueueController';
+        $router->addRoute(
+            'api.queue.jobs.index',
+            RouteBuilder::create('/api/queue/jobs')
+                ->controller($queueController . '::index')
+                ->requireRole('admin')
+                ->methods('GET')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.queue.jobs.retry',
+            RouteBuilder::create('/api/queue/jobs/{id}/retry')
+                ->controller($queueController . '::retry')
+                ->requireRole('admin')
+                ->methods('POST')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.queue.jobs.discard',
+            RouteBuilder::create('/api/queue/jobs/{id}/discard')
+                ->controller($queueController . '::discard')
+                ->requireRole('admin')
+                ->methods('POST')
+                ->build(),
+        );
+
+        // M4B WP02: admin scheduler dashboard. Read-mostly view of the cron
+        // registry plus a "Run now" trigger. Tasks themselves remain
+        // code-defined via attributes (C-002) — no edit UI.
+        $schedulerController = 'Waaseyaa\\Api\\Controller\\SchedulerController';
+        $router->addRoute(
+            'api.scheduler.tasks.index',
+            RouteBuilder::create('/api/scheduler/tasks')
+                ->controller($schedulerController . '::index')
+                ->requireRole('admin')
+                ->methods('GET')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.scheduler.tasks.trigger',
+            RouteBuilder::create('/api/scheduler/tasks/{name}/trigger')
+                ->controller($schedulerController . '::trigger')
+                ->requireRole('admin')
+                ->methods('POST')
+                ->build(),
+        );
+
         $ccController = 'Waaseyaa\\Api\\Controller\\CodifiedContextController';
         $router->addRoute(
             'api.telescope.agent_context.sessions',

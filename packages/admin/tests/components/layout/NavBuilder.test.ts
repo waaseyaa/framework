@@ -70,14 +70,20 @@ describe('NavBuilder', () => {
     expect(wrapper.text()).toContain('Content')
   })
 
-  it('renders only the dashboard link when the catalog is empty', async () => {
+  it('renders the dashboard + Operations section when the catalog is empty', async () => {
     catalogRef.value = []
 
     const wrapper = await mountSuspended(NavBuilder)
 
     expect(wrapper.text()).toContain('Dashboard')
-    expect(wrapper.findAll('.nav-section')).toHaveLength(0)
-    expect(wrapper.findAll('a')).toHaveLength(1)
+    // M4B WP01 + WP02 add an always-present "Operations" nav section with
+    // links to /workflows, /queue, and /scheduler, so the dashboard is no
+    // longer the only nav element when the catalog is empty.
+    expect(wrapper.text()).toContain('Operations')
+    expect(wrapper.find('[data-testid="nav-queue"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="nav-scheduler"]').exists()).toBe(true)
+    expect(wrapper.findAll('.nav-section')).toHaveLength(1)
+    expect(wrapper.findAll('a')).toHaveLength(4)
   })
 
   it('renders the pipeline link when the catalog entry declares board-config', async () => {
