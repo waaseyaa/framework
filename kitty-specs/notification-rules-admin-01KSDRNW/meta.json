@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-05-24T19:51:33.921521+00:00",
+  "friendly_name": "notification rules admin",
+  "mission_id": "01KSDRNWESPMS8SPVXDJ1PA6VW",
+  "mission_number": null,
+  "mission_slug": "notification-rules-admin-01KSDRNW",
+  "mission_type": "software-dev",
+  "slug": "notification-rules-admin-01KSDRNW",
+  "target_branch": "main"
+}
