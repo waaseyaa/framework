@@ -146,3 +146,4 @@ In the lane worktree:
 - 2026-05-24T20:07:32Z – claude:sonnet:implementer:implementer – shell_pid=379607 – Assigned agent via action command
 - 2026-05-24T20:25:56Z – claude:sonnet:implementer:implementer – shell_pid=379607 – M4A-5 Phase 1 ready; M4A-5b follow-up #1579 filed for Phase 2 edit. Playwright deferred (lane worktree limitation per CLAUDE.md gotcha).
 - 2026-05-24T20:26:55Z – claude:opus:reviewer:reviewer – shell_pid=397177 – Started review via action command
+- 2026-05-24T20:29:00Z – claude:opus:reviewer:reviewer – shell_pid=397177 – Moved to planned
