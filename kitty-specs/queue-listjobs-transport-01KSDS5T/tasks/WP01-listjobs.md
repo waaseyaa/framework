@@ -147,3 +147,4 @@ In the lane worktree:
 ## Activity Log
 
 - 2026-05-24T20:07:22Z – claude:sonnet:implementer:implementer – shell_pid=379607 – Assigned agent via action command
+- 2026-05-24T20:28:59Z – claude:sonnet:implementer:implementer – shell_pid=379607 – Closes #1576; M4B backward compat verified
