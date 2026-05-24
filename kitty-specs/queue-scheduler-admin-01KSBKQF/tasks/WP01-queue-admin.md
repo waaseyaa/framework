@@ -23,7 +23,7 @@ base_branch: kitty/mission-queue-scheduler-admin-01KSBKQF
 base_commit: 69a4bb209d6eb8bba3b43f131cbf43e1b826b45a
 created_at: '2026-05-24T18:47:00.143109+00:00'
 subtasks: []
-shell_pid: '350353'
+shell_pid: "350353"
 history: []
 authoritative_surface: packages/api/src/Controller/QueueController.php
 execution_mode: code_change
@@ -37,6 +37,7 @@ owned_files:
 - packages/admin/test/unit/composables/useQueueJobs.test.ts
 - packages/admin/e2e/queue.spec.ts
 tags: []
+agent: "claude:sonnet:implementer:implementer"
 ---
 
 # WP01 — Queue admin (failed-jobs MVP)
@@ -113,3 +114,7 @@ Before requesting review:
 - Job payload editing.
 - Worker process management.
 - Live updates (Mercure / SSE) — covered separately in M5 per audit C-L0-04.
+
+## Activity Log
+
+- 2026-05-24T18:47:03Z – claude:sonnet:implementer:implementer – shell_pid=350353 – Assigned agent via action command
