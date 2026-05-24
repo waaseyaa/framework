@@ -27,7 +27,7 @@ base_branch: kitty/mission-notification-rules-admin-01KSDRNW
 base_commit: 24dfbfd416f4116d8d50de49088316dc1a2babef
 created_at: '2026-05-24T19:57:23.685384+00:00'
 subtasks: []
-shell_pid: "374462"
+shell_pid: "389474"
 history: []
 authoritative_surface: packages/api/src/Controller/NotificationController.php
 execution_mode: code_change
@@ -50,7 +50,7 @@ owned_files:
 - docs/specs/admin-spa.md
 - CHANGELOG.md
 tags: []
-agent: "claude:sonnet:implementer:implementer"
+agent: "claude:opus:reviewer:reviewer"
 ---
 
 # WP01 — Notification channels + test send
@@ -183,3 +183,4 @@ Record the issue number in the WP01 handoff note.
 
 - 2026-05-24T19:57:25Z – claude:sonnet:implementer:implementer – shell_pid=374462 – Assigned agent via action command
 - 2026-05-24T20:15:27Z – claude:sonnet:implementer:implementer – shell_pid=374462 – M4C ready: notification channels dashboard + per-channel test send wired end-to-end. Follow-up #1578 filed for delivery log + channel enable/disable + 2-tab notifications admin. Closes audit C-L3-02 + C-L0-03. Backend gates all green (cs-check, phpstan, package-layers, dead-code, getquery-bindings, composer-policy). Unit + integration tests: 34 pass / 163 assertions across PhaseNotificationAdmin + queue/scheduler regression. Frontend: 259 vitest pass, typecheck clean, 0 new lint errors. Playwright e2e/notifications.spec.ts authored but not run locally (needs nuxt dev on 3000).
+- 2026-05-24T20:16:11Z – claude:opus:reviewer:reviewer – shell_pid=389474 – Started review via action command
