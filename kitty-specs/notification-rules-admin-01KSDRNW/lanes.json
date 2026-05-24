@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "mission_slug": "notification-rules-admin-01KSDRNW",
+  "mission_id": "01KSDRNWESPMS8SPVXDJ1PA6VW",
+  "mission_branch": "kitty/mission-notification-rules-admin-01KSDRNW",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01"
+      ],
+      "write_scope": [
+        "CHANGELOG.md",
+        "docs/specs/admin-spa.md",
+        "packages/admin/app/components/layout/NavBuilder.vue",
+        "packages/admin/app/components/notification/NotificationChannelRow.vue",
+        "packages/admin/app/composables/useNotificationChannels.ts",
+        "packages/admin/app/i18n/en.json",
+        "packages/admin/app/pages/notifications/index.vue",
+        "packages/admin/e2e/notifications.spec.ts",
+        "packages/admin/tests/unit/composables/useNotificationChannels.test.ts",
+        "packages/api/composer.json",
+        "packages/api/src/ApiServiceProvider.php",
+        "packages/api/src/Controller/NotificationController.php",
+        "packages/api/src/Http/Router/NotificationAdminApiRouter.php",
+        "packages/api/tests/Unit/Controller/NotificationControllerTest.php",
+        "packages/foundation/src/Kernel/BuiltinRouteRegistrar.php",
+        "packages/notification/src/NotificationDispatcher.php",
+        "packages/notification/tests/Unit/NotificationDispatcherTest.php"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "app-shell",
+        "artifact-rendering",
+        "dashboard"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-05-24T19:56:59.035931+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": []
+}
