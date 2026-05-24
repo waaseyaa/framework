@@ -182,3 +182,4 @@ Record the issue number in the WP01 handoff note.
 ## Activity Log
 
 - 2026-05-24T19:57:25Z – claude:sonnet:implementer:implementer – shell_pid=374462 – Assigned agent via action command
+- 2026-05-24T20:15:27Z – claude:sonnet:implementer:implementer – shell_pid=374462 – M4C ready: notification channels dashboard + per-channel test send wired end-to-end. Follow-up #1578 filed for delivery log + channel enable/disable + 2-tab notifications admin. Closes audit C-L3-02 + C-L0-03. Backend gates all green (cs-check, phpstan, package-layers, dead-code, getquery-bindings, composer-policy). Unit + integration tests: 34 pass / 163 assertions across PhaseNotificationAdmin + queue/scheduler regression. Frontend: 259 vitest pass, typecheck clean, 0 new lint errors. Playwright e2e/notifications.spec.ts authored but not run locally (needs nuxt dev on 3000).
