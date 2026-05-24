@@ -1,7 +1,7 @@
 {
-  "event_count": 1,
-  "last_event_id": "01KSDSHCFB9QXK2MK47FGV0ZJH",
-  "materialized_at": "2026-05-24T20:06:34.219509+00:00",
+  "event_count": 3,
+  "last_event_id": "01KSDSJSX3R5EH5PHZ50H95YX3",
+  "materialized_at": "2026-05-24T20:07:20.739799+00:00",
   "mission_number": "",
   "mission_slug": "queue-listjobs-transport-01KSDS5T",
   "mission_type": "software-dev",
@@ -12,17 +12,17 @@
     "claimed": 0,
     "done": 0,
     "for_review": 0,
-    "in_progress": 0,
+    "in_progress": 1,
     "in_review": 0,
-    "planned": 1
+    "planned": 0
   },
   "work_packages": {
     "WP01": {
-      "actor": "finalize-tasks",
+      "actor": "implement-command",
       "force_count": 1,
-      "lane": "planned",
-      "last_event_id": "01KSDSHCFB9QXK2MK47FGV0ZJH",
-      "last_transition_at": "2026-05-24T20:06:34.219509+00:00"
+      "lane": "in_progress",
+      "last_event_id": "01KSDSJSX3R5EH5PHZ50H95YX3",
+      "last_transition_at": "2026-05-24T20:07:20.739799+00:00"
     }
   }
 }

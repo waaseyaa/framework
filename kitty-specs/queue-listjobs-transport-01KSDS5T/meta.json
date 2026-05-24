@@ -6,5 +6,7 @@
   "mission_slug": "queue-listjobs-transport-01KSDS5T",
   "mission_type": "software-dev",
   "slug": "queue-listjobs-transport-01KSDS5T",
-  "target_branch": "main"
+  "target_branch": "main",
+  "vcs": "git",
+  "vcs_locked_at": "2026-05-24T20:07:19.392686+00:00"
 }
