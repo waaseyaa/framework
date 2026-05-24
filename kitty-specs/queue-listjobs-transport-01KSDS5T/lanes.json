@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "mission_slug": "queue-listjobs-transport-01KSDS5T",
+  "mission_id": "01KSDS5TAKSTNR0DV8SBCMR2DH",
+  "mission_branch": "kitty/mission-queue-listjobs-transport-01KSDS5T",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01"
+      ],
+      "write_scope": [
+        "CHANGELOG.md",
+        "docs/specs/admin-spa.md",
+        "packages/admin/app/composables/useQueueJobs.ts",
+        "packages/admin/app/i18n/en.json",
+        "packages/admin/app/pages/queue/index.vue",
+        "packages/admin/e2e/queue.spec.ts",
+        "packages/admin/tests/unit/composables/useQueueJobs.test.ts",
+        "packages/api/src/ApiServiceProvider.php",
+        "packages/api/src/Controller/QueueController.php",
+        "packages/api/tests/Unit/Controller/QueueControllerTest.php",
+        "packages/queue/src/Transport/DbalTransport.php",
+        "packages/queue/src/Transport/InMemoryTransport.php",
+        "packages/queue/src/Transport/TransportInterface.php",
+        "packages/queue/tests/Contract/DbalTransportContractTest.php",
+        "packages/queue/tests/Contract/InMemoryTransportContractTest.php",
+        "packages/queue/tests/Contract/TransportContractTest.php",
+        "tests/Integration/PhaseQueueAdmin/QueueAdminEndpointsTest.php"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "artifact-rendering",
+        "dashboard",
+        "tests"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-05-24T20:06:34.738251+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": []
+}
