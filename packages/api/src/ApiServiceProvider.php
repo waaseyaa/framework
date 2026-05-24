@@ -18,6 +18,7 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Notification\NotificationDispatcher;
 use Waaseyaa\Queue\FailedJobRepositoryInterface;
 use Waaseyaa\Queue\QueueInterface;
+use Waaseyaa\Queue\Transport\TransportInterface;
 use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\Scheduler\ScheduleInterface;
 use Waaseyaa\Scheduler\ScheduleRunner;
@@ -36,14 +37,19 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
             ),
         ];
 
-        // M4B WP01: admin queue dashboard. Pull both queue services through
-        // the kernel-services resolver — they're bound by QueueServiceProvider
-        // (Layer 0) and routed through here in Layer 4, the same indirection
-        // pattern used by AuthOidcRouteServiceProvider for auth/oidc.
+        // M4B WP01 (+ #1576 follow-up): admin queue dashboard. Pull the queue
+        // services through the kernel-services resolver — they're bound by
+        // QueueServiceProvider (Layer 0) and routed through here in Layer 4,
+        // the same indirection pattern used by AuthOidcRouteServiceProvider
+        // for auth/oidc. The TransportInterface is optional: when absent the
+        // controller falls back to the M4B failed-only response shape so the
+        // admin dashboard keeps working on installs without an SQL transport.
         $failedJobs = $this->resolveOptional(FailedJobRepositoryInterface::class);
         $queue = $this->resolveOptional(QueueInterface::class);
+        $transportCandidate = $this->resolveOptional(TransportInterface::class);
+        $transport = $transportCandidate instanceof TransportInterface ? $transportCandidate : null;
         if ($failedJobs instanceof FailedJobRepositoryInterface && $queue instanceof QueueInterface) {
-            $routers[] = new QueueAdminApiRouter(new QueueController($failedJobs, $queue));
+            $routers[] = new QueueAdminApiRouter(new QueueController($failedJobs, $queue, $transport));
         }
 
         // M4B WP02: admin scheduler dashboard. Same indirection pattern as

@@ -15,16 +15,69 @@ const seed = {
   attempts: 0,
 }
 
-let storedJobs: typeof seed[] = []
+// Live-transport row seeds (status = 'queued' | 'in_progress'). No
+// exception fields — different shape from failed rows.
+const queuedSeed = {
+  id: '10',
+  queue: 'default',
+  payload: 'queued-payload',
+  payload_truncated: false,
+  attempts: 0,
+  available_at: 1_700_000_000,
+  reserved_at: null,
+  status: 'queued' as const,
+}
+
+const inProgressSeed = {
+  id: '11',
+  queue: 'default',
+  payload: 'reserved-payload',
+  payload_truncated: false,
+  attempts: 0,
+  available_at: 1_700_000_000,
+  reserved_at: 1_700_000_500,
+  status: 'in_progress' as const,
+}
+
+type AnyJob = typeof seed | typeof queuedSeed | typeof inProgressSeed
+
+let storedJobs: AnyJob[] = []
+let queuedStoredJobs: AnyJob[] = []
+let inProgressStoredJobs: AnyJob[] = []
+let allStoredJobs: AnyJob[] = []
+let lastFetchedStatus: string | null = null
 let retryCalls: string[] = []
 let discardCalls: string[] = []
 let nextRetryResponse: { status: number, body?: unknown } = { status: 204 }
 let nextDiscardResponse: { status: number, body?: unknown } = { status: 204 }
 
-registerEndpoint('/admin/api/queue/jobs', () => ({
-  data: storedJobs,
-  meta: { page: 1, per_page: 20, total: storedJobs.length },
-}))
+registerEndpoint('/admin/api/queue/jobs', (event: unknown) => {
+  const e = event as { node?: { req?: { url?: string } } }
+  const url = e.node?.req?.url ?? ''
+  const statusMatch = url.match(/[?&]status=([^&]+)/)
+  const statusFilter = statusMatch?.[1] ?? 'failed'
+  lastFetchedStatus = statusFilter
+
+  let dataset: AnyJob[]
+  switch (statusFilter) {
+    case 'queued':
+      dataset = queuedStoredJobs
+      break
+    case 'in_progress':
+      dataset = inProgressStoredJobs
+      break
+    case 'all':
+      dataset = allStoredJobs
+      break
+    default:
+      dataset = storedJobs
+  }
+
+  return {
+    data: dataset,
+    meta: { page: 1, per_page: 20, total: dataset.length },
+  }
+})
 
 registerEndpoint('/admin/api/queue/jobs/1/retry', {
   method: 'POST',
@@ -65,6 +118,10 @@ registerEndpoint('/admin/api/queue/jobs/1/discard', {
 beforeEach(() => {
   vi.resetModules()
   storedJobs = [{ ...seed }]
+  queuedStoredJobs = [{ ...queuedSeed }]
+  inProgressStoredJobs = [{ ...inProgressSeed }]
+  allStoredJobs = [{ ...seed }, { ...queuedSeed }, { ...inProgressSeed }]
+  lastFetchedStatus = null
   retryCalls = []
   discardCalls = []
   nextRetryResponse = { status: 204 }
@@ -81,14 +138,19 @@ describe('useQueueJobs', () => {
   })
 
   it('fetches and populates jobs + meta from /api/queue/jobs', async () => {
-    const { useQueueJobs } = await import('~/composables/useQueueJobs')
+    const { useQueueJobs, isFailedJob } = await import('~/composables/useQueueJobs')
     const { jobs, meta, loading, error, fetchJobs } = useQueueJobs()
     await fetchJobs()
     expect(loading.value).toBe(false)
     expect(error.value).toBeNull()
     expect(jobs.value).toHaveLength(1)
     expect(jobs.value[0].id).toBe('1')
-    expect(jobs.value[0].exception_class).toBe('RuntimeException')
+    const first = jobs.value[0]
+    if (isFailedJob(first)) {
+      expect(first.exception_class).toBe('RuntimeException')
+    } else {
+      throw new Error('expected failed-row shape')
+    }
     expect(meta.value).toEqual({ page: 1, per_page: 20, total: 1 })
   })
 
@@ -135,5 +197,52 @@ describe('useQueueJobs', () => {
     await fetchJobs()
     await expect(discardJob('1')).rejects.toBeDefined()
     expect(error.value).toContain('Unknown failed job id')
+  })
+
+  it('defaults to fetching ?status=failed when no arg passed', async () => {
+    const { useQueueJobs } = await import('~/composables/useQueueJobs')
+    const { fetchJobs } = useQueueJobs()
+    await fetchJobs()
+    expect(lastFetchedStatus).toBe('failed')
+  })
+
+  it('fetches queued jobs when status=queued is passed', async () => {
+    const { useQueueJobs } = await import('~/composables/useQueueJobs')
+    const { jobs, status, fetchJobs } = useQueueJobs()
+    await fetchJobs(1, 20, 'queued')
+    expect(lastFetchedStatus).toBe('queued')
+    expect(status.value).toBe('queued')
+    expect(jobs.value).toHaveLength(1)
+    const row = jobs.value[0]
+    if ('status' in row) {
+      expect(row.status).toBe('queued')
+      expect(row.reserved_at).toBeNull()
+    } else {
+      throw new Error('expected transport row, got failed row')
+    }
+  })
+
+  it('fetches in_progress jobs when status=in_progress is passed', async () => {
+    const { useQueueJobs } = await import('~/composables/useQueueJobs')
+    const { jobs, status, fetchJobs } = useQueueJobs()
+    await fetchJobs(1, 20, 'in_progress')
+    expect(lastFetchedStatus).toBe('in_progress')
+    expect(status.value).toBe('in_progress')
+    const row = jobs.value[0]
+    if ('status' in row) {
+      expect(row.status).toBe('in_progress')
+      expect(row.reserved_at).not.toBeNull()
+    } else {
+      throw new Error('expected transport row, got failed row')
+    }
+  })
+
+  it('fetches mixed rows when status=all is passed', async () => {
+    const { useQueueJobs } = await import('~/composables/useQueueJobs')
+    const { jobs, status, fetchJobs } = useQueueJobs()
+    await fetchJobs(1, 20, 'all')
+    expect(lastFetchedStatus).toBe('all')
+    expect(status.value).toBe('all')
+    expect(jobs.value).toHaveLength(3)
   })
 })

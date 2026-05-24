@@ -57,6 +57,44 @@ test.describe('Failed jobs queue dashboard', () => {
     expect(listCalls).toBeGreaterThanOrEqual(2)
   })
 
+  test('clicking the queued chip refetches with ?status=queued (#1576)', async ({ page }) => {
+    const requested: string[] = []
+    const queuedRow = {
+      id: '7',
+      queue: 'default',
+      payload: 'queued',
+      payload_truncated: false,
+      attempts: 0,
+      available_at: 1_700_000_000,
+      reserved_at: null,
+      status: 'queued' as const,
+    }
+
+    await page.route('**/api/queue/jobs?**', (route) => {
+      const url = route.request().url()
+      requested.push(url)
+      const isQueued = url.includes('status=queued')
+
+      return route.fulfill({
+        json: {
+          data: isQueued ? [queuedRow] : [sampleJob],
+          meta: { page: 1, per_page: 20, total: 1 },
+        },
+      })
+    })
+
+    await page.goto('/queue')
+    await expect(page.getByTestId('queue-table')).toBeVisible()
+    await page.getByTestId('queue-chip-queued').click()
+    // After the chip switch the request URL must carry status=queued.
+    await expect.poll(() => requested.some(u => u.includes('status=queued'))).toBe(true)
+    // Row status chip in the lean table is rendered for live rows.
+    await expect(page.getByTestId('queue-row-status').first()).toBeVisible()
+    // Retry/discard buttons must NOT render on non-failed chips (C-001).
+    await expect(page.getByTestId('queue-job-retry')).toHaveCount(0)
+    await expect(page.getByTestId('queue-job-discard')).toHaveCount(0)
+  })
+
   test('discard requires confirmation, then fires POST /discard', async ({ page }) => {
     let discardCalled = false
 

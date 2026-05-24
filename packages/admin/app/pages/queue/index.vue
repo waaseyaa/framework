@@ -1,18 +1,38 @@
 <script setup lang="ts">
-import { useQueueJobs } from '~/composables/useQueueJobs'
+import { useQueueJobs, isFailedJob } from '~/composables/useQueueJobs'
 import { useLanguage } from '~/composables/useLanguage'
-import type { FailedJob } from '~/composables/useQueueJobs'
+import type { FailedJob, QueueJob, QueueStatusFilter } from '~/composables/useQueueJobs'
 
 const { t } = useLanguage()
-const { jobs, meta, loading, error, fetchJobs, retryJob, discardJob } = useQueueJobs()
+const { jobs, meta, loading, error, status, fetchJobs, retryJob, discardJob } = useQueueJobs()
 
-onMounted(() => fetchJobs())
+onMounted(() => fetchJobs(1, 20, 'failed'))
 
 const viewing = ref<FailedJob | null>(null)
 const pendingDiscard = ref<FailedJob | null>(null)
 
-function openPayload(job: FailedJob): void {
-  viewing.value = job
+const filters: QueueStatusFilter[] = ['failed', 'queued', 'in_progress', 'all']
+
+function statusLabel(value: QueueStatusFilter): string {
+  switch (value) {
+    case 'failed': return t('queue_status_failed')
+    case 'queued': return t('queue_status_queued')
+    case 'in_progress': return t('queue_status_in_progress')
+    case 'all': return t('queue_status_all')
+  }
+}
+
+async function switchStatus(next: QueueStatusFilter): Promise<void> {
+  if (next === status.value) {
+    return
+  }
+  await fetchJobs(1, meta.value.per_page, next)
+}
+
+function openPayload(job: QueueJob): void {
+  if (isFailedJob(job)) {
+    viewing.value = job
+  }
 }
 
 function closePayload(): void {
@@ -28,7 +48,8 @@ async function onRetry(id: string): Promise<void> {
 }
 
 function askDiscard(id: string): void {
-  pendingDiscard.value = jobs.value.find(j => j.id === id) ?? null
+  const candidate = jobs.value.find(j => j.id === id)
+  pendingDiscard.value = candidate !== undefined && isFailedJob(candidate) ? candidate : null
 }
 
 function cancelDiscard(): void {
@@ -48,6 +69,31 @@ async function confirmDiscard(): Promise<void> {
   }
 }
 
+const now = ref(Math.floor(Date.now() / 1000))
+let nowTimer: ReturnType<typeof setInterval> | null = null
+
+onMounted(() => {
+  nowTimer = setInterval(() => {
+    now.value = Math.floor(Date.now() / 1000)
+  }, 5_000)
+})
+
+onBeforeUnmount(() => {
+  if (nowTimer !== null) {
+    clearInterval(nowTimer)
+    nowTimer = null
+  }
+})
+
+function ageSeconds(job: QueueJob): number {
+  if (isFailedJob(job)) {
+    return 0
+  }
+  // Transport row — show seconds since available_at (queued) or reserved_at (in_progress).
+  const anchor = job.reserved_at ?? job.available_at
+  return Math.max(0, now.value - anchor)
+}
+
 const { appName } = useAdminConfig()
 useHead({ title: computed(() => `${t('queue_title')} | ${appName}`) })
 </script>
@@ -56,6 +102,20 @@ useHead({ title: computed(() => `${t('queue_title')} | ${appName}`) })
   <div>
     <div class="page-header">
       <h1>{{ t('queue_title') }}</h1>
+    </div>
+
+    <div class="filter-chips" data-testid="queue-filter-chips">
+      <button
+        v-for="f in filters"
+        :key="f"
+        type="button"
+        class="chip"
+        :class="{ active: status === f }"
+        :data-testid="`queue-chip-${f}`"
+        @click="switchStatus(f)"
+      >
+        {{ statusLabel(f) }}
+      </button>
     </div>
 
     <div v-if="loading" class="loading">{{ t('loading') }}</div>
@@ -67,7 +127,12 @@ useHead({ title: computed(() => `${t('queue_title')} | ${appName}`) })
         {{ t('queue_empty') }}
       </p>
 
-      <table v-else class="entity-table" data-testid="queue-table">
+      <!-- Failed-rows table (full M4B detail). -->
+      <table
+        v-else-if="status === 'failed'"
+        class="entity-table"
+        data-testid="queue-table"
+      >
         <thead>
           <tr>
             <th>{{ t('queue_column_id') }}</th>
@@ -80,14 +145,81 @@ useHead({ title: computed(() => `${t('queue_title')} | ${appName}`) })
           </tr>
         </thead>
         <tbody>
-          <QueueJobRow
-            v-for="job in jobs"
-            :key="job.id"
-            :job="job"
-            @retry="onRetry"
-            @discard="askDiscard"
-            @view="openPayload"
-          />
+          <template v-for="job in jobs" :key="job.id">
+            <QueueJobRow
+              v-if="isFailedJob(job)"
+              :job="job"
+              @retry="onRetry"
+              @discard="askDiscard"
+              @view="openPayload"
+            />
+          </template>
+        </tbody>
+      </table>
+
+      <!-- Lean table for queued / in_progress / all (mixed). Retry/discard
+           buttons only render on failed rows (C-001). -->
+      <table v-else class="entity-table" data-testid="queue-table">
+        <thead>
+          <tr>
+            <th>{{ t('queue_column_id') }}</th>
+            <th>{{ t('queue_column_queue') }}</th>
+            <th>{{ t('queue_column_status') }}</th>
+            <th>{{ t('queue_column_attempts') }}</th>
+            <th>{{ t('queue_column_age') }}</th>
+            <th v-if="status === 'all'">{{ t('actions') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="job in jobs" :key="job.id" data-testid="queue-job-row">
+            <td><code>{{ job.id }}</code></td>
+            <td>{{ job.queue }}</td>
+            <td>
+              <span
+                v-if="isFailedJob(job)"
+                class="status-chip status-failed"
+                data-testid="queue-row-status"
+              >
+                {{ t('queue_status_failed') }}
+              </span>
+              <span
+                v-else
+                class="status-chip"
+                :class="`status-${job.status}`"
+                data-testid="queue-row-status"
+              >
+                {{ statusLabel(job.status) }}
+              </span>
+            </td>
+            <td>{{ job.attempts }}</td>
+            <td>
+              <span v-if="!isFailedJob(job)">
+                {{ t('queue_age_seconds', { seconds: String(ageSeconds(job)) }) }}
+              </span>
+              <span v-else>—</span>
+            </td>
+            <td v-if="status === 'all'">
+              <template v-if="isFailedJob(job)">
+                <button
+                  type="button"
+                  class="btn"
+                  data-testid="queue-job-retry"
+                  @click="onRetry(job.id)"
+                >
+                  {{ t('queue_action_retry') }}
+                </button>
+                <button
+                  type="button"
+                  class="btn"
+                  data-testid="queue-job-discard"
+                  @click="askDiscard(job.id)"
+                >
+                  {{ t('queue_action_discard') }}
+                </button>
+              </template>
+              <span v-else>—</span>
+            </td>
+          </tr>
         </tbody>
       </table>
 
@@ -140,6 +272,45 @@ useHead({ title: computed(() => `${t('queue_title')} | ${appName}`) })
   margin-top: 12px;
   color: var(--color-muted);
   font-size: 13px;
+}
+.filter-chips {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.chip {
+  appearance: none;
+  border: 1px solid var(--color-border, #d1d5db);
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #111827);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.chip.active {
+  background: var(--color-primary, #0f766e);
+  color: #fff;
+  border-color: var(--color-primary, #0f766e);
+}
+.status-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.status-chip.status-queued {
+  background: #dbeafe;
+  color: #1e40af;
+}
+.status-chip.status-in_progress {
+  background: #fef3c7;
+  color: #92400e;
+}
+.status-chip.status-failed {
+  background: #fee2e2;
+  color: #991b1b;
 }
 .modal-overlay {
   position: fixed;

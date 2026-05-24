@@ -23,6 +23,7 @@
             <directory>packages/entity/tests/Contract</directory>
             <directory>packages/foundation/tests/Contract</directory>
             <directory>packages/migration/tests/Contract</directory>
+            <directory>packages/queue/tests/Contract</directory>
             <file>packages/bimaaji/tests/SmokeTest.php</file>
         </testsuite>
         <testsuite name="GitHub">

@@ -138,6 +138,77 @@ final class DbalTransport implements TransportInterface
             ->execute();
     }
 
+    public function listJobs(int $limit, int $offset = 0, ?string $status = null): array
+    {
+        if ($status !== null && $status !== 'queued' && $status !== 'in_progress') {
+            throw new \InvalidArgumentException(
+                sprintf('listJobs() $status must be "queued", "in_progress", or null; got "%s".', $status),
+            );
+        }
+
+        $limit = max(0, $limit);
+        $offset = max(0, $offset);
+
+        // Total count first, using the same filter as the data query so the
+        // caller can paginate without re-walking the table.
+        $countQuery = $this->database->select(self::TABLE, 'qj');
+        $this->applyStatusFilter($countQuery, $status);
+        $countRows = $countQuery->countQuery()->execute();
+
+        $total = 0;
+        foreach ($countRows as $row) {
+            $total = (int) reset($row);
+            break;
+        }
+
+        if ($limit === 0 || $total === 0) {
+            return ['data' => [], 'total' => $total];
+        }
+
+        $dataQuery = $this->database->select(self::TABLE, 'qj')
+            ->fields('qj', ['id', 'queue', 'payload', 'attempts', 'available_at', 'reserved_at']);
+        $this->applyStatusFilter($dataQuery, $status);
+        $dataRows = $dataQuery
+            ->orderBy('id', 'ASC')
+            ->range($offset, $limit)
+            ->execute();
+
+        $data = [];
+        foreach ($dataRows as $row) {
+            $reservedAt = $row['reserved_at'];
+            $reservedAtInt = $reservedAt === null ? null : (int) $reservedAt;
+            $data[] = [
+                'id' => (int) $row['id'],
+                'queue' => (string) $row['queue'],
+                'payload' => (string) $row['payload'],
+                'attempts' => (int) $row['attempts'],
+                'available_at' => (int) $row['available_at'],
+                'reserved_at' => $reservedAtInt,
+                'status' => $reservedAtInt === null ? 'queued' : 'in_progress',
+            ];
+        }
+
+        return ['data' => $data, 'total' => $total];
+    }
+
+    /**
+     * Apply the status filter to a select query in place. Centralised so the
+     * COUNT and the data SELECT see exactly the same WHERE clause.
+     *
+     * @param 'queued'|'in_progress'|null $status
+     */
+    private function applyStatusFilter(object $query, ?string $status): void
+    {
+        if ($status === 'queued') {
+            $query->isNull('reserved_at');
+
+            return;
+        }
+        if ($status === 'in_progress') {
+            $query->isNotNull('reserved_at');
+        }
+    }
+
     private function getAttempts(int|string $jobId): int
     {
         $rows = $this->database->select(self::TABLE, 'qj')

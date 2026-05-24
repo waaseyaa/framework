@@ -13,6 +13,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Api\Controller\QueueController;
 use Waaseyaa\Queue\FailedJobRepositoryInterface;
 use Waaseyaa\Queue\QueueInterface;
+use Waaseyaa\Queue\Transport\TransportInterface;
 
 #[CoversClass(QueueController::class)]
 final class QueueControllerTest extends TestCase
@@ -163,6 +164,105 @@ final class QueueControllerTest extends TestCase
         self::assertSame(404, $response->getStatusCode());
     }
 
+    #[Test]
+    public function indexDefaultsToFailedShapeWhenNoStatusGiven(): void
+    {
+        $repo = $this->makeRepo([self::record('1', 'default', 'p-1')]);
+        $controller = new QueueController($repo, $this->makeQueue(), $this->makeTransport([]));
+
+        $payload = $controller->index(Request::create('/api/queue/jobs'));
+
+        self::assertSame(1, $payload['meta']['total']);
+        self::assertSame('1', $payload['data'][0]['id']);
+        // Failed-row shape: carries exception fields.
+        self::assertSame('RuntimeException', $payload['data'][0]['exception_class']);
+    }
+
+    #[Test]
+    public function indexQueuedStatusUsesTransportListJobs(): void
+    {
+        $repo = $this->makeRepo([]);
+        $transport = $this->makeTransport([
+            self::transportRow(1, 'default', 'queued-payload', 'queued'),
+        ]);
+        $controller = new QueueController($repo, $this->makeQueue(), $transport);
+
+        $payload = $controller->index(Request::create('/api/queue/jobs?status=queued'));
+
+        self::assertSame(1, $payload['meta']['total']);
+        self::assertSame('1', $payload['data'][0]['id']);
+        self::assertSame('queued', $payload['data'][0]['status']);
+        // Transport-row shape: no exception fields, has status + reserved_at.
+        self::assertArrayNotHasKey('exception_class', $payload['data'][0]);
+        self::assertArrayHasKey('reserved_at', $payload['data'][0]);
+    }
+
+    #[Test]
+    public function indexInProgressStatusUsesTransportListJobs(): void
+    {
+        $repo = $this->makeRepo([]);
+        $transport = $this->makeTransport([
+            self::transportRow(7, 'high', 'live', 'in_progress'),
+        ]);
+        $controller = new QueueController($repo, $this->makeQueue(), $transport);
+
+        $payload = $controller->index(Request::create('/api/queue/jobs?status=in_progress'));
+
+        self::assertSame('7', $payload['data'][0]['id']);
+        self::assertSame('in_progress', $payload['data'][0]['status']);
+    }
+
+    #[Test]
+    public function indexAllStatusMergesFailedThenTransportRows(): void
+    {
+        $repo = $this->makeRepo([
+            self::record('99', 'default', 'failed-payload'),
+        ]);
+        $transport = $this->makeTransport([
+            self::transportRow(1, 'default', 'queued-a', 'queued'),
+            self::transportRow(2, 'default', 'inflight-b', 'in_progress'),
+        ]);
+        $controller = new QueueController($repo, $this->makeQueue(), $transport);
+
+        $payload = $controller->index(Request::create('/api/queue/jobs?status=all'));
+
+        // 1 failed + 2 transport = 3 total
+        self::assertSame(3, $payload['meta']['total']);
+        self::assertCount(3, $payload['data']);
+        // Failed row comes first, carries exception_class.
+        self::assertSame('99', $payload['data'][0]['id']);
+        self::assertSame('RuntimeException', $payload['data'][0]['exception_class']);
+        // Transport rows follow, carry status.
+        self::assertSame('queued', $payload['data'][1]['status']);
+        self::assertSame('in_progress', $payload['data'][2]['status']);
+    }
+
+    #[Test]
+    public function indexFallsBackToFailedWhenTransportAbsent(): void
+    {
+        $repo = $this->makeRepo([self::record('1', 'default', 'p-1')]);
+        // Constructed without a transport — must degrade gracefully.
+        $controller = new QueueController($repo, $this->makeQueue());
+
+        $payload = $controller->index(Request::create('/api/queue/jobs?status=queued'));
+
+        // Falls back to failed-list shape even though caller asked for queued.
+        self::assertSame(1, $payload['meta']['total']);
+        self::assertSame('RuntimeException', $payload['data'][0]['exception_class']);
+    }
+
+    #[Test]
+    public function indexInvalidStatusFallsBackToFailed(): void
+    {
+        $repo = $this->makeRepo([self::record('1', 'default', 'p-1')]);
+        $controller = new QueueController($repo, $this->makeQueue(), $this->makeTransport([]));
+
+        $payload = $controller->index(Request::create('/api/queue/jobs?status=bogus'));
+
+        // Falls back to the failed-list shape on a bogus status.
+        self::assertSame('RuntimeException', $payload['data'][0]['exception_class']);
+    }
+
     /**
      * @param list<array{id: string, queue: string, payload: string, exception: string, failed_at: string}> $records
      */
@@ -255,6 +355,100 @@ final class QueueControllerTest extends TestCase
             'payload' => $payload,
             'exception' => "RuntimeException: boom\n#0 /tmp/x.php:1",
             'failed_at' => '2026-05-24T00:00:00+00:00',
+        ];
+    }
+
+    /**
+     * Build an anonymous-class TransportInterface fake whose `listJobs()`
+     * applies the documented filter/limit/offset semantics against a fixed
+     * row set. Only the methods exercised by QueueController need to behave;
+     * the others throw to flag accidental usage from tests.
+     *
+     * @param list<array{
+     *   id: int|string,
+     *   queue: string,
+     *   payload: string,
+     *   attempts: int,
+     *   available_at: int,
+     *   reserved_at: int|null,
+     *   status: 'queued'|'in_progress'
+     * }> $rows
+     */
+    private function makeTransport(array $rows): TransportInterface
+    {
+        return new class ($rows) implements TransportInterface {
+            /**
+             * @param list<array{
+             *   id: int|string,
+             *   queue: string,
+             *   payload: string,
+             *   attempts: int,
+             *   available_at: int,
+             *   reserved_at: int|null,
+             *   status: 'queued'|'in_progress'
+             * }> $rows
+             */
+            public function __construct(private array $rows) {}
+
+            public function push(string $queue, string $payload, int $delay = 0): void
+            {
+                throw new \LogicException('push() not used by controller tests');
+            }
+
+            public function pop(string $queue): ?array
+            {
+                throw new \LogicException('pop() not used by controller tests');
+            }
+
+            public function ack(int|string $jobId): void {}
+
+            public function reject(int|string $jobId): void {}
+
+            public function release(int|string $jobId, int $delay = 0): void {}
+
+            public function size(string $queue): int
+            {
+                return 0;
+            }
+
+            public function purge(string $queue): void {}
+
+            public function listJobs(int $limit, int $offset = 0, ?string $status = null): array
+            {
+                $filtered = array_values(array_filter(
+                    $this->rows,
+                    static fn (array $r): bool => $status === null || $r['status'] === $status,
+                ));
+                $total = count($filtered);
+                $window = $limit === 0 ? [] : array_slice($filtered, $offset, $limit);
+
+                return ['data' => array_values($window), 'total' => $total];
+            }
+        };
+    }
+
+    /**
+     * @param 'queued'|'in_progress' $status
+     * @return array{
+     *   id: int|string,
+     *   queue: string,
+     *   payload: string,
+     *   attempts: int,
+     *   available_at: int,
+     *   reserved_at: int|null,
+     *   status: 'queued'|'in_progress'
+     * }
+     */
+    private static function transportRow(int $id, string $queue, string $payload, string $status): array
+    {
+        return [
+            'id' => $id,
+            'queue' => $queue,
+            'payload' => $payload,
+            'attempts' => 0,
+            'available_at' => 1_700_000_000,
+            'reserved_at' => $status === 'in_progress' ? 1_700_000_500 : null,
+            'status' => $status,
         ];
     }
 }

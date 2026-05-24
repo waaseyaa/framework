@@ -56,4 +56,44 @@ interface TransportInterface
      * Remove all jobs from the queue.
      */
     public function purge(string $queue): void;
+
+    /**
+     * List jobs for the admin queue dashboard (M4B follow-up, GitHub #1576).
+     *
+     * Returns a window of jobs ordered by id ASC plus the total matching the
+     * filter (so callers can paginate without re-walking the table). The
+     * derived `status` column is `'queued'` when `reserved_at IS NULL` and
+     * `'in_progress'` otherwise. `$status` filters server-side:
+     *
+     *   - `'queued'`        → only rows with `reserved_at IS NULL`
+     *   - `'in_progress'`   → only rows with `reserved_at IS NOT NULL`
+     *   - `null`            → both (no filter)
+     *
+     * Implementations MUST NOT include failed jobs here — failed jobs live
+     * in `FailedJobRepositoryInterface` and are surfaced separately by the
+     * admin queue controller.
+     *
+     * @param int         $limit  Max rows in the data window (>= 0)
+     * @param int         $offset Zero-based offset into the filtered result set
+     * @param string|null $status Optional status filter — implementations MUST
+     *                            accept `'queued'`, `'in_progress'`, or `null`
+     *                            and MUST throw `\InvalidArgumentException`
+     *                            for any other non-null value.
+     *
+     * @return array{
+     *   data: list<array{
+     *     id: int|string,
+     *     queue: string,
+     *     payload: string,
+     *     attempts: int,
+     *     available_at: int,
+     *     reserved_at: int|null,
+     *     status: 'queued'|'in_progress'
+     *   }>,
+     *   total: int
+     * }
+     *
+     * @api
+     */
+    public function listJobs(int $limit, int $offset = 0, ?string $status = null): array;
 }

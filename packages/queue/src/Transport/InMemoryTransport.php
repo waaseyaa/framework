@@ -100,4 +100,64 @@ final class InMemoryTransport implements TransportInterface
     {
         return array_values($this->reserved);
     }
+
+    public function listJobs(int $limit, int $offset = 0, ?string $status = null): array
+    {
+        if ($status !== null && $status !== 'queued' && $status !== 'in_progress') {
+            throw new \InvalidArgumentException(
+                sprintf('listJobs() $status must be "queued", "in_progress", or null; got "%s".', $status),
+            );
+        }
+
+        $limit = max(0, $limit);
+        $offset = max(0, $offset);
+        $now = time();
+
+        $rows = [];
+
+        if ($status !== 'in_progress') {
+            foreach ($this->queues as $queueName => $jobs) {
+                foreach ($jobs as $job) {
+                    $rows[] = [
+                        'id' => $job['id'],
+                        'queue' => $queueName,
+                        'payload' => $job['payload'],
+                        'attempts' => $job['attempts'],
+                        'available_at' => $job['available_at'],
+                        'reserved_at' => null,
+                        'status' => 'queued',
+                    ];
+                }
+            }
+        }
+
+        if ($status !== 'queued') {
+            foreach ($this->reserved as $jobId => $job) {
+                $rows[] = [
+                    'id' => $jobId,
+                    'queue' => $job['queue'],
+                    'payload' => $job['payload'],
+                    'attempts' => $job['attempts'],
+                    // The in-memory implementation does not carry the original
+                    // available_at for reserved jobs (pop() doesn't preserve it);
+                    // surface "now" so the row shape stays stable for consumers.
+                    'available_at' => $now,
+                    'reserved_at' => $now,
+                    'status' => 'in_progress',
+                ];
+            }
+        }
+
+        usort($rows, static fn(array $a, array $b): int => $a['id'] <=> $b['id']);
+
+        $total = count($rows);
+
+        if ($limit === 0 || $total === 0) {
+            return ['data' => [], 'total' => $total];
+        }
+
+        $data = array_slice($rows, $offset, $limit);
+
+        return ['data' => $data, 'total' => $total];
+    }
 }
