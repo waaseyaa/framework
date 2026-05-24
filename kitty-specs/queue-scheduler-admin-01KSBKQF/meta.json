@@ -6,5 +6,7 @@
   "mission_slug": "queue-scheduler-admin-01KSBKQF",
   "mission_type": "software-dev",
   "slug": "queue-scheduler-admin-01KSBKQF",
-  "target_branch": "main"
+  "target_branch": "main",
+  "vcs": "git",
+  "vcs_locked_at": "2026-05-24T18:46:57.620375+00:00"
 }
