@@ -118,3 +118,4 @@ Before requesting review:
 ## Activity Log
 
 - 2026-05-24T18:47:03Z – claude:sonnet:implementer:implementer – shell_pid=350353 – Assigned agent via action command
+- 2026-05-24T19:05:33Z – claude:sonnet:implementer:implementer – shell_pid=350353 – WP01 queue admin ready; follow-up issue #1576 filed for TransportInterface::listJobs(); minor path deviations from owned_files documented in commit msgs (pages/queue/index.vue not pages/admin/queue.vue, components/queue/ not components/admin/ — matches existing pages/workflows/ + components/workflow/ conventions)
