@@ -13,7 +13,7 @@ use Waaseyaa\Queue\Transport\TransportInterface;
  * {@see InMemoryTransport}.
  */
 #[CoversNothing]
-final class InMemoryTransportContractTest extends TransportContractTest
+final class InMemoryTransportContractTest extends AbstractTransportContract
 {
     protected function makeTransport(): TransportInterface
     {

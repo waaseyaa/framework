@@ -22,7 +22,7 @@ use Waaseyaa\Queue\Transport\TransportInterface;
  * @api
  */
 #[CoversNothing]
-abstract class TransportContractTest extends TestCase
+abstract class AbstractTransportContract extends TestCase
 {
     /**
      * Produce a fresh, empty transport for one test.

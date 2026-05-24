@@ -15,7 +15,7 @@ use Waaseyaa\Queue\Transport\TransportInterface;
  * the production migration ({@see \Waaseyaa\Queue\Migration\CreateQueueTables}).
  */
 #[CoversNothing]
-final class DbalTransportContractTest extends TransportContractTest
+final class DbalTransportContractTest extends AbstractTransportContract
 {
     private DBALDatabase $database;
 
