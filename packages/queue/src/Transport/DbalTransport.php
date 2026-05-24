@@ -200,12 +200,12 @@ final class DbalTransport implements TransportInterface
     private function applyStatusFilter(object $query, ?string $status): void
     {
         if ($status === 'queued') {
-            $query->isNull('reserved_at');
+            $query = $query->isNull('reserved_at');
 
             return;
         }
         if ($status === 'in_progress') {
-            $query->isNotNull('reserved_at');
+            $query = $query->isNotNull('reserved_at');
         }
     }
 
