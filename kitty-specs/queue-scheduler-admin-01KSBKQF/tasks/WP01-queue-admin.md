@@ -23,7 +23,7 @@ base_branch: kitty/mission-queue-scheduler-admin-01KSBKQF
 base_commit: 69a4bb209d6eb8bba3b43f131cbf43e1b826b45a
 created_at: '2026-05-24T18:47:00.143109+00:00'
 subtasks: []
-shell_pid: "350353"
+shell_pid: "357297"
 history: []
 authoritative_surface: packages/api/src/Controller/QueueController.php
 execution_mode: code_change
@@ -37,7 +37,7 @@ owned_files:
 - packages/admin/test/unit/composables/useQueueJobs.test.ts
 - packages/admin/e2e/queue.spec.ts
 tags: []
-agent: "claude:sonnet:implementer:implementer"
+agent: "claude:opus:reviewer:reviewer"
 ---
 
 # WP01 — Queue admin (failed-jobs MVP)
@@ -119,3 +119,4 @@ Before requesting review:
 
 - 2026-05-24T18:47:03Z – claude:sonnet:implementer:implementer – shell_pid=350353 – Assigned agent via action command
 - 2026-05-24T19:05:33Z – claude:sonnet:implementer:implementer – shell_pid=350353 – WP01 queue admin ready; follow-up issue #1576 filed for TransportInterface::listJobs(); minor path deviations from owned_files documented in commit msgs (pages/queue/index.vue not pages/admin/queue.vue, components/queue/ not components/admin/ — matches existing pages/workflows/ + components/workflow/ conventions)
+- 2026-05-24T19:06:31Z – claude:opus:reviewer:reviewer – shell_pid=357297 – Started review via action command
