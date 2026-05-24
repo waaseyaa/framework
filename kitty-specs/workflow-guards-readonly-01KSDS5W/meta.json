@@ -6,5 +6,7 @@
   "mission_slug": "workflow-guards-readonly-01KSDS5W",
   "mission_type": "software-dev",
   "slug": "workflow-guards-readonly-01KSDS5W",
-  "target_branch": "main"
+  "target_branch": "main",
+  "vcs": "git",
+  "vcs_locked_at": "2026-05-24T20:07:30.897215+00:00"
 }
