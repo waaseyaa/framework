@@ -76,14 +76,16 @@ describe('NavBuilder', () => {
     const wrapper = await mountSuspended(NavBuilder)
 
     expect(wrapper.text()).toContain('Dashboard')
-    // M4B WP01 + WP02 add an always-present "Operations" nav section with
-    // links to /workflows, /queue, and /scheduler, so the dashboard is no
-    // longer the only nav element when the catalog is empty.
+    // M4B WP01 + WP02 + M4C WP01 add an always-present "Operations" nav
+    // section with links to /workflows, /queue, /scheduler, and
+    // /notifications, so the dashboard is no longer the only nav element
+    // when the catalog is empty.
     expect(wrapper.text()).toContain('Operations')
     expect(wrapper.find('[data-testid="nav-queue"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="nav-scheduler"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="nav-notifications"]').exists()).toBe(true)
     expect(wrapper.findAll('.nav-section')).toHaveLength(1)
-    expect(wrapper.findAll('a')).toHaveLength(4)
+    expect(wrapper.findAll('a')).toHaveLength(5)
   })
 
   it('renders the pipeline link when the catalog entry declares board-config', async () => {

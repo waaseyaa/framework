@@ -200,6 +200,27 @@ final class BuiltinRouteRegistrar
                 ->build(),
         );
 
+        // M4C WP01: admin notifications dashboard. Channels list + synthetic
+        // test send. Delivery log + per-channel enable/disable deferred —
+        // notification package does not yet carry the persistence.
+        $notificationController = 'Waaseyaa\\Api\\Controller\\NotificationController';
+        $router->addRoute(
+            'api.notification.channels.index',
+            RouteBuilder::create('/api/notification/channels')
+                ->controller($notificationController . '::index')
+                ->requireRole('admin')
+                ->methods('GET')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.notification.channels.test',
+            RouteBuilder::create('/api/notification/channels/{type}/test')
+                ->controller($notificationController . '::test')
+                ->requireRole('admin')
+                ->methods('POST')
+                ->build(),
+        );
+
         $ccController = 'Waaseyaa\\Api\\Controller\\CodifiedContextController';
         $router->addRoute(
             'api.telescope.agent_context.sessions',

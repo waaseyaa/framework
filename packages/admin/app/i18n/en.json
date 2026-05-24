@@ -226,5 +226,17 @@
   "scheduler_status_success": "Success",
   "scheduler_status_failed": "Failed",
   "scheduler_status_skipped": "Skipped",
-  "scheduler_status_never": "Never run"
+  "scheduler_status_never": "Never run",
+
+  "notifications_title": "Notifications",
+  "notifications_empty": "No notification channels are registered.",
+  "notifications_column_type": "Channel",
+  "notifications_column_class": "Implementation",
+  "notifications_column_action": "Action",
+  "notifications_action_test": "Send test",
+  "notifications_confirm_test_title": "Send test notification?",
+  "notifications_confirm_test_body": "Fire a synthetic test notification through channel {type}? Real recipients (e.g. mail inbox) may be affected.",
+  "notifications_status_success": "Test sent",
+  "notifications_status_failure": "Test failed",
+  "notifications_help": "Lists the notification channels resolved at boot. Delivery log and per-channel enable/disable are tracked under a separate follow-up."
 }

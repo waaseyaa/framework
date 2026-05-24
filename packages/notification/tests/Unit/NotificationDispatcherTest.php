@@ -115,6 +115,35 @@ final class NotificationDispatcherTest extends TestCase
     }
 
     #[Test]
+    public function channelsAccessorReturnsConstructorMap(): void
+    {
+        $mail = new class implements \Waaseyaa\Notification\ChannelInterface {
+            public function send(NotifiableInterface $n, NotificationInterface $m): void {}
+        };
+        $database = new class implements \Waaseyaa\Notification\ChannelInterface {
+            public function send(NotifiableInterface $n, NotificationInterface $m): void {}
+        };
+
+        $channels = ['mail' => $mail, 'database' => $database];
+        $dispatcher = new NotificationDispatcher(new SyncQueue(), $channels);
+
+        // M4C WP01: accessor backs the admin notifications dashboard's index/test
+        // endpoints. Identity-preserving so a Test action can look up the exact
+        // channel instance and call send() against it.
+        self::assertSame($channels, $dispatcher->channels());
+        self::assertSame($mail, $dispatcher->channels()['mail']);
+        self::assertSame($database, $dispatcher->channels()['database']);
+    }
+
+    #[Test]
+    public function channelsAccessorReturnsEmptyArrayWhenNoneRegistered(): void
+    {
+        $dispatcher = new NotificationDispatcher(new SyncQueue(), []);
+
+        self::assertSame([], $dispatcher->channels());
+    }
+
+    #[Test]
     public function handlesChannelFailureGracefully(): void
     {
         $failingChannel = new class implements \Waaseyaa\Notification\ChannelInterface {

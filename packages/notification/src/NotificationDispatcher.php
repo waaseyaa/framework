@@ -32,6 +32,21 @@ final class NotificationDispatcher
     }
 
     /**
+     * Expose the configured channels map for read-only inspection.
+     *
+     * Used by the M4C admin notifications dashboard
+     * (`Waaseyaa\Api\Controller\NotificationController`) to list registered
+     * channels and look one up by type for a synthetic test send. Returns the
+     * exact array passed at construction; do not mutate the result.
+     *
+     * @return array<string, ChannelInterface>
+     */
+    public function channels(): array
+    {
+        return $this->channels;
+    }
+
+    /**
      * Send a notification synchronously through all designated channels.
      */
     public function send(NotifiableInterface $notifiable, NotificationInterface $notification): void

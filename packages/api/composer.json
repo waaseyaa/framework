@@ -50,6 +50,10 @@
         },
         {
             "type": "path",
+            "url": "../notification"
+        },
+        {
+            "type": "path",
             "url": "../telescope"
         },
         {
@@ -62,6 +66,7 @@
         "waaseyaa/access": "^0.1.0-alpha.188",
         "waaseyaa/entity": "^0.1.0-alpha.188",
         "waaseyaa/foundation": "^0.1.0-alpha.188",
+        "waaseyaa/notification": "^0.1.0-alpha.188",
         "waaseyaa/queue": "^0.1.0-alpha.188",
         "waaseyaa/routing": "^0.1.0-alpha.188",
         "waaseyaa/scheduler": "^0.1.0-alpha.188",

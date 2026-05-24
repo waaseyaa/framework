@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Api;
 
+use Waaseyaa\Api\Controller\NotificationController;
 use Waaseyaa\Api\Controller\QueueController;
 use Waaseyaa\Api\Controller\SchedulerController;
 use Waaseyaa\Api\Http\Router\DiscoveryRouter;
+use Waaseyaa\Api\Http\Router\NotificationAdminApiRouter;
 use Waaseyaa\Api\Http\Router\QueueAdminApiRouter;
 use Waaseyaa\Api\Http\Router\SchedulerAdminApiRouter;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Notification\NotificationDispatcher;
 use Waaseyaa\Queue\FailedJobRepositoryInterface;
 use Waaseyaa\Queue\QueueInterface;
 use Waaseyaa\Routing\WaaseyaaRouter;
@@ -60,6 +63,17 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
             );
         }
 
+        // M4C WP01: admin notifications dashboard. Same indirection pattern as
+        // the queue + scheduler blocks — NotificationServiceProvider (Layer 3)
+        // binds the dispatcher; if absent (slimmed-down install lacking
+        // notification wiring) we skip the router cleanly rather than crash.
+        $notificationDispatcher = $this->resolveOptional(NotificationDispatcher::class);
+        if ($notificationDispatcher instanceof NotificationDispatcher) {
+            $routers[] = new NotificationAdminApiRouter(
+                new NotificationController($notificationDispatcher),
+            );
+        }
+
         return $routers;
     }
 
@@ -70,9 +84,9 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
 
     /**
      * `ServiceProvider::resolve()` throws when an abstract is unbound; for the
-     * queue and scheduler services we prefer to gracefully no-op if their
-     * service providers are not present in the manifest (e.g. a slimmed-down
-     * CMS install) rather than crash kernel boot.
+     * queue, scheduler, and notification services we prefer to gracefully
+     * no-op if their service providers are not present in the manifest (e.g.
+     * a slimmed-down CMS install) rather than crash kernel boot.
      */
     private function resolveOptional(string $abstract): ?object
     {
