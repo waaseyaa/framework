@@ -22,7 +22,7 @@ base_branch: kitty/mission-workflow-guards-readonly-01KSDS5W
 base_commit: 65ce669f65aace0f6bb34fb0dc0ed47f52abf36c
 created_at: '2026-05-24T20:07:31.282344+00:00'
 subtasks: []
-shell_pid: "379607"
+shell_pid: "397177"
 history: []
 authoritative_surface: packages/api/src/Controller/WorkflowGuardsController.php
 execution_mode: code_change
@@ -44,7 +44,7 @@ owned_files:
 - docs/specs/admin-spa.md
 - CHANGELOG.md
 tags: []
-agent: "claude:sonnet:implementer:implementer"
+agent: "claude:opus:reviewer:reviewer"
 ---
 
 # WP01 — Read-only workflow guards matrix surface (M4A-5 Phase 1)
@@ -145,3 +145,4 @@ In the lane worktree:
 
 - 2026-05-24T20:07:32Z – claude:sonnet:implementer:implementer – shell_pid=379607 – Assigned agent via action command
 - 2026-05-24T20:25:56Z – claude:sonnet:implementer:implementer – shell_pid=379607 – M4A-5 Phase 1 ready; M4A-5b follow-up #1579 filed for Phase 2 edit. Playwright deferred (lane worktree limitation per CLAUDE.md gotcha).
+- 2026-05-24T20:26:55Z – claude:opus:reviewer:reviewer – shell_pid=397177 – Started review via action command
