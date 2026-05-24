@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "mission_slug": "workflow-guards-readonly-01KSDS5W",
+  "mission_id": "01KSDS5WP5PZ0KV20MF665J5S5",
+  "mission_branch": "kitty/mission-workflow-guards-readonly-01KSDS5W",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01"
+      ],
+      "write_scope": [
+        "CHANGELOG.md",
+        "docs/specs/admin-spa.md",
+        "packages/admin/app/components/workflows/WorkflowGuardsTable.vue",
+        "packages/admin/app/composables/useWorkflowGuards.ts",
+        "packages/admin/app/i18n/en.json",
+        "packages/admin/e2e/workflow-guards.spec.ts",
+        "packages/admin/tests/unit/composables/useWorkflowGuards.test.ts",
+        "packages/api/composer.json",
+        "packages/api/src/ApiServiceProvider.php",
+        "packages/api/src/Controller/WorkflowGuardsController.php",
+        "packages/api/src/Http/Router/WorkflowGuardsApiRouter.php",
+        "packages/api/tests/Unit/Controller/WorkflowGuardsControllerTest.php",
+        "packages/foundation/src/Kernel/BuiltinRouteRegistrar.php",
+        "packages/workflows/src/AuthoringRoleMatrix.php",
+        "packages/workflows/tests/Unit/AuthoringRoleMatrixTest.php",
+        "tests/Integration/PhaseWorkflowGuards/WorkflowGuardsEndpointsTest.php"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "app-shell"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-05-24T20:06:37.039355+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": []
+}
