@@ -25,7 +25,7 @@ base_branch: kitty/mission-queue-listjobs-transport-01KSDS5T
 base_commit: b5969e1da40b85d162e5da55500e2a19b1870bcb
 created_at: '2026-05-24T20:07:19.907320+00:00'
 subtasks: []
-shell_pid: "379607"
+shell_pid: "399835"
 history: []
 authoritative_surface: packages/queue/src/Transport/TransportInterface.php
 execution_mode: code_change
@@ -48,7 +48,7 @@ owned_files:
 - docs/specs/admin-spa.md
 - CHANGELOG.md
 tags: []
-agent: "claude:sonnet:implementer:implementer"
+agent: "claude:opus:reviewer:reviewer"
 ---
 
 # WP01 — TransportInterface::listJobs() + queue dashboard filter chips
@@ -148,3 +148,4 @@ In the lane worktree:
 
 - 2026-05-24T20:07:22Z – claude:sonnet:implementer:implementer – shell_pid=379607 – Assigned agent via action command
 - 2026-05-24T20:28:59Z – claude:sonnet:implementer:implementer – shell_pid=379607 – Closes #1576; M4B backward compat verified
+- 2026-05-24T20:29:53Z – claude:opus:reviewer:reviewer – shell_pid=399835 – Started review via action command
