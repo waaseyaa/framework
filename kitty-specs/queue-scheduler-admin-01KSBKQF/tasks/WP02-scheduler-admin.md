@@ -35,8 +35,8 @@ owned_files:
 - packages/admin/e2e/scheduler.spec.ts
 - docs/specs/admin-spa.md
 tags: []
-agent: "claude:sonnet:implementer:implementer"
-shell_pid: "358724"
+agent: "claude:opus:reviewer:reviewer"
+shell_pid: "367264"
 ---
 
 # WP02 — Scheduler admin
@@ -138,3 +138,4 @@ Before requesting review:
 
 - 2026-05-24T19:09:11Z – claude:sonnet:implementer:implementer – shell_pid=358724 – Started implementation via action command
 - 2026-05-24T19:29:39Z – claude:sonnet:implementer:implementer – shell_pid=358724 – WP02 scheduler admin ready; closes M4B; docs/specs/admin-spa.md stamped; CHANGELOG updated
+- 2026-05-24T19:30:44Z – claude:opus:reviewer:reviewer – shell_pid=367264 – Started review via action command
