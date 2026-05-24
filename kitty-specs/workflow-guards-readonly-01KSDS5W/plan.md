@@ -1,108 +1,54 @@
-# Implementation Plan: [FEATURE]
-*Path: [templates/plan-template.md](templates/plan-template.md)*
+# Implementation Plan: Workflow Guards Read-Only (M4A-5 Phase 1)
 
+**Mission:** `workflow-guards-readonly-01KSDS5W` — see `spec.md`.
+**Pattern reference:** M4A-1 workflow definitions admin (PR #1429), M4B WP01 for cross-package resolveOptional.
+**Single WP, single PR.**
 
-**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
-**Input**: Feature specification from `/kitty-specs/[###-feature-name]/spec.md`
+## WP01 — Read-only matrix surface
 
-**Note**: This template is filled in by the `/spec-kitty.plan` command. See `src/specify_cli/missions/software-dev/command-templates/plan.md` for the execution workflow.
+### Backend: `packages/workflows`
+- `AuthoringRoleMatrix.php` — add `public function snapshot(): array` returning the full mapping ordered by workflow_id, bundle, transition. If the matrix doesn't already expose a per-workflow iteration method, add one too (`forWorkflow(string $workflowId): array`).
+- `tests/Unit/AuthoringRoleMatrixTest.php` — extend (or create) to cover `snapshot()` returning seeded entries.
 
-The planner will not begin until all planning questions have been answered—capture those answers in this document before progressing to later phases.
+### Backend: `packages/api`
+- `Controller/WorkflowGuardsController.php` — `index(string $workflow_id): array`. 404 if not in registry. Returns `{data: [{bundle, transition, required_roles}, ...]}`. Inject `AuthoringRoleMatrix` and the workflow registry (mirror M4A-1's `WorkflowDefinitionController` for the registry service name).
+- `Http/Router/WorkflowGuardsApiRouter.php` — mirror `QueueAdminApiRouter`.
+- `ApiServiceProvider.php` — fourth `resolveOptional()` block for `AuthoringRoleMatrix` + workflow registry.
+- `tests/Unit/Controller/WorkflowGuardsControllerTest.php` — happy path, 404 on unknown workflow.
+- `tests/Integration/PhaseWorkflowGuards/WorkflowGuardsEndpointsTest.php` — boot kernel with a seeded matrix; hit endpoint as admin + non-admin; assert 200 / 403.
 
-## Summary
+### Backend: `packages/api/composer.json`
+- Add `"waaseyaa/workflows": "^<current-tag>"` to `require` (look at existing constraint floor for siblings). Add `"../workflows"` path repo if not already present. `composer update --lock waaseyaa/workflows`.
 
-[Extract from feature spec: primary requirement + technical approach from research]
+### Routes: `packages/foundation`
+- `Kernel/BuiltinRouteRegistrar.php` — `api.workflow.guards.index` — `GET /api/workflow-definitions/{workflow_id}/guards`, `_role: admin`, string FQCN `'Waaseyaa\\Api\\Controller\\WorkflowGuardsController'`. Place the block after the notification routes (if those exist by merge time) or after scheduler.
 
-## Technical Context
+### Frontend: `packages/admin`
+- READ FIRST: `app/pages/workflows/[id].vue` (or `[id]/index.vue` — whichever M4A-2 created). Decide whether to add an inline "Guards" section or a tab.
+- `app/composables/useWorkflowGuards.ts` — `{guards, loading, error, fetchGuards(workflowId)}`.
+- `app/components/workflows/WorkflowGuardsTable.vue` — table with bundle / transition / required-roles chips columns.
+- i18n: `guards_title`, `guards_empty`, `guards_column_bundle`, `guards_column_transition`, `guards_column_required_roles`, `guards_help`.
+- `tests/unit/composables/useWorkflowGuards.test.ts` — vitest.
+- `e2e/workflow-guards.spec.ts` — Playwright smoke: visit `/workflows/{id}`, assert guards table renders.
 
-<!--
-  ACTION REQUIRED: Replace the content in this section with the technical details
-  for the project. The structure here is presented in advisory capacity to guide
-  the iteration process.
--->
+### Spec stamp + CHANGELOG
+- `docs/specs/admin-spa.md` — stamp.
+- `CHANGELOG.md` `[Unreleased]` → **Added**: workflow guards matrix visible at `/workflows/{id}`. (#1470)
 
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]  
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]  
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]  
-**Testing**: [Project-specific test approach or NEEDS CLARIFICATION]
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
-**Project Type**: [single/web/mobile - determines source structure]  
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
-**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
-**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+## Verification gate
 
-## Charter Check
+In lane worktree:
+1. `composer install`
+2. `vendor/bin/phpunit packages/workflows/ packages/api/tests/Unit/Controller/WorkflowGuardsControllerTest.php tests/Integration/PhaseWorkflowGuards/`
+3. `composer cs-check && composer phpstan`
+4. `bin/check-package-layers && bin/check-dead-code && bin/check-getquery-bindings && bin/check-composer-policy`
+5. `cd packages/admin && npm install && npm test && npm run typecheck && npm run lint`
+6. Playwright deferred.
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+## Reviewer focus
 
-[Gates determined based on charter file]
-
-## Project Structure
-
-### Documentation (this feature)
-
-```
-kitty-specs/[###-feature]/
-├── plan.md              # This file (/spec-kitty.plan command output)
-├── research.md          # Phase 0 output (/spec-kitty.plan command)
-├── data-model.md        # Phase 1 output (/spec-kitty.plan command)
-├── quickstart.md        # Phase 1 output (/spec-kitty.plan command)
-├── contracts/           # Phase 1 output (/spec-kitty.plan command)
-└── tasks.md             # Phase 2 output (/spec-kitty.tasks command - NOT created by /spec-kitty.plan)
-```
-
-### Source Code (repository root)
-<!--
-  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
-  for this feature. Delete unused options and expand the chosen structure with
-  real paths (e.g., apps/admin, packages/something). The delivered plan must
-  not include Option labels.
--->
-
-```
-# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
-src/
-├── models/
-├── services/
-├── cli/
-└── lib/
-
-tests/
-├── contract/
-├── integration/
-└── unit/
-
-# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
-backend/
-├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
-└── tests/
-
-frontend/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-└── tests/
-
-# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
-api/
-└── [same as backend above]
-
-ios/ or android/
-└── [platform-specific structure: feature modules, UI flows, platform tests]
-```
-
-**Structure Decision**: [Document the selected structure and reference the real
-directories captured above]
-
-## Complexity Tracking
-
-*Fill ONLY if Charter Check has violations that must be justified*
-
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
+- (a) Read-only — no mutate endpoint or UI (C-001).
+- (b) Admin-only via route option, not in controller.
+- (c) 404 handling when workflow id isn't registered.
+- (d) M4A-5b follow-up issue filed before merge.
+- (e) Commit footers `Refs #1470` (partial — keeps the issue open until M4A-5b lands).
