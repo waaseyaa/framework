@@ -6,5 +6,7 @@
   "mission_slug": "notification-rules-admin-01KSDRNW",
   "mission_type": "software-dev",
   "slug": "notification-rules-admin-01KSDRNW",
-  "target_branch": "main"
+  "target_branch": "main",
+  "vcs": "git",
+  "vcs_locked_at": "2026-05-24T19:57:23.199083+00:00"
 }

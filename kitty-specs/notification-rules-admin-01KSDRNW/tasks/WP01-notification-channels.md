@@ -23,7 +23,11 @@ requirement_refs:
 planning_base_branch: main
 merge_target_branch: main
 branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
+base_branch: kitty/mission-notification-rules-admin-01KSDRNW
+base_commit: 24dfbfd416f4116d8d50de49088316dc1a2babef
+created_at: '2026-05-24T19:57:23.685384+00:00'
 subtasks: []
+shell_pid: '374462'
 history: []
 authoritative_surface: packages/api/src/Controller/NotificationController.php
 execution_mode: code_change
