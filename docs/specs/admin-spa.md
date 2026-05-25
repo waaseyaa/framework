@@ -735,6 +735,16 @@ Pattern: `mountSuspended()` from `@nuxt/test-utils/runtime` for component mounti
 
 Backend JSON:API and schema endpoints are tested via PHPUnit integration tests in `tests/Integration/PhaseN/`. The admin SPA relies on these endpoints being correct.
 
+## OIDC Client Registration (mission oidc-flows-completion-01KSEFTP)
+
+Admin surface for registering external OIDC clients (apps that authenticate via the framework's OIDC IdP). Backs the WP05 leg of the OIDC flows completion mission.
+
+- **Pages:** `packages/admin/app/pages/oidc/clients/index.vue` (list + create), `[id].vue` (detail + edit + revoke).
+- **Composable:** `packages/admin/app/composables/useOidcClients.ts` — CRUD wrapper over `/api/oidc/clients` JSON:API endpoints + consent-revocation actions.
+- **Backing API:** `packages/api/src/Controller/OidcClientController.php` + `packages/api/src/Http/Router/OidcClientApiRouter.php` (admin-only routes, AccessChecker-gated).
+- **Permission:** `oidc.client.administer` (granted to admin role by default; configurable per Nation in distribution charters).
+- **Distinct from end-user surfaces:** the consent screen lives at `packages/oidc/src/Consent/ConsentScreenController.php` (server-rendered, NOT admin SPA).
+
 ## Mercure Broadcast Monitor (M5D)
 
 Real-time SSE monitor for the Mercure broadcasting layer (gap-matrix C-L0-04, mission `mercure-broadcast-monitor-m5d-01KSEFTD`). Single-page admin tool surfacing channels, live events, and subscribers.
