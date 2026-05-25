@@ -48,8 +48,16 @@ cd /home/jones/dev/waaseyaa/.worktrees/ai-observability-dashboard-01KSE9BX-lane-
 - How `/queue` and `/notifications` register their **static nav entries** — find the nav source (grep `queue` under `packages/admin/app/` for the nav registration; mirror it for an "AI" group → `/ai/observability`). Do NOT invent a new nav mechanism.
 - `packages/admin/app/i18n/en.json` — key style.
 
-## Endpoint contract (from WP01)
-`GET /api/ai/observability` → `{ data: { summary: {totalRuns, totalCostUsd, totalTokens, errorRate, runningCount, periodFrom, periodTo}, byModel: [{model, runs, inputTokens, outputTokens, totalTokens, costUsd, avgLatencyMs, errorRate}], byPipeline: [{pipeline, runs, totalTokens, costUsd, avgLatencyMs, errorRate}] } }`
+## Endpoint contract (from WP01 — AS SHIPPED; use these exact field names)
+`GET /api/ai/observability` →
+```
+{ data: {
+  summary: { totalTraces, runningTraces, errorTraces, errorRate, totalCostUsd, totalInputTokens, totalOutputTokens, avgLatencyMs },
+  byModel: [{ model, callCount, inputTokens, outputTokens, cachedTokens, costUsd }],
+  byPipeline: [{ pipeline, traceCount, runningCount, errorCount, errorRate, inputTokens, outputTokens, costUsd, avgLatencyMs }]
+} }
+```
+Notes: `byModel` has no per-model latency/error (call counts + tokens + cost only); `byPipeline` carries latency + error rate. Summary has no `periodFrom/To` (not shipped in WP01 — out of scope unless you add it). Authoritative source: the DTOs in `packages/api/src/AiObservability/` + the controller mappers in `AiObservabilityController` — read them rather than trusting this block.
 
 ## Subtasks
 
