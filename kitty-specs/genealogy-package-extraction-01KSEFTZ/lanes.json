@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "mission_slug": "genealogy-package-extraction-01KSEFTZ",
+  "mission_id": "01KSEFTZW2FCCT2HRJ71VTWE00",
+  "mission_branch": "kitty/mission-genealogy-package-extraction-01KSEFTZ",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01",
+        "WP02"
+      ],
+      "write_scope": [
+        "CLAUDE.md",
+        "docs/specs/extraction-log.md",
+        "docs/specs/genealogy.md",
+        "packages/genealogy/composer.json"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "workspace"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    },
+    {
+      "lane_id": "lane-planning",
+      "wp_ids": [
+        "WP03"
+      ],
+      "write_scope": [
+        "kitty-specs/genealogy-package-extraction-01KSEFTZ/**"
+      ],
+      "predicted_surfaces": [
+        "planning"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-05-25T06:17:57.473658+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": [
+    "WP03"
+  ],
+  "collapse_report": {
+    "events": [
+      {
+        "wp_a": "WP02",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP02 depends on WP01"
+      }
+    ],
+    "total_merges": 1,
+    "independent_wps_collapsed": 0,
+    "by_rule": {
+      "dependency": 1
+    }
+  }
+}
