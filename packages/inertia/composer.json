@@ -1,6 +1,6 @@
 {
     "name": "waaseyaa/inertia",
-    "description": "Server-side Inertia.js v3 protocol adapter for Waaseyaa",
+    "description": "Server-side Inertia.js v3 protocol adapter for Waaseyaa — optional/experimental L6 surface; see README for the DIR-007 framing.",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [

@@ -15,6 +15,9 @@
         "waaseyaa/ssr": "^0.1.0-alpha.188",
         "waaseyaa/structured-import": "^0.1.0-alpha.188"
     },
+    "suggest": {
+        "waaseyaa/inertia": "Server-side Inertia.js v3 protocol adapter (L6, optional). Install if your distribution prefers server-driven UI over the standalone Nuxt SPA."
+    },
     "minimum-stability": "stable",
     "extra": {
         "branch-alias": {
