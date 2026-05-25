@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-05-25T02:36:03.413017+00:00",
+  "friendly_name": "classification retention engine",
+  "mission_id": "01KSEFTHPTVHHNS6DREPTZAFJQ",
+  "mission_number": null,
+  "mission_slug": "classification-retention-engine-01KSEFTH",
+  "mission_type": "software-dev",
+  "slug": "classification-retention-engine-01KSEFTH",
+  "target_branch": "main"
+}
