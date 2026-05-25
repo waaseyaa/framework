@@ -109,4 +109,4 @@ cd <path printed by `spec-kitty agent action implement WP02`>
 4. Confirmation that revoking an unknown token returns 200 with empty body (paste the test).
 
 ## Activity Log
-
+- 2026-05-25T05:30:07Z – unknown – subagent shipped retroactively

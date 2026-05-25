@@ -1,7 +1,7 @@
 {
-  "event_count": 6,
-  "last_event_id": "01KSESREPWGH4E2VAW7YGT48RM",
-  "materialized_at": "2026-05-25T05:29:40.316646+00:00",
+  "event_count": 7,
+  "last_event_id": "01KSESS8S447BPP0XTAMEPNX8Z",
+  "materialized_at": "2026-05-25T05:30:07.012238+00:00",
   "mission_number": "",
   "mission_slug": "oidc-flows-completion-01KSEFTP",
   "mission_type": "software-dev",
@@ -12,9 +12,9 @@
     "claimed": 0,
     "done": 0,
     "for_review": 0,
-    "in_progress": 1,
+    "in_progress": 2,
     "in_review": 0,
-    "planned": 4
+    "planned": 3
   },
   "work_packages": {
     "WP01": {
@@ -25,11 +25,11 @@
       "last_transition_at": "2026-05-25T05:29:40.316646+00:00"
     },
     "WP02": {
-      "actor": "finalize-tasks",
-      "force_count": 1,
-      "lane": "planned",
-      "last_event_id": "01KSESP3V1KSPK2RAGTX7KVHRR",
-      "last_transition_at": "2026-05-25T05:28:23.649330+00:00"
+      "actor": "user",
+      "force_count": 2,
+      "lane": "in_progress",
+      "last_event_id": "01KSESS8S447BPP0XTAMEPNX8Z",
+      "last_transition_at": "2026-05-25T05:30:07.012238+00:00"
     },
     "WP03": {
       "actor": "finalize-tasks",
