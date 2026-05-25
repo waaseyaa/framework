@@ -24,8 +24,8 @@ subtasks:
 - T007
 phase: Phase 1 — MCP serializer OCAP
 assignee: ''
-agent: ''
-shell_pid: '4172252'
+agent: "claude:sonnet:implementer:implementer"
+shell_pid: "4172252"
 history:
 - timestamp: '2026-05-25T02:35:50Z'
   agent: system
@@ -131,3 +131,7 @@ spec-kitty agent tasks move-task WP02 --to for_review --mission per-record-ai-ac
 - Confirmation FR-007 test was run with the wiring reverted and observed to fail.
 - Field-set parity confirmation: the two surfaces agree on which fields are reachable for the same caller against the same entity.
 - Any unexpected drift between JSON:API field-omission and MCP redaction semantics + how it was resolved.
+
+## Activity Log
+
+- 2026-05-25T04:47:31Z – claude:sonnet:implementer:implementer – shell_pid=4172252 – Assigned agent via action command
