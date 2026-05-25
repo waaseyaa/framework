@@ -155,3 +155,4 @@ This mission is a **cross-layer** read surface plus one privileged action: `pack
 
 (implementer appends here)
 - 2026-05-25T05:37:08Z – claude – shell_pid=71197 – Assigned agent via action command
+- 2026-05-25T05:57:36Z – claude – shell_pid=71197 – Moved to for_review
