@@ -119,3 +119,7 @@ Surface-by-surface authoring guidance:
 2. Outputs of the T017 verification commands.
 3. For each of the ten files: byte count + count of FR/NFR/Constraint rows in the Requirements table.
 4. Confirmation that DIR-A001..DIR-A005 IDs match the IDs minted by WP02 (paste one cross-reference line per draft).
+
+## Activity Log
+
+- 2026-05-25T05:09:57Z – unknown – Opus review: new repo waaseyaa/anokii live with composer + LICENSE + README + charter (DIR-A001..DIR-A005) + deploy + branded tokens + Sagamok tenant stub. Repo currently public (consider toggling to private). 10 v0.1 surface seeds left in Waaseyaa artifacts/ for future Anokii-repo re-filing.

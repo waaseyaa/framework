@@ -1,17 +1,17 @@
 {
-  "event_count": 20,
-  "last_event_id": "01KSERM4RV2RG9574CYHBCCTF6",
-  "materialized_at": "2026-05-25T05:09:50.491917+00:00",
+  "event_count": 22,
+  "last_event_id": "01KSERMBTWWACRA1FE0RWQ67BB",
+  "materialized_at": "2026-05-25T05:09:57.724927+00:00",
   "mission_number": "",
   "mission_slug": "anokii-distribution-scaffold-01KSEFT7",
   "mission_type": "software-dev",
   "summary": {
-    "approved": 2,
+    "approved": 3,
     "blocked": 0,
     "canceled": 0,
     "claimed": 0,
     "done": 0,
-    "for_review": 2,
+    "for_review": 1,
     "in_progress": 0,
     "in_review": 0,
     "planned": 0
@@ -39,11 +39,11 @@
       "last_transition_at": "2026-05-25T05:09:50.491917+00:00"
     },
     "WP04": {
-      "actor": "claude",
+      "actor": "user",
       "force_count": 1,
-      "lane": "for_review",
-      "last_event_id": "01KSERCEFQ5ZN8HFYVEKVB69X6",
-      "last_transition_at": "2026-05-25T05:05:38.296011+00:00"
+      "lane": "approved",
+      "last_event_id": "01KSERMBTWWACRA1FE0RWQ67BB",
+      "last_transition_at": "2026-05-25T05:09:57.724927+00:00"
     }
   }
 }
