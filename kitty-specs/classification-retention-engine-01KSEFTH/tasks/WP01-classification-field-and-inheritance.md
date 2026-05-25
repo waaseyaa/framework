@@ -44,6 +44,7 @@ owned_files:
   - packages/field/tests/Unit/Entity/ClassificationLabelDefinitionTest.php
 tags: ["substrate", "classification", "field-type", "inheritance", "layer-1"]
 history: []
+agent: "claude"
 ---
 
 # WP01 — Classification field type + label inheritance
@@ -120,3 +121,4 @@ spec-kitty agent tasks move-task WP01 --to for_review --mission classification-r
 5. Output of `bin/check-package-layers` (clean — no new upward edges from `packages/field`).
 
 ## Activity Log
+- 2026-05-25T06:11:05Z – claude – Moved to in_progress
