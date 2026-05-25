@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-05-25T02:36:15.686744+00:00",
+  "friendly_name": "l2 content types consolidation",
+  "mission_id": "01KSEFTXNF1WEC5PB00EH25AFT",
+  "mission_number": null,
+  "mission_slug": "l2-content-types-consolidation-01KSEFTX",
+  "mission_type": "software-dev",
+  "slug": "l2-content-types-consolidation-01KSEFTX",
+  "target_branch": "main"
+}
