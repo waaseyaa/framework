@@ -96,3 +96,4 @@ Read `CHANGELOG.md`. Under `[Unreleased]` → `### Changed`, append the verbatim
 
 ## Activity Log
 - 2026-05-25T18:41:07Z – claude – Moved to in_progress
+- 2026-05-25T18:44:37Z – claude – Parity matrix populated; zero GAP rows; CHANGELOG entry landed; Out-of-band updated.
