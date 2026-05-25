@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-05-25T02:36:17.926057+00:00",
+  "friendly_name": "genealogy package extraction",
+  "mission_id": "01KSEFTZW2FCCT2HRJ71VTWE00",
+  "mission_number": null,
+  "mission_slug": "genealogy-package-extraction-01KSEFTZ",
+  "mission_type": "software-dev",
+  "slug": "genealogy-package-extraction-01KSEFTZ",
+  "target_branch": "main"
+}
