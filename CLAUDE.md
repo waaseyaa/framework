@@ -33,6 +33,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/attachment/*`, `packages/structured-import/*`, `packages/field/src/Form/*`, `packages/field/src/Attribute/BundleTemplate.php`, `packages/field/src/Attribute/FieldTemplate.php`, `packages/field/src/BundleTemplateCompiler.php`, `packages/routing/src/EntityDeepLinkRouteBuilder.php`, `packages/api/src/Controller/FieldAutoSaveController.php` | — | `docs/specs/work-surface.md` |
 | `packages/admin/*` | `waaseyaa:admin-spa` | `docs/specs/admin-spa.md` |
 | `packages/ai-*/*` | `waaseyaa:ai-integration` | `docs/specs/ai-integration.md`, `docs/specs/authoring-assist-contract.md`, `docs/specs/semantic-refresh-trigger-contract.md` |
+| `packages/ai-schema/*` | — | `docs/specs/ai-schema.md` (JSON Schema generation + capability-registry contract sketch) |
 | `packages/foundation/src/Ingestion/*`, `defaults/ingestion.*` | `waaseyaa:ingestion` | `docs/specs/ingestion-defaults.md`, `docs/specs/ingestion-validator-contract.md`, `docs/specs/ingestion-validation-gates-contract.md`, `docs/specs/ingestion-fixture-pack-contract.md`, `docs/specs/ingestion-editorial-dashboard-contract.md`, `docs/specs/source-adapter-contract.md`, `docs/specs/source-connectors-contract.md`, `docs/specs/source-priority-merge-contract.md`, `docs/specs/cross-source-identity-contract.md` |
 | `packages/ingestion/*` | `waaseyaa:ingestion` | `docs/specs/ingestion-defaults.md` |
 | `defaults/*`, `bin/check-no-secrets`, `bin/check-ingestion-defaults` | `waaseyaa:security-defaults` | `docs/specs/security-defaults.md` |
@@ -63,6 +64,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/mercure/*` | — | `packages/mercure/README.md` |
 | `packages/messaging/*` | — | `packages/messaging/README.md` |
 | `packages/oauth-provider/*` | — | `packages/oauth-provider/README.md` |
+| `packages/analytics/*` | — | `packages/analytics/README.md` (Umami proxy; L0, no waaseyaa deps) |
 | `packages/audit/*` | `waaseyaa:ocap-audit` | `docs/specs/ocap-audit-log.md` |
 | `packages/mail/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md` |
 | `packages/scheduler/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md` |
@@ -83,7 +85,7 @@ When the mapping is not obvious, search under `docs/specs/` (e.g. `rg -n "TopicO
 
 | Layer | Name | Packages |
 |---|---|---|
-| 0 | Foundation | agent-output, cache, database-legacy, error-handler, foundation, geo, http-client, i18n, ingestion, mail, mercure, oauth-provider, plugin, queue, scheduler, state, typed-data, validation |
+| 0 | Foundation | agent-output, analytics, cache, database-legacy, error-handler, foundation, geo, http-client, i18n, ingestion, mail, mercure, oauth-provider, plugin, queue, scheduler, state, typed-data, validation |
 | 1 | Core Data | entity, entity-storage, access, audit, user, config, field, auth, oidc, testing |
 | 2 | Content Types | node, taxonomy, media, path, menu, note, relationship, groups, engagement, messaging |
 | 3 | Services | workflows, search, seo, notification, billing, github, migration, northcloud, listing |
