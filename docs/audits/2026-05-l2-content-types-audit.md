@@ -257,7 +257,7 @@ This audit covers every package listed in the Layer 2 (Content Types) row of `CL
 
 | Package | Entity Types | `@api` | Tests | Commits (3mo) | Admin SPA | Dead-code | Classification | Follow-up Mission |
 |---|---|---|---|---|---|---|---|---|
-| `waaseyaa/attachment` | 1 | 0 | 4 | 20 | 0 (indirect) | 0 | **alpha — needs hardening** | TBD (WP02) |
+| `waaseyaa/attachment` | 1 | 0 | 4 | 20 | 0 (indirect) | 0 | **alpha — needs hardening** | `l2-harden-attachment-01KSEW72` |
 | `waaseyaa/node` | 2 | 0 | 4 | 41 | 8 | 0 | **production-ready** | — |
 | `waaseyaa/taxonomy` | 2 | 0 | 5 | 42 | 3 | 0 | **production-ready** | — |
 | `waaseyaa/media` | 4 | 14 | 14 | 52 | 12 | 0 | **production-ready** | — |
@@ -265,19 +265,14 @@ This audit covers every package listed in the Layer 2 (Content Types) row of `CL
 | `waaseyaa/menu` | 2 | 2 | 6 | 43 | 4 | 0 | **production-ready** | — |
 | `waaseyaa/note` | 1 | 3 | 7 | 37 | 5 | 0 | **production-ready** | — |
 | `waaseyaa/relationship` | 2 | 3 | 9 | 66 | 1 | 0 | **production-ready** | — |
-| `waaseyaa/groups` | 2 | 0 | 3 | 27 | 3 | 0 | **alpha — needs hardening** | TBD (WP02) |
-| `waaseyaa/engagement` | 3 | 0 | 5 | 25 | 2 | 0 | **alpha — needs hardening** | TBD (WP02) |
-| `waaseyaa/messaging` | 3 | 0 | 3 | 22 | 2 | 0 | **alpha — needs hardening (pre-graduation)** | WP03 + post-L3 mission |
+| `waaseyaa/groups` | 2 | 0 | 3 | 27 | 3 | 0 | **alpha — needs hardening** | `l2-harden-groups-01KSEW7E` |
+| `waaseyaa/engagement` | 3 | 0 | 5 | 25 | 2 | 0 | **alpha — needs hardening** | `l2-harden-engagement-01KSEW7Y` |
+| `waaseyaa/messaging` | 3 | 0 | 3 | 22 | 2 | 0 | **alpha — needs hardening (pre-graduation)** | WP03 + `l2-harden-messaging-01KSEW82` |
 
-**Counts:**
-- **production-ready:** 6 (node, taxonomy, media, path, menu, note, relationship — wait: relationship is 8th, note 7th — see below)
+**Counts (11 packages audited):**
+- **production-ready:** 7 (node, taxonomy, media, path, menu, note, relationship)
 - **alpha — needs hardening:** 4 (attachment, groups, engagement, messaging)
 - **dead — propose removal:** 0
-
-**Corrected count (11 packages audited):**
-- production-ready: 7 (node, taxonomy, media, path, menu, note, relationship)
-- alpha — needs hardening: 4 (attachment, groups, engagement, messaging)
-- dead — propose removal: 0
 
 ---
 

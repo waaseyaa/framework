@@ -133,8 +133,13 @@ Decision preference order (per charter): preserve OCAP audit lineage > minimise 
 
 ## Out-of-band
 
-- Per-package hardening follow-up missions filed by WP02 (one slug per **alpha** classification — replace this line with the real list at finalisation).
-- Per-package removal proposal missions filed by WP02 (one slug per **dead** classification — replace this line with the real list at finalisation).
+Hardening follow-up missions filed by WP02 (4 alpha packages):
+- `l2-harden-attachment-01KSEW72` — add README, `@api` tags, and at-most-one-active invariant tests for `waaseyaa/attachment`.
+- `l2-harden-groups-01KSEW7E` — add `@api` tags, expand tests, wire admin SPA group management pages for `waaseyaa/groups`.
+- `l2-harden-engagement-01KSEW7Y` — add `@api` tags, expand tests, wire admin SPA engagement moderation pages for `waaseyaa/engagement`.
+- `l2-harden-messaging-01KSEW82` — post-L3-graduation hardening: `@api` tags, expanded tests, admin SPA chat management; begins after WP03 lands.
+
+No removal proposal missions filed (0 dead-classified packages).
 - The **chat substrate / Anokii Chat surface** mission — a separate, post-WP03 mission that builds on the L3 messaging graduation. Scope: real-time broadcast via the broadcasting infrastructure, presence, read receipts, Anokii Chat admin SPA page. Not filed by this mission; the parallel `anokii-distribution-scaffold-*` mission (or a fresh wave-2 mission) handles it.
 - A future spec for any other L2 package that the audit identifies as needing one but doesn't already have a follow-up under "needs hardening" (rare case; reviewer flags it).
 - If the audit identifies a layer-table inconsistency outside L2 (e.g., a package listed in the wrong row), file a separate "layer-map cleanup" mission; do not bundle into this mission.
