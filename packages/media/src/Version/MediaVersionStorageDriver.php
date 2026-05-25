@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Media\Version;
 
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+use Symfony\Component\Uid\Uuid;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
@@ -13,7 +14,6 @@ use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Media\Media;
-use Symfony\Component\Uid\Uuid;
 
 /**
  * Subscribes to Media POST_SAVE events and creates a new MediaVersion per upload.

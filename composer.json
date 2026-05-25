@@ -274,7 +274,7 @@
         },
         {
             "type": "path",
-            "url": "packages/analytics"
+            "url": "packages/audit"
         },
         {
             "type": "path",
@@ -303,7 +303,7 @@
         "waaseyaa/ai-schema": "self.version",
         "waaseyaa/ai-tools": "self.version",
         "waaseyaa/ai-vector": "self.version",
-        "waaseyaa/analytics": "self.version",
+        "waaseyaa/audit": "self.version",
         "waaseyaa/api": "self.version",
         "waaseyaa/attachment": "self.version",
         "waaseyaa/auth": "self.version",

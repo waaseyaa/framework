@@ -1,0 +1,61 @@
+{
+    "name": "waaseyaa/audit",
+    "description": "OCAP append-only audit log substrate — unified event table, writer + query contracts, retention policy.",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../database-legacy"
+        },
+        {
+            "type": "path",
+            "url": "../entity"
+        },
+        {
+            "type": "path",
+            "url": "../entity-storage"
+        },
+        {
+            "type": "path",
+            "url": "../foundation"
+        }
+    ],
+    "require": {
+        "php": ">=8.5",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.188",
+        "waaseyaa/entity": "^0.1.0-alpha.188",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.188",
+        "waaseyaa/foundation": "^0.1.0-alpha.188"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.188"
+    },
+    "autoload": {
+        "psr-4": {
+            "Waaseyaa\\Audit\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Waaseyaa\\Audit\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "extra": {
+        "waaseyaa": {
+            "providers": [
+                "Waaseyaa\\Audit\\AuditServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "0.1.x-dev",
+            "dev-develop/v1.1": "0.1.x-dev"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

@@ -63,7 +63,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/mercure/*` | — | `packages/mercure/README.md` |
 | `packages/messaging/*` | — | `packages/messaging/README.md` |
 | `packages/oauth-provider/*` | — | `packages/oauth-provider/README.md` |
-| `packages/analytics/*` | — | `packages/analytics/README.md` |
+| `packages/audit/*` | `waaseyaa:ocap-audit` | `docs/specs/ocap-audit-log.md` |
 | `packages/mail/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md` |
 | `packages/scheduler/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md` |
 | `packages/notification/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md` |
@@ -83,8 +83,8 @@ When the mapping is not obvious, search under `docs/specs/` (e.g. `rg -n "TopicO
 
 | Layer | Name | Packages |
 |---|---|---|
-| 0 | Foundation | agent-output, analytics, cache, database-legacy, error-handler, foundation, geo, http-client, i18n, ingestion, mail, mercure, oauth-provider, plugin, queue, scheduler, state, typed-data, validation |
-| 1 | Core Data | entity, entity-storage, access, user, config, field, auth, oidc, testing |
+| 0 | Foundation | agent-output, cache, database-legacy, error-handler, foundation, geo, http-client, i18n, ingestion, mail, mercure, oauth-provider, plugin, queue, scheduler, state, typed-data, validation |
+| 1 | Core Data | entity, entity-storage, access, audit, user, config, field, auth, oidc, testing |
 | 2 | Content Types | node, taxonomy, media, path, menu, note, relationship, groups, engagement, messaging |
 | 3 | Services | workflows, search, seo, notification, billing, github, migration, northcloud, listing |
 | 4 | API | api, bimaaji, routing |
