@@ -135,3 +135,4 @@ GET /api/mcp/server-config
 
 (implementer appends here)
 - 2026-05-25T06:09:36Z – unknown – Moved to in_progress
+- 2026-05-25T06:19:33Z – unknown – M5C frontend ready; vitest 287/287 green; typecheck clean (mcp components); TS type guard confirms no plaintext token field; e2e deferred (requires dev server)
