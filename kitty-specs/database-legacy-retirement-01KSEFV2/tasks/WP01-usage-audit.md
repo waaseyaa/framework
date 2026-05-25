@@ -1,3 +1,37 @@
+---
+work_package_id: WP01
+title: Usage audit — classify every Waaseyaa\Database\ callsite
+dependencies: []
+requirement_refs:
+- FR-001
+- FR-002
+- FR-003
+- NFR-003
+- NFR-004
+- C-001
+planning_base_branch: main
+merge_target_branch: main
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
+subtasks:
+- T001
+- T002
+- T003
+- T004
+- T005
+- T006
+assignee: ''
+agent: "claude"
+shell_pid: "131417"
+history:
+- timestamp: '2026-05-25T00:00:00Z'
+  agent: system
+  action: Frontmatter added to fix malformed metadata
+authoritative_surface: docs/audits/2026-05-database-legacy-usage.md
+execution_mode: planning_artifact
+owned_files:
+- docs/audits/2026-05-database-legacy-usage.md
+tags: []
+---
 # Work Package Prompt: WP01 — Usage audit
 
 **Mission:** `database-legacy-retirement-01KSEFV2`
@@ -102,3 +136,4 @@ See T006. Hand off to WP02; WP02's `occurrence_map.yaml` derives from this audit
 ## Activity Log
 
 _(populated during execution)_
+- 2026-05-25T06:16:26Z – claude – shell_pid=131417 – Started implementation via action command
