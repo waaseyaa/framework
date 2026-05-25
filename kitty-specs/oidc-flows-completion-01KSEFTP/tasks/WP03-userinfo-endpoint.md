@@ -131,3 +131,4 @@ Read:
 ## Activity Log
 - 2026-05-25T05:30:07Z – unknown – subagent shipped retroactively
 - 2026-05-25T05:30:17Z – unknown – code already committed: 221ac1248..a7240b47f
+- 2026-05-25T05:30:27Z – unknown – Opus review: all 5 OIDC WPs cleanly committed; gates pass; DIR-004 userinfo field-access wiring confirmed; subagent self-corrected DatabaseInterface::getConnection() per CLAUDE.md gotcha
