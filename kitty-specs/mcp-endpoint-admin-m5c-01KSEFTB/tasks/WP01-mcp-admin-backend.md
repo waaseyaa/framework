@@ -150,3 +150,4 @@ This mission is a **cross-layer** read surface: `packages/mcp` is **Layer 6**, `
 (implementer appends here)
 - 2026-05-25T05:38:24Z – claude – shell_pid=73410 – Assigned agent via action command
 - 2026-05-25T05:58:39Z – claude – shell_pid=73410 – Moved to for_review
+- 2026-05-25T05:59:26Z – claude – shell_pid=73410 – Opus review: backend clean; 2 commits in lane; NFR-003 plaintext-token leak gate enforced via fingerprint-only response; bug fixed in ServerConfigReadModel where AccountInterface object was being hashed instead of token string; 573 tests pass; field-access gating on recentInvocations delegates to M-A5 EntityAccessHandler
