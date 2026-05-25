@@ -134,3 +134,4 @@ POST /api/ai/observability/runs/{uuid}/replay
 ## Activity Log
 
 (implementer appends here)
+- 2026-05-25T06:06:57Z – unknown – Moved to for_review
