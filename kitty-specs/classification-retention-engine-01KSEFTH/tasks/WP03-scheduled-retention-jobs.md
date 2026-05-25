@@ -125,3 +125,4 @@ spec-kitty agent tasks move-task WP03 --to for_review --mission classification-r
 6. `bin/check-package-layers` + `bin/check-dead-code` + `bin/check-getquery-bindings` green.
 
 ## Activity Log
+- 2026-05-25T21:52:48Z – unknown – Scheduled retention jobs (purge/redact/hold-scan) + ClassificationRetentionScheduleEntries + FR-015 integration test in place. 4 commits (e6fd6a92b..275b73bd3). Gate green: phpunit 477/477 (812 assertions incl FR-015 integration), composer phpstan no errors, cs-check 0/1786, check-dead-code clean (stale SqlEntityQuery::exists baseline entry removed), package-layers/getquery/composer-policy all OK. Best-effort isolation (NFR-004) and hold-vs-purge conflict detection (FR-012) covered.
