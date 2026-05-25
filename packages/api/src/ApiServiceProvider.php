@@ -4,15 +4,22 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Api;
 
+use Waaseyaa\Api\Controller\MercureMonitorController;
 use Waaseyaa\Api\Controller\NotificationController;
+use Waaseyaa\Api\Controller\OidcClientController;
 use Waaseyaa\Api\Controller\QueueController;
 use Waaseyaa\Api\Controller\SchedulerController;
 use Waaseyaa\Api\Controller\WorkflowGuardsController;
 use Waaseyaa\Api\Http\Router\DiscoveryRouter;
+use Waaseyaa\Api\Http\Router\MercureMonitorApiRouter;
 use Waaseyaa\Api\Http\Router\NotificationAdminApiRouter;
+use Waaseyaa\Api\Http\Router\OidcClientApiRouter;
 use Waaseyaa\Api\Http\Router\QueueAdminApiRouter;
 use Waaseyaa\Api\Http\Router\SchedulerAdminApiRouter;
 use Waaseyaa\Api\Http\Router\WorkflowGuardsApiRouter;
+use Waaseyaa\Api\MercureMonitor\ChannelInspectorInterface;
+use Waaseyaa\Api\MercureMonitor\EventStreamReadModelInterface;
+use Waaseyaa\Api\MercureMonitor\SubscriberObserverInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
@@ -97,26 +104,42 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
             $routers[] = new WorkflowGuardsApiRouter(new WorkflowGuardsController($matrix));
         }
 
+        // M5D WP01: Mercure broadcast monitor dashboard. Same indirection
+        // pattern as queue/scheduler/notification blocks — all three deps are
+        // bound by `MercureMonitorServiceProvider` (Layer 0 foundation). When
+        // any binding is absent (slimmed-down install or monitor disabled via
+        // `broadcasting.monitor.enabled = false`) the controller falls back to
+        // zeroed empty-shape responses rather than crashing boot (FR-006).
+        // The router is wired when at least one dep is resolvable; the
+        // controller handles individual nulls internally.
+        $inspector = $this->resolveOptional(ChannelInspectorInterface::class);
+        $streamModel = $this->resolveOptional(EventStreamReadModelInterface::class);
+        $observer = $this->resolveOptional(SubscriberObserverInterface::class);
+        if (
+            $inspector instanceof ChannelInspectorInterface
+            || $streamModel instanceof EventStreamReadModelInterface
+            || $observer instanceof SubscriberObserverInterface
+        ) {
+            $routers[] = new MercureMonitorApiRouter(
+                new MercureMonitorController(
+                    $inspector instanceof ChannelInspectorInterface ? $inspector : null,
+                    $streamModel instanceof EventStreamReadModelInterface ? $streamModel : null,
+                    $observer instanceof SubscriberObserverInterface ? $observer : null,
+                ),
+            );
+        }
+
+        // WP05: OIDC client CRUD admin API. The oidc_client entity type is
+        // registered by OidcServiceProvider (L6 oidc) which boots before api.
+        // We add unconditionally — EntityTypeManager will throw clearly if
+        // the entity type is missing, which is a configuration error.
+        $routers[] = new OidcClientApiRouter(new OidcClientController($httpKernel->getEntityTypeManager()));
+
         return $routers;
     }
 
     public function routes(WaaseyaaRouter $router, EntityTypeManager $entityTypeManager): void
     {
         new JsonApiRouteProvider($entityTypeManager)->registerRoutes($router);
-    }
-
-    /**
-     * `ServiceProvider::resolve()` throws when an abstract is unbound; for the
-     * queue, scheduler, and notification services we prefer to gracefully
-     * no-op if their service providers are not present in the manifest (e.g.
-     * a slimmed-down CMS install) rather than crash kernel boot.
-     */
-    private function resolveOptional(string $abstract): ?object
-    {
-        try {
-            return $this->resolve($abstract);
-        } catch (\RuntimeException) {
-            return null;
-        }
     }
 }
