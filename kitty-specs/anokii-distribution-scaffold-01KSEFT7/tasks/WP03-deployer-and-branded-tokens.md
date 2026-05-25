@@ -93,3 +93,7 @@ You are working in the Anokii repo clone. WP02 has landed (`.kittify/` and chart
 2. Outputs of the four smoke verification commands.
 3. Confirmation that the deployer overlay file references the framework recipe path that actually exists in `vendor/waaseyaa/deployer/recipes/` (paste the exact path).
 4. The three hex values present in the tokens file (paste the relevant `grep` output line).
+
+## Activity Log
+
+- 2026-05-25T05:09:50Z – unknown – Opus review: new repo waaseyaa/anokii live with composer + LICENSE + README + charter (DIR-A001..DIR-A005) + deploy + branded tokens + Sagamok tenant stub. Repo currently public (consider toggling to private). 10 v0.1 surface seeds left in Waaseyaa artifacts/ for future Anokii-repo re-filing.
