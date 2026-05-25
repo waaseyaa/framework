@@ -17,7 +17,7 @@ subtasks:
   - "T003"
   - "T004"
 phase: "Phase 2 - Manifest"
-assignee: ""
+assignee: "claude"
 agent: ""
 shell_pid: ""
 authoritative_surface: "packages/full/composer.json"
@@ -99,4 +99,4 @@ All must remain green with no new findings.
 5. Output of `bin/check-composer-policy` and `bin/check-package-layers` (must be green).
 
 ## Activity Log
-
+- 2026-05-25T06:12:18Z – unknown – Moved to in_progress
