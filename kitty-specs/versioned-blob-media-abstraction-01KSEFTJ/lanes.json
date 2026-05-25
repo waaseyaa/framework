@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "mission_slug": "versioned-blob-media-abstraction-01KSEFTJ",
+  "mission_id": "01KSEFTJ",
+  "mission_branch": "kitty/mission-versioned-blob-media-abstraction-01KSEFTJ-lane-a",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01",
+        "WP02",
+        "WP03",
+        "WP04"
+      ],
+      "write_scope": [
+        "CHANGELOG.md",
+        "CLAUDE.md",
+        "docs/specs/admin-spa.md",
+        "docs/specs/api-layer.md",
+        "docs/specs/entity-storage-two-axis.md",
+        "docs/specs/versioned-blob-media.md",
+        "packages/admin/app/composables/useMediaVersions.ts",
+        "packages/admin/app/components/media/MediaVersionBrowser.vue",
+        "packages/admin/app/i18n/en.json",
+        "packages/admin/app/pages/media/[id].vue",
+        "packages/admin/e2e/media-versions.spec.ts",
+        "packages/admin/tests/unit/composables/useMediaVersions.test.ts",
+        "packages/api/composer.json",
+        "packages/api/src/ApiServiceProvider.php",
+        "packages/api/src/Controller/MediaVersionController.php",
+        "packages/api/src/Http/Router/MediaVersionApiRouter.php",
+        "packages/api/src/Media/ApiMediaVersionAdapter.php",
+        "packages/api/src/Media/MediaVersionReadModelInterface.php",
+        "packages/api/src/Media/MediaVersionResource.php",
+        "packages/api/tests/Unit/Controller/MediaVersionControllerTest.php",
+        "packages/api/tests/Unit/Http/Router/MediaVersionApiRouterTest.php",
+        "packages/foundation/src/Kernel/BuiltinRouteRegistrar.php",
+        "tests/Integration/PhaseMediaVersioning/ForbiddenVersionIntegrationTest.php",
+        "tests/Integration/PhaseMediaVersioning/MediaVersioningIntegrationTest.php"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "admin-spa",
+        "tests"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-05-25T06:00:00.000000+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": [],
+  "collapse_report": {
+    "events": [
+      {
+        "wp_a": "WP02",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP02 depends on WP01"
+      },
+      {
+        "wp_a": "WP03",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP03 depends on WP01"
+      },
+      {
+        "wp_a": "WP04",
+        "wp_b": "WP03",
+        "rule": "dependency",
+        "evidence": "WP04 depends on WP03"
+      }
+    ],
+    "total_merges": 3,
+    "independent_wps_collapsed": 0,
+    "by_rule": {
+      "dependency": 3
+    }
+  }
+}
