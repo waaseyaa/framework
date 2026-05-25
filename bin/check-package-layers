@@ -67,6 +67,7 @@ LAYER_BY_SHORT = {
     "entity": 1,
     "entity-storage": 1,
     "access": 1,
+    "audit": 1,
     "user": 1,
     "config": 1,
     "field": 1,
@@ -177,6 +178,21 @@ KERNEL_EXEMPT_FILES = {
     "foundation/src/Http/Router/WaaseyaaContext.php":
         "kernel-adjacent route registrar wired from HttpKernel",
 
+    # foundation — M5D Mercure broadcast monitor read-model adapters (mission
+    # mercure-broadcast-monitor-m5d-01KSEFTD WP01). These implement api-layer
+    # (L4) interfaces per the CodifiedContext discipline: the contract lives in
+    # api, the adapter in foundation, bound by MercureMonitorServiceProvider.
+    # This is the same pattern as BroadcastRouter + the Http/Router exemptions.
+    # C-002: no Foundation types cross into api interfaces or DTOs.
+    "foundation/src/Http/Inbound/ChannelInspector.php":
+        "M5D monitor read-model adapter; implements api ChannelInspectorInterface; bound by MercureMonitorServiceProvider",
+    "foundation/src/Http/Inbound/EventStreamReadModel.php":
+        "M5D monitor read-model adapter; implements api EventStreamReadModelInterface; bound by MercureMonitorServiceProvider",
+    "foundation/src/Http/Inbound/SubscriberObserver.php":
+        "M5D monitor read-model adapter; implements api SubscriberObserverInterface; bound by MercureMonitorServiceProvider",
+    "foundation/src/MercureMonitorServiceProvider.php":
+        "M5D monitor service provider; binds three api interfaces to foundation adapters; kernel-boot wiring (#1415)",
+
     # foundation — kernel-boot listener wiring extracted from HttpKernel for testability.
     # Already covered by the implicit /src/Kernel/ dir exemption; the explicit entry
     # records architectural intent per mission #824 WP02 surface B (issue #827).
@@ -250,6 +266,7 @@ NS_PREFIX_TO_SHORT = {
     "Geo": "geo",
     "Mercure": "mercure",
     "Analytics": "analytics",
+    "Audit": "audit",
     "OAuthProvider": "oauth-provider",
     "Entity": "entity",
     "EntityStorage": "entity-storage",

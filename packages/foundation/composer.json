@@ -48,7 +48,8 @@
     "extra": {
         "waaseyaa": {
             "providers": [
-                "Waaseyaa\\Foundation\\FoundationServiceProvider"
+                "Waaseyaa\\Foundation\\FoundationServiceProvider",
+                "Waaseyaa\\Foundation\\MercureMonitorServiceProvider"
             ]
         },
         "branch-alias": {

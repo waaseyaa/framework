@@ -17,6 +17,7 @@ final class BroadcastRouter implements DomainRouterInterface
 
     public function __construct(
         private readonly ?LoggerInterface $logger = null,
+        private readonly ?string $subscribersJsonPath = null,
     ) {}
 
     public function supports(Request $request): bool
@@ -36,7 +37,61 @@ final class BroadcastRouter implements DomainRouterInterface
 
         $initialCursor = self::resolveInitialCursor($request, $broadcastStorage->maxId($channels));
 
-        return new StreamedResponse(function () use ($broadcastStorage, $channels, $logger, $initialCursor): void {
+        // Subscriber tracking (M5D WP01 — additive extension).
+        // Build a stable, non-secret connectionId from timing + PID.
+        $connectedSince = microtime(true);
+        $connectionId = substr(hash('sha256', $connectedSince . ':' . getmypid()), 0, 16);
+
+        // Resolve the account from the request attribute set by SessionMiddleware.
+        // Falls back to accountId=0 (anonymous) when no account is present.
+        $account = $request->attributes->get('_account');
+        $accountId = 0;
+        $accountLabel = null;
+        if (is_object($account) && method_exists($account, 'id')) {
+            $accountId = (int) $account->id();
+        }
+        if (is_object($account) && method_exists($account, 'label')) {
+            $accountLabel = (string) $account->label();
+            if ($accountLabel === '') {
+                $accountLabel = null;
+            }
+        }
+
+        $subscribersPath = $this->subscribersJsonPath;
+
+        // Register this connection in subscribers.json (best-effort; never fatal).
+        if ($subscribersPath !== null) {
+            try {
+                $this->appendSubscriber($subscribersPath, [
+                    'accountId' => $accountId,
+                    'accountLabel' => $accountLabel,
+                    'channels' => $channels,
+                    'connectedSince' => $connectedSince,
+                    'lastHeartbeat' => $connectedSince,
+                    'connectionId' => $connectionId,
+                ]);
+            } catch (\Throwable $e) {
+                $logger->error(sprintf('BroadcastRouter: failed to register subscriber: %s', $e->getMessage()));
+            }
+
+            // On shutdown: remove this entry atomically.
+            register_shutdown_function(function () use ($subscribersPath, $connectionId, $logger): void {
+                try {
+                    $this->removeSubscriber($subscribersPath, $connectionId);
+                } catch (\Throwable $e) {
+                    $logger->error(sprintf('BroadcastRouter: failed to remove subscriber on shutdown: %s', $e->getMessage()));
+                }
+            });
+        }
+
+        return new StreamedResponse(function () use (
+            $broadcastStorage,
+            $channels,
+            $logger,
+            $initialCursor,
+            $subscribersPath,
+            $connectionId,
+        ): void {
             echo "event: connected\ndata: " . json_encode(['channels' => $channels], JSON_THROW_ON_ERROR) . "\n\n";
             if (ob_get_level() > 0) {
                 ob_flush();
@@ -91,6 +146,15 @@ final class BroadcastRouter implements DomainRouterInterface
                     }
                     flush();
                     $lastKeepalive = time();
+
+                    // Update heartbeat in subscribers.json (best-effort).
+                    if ($subscribersPath !== null) {
+                        try {
+                            $this->updateHeartbeat($subscribersPath, $connectionId);
+                        } catch (\Throwable $e) {
+                            $logger->error(sprintf('BroadcastRouter: failed to update subscriber heartbeat: %s', $e->getMessage()));
+                        }
+                    }
                 }
 
                 usleep(500_000);
@@ -101,6 +165,77 @@ final class BroadcastRouter implements DomainRouterInterface
             'Connection' => 'keep-alive',
             'X-Accel-Buffering' => 'no',
         ]);
+    }
+
+    /**
+     * @param array{accountId: int, accountLabel: string|null, channels: list<string>, connectedSince: float, lastHeartbeat: float, connectionId: string} $entry
+     */
+    private function appendSubscriber(string $jsonPath, array $entry): void
+    {
+        $this->rewriteSubscribers($jsonPath, static function (array $rows) use ($entry): array {
+            $rows[] = $entry;
+            return $rows;
+        });
+    }
+
+    private function updateHeartbeat(string $jsonPath, string $connectionId): void
+    {
+        $now = microtime(true);
+        $this->rewriteSubscribers($jsonPath, static function (array $rows) use ($connectionId, $now): array {
+            foreach ($rows as &$row) {
+                if (isset($row['connectionId']) && $row['connectionId'] === $connectionId) {
+                    $row['lastHeartbeat'] = $now;
+                }
+            }
+            unset($row);
+            return $rows;
+        });
+    }
+
+    private function removeSubscriber(string $jsonPath, string $connectionId): void
+    {
+        $this->rewriteSubscribers($jsonPath, static function (array $rows) use ($connectionId): array {
+            return array_values(array_filter(
+                $rows,
+                static fn(array $r): bool => !isset($r['connectionId']) || $r['connectionId'] !== $connectionId,
+            ));
+        });
+    }
+
+    /**
+     * Atomic read-modify-write on subscribers.json.
+     *
+     * Uses write-to-temp-then-rename per CLAUDE.md atomic-file-write rule.
+     *
+     * @param callable(array<int, array<string, mixed>>): array<int, array<string, mixed>> $mutate
+     */
+    private function rewriteSubscribers(string $jsonPath, callable $mutate): void
+    {
+        $dir = dirname($jsonPath);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0o755, true);
+        }
+
+        $existing = [];
+        if (is_file($jsonPath)) {
+            try {
+                $raw = file_get_contents($jsonPath);
+                if ($raw !== false && $raw !== '') {
+                    $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+                    if (is_array($decoded)) {
+                        $existing = $decoded;
+                    }
+                }
+            } catch (\JsonException) {
+                // Malformed file — start fresh
+            }
+        }
+
+        $updated = $mutate($existing);
+
+        $tmp = $jsonPath . '.tmp.' . getmypid();
+        file_put_contents($tmp, json_encode(array_values($updated), JSON_THROW_ON_ERROR));
+        rename($tmp, $jsonPath);
     }
 
     /**

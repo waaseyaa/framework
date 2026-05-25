@@ -302,6 +302,47 @@ final class BuiltinRouteRegistrar
                 ->build(),
         );
 
+        // M5D WP01: Mercure broadcast monitor endpoints. All gated by
+        // `_role: admin`; controller does NOT re-check role (NFR-001 / DIR-004).
+        $mmController = 'Waaseyaa\\Api\\Controller\\MercureMonitorController';
+        $router->addRoute(
+            'api.mercure.monitor.channels',
+            RouteBuilder::create('/api/mercure/channels')
+                ->controller($mmController . '::channels')
+                ->requireRole('admin')
+                ->methods('GET')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.mercure.monitor.events',
+            RouteBuilder::create('/api/mercure/events')
+                ->controller($mmController . '::events')
+                ->requireRole('admin')
+                ->methods('GET')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.mercure.monitor.subscribers',
+            RouteBuilder::create('/api/mercure/subscribers')
+                ->controller($mmController . '::subscribers')
+                ->requireRole('admin')
+                ->methods('GET')
+                ->build(),
+        );
+
+        // OCAP audit log substrate (ocap-audit-log-substrate-01KSEFTF).
+        // Controller wired in WP03 (packages/api). Route reserved here so
+        // foundation registers the named route independently of the api package.
+        // Refs: gap-matrix-A3, DIR-004.
+        $router->addRoute(
+            'api.audit.events.index',
+            RouteBuilder::create('/api/audit/events')
+                ->controller('Waaseyaa\\Api\\Controller\\AuditQueryController::index')
+                ->requireRole('admin')
+                ->methods('GET')
+                ->build(),
+        );
+
         // App routes — registered before SSR catchall so they take priority.
         foreach ($this->providers as $provider) {
             $provider->routes($router, $this->entityTypeManager);
@@ -326,6 +367,59 @@ final class BuiltinRouteRegistrar
                 ->render()
                 ->methods('GET')
                 ->requirement('path', '(?!api(?:/|$)).+')
+                ->build(),
+        );
+
+        // WP05 (oidc-flows-completion-01KSEFTP): OIDC client admin CRUD API.
+        // All endpoints require admin role. client_secret is returned once on
+        // create/regenerate; omitted on all other responses.
+        $oidcClientController = 'Waaseyaa\\Api\\Controller\\OidcClientController';
+        $router->addRoute(
+            'api.oidc-clients.index',
+            RouteBuilder::create('/api/oidc-clients')
+                ->controller($oidcClientController . '::index')
+                ->requireRole('admin')
+                ->methods('GET')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.oidc-clients.create',
+            RouteBuilder::create('/api/oidc-clients')
+                ->controller($oidcClientController . '::create')
+                ->requireRole('admin')
+                ->methods('POST')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.oidc-clients.show',
+            RouteBuilder::create('/api/oidc-clients/{id}')
+                ->controller($oidcClientController . '::show')
+                ->requireRole('admin')
+                ->methods('GET')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.oidc-clients.update',
+            RouteBuilder::create('/api/oidc-clients/{id}')
+                ->controller($oidcClientController . '::update')
+                ->requireRole('admin')
+                ->methods('PATCH')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.oidc-clients.delete',
+            RouteBuilder::create('/api/oidc-clients/{id}')
+                ->controller($oidcClientController . '::delete')
+                ->requireRole('admin')
+                ->methods('DELETE')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.oidc-clients.regenerate-secret',
+            RouteBuilder::create('/api/oidc-clients/{id}/regenerate-secret')
+                ->controller($oidcClientController . '::regenerateSecret')
+                ->requireRole('admin')
+                ->methods('POST')
                 ->build(),
         );
 
