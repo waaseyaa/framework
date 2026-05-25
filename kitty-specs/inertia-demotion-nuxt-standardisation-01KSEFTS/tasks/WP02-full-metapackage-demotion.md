@@ -100,3 +100,4 @@ All must remain green with no new findings.
 
 ## Activity Log
 - 2026-05-25T06:12:18Z – unknown – Moved to in_progress
+- 2026-05-25T06:15:43Z – unknown – suggest block added to packages/full/composer.json; inertia/composer.json description updated. Gates green. Commit 95dfda4a8.
