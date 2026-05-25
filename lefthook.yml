@@ -17,4 +17,4 @@ pre-push:
       run: composer phpstan
     phpunit:
       glob: "*.php"
-      run: ./vendor/bin/phpunit --testsuite Unit --no-progress --no-coverage
+      run: php -d memory_limit=512M ./vendor/bin/phpunit --testsuite Unit --no-progress --no-coverage

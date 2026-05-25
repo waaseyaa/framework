@@ -735,6 +735,21 @@ Pattern: `mountSuspended()` from `@nuxt/test-utils/runtime` for component mounti
 
 Backend JSON:API and schema endpoints are tested via PHPUnit integration tests in `tests/Integration/PhaseN/`. The admin SPA relies on these endpoints being correct.
 
+## Mercure Broadcast Monitor (M5D)
+
+Real-time SSE monitor for the Mercure broadcasting layer (gap-matrix C-L0-04, mission `mercure-broadcast-monitor-m5d-01KSEFTD`). Single-page admin tool surfacing channels, live events, and subscribers.
+
+- **Page:** `packages/admin/app/pages/mercure/monitor.vue` — 3-section dashboard (channels with chip filter, events table, subscribers table with anonymous-label fallback).
+- **Composable:** `packages/admin/app/composables/useMercureMonitor.ts` — wraps `useApi` and `useRealtime`; provides channel multi-select state and a `refresh()` action.
+- **Nav:** `NavBuilder.vue` exposes the monitor link under the admin nav root.
+- **i18n:** 20 keys under `mercure_monitor.*` in `packages/admin/app/i18n/en.json`.
+- **Endpoint contract (camelCase, as shipped):**
+  - `GET /api/mercure/channels` → `{ data: ChannelInspectorRow[] }`
+  - `GET /api/mercure/events` (SSE stream; mirrors `BroadcastRouter` shape — keepalive 15s, `X-Accel-Buffering: no`)
+  - `GET /api/mercure/subscriptions` → `{ data: SubscriberRow[] }`
+- **Identity safety (NFR-004):** subscriber rows redact Authorization, Cookie, User-Agent, and any 64-char hex tokens.
+- **Tests:** Vitest unit coverage for `useMercureMonitor`; Playwright e2e under `packages/admin/e2e/mercure-monitor.spec.ts`.
+
 ## File Reference
 
 | File | Purpose |
