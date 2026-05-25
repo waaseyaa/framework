@@ -1,3 +1,39 @@
+---
+work_package_id: WP02
+title: Bulk migration of (a) callsites + (c) follow-up filing
+dependencies:
+- WP01
+requirement_refs:
+- FR-004
+- FR-005
+- NFR-001
+- NFR-002
+- NFR-005
+- C-002
+- C-003
+planning_base_branch: main
+merge_target_branch: main
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
+subtasks:
+- T007
+- T008
+- T009
+- T010
+- T011
+- T012
+assignee: ''
+agent: ''
+history:
+- timestamp: '2026-05-25T00:00:00Z'
+  agent: system
+  action: Frontmatter added to fix malformed metadata
+authoritative_surface: kitty-specs/database-legacy-retirement-01KSEFV2/occurrence_map.yaml
+execution_mode: bulk_edit
+owned_files:
+- kitty-specs/database-legacy-retirement-01KSEFV2/occurrence_map.yaml
+- packages/
+tags: []
+---
 # Work Package Prompt: WP02 — Bulk migration of (a) callsites + (c) follow-up filing
 
 **Mission:** `database-legacy-retirement-01KSEFV2`

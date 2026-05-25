@@ -5,7 +5,7 @@ work_packages:
     owned_files:
       - "docs/audits/2026-05-database-legacy-usage.md"
     authoritative_surface: "docs/audits/2026-05-database-legacy-usage.md"
-    execution_mode: "documentation"
+    execution_mode: "planning_artifact"
     requirement_refs: [FR-001, FR-002, FR-003, NFR-003, NFR-004, C-001]
     subtasks: [T001, T002, T003, T004, T005, T006]
     prompt_file: "tasks/WP01-usage-audit.md"
@@ -13,8 +13,8 @@ work_packages:
     title: "Bulk migration of (a) callsites + (c) follow-up filing"
     dependencies: [WP01]
     owned_files:
-      - "occurrence_map.yaml"
-    authoritative_surface: "occurrence_map.yaml"
+      - "kitty-specs/database-legacy-retirement-01KSEFV2/occurrence_map.yaml"
+    authoritative_surface: "kitty-specs/database-legacy-retirement-01KSEFV2/occurrence_map.yaml"
     execution_mode: "bulk_edit"
     requirement_refs: [FR-004, FR-005, NFR-001, NFR-002, NFR-005, C-002, C-003]
     subtasks: [T007, T008, T009, T010, T011, T012]
@@ -28,9 +28,8 @@ work_packages:
       - "CLAUDE.md"
       - "composer.json"
       - "docs/adr/"
-      - "docs/audits/2026-05-database-legacy-usage.md"
       - "CHANGELOG.md"
-    authoritative_surface: "PR"
+    authoritative_surface: "packages/database-legacy/"
     execution_mode: "code_change"
     requirement_refs: [FR-006, FR-007, FR-008, FR-009, NFR-002, NFR-003, C-001, C-003, C-004]
     subtasks: [T013, T014, T015, T016, T017, T018]

@@ -1,3 +1,45 @@
+---
+work_package_id: WP03
+title: Disposition (ELIMINATE or RENAME) + ADR + PR
+dependencies:
+- WP02
+requirement_refs:
+- FR-006
+- FR-007
+- FR-008
+- FR-009
+- NFR-002
+- NFR-003
+- C-001
+- C-003
+- C-004
+planning_base_branch: main
+merge_target_branch: main
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
+subtasks:
+- T013
+- T014
+- T015
+- T016
+- T017
+- T018
+assignee: ''
+agent: ''
+history:
+- timestamp: '2026-05-25T00:00:00Z'
+  agent: system
+  action: Frontmatter added to fix malformed metadata
+authoritative_surface: packages/database-legacy/
+execution_mode: code_change
+owned_files:
+- packages/database-legacy/
+- .github/workflows/split.yml
+- CLAUDE.md
+- composer.json
+- docs/adr/
+- CHANGELOG.md
+tags: []
+---
 # Work Package Prompt: WP03 — Disposition (ELIMINATE or RENAME) + ADR + PR
 
 **Mission:** `database-legacy-retirement-01KSEFV2`
