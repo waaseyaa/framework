@@ -19,7 +19,7 @@ branch_strategy: Planning artifacts for this feature were generated on main. Dur
 subtasks: []
 history: []
 authoritative_surface: CLAUDE.md
-execution_mode: documentation
+execution_mode: code_change
 owned_files:
 - CLAUDE.md
 - docs/specs/extraction-log.md

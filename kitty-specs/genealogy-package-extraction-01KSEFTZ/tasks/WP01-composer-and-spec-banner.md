@@ -17,7 +17,7 @@ branch_strategy: Planning artifacts for this feature were generated on main. Dur
 subtasks: []
 history: []
 authoritative_surface: packages/genealogy/composer.json
-execution_mode: documentation
+execution_mode: code_change
 owned_files:
 - packages/genealogy/composer.json
 - docs/specs/genealogy.md

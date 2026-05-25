@@ -14,7 +14,7 @@ branch_strategy: Planning artifacts for this feature were generated on main. Dur
 subtasks: []
 history: []
 authoritative_surface: PR
-execution_mode: verification_and_pr
+execution_mode: planning_artifact
 owned_files:
 - kitty-specs/genealogy-package-extraction-01KSEFTZ/**
 tags: []
