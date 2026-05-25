@@ -135,3 +135,4 @@ After approval and merge, WP03 (Packagist trustee) is unblocked.
 ## Activity Log
 
 (populated by the implementing agent as work progresses)
+- 2026-05-25T04:57:38Z – unknown – Opus review: markdown-only mission, verbatim from plan.md §1/§2. WP03/WP04 deferral markers documented per spec.
