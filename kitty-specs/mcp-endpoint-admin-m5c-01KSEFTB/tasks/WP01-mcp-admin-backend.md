@@ -149,3 +149,4 @@ This mission is a **cross-layer** read surface: `packages/mcp` is **Layer 6**, `
 
 (implementer appends here)
 - 2026-05-25T05:38:24Z – claude – shell_pid=73410 – Assigned agent via action command
+- 2026-05-25T05:58:39Z – claude – shell_pid=73410 – Moved to for_review
