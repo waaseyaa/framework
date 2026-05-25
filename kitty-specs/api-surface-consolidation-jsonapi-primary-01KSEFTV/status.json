@@ -1,0 +1,42 @@
+{
+  "event_count": 5,
+  "last_event_id": "01KSG6YSP6Z83RZ2DPT868PCC4",
+  "materialized_at": "2026-05-25T18:39:34.086775+00:00",
+  "mission_number": "",
+  "mission_slug": "api-surface-consolidation-jsonapi-primary-01KSEFTV",
+  "mission_type": "software-dev",
+  "summary": {
+    "approved": 0,
+    "blocked": 0,
+    "canceled": 0,
+    "claimed": 0,
+    "done": 0,
+    "for_review": 0,
+    "in_progress": 1,
+    "in_review": 0,
+    "planned": 2
+  },
+  "work_packages": {
+    "WP01": {
+      "actor": "claude",
+      "force_count": 1,
+      "lane": "in_progress",
+      "last_event_id": "01KSG6YSP6Z83RZ2DPT868PCC4",
+      "last_transition_at": "2026-05-25T18:39:34.086775+00:00"
+    },
+    "WP02": {
+      "actor": "finalize-tasks",
+      "force_count": 1,
+      "lane": "planned",
+      "last_event_id": "01KSG6YQYNBRZC1N5KM37YJVYJ",
+      "last_transition_at": "2026-05-25T18:39:32.309212+00:00"
+    },
+    "WP03": {
+      "actor": "finalize-tasks",
+      "force_count": 1,
+      "lane": "planned",
+      "last_event_id": "01KSG6YQZ4ZVDCHCHXYZD1EVAG",
+      "last_transition_at": "2026-05-25T18:39:32.324255+00:00"
+    }
+  }
+}

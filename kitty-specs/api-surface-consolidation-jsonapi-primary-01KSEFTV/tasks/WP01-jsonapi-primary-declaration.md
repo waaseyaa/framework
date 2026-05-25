@@ -17,7 +17,7 @@ subtasks:
   - "T002"
 phase: "Phase 1 - Spec declaration"
 assignee: ""
-agent: ""
+agent: "claude"
 shell_pid: ""
 authoritative_surface: "docs/specs/jsonapi.md"
 execution_mode: "documentation"
@@ -77,4 +77,4 @@ Then stamp:
 3. Paste the inserted matrix scaffold + the stamp.
 
 ## Activity Log
-
+- 2026-05-25T18:39:34Z – claude – Moved to in_progress
