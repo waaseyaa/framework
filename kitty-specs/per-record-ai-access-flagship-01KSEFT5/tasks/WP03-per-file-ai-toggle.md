@@ -17,6 +17,9 @@ requirement_refs:
 planning_base_branch: main
 merge_target_branch: main
 branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
+base_branch: kitty/mission-per-record-ai-access-flagship-01KSEFT5
+base_commit: 6463e7ddfacd57cd606eda5b9f216f3ef16cb280
+created_at: '2026-05-25T04:47:41.911842+00:00'
 subtasks:
 - T008
 - T009
@@ -25,6 +28,7 @@ subtasks:
 phase: Phase 1 — Per-file AI toggle
 assignee: ''
 agent: ''
+shell_pid: '4172888'
 history:
 - timestamp: '2026-05-25T02:35:50Z'
   agent: system
