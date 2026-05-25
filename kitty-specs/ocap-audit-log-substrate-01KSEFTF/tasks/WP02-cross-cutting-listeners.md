@@ -143,3 +143,4 @@ spec-kitty agent tasks move-task WP02 --to for_review --mission ocap-audit-log-s
 4. Confirmation grep: `rg -A 1 'class .+AuditListener' packages/audit/src/Listener/ | rg -c 'try \{'` (must equal 5).
 
 ## Activity Log
+- 2026-05-25T05:20:29Z – unknown – Moved to for_review
