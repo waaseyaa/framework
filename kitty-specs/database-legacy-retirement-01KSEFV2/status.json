@@ -1,7 +1,7 @@
 {
-  "event_count": 6,
-  "last_event_id": "01KSEWQCND0S95RC4CQSKTRGPM",
-  "materialized_at": "2026-05-25T06:21:31.181804+00:00",
+  "event_count": 8,
+  "last_event_id": "01KSEWY6AKBEWYV5SZWCXHSEM1",
+  "materialized_at": "2026-05-25T06:25:14.067449+00:00",
   "mission_number": "",
   "mission_slug": "database-legacy-retirement-01KSEFV2",
   "mission_type": "software-dev",
@@ -12,9 +12,9 @@
     "claimed": 0,
     "done": 0,
     "for_review": 1,
-    "in_progress": 0,
+    "in_progress": 1,
     "in_review": 0,
-    "planned": 2
+    "planned": 1
   },
   "work_packages": {
     "WP01": {
@@ -25,11 +25,11 @@
       "last_transition_at": "2026-05-25T06:21:31.181804+00:00"
     },
     "WP02": {
-      "actor": "finalize-tasks",
+      "actor": "implement-command",
       "force_count": 1,
-      "lane": "planned",
-      "last_event_id": "01KSEWCBYVD6NZRXNDR63S9HYQ",
-      "last_transition_at": "2026-05-25T06:15:30.011985+00:00"
+      "lane": "in_progress",
+      "last_event_id": "01KSEWY6AKBEWYV5SZWCXHSEM1",
+      "last_transition_at": "2026-05-25T06:25:14.067449+00:00"
     },
     "WP03": {
       "actor": "finalize-tasks",
