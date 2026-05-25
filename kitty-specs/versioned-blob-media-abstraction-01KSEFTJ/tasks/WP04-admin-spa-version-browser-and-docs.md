@@ -118,3 +118,4 @@ spec-kitty agent tasks move-task WP04 --to for_review --mission versioned-blob-m
 5. Whether the existing `pages/media/[id].vue` was reused or freshly created.
 
 ## Activity Log
+- 2026-05-25T05:54:52Z – unknown – Moved to in_progress
