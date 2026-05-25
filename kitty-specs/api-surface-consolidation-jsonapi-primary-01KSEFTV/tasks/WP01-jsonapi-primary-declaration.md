@@ -78,3 +78,4 @@ Then stamp:
 
 ## Activity Log
 - 2026-05-25T18:39:34Z – claude – Moved to in_progress
+- 2026-05-25T18:40:58Z – claude – JSON:API primary declared; matrix scaffold added; WP02 + WP03 unblocked.
