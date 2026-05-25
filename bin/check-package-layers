@@ -85,7 +85,6 @@ LAYER_BY_SHORT = {
     "relationship": 2,
     "groups": 2,
     "engagement": 2,
-    "messaging": 2,
     # 3 — Services
     "workflows": 3,
     "search": 3,
@@ -97,6 +96,7 @@ LAYER_BY_SHORT = {
     "structured-import": 3,
     "migration": 3,
     "listing": 3,
+    "messaging": 3,
     # 4 — API
     "api": 4,
     "routing": 4,

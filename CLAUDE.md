@@ -62,7 +62,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/engagement/*` | — | `packages/engagement/README.md` |
 | `packages/geo/*` | — | `packages/geo/README.md` |
 | `packages/mercure/*` | — | `packages/mercure/README.md` |
-| `packages/messaging/*` | — | `packages/messaging/README.md` |
+| `packages/messaging/*` | `waaseyaa:messaging` | `docs/specs/messaging.md` |
 | `packages/oauth-provider/*` | — | `packages/oauth-provider/README.md` |
 | `packages/analytics/*` | — | `packages/analytics/README.md` (Umami proxy; L0, no waaseyaa deps) |
 | `packages/audit/*` | `waaseyaa:ocap-audit` | `docs/specs/ocap-audit-log.md` |
@@ -87,8 +87,8 @@ When the mapping is not obvious, search under `docs/specs/` (e.g. `rg -n "TopicO
 |---|---|---|
 | 0 | Foundation | agent-output, analytics, cache, database-legacy, error-handler, foundation, geo, http-client, i18n, ingestion, mail, mercure, oauth-provider, plugin, queue, scheduler, state, typed-data, validation |
 | 1 | Core Data | entity, entity-storage, access, audit, user, config, field, auth, oidc, testing |
-| 2 | Content Types | node, taxonomy, media, path, menu, note, relationship, groups, engagement, messaging |
-| 3 | Services | workflows, search, seo, notification, billing, github, migration, northcloud, listing |
+| 2 | Content Types | node, taxonomy, media, path, menu, note, relationship, groups, engagement |
+| 3 | Services | workflows, search, seo, notification, billing, github, migration, northcloud, listing, messaging |
 | 4 | API | api, bimaaji, routing |
 | 5 | AI | ai-agent, ai-observability, ai-pipeline, ai-schema, ai-vector |
 | 6 | Interfaces | cli, admin-surface, graphql, mcp, ssr, genealogy, telescope, deployer, inertia, debug |
