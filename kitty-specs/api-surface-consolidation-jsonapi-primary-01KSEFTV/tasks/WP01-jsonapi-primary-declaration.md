@@ -79,3 +79,4 @@ Then stamp:
 ## Activity Log
 - 2026-05-25T18:39:34Z – claude – Moved to in_progress
 - 2026-05-25T18:40:58Z – claude – JSON:API primary declared; matrix scaffold added; WP02 + WP03 unblocked.
+- 2026-05-25T18:45:16Z – claude – Opus review: 24-row parity matrix; 0 gaps; GraphQL demoted via banner + composer suggest; jsonapi.md + api-layer.md + CHANGELOG all stamped
