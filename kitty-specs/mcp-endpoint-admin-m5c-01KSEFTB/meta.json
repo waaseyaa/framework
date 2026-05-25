@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-05-25T02:35:56.915997+00:00",
+  "friendly_name": "mcp endpoint admin m5c",
+  "mission_id": "01KSEFTBB9PRN6AEN36X42K9DR",
+  "mission_number": null,
+  "mission_slug": "mcp-endpoint-admin-m5c-01KSEFTB",
+  "mission_type": "software-dev",
+  "slug": "mcp-endpoint-admin-m5c-01KSEFTB",
+  "target_branch": "main"
+}
