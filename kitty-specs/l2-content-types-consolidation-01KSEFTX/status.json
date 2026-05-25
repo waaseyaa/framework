@@ -1,12 +1,12 @@
 {
-  "event_count": 4,
-  "last_event_id": "01KSEWM903JSCW9V4PA9GT2B4D",
-  "materialized_at": "2026-05-25T06:19:49.123536+00:00",
+  "event_count": 5,
+  "last_event_id": "01KSEWMBWHHG90V000PNM39G1H",
+  "materialized_at": "2026-05-25T06:19:52.081162+00:00",
   "mission_number": "",
   "mission_slug": "l2-content-types-consolidation-01KSEFTX",
   "mission_type": "software-dev",
   "summary": {
-    "approved": 1,
+    "approved": 2,
     "blocked": 0,
     "canceled": 0,
     "claimed": 0,
@@ -14,7 +14,7 @@
     "for_review": 0,
     "in_progress": 0,
     "in_review": 0,
-    "planned": 2
+    "planned": 1
   },
   "work_packages": {
     "WP01": {
@@ -25,11 +25,11 @@
       "last_transition_at": "2026-05-25T06:19:49.123536+00:00"
     },
     "WP02": {
-      "actor": "finalize-tasks",
-      "force_count": 1,
-      "lane": "planned",
-      "last_event_id": "01KSEWM6N7PTTHJMSGB4NDHYD7",
-      "last_transition_at": "2026-05-25T06:19:46.727927+00:00"
+      "actor": "user",
+      "force_count": 2,
+      "lane": "approved",
+      "last_event_id": "01KSEWMBWHHG90V000PNM39G1H",
+      "last_transition_at": "2026-05-25T06:19:52.081162+00:00"
     },
     "WP03": {
       "actor": "finalize-tasks",
