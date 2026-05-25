@@ -6,5 +6,6 @@
   "mission_slug": "database-legacy-retirement-01KSEFV2",
   "mission_type": "software-dev",
   "slug": "database-legacy-retirement-01KSEFV2",
-  "target_branch": "main"
+  "target_branch": "main",
+  "change_mode": "bulk_edit"
 }
