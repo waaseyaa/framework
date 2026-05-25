@@ -156,3 +156,4 @@ This mission is a **cross-layer** read surface plus one privileged action: `pack
 (implementer appends here)
 - 2026-05-25T05:37:08Z – claude – shell_pid=71197 – Assigned agent via action command
 - 2026-05-25T05:57:36Z – claude – shell_pid=71197 – Moved to for_review
+- 2026-05-25T06:07:55Z – claude – shell_pid=71197 – Opus review: lane-a disciplined; WP01 (backend recent-runs + detail + replay with _gate) + WP02 (frontend with paginated list, span timeline honoring truncated marker, filter bar, replay button); 10 Vitest cases pass; specs stamped

@@ -1,17 +1,17 @@
 {
-  "event_count": 8,
-  "last_event_id": "01KSEVWQFFEEAR55ZSZCSJY5K8",
-  "materialized_at": "2026-05-25T06:06:57.519514+00:00",
+  "event_count": 9,
+  "last_event_id": "01KSEVYFT7RDD035RAW3TMXBGQ",
+  "materialized_at": "2026-05-25T06:07:55.207116+00:00",
   "mission_number": "",
   "mission_slug": "ai-observability-recent-runs-m5b-01KSEFT9",
   "mission_type": "software-dev",
   "summary": {
-    "approved": 0,
+    "approved": 1,
     "blocked": 0,
     "canceled": 0,
     "claimed": 0,
     "done": 0,
-    "for_review": 2,
+    "for_review": 1,
     "in_progress": 0,
     "in_review": 0,
     "planned": 0
@@ -19,10 +19,10 @@
   "work_packages": {
     "WP01": {
       "actor": "user",
-      "force_count": 1,
-      "lane": "for_review",
-      "last_event_id": "01KSEVBK8FGR7HTAFJ4X55ZFF6",
-      "last_transition_at": "2026-05-25T05:57:36.143077+00:00"
+      "force_count": 2,
+      "lane": "approved",
+      "last_event_id": "01KSEVYFT7RDD035RAW3TMXBGQ",
+      "last_transition_at": "2026-05-25T06:07:55.207116+00:00"
     },
     "WP02": {
       "actor": "user",
