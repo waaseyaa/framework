@@ -21,7 +21,7 @@ subtasks:
   - "T005"
 phase: "Phase 2 - Manifest + README"
 assignee: ""
-agent: ""
+agent: "claude"
 shell_pid: ""
 authoritative_surface: "packages/graphql/README.md"
 execution_mode: "documentation"
@@ -109,4 +109,4 @@ All green.
 5. Output of `bin/check-composer-policy` and `bin/check-package-layers`.
 
 ## Activity Log
-
+- 2026-05-25T18:41:04Z – claude – Moved to in_progress
