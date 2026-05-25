@@ -132,3 +132,4 @@ spec-kitty agent tasks move-task WP03 --to for_review --mission versioned-blob-m
 
 ## Activity Log
 - 2026-05-25T05:36:35Z – unknown – Moved to in_progress
+- 2026-05-25T06:00:42Z – unknown – Moved to for_review
