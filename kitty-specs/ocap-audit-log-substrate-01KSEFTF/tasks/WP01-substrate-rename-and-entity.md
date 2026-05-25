@@ -191,3 +191,4 @@ spec-kitty agent tasks move-task WP01 --to for_review --mission ocap-audit-log-s
 
 ## Activity Log
 - 2026-05-25T05:20:26Z – unknown – Moved to for_review
+- 2026-05-25T05:30:34Z – unknown – Opus review: analytics→audit rename clean; AuditEvent append-only entity + contracts shipped; gates pass
