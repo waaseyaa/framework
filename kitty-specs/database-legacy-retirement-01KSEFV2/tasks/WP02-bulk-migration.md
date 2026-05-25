@@ -155,3 +155,8 @@ Hand off to WP03 once T012 is green. WP03 makes the ELIMINATE-vs-RENAME decision
 ## Activity Log
 
 _(populated during execution; include out-of-band follow-up notes per T010)_
+- 2026-05-25T06:30:00Z – claude – T007: occurrence_map.yaml produced. FR-008: Waaseyaa\Database\ namespace preserved; 294 (a) consumer files retain PHP imports unchanged. Zero PHP file edits.
+- 2026-05-25T06:30:01Z – claude – T008: 0 namespace edits (FR-008 preserves namespace).
+- 2026-05-25T06:30:02Z – claude – T009/T010: 0 (c) items (audit found zero).
+- 2026-05-25T06:30:04Z – claude – T011: 251 files retained, all (a), zero unexpected stragglers.
+- 2026-05-25T06:30:05Z – claude – T012: composer-policy OK, package-layers OK, check-getquery-bindings OK (2 exempt, 0 new). All gates green.
