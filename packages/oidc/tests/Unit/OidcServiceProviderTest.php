@@ -8,9 +8,9 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Waaseyaa\Oidc\Discovery\DiscoveryController;
 use Waaseyaa\Oidc\Entity\OidcClient;
-use Waaseyaa\Oidc\Http\DiscoveryController;
-use Waaseyaa\Oidc\Http\JwksController;
+use Waaseyaa\Oidc\Jwks\JwksController;
 use Waaseyaa\Oidc\Keys\OidcKeyLoaderInterface;
 use Waaseyaa\Oidc\Keys\PemFileKeyLoader;
 use Waaseyaa\Oidc\OidcServiceProvider;
@@ -54,7 +54,7 @@ final class OidcServiceProviderTest extends TestCase
         $controller = $provider->resolve(DiscoveryController::class);
         self::assertInstanceOf(DiscoveryController::class, $controller);
 
-        $body = json_decode((string) $controller->serve()->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $body = json_decode((string) ($controller)()->getContent(), true, 512, JSON_THROW_ON_ERROR);
         self::assertSame('https://id.example', $body['issuer']);
     }
 
@@ -69,7 +69,7 @@ final class OidcServiceProviderTest extends TestCase
         $provider->register();
 
         $controller = $provider->resolve(DiscoveryController::class);
-        $body = json_decode((string) $controller->serve()->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $body = json_decode((string) ($controller)()->getContent(), true, 512, JSON_THROW_ON_ERROR);
         self::assertSame('https://env.example', $body['issuer']);
     }
 
@@ -172,7 +172,7 @@ final class OidcServiceProviderTest extends TestCase
         $controller = $provider->resolve(JwksController::class);
         self::assertInstanceOf(JwksController::class, $controller);
 
-        $body = json_decode((string) $controller->serve()->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $body = json_decode((string) ($controller)()->getContent(), true, 512, JSON_THROW_ON_ERROR);
         self::assertCount(1, $body['keys']);
         self::assertSame('jwks-key', $body['keys'][0]['kid']);
     }
@@ -186,7 +186,7 @@ final class OidcServiceProviderTest extends TestCase
         $provider->register();
 
         $entityTypes = $provider->getEntityTypes();
-        $ids = array_map(fn($t) => $t->id(), $entityTypes);
+        $ids = array_map(fn ($t) => $t->id(), $entityTypes);
         self::assertContains('oidc_client', $ids);
 
         $oidcClient = null;

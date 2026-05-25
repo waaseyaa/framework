@@ -17,6 +17,7 @@ use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Oidc\Authorize\AuthorizationRequestValidator;
 use Waaseyaa\Oidc\Authorize\AuthorizeController;
 use Waaseyaa\Oidc\ClientRegistry\OidcClientLookup;
+use Waaseyaa\Oidc\Consent\ConsentRepository;
 use Waaseyaa\Oidc\Entity\OidcClient;
 use Waaseyaa\Oidc\Repository\AuthorizationCode;
 use Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface;
@@ -27,6 +28,7 @@ final class AuthorizeControllerTest extends TestCase
     private SqlEntityStorage $storage;
     private FakeCodeRepository $codeRepository;
     private AuthorizeController $controller;
+    private ConsentRepository $consentRepository;
 
     protected function setUp(): void
     {
@@ -61,10 +63,15 @@ final class AuthorizeControllerTest extends TestCase
 
         $this->codeRepository = new FakeCodeRepository();
 
+        $this->consentRepository = new ConsentRepository(DBALDatabase::createSqlite());
+        // Pre-seed consent so authenticated tests reach the code-issue path.
+        $this->consentRepository->record('42', 'minoo-web', ['openid', 'profile']);
+
         $this->controller = new AuthorizeController(
             clientLookup: new OidcClientLookup($this->storage),
             validator: new AuthorizationRequestValidator(),
             codeRepository: $this->codeRepository,
+            consentRepository: $this->consentRepository,
             loginPath: '/login',
         );
     }
@@ -94,6 +101,7 @@ final class AuthorizeControllerTest extends TestCase
             clientLookup: new OidcClientLookup($this->storage),
             validator: new AuthorizationRequestValidator(),
             codeRepository: $this->codeRepository,
+            consentRepository: $this->consentRepository,
             loginPath: '/login?foo=bar',
         );
 
@@ -220,6 +228,9 @@ final class AuthorizeControllerTest extends TestCase
             'grant_types' => ['authorization_code'],
         ]);
         $this->storage->save($client);
+
+        // Seed consent for fancy-client with scope openid
+        $this->consentRepository->record('42', 'fancy-client', ['openid']);
 
         $query = $this->validQuery();
         $query['client_id'] = 'fancy-client';

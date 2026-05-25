@@ -44,7 +44,7 @@ final class OidcHttpRoutesTest extends TestCase
         self::assertContains('GET', $route->getMethods());
         self::assertTrue($route->getOption('_public'));
         self::assertSame(
-            'Waaseyaa\\Oidc\\Http\\JwksController::serve',
+            'Waaseyaa\\Oidc\\Jwks\\JwksController::__invoke',
             $route->getDefault('_controller'),
         );
     }

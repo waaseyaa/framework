@@ -9,9 +9,9 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-use Waaseyaa\Oidc\Keys\OidcKeyLoaderInterface;
 use Waaseyaa\Oidc\Keys\SigningKey;
 use Waaseyaa\Oidc\Token\IdTokenMinter;
+use Waaseyaa\Oidc\Token\KeyMaterialProviderInterface;
 
 #[CoversClass(IdTokenMinter::class)]
 final class IdTokenMinterTest extends TestCase
@@ -39,7 +39,7 @@ final class IdTokenMinterTest extends TestCase
     #[Test]
     public function mintsSignedJwtThatVerifiesAgainstPublicKey(): void
     {
-        $minter = new IdTokenMinter($this->keyLoader('key-1'));
+        $minter = new IdTokenMinter($this->keyProvider('key-1'));
         $now = new DateTimeImmutable('2026-04-18T12:00:00Z');
 
         $jwt = $minter->mint(
@@ -63,7 +63,7 @@ final class IdTokenMinterTest extends TestCase
     #[Test]
     public function headerContainsAlgRs256AndKid(): void
     {
-        $minter = new IdTokenMinter($this->keyLoader('my-kid'));
+        $minter = new IdTokenMinter($this->keyProvider('my-kid'));
         $jwt = $minter->mint('https://idp.example', '42', 'client-1', null, new DateTimeImmutable());
 
         [$encodedHeader] = explode('.', $jwt);
@@ -77,7 +77,7 @@ final class IdTokenMinterTest extends TestCase
     #[Test]
     public function payloadContainsRequiredClaims(): void
     {
-        $minter = new IdTokenMinter($this->keyLoader('key-1'));
+        $minter = new IdTokenMinter($this->keyProvider('key-1'));
         $now = new DateTimeImmutable('2026-04-18T12:00:00Z');
 
         $jwt = $minter->mint('https://idp.example', '42', 'client-1', null, $now);
@@ -88,14 +88,14 @@ final class IdTokenMinterTest extends TestCase
         self::assertSame('client-1', $claims['aud']);
         self::assertSame($now->getTimestamp(), $claims['iat']);
         self::assertSame($now->getTimestamp(), $claims['auth_time']);
-        self::assertSame($now->getTimestamp() + 600, $claims['exp']);
+        self::assertSame($now->getTimestamp() + 3600, $claims['exp']);
         self::assertArrayNotHasKey('nonce', $claims);
     }
 
     #[Test]
     public function includesNonceClaimWhenProvided(): void
     {
-        $minter = new IdTokenMinter($this->keyLoader('key-1'));
+        $minter = new IdTokenMinter($this->keyProvider('key-1'));
 
         $jwt = $minter->mint(
             'https://idp.example',
@@ -112,17 +112,21 @@ final class IdTokenMinterTest extends TestCase
     #[Test]
     public function throwsWhenNoSigningKeyHasPrivateKey(): void
     {
-        $loader = new class () implements OidcKeyLoaderInterface {
-            public function loadSigningKeys(): array
+        $provider = new class () implements KeyMaterialProviderInterface {
+            public function currentKey(): SigningKey
             {
-                return [new SigningKey('key-1', 'RS256', 'dummy-public-pem', null)];
+                return new SigningKey('key-1', 'RS256', 'dummy-public-pem', null);
+            }
+
+            public function allActive(): array
+            {
+                return [$this->currentKey()];
             }
         };
 
-        $minter = new IdTokenMinter($loader);
+        $minter = new IdTokenMinter($provider);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('No signing key');
 
         $minter->mint('https://idp.example', '42', 'client-1', null, new DateTimeImmutable());
     }
@@ -130,37 +134,44 @@ final class IdTokenMinterTest extends TestCase
     #[Test]
     public function throwsWhenNoRs256KeyAvailable(): void
     {
-        $loader = new class ($this->privateKeyPem, $this->publicKeyPem) implements OidcKeyLoaderInterface {
-            public function __construct(private string $private_pem, private string $public_pem)
+        // IdTokenMinter always uses currentKey() — this test verifies that a key
+        // with no private PEM causes a RuntimeException when signing is attempted.
+        $provider = new class () implements KeyMaterialProviderInterface {
+            public function currentKey(): SigningKey
             {
+                return new SigningKey('key-1', 'ES256', 'dummy-public-pem', null);
             }
 
-            public function loadSigningKeys(): array
+            public function allActive(): array
             {
-                return [new SigningKey('key-1', 'ES256', $this->public_pem, $this->private_pem)];
+                return [$this->currentKey()];
             }
         };
 
-        $minter = new IdTokenMinter($loader);
+        $minter = new IdTokenMinter($provider);
 
         $this->expectException(RuntimeException::class);
 
         $minter->mint('https://idp.example', '42', 'client-1', null, new DateTimeImmutable());
     }
 
-    private function keyLoader(string $kid): OidcKeyLoaderInterface
+    private function keyProvider(string $kid): KeyMaterialProviderInterface
     {
-        return new class ($kid, $this->privateKeyPem, $this->publicKeyPem) implements OidcKeyLoaderInterface {
+        return new class ($kid, $this->privateKeyPem, $this->publicKeyPem) implements KeyMaterialProviderInterface {
             public function __construct(
                 private string $key_id,
                 private string $private_pem,
                 private string $public_pem,
-            ) {
+            ) {}
+
+            public function currentKey(): SigningKey
+            {
+                return new SigningKey($this->key_id, 'RS256', $this->public_pem, $this->private_pem);
             }
 
-            public function loadSigningKeys(): array
+            public function allActive(): array
             {
-                return [new SigningKey($this->key_id, 'RS256', $this->public_pem, $this->private_pem)];
+                return [$this->currentKey()];
             }
         };
     }

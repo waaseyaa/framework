@@ -17,12 +17,15 @@ use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Oidc\ClientRegistry\OidcClientLookup;
 use Waaseyaa\Oidc\Entity\OidcClient;
-use Waaseyaa\Oidc\Keys\OidcKeyLoaderInterface;
 use Waaseyaa\Oidc\Keys\SigningKey;
 use Waaseyaa\Oidc\Repository\AuthorizationCode;
 use Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface;
+use Waaseyaa\Oidc\Token\AccessTokenIssuer;
 use Waaseyaa\Oidc\Token\IdTokenMinter;
+use Waaseyaa\Oidc\Token\KeyMaterialProviderInterface;
 use Waaseyaa\Oidc\Token\PkceVerifier;
+use Waaseyaa\Oidc\Token\RefreshTokenGrantHandler;
+use Waaseyaa\Oidc\Token\RefreshTokenIssuer;
 use Waaseyaa\Oidc\Token\TokenController;
 use Waaseyaa\Oidc\Token\TokenRequestValidator;
 
@@ -99,7 +102,7 @@ final class TokenControllerTest extends TestCase
         $payload = json_decode((string) $response->getContent(), true);
         self::assertIsArray($payload);
         self::assertSame('Bearer', $payload['token_type']);
-        self::assertSame(600, $payload['expires_in']);
+        self::assertSame(3600, $payload['expires_in']);
         self::assertIsString($payload['access_token']);
         self::assertNotEmpty($payload['access_token']);
         self::assertIsString($payload['id_token']);
@@ -326,12 +329,19 @@ final class TokenControllerTest extends TestCase
             $this->storage->save($client);
         }
 
+        $db = DBALDatabase::createSqlite();
+        $accessTokenIssuer = new AccessTokenIssuer($db);
+        $refreshTokenIssuer = new RefreshTokenIssuer($db);
+
         return new TokenController(
             clientLookup: new OidcClientLookup($this->storage),
             validator: new TokenRequestValidator(),
             pkceVerifier: new PkceVerifier(),
             codeRepository: $this->fakeCodeRepository($codes),
-            idTokenMinter: new IdTokenMinter($this->keyLoader()),
+            idTokenMinter: new IdTokenMinter($this->keyProvider()),
+            accessTokenIssuer: $accessTokenIssuer,
+            refreshTokenIssuer: $refreshTokenIssuer,
+            refreshGrantHandler: new RefreshTokenGrantHandler($refreshTokenIssuer, $accessTokenIssuer, new IdTokenMinter($this->keyProvider())),
             issuer: self::ISSUER,
             clock: fn (): DateTimeImmutable => new DateTimeImmutable('2026-04-18T12:00:00Z'),
         );
@@ -438,16 +448,21 @@ final class TokenControllerTest extends TestCase
         };
     }
 
-    private function keyLoader(): OidcKeyLoaderInterface
+    private function keyProvider(): KeyMaterialProviderInterface
     {
-        return new class ($this->privateKeyPem, $this->publicKeyPem) implements OidcKeyLoaderInterface {
+        return new class ($this->privateKeyPem, $this->publicKeyPem) implements KeyMaterialProviderInterface {
             public function __construct(private string $private_pem, private string $public_pem)
             {
             }
 
-            public function loadSigningKeys(): array
+            public function currentKey(): SigningKey
             {
-                return [new SigningKey('test-kid', 'RS256', $this->public_pem, $this->private_pem)];
+                return new SigningKey('test-kid', 'RS256', $this->public_pem, $this->private_pem);
+            }
+
+            public function allActive(): array
+            {
+                return [$this->currentKey()];
             }
         };
     }
