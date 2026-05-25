@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-05-25T02:36:13.446022+00:00",
+  "friendly_name": "api surface consolidation jsonapi primary",
+  "mission_id": "01KSEFTVFWVRP1AJ1GH2AJDB9P",
+  "mission_number": null,
+  "mission_slug": "api-surface-consolidation-jsonapi-primary-01KSEFTV",
+  "mission_type": "software-dev",
+  "slug": "api-surface-consolidation-jsonapi-primary-01KSEFTV",
+  "target_branch": "main"
+}
