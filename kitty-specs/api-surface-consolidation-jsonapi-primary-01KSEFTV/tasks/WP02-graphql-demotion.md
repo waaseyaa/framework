@@ -111,3 +111,4 @@ All green.
 ## Activity Log
 - 2026-05-25T18:41:04Z – claude – Moved to in_progress
 - 2026-05-25T18:44:34Z – claude – GraphQL README banner + manifest demotion landed; gates green.
+- 2026-05-25T18:45:19Z – claude – Opus review: 24-row parity matrix; 0 gaps; GraphQL demoted via banner + composer suggest; jsonapi.md + api-layer.md + CHANGELOG all stamped
