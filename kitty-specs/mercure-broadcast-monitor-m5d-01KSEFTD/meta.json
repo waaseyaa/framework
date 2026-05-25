@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-05-25T02:35:59.145556+00:00",
+  "friendly_name": "mercure broadcast monitor m5d",
+  "mission_id": "01KSEFTDHD2Q0DEHM2P0M0A50J",
+  "mission_number": null,
+  "mission_slug": "mercure-broadcast-monitor-m5d-01KSEFTD",
+  "mission_type": "software-dev",
+  "slug": "mercure-broadcast-monitor-m5d-01KSEFTD",
+  "target_branch": "main"
+}
