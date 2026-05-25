@@ -12,6 +12,21 @@ Constitutional source: see DIR-006 in [`.kittify/charter/charter.md`](.kittify/c
 | Primary maintainer | Russell Jones (`jonesrussell`) | Sagamok Anishnawbek / OIATC | Merge authority on `main`; release authority on every `waaseyaa/*` Packagist package; charter amendment authority per the charter's Amendment Process. |
 | Packagist trustee | `<<TRUSTEE_PACKAGIST_ACCOUNT>>` | (recorded at trustee designation by WP03 of `succession-framework-tier1-publishing-01KSEFV6`) | Publish rights on `waaseyaa/*` namespace; activated if the primary maintainer becomes unavailable per the escalation procedure below. The trustee is an additional publisher; the namespace owner remains the primary maintainer. |
 
+<!-- WP03 DEFERRAL (succession-framework-tier1-publishing-01KSEFV6):
+     The <<TRUSTEE_PACKAGIST_ACCOUNT>> marker above is intentionally left unsubstituted.
+     Trustee selection requires Russell Jones to designate a specific Packagist account.
+     Selection criteria (from plan.md §3): active Packagist account, 2FA-enabled, held by
+     an individual or organisation Russell trusts to publish security fixes on waaseyaa/*
+     if the primary maintainer is unavailable for more than 14 days.
+     Candidate categories: OIATC technical lead; long-term external contributor with publish
+     history on related namespaces; academic-institution partner.
+     Operational steps for Russell: log in to packagist.org as primary maintainer, visit each
+     waaseyaa/* package's "Maintainers" tab, add the trustee account by Packagist username.
+     Once decided, replace <<TRUSTEE_PACKAGIST_ACCOUNT>> with the Packagist username and
+     fill the Affiliation cell with the trustee's affiliation (removing this comment block).
+     Activity log: WP03 executed 2026-05-25. Trustee selection deferred to author-controlled
+     session. No marker substitution performed by implementer. -->
+
 ## Tier 0 substrate inventory
 
 *(as of 2026-05-25)*
