@@ -120,3 +120,4 @@ spec-kitty agent tasks move-task WP04 --to for_review --mission versioned-blob-m
 ## Activity Log
 - 2026-05-25T05:54:52Z – unknown – Moved to in_progress
 - 2026-05-25T06:00:45Z – unknown – Moved to for_review
+- 2026-05-25T06:01:18Z – unknown – Opus review: lane-a disciplined; clean commit per WP; specs stamped including CLAUDE.md orchestration table row; tests pass
