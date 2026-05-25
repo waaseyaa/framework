@@ -29,7 +29,7 @@ subtasks:
 - T002
 - T003
 - T004
-shell_pid: '71197'
+shell_pid: "71197"
 history: []
 authoritative_surface: packages/api/src/AiObservability/Runs
 execution_mode: code_change
@@ -58,6 +58,7 @@ owned_files:
 - packages/foundation/src/Kernel/BuiltinRouteRegistrar.php
 - tests/Integration/PhaseAiObservability/AiObservabilityRunsEndpointTest.php
 tags: []
+agent: "claude"
 ---
 
 # WP01 — Backend: runs read contracts, adapters, replay service, binding, routes, kernel-boot test (M5B)
@@ -153,3 +154,4 @@ This mission is a **cross-layer** read surface plus one privileged action: `pack
 ## Activity Log
 
 (implementer appends here)
+- 2026-05-25T05:37:08Z – claude – shell_pid=71197 – Assigned agent via action command
