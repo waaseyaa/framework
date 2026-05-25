@@ -131,3 +131,4 @@ spec-kitty agent tasks move-task WP01 --to for_review --mission classification-r
 ## Activity Log
 - 2026-05-25T06:11:05Z – claude – Moved to in_progress
 - 2026-05-25T18:54:41Z – claude – Field type + inheritance substrate in place; all gates green; 17 unit tests passing; audit-event dispatch verified
+- 2026-05-25T18:55:31Z – claude – Opus review: fresh lane-a clean; 18 files in 1 commit; 17 unit tests green; ClassificationLabelFieldType + LabelInheritanceResolver + 3 stock parent resolvers + EntityLifecycleSubscriber + 9-label seed; scope-disciplined (WP02-04 deferred); stash untouched
