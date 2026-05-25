@@ -111,6 +111,23 @@ Waaseyaa is mirrored read-only from `github.com/waaseyaa/framework` to a Nation-
 | Sync cadence | On every push to `main`; at minimum nightly even if no pushes occurred |
 | Mirror trustee | The Packagist trustee account (above) also holds publish rights on the mirror so the recovery procedure can complete without coordinating credentials |
 
+<!-- WP04 DEFERRAL (succession-framework-tier1-publishing-01KSEFV6):
+     The <<NATION_HOSTED_MIRROR_URL>> markers above (Mirror URL table cell and recovery
+     procedure step 1) are intentionally left unsubstituted. Mirror setup requires Russell
+     Jones to select and configure a Nation-controlled FOSS Git forge in an author-controlled
+     session. Selection criteria (from plan.md §4): Nation-controlled or OIATC-controlled host;
+     FOSS forge software (Gitea or Forgejo); HTTPS-accessible URL; supports webhook-driven or
+     polling-based mirror; held under a domain a Nation procurement officer would recognise as
+     Nation-controlled. Minimises vendor lock-in — git data portability preserved.
+     Operational steps for Russell: create org 'waaseyaa' on chosen forge, create repo
+     'framework' as read-only mirror of github.com/waaseyaa/framework, configure sync
+     (preferred: GitHub Actions workflow; fallback: forge built-in polling), confirm initial
+     sync via git ls-remote, grant Packagist trustee account publish rights on mirror.
+     Once configured, replace both <<NATION_HOSTED_MIRROR_URL>> occurrences with the mirror
+     URL, fill the "Forge software" cell (e.g. 'Forgejo 8.0'), and remove this comment block.
+     Activity log: WP04 executed 2026-05-25. Mirror URL selection deferred to author-controlled
+     session. No marker substitution performed by implementer. -->
+
 ### Recovery procedure if GitHub becomes unavailable
 
 If `github.com/waaseyaa/framework` becomes unavailable (vendor outage, account-level action, vendor disappearance), Nations adopting Waaseyaa proceed as follows:
