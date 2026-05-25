@@ -17,7 +17,7 @@ subtasks:
   - "T006"
   - "T007"
 phase: "Phase 2 - Docs"
-assignee: ""
+assignee: "claude"
 agent: ""
 shell_pid: ""
 authoritative_surface: "docs/specs/admin-spa.md"
@@ -106,4 +106,4 @@ Read `CHANGELOG.md`. Under `[Unreleased]` → `### Changed` (add the section if 
 5. Confirmation that the SPA-bet section text matches `../plan.md` §3 character-for-character.
 
 ## Activity Log
-
+- 2026-05-25T06:12:21Z – unknown – Moved to in_progress
