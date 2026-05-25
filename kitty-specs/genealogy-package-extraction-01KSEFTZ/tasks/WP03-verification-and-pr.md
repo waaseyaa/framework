@@ -141,3 +141,4 @@ If any gate fails, transition to BLOCKED, capture the failure, and do not merge.
 
 _(populated during execution)_
 - 2026-05-25T06:21:09Z – claude – shell_pid=145396 – Started implementation via action command
+- 2026-05-25T06:23:30Z – claude – shell_pid=145396 – All 8 acceptance commands passed. PR opened: https://github.com/waaseyaa/framework/pull/1580. Pre-push hooks (spec-drift, phpunit, composer-policy, phpstan) all green.
