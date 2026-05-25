@@ -18,7 +18,7 @@ base_branch: kitty/mission-genealogy-package-extraction-01KSEFTZ
 base_commit: 6fe41e2dbfa4a096553c566232c553b0bad8cb71
 created_at: '2026-05-25T06:18:23.129679+00:00'
 subtasks: []
-shell_pid: '139060'
+shell_pid: "139060"
 history: []
 authoritative_surface: packages/genealogy/composer.json
 execution_mode: code_change
@@ -26,6 +26,7 @@ owned_files:
 - packages/genealogy/composer.json
 - docs/specs/genealogy.md
 tags: []
+agent: "claude"
 ---
 # Work Package Prompt: WP01 — Composer description + spec banner + metapackage pre-flight grep
 
@@ -148,3 +149,4 @@ See T005. Do not open a PR — WP03 owns the PR.
 ## Activity Log
 
 _(populated during execution)_
+- 2026-05-25T06:18:27Z – claude – shell_pid=139060 – Assigned agent via action command
