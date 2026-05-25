@@ -128,3 +128,4 @@ spec-kitty agent tasks move-task WP02 --to for_review --mission classification-r
 5. `bin/check-package-layers` green output.
 
 ## Activity Log
+- 2026-05-25T20:19:52Z – unknown – Claiming WP02 in lane-a worktree
