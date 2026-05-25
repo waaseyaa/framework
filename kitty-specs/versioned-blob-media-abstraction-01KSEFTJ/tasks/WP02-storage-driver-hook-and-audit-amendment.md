@@ -129,3 +129,4 @@ spec-kitty agent tasks move-task WP02 --to for_review --mission versioned-blob-m
 ## Activity Log
 - 2026-05-25T06:01:48Z – unknown – code already on main
 - 2026-05-25T06:01:51Z – unknown – code already on main
+- 2026-05-25T06:01:54Z – unknown – Opus review: WP01 (MediaVersion entity + CAS) and WP02 (storage hook + audit kind extension) shipped on main earlier by partial subagent; phpstan-clean; reconciled to canonical lifecycle state
