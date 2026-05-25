@@ -6,5 +6,7 @@
   "mission_slug": "ai-observability-recent-runs-m5b-01KSEFT9",
   "mission_type": "software-dev",
   "slug": "ai-observability-recent-runs-m5b-01KSEFT9",
-  "target_branch": "main"
+  "target_branch": "main",
+  "vcs": "git",
+  "vcs_locked_at": "2026-05-25T05:37:06.191356+00:00"
 }

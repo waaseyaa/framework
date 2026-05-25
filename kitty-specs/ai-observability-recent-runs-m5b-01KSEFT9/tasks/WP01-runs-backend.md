@@ -21,11 +21,15 @@ requirement_refs:
 planning_base_branch: main
 merge_target_branch: main
 branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
+base_branch: kitty/mission-ai-observability-recent-runs-m5b-01KSEFT9
+base_commit: c15e6b8fa21a002f54f57e2814ade14230cee0e8
+created_at: '2026-05-25T05:37:06.839801+00:00'
 subtasks:
 - T001
 - T002
 - T003
 - T004
+shell_pid: '71197'
 history: []
 authoritative_surface: packages/api/src/AiObservability/Runs
 execution_mode: code_change
