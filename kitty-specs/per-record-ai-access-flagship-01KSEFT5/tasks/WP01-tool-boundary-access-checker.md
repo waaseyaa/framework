@@ -1,23 +1,64 @@
 ---
-work_package_id: "WP01"
-title: "AI tool boundary — AccessChecker injection + governed-data marker"
+work_package_id: WP01
+title: AI tool boundary — AccessChecker injection + governed-data marker
 dependencies: []
-planning_base_branch: "main"
-merge_target_branch: "main"
-branch_strategy: "Planning artifacts were generated on main; completed changes must merge back into main."
+requirement_refs:
+- FR-001
+- FR-002
+- FR-003
+- FR-004
+- NFR-001
+- NFR-002
+- NFR-003
+- NFR-004
+- C-001
+- C-002
+planning_base_branch: main
+merge_target_branch: main
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
 subtasks:
-  - "T001"
-  - "T002"
-  - "T003"
-  - "T004"
-phase: "Phase 1 — Tool boundary OCAP"
-assignee: ""
-agent: ""
-shell_pid: ""
+- T001
+- T002
+- T003
+- T004
+phase: Phase 1 — Tool boundary OCAP
+assignee: ''
+agent: ''
 history:
-  - timestamp: "2026-05-25T02:35:50Z"
-    agent: "system"
-    action: "Prompt generated via /spec-kitty.tasks"
+- timestamp: '2026-05-25T02:35:50Z'
+  agent: system
+  action: Prompt generated via /spec-kitty.tasks
+authoritative_surface: packages/ai-tools/src/AgentToolInterface.php
+execution_mode: code_change
+owned_files:
+- packages/ai-tools/src/AgentToolInterface.php
+- packages/ai-tools/src/AgentToolContext.php
+- packages/ai-tools/src/AbstractAgentTool.php
+- packages/ai-tools/src/Attribute/Capability.php
+- packages/ai-tools/src/Attribute/AsAgentTool.php
+- packages/ai-tools/src/Catalogue/AttributeToolRegistry.php
+- packages/ai-tools/src/Entity/EntityCreateTool.php
+- packages/ai-tools/src/Entity/EntityReadTool.php
+- packages/ai-tools/src/Entity/EntityUpdateTool.php
+- packages/ai-tools/src/Entity/EntitySearchTool.php
+- packages/ai-tools/src/Entity/EntityDeleteTool.php
+- packages/ai-tools/src/Entity/EntityListTool.php
+- packages/ai-tools/src/Relationship/RelationshipTraverseTool.php
+- packages/ai-tools/src/Vector/VectorSearchTool.php
+- packages/ai-agent/src/AgentExecutor.php
+- packages/ai-agent/src/AiAgentServiceProvider.php
+- packages/ai-agent/src/Tool/Bimaaji/IntrospectGraphTool.php
+- packages/ai-agent/src/Tool/Bimaaji/IntrospectSectionTool.php
+- packages/ai-agent/src/Tool/Bimaaji/SearchSpecsTool.php
+- packages/ai-agent/src/Tool/Bimaaji/ProposeMutationTool.php
+- tools/phpstan/WaaseyaaEntrypointProvider.php
+- packages/ai-tools/tests/Unit/AgentToolContextTest.php
+- packages/ai-tools/tests/Unit/Catalogue/AttributeToolRegistryTest.php
+- packages/ai-tools/tests/Unit/Entity/EntityReadToolTest.php
+- packages/ai-agent/tests/Unit/AgentExecutorTest.php
+- tests/Integration/PhasePerRecordAiAccess/AgentToolBoundaryTest.php
+- CHANGELOG.md
+tags: []
 ---
 
 # WP01 — AI tool boundary: AccessChecker injection + governed-data marker (M-A5)

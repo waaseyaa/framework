@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "mission_slug": "per-record-ai-access-flagship-01KSEFT5",
+  "mission_id": "01KSEFT52BZZMKF1ZZ97ZXHY1Y",
+  "mission_branch": "kitty/mission-per-record-ai-access-flagship-01KSEFT5",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01"
+      ],
+      "write_scope": [
+        "CHANGELOG.md",
+        "packages/ai-agent/src/AgentExecutor.php",
+        "packages/ai-agent/src/AiAgentServiceProvider.php",
+        "packages/ai-agent/src/Tool/Bimaaji/IntrospectGraphTool.php",
+        "packages/ai-agent/src/Tool/Bimaaji/IntrospectSectionTool.php",
+        "packages/ai-agent/src/Tool/Bimaaji/ProposeMutationTool.php",
+        "packages/ai-agent/src/Tool/Bimaaji/SearchSpecsTool.php",
+        "packages/ai-agent/tests/Unit/AgentExecutorTest.php",
+        "packages/ai-tools/src/AbstractAgentTool.php",
+        "packages/ai-tools/src/AgentToolContext.php",
+        "packages/ai-tools/src/AgentToolInterface.php",
+        "packages/ai-tools/src/Attribute/AsAgentTool.php",
+        "packages/ai-tools/src/Attribute/Capability.php",
+        "packages/ai-tools/src/Catalogue/AttributeToolRegistry.php",
+        "packages/ai-tools/src/Entity/EntityCreateTool.php",
+        "packages/ai-tools/src/Entity/EntityDeleteTool.php",
+        "packages/ai-tools/src/Entity/EntityListTool.php",
+        "packages/ai-tools/src/Entity/EntityReadTool.php",
+        "packages/ai-tools/src/Entity/EntitySearchTool.php",
+        "packages/ai-tools/src/Entity/EntityUpdateTool.php",
+        "packages/ai-tools/src/Relationship/RelationshipTraverseTool.php",
+        "packages/ai-tools/src/Vector/VectorSearchTool.php",
+        "packages/ai-tools/tests/Unit/AgentToolContextTest.php",
+        "packages/ai-tools/tests/Unit/Catalogue/AttributeToolRegistryTest.php",
+        "packages/ai-tools/tests/Unit/Entity/EntityReadToolTest.php",
+        "tests/Integration/PhasePerRecordAiAccess/AgentToolBoundaryTest.php",
+        "tools/phpstan/WaaseyaaEntrypointProvider.php"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "legacy-cleanup",
+        "tests"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    },
+    {
+      "lane_id": "lane-b",
+      "wp_ids": [
+        "WP02"
+      ],
+      "write_scope": [
+        "docs/specs/field-access.md",
+        "docs/specs/mcp-endpoint.md",
+        "packages/access/src/EntityAccessHandler.php",
+        "packages/mcp/src/McpServiceProvider.php",
+        "packages/mcp/src/Serializer/McpEntityFieldFilter.php",
+        "packages/mcp/src/Tools/EntityTools.php",
+        "packages/mcp/tests/Unit/Serializer/McpEntityFieldFilterTest.php",
+        "packages/mcp/tests/Unit/Tools/EntityToolsTest.php",
+        "tests/Integration/PhasePerRecordAiAccess/McpJsonApiFieldParityTest.php"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "app-shell",
+        "tests"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    },
+    {
+      "lane_id": "lane-c",
+      "wp_ids": [
+        "WP03"
+      ],
+      "write_scope": [
+        "docs/specs/access-control.md",
+        "docs/specs/ai-integration.md",
+        "packages/access/src/Policy/AiAccessibilityPolicy.php",
+        "packages/access/tests/Unit/Policy/AiAccessibilityPolicyTest.php",
+        "packages/admin/app/components/media/AiAccessibleToggle.vue",
+        "packages/admin/app/i18n/en.json",
+        "packages/admin/tests/unit/components/media/AiAccessibleToggle.test.ts",
+        "packages/attachment/migrations/2026_05_25_000002_add_ai_accessible_to_attachment.php",
+        "packages/attachment/src/Entity/Attachment.php",
+        "packages/field/src/FieldServiceProvider.php",
+        "packages/field/src/FieldType/AiAccessibleField.php",
+        "packages/field/tests/Unit/FieldType/AiAccessibleFieldTest.php",
+        "packages/media/migrations/2026_05_25_000001_add_ai_accessible_to_media.php",
+        "packages/media/src/Entity/Media.php",
+        "packages/media/tests/Unit/Entity/MediaTest.php",
+        "tests/Integration/PhasePerRecordAiAccess/AiAccessibleToggleTest.php"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "artifact-rendering",
+        "legacy-cleanup",
+        "tests"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-05-25T04:25:16.887339+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": []
+}

@@ -1,22 +1,44 @@
 ---
-work_package_id: "WP02"
-title: "MCP serializer field-access wiring + JSON:API parity"
+work_package_id: WP02
+title: MCP serializer field-access wiring + JSON:API parity
 dependencies: []
-planning_base_branch: "main"
-merge_target_branch: "main"
-branch_strategy: "Planning artifacts were generated on main; completed changes must merge back into main."
+requirement_refs:
+- FR-005
+- FR-006
+- FR-007
+- FR-013
+- NFR-001
+- NFR-002
+- NFR-004
+- C-002
+- C-003
+planning_base_branch: main
+merge_target_branch: main
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
 subtasks:
-  - "T005"
-  - "T006"
-  - "T007"
-phase: "Phase 1 — MCP serializer OCAP"
-assignee: ""
-agent: ""
-shell_pid: ""
+- T005
+- T006
+- T007
+phase: Phase 1 — MCP serializer OCAP
+assignee: ''
+agent: ''
 history:
-  - timestamp: "2026-05-25T02:35:50Z"
-    agent: "system"
-    action: "Prompt generated via /spec-kitty.tasks"
+- timestamp: '2026-05-25T02:35:50Z'
+  agent: system
+  action: Prompt generated via /spec-kitty.tasks
+authoritative_surface: packages/mcp/src/Serializer/McpEntityFieldFilter.php
+execution_mode: code_change
+owned_files:
+- packages/mcp/src/Tools/EntityTools.php
+- packages/mcp/src/Serializer/McpEntityFieldFilter.php
+- packages/mcp/src/McpServiceProvider.php
+- packages/access/src/EntityAccessHandler.php
+- packages/mcp/tests/Unit/Serializer/McpEntityFieldFilterTest.php
+- packages/mcp/tests/Unit/Tools/EntityToolsTest.php
+- tests/Integration/PhasePerRecordAiAccess/McpJsonApiFieldParityTest.php
+- docs/specs/mcp-endpoint.md
+- docs/specs/field-access.md
+tags: []
 ---
 
 # WP02 — MCP serializer field-access wiring + JSON:API parity (M-A5)

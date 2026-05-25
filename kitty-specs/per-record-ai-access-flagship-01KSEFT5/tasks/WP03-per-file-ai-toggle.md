@@ -1,23 +1,54 @@
 ---
-work_package_id: "WP03"
-title: "Per-file AI-access toggle field + admin UI + policy"
+work_package_id: WP03
+title: Per-file AI-access toggle field + admin UI + policy
 dependencies: []
-planning_base_branch: "main"
-merge_target_branch: "main"
-branch_strategy: "Planning artifacts were generated on main; completed changes must merge back into main."
+requirement_refs:
+- FR-008
+- FR-009
+- FR-010
+- FR-011
+- FR-012
+- FR-013
+- NFR-001
+- NFR-002
+- NFR-004
+- C-002
+- C-004
+planning_base_branch: main
+merge_target_branch: main
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
 subtasks:
-  - "T008"
-  - "T009"
-  - "T010"
-  - "T011"
-phase: "Phase 1 — Per-file AI toggle"
-assignee: ""
-agent: ""
-shell_pid: ""
+- T008
+- T009
+- T010
+- T011
+phase: Phase 1 — Per-file AI toggle
+assignee: ''
+agent: ''
 history:
-  - timestamp: "2026-05-25T02:35:50Z"
-    agent: "system"
-    action: "Prompt generated via /spec-kitty.tasks"
+- timestamp: '2026-05-25T02:35:50Z'
+  agent: system
+  action: Prompt generated via /spec-kitty.tasks
+authoritative_surface: packages/field/src/FieldType/AiAccessibleField.php
+execution_mode: code_change
+owned_files:
+- packages/field/src/FieldType/AiAccessibleField.php
+- packages/field/src/FieldServiceProvider.php
+- packages/access/src/Policy/AiAccessibilityPolicy.php
+- packages/media/src/Entity/Media.php
+- packages/media/migrations/2026_05_25_000001_add_ai_accessible_to_media.php
+- packages/attachment/src/Entity/Attachment.php
+- packages/attachment/migrations/2026_05_25_000002_add_ai_accessible_to_attachment.php
+- packages/admin/app/components/media/AiAccessibleToggle.vue
+- packages/admin/app/i18n/en.json
+- packages/field/tests/Unit/FieldType/AiAccessibleFieldTest.php
+- packages/access/tests/Unit/Policy/AiAccessibilityPolicyTest.php
+- packages/media/tests/Unit/Entity/MediaTest.php
+- packages/admin/tests/unit/components/media/AiAccessibleToggle.test.ts
+- tests/Integration/PhasePerRecordAiAccess/AiAccessibleToggleTest.php
+- docs/specs/access-control.md
+- docs/specs/ai-integration.md
+tags: []
 ---
 
 # WP03 — Per-file AI-access toggle field + admin UI + policy (M-A5)
