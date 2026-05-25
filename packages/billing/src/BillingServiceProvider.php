@@ -6,6 +6,9 @@ namespace Waaseyaa\Billing;
 
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
+/**
+ * @api
+ */
 final class BillingServiceProvider extends ServiceProvider
 {
     public function register(): void
