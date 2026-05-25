@@ -1,16 +1,16 @@
 {
-  "event_count": 6,
-  "last_event_id": "01KSENNQM18D5DDVPJE41SD4FG",
-  "materialized_at": "2026-05-25T04:18:16.833227+00:00",
+  "event_count": 7,
+  "last_event_id": "01KSENSWW59CV57RRVADE2BZN6",
+  "materialized_at": "2026-05-25T04:20:33.285737+00:00",
   "mission_number": "",
   "mission_slug": "charter-amendment-anokii-track-01KSEFE0",
   "mission_type": "software-dev",
   "summary": {
-    "approved": 1,
+    "approved": 0,
     "blocked": 0,
     "canceled": 0,
     "claimed": 0,
-    "done": 0,
+    "done": 1,
     "for_review": 0,
     "in_progress": 0,
     "in_review": 0,
@@ -20,9 +20,9 @@
     "WP01": {
       "actor": "user",
       "force_count": 1,
-      "lane": "approved",
-      "last_event_id": "01KSENNQM18D5DDVPJE41SD4FG",
-      "last_transition_at": "2026-05-25T04:18:16.833227+00:00"
+      "lane": "done",
+      "last_event_id": "01KSENSWW59CV57RRVADE2BZN6",
+      "last_transition_at": "2026-05-25T04:20:33.285737+00:00"
     }
   }
 }
