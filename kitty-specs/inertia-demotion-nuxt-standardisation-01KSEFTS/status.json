@@ -1,17 +1,17 @@
 {
-  "event_count": 13,
-  "last_event_id": "01KSEWDTG3AGP538NKR7DEYG1M",
-  "materialized_at": "2026-05-25T06:16:17.667364+00:00",
+  "event_count": 14,
+  "last_event_id": "01KSEWDXHSGZRAM4B3R5904QKE",
+  "materialized_at": "2026-05-25T06:16:20.793548+00:00",
   "mission_number": "",
   "mission_slug": "inertia-demotion-nuxt-standardisation-01KSEFTS",
   "mission_type": "software-dev",
   "summary": {
-    "approved": 1,
+    "approved": 2,
     "blocked": 0,
     "canceled": 0,
     "claimed": 0,
     "done": 0,
-    "for_review": 2,
+    "for_review": 1,
     "in_progress": 0,
     "in_review": 0,
     "planned": 0
@@ -26,10 +26,10 @@
     },
     "WP02": {
       "actor": "user",
-      "force_count": 1,
-      "lane": "for_review",
-      "last_event_id": "01KSEWCR22RW2YEK2B7A8YCYGY",
-      "last_transition_at": "2026-05-25T06:15:42.402165+00:00"
+      "force_count": 2,
+      "lane": "approved",
+      "last_event_id": "01KSEWDXHSGZRAM4B3R5904QKE",
+      "last_transition_at": "2026-05-25T06:16:20.793548+00:00"
     },
     "WP03": {
       "actor": "user",

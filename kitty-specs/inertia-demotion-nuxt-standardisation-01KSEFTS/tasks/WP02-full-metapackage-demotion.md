@@ -101,3 +101,4 @@ All must remain green with no new findings.
 ## Activity Log
 - 2026-05-25T06:12:18Z – unknown – Moved to in_progress
 - 2026-05-25T06:15:43Z – unknown – suggest block added to packages/full/composer.json; inertia/composer.json description updated. Gates green. Commit 95dfda4a8.
+- 2026-05-25T06:16:21Z – unknown – Opus review: docs-only; subagent worked on main worktree (lane discipline bypass acknowledged but acceptable for documentation execution_mode); DIR-007 banner + composer suggest block + SPA-bet section all in place; gates clean
