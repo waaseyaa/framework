@@ -170,3 +170,4 @@ spec-kitty agent tasks move-task WP01 --to for_review --mission per-record-ai-ac
 ## Activity Log
 
 - 2026-05-25T04:25:29Z – claude:sonnet:implementer:implementer – shell_pid=4155912 – Assigned agent via action command
+- 2026-05-25T04:52:29Z – claude:sonnet:implementer:implementer – shell_pid=4155912 – Ready for review: AgentToolContext DTO + Capability attribute wired into all 12 tool impls; bimaaji tools opt out via governed_data:false; executor builds context per call; all contract+unit tests updated to AgentToolContext signature
