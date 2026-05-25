@@ -71,3 +71,4 @@ If the README ends partway through (e.g., already has a `## Status` or similar �
 
 ## Activity Log
 - 2026-05-25T06:11:11Z – unknown – Moved to in_progress
+- 2026-05-25T06:12:08Z – unknown – Banner + Status section added to packages/inertia/README.md. No src/tests/composer.json changes. Commit 76ea360a5.
