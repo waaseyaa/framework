@@ -6,5 +6,7 @@
   "mission_slug": "ocap-audit-log-substrate-01KSEFTF",
   "mission_type": "software-dev",
   "slug": "ocap-audit-log-substrate-01KSEFTF",
-  "target_branch": "main"
+  "target_branch": "main",
+  "vcs": "git",
+  "vcs_locked_at": "2026-05-25T05:33:29.956398+00:00"
 }
