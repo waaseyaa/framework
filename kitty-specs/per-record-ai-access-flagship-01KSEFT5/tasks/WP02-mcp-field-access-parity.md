@@ -136,3 +136,4 @@ spec-kitty agent tasks move-task WP02 --to for_review --mission per-record-ai-ac
 
 - 2026-05-25T04:47:31Z – claude:sonnet:implementer:implementer – shell_pid=4172252 – Assigned agent via action command
 - 2026-05-25T05:05:52Z – claude:sonnet:implementer:implementer – shell_pid=4172252 – WP02 MCP serializer wired; FR-007 parity test verified to fail without McpEntityFieldFilter; McpEntityFieldFilter, EntityTools two-step serialization, and McpJsonApiFieldParityTest all committed
+- 2026-05-25T05:06:39Z – claude:sonnet:implementer:implementer – shell_pid=4172252 – Opus review: lane-b work disciplined. Two-step serialization (entity-level via JsonApiController, then ResourceSerializer unfiltered, then McpEntityFieldFilter redaction) avoids double-filtering. REDACTION_MARKER shape matches FR-002/C-003. FR-007 dead-code-guard test present at tests/Integration/PhasePerRecordAiAccess/McpJsonApiFieldParityTest.php — verifies parity between MCP and JSON:API surfaces.
