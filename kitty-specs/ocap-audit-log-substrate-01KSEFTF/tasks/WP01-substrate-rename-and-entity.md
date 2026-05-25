@@ -1,65 +1,70 @@
 ---
 work_package_id: WP01
-title: "OCAP audit substrate — rename analytics→audit, AuditEvent entity, contracts, append-only guard, service provider, foundation route"
+title: OCAP audit substrate — rename analytics→audit, AuditEvent entity, contracts, append-only guard, service provider, foundation route
 dependencies: []
 requirement_refs:
-  - FR-001
-  - FR-002
-  - FR-003
-  - FR-004
-  - FR-005
-  - FR-008
-  - FR-012
-  - NFR-002
-  - NFR-003
-  - NFR-004
-  - C-001
-  - C-002
-  - C-004
+- FR-001
+- FR-002
+- FR-003
+- FR-004
+- FR-005
+- FR-008
+- FR-012
+- NFR-002
+- NFR-003
+- NFR-004
+- C-001
+- C-002
+- C-004
 planning_base_branch: main
 merge_target_branch: main
-branch_strategy: "Planning artifacts generated on main. During /spec-kitty.implement this WP branches from main into the mission worktree; completed changes merge back into main unless the human redirects."
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
 subtasks:
-  - T-A
-  - T-B
-  - T-C
-  - T-D
-  - T-E
-  - T-F
-authoritative_surface: "packages/audit/src"
+- T-A
+- T-B
+- T-C
+- T-D
+- T-E
+- T-F
+history: []
+authoritative_surface: packages/audit/src
 execution_mode: code_change
 owned_files:
-  - packages/audit/composer.json
-  - packages/audit/src/AuditServiceProvider.php
-  - packages/audit/src/Entity/AuditEvent.php
-  - packages/audit/src/Entity/AuditEventType.php
-  - packages/audit/src/Entity/AuditRetentionPolicy.php
-  - packages/audit/src/Enum/AuditEventKind.php
-  - packages/audit/src/Schema/AuditEventSchemaHandler.php
-  - packages/audit/src/Contract/AuditWriterInterface.php
-  - packages/audit/src/Contract/AuditQueryInterface.php
-  - packages/audit/src/Contract/AuditQuery.php
-  - packages/audit/src/Contract/AuditEventDescriptor.php
-  - packages/audit/src/Writer/AuditEventWriter.php
-  - packages/audit/src/Writer/NullAuditWriter.php
-  - packages/audit/src/Storage/AppendOnlyDriverGuard.php
-  - packages/audit/src/Query/AuditEventQuery.php
-  - packages/audit/migrations/2026_05_25_000001_create_audit_event_table.php
-  - packages/audit/migrations/2026_05_25_000002_create_audit_retention_policy_table.php
-  - packages/audit/tests/Contract/AuditWriterContractTest.php
-  - packages/audit/tests/Contract/AuditQueryContractTest.php
-  - packages/audit/tests/Unit/Writer/AuditEventWriterTest.php
-  - packages/audit/tests/Unit/Writer/AuditEventWriterBestEffortTest.php
-  - packages/audit/tests/Unit/Query/AuditEventQueryTest.php
-  - packages/audit/tests/Unit/Storage/AppendOnlyDriverGuardTest.php
-  - packages/foundation/src/Kernel/BuiltinRouteRegistrar.php
-  - packages/core/composer.json
-  - packages/cms/composer.json
-  - packages/full/composer.json
-  - composer.json
-  - CLAUDE.md
-tags: ["substrate", "ocap", "audit", "layer-0", "rename"]
-history: []
+- packages/audit/composer.json
+- packages/audit/src/AuditServiceProvider.php
+- packages/audit/src/Entity/AuditEvent.php
+- packages/audit/src/Entity/AuditEventType.php
+- packages/audit/src/Entity/AuditRetentionPolicy.php
+- packages/audit/src/Enum/AuditEventKind.php
+- packages/audit/src/Schema/AuditEventSchemaHandler.php
+- packages/audit/src/Contract/AuditWriterInterface.php
+- packages/audit/src/Contract/AuditQueryInterface.php
+- packages/audit/src/Contract/AuditQuery.php
+- packages/audit/src/Contract/AuditEventDescriptor.php
+- packages/audit/src/Writer/AuditEventWriter.php
+- packages/audit/src/Writer/NullAuditWriter.php
+- packages/audit/src/Storage/AppendOnlyDriverGuard.php
+- packages/audit/src/Query/AuditEventQuery.php
+- packages/audit/migrations/2026_05_25_000001_create_audit_event_table.php
+- packages/audit/migrations/2026_05_25_000002_create_audit_retention_policy_table.php
+- packages/audit/tests/Contract/AuditWriterContractTest.php
+- packages/audit/tests/Contract/AuditQueryContractTest.php
+- packages/audit/tests/Unit/Writer/AuditEventWriterTest.php
+- packages/audit/tests/Unit/Writer/AuditEventWriterBestEffortTest.php
+- packages/audit/tests/Unit/Query/AuditEventQueryTest.php
+- packages/audit/tests/Unit/Storage/AppendOnlyDriverGuardTest.php
+- packages/foundation/src/Kernel/BuiltinRouteRegistrar.php
+- packages/core/composer.json
+- packages/cms/composer.json
+- packages/full/composer.json
+- composer.json
+- CLAUDE.md
+tags:
+- substrate
+- ocap
+- audit
+- layer-0
+- rename
 ---
 
 # WP01 — Substrate: rename `analytics` → `audit`, entity, contracts, append-only driver guard

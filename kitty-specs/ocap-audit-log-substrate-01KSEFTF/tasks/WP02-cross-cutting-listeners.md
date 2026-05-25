@@ -1,40 +1,45 @@
 ---
 work_package_id: WP02
-title: "Cross-cutting audit listeners (entity lifecycle, API request, agent tool, MCP dispatch, broadcast) + NFR-001 chaos test"
+title: Cross-cutting audit listeners (entity lifecycle, API request, agent tool, MCP dispatch, broadcast) + NFR-001 chaos test
 dependencies:
-  - WP01
+- WP01
 requirement_refs:
-  - FR-006
-  - FR-007
-  - NFR-001
-  - C-003
+- FR-006
+- FR-007
+- NFR-001
+- C-003
 planning_base_branch: main
 merge_target_branch: main
-branch_strategy: "Branches from WP01 merge commit. Completed work merges back into main."
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
 subtasks:
-  - T-G
-  - T-H
-  - T-I
-  - T-J
-  - T-K
-  - T-L
-authoritative_surface: "packages/audit/src/Listener"
+- T-G
+- T-H
+- T-I
+- T-J
+- T-K
+- T-L
+history: []
+authoritative_surface: packages/audit/src/Listener
 execution_mode: code_change
 owned_files:
-  - packages/audit/src/Listener/EntityLifecycleAuditListener.php
-  - packages/audit/src/Listener/ApiRequestAuditListener.php
-  - packages/audit/src/Listener/AgentToolAuditListener.php
-  - packages/audit/src/Listener/McpDispatchAuditListener.php
-  - packages/audit/src/Listener/BroadcastAuditListener.php
-  - packages/audit/tests/Unit/Listener/EntityLifecycleAuditListenerTest.php
-  - packages/audit/tests/Unit/Listener/ApiRequestAuditListenerTest.php
-  - packages/audit/tests/Unit/Listener/AgentToolAuditListenerTest.php
-  - packages/audit/tests/Unit/Listener/McpDispatchAuditListenerTest.php
-  - packages/audit/tests/Unit/Listener/BroadcastAuditListenerTest.php
-  - packages/audit/tests/Contract/EntityLifecycleAuditContractTest.php
-  - packages/audit/tests/Integration/AuditChaosTest.php
-tags: ["substrate", "ocap", "audit", "listeners", "best-effort"]
-history: []
+- packages/audit/src/Listener/EntityLifecycleAuditListener.php
+- packages/audit/src/Listener/ApiRequestAuditListener.php
+- packages/audit/src/Listener/AgentToolAuditListener.php
+- packages/audit/src/Listener/McpDispatchAuditListener.php
+- packages/audit/src/Listener/BroadcastAuditListener.php
+- packages/audit/tests/Unit/Listener/EntityLifecycleAuditListenerTest.php
+- packages/audit/tests/Unit/Listener/ApiRequestAuditListenerTest.php
+- packages/audit/tests/Unit/Listener/AgentToolAuditListenerTest.php
+- packages/audit/tests/Unit/Listener/McpDispatchAuditListenerTest.php
+- packages/audit/tests/Unit/Listener/BroadcastAuditListenerTest.php
+- packages/audit/tests/Contract/EntityLifecycleAuditContractTest.php
+- packages/audit/tests/Integration/AuditChaosTest.php
+tags:
+- substrate
+- ocap
+- audit
+- listeners
+- best-effort
 ---
 
 # WP02 — Cross-cutting audit listeners + NFR-001 chaos test

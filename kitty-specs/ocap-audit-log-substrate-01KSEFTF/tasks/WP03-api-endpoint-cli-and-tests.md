@@ -1,49 +1,55 @@
 ---
 work_package_id: WP03
-title: "JSON:API audit endpoint, audit:prune CLI, integration tests (dead-code guard + retention), docs + CHANGELOG"
+title: JSON:API audit endpoint, audit:prune CLI, integration tests (dead-code guard + retention), docs + CHANGELOG
 dependencies:
-  - WP01
+- WP01
 requirement_refs:
-  - FR-009
-  - FR-010
-  - FR-011
-  - FR-013
-  - FR-014
-  - FR-015
-  - NFR-002
-  - NFR-005
-  - C-002
-  - C-005
+- FR-009
+- FR-010
+- FR-011
+- FR-013
+- FR-014
+- FR-015
+- NFR-002
+- NFR-005
+- C-002
+- C-005
 planning_base_branch: main
 merge_target_branch: main
-branch_strategy: "Branches from WP01 merge commit; may proceed in parallel with WP02. Completed work merges back into main."
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
 subtasks:
-  - T-M
-  - T-N
-  - T-O
-  - T-P
-authoritative_surface: "packages/api/src/Audit"
+- T-M
+- T-N
+- T-O
+- T-P
+history: []
+authoritative_surface: packages/api/src/Audit
 execution_mode: code_change
 owned_files:
-  - packages/api/src/Audit/AuditQueryReadModelInterface.php
-  - packages/api/src/Audit/AuditEventResource.php
-  - packages/api/src/Audit/AuditQueryDto.php
-  - packages/api/src/Audit/ApiAuditQueryAdapter.php
-  - packages/api/src/Controller/AuditQueryController.php
-  - packages/api/src/Http/Router/AuditApiRouter.php
-  - packages/api/src/ApiServiceProvider.php
-  - packages/api/composer.json
-  - packages/api/tests/Unit/Controller/AuditQueryControllerTest.php
-  - packages/api/tests/Unit/Http/Router/AuditApiRouterTest.php
-  - packages/cli/src/Command/Audit/PruneCommand.php
-  - packages/cli/tests/Unit/Command/Audit/PruneCommandTest.php
-  - tests/Integration/PhaseOcapAudit/OcapAuditEndpointTest.php
-  - tests/Integration/PhaseOcapAudit/AuditRetentionPruneTest.php
-  - docs/specs/ocap-audit-log.md
-  - docs/specs/codified-context-integration.md
-  - CHANGELOG.md
-tags: ["substrate", "ocap", "audit", "api", "cli", "json-api"]
-history: []
+- packages/api/src/Audit/AuditQueryReadModelInterface.php
+- packages/api/src/Audit/AuditEventResource.php
+- packages/api/src/Audit/AuditQueryDto.php
+- packages/api/src/Audit/ApiAuditQueryAdapter.php
+- packages/api/src/Controller/AuditQueryController.php
+- packages/api/src/Http/Router/AuditApiRouter.php
+- packages/api/src/ApiServiceProvider.php
+- packages/api/composer.json
+- packages/api/tests/Unit/Controller/AuditQueryControllerTest.php
+- packages/api/tests/Unit/Http/Router/AuditApiRouterTest.php
+- packages/cli/src/Command/Audit/PruneCommand.php
+- packages/cli/tests/Unit/Command/Audit/PruneCommandTest.php
+- tests/Integration/PhaseOcapAudit/OcapAuditEndpointTest.php
+- tests/Integration/PhaseOcapAudit/AuditRetentionPruneTest.php
+- docs/specs/ocap-audit-log.md
+- docs/specs/codified-context-integration.md
+- CHANGELOG.md
+tags:
+- substrate
+- ocap
+- audit
+- api
+- cli
+- json-api
 ---
 
 # WP03 — JSON:API audit endpoint + `audit:prune` CLI + integration tests + docs

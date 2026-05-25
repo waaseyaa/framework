@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "mission_slug": "ocap-audit-log-substrate-01KSEFTF",
+  "mission_id": "01KSEFTFKWPRMX3KTJCFKYS9P1",
+  "mission_branch": "kitty/mission-ocap-audit-log-substrate-01KSEFTF",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01",
+        "WP02",
+        "WP03"
+      ],
+      "write_scope": [
+        "CHANGELOG.md",
+        "CLAUDE.md",
+        "composer.json",
+        "docs/specs/codified-context-integration.md",
+        "docs/specs/ocap-audit-log.md",
+        "packages/api/composer.json",
+        "packages/api/src/ApiServiceProvider.php",
+        "packages/api/src/Audit/ApiAuditQueryAdapter.php",
+        "packages/api/src/Audit/AuditEventResource.php",
+        "packages/api/src/Audit/AuditQueryDto.php",
+        "packages/api/src/Audit/AuditQueryReadModelInterface.php",
+        "packages/api/src/Controller/AuditQueryController.php",
+        "packages/api/src/Http/Router/AuditApiRouter.php",
+        "packages/api/tests/Unit/Controller/AuditQueryControllerTest.php",
+        "packages/api/tests/Unit/Http/Router/AuditApiRouterTest.php",
+        "packages/audit/composer.json",
+        "packages/audit/migrations/2026_05_25_000001_create_audit_event_table.php",
+        "packages/audit/migrations/2026_05_25_000002_create_audit_retention_policy_table.php",
+        "packages/audit/src/AuditServiceProvider.php",
+        "packages/audit/src/Contract/AuditEventDescriptor.php",
+        "packages/audit/src/Contract/AuditQuery.php",
+        "packages/audit/src/Contract/AuditQueryInterface.php",
+        "packages/audit/src/Contract/AuditWriterInterface.php",
+        "packages/audit/src/Entity/AuditEvent.php",
+        "packages/audit/src/Entity/AuditEventType.php",
+        "packages/audit/src/Entity/AuditRetentionPolicy.php",
+        "packages/audit/src/Enum/AuditEventKind.php",
+        "packages/audit/src/Listener/AgentToolAuditListener.php",
+        "packages/audit/src/Listener/ApiRequestAuditListener.php",
+        "packages/audit/src/Listener/BroadcastAuditListener.php",
+        "packages/audit/src/Listener/EntityLifecycleAuditListener.php",
+        "packages/audit/src/Listener/McpDispatchAuditListener.php",
+        "packages/audit/src/Query/AuditEventQuery.php",
+        "packages/audit/src/Schema/AuditEventSchemaHandler.php",
+        "packages/audit/src/Storage/AppendOnlyDriverGuard.php",
+        "packages/audit/src/Writer/AuditEventWriter.php",
+        "packages/audit/src/Writer/NullAuditWriter.php",
+        "packages/audit/tests/Contract/AuditQueryContractTest.php",
+        "packages/audit/tests/Contract/AuditWriterContractTest.php",
+        "packages/audit/tests/Contract/EntityLifecycleAuditContractTest.php",
+        "packages/audit/tests/Integration/AuditChaosTest.php",
+        "packages/audit/tests/Unit/Listener/AgentToolAuditListenerTest.php",
+        "packages/audit/tests/Unit/Listener/ApiRequestAuditListenerTest.php",
+        "packages/audit/tests/Unit/Listener/BroadcastAuditListenerTest.php",
+        "packages/audit/tests/Unit/Listener/EntityLifecycleAuditListenerTest.php",
+        "packages/audit/tests/Unit/Listener/McpDispatchAuditListenerTest.php",
+        "packages/audit/tests/Unit/Query/AuditEventQueryTest.php",
+        "packages/audit/tests/Unit/Storage/AppendOnlyDriverGuardTest.php",
+        "packages/audit/tests/Unit/Writer/AuditEventWriterBestEffortTest.php",
+        "packages/audit/tests/Unit/Writer/AuditEventWriterTest.php",
+        "packages/cli/src/Command/Audit/PruneCommand.php",
+        "packages/cli/tests/Unit/Command/Audit/PruneCommandTest.php",
+        "packages/cms/composer.json",
+        "packages/core/composer.json",
+        "packages/foundation/src/Kernel/BuiltinRouteRegistrar.php",
+        "packages/full/composer.json",
+        "tests/Integration/PhaseOcapAudit/AuditRetentionPruneTest.php",
+        "tests/Integration/PhaseOcapAudit/OcapAuditEndpointTest.php"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "artifact-rendering",
+        "dashboard",
+        "legacy-cleanup",
+        "tests",
+        "tracker-integration",
+        "workspace"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-05-25T05:20:17.432094+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": [],
+  "collapse_report": {
+    "events": [
+      {
+        "wp_a": "WP02",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP02 depends on WP01"
+      },
+      {
+        "wp_a": "WP03",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP03 depends on WP01"
+      }
+    ],
+    "total_merges": 2,
+    "independent_wps_collapsed": 0,
+    "by_rule": {
+      "dependency": 2
+    }
+  }
+}
