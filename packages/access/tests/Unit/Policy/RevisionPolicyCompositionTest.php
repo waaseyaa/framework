@@ -67,7 +67,7 @@ final class RevisionPolicyCompositionTest extends TestCase
 
         $policy = $this->capturingPolicy(AccessResult::allowed());
 
-        (void) $composer->composeAccess($policy, $entity, $account, 'translate', $revision);
+        $composer->composeAccess($policy, $entity, $account, 'translate', $revision);
 
         self::assertSame('oj', $policy->lastEntity?->activeLangcode());
         self::assertSame('translate', $policy->lastOperation);
@@ -84,7 +84,7 @@ final class RevisionPolicyCompositionTest extends TestCase
         $policy = $this->capturingPolicy(AccessResult::allowed());
 
         foreach (['view', 'update', 'delete'] as $operation) {
-            (void) $composer->composeAccess($policy, $entity, $account, $operation, $revision);
+            $composer->composeAccess($policy, $entity, $account, $operation, $revision);
 
             self::assertSame(
                 'en',
@@ -105,7 +105,7 @@ final class RevisionPolicyCompositionTest extends TestCase
 
         $policy = $this->capturingPolicy(AccessResult::allowed());
 
-        (void) $composer->composeAccess($policy, $entity, $account, 'view_revision', $revision);
+        $composer->composeAccess($policy, $entity, $account, 'view_revision', $revision);
 
         self::assertSame($entity, $policy->lastEntity, 'non-translatable entity must not be cloned/swapped');
     }
@@ -151,7 +151,7 @@ final class RevisionPolicyCompositionTest extends TestCase
 
         $policy = $this->capturingPolicy(AccessResult::allowed());
 
-        (void) $composer->composeAccess($policy, $entity, $account, 'view_revision', $revision);
+        $composer->composeAccess($policy, $entity, $account, 'view_revision', $revision);
 
         // The revision arg is the caller's responsibility to introspect when needed;
         // the helper guarantees translation routing keyed on the revision's langcode.
