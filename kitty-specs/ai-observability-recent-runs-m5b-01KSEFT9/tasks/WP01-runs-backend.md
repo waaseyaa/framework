@@ -1,3 +1,61 @@
+---
+work_package_id: WP01
+title: Runs read contracts, adapters, replay service, binding, routes, kernel-boot test
+dependencies: []
+requirement_refs:
+- FR-001
+- FR-002
+- FR-003
+- FR-004
+- FR-005
+- FR-006
+- FR-007
+- FR-008
+- NFR-001
+- NFR-002
+- NFR-003
+- C-001
+- C-002
+- C-003
+- C-004
+planning_base_branch: main
+merge_target_branch: main
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
+subtasks:
+- T001
+- T002
+- T003
+- T004
+history: []
+authoritative_surface: packages/api/src/AiObservability/Runs
+execution_mode: code_change
+owned_files:
+- packages/api/src/AiObservability/Runs/RunListReadModelInterface.php
+- packages/api/src/AiObservability/Runs/RunDetailReadModelInterface.php
+- packages/api/src/AiObservability/Runs/RunReplayServiceInterface.php
+- packages/api/src/AiObservability/Runs/RunListFilter.php
+- packages/api/src/AiObservability/Runs/RunListPage.php
+- packages/api/src/AiObservability/Runs/RunListRow.php
+- packages/api/src/AiObservability/Runs/RunDetail.php
+- packages/api/src/AiObservability/Runs/RunSpanNode.php
+- packages/api/src/AiObservability/Runs/RunReplayResult.php
+- packages/api/src/Controller/AiObservabilityRunsController.php
+- packages/api/src/Http/Router/AiObservabilityRunsApiRouter.php
+- packages/api/src/ApiServiceProvider.php
+- packages/api/tests/Unit/Controller/AiObservabilityRunsControllerTest.php
+- packages/api/tests/Unit/Http/Router/AiObservabilityRunsApiRouterTest.php
+- packages/ai-observability/src/ReadModel/RunListReadModel.php
+- packages/ai-observability/src/ReadModel/RunDetailReadModel.php
+- packages/ai-observability/src/Replay/RunReplayService.php
+- packages/ai-observability/src/ObservabilityServiceProvider.php
+- packages/ai-observability/tests/Unit/ReadModel/RunListReadModelTest.php
+- packages/ai-observability/tests/Unit/ReadModel/RunDetailReadModelTest.php
+- packages/ai-observability/tests/Unit/Replay/RunReplayServiceTest.php
+- packages/foundation/src/Kernel/BuiltinRouteRegistrar.php
+- tests/Integration/PhaseAiObservability/AiObservabilityRunsEndpointTest.php
+tags: []
+---
+
 # WP01 — Backend: runs read contracts, adapters, replay service, binding, routes, kernel-boot test (M5B)
 
 **Mission:** `ai-observability-recent-runs-m5b-01KSEFT9` (#1415, audit C-L5-02)

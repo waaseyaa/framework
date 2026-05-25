@@ -1,3 +1,42 @@
+---
+work_package_id: WP02
+title: Runs admin SPA — list page, detail page, composables, nav, i18n, docs
+dependencies:
+- WP01
+requirement_refs:
+- FR-009
+- FR-010
+- NFR-002
+- C-001
+- C-002
+planning_base_branch: main
+merge_target_branch: main
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
+subtasks:
+- T005
+- T006
+- T007
+history: []
+authoritative_surface: packages/admin/app/pages/ai/observability/runs/[uuid].vue
+execution_mode: code_change
+owned_files:
+- packages/admin/app/composables/useAiObservabilityRuns.ts
+- packages/admin/app/composables/useAiObservabilityRunDetail.ts
+- packages/admin/app/pages/ai/observability/runs/index.vue
+- packages/admin/app/pages/ai/observability/runs/[uuid].vue
+- packages/admin/app/components/ai/RunListTable.vue
+- packages/admin/app/components/ai/RunFilterBar.vue
+- packages/admin/app/components/ai/RunSpanNode.vue
+- packages/admin/app/i18n/en.json
+- packages/admin/tests/unit/composables/useAiObservabilityRuns.test.ts
+- packages/admin/tests/unit/composables/useAiObservabilityRunDetail.test.ts
+- packages/admin/e2e/ai-observability-runs.spec.ts
+- docs/specs/admin-spa.md
+- docs/specs/ai-integration.md
+- CHANGELOG.md
+tags: []
+---
+
 # WP02 — Frontend: runs list page, detail page, composables, nav, i18n, docs (M5B)
 
 **Mission:** `ai-observability-recent-runs-m5b-01KSEFT9` (#1415, audit C-L5-02)

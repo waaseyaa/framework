@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "mission_slug": "ai-observability-recent-runs-m5b-01KSEFT9",
+  "mission_id": "01KSEFT97FYMJ7EMKFK3K9SZN4",
+  "mission_branch": "kitty/mission-ai-observability-recent-runs-m5b-01KSEFT9",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01",
+        "WP02"
+      ],
+      "write_scope": [
+        "CHANGELOG.md",
+        "docs/specs/admin-spa.md",
+        "docs/specs/ai-integration.md",
+        "packages/admin/app/components/ai/RunFilterBar.vue",
+        "packages/admin/app/components/ai/RunListTable.vue",
+        "packages/admin/app/components/ai/RunSpanNode.vue",
+        "packages/admin/app/composables/useAiObservabilityRunDetail.ts",
+        "packages/admin/app/composables/useAiObservabilityRuns.ts",
+        "packages/admin/app/i18n/en.json",
+        "packages/admin/app/pages/ai/observability/runs/[uuid].vue",
+        "packages/admin/app/pages/ai/observability/runs/index.vue",
+        "packages/admin/e2e/ai-observability-runs.spec.ts",
+        "packages/admin/tests/unit/composables/useAiObservabilityRunDetail.test.ts",
+        "packages/admin/tests/unit/composables/useAiObservabilityRuns.test.ts",
+        "packages/ai-observability/src/ObservabilityServiceProvider.php",
+        "packages/ai-observability/src/ReadModel/RunDetailReadModel.php",
+        "packages/ai-observability/src/ReadModel/RunListReadModel.php",
+        "packages/ai-observability/src/Replay/RunReplayService.php",
+        "packages/ai-observability/tests/Unit/ReadModel/RunDetailReadModelTest.php",
+        "packages/ai-observability/tests/Unit/ReadModel/RunListReadModelTest.php",
+        "packages/ai-observability/tests/Unit/Replay/RunReplayServiceTest.php",
+        "packages/api/src/AiObservability/Runs/RunDetail.php",
+        "packages/api/src/AiObservability/Runs/RunDetailReadModelInterface.php",
+        "packages/api/src/AiObservability/Runs/RunListFilter.php",
+        "packages/api/src/AiObservability/Runs/RunListPage.php",
+        "packages/api/src/AiObservability/Runs/RunListReadModelInterface.php",
+        "packages/api/src/AiObservability/Runs/RunListRow.php",
+        "packages/api/src/AiObservability/Runs/RunReplayResult.php",
+        "packages/api/src/AiObservability/Runs/RunReplayServiceInterface.php",
+        "packages/api/src/AiObservability/Runs/RunSpanNode.php",
+        "packages/api/src/ApiServiceProvider.php",
+        "packages/api/src/Controller/AiObservabilityRunsController.php",
+        "packages/api/src/Http/Router/AiObservabilityRunsApiRouter.php",
+        "packages/api/tests/Unit/Controller/AiObservabilityRunsControllerTest.php",
+        "packages/api/tests/Unit/Http/Router/AiObservabilityRunsApiRouterTest.php",
+        "packages/foundation/src/Kernel/BuiltinRouteRegistrar.php",
+        "tests/Integration/PhaseAiObservability/AiObservabilityRunsEndpointTest.php"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "artifact-rendering",
+        "legacy-cleanup",
+        "tests"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-05-25T05:36:48.435018+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": [],
+  "collapse_report": {
+    "events": [
+      {
+        "wp_a": "WP02",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP02 depends on WP01"
+      }
+    ],
+    "total_merges": 1,
+    "independent_wps_collapsed": 0,
+    "by_rule": {
+      "dependency": 1
+    }
+  }
+}
