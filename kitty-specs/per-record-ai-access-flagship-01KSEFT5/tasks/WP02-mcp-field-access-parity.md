@@ -135,3 +135,4 @@ spec-kitty agent tasks move-task WP02 --to for_review --mission per-record-ai-ac
 ## Activity Log
 
 - 2026-05-25T04:47:31Z – claude:sonnet:implementer:implementer – shell_pid=4172252 – Assigned agent via action command
+- 2026-05-25T05:05:52Z – claude:sonnet:implementer:implementer – shell_pid=4172252 – WP02 MCP serializer wired; FR-007 parity test verified to fail without McpEntityFieldFilter; McpEntityFieldFilter, EntityTools two-step serialization, and McpJsonApiFieldParityTest all committed
