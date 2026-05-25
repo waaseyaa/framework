@@ -9,6 +9,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Oidc\ClientRegistry\OidcClientLookup;
+use Waaseyaa\Oidc\Consent\ConsentRepository;
 use Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface;
 
 /**
@@ -17,23 +18,26 @@ use Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface;
  * Flow:
  *   1. Anonymous caller → 302 to the login page with `return_to` preserving
  *      the original authorize URL (query string intact).
- *   2. Authenticated caller → look up client_id, validate the request, issue
- *      an authorization code, and 302 back to the client's redirect_uri with
- *      `code` (and `state` if provided).
- *   3. Any rejection before redirect_uri is verified → direct HTML error page
+ *   2. Authenticated caller, no prior consent → store pending auth request in
+ *      session, redirect to /oidc/consent screen.
+ *   3. Authenticated caller, prior consent recorded → issue authorization code,
+ *      302 back to redirect_uri with `code` (and `state`).
+ *   4. Any rejection before redirect_uri is verified → direct HTML error page
  *      (OAuth 2.0 §4.1.2.1 forbids redirecting to an unregistered URI).
- *   4. Any rejection after redirect_uri is verified → 302 to redirect_uri with
+ *   5. Any rejection after redirect_uri is verified → 302 to redirect_uri with
  *      `error`, `error_description`, and `state`.
  *
- * First-party clients auto-consent for now; a consent screen is a deferred
- * follow-up (see #1284 "Non-goals").
+ * Session key for pending authorization: `_oidc_pending_authorization`.
  */
 final readonly class AuthorizeController
 {
+    public const SESSION_KEY = '_oidc_pending_authorization';
+
     public function __construct(
         private OidcClientLookup $clientLookup,
         private AuthorizationRequestValidator $validator,
         private AuthorizationCodeRepositoryInterface $codeRepository,
+        private ConsentRepository $consentRepository,
         private string $loginPath = '/login',
     ) {}
 
@@ -73,6 +77,33 @@ final readonly class AuthorizeController
             return $this->errorRedirect($e);
         }
 
+        $accountId = (string) $account->id();
+
+        // Check for prior consent
+        if (!$this->consentRepository->hasConsent($accountId, $client->getClientId(), $validated->scopes)) {
+            // Store pending authorization in session for the consent screen to pick up
+            if ($request->hasSession()) {
+                $pendingData = [
+                    'client_id' => $client->getClientId(),
+                    'redirect_uri' => $validated->redirectUri,
+                    'scopes' => $validated->scopes,
+                    'code_challenge' => $validated->codeChallenge,
+                    'code_challenge_method' => $validated->codeChallengeMethod,
+                    'nonce' => $validated->nonce,
+                    'state' => $validated->state,
+                    'account_id' => $accountId,
+                ];
+                $request->getSession()->set(self::SESSION_KEY, $pendingData);
+            }
+
+            return new RedirectResponse('/oidc/consent', 302);
+        }
+
+        return $this->issueCode($validated, $account);
+    }
+
+    public function issueCode(ValidatedAuthorizationRequest $validated, AccountInterface $account): RedirectResponse
+    {
         $code = $this->codeRepository->issue(
             clientId: $validated->client->getClientId(),
             account: $account,
@@ -103,7 +134,6 @@ final readonly class AuthorizeController
 
     private function errorRedirect(AuthorizationRequestException $e): RedirectResponse
     {
-        // canRedirect() guarantees non-null redirectUri.
         $redirectUri = $e->redirectUri ?? '';
 
         $params = [

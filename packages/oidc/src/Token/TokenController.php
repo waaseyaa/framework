@@ -15,18 +15,17 @@ use Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface;
 /**
  * OAuth 2.1 / OIDC token endpoint (ADR-006 §7, OIDC Core §3.1.3).
  *
- * Exchanges a consumed authorization code for an RS256-signed ID token and an
- * opaque access token. Enforces PKCE S256 (ADR-006 §2.5), byte-exact
- * redirect_uri match, and client_id binding. Confidential clients authenticate
- * via HTTP Basic or client_secret_post (RFC 6749 §2.3.1); public clients rely
- * on PKCE alone.
+ * Dispatches grant_type=authorization_code to the auth-code path,
+ * grant_type=refresh_token to RefreshTokenGrantHandler (WP02).
+ * Enforces PKCE S256 (ADR-006 §2.5), byte-exact redirect_uri match,
+ * and client_id binding. Confidential clients authenticate via HTTP Basic
+ * or client_secret_post (RFC 6749 §2.3.1); public clients rely on PKCE alone.
  *
- * Non-goals (charter #1292): refresh tokens, /userinfo, consent screen,
- * at_hash, JWT access tokens.
+ * Token response includes refresh_token per RFC 6749 §4.1.4.
  */
 final readonly class TokenController
 {
-    private const ACCESS_TOKEN_EXPIRY = 600;
+    private const ACCESS_TOKEN_EXPIRY = 3600;
 
     /**
      * @param Closure(): DateTimeImmutable $clock
@@ -37,6 +36,9 @@ final readonly class TokenController
         private PkceVerifier $pkceVerifier,
         private AuthorizationCodeRepositoryInterface $codeRepository,
         private IdTokenMinter $idTokenMinter,
+        private AccessTokenIssuer $accessTokenIssuer,
+        private RefreshTokenIssuer $refreshTokenIssuer,
+        private RefreshTokenGrantHandler $refreshGrantHandler,
         private string $issuer,
         private Closure $clock,
     ) {}
@@ -47,8 +49,15 @@ final readonly class TokenController
             return $this->error(405, 'invalid_request', 'POST required.');
         }
 
+        $form = $request->request->all();
+        $grantType = is_string($form['grant_type'] ?? null) ? $form['grant_type'] : '';
+
+        if ($grantType === 'refresh_token') {
+            return $this->handleRefreshGrant($request, $form);
+        }
+
         try {
-            $tokenRequest = $this->validator->validate($request->request->all());
+            $tokenRequest = $this->validator->validate($form);
         } catch (TokenRequestException $e) {
             return $this->error(400, $e->errorCode, $e->errorDescription);
         }
@@ -104,14 +113,97 @@ final readonly class TokenController
             now: $now,
         );
 
-        $accessToken = $this->generateOpaqueToken();
+        $accessTokenPair = $this->accessTokenIssuer->issue(
+            clientId: $client->getClientId(),
+            accountId: $stored->accountId,
+            scopes: $stored->scopes,
+            now: $now,
+        );
+
+        $refreshRecord = $this->refreshTokenIssuer->issue(
+            accessTokenJti: $accessTokenPair->jti,
+            clientId: $client->getClientId(),
+            accountId: $stored->accountId,
+            scopes: $stored->scopes,
+            authTime: $now->getTimestamp(),
+            now: $now,
+        );
 
         return $this->success([
-            'access_token' => $accessToken,
+            'access_token' => $accessTokenPair->token,
             'token_type' => 'Bearer',
             'expires_in' => self::ACCESS_TOKEN_EXPIRY,
+            'refresh_token' => $refreshRecord->token,
+            'scope' => implode(' ', $stored->scopes),
             'id_token' => $idToken,
         ]);
+    }
+
+    /**
+     * @param array<string, mixed> $form
+     */
+    private function handleRefreshGrant(Request $request, array $form): Response
+    {
+        $clientId = is_string($form['client_id'] ?? null) ? $form['client_id'] : null;
+        $clientSecret = is_string($form['client_secret'] ?? null) ? $form['client_secret'] : null;
+
+        // Fall back to Basic auth for client credentials
+        $authHeader = $request->headers->get('Authorization');
+        if (is_string($authHeader) && stripos($authHeader, 'Basic ') === 0) {
+            $decoded = base64_decode(substr($authHeader, 6), true);
+            if (is_string($decoded) && str_contains($decoded, ':')) {
+                [$id, $secret] = explode(':', $decoded, 2);
+                if ($id !== '') {
+                    $clientId = $id;
+                    $clientSecret = $secret !== '' ? $secret : null;
+                }
+            }
+        }
+
+        if ($clientId === null) {
+            return $this->error(401, 'invalid_client', 'No client credentials provided.');
+        }
+
+        $client = $this->clientLookup->findByClientId($clientId);
+        if ($client === null) {
+            return $this->error(401, 'invalid_client', 'Unknown client_id.');
+        }
+
+        if ($client->isConfidential()) {
+            if ($clientSecret === null) {
+                return $this->error(401, 'invalid_client', 'Client authentication required.');
+            }
+            $hash = $client->getClientSecretHash();
+            if ($hash === null || !password_verify($clientSecret, $hash)) {
+                return $this->error(401, 'invalid_client', 'Client authentication failed.');
+            }
+        }
+
+        $refreshTokenValue = is_string($form['refresh_token'] ?? null) ? $form['refresh_token'] : null;
+        if ($refreshTokenValue === null || $refreshTokenValue === '') {
+            return $this->error(400, 'invalid_request', 'Missing refresh_token.');
+        }
+
+        $now = ($this->clock)();
+
+        $result = $this->refreshGrantHandler->handle(
+            clientId: $clientId,
+            refreshToken: $refreshTokenValue,
+            issuer: $this->issuer,
+            now: $now,
+        );
+
+        if (isset($result['error']) && is_string($result['error'])) {
+            $status = isset($result['status']) && is_int($result['status']) ? $result['status'] : 400;
+
+            return $this->error(
+                $status,
+                $result['error'],
+                isset($result['error_description']) && is_string($result['error_description']) ? $result['error_description'] : '',
+            );
+        }
+
+        return $this->success($result);
     }
 
     /**
@@ -139,11 +231,6 @@ final readonly class TokenController
         }
 
         return [null, null];
-    }
-
-    private function generateOpaqueToken(): string
-    {
-        return rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
     }
 
     /**

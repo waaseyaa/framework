@@ -23,7 +23,10 @@ use Waaseyaa\Auth\TwoFactorService;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Oidc\Authorize\AuthorizeController;
+use Waaseyaa\Oidc\Consent\ConsentScreenController;
+use Waaseyaa\Oidc\Revoke\RevocationController;
 use Waaseyaa\Oidc\Token\TokenController;
+use Waaseyaa\Oidc\Userinfo\UserinfoController;
 use Waaseyaa\User\AuthMailer;
 
 /**
@@ -203,9 +206,30 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
         } catch (\Throwable) {
         }
 
+        $revocationController = null;
+        try {
+            $revocationController = $this->resolve(RevocationController::class);
+        } catch (\Throwable) {
+        }
+
+        $userinfoController = null;
+        try {
+            $userinfoController = $this->resolve(UserinfoController::class);
+        } catch (\Throwable) {
+        }
+
+        $consentScreenController = null;
+        try {
+            $consentScreenController = $this->resolve(ConsentScreenController::class);
+        } catch (\Throwable) {
+        }
+
         new OidcHttpRoutes(
             authorizeController: $authorizeController,
             tokenController: $tokenController,
+            revocationController: $revocationController,
+            userinfoController: $userinfoController,
+            consentScreenController: $consentScreenController,
         )->registerRoutes($router);
     }
 }
