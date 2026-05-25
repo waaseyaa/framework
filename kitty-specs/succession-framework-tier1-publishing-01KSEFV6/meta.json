@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-05-25T02:36:24.464615+00:00",
+  "friendly_name": "succession framework tier1 publishing",
+  "mission_id": "01KSEFV68DWV94WSANH2MMM948",
+  "mission_number": null,
+  "mission_slug": "succession-framework-tier1-publishing-01KSEFV6",
+  "mission_type": "software-dev",
+  "slug": "succession-framework-tier1-publishing-01KSEFV6",
+  "target_branch": "main"
+}
