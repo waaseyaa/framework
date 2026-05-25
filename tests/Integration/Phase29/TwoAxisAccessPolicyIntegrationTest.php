@@ -111,7 +111,7 @@ final class TwoAxisAccessPolicyIntegrationTest extends TestCase
         $observer = new ObservingPolicy(AccessResult::allowed());
 
         $composer = new RevisionPolicyComposition();
-        (void) $composer->composeAccess($observer, $teaching, $keeper, 'view_revision', $revisionOj);
+        $composer->composeAccess($observer, $teaching, $keeper, 'view_revision', $revisionOj);
 
         self::assertNotNull($observer->lastEntity);
         self::assertInstanceOf(TranslatableInterface::class, $observer->lastEntity);

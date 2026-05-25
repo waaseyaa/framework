@@ -58,6 +58,7 @@ final class LayerDependencyTest extends TestCase
     {
         $httpSrc = dirname(__DIR__, 2) . '/src/Http';
         $httpRouterDir = $httpSrc . '/Router';
+        $httpInboundDir = $httpSrc . '/Inbound';
         $violations = [];
 
         $iterator = new \RecursiveIteratorIterator(
@@ -73,6 +74,14 @@ final class LayerDependencyTest extends TestCase
             }
             $path = $file->getPathname();
             if (str_starts_with($path, $httpRouterDir . \DIRECTORY_SEPARATOR)) {
+                continue;
+            }
+            // Http/Inbound/ hosts cross-layer read-model adapters (M5D pattern):
+            // L0 classes that implement L4+ interfaces, bound at the kernel boundary
+            // by per-feature service providers. Exempt for the same reason as
+            // Http/Router/ — the directory is the documented cross-layer surface.
+            // Also enumerated in bin/check-package-layers under its INBOUND_EXEMPT set.
+            if (str_starts_with($path, $httpInboundDir . \DIRECTORY_SEPARATOR)) {
                 continue;
             }
 
