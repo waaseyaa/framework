@@ -17,4 +17,15 @@ pre-push:
       run: composer phpstan
     phpunit:
       glob: "*.php"
-      run: php -d memory_limit=512M ./vendor/bin/phpunit --testsuite Unit --no-progress --no-coverage
+      # Project requires PHP 8.5+ (see CLAUDE.md §Code Style and package
+      # composer.json platform constraints). If the contributor's local PHP
+      # is older, the test suite cannot bootstrap (e.g. array_first() is
+      # PHP-8.5-only). Skip with a clear warning rather than false-failing —
+      # the gate runs in CI on the mandatory PHP 8.5 matrix.
+      run: |
+        PHP_OK=$(php -r 'echo PHP_VERSION_ID >= 80500 ? 1 : 0;')
+        if [ "$PHP_OK" != "1" ]; then
+          echo "phpunit skipped: local PHP $(php -r 'echo PHP_VERSION;') < required 8.5; CI matrix is authoritative."
+          exit 0
+        fi
+        php -d memory_limit=512M ./vendor/bin/phpunit --testsuite Unit --no-progress --no-coverage
