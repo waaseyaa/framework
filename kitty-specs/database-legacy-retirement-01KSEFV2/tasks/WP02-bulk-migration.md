@@ -25,8 +25,8 @@ subtasks:
 - T011
 - T012
 assignee: ''
-agent: ''
-shell_pid: '151282'
+agent: "claude"
+shell_pid: "151282"
 history:
 - timestamp: '2026-05-25T00:00:00Z'
   agent: system
@@ -159,3 +159,4 @@ Hand off to WP03 once T012 is green. WP03 makes the ELIMINATE-vs-RENAME decision
 ## Activity Log
 
 _(populated during execution; include out-of-band follow-up notes per T010)_
+- 2026-05-25T06:25:15Z – claude – shell_pid=151282 – Assigned agent via action command
