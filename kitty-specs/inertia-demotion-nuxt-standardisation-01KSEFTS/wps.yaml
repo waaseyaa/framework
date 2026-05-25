@@ -1,0 +1,35 @@
+work_packages:
+  - id: WP01
+    title: "Inertia README banner + Status section (source-of-truth edit)"
+    dependencies: []
+    owned_files:
+      - "packages/inertia/README.md"
+    authoritative_surface: "packages/inertia/README.md"
+    execution_mode: "documentation"
+    requirement_refs: [FR-001, FR-002, NFR-001, C-001, C-003]
+    subtasks: [T001, T002]
+    prompt_file: "tasks/WP01-inertia-readme-banner.md"
+  - id: WP02
+    title: "Demote waaseyaa/inertia from full require to suggest"
+    dependencies: [WP01]
+    owned_files:
+      - "packages/full/composer.json"
+      - "packages/inertia/composer.json"
+      - "composer.lock"
+    authoritative_surface: "packages/full/composer.json"
+    execution_mode: "documentation"
+    requirement_refs: [FR-003, FR-004, NFR-001, NFR-002, C-001, C-002, C-003]
+    subtasks: [T003, T004]
+    prompt_file: "tasks/WP02-full-metapackage-demotion.md"
+  - id: WP03
+    title: "docs/specs/admin-spa SPA-bet section + audit sweep + CHANGELOG"
+    dependencies: [WP01]
+    owned_files:
+      - "docs/specs/admin-spa.md"
+      - "packages/admin/README.md"
+      - "CHANGELOG.md"
+    authoritative_surface: "docs/specs/admin-spa.md"
+    execution_mode: "documentation"
+    requirement_refs: [FR-005, FR-006, FR-007, FR-008, NFR-002, C-001]
+    subtasks: [T005, T006, T007]
+    prompt_file: "tasks/WP03-docs-sweep-spa-bet.md"

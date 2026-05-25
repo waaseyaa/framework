@@ -1,0 +1,41 @@
+work_packages:
+  - id: WP01
+    title: "analytics → audit package rename (full namespace + composer + split.yml + ADR)"
+    dependencies: []
+    owned_files:
+      - "packages/analytics/"
+      - "packages/audit/"
+      - ".github/workflows/split.yml"
+      - "CLAUDE.md"
+      - "composer.json"
+      - "docs/adr/"
+      - "occurrence_map.yaml"
+    authoritative_surface: "packages/audit/"
+    execution_mode: "bulk_edit"
+    requirement_refs: [FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008, FR-009, NFR-001, NFR-002, NFR-003, NFR-004, NFR-005, C-001, C-002, C-003]
+    subtasks: [T001, T002, T003, T004, T005, T006, T007, T008, T009, T010, T011, T012]
+    prompt_file: "tasks/WP01-analytics-to-audit.md"
+  - id: WP02
+    title: "billing scaffold marking (@api coverage + README)"
+    dependencies: []
+    owned_files:
+      - "packages/billing/src/"
+      - "packages/billing/README.md"
+      - "CLAUDE.md"
+    authoritative_surface: "packages/billing/README.md"
+    execution_mode: "documentation"
+    requirement_refs: [FR-010, FR-011, FR-012, NFR-001, NFR-003, C-004]
+    subtasks: [T013, T014, T015, T016, T017]
+    prompt_file: "tasks/WP02-billing-scaffold.md"
+  - id: WP03
+    title: "ai-schema activation (docs/specs stub + CLAUDE.md surfacing)"
+    dependencies: []
+    owned_files:
+      - "docs/specs/ai-schema.md"
+      - "packages/ai-schema/README.md"
+      - "CLAUDE.md"
+    authoritative_surface: "docs/specs/ai-schema.md"
+    execution_mode: "documentation"
+    requirement_refs: [FR-013, FR-014, FR-015, NFR-001, NFR-003, C-005]
+    subtasks: [T018, T019, T020, T021, T022]
+    prompt_file: "tasks/WP03-ai-schema-activation.md"

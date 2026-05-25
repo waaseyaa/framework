@@ -1,0 +1,58 @@
+work_packages:
+  - id: WP01
+    title: "Runs read contracts, adapters, replay service, binding, routes, kernel-boot test"
+    dependencies: []
+    blocked_by:
+      - "per-record-ai-access-flagship-01KSEFT5/WP01"
+    owned_files:
+      - "packages/api/src/AiObservability/Runs/RunListReadModelInterface.php"
+      - "packages/api/src/AiObservability/Runs/RunDetailReadModelInterface.php"
+      - "packages/api/src/AiObservability/Runs/RunReplayServiceInterface.php"
+      - "packages/api/src/AiObservability/Runs/RunListFilter.php"
+      - "packages/api/src/AiObservability/Runs/RunListPage.php"
+      - "packages/api/src/AiObservability/Runs/RunListRow.php"
+      - "packages/api/src/AiObservability/Runs/RunDetail.php"
+      - "packages/api/src/AiObservability/Runs/RunSpanNode.php"
+      - "packages/api/src/AiObservability/Runs/RunReplayResult.php"
+      - "packages/api/src/Controller/AiObservabilityRunsController.php"
+      - "packages/api/src/Http/Router/AiObservabilityRunsApiRouter.php"
+      - "packages/api/src/ApiServiceProvider.php"
+      - "packages/api/tests/Unit/Controller/AiObservabilityRunsControllerTest.php"
+      - "packages/api/tests/Unit/Http/Router/AiObservabilityRunsApiRouterTest.php"
+      - "packages/ai-observability/src/ReadModel/RunListReadModel.php"
+      - "packages/ai-observability/src/ReadModel/RunDetailReadModel.php"
+      - "packages/ai-observability/src/Replay/RunReplayService.php"
+      - "packages/ai-observability/src/ObservabilityServiceProvider.php"
+      - "packages/ai-observability/tests/Unit/ReadModel/RunListReadModelTest.php"
+      - "packages/ai-observability/tests/Unit/ReadModel/RunDetailReadModelTest.php"
+      - "packages/ai-observability/tests/Unit/Replay/RunReplayServiceTest.php"
+      - "packages/foundation/src/Kernel/BuiltinRouteRegistrar.php"
+      - "tests/Integration/PhaseAiObservability/AiObservabilityRunsEndpointTest.php"
+    authoritative_surface: "packages/api/src/AiObservability/Runs"
+    execution_mode: "code_change"
+    requirement_refs: [FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008, NFR-001, NFR-002, NFR-003, C-001, C-002, C-003, C-004]
+    subtasks: [T001, T002, T003, T004]
+    prompt_file: "tasks/WP01-runs-backend.md"
+  - id: WP02
+    title: "Runs admin SPA — list page, detail page, composables, nav, i18n, docs"
+    dependencies: [WP01]
+    owned_files:
+      - "packages/admin/app/composables/useAiObservabilityRuns.ts"
+      - "packages/admin/app/composables/useAiObservabilityRunDetail.ts"
+      - "packages/admin/app/pages/ai/observability/runs/index.vue"
+      - "packages/admin/app/pages/ai/observability/runs/[uuid].vue"
+      - "packages/admin/app/components/ai/RunListTable.vue"
+      - "packages/admin/app/components/ai/RunFilterBar.vue"
+      - "packages/admin/app/components/ai/RunSpanNode.vue"
+      - "packages/admin/app/i18n/en.json"
+      - "packages/admin/tests/unit/composables/useAiObservabilityRuns.test.ts"
+      - "packages/admin/tests/unit/composables/useAiObservabilityRunDetail.test.ts"
+      - "packages/admin/e2e/ai-observability-runs.spec.ts"
+      - "docs/specs/admin-spa.md"
+      - "docs/specs/ai-integration.md"
+      - "CHANGELOG.md"
+    authoritative_surface: "packages/admin/app/pages/ai/observability/runs/[uuid].vue"
+    execution_mode: "code_change"
+    requirement_refs: [FR-009, FR-010, NFR-002, C-001, C-002]
+    subtasks: [T005, T006, T007]
+    prompt_file: "tasks/WP02-runs-frontend.md"

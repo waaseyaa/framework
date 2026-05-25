@@ -1,0 +1,35 @@
+work_packages:
+  - id: WP01
+    title: "docs/specs/jsonapi — primary-surface declaration + parity-matrix scaffold"
+    dependencies: []
+    owned_files:
+      - "docs/specs/jsonapi.md"
+    authoritative_surface: "docs/specs/jsonapi.md"
+    execution_mode: "documentation"
+    requirement_refs: [FR-001, FR-002, FR-003, NFR-002, NFR-003, C-003]
+    subtasks: [T001, T002]
+    prompt_file: "tasks/WP01-jsonapi-primary-declaration.md"
+  - id: WP02
+    title: "GraphQL README banner + manifest demotion from full to suggest"
+    dependencies: [WP01]
+    owned_files:
+      - "packages/graphql/README.md"
+      - "packages/full/composer.json"
+      - "packages/graphql/composer.json"
+      - "composer.lock"
+    authoritative_surface: "packages/graphql/README.md"
+    execution_mode: "documentation"
+    requirement_refs: [FR-004, FR-005, FR-006, FR-007, NFR-001, NFR-002, C-001, C-002, C-003]
+    subtasks: [T003, T004, T005]
+    prompt_file: "tasks/WP02-graphql-demotion.md"
+  - id: WP03
+    title: "Coverage audit + parity matrix population + CHANGELOG + follow-up missions"
+    dependencies: [WP01]
+    owned_files:
+      - "docs/specs/jsonapi.md"
+      - "CHANGELOG.md"
+    authoritative_surface: "docs/specs/jsonapi.md"
+    execution_mode: "documentation"
+    requirement_refs: [FR-008, FR-009, NFR-002, C-004, C-005]
+    subtasks: [T006, T007, T008]
+    prompt_file: "tasks/WP03-coverage-audit-follow-ups.md"

@@ -1,0 +1,103 @@
+work_packages:
+  - id: WP01
+    title: "Authorization-code flow (code issuance + token exchange)"
+    dependencies: []
+    owned_files:
+      - "packages/oidc/migrations/2026_05_25_000001_oidc_authorization_code_schema.php"
+      - "packages/oidc/migrations/2026_05_25_000002_oidc_token_schema.php"
+      - "packages/oidc/src/Authorize/AuthorizeController.php"
+      - "packages/oidc/src/Token/TokenController.php"
+      - "packages/oidc/src/Token/AccessTokenIssuer.php"
+      - "packages/oidc/src/Token/IdTokenIssuer.php"
+      - "packages/oidc/src/Token/KeyMaterialProviderInterface.php"
+      - "packages/oidc/src/Token/InMemoryKeyMaterialProvider.php"
+      - "packages/oidc/src/Oidc/Config/OidcIssuerConfig.php"
+      - "packages/oidc/src/OidcServiceProvider.php"
+      - "packages/oidc/tests/Unit/Authorize/AuthorizeControllerTest.php"
+      - "packages/oidc/tests/Unit/Token/TokenControllerTest.php"
+      - "packages/routing/src/AuthOidcRouteServiceProvider.php"
+    authoritative_surface: "packages/oidc/src/Authorize"
+    execution_mode: "code_change"
+    requirement_refs: [FR-001, FR-002, NFR-001, NFR-002, C-001, C-002, C-003, C-004, C-005]
+    subtasks: [T001, T002, T003, T004]
+    prompt_file: "tasks/WP01-authorization-code-flow.md"
+  - id: WP02
+    title: "Refresh + revocation (token endpoint variants)"
+    dependencies: [WP01]
+    owned_files:
+      - "packages/oidc/src/Token/RefreshTokenGrantHandler.php"
+      - "packages/oidc/src/Token/TokenController.php"
+      - "packages/oidc/src/Revoke/RevocationController.php"
+      - "packages/oidc/tests/Unit/Token/RefreshTokenGrantHandlerTest.php"
+      - "packages/oidc/tests/Unit/Revoke/RevocationControllerTest.php"
+      - "packages/routing/src/AuthOidcRouteServiceProvider.php"
+    authoritative_surface: "packages/oidc/src/Token"
+    execution_mode: "code_change"
+    requirement_refs: [FR-003, FR-004, NFR-001, NFR-002, C-001, C-002]
+    subtasks: [T005, T006]
+    prompt_file: "tasks/WP02-refresh-revocation.md"
+  - id: WP03
+    title: "Userinfo endpoint (field-access bound, DIR-004)"
+    dependencies: [WP01, WP04]
+    owned_files:
+      - "packages/oidc/src/Userinfo/UserinfoController.php"
+      - "packages/oidc/src/Userinfo/UserinfoClaimResolver.php"
+      - "packages/oidc/tests/Unit/Userinfo/UserinfoControllerTest.php"
+      - "packages/oidc/tests/Unit/Userinfo/UserinfoClaimResolverTest.php"
+      - "packages/routing/src/AuthOidcRouteServiceProvider.php"
+      - "docs/specs/access-control.md"
+    authoritative_surface: "packages/oidc/src/Userinfo"
+    execution_mode: "code_change"
+    requirement_refs: [FR-005, NFR-001, NFR-002, NFR-004, C-001, C-002]
+    subtasks: [T007, T008]
+    prompt_file: "tasks/WP03-userinfo-endpoint.md"
+  - id: WP04
+    title: "JWKS + discovery + signing-key storage + rotation CLI"
+    dependencies: [WP01]
+    owned_files:
+      - "packages/oidc/migrations/2026_05_25_000003_oidc_signing_key_schema.php"
+      - "packages/oidc/src/Key/SigningKeyRepository.php"
+      - "packages/oidc/src/Key/RealKeyMaterialProvider.php"
+      - "packages/oidc/src/Jwks/JwksDocumentBuilder.php"
+      - "packages/oidc/src/Jwks/JwksController.php"
+      - "packages/oidc/src/Discovery/DiscoveryDocumentBuilder.php"
+      - "packages/oidc/src/Discovery/DiscoveryController.php"
+      - "packages/cli/src/Command/Oidc/RotateSigningKeyCommand.php"
+      - "packages/oidc/tests/Unit/Key/SigningKeyRepositoryTest.php"
+      - "packages/oidc/tests/Unit/Jwks/JwksDocumentBuilderTest.php"
+      - "packages/oidc/tests/Unit/Discovery/DiscoveryDocumentBuilderTest.php"
+      - "packages/cli/tests/Unit/Command/Oidc/RotateSigningKeyCommandTest.php"
+      - "packages/routing/src/AuthOidcRouteServiceProvider.php"
+    authoritative_surface: "packages/oidc/src/Key"
+    execution_mode: "code_change"
+    requirement_refs: [FR-006, FR-007, FR-008, NFR-003, C-001, C-002]
+    subtasks: [T009, T010, T011, T012]
+    prompt_file: "tasks/WP04-jwks-discovery-keys.md"
+  - id: WP05
+    title: "Admin SPA OIDC client registration UI + consent flow + integration test"
+    dependencies: [WP01, WP04]
+    owned_files:
+      - "packages/api/src/Controller/OidcClientController.php"
+      - "packages/api/src/Http/Router/OidcClientApiRouter.php"
+      - "packages/api/src/ApiServiceProvider.php"
+      - "packages/foundation/src/Kernel/BuiltinRouteRegistrar.php"
+      - "packages/oidc/migrations/2026_05_25_000004_oidc_user_consent_schema.php"
+      - "packages/oidc/src/Consent/ConsentRepository.php"
+      - "packages/oidc/src/Consent/ConsentScreenController.php"
+      - "packages/oidc/templates/consent.html.twig"
+      - "packages/oidc/src/Authorize/AuthorizeController.php"
+      - "packages/admin/app/composables/useOidcClients.ts"
+      - "packages/admin/app/pages/oidc/clients/index.vue"
+      - "packages/admin/app/pages/oidc/clients/[id].vue"
+      - "packages/admin/app/i18n/en.json"
+      - "packages/admin/tests/unit/composables/useOidcClients.test.ts"
+      - "packages/admin/e2e/oidc-clients.spec.ts"
+      - "packages/routing/src/AuthOidcRouteServiceProvider.php"
+      - "tests/Integration/PhaseOidc/EndToEndAuthCodeFlowTest.php"
+      - "packages/oidc/README.md"
+      - "CHANGELOG.md"
+    authoritative_surface: "packages/admin/app/pages/oidc"
+    execution_mode: "code_change"
+    requirement_refs: [FR-009, FR-010, FR-011, NFR-001, NFR-003, C-001, C-002]
+    subtasks: [T013, T014, T015, T016, T017]
+    prompt_file: "tasks/WP05-admin-spa-clients-ui.md"

@@ -1,0 +1,78 @@
+work_packages:
+  - id: WP01
+    title: "Dexie IndexedDB schema (5 tables mirroring two-axis tuple), OfflineDatabase, base composables (useOfflineSync shell, useOfflineEntity)"
+    dependencies: []
+    owned_files:
+      - "packages/admin/package.json"
+      - "packages/admin/app/offline/db/OfflineDatabase.ts"
+      - "packages/admin/app/offline/db/types.ts"
+      - "packages/admin/app/offline/db/index.ts"
+      - "packages/admin/app/composables/useOfflineSync.ts"
+      - "packages/admin/app/composables/useOfflineEntity.ts"
+      - "packages/admin/tests/unit/offline/db/OfflineDatabaseTest.test.ts"
+      - "packages/admin/tests/unit/offline/composables/useOfflineEntityTest.test.ts"
+    authoritative_surface: "packages/admin/app/offline/db"
+    execution_mode: "code_change"
+    requirement_refs: [FR-001, FR-009, FR-011, NFR-001, NFR-003, C-001, C-002]
+    subtasks: [T-A, T-B, T-C]
+    prompt_file: "tasks/WP01-dexie-schema-and-composables.md"
+
+  - id: WP02
+    title: "Workbox service worker + PWA manifest, SyncStateMachine FSM, ConflictResolver (classification-aware), SyncEngine, Mercure consumer extension"
+    dependencies: [WP01]
+    owned_files:
+      - "packages/admin/sw.ts"
+      - "packages/admin/nuxt.config.ts"
+      - "packages/admin/app/offline/sync/SyncStateMachine.ts"
+      - "packages/admin/app/offline/sync/ConflictResolver.ts"
+      - "packages/admin/app/offline/sync/SyncEngine.ts"
+      - "packages/admin/app/composables/useOfflineRealtime.ts"
+      - "packages/admin/app/composables/useRealtime.ts"
+      - "packages/admin/tests/unit/offline/sync/SyncStateMachineTest.test.ts"
+      - "packages/admin/tests/unit/offline/sync/ConflictResolverTest.test.ts"
+      - "packages/admin/tests/unit/offline/sync/SyncEngineTest.test.ts"
+      - "packages/admin/public/offline.html"
+    authoritative_surface: "packages/admin/app/offline/sync"
+    execution_mode: "code_change"
+    requirement_refs: [FR-002, FR-003, FR-004, FR-005, FR-008, FR-011, NFR-001, NFR-004, NFR-005, C-002, C-003, C-004]
+    subtasks: [T-D, T-E, T-F, T-G, T-H, T-I]
+    prompt_file: "tasks/WP02-workbox-fsm-and-sync-engine.md"
+
+  - id: WP03
+    title: "Server-side: SyncAcknowledgeController + OfflineBatchAuditController + Mercure sync.conflict event + classification-policy meta hints"
+    dependencies: [WP01]
+    owned_files:
+      - "packages/api/src/Sync/SyncAcknowledgeController.php"
+      - "packages/api/src/Sync/OfflineBatchAuditController.php"
+      - "packages/api/src/Http/Router/SyncApiRouter.php"
+      - "packages/api/src/ApiServiceProvider.php"
+      - "packages/api/composer.json"
+      - "packages/foundation/src/Kernel/BuiltinRouteRegistrar.php"
+      - "packages/mercure/src/MercurePublisher.php"
+      - "packages/api/tests/Unit/Sync/SyncAcknowledgeControllerTest.php"
+      - "packages/api/tests/Unit/Sync/OfflineBatchAuditControllerTest.php"
+    authoritative_surface: "packages/api/src/Sync"
+    execution_mode: "code_change"
+    requirement_refs: [FR-006, FR-007, FR-008, FR-014, NFR-002, NFR-003, C-001, C-004]
+    subtasks: [T-J, T-K, T-L, T-M]
+    prompt_file: "tasks/WP03-server-side-sync-endpoints.md"
+
+  - id: WP04
+    title: "Auth offline guard, OfflineStatusBadge component, FR-012 integration test, FR-013 Playwright spec, docs, CHANGELOG"
+    dependencies: [WP02, WP03]
+    owned_files:
+      - "packages/admin/app/offline/auth/OfflineAuthGuard.ts"
+      - "packages/admin/app/components/offline/OfflineStatusBadge.vue"
+      - "packages/admin/app/i18n/en.json"
+      - "packages/admin/app/layouts/default.vue"
+      - "packages/admin/tests/unit/offline/auth/OfflineAuthGuardTest.test.ts"
+      - "packages/admin/tests/integration/offline/OfflineSyncIntegrationTest.test.ts"
+      - "packages/admin/e2e/offline-sync.spec.ts"
+      - "docs/specs/offline-first-sync.md"
+      - "CLAUDE.md"
+      - "CHANGELOG.md"
+    authoritative_surface: "packages/admin/app/offline/auth"
+    execution_mode: "code_change"
+    requirement_refs: [FR-009, FR-010, FR-012, FR-013, FR-015, NFR-002, NFR-003, C-005]
+    subtasks: [T-N, T-O, T-P, T-Q, T-R]
+    prompt_file: "tasks/WP04-auth-guard-badge-tests-and-docs.md"

@@ -1,0 +1,36 @@
+work_packages:
+  - id: WP01
+    title: "L2 audit document — per-package classification + rationale"
+    dependencies: []
+    owned_files:
+      - "docs/audits/2026-05-l2-content-types-audit.md"
+    authoritative_surface: "docs/audits/2026-05-l2-content-types-audit.md"
+    execution_mode: "documentation"
+    requirement_refs: [FR-001, NFR-003, C-002, C-003]
+    subtasks: [T001, T002, T003]
+    prompt_file: "tasks/WP01-l2-audit-document.md"
+  - id: WP02
+    title: "File per-package follow-up missions (harden + remove scaffolds)"
+    dependencies: [WP01]
+    owned_files:
+      - "docs/audits/2026-05-l2-content-types-audit.md"
+    authoritative_surface: "kitty-specs/"
+    execution_mode: "documentation"
+    requirement_refs: [FR-002, FR-003, C-005]
+    subtasks: [T004, T005, T006]
+    prompt_file: "tasks/WP02-follow-up-mission-scaffolds.md"
+  - id: WP03
+    title: "Messaging → L3 graduation (layer move + spec + CHANGELOG)"
+    dependencies: [WP01]
+    owned_files:
+      - "CLAUDE.md"
+      - "bin/check-package-layers"
+      - "packages/messaging/README.md"
+      - "packages/messaging/composer.json"
+      - "docs/specs/messaging.md"
+      - "CHANGELOG.md"
+    authoritative_surface: "packages/messaging"
+    execution_mode: "code_change"
+    requirement_refs: [FR-004, FR-005, FR-006, FR-007, FR-008, FR-009, NFR-001, NFR-002, C-001, C-004]
+    subtasks: [T007, T008, T009, T010]
+    prompt_file: "tasks/WP03-messaging-l3-graduation.md"

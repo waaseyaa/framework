@@ -1,0 +1,79 @@
+work_packages:
+  - id: WP01
+    title: "MediaVersion entity + schema, ContentAddressedFileRepositoryDecorator, MediaVersionRepository"
+    dependencies: []
+    owned_files:
+      - "packages/media/src/Version/MediaVersion.php"
+      - "packages/media/src/Version/MediaVersionType.php"
+      - "packages/media/src/Version/MediaVersionRepository.php"
+      - "packages/media/src/Version/ContentAddressedFileRepositoryDecorator.php"
+      - "packages/media/src/File/FileWriteResult.php"
+      - "packages/media/src/MediaServiceProvider.php"
+      - "packages/media/migrations/2026_05_25_000005_create_media_version_table.php"
+      - "packages/media/tests/Unit/Version/MediaVersionTest.php"
+      - "packages/media/tests/Unit/Version/ContentAddressedFileRepositoryDecoratorTest.php"
+      - "packages/media/tests/Unit/Version/MediaVersionRepositoryTest.php"
+    authoritative_surface: "packages/media/src/Version"
+    execution_mode: "code_change"
+    requirement_refs: [FR-001, FR-002, FR-006, FR-007, NFR-001, NFR-003, NFR-005, C-002, C-003]
+    subtasks: [T-A, T-B, T-C, T-D]
+    prompt_file: "tasks/WP01-media-version-entity-and-cas.md"
+
+  - id: WP02
+    title: "MediaVersionStorageDriver save hook, audit-enum amendment (3 new kinds), cascade-delete, classification parent-resolver"
+    dependencies: [WP01]
+    owned_files:
+      - "packages/media/src/Version/MediaVersionStorageDriver.php"
+      - "packages/media/src/Version/Classification/MediaVersionParentResolver.php"
+      - "packages/media/src/Version/MediaCascadeDeleteSubscriber.php"
+      - "packages/audit/src/Enum/AuditEventKind.php"
+      - "packages/audit/tests/Unit/Enum/AuditEventKindAmendmentTest.php"
+      - "packages/media/tests/Unit/Version/MediaVersionStorageDriverTest.php"
+      - "packages/media/tests/Unit/Version/CascadeDeleteTest.php"
+    authoritative_surface: "packages/media/src/Version/MediaVersionStorageDriver.php"
+    execution_mode: "code_change"
+    requirement_refs: [FR-003, FR-004, FR-005, FR-011, NFR-002, NFR-003, C-001, C-004]
+    subtasks: [T-E, T-F, T-G, T-H, T-I]
+    prompt_file: "tasks/WP02-storage-driver-hook-and-audit-amendment.md"
+
+  - id: WP03
+    title: "JSON:API surface — read-model + adapter + controller + router + foundation routes + integration tests (dead-code + dedup + forbidden version)"
+    dependencies: [WP01, WP02]
+    owned_files:
+      - "packages/api/src/Media/MediaVersionReadModelInterface.php"
+      - "packages/api/src/Media/MediaVersionResource.php"
+      - "packages/api/src/Media/ApiMediaVersionAdapter.php"
+      - "packages/api/src/Controller/MediaVersionController.php"
+      - "packages/api/src/Http/Router/MediaVersionApiRouter.php"
+      - "packages/api/src/ApiServiceProvider.php"
+      - "packages/api/composer.json"
+      - "packages/foundation/src/Kernel/BuiltinRouteRegistrar.php"
+      - "packages/api/tests/Unit/Controller/MediaVersionControllerTest.php"
+      - "packages/api/tests/Unit/Http/Router/MediaVersionApiRouterTest.php"
+      - "tests/Integration/PhaseMediaVersioning/MediaVersioningIntegrationTest.php"
+      - "tests/Integration/PhaseMediaVersioning/ForbiddenVersionIntegrationTest.php"
+    authoritative_surface: "packages/api/src/Media"
+    execution_mode: "code_change"
+    requirement_refs: [FR-008, FR-009, FR-010, FR-013, FR-014, NFR-002, NFR-004, NFR-005, C-002]
+    subtasks: [T-J, T-K, T-L, T-M]
+    prompt_file: "tasks/WP03-api-surface-and-integration-tests.md"
+
+  - id: WP04
+    title: "Admin SPA — useMediaVersions composable, MediaVersionBrowser component, media-edit integration, docs, CHANGELOG"
+    dependencies: [WP03]
+    owned_files:
+      - "packages/admin/app/composables/useMediaVersions.ts"
+      - "packages/admin/app/components/media/MediaVersionBrowser.vue"
+      - "packages/admin/app/pages/media/[id].vue"
+      - "packages/admin/app/i18n/en.json"
+      - "packages/admin/tests/unit/composables/useMediaVersions.test.ts"
+      - "packages/admin/e2e/media-versions.spec.ts"
+      - "docs/specs/versioned-blob-media.md"
+      - "docs/specs/entity-storage-two-axis.md"
+      - "CLAUDE.md"
+      - "CHANGELOG.md"
+    authoritative_surface: "packages/admin/app/components/media/MediaVersionBrowser.vue"
+    execution_mode: "code_change"
+    requirement_refs: [FR-012, FR-015, NFR-003]
+    subtasks: [T-N, T-O]
+    prompt_file: "tasks/WP04-admin-spa-version-browser-and-docs.md"

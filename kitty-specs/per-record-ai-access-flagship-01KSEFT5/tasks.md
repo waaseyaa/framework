@@ -1,0 +1,47 @@
+# Work Packages: per-record-ai-access-flagship-01KSEFT5
+
+_Generated from wps.yaml. Do not edit directly; edit wps.yaml + the per-WP task file instead._
+
+---
+
+## Work Package WP01: AI tool boundary — AccessChecker injection + governed-data marker
+
+**Dependencies**: None
+**Requirement Refs**: FR-001, FR-002, FR-003, FR-004, NFR-001, NFR-002, NFR-003, NFR-004, C-001, C-002
+**Owned Files**: packages/ai-tools/src/AgentToolInterface.php, packages/ai-tools/src/AgentToolContext.php, packages/ai-tools/src/AbstractAgentTool.php, packages/ai-tools/src/Attribute/Capability.php, packages/ai-tools/src/Attribute/AsAgentTool.php, packages/ai-tools/src/Catalogue/AttributeToolRegistry.php, packages/ai-tools/src/Entity/EntityCreateTool.php, packages/ai-tools/src/Entity/EntityReadTool.php, packages/ai-tools/src/Entity/EntityUpdateTool.php, packages/ai-tools/src/Entity/EntitySearchTool.php, packages/ai-tools/src/Entity/EntityDeleteTool.php, packages/ai-tools/src/Entity/EntityListTool.php, packages/ai-tools/src/Relationship/RelationshipTraverseTool.php, packages/ai-tools/src/Vector/VectorSearchTool.php, packages/ai-agent/src/AgentExecutor.php, packages/ai-agent/src/AiAgentServiceProvider.php, packages/ai-agent/src/Tool/Bimaaji/IntrospectGraphTool.php, packages/ai-agent/src/Tool/Bimaaji/IntrospectSectionTool.php, packages/ai-agent/src/Tool/Bimaaji/SearchSpecsTool.php, packages/ai-agent/src/Tool/Bimaaji/ProposeMutationTool.php, tools/phpstan/WaaseyaaEntrypointProvider.php, packages/ai-tools/tests/Unit/AgentToolContextTest.php, packages/ai-tools/tests/Unit/Catalogue/AttributeToolRegistryTest.php, packages/ai-tools/tests/Unit/Entity/EntityReadToolTest.php, packages/ai-agent/tests/Unit/AgentExecutorTest.php, tests/Integration/PhasePerRecordAiAccess/AgentToolBoundaryTest.php, CHANGELOG.md
+**Subtasks**: T001, T002, T003, T004
+**Prompt**: `tasks/WP01-tool-boundary-access-checker.md`
+
+---
+
+## Work Package WP02: MCP serializer field-access wiring + JSON:API parity
+
+**Dependencies**: None
+**Requirement Refs**: FR-005, FR-006, FR-007, FR-013, NFR-001, NFR-002, NFR-004, C-002, C-003
+**Owned Files**: packages/mcp/src/Tools/EntityTools.php, packages/mcp/src/Serializer/McpEntityFieldFilter.php, packages/mcp/src/McpServiceProvider.php, packages/access/src/EntityAccessHandler.php, packages/mcp/tests/Unit/Serializer/McpEntityFieldFilterTest.php, packages/mcp/tests/Unit/Tools/EntityToolsTest.php, tests/Integration/PhasePerRecordAiAccess/McpJsonApiFieldParityTest.php, docs/specs/mcp-endpoint.md, docs/specs/field-access.md, CHANGELOG.md
+**Subtasks**: T005, T006, T007
+**Prompt**: `tasks/WP02-mcp-field-access-parity.md`
+
+---
+
+## Work Package WP03: Per-file AI-access toggle field + admin UI + policy
+
+**Dependencies**: None
+**Requirement Refs**: FR-008, FR-009, FR-010, FR-011, FR-012, FR-013, NFR-001, NFR-002, NFR-004, C-002, C-004
+**Owned Files**: packages/field/src/FieldType/AiAccessibleField.php, packages/field/src/FieldServiceProvider.php, packages/access/src/Policy/AiAccessibilityPolicy.php, packages/media/src/Entity/Media.php, packages/media/migrations/2026_05_25_000001_add_ai_accessible_to_media.php, packages/attachment/src/Entity/Attachment.php, packages/attachment/migrations/2026_05_25_000002_add_ai_accessible_to_attachment.php, packages/admin/app/components/media/AiAccessibleToggle.vue, packages/admin/app/i18n/en.json, packages/field/tests/Unit/FieldType/AiAccessibleFieldTest.php, packages/access/tests/Unit/Policy/AiAccessibilityPolicyTest.php, packages/media/tests/Unit/Entity/MediaTest.php, packages/admin/tests/unit/components/media/AiAccessibleToggle.test.ts, tests/Integration/PhasePerRecordAiAccess/AiAccessibleToggleTest.php, docs/specs/access-control.md, docs/specs/ai-integration.md, CHANGELOG.md
+**Subtasks**: T008, T009, T010, T011
+**Prompt**: `tasks/WP03-per-file-ai-toggle.md`
+
+---
+
+## Commit + handoff (per WP)
+
+After each WP's verification gate is green:
+
+```
+cd /home/fsd42/dev/waaseyaa
+spec-kitty agent tasks mark-status T<id> [T<id>...] --status done --mission per-record-ai-access-flagship-01KSEFT5
+spec-kitty agent tasks move-task WP<NN> --to for_review --mission per-record-ai-access-flagship-01KSEFT5 --note "<WP name> ready; <FR-NNN> guard test verified to fail without the wiring"
+```
+
+Commit footer on every commit: `Refs gap-matrix-A5`.

@@ -1,0 +1,71 @@
+# Work Packages: anokii-distribution-scaffold-01KSEFT7
+
+_Generated from wps.yaml. Do not edit directly._
+
+---
+
+## Work Package WP01: GitHub repo creation + initial Composer manifest
+
+**Dependencies**: None
+**Requirement Refs**: FR-001, FR-002, FR-003, NFR-001, NFR-002, C-001, C-003
+**Owned Files** (in the new Anokii repo):
+- `composer.json`
+- `LICENSE.txt`
+- `README.md`
+- `.gitignore`
+
+**Subtasks**: T001, T002, T003, T004, T005, T006
+**Prompt**: `tasks/WP01-repo-and-composer-manifest.md`
+
+---
+
+## Work Package WP02: .kittify init + Anokii distribution charter
+
+**Dependencies**: WP01
+**Requirement Refs**: FR-004, FR-005, C-001, C-003, C-004
+**Owned Files** (in the Anokii repo):
+- `.kittify/` (entire init tree)
+- `.kittify/charter/charter.md` (hand-authored)
+- `.gitignore` (append `.kittify/skills/` exclusion if `spec-kitty init` doesn't already add it)
+
+**Subtasks**: T007, T008, T009
+**Prompt**: `tasks/WP02-kittify-init-and-charter.md`
+
+---
+
+## Work Package WP03: Deployer recipe overlay + branded UX baseline
+
+**Dependencies**: WP02
+**Requirement Refs**: FR-006, FR-007, NFR-004, C-001, C-005
+**Owned Files** (in the Anokii repo):
+- `deploy.php`
+- `config/classification.anokii-default.yaml`
+- `config/tenants/sagamok.yaml.example`
+- `assets/theme/anokii-tokens.css`
+- `CHANGELOG.md`
+
+**Subtasks**: T010, T011, T012, T013
+**Prompt**: `tasks/WP03-deployer-and-branded-tokens.md`
+
+---
+
+## Work Package WP04: Ten artifact draft specs (8 surfaces + 2 cross-cutting)
+
+**Dependencies**: WP02
+**Requirement Refs**: FR-008, FR-009, FR-010, NFR-003, C-001, C-002
+**Owned Files** (in the Waaseyaa repo, under this mission's lane):
+- `kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/governed-drive.spec.md`
+- `kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/form-builder.spec.md`
+- `kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/tasks.spec.md`
+- `kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/data-rooms.spec.md`
+- `kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/governed-docs.spec.md`
+- `kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/governed-sheets.spec.md`
+- `kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/co-intelligence-workspaces.spec.md`
+- `kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/admin-centre.spec.md`
+- `kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/cross-cutting/offline-first.spec.md`
+- `kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/cross-cutting/aoda-aa-baseline.spec.md`
+
+**Subtasks**: T014, T015, T016, T017
+**Prompt**: `tasks/WP04-artifact-draft-specs.md`
+
+---

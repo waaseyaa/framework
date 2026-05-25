@@ -1,0 +1,43 @@
+work_packages:
+  - id: WP01
+    title: "Publish MAINTAINERS.md and README.md governance pointer"
+    dependencies: []
+    owned_files:
+      - "MAINTAINERS.md"
+      - "README.md"
+    authoritative_surface: "MAINTAINERS.md"
+    execution_mode: "documentation"
+    requirement_refs: [FR-001, FR-003, FR-004, FR-005, FR-006, FR-010, FR-011, NFR-001, NFR-002, NFR-003, C-001, C-002, C-003, C-005]
+    subtasks: [T001, T002, T003, T004]
+    prompt_file: "tasks/WP01-publish-maintainers.md"
+  - id: WP02
+    title: "Publish SUCCESSION.md"
+    dependencies: []
+    owned_files:
+      - "SUCCESSION.md"
+    authoritative_surface: "SUCCESSION.md"
+    execution_mode: "documentation"
+    requirement_refs: [FR-002, FR-008, FR-010, NFR-001, NFR-002, NFR-003, C-001, C-002, C-003, C-005]
+    subtasks: [T005, T006, T007]
+    prompt_file: "tasks/WP02-publish-succession.md"
+  - id: WP03
+    title: "Designate Packagist trustee on waaseyaa/* namespace and record in MAINTAINERS.md"
+    dependencies: [WP01]
+    owned_files:
+      - "MAINTAINERS.md"
+    authoritative_surface: "MAINTAINERS.md"
+    execution_mode: "documentation"
+    requirement_refs: [FR-004, FR-007, NFR-001, NFR-002, NFR-004, C-001, C-002, C-003, C-004, C-005]
+    subtasks: [T008, T009, T010, T011]
+    prompt_file: "tasks/WP03-packagist-trustee.md"
+  - id: WP04
+    title: "Set up Nation-hosted mirror and record in MAINTAINERS.md"
+    dependencies: [WP01, WP03]
+    owned_files:
+      - "MAINTAINERS.md"
+      - ".github/workflows/mirror-sync.yml"
+    authoritative_surface: "MAINTAINERS.md"
+    execution_mode: "documentation"
+    requirement_refs: [FR-006, FR-009, NFR-001, NFR-002, NFR-005, C-001, C-002, C-003, C-004, C-005]
+    subtasks: [T012, T013, T014, T015, T016]
+    prompt_file: "tasks/WP04-nation-mirror.md"

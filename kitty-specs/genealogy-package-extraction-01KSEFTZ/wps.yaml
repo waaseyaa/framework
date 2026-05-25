@@ -1,0 +1,32 @@
+work_packages:
+  - id: WP01
+    title: "Composer description flip + spec banner + metapackage pre-flight grep"
+    dependencies: []
+    owned_files:
+      - "packages/genealogy/composer.json"
+      - "docs/specs/genealogy.md"
+    authoritative_surface: "packages/genealogy/composer.json"
+    execution_mode: "documentation"
+    requirement_refs: [FR-001, FR-002, FR-007, NFR-001, NFR-002, NFR-004, C-001, C-002]
+    subtasks: [T001, T002, T003, T004, T005]
+    prompt_file: "tasks/WP01-composer-and-spec-banner.md"
+  - id: WP02
+    title: "CLAUDE.md surfacing + extraction-log reclassification entry"
+    dependencies: [WP01]
+    owned_files:
+      - "CLAUDE.md"
+      - "docs/specs/extraction-log.md"
+    authoritative_surface: "CLAUDE.md"
+    execution_mode: "documentation"
+    requirement_refs: [FR-003, FR-004, FR-005, FR-006, FR-008, NFR-002, NFR-003, C-001, C-003]
+    subtasks: [T006, T007, T008, T009, T010, T011]
+    prompt_file: "tasks/WP02-claude-md-and-extraction-log.md"
+  - id: WP03
+    title: "Verification gates + PR"
+    dependencies: [WP02]
+    owned_files: []
+    authoritative_surface: "PR"
+    execution_mode: "verification_and_pr"
+    requirement_refs: [FR-009, NFR-002, NFR-003, C-001]
+    subtasks: [T012, T013, T014]
+    prompt_file: "tasks/WP03-verification-and-pr.md"
