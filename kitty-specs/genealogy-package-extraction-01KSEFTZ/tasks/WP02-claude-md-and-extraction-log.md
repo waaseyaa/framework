@@ -1,3 +1,30 @@
+---
+work_package_id: WP02
+title: CLAUDE.md surfacing + extraction-log reclassification entry
+dependencies:
+- WP01
+requirement_refs:
+- FR-003
+- FR-004
+- FR-005
+- FR-006
+- FR-008
+- NFR-002
+- NFR-003
+- C-001
+- C-003
+planning_base_branch: main
+merge_target_branch: main
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
+subtasks: []
+history: []
+authoritative_surface: CLAUDE.md
+execution_mode: documentation
+owned_files:
+- CLAUDE.md
+- docs/specs/extraction-log.md
+tags: []
+---
 # Work Package Prompt: WP02 — CLAUDE.md surfacing + extraction-log entry
 
 **Mission:** `genealogy-package-extraction-01KSEFTZ`
