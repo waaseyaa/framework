@@ -124,3 +124,4 @@ spec-kitty agent tasks move-task WP01 --to for_review --mission offline-first-sy
 
 ## Activity Log
 - 2026-05-25T05:46:34Z – unknown – shell_pid=69774 – Dexie schema in place mirroring two-axis tuple (entityId,langcode,vid); 5 tables; useOfflineEntity classification-aware read filter; useOfflineSync shell; 13 vitest tests green (node env, IDBFactory-isolated); typecheck clean on new files; admin-spa.md stamped. Refs gap-matrix-A7, DIR-005.
+- 2026-05-25T05:47:13Z – unknown – shell_pid=69774 – Opus review: lane-a disciplined; 5 commits clean (deps + schema + composables + tests + spec stamp); 13 tests pass; DIR-005 preserved (composite PK mirrors two-axis tuple); classification-aware clearance filter present; per-Nation isolation via wipeForAccountSwitch()
