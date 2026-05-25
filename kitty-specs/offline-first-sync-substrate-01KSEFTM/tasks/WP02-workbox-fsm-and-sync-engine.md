@@ -169,3 +169,4 @@ spec-kitty agent tasks move-task WP02 --to for_review --mission offline-first-sy
 
 ## Activity Log
 - 2026-05-25T18:39:30Z – claude – shell_pid=588123 – Moved to in_progress
+- 2026-05-25T18:45:02Z – claude – shell_pid=588123 – Moved to for_review
