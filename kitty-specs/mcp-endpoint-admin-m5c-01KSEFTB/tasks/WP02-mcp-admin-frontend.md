@@ -1,3 +1,48 @@
+---
+work_package_id: WP02
+title: 'Frontend: MCP admin registry, detail, server-config pages + composables, nav, i18n, docs (M5C)'
+dependencies:
+- WP01
+requirement_refs:
+- C-001
+- C-002
+- FR-009
+- FR-010
+- NFR-002
+planning_base_branch: main
+merge_target_branch: main
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
+subtasks:
+- T005
+- T006
+- T007
+phase: ''
+assignee: ''
+agent: ''
+history: []
+authoritative_surface: packages/admin/app/pages/mcp/tools/[name].vue
+execution_mode: code_change
+owned_files:
+- packages/admin/app/composables/useMcpTools.ts
+- packages/admin/app/composables/useMcpTool.ts
+- packages/admin/app/composables/useMcpServerConfig.ts
+- packages/admin/app/pages/mcp/tools/index.vue
+- packages/admin/app/pages/mcp/tools/[name].vue
+- packages/admin/app/pages/mcp/server-config.vue
+- packages/admin/app/components/mcp/ToolRegistryTable.vue
+- packages/admin/app/components/mcp/InputSchemaViewer.vue
+- packages/admin/app/components/mcp/RecentInvocationsTable.vue
+- packages/admin/app/i18n/en.json
+- packages/admin/tests/unit/composables/useMcpTools.test.ts
+- packages/admin/tests/unit/composables/useMcpTool.test.ts
+- packages/admin/tests/unit/composables/useMcpServerConfig.test.ts
+- packages/admin/e2e/mcp-admin.spec.ts
+- docs/specs/mcp-endpoint.md
+- docs/specs/admin-spa.md
+- CHANGELOG.md
+tags: []
+---
+
 # WP02 — Frontend: MCP admin registry, detail, server-config pages + composables, nav, i18n, docs (M5C)
 
 **Mission:** `mcp-endpoint-admin-m5c-01KSEFTB` (#1415, audit C-L6-01)

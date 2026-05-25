@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "mission_slug": "mcp-endpoint-admin-m5c-01KSEFTB",
+  "mission_id": "01KSEFTBB9PRN6AEN36X42K9DR",
+  "mission_branch": "kitty/mission-mcp-endpoint-admin-m5c-01KSEFTB",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01",
+        "WP02"
+      ],
+      "write_scope": [
+        "CHANGELOG.md",
+        "docs/specs/admin-spa.md",
+        "docs/specs/mcp-endpoint.md",
+        "packages/admin/app/components/mcp/InputSchemaViewer.vue",
+        "packages/admin/app/components/mcp/RecentInvocationsTable.vue",
+        "packages/admin/app/components/mcp/ToolRegistryTable.vue",
+        "packages/admin/app/composables/useMcpServerConfig.ts",
+        "packages/admin/app/composables/useMcpTool.ts",
+        "packages/admin/app/composables/useMcpTools.ts",
+        "packages/admin/app/i18n/en.json",
+        "packages/admin/app/pages/mcp/server-config.vue",
+        "packages/admin/app/pages/mcp/tools/[name].vue",
+        "packages/admin/app/pages/mcp/tools/index.vue",
+        "packages/admin/e2e/mcp-admin.spec.ts",
+        "packages/admin/tests/unit/composables/useMcpServerConfig.test.ts",
+        "packages/admin/tests/unit/composables/useMcpTool.test.ts",
+        "packages/admin/tests/unit/composables/useMcpTools.test.ts",
+        "packages/api/composer.json",
+        "packages/api/src/ApiServiceProvider.php",
+        "packages/api/src/Controller/McpAdminController.php",
+        "packages/api/src/Http/Router/McpAdminApiRouter.php",
+        "packages/api/src/McpAdmin/RecentInvocation.php",
+        "packages/api/src/McpAdmin/RegisteredClient.php",
+        "packages/api/src/McpAdmin/ServerConfigReadModelInterface.php",
+        "packages/api/src/McpAdmin/ServerConfigSnapshot.php",
+        "packages/api/src/McpAdmin/ToolDetail.php",
+        "packages/api/src/McpAdmin/ToolRegistryReadModelInterface.php",
+        "packages/api/src/McpAdmin/ToolRegistryRow.php",
+        "packages/api/tests/Unit/Controller/McpAdminControllerTest.php",
+        "packages/api/tests/Unit/Http/Router/McpAdminApiRouterTest.php",
+        "packages/foundation/src/Kernel/BuiltinRouteRegistrar.php",
+        "packages/mcp/src/Admin/ServerConfigReadModel.php",
+        "packages/mcp/src/Admin/ToolRegistryReadModel.php",
+        "packages/mcp/src/McpServiceProvider.php",
+        "packages/mcp/tests/Unit/Admin/ServerConfigReadModelTest.php",
+        "packages/mcp/tests/Unit/Admin/ToolRegistryReadModelTest.php",
+        "tests/Integration/PhaseMcpAdmin/McpAdminEndpointTest.php"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "artifact-rendering",
+        "legacy-cleanup",
+        "tests",
+        "tracker-integration"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-05-25T05:38:14.830264+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": [],
+  "collapse_report": {
+    "events": [
+      {
+        "wp_a": "WP02",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP02 depends on WP01"
+      }
+    ],
+    "total_merges": 1,
+    "independent_wps_collapsed": 0,
+    "by_rule": {
+      "dependency": 1
+    }
+  }
+}

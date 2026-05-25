@@ -1,3 +1,57 @@
+---
+work_package_id: WP01
+title: 'Backend: MCP admin read contracts, adapters, binding, routes, kernel-boot test (M5C)'
+dependencies: []
+requirement_refs:
+- C-001
+- C-002
+- C-003
+- C-004
+- FR-001
+- FR-002
+- FR-003
+- FR-004
+- FR-005
+- FR-006
+- FR-007
+- FR-008
+- NFR-001
+- NFR-002
+- NFR-003
+planning_base_branch: main
+merge_target_branch: main
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
+subtasks: []
+phase: ''
+assignee: ''
+agent: ''
+history: []
+authoritative_surface: packages/api/src/McpAdmin
+execution_mode: code_change
+owned_files:
+- packages/api/src/McpAdmin/ToolRegistryReadModelInterface.php
+- packages/api/src/McpAdmin/ServerConfigReadModelInterface.php
+- packages/api/src/McpAdmin/ToolRegistryRow.php
+- packages/api/src/McpAdmin/ToolDetail.php
+- packages/api/src/McpAdmin/RecentInvocation.php
+- packages/api/src/McpAdmin/ServerConfigSnapshot.php
+- packages/api/src/McpAdmin/RegisteredClient.php
+- packages/api/src/Controller/McpAdminController.php
+- packages/api/src/Http/Router/McpAdminApiRouter.php
+- packages/api/src/ApiServiceProvider.php
+- packages/api/composer.json
+- packages/api/tests/Unit/Controller/McpAdminControllerTest.php
+- packages/api/tests/Unit/Http/Router/McpAdminApiRouterTest.php
+- packages/mcp/src/Admin/ToolRegistryReadModel.php
+- packages/mcp/src/Admin/ServerConfigReadModel.php
+- packages/mcp/src/McpServiceProvider.php
+- packages/mcp/tests/Unit/Admin/ToolRegistryReadModelTest.php
+- packages/mcp/tests/Unit/Admin/ServerConfigReadModelTest.php
+- packages/foundation/src/Kernel/BuiltinRouteRegistrar.php
+- tests/Integration/PhaseMcpAdmin/McpAdminEndpointTest.php
+tags: []
+---
+
 # WP01 — Backend: MCP admin read contracts, adapters, binding, routes, kernel-boot test (M5C)
 
 **Mission:** `mcp-endpoint-admin-m5c-01KSEFTB` (#1415, audit C-L6-01)
