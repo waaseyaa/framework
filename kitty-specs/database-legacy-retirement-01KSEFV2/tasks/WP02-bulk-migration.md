@@ -161,3 +161,4 @@ Hand off to WP03 once T012 is green. WP03 makes the ELIMINATE-vs-RENAME decision
 _(populated during execution; include out-of-band follow-up notes per T010)_
 - 2026-05-25T06:25:15Z – claude – shell_pid=151282 – Assigned agent via action command
 - 2026-05-25T06:27:55Z – claude – shell_pid=151282 – T007-T012 complete. FR-008: 0 PHP edits (namespace preserved). occurrence_map.yaml on main (ff3393403). T011: 251 retained (all (a)), 0 unexpected stragglers. T012 all gates green. --force: WP02 implementation is the occurrence_map.yaml committed to main before lane start.
+- 2026-05-25T06:43:08Z – claude – shell_pid=151282 – Opus review: ELIMINATE per DIR-003; 13 files deleted; ADR-022 supersedes ADR-007; PR #1581 open; all gates green
