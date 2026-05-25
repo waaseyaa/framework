@@ -190,3 +190,4 @@ spec-kitty agent tasks move-task WP01 --to for_review --mission ocap-audit-log-s
 6. Confirmation that `AuditEventWriter::record()` swallows a thrown repo exception (paste the `AuditEventWriterBestEffortTest` green output).
 
 ## Activity Log
+- 2026-05-25T05:20:26Z – unknown – Moved to for_review
