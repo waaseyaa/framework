@@ -8,7 +8,7 @@ work_packages:
       - "README.md"
       - ".gitignore"
     authoritative_surface: "composer.json"
-    execution_mode: "scaffold"
+    execution_mode: "code_change"
     requirement_refs: [FR-001, FR-002, FR-003, NFR-001, NFR-002, C-001, C-003]
     subtasks: [T001, T002, T003, T004, T005, T006]
     prompt_file: "tasks/WP01-repo-and-composer-manifest.md"
@@ -34,7 +34,7 @@ work_packages:
       - "assets/theme/anokii-tokens.css"
       - "CHANGELOG.md"
     authoritative_surface: "deploy.php"
-    execution_mode: "scaffold"
+    execution_mode: "code_change"
     requirement_refs: [FR-006, FR-007, NFR-004, C-001, C-005]
     subtasks: [T010, T011, T012, T013]
     prompt_file: "tasks/WP03-deployer-and-branded-tokens.md"
