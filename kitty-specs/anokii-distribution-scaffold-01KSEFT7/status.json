@@ -1,49 +1,49 @@
 {
-  "event_count": 6,
-  "last_event_id": "01KSEQVQQ0K3WMRW00W3TQ5FWQ",
-  "materialized_at": "2026-05-25T04:56:30.689017+00:00",
+  "event_count": 18,
+  "last_event_id": "01KSERKX0CMWSF5D9WMBJG8G7Q",
+  "materialized_at": "2026-05-25T05:09:42.540870+00:00",
   "mission_number": "",
   "mission_slug": "anokii-distribution-scaffold-01KSEFT7",
   "mission_type": "software-dev",
   "summary": {
-    "approved": 0,
+    "approved": 1,
     "blocked": 0,
     "canceled": 0,
     "claimed": 0,
     "done": 0,
-    "for_review": 0,
-    "in_progress": 1,
+    "for_review": 3,
+    "in_progress": 0,
     "in_review": 0,
-    "planned": 3
+    "planned": 0
   },
   "work_packages": {
     "WP01": {
-      "actor": "implement-command",
+      "actor": "claude",
       "force_count": 1,
-      "lane": "in_progress",
-      "last_event_id": "01KSEQVQQ0K3WMRW00W3TQ5FWQ",
-      "last_transition_at": "2026-05-25T04:56:30.689017+00:00"
+      "lane": "for_review",
+      "last_event_id": "01KSER0ZMGBAQ9WW8R2KSGBY40",
+      "last_transition_at": "2026-05-25T04:59:22.640177+00:00"
     },
     "WP02": {
-      "actor": "finalize-tasks",
+      "actor": "user",
       "force_count": 1,
-      "lane": "planned",
-      "last_event_id": "01KSEQVF0FN5YSK5SVF3KZBDMW",
-      "last_transition_at": "2026-05-25T04:56:21.775639+00:00"
+      "lane": "approved",
+      "last_event_id": "01KSERKX0CMWSF5D9WMBJG8G7Q",
+      "last_transition_at": "2026-05-25T05:09:42.540870+00:00"
     },
     "WP03": {
-      "actor": "finalize-tasks",
+      "actor": "claude",
       "force_count": 1,
-      "lane": "planned",
-      "last_event_id": "01KSEQVF10FA40QM5SRG77NWS3",
-      "last_transition_at": "2026-05-25T04:56:21.792830+00:00"
+      "lane": "for_review",
+      "last_event_id": "01KSERA3M4D1PNHBVDXT36PVXZ",
+      "last_transition_at": "2026-05-25T05:04:21.636583+00:00"
     },
     "WP04": {
-      "actor": "finalize-tasks",
+      "actor": "claude",
       "force_count": 1,
-      "lane": "planned",
-      "last_event_id": "01KSEQVF1HQWR2JN3HW3QZEGX0",
-      "last_transition_at": "2026-05-25T04:56:21.809393+00:00"
+      "lane": "for_review",
+      "last_event_id": "01KSERCEFQ5ZN8HFYVEKVB69X6",
+      "last_transition_at": "2026-05-25T05:05:38.296011+00:00"
     }
   }
 }

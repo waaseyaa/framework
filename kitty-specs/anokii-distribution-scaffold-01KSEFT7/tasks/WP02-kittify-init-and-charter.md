@@ -85,3 +85,7 @@ You are working in the Anokii repo clone (created by WP01), not in the Waaseyaa 
 2. `spec-kitty status` output.
 3. Output of the four grep verification commands.
 4. The final list of DIR-A IDs (in case any were renumbered or added during authoring) — WP04 references these.
+
+## Activity Log
+
+- 2026-05-25T05:09:42Z – unknown – Opus review: new repo waaseyaa/anokii live with composer + LICENSE + README + charter (DIR-A001..DIR-A005) + deploy + branded tokens + Sagamok tenant stub. Repo currently public (consider toggling to private). 10 v0.1 surface seeds left in Waaseyaa artifacts/ for future Anokii-repo re-filing.
