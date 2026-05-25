@@ -24,8 +24,9 @@ work_packages:
   - id: WP03
     title: "Verification gates + PR"
     dependencies: [WP02]
-    owned_files: []
-    authoritative_surface: "PR"
+    owned_files:
+      - "kitty-specs/genealogy-package-extraction-01KSEFTZ/**"
+    authoritative_surface: "kitty-specs/genealogy-package-extraction-01KSEFTZ/"
     execution_mode: "planning_artifact"
     requirement_refs: [FR-009, NFR-002, NFR-003, C-001]
     subtasks: [T012, T013, T014]
