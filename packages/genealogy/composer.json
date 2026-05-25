@@ -1,6 +1,6 @@
 {
     "name": "waaseyaa/genealogy",
-    "description": "Genealogy domain entities, graph traversal, and public SSR for Waaseyaa",
+    "description": "Distribution-extension package — Indigenous genealogy entities, graph traversal, and public SSR for Waaseyaa-based distributions",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
