@@ -6,5 +6,7 @@
   "mission_slug": "genealogy-package-extraction-01KSEFTZ",
   "mission_type": "software-dev",
   "slug": "genealogy-package-extraction-01KSEFTZ",
-  "target_branch": "main"
+  "target_branch": "main",
+  "vcs": "git",
+  "vcs_locked_at": "2026-05-25T06:18:22.263041+00:00"
 }
