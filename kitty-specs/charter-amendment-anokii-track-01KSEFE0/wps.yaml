@@ -1,0 +1,11 @@
+work_packages:
+  - id: WP01
+    title: "Apply charter amendment — Waaseyaa/Anokii track constitutional commitments"
+    dependencies: []
+    owned_files:
+      - ".kittify/charter/charter.md"
+    authoritative_surface: ".kittify/charter/charter.md"
+    execution_mode: "documentation"
+    requirement_refs: [FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, NFR-001, NFR-002, NFR-003, C-001, C-002, C-003]
+    subtasks: [T001, T002, T003, T004, T005, T006, T007]
+    prompt_file: "tasks/WP01-apply-charter-amendment.md"
