@@ -129,4 +129,4 @@ Read:
 4. Confirm `Content-Type: application/json` (not JSON:API envelope) — paste the assertion.
 
 ## Activity Log
-
+- 2026-05-25T05:30:07Z – unknown – subagent shipped retroactively
