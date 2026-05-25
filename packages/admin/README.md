@@ -1,5 +1,7 @@
 # @waaseyaa/admin
 
+> Primary workspace UI surface per charter directive **DIR-007**.
+
 The schema-driven admin SPA for the Waaseyaa framework. **Internal monorepo workspace member — not published to npm.** Treat as an application, not a library.
 
 The canonical reference for architecture, contracts, and integration is **[`docs/specs/admin-spa.md`](../../docs/specs/admin-spa.md)** in the framework repo. This README only covers what you need to operate the package locally.
