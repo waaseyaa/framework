@@ -131,3 +131,4 @@ spec-kitty agent tasks move-task WP03 --to for_review --mission versioned-blob-m
 7. `rg -nE 'use Waaseyaa\\Media' packages/api/src/` output — confirm only ApiMediaVersionAdapter imports media types.
 
 ## Activity Log
+- 2026-05-25T05:36:35Z – unknown – Moved to in_progress
