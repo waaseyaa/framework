@@ -27,8 +27,8 @@ created_at: '2026-05-25T05:38:22.508049+00:00'
 subtasks: []
 phase: ''
 assignee: ''
-agent: ''
-shell_pid: '73410'
+agent: "claude"
+shell_pid: "73410"
 history: []
 authoritative_surface: packages/api/src/McpAdmin
 execution_mode: code_change
@@ -148,3 +148,4 @@ This mission is a **cross-layer** read surface: `packages/mcp` is **Layer 6**, `
 ## Activity Log
 
 (implementer appends here)
+- 2026-05-25T05:38:24Z – claude – shell_pid=73410 – Assigned agent via action command
