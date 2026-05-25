@@ -107,3 +107,4 @@ Read `CHANGELOG.md`. Under `[Unreleased]` → `### Changed` (add the section if 
 
 ## Activity Log
 - 2026-05-25T06:12:21Z – unknown – Moved to in_progress
+- 2026-05-25T06:15:43Z – unknown – SPA bet section in admin-spa.md; DIR-007 attribution in admin/README.md; CHANGELOG entry. Audit sweep complete. Gates green. Commit 05f978bd3.
