@@ -15,7 +15,7 @@ subtasks:
   - "T001"
   - "T002"
 phase: "Phase 1 - Source-of-truth banner"
-assignee: ""
+assignee: "claude"
 agent: ""
 shell_pid: ""
 authoritative_surface: "packages/inertia/README.md"
@@ -70,4 +70,4 @@ If the README ends partway through (e.g., already has a `## Status` or similar �
 3. The exact rendered banner text from the post-merge README (paste).
 
 ## Activity Log
-
+- 2026-05-25T06:11:11Z – unknown – Moved to in_progress
