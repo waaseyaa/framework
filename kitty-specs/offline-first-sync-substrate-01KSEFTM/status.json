@@ -1,7 +1,7 @@
 {
-  "event_count": 11,
-  "last_event_id": "01KSG6XFTXA13V5JR8ZYXFETKV",
-  "materialized_at": "2026-05-25T18:38:51.229074+00:00",
+  "event_count": 12,
+  "last_event_id": "01KSG6YN776VXTQKPBB4C12BSK",
+  "materialized_at": "2026-05-25T18:39:29.511796+00:00",
   "mission_number": "",
   "mission_slug": "offline-first-sync-substrate-01KSEFTM",
   "mission_type": "software-dev",
@@ -25,11 +25,11 @@
       "last_transition_at": "2026-05-25T05:47:12.607773+00:00"
     },
     "WP02": {
-      "actor": "implement-command",
-      "force_count": 1,
+      "actor": "claude",
+      "force_count": 2,
       "lane": "in_progress",
-      "last_event_id": "01KSG6XFTXA13V5JR8ZYXFETKV",
-      "last_transition_at": "2026-05-25T18:38:51.229074+00:00"
+      "last_event_id": "01KSG6YN776VXTQKPBB4C12BSK",
+      "last_transition_at": "2026-05-25T18:39:29.511796+00:00"
     },
     "WP03": {
       "actor": "finalize-tasks",

@@ -50,6 +50,7 @@ tags:
 - fsm
 - sync
 - mercure
+agent: "claude"
 ---
 
 # WP02 — Workbox service worker + sync FSM + ConflictResolver + SyncEngine + Mercure consumer
@@ -167,3 +168,4 @@ spec-kitty agent tasks move-task WP02 --to for_review --mission offline-first-sy
 6. `npm run build` green (with the SW asset emitted).
 
 ## Activity Log
+- 2026-05-25T18:39:30Z – claude – shell_pid=588123 – Moved to in_progress
