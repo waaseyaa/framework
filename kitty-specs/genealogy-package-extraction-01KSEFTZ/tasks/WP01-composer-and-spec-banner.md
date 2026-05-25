@@ -150,3 +150,4 @@ See T005. Do not open a PR — WP03 owns the PR.
 
 _(populated during execution)_
 - 2026-05-25T06:18:27Z – claude – shell_pid=139060 – Assigned agent via action command
+- 2026-05-25T06:19:18Z – claude – shell_pid=139060 – WP01 complete: composer.json description flipped, DIR-004 banner inserted in genealogy.md, all verification gates green
