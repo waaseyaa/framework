@@ -32,8 +32,22 @@ work_packages:
       - "CHANGELOG.md"
     authoritative_surface: "packages/ai-tools/src/AgentToolInterface.php"
     execution_mode: "code_change"
-    requirement_refs: [FR-001, FR-002, FR-003, FR-004, NFR-001, NFR-002, NFR-003, NFR-004, C-001, C-002]
-    subtasks: [T001, T002, T003, T004]
+    requirement_refs:
+      - FR-001
+      - FR-002
+      - FR-003
+      - FR-004
+      - NFR-001
+      - NFR-002
+      - NFR-003
+      - NFR-004
+      - C-001
+      - C-002
+    subtasks:
+      - T001
+      - T002
+      - T003
+      - T004
     prompt_file: "tasks/WP01-tool-boundary-access-checker.md"
 
   - id: WP02
@@ -52,8 +66,20 @@ work_packages:
       - "CHANGELOG.md"
     authoritative_surface: "packages/mcp/src/Serializer/McpEntityFieldFilter.php"
     execution_mode: "code_change"
-    requirement_refs: [FR-005, FR-006, FR-007, FR-013, NFR-001, NFR-002, NFR-004, C-002, C-003]
-    subtasks: [T005, T006, T007]
+    requirement_refs:
+      - FR-005
+      - FR-006
+      - FR-007
+      - FR-013
+      - NFR-001
+      - NFR-002
+      - NFR-004
+      - C-002
+      - C-003
+    subtasks:
+      - T005
+      - T006
+      - T007
     prompt_file: "tasks/WP02-mcp-field-access-parity.md"
 
   - id: WP03
@@ -79,6 +105,21 @@ work_packages:
       - "CHANGELOG.md"
     authoritative_surface: "packages/field/src/FieldType/AiAccessibleField.php"
     execution_mode: "code_change"
-    requirement_refs: [FR-008, FR-009, FR-010, FR-011, FR-012, FR-013, NFR-001, NFR-002, NFR-004, C-002, C-004]
-    subtasks: [T008, T009, T010, T011]
+    requirement_refs:
+      - FR-008
+      - FR-009
+      - FR-010
+      - FR-011
+      - FR-012
+      - FR-013
+      - NFR-001
+      - NFR-002
+      - NFR-004
+      - C-002
+      - C-004
+    subtasks:
+      - T008
+      - T009
+      - T010
+      - T011
     prompt_file: "tasks/WP03-per-file-ai-toggle.md"
