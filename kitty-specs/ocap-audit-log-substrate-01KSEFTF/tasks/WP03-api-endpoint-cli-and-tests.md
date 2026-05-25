@@ -25,7 +25,7 @@ subtasks:
 - T-N
 - T-O
 - T-P
-shell_pid: '63322'
+shell_pid: "63322"
 history: []
 authoritative_surface: packages/api/src/Audit
 execution_mode: code_change
@@ -54,6 +54,7 @@ tags:
 - api
 - cli
 - json-api
+agent: "claude"
 ---
 
 # WP03 — JSON:API audit endpoint + `audit:prune` CLI + integration tests + docs
@@ -162,3 +163,4 @@ spec-kitty agent tasks move-task WP03 --to for_review --mission ocap-audit-log-s
 6. `rg -nE 'use Waaseyaa\\Audit\\\\(Contract\|Adapter\|Entity\|Enum\|Writer\|Query\|Storage\|Listener\|Schema)' packages/api/src/` — list every match; only the adapter under `packages/api/src/Audit/ApiAuditQueryAdapter.php` should appear, importing `Waaseyaa\Audit\Contract\AuditQueryInterface` only (audit-side contract, api-side adapter).
 
 ## Activity Log
+- 2026-05-25T05:33:32Z – claude – shell_pid=63322 – Assigned agent via action command
