@@ -24,7 +24,8 @@ subtasks:
 - T017
 - T018
 assignee: ''
-agent: ''
+agent: "claude"
+shell_pid: "154271"
 history:
 - timestamp: '2026-05-25T00:00:00Z'
   agent: system
@@ -194,3 +195,4 @@ If any gate fails, transition to BLOCKED and do not merge.
 ## Activity Log
 
 _(populated during execution; record the path decision and its audit-grounded rationale FIRST, before any edits)_
+- 2026-05-25T06:27:59Z – claude – shell_pid=154271 – Started implementation via action command
