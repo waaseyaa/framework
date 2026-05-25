@@ -6,5 +6,7 @@
   "mission_slug": "per-record-ai-access-flagship-01KSEFT5",
   "mission_type": "software-dev",
   "slug": "per-record-ai-access-flagship-01KSEFT5",
-  "target_branch": "main"
+  "target_branch": "main",
+  "vcs": "git",
+  "vcs_locked_at": "2026-05-25T04:25:26.857639+00:00"
 }
