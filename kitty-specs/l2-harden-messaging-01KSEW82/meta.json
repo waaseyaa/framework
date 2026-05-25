@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-05-25T06:13:10.597258+00:00",
+  "friendly_name": "l2 harden messaging",
+  "mission_id": "01KSEW82PTZXM45D6T5NX7DNJ7",
+  "mission_number": null,
+  "mission_slug": "l2-harden-messaging-01KSEW82",
+  "mission_type": "software-dev",
+  "slug": "l2-harden-messaging-01KSEW82",
+  "target_branch": "main"
+}
