@@ -94,3 +94,4 @@ WP02 has no downstream WPs in this mission. After approval and merge, this WP co
 ## Activity Log
 
 (populated by the implementing agent as work progresses)
+- 2026-05-25T04:57:42Z – unknown – Opus review: markdown-only mission, verbatim from plan.md §1/§2. WP03/WP04 deferral markers documented per spec.

@@ -1,17 +1,17 @@
 {
-  "event_count": 14,
-  "last_event_id": "01KSEQXTC79GXVYTN6MVC05GDA",
-  "materialized_at": "2026-05-25T04:57:38.951943+00:00",
+  "event_count": 16,
+  "last_event_id": "01KSEQXXBAW8R9BR97CR4KPPWD",
+  "materialized_at": "2026-05-25T04:57:41.994883+00:00",
   "mission_number": "",
   "mission_slug": "succession-framework-tier1-publishing-01KSEFV6",
   "mission_type": "software-dev",
   "summary": {
-    "approved": 1,
+    "approved": 2,
     "blocked": 0,
     "canceled": 0,
     "claimed": 0,
     "done": 0,
-    "for_review": 3,
+    "for_review": 2,
     "in_progress": 0,
     "in_review": 0,
     "planned": 0
@@ -25,11 +25,11 @@
       "last_transition_at": "2026-05-25T04:57:38.951943+00:00"
     },
     "WP02": {
-      "actor": "claude",
+      "actor": "user",
       "force_count": 0,
-      "lane": "for_review",
-      "last_event_id": "01KSEQQTTF56ZWS2X64K4PKTXP",
-      "last_transition_at": "2026-05-25T04:54:22.799910+00:00"
+      "lane": "approved",
+      "last_event_id": "01KSEQXXBAW8R9BR97CR4KPPWD",
+      "last_transition_at": "2026-05-25T04:57:41.994883+00:00"
     },
     "WP03": {
       "actor": "claude",
