@@ -1,0 +1,43 @@
+work_packages:
+  - id: WP01
+    title: "AI observability read contract, adapter, binding, route, kernel-boot test"
+    dependencies: []
+    owned_files:
+      - "packages/api/src/AiObservability/AiObservabilityReadModelInterface.php"
+      - "packages/api/src/AiObservability/ObservabilitySummary.php"
+      - "packages/api/src/AiObservability/ModelUsageRow.php"
+      - "packages/api/src/AiObservability/PipelineUsageRow.php"
+      - "packages/api/src/Controller/AiObservabilityController.php"
+      - "packages/api/src/Http/Router/AiObservabilityApiRouter.php"
+      - "packages/api/src/ApiServiceProvider.php"
+      - "packages/api/composer.json"
+      - "packages/api/tests/Unit/Controller/AiObservabilityControllerTest.php"
+      - "packages/api/tests/Unit/Http/Router/AiObservabilityApiRouterTest.php"
+      - "packages/ai-observability/src/ReadModel/AiObservabilityReadModel.php"
+      - "packages/ai-observability/src/ObservabilityServiceProvider.php"
+      - "packages/ai-observability/tests/Unit/ReadModel/AiObservabilityReadModelTest.php"
+      - "packages/foundation/src/Kernel/BuiltinRouteRegistrar.php"
+      - "tests/Integration/PhaseAiObservability/AiObservabilityDashboardEndpointTest.php"
+    authoritative_surface: "packages/api/src/AiObservability"
+    execution_mode: "code_change"
+    requirement_refs: [FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, NFR-001, NFR-002, C-001, C-002, C-003]
+    subtasks: [T001, T002, T003, T004]
+    prompt_file: "tasks/WP01-observability-backend.md"
+  - id: WP02
+    title: "AI observability dashboard page, composable, nav, i18n, docs"
+    dependencies: [WP01]
+    owned_files:
+      - "packages/admin/app/composables/useAiObservability.ts"
+      - "packages/admin/app/pages/ai/observability.vue"
+      - "packages/admin/app/components/ai/AiObservabilitySummaryCards.vue"
+      - "packages/admin/app/components/ai/AiUsageTable.vue"
+      - "packages/admin/app/i18n/en.json"
+      - "packages/admin/tests/unit/composables/useAiObservability.test.ts"
+      - "packages/admin/e2e/ai-observability.spec.ts"
+      - "docs/specs/admin-spa.md"
+      - "CHANGELOG.md"
+    authoritative_surface: "packages/admin/app/pages/ai/observability.vue"
+    execution_mode: "code_change"
+    requirement_refs: [FR-008, FR-009, NFR-002, C-001, C-002]
+    subtasks: [T005, T006, T007]
+    prompt_file: "tasks/WP02-observability-frontend.md"
