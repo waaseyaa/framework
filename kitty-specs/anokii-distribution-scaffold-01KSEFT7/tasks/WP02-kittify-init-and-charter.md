@@ -12,7 +12,7 @@ planning_base_branch: main
 merge_target_branch: main
 branch_strategy: "Planning artifacts generated on main. WP02 runs inside the Anokii repo created by WP01; commits land on the Anokii repo's main."
 authoritative_surface: ".kittify/charter/charter.md"
-execution_mode: documentation
+execution_mode: planning_artifact
 owned_files:
   - ".kittify/charter/charter.md"
   - ".kittify/SPEC_KITTY_VERSION"

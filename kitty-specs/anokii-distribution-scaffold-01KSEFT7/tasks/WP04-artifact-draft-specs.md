@@ -13,7 +13,7 @@ planning_base_branch: main
 merge_target_branch: main
 branch_strategy: "Planning artifacts generated on main. WP04 runs in the Waaseyaa repo lane (NOT the Anokii repo); commits land in this scaffold mission's lane worktree."
 authoritative_surface: "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/"
-execution_mode: documentation
+execution_mode: planning_artifact
 owned_files:
   - "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/governed-drive.spec.md"
   - "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/form-builder.spec.md"

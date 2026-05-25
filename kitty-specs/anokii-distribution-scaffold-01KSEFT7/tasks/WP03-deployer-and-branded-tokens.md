@@ -12,7 +12,7 @@ planning_base_branch: main
 merge_target_branch: main
 branch_strategy: "Planning artifacts generated on main. WP03 runs inside the Anokii repo created by WP01; commits land on the Anokii repo's main."
 authoritative_surface: "deploy.php"
-execution_mode: scaffold
+execution_mode: code_change
 owned_files:
   - "deploy.php"
   - "config/classification.anokii-default.yaml"

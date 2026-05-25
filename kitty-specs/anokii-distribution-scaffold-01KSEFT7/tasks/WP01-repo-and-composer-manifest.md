@@ -6,6 +6,7 @@ requirement_refs:
   - FR-001
   - FR-002
   - FR-003
+  - FR-011
   - NFR-001
   - NFR-002
   - C-001
@@ -14,7 +15,7 @@ planning_base_branch: main
 merge_target_branch: main
 branch_strategy: "Planning artifacts generated on main. WP01 creates a NEW GitHub repo (anokii/anokii or <org>/anokii); commits land on the Anokii repo's main, not Waaseyaa's. The Waaseyaa-side mission lane records the WP01 outcome (commit SHAs, repo URL) in this WP's activity log."
 authoritative_surface: "composer.json"
-execution_mode: scaffold
+execution_mode: code_change
 owned_files:
   - "composer.json"
   - "LICENSE.txt"
