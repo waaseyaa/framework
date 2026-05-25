@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Media\Version;
 
-use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
@@ -29,7 +28,6 @@ final class MediaVersionRepository
     public function __construct(
         private readonly EntityRepositoryInterface $entityRepo,
         private readonly DatabaseInterface $db,
-        private readonly ?AccessChecker $checker = null,
         ?LoggerInterface $logger = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
@@ -38,9 +36,10 @@ final class MediaVersionRepository
     /**
      * Return all versions for a media entity, newest first (vid DESC).
      *
-     * If $account is supplied, versions are yielded as-is; per-entity access
-     * filtering is the controller's responsibility via EntityAccessHandler.
+     * Per-entity access filtering is the controller's responsibility
+     * via EntityAccessHandler / the policy gate.
      *
+     * @param AccountInterface|null $account Reserved for future per-version access filtering.
      * @return iterable<MediaVersion>
      */
     public function findVersionsForMedia(string $mediaUuid, ?AccountInterface $account = null): iterable
@@ -116,7 +115,7 @@ final class MediaVersionRepository
                 ) as $row
             ) {
                 /** @var array<string, mixed> $row */
-                if (isset($row['max_vid']) && $row['max_vid'] !== null) {
+                if (isset($row['max_vid'])) {
                     $maxVid = (int) $row['max_vid'];
                 }
                 break;
@@ -160,7 +159,7 @@ final class MediaVersionRepository
                 $this->entityRepo->delete($version);
             } catch (\Throwable $e) {
                 $this->logger->warning(
-                    sprintf('Failed to delete MediaVersion (uuid=%s): %s', $version->uuid() ?? '', $e->getMessage()),
+                    sprintf('Failed to delete MediaVersion (uuid=%s): %s', $version->uuid(), $e->getMessage()),
                 );
             }
         }

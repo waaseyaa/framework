@@ -110,6 +110,21 @@ abstract class ServiceProvider implements ServiceProviderInterface
         $this->tags[$tag][] = $abstract;
     }
 
+    /**
+     * Resolve an abstract without throwing — returns null when not bound.
+     *
+     * Useful for optional framework services (event dispatcher, logger, writer)
+     * whose absence must not crash the provider.
+     */
+    public function resolveOptional(string $abstract): ?object
+    {
+        try {
+            return $this->resolve($abstract);
+        } catch (\RuntimeException) {
+            return null;
+        }
+    }
+
     public function resolve(string $abstract): object
     {
         if (isset($this->resolved[$abstract])) {

@@ -4,12 +4,21 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Media;
 
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
+use Waaseyaa\Audit\Contract\AuditWriterInterface;
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
+use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Media\Http\Router\MediaRouter;
-use Waaseyaa\Media\Version\MediaVersion;
+use Waaseyaa\Media\Version\ContentAddressedFileRepositoryDecorator;
+use Waaseyaa\Media\Version\MediaCascadeDeleteSubscriber;
+use Waaseyaa\Media\Version\MediaVersionRepository;
+use Waaseyaa\Media\Version\MediaVersionStorageDriver;
 use Waaseyaa\Media\Version\MediaVersionType;
 
 final class MediaServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface
@@ -49,5 +58,38 @@ final class MediaServiceProvider extends ServiceProvider implements HasHttpDomai
 
         // WP01 (versioned-blob-media-abstraction-01KSEFTJ): content-addressed version entity.
         $this->entityType(MediaVersionType::create());
+    }
+
+    public function boot(): void
+    {
+        // WP02 (versioned-blob-media-abstraction-01KSEFTJ): wire versioning subscribers.
+        $dispatcher = $this->resolveOptional(EventDispatcherInterface::class);
+        if (!$dispatcher instanceof EventDispatcherInterface) {
+            return;
+        }
+
+        $db = $this->resolveOptional(DatabaseInterface::class);
+        $auditWriter = $this->resolveOptional(AuditWriterInterface::class);
+        $logger = $this->resolveOptional(LoggerInterface::class);
+        $resolvedLogger = $logger instanceof LoggerInterface ? $logger : null;
+
+        if ($db instanceof DatabaseInterface) {
+            $etm = $this->resolveOptional(EntityTypeManager::class);
+            $entityRepo = $etm instanceof EntityTypeManager
+                ? $etm->getRepository('media_version')
+                : null;
+
+            if ($entityRepo instanceof EntityRepositoryInterface) {
+                $cas = new ContentAddressedFileRepositoryDecorator(new InMemoryFileRepository());
+                $versionRepo = new MediaVersionRepository($entityRepo, $db, $resolvedLogger);
+
+                if ($auditWriter instanceof AuditWriterInterface) {
+                    $driver = new MediaVersionStorageDriver($versionRepo, $cas, $auditWriter, $resolvedLogger);
+                    $dispatcher->addSubscriber($driver);
+                }
+
+                $dispatcher->addSubscriber(new MediaCascadeDeleteSubscriber($versionRepo, $resolvedLogger));
+            }
+        }
     }
 }
