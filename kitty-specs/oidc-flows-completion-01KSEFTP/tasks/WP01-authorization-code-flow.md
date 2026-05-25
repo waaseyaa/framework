@@ -121,3 +121,4 @@ The lane worktree has no `vendor/`; run `composer install` first.
 ## Activity Log
 - 2026-05-25T05:29:40Z – unknown – subagent shipped code retroactively
 - 2026-05-25T05:30:13Z – unknown – code already committed: 221ac1248..a7240b47f
+- 2026-05-25T05:30:23Z – unknown – Opus review: all 5 OIDC WPs cleanly committed; gates pass; DIR-004 userinfo field-access wiring confirmed; subagent self-corrected DatabaseInterface::getConnection() per CLAUDE.md gotcha
