@@ -1,28 +1,28 @@
 {
-  "event_count": 11,
-  "last_event_id": "01KSEX387GC5CD8H0Z1QHA0374",
-  "materialized_at": "2026-05-25T06:27:59.856692+00:00",
+  "event_count": 13,
+  "last_event_id": "01KSEXYVSXR51M9FEM9867CBMN",
+  "materialized_at": "2026-05-25T06:43:04.637489+00:00",
   "mission_number": "",
   "mission_slug": "database-legacy-retirement-01KSEFV2",
   "mission_type": "software-dev",
   "summary": {
-    "approved": 0,
+    "approved": 1,
     "blocked": 0,
     "canceled": 0,
     "claimed": 0,
     "done": 0,
     "for_review": 2,
-    "in_progress": 1,
+    "in_progress": 0,
     "in_review": 0,
     "planned": 0
   },
   "work_packages": {
     "WP01": {
       "actor": "user",
-      "force_count": 1,
-      "lane": "for_review",
-      "last_event_id": "01KSEWQCND0S95RC4CQSKTRGPM",
-      "last_transition_at": "2026-05-25T06:21:31.181804+00:00"
+      "force_count": 2,
+      "lane": "approved",
+      "last_event_id": "01KSEXYVSXR51M9FEM9867CBMN",
+      "last_transition_at": "2026-05-25T06:43:04.637489+00:00"
     },
     "WP02": {
       "actor": "user",
@@ -34,9 +34,9 @@
     "WP03": {
       "actor": "claude",
       "force_count": 1,
-      "lane": "in_progress",
-      "last_event_id": "01KSEX387GC5CD8H0Z1QHA0374",
-      "last_transition_at": "2026-05-25T06:27:59.856692+00:00"
+      "lane": "for_review",
+      "last_event_id": "01KSEXNQ18SFY9QR785E159SMT",
+      "last_transition_at": "2026-05-25T06:38:04.840976+00:00"
     }
   }
 }
