@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "mission_slug": "database-legacy-retirement-01KSEFV2",
+  "mission_id": "01KSEFV20WNTXM3EYRDFAHJTV1",
+  "mission_branch": "kitty/mission-database-legacy-retirement-01KSEFV2",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP02",
+        "WP03"
+      ],
+      "write_scope": [
+        ".github/workflows/split.yml",
+        "CHANGELOG.md",
+        "CLAUDE.md",
+        "composer.json",
+        "docs/adr/",
+        "kitty-specs/database-legacy-retirement-01KSEFV2/occurrence_map.yaml",
+        "packages/database-legacy/"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "legacy-cleanup"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    },
+    {
+      "lane_id": "lane-planning",
+      "wp_ids": [
+        "WP01"
+      ],
+      "write_scope": [
+        "docs/audits/2026-05-database-legacy-usage.md"
+      ],
+      "predicted_surfaces": [
+        "planning"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-05-25T06:22:38.229167+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": [
+    "WP01"
+  ],
+  "collapse_report": {
+    "events": [
+      {
+        "wp_a": "WP03",
+        "wp_b": "WP02",
+        "rule": "dependency",
+        "evidence": "WP03 depends on WP02"
+      }
+    ],
+    "total_merges": 1,
+    "independent_wps_collapsed": 0,
+    "by_rule": {
+      "dependency": 1
+    }
+  }
+}

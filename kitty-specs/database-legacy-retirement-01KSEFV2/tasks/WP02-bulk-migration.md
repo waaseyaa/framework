@@ -31,7 +31,6 @@ authoritative_surface: kitty-specs/database-legacy-retirement-01KSEFV2/occurrenc
 execution_mode: code_change
 owned_files:
 - kitty-specs/database-legacy-retirement-01KSEFV2/occurrence_map.yaml
-- packages/
 tags: []
 ---
 # Work Package Prompt: WP02 — Bulk migration of (a) callsites + (c) follow-up filing
