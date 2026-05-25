@@ -128,7 +128,8 @@
                 "Waaseyaa\\CLI\\Provider\\MiscAServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\MiscBServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\OtherScaffoldsServiceProvider",
-                "Waaseyaa\\CLI\\Provider\\NorthCloudServiceProvider"
+                "Waaseyaa\\CLI\\Provider\\NorthCloudServiceProvider",
+                "Waaseyaa\\CLI\\Provider\\OidcServiceProvider"
             ]
         }
     },
