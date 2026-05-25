@@ -17,7 +17,7 @@ subtasks:
   - "T008"
 phase: "Phase 2 - Audit + follow-ups"
 assignee: ""
-agent: ""
+agent: "claude"
 shell_pid: ""
 authoritative_surface: "docs/specs/jsonapi.md"
 execution_mode: "documentation"
@@ -95,4 +95,4 @@ Read `CHANGELOG.md`. Under `[Unreleased]` → `### Changed`, append the verbatim
 5. Output of `rg -c 'GAP' docs/specs/jsonapi.md` (must match the number of follow-up missions filed).
 
 ## Activity Log
-
+- 2026-05-25T18:41:07Z – claude – Moved to in_progress
