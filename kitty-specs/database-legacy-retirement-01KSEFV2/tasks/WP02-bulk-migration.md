@@ -28,7 +28,7 @@ history:
   agent: system
   action: Frontmatter added to fix malformed metadata
 authoritative_surface: kitty-specs/database-legacy-retirement-01KSEFV2/occurrence_map.yaml
-execution_mode: bulk_edit
+execution_mode: code_change
 owned_files:
 - kitty-specs/database-legacy-retirement-01KSEFV2/occurrence_map.yaml
 - packages/
