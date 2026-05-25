@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-05-25T02:36:11.185883+00:00",
+  "friendly_name": "inertia demotion nuxt standardisation",
+  "mission_id": "01KSEFTS99MT9AV5KQJVP5CEDH",
+  "mission_number": null,
+  "mission_slug": "inertia-demotion-nuxt-standardisation-01KSEFTS",
+  "mission_type": "software-dev",
+  "slug": "inertia-demotion-nuxt-standardisation-01KSEFTS",
+  "target_branch": "main"
+}
