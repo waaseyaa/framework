@@ -15,6 +15,7 @@ work_packages:
     owned_files:
       - "kitty-specs/database-legacy-retirement-01KSEFV2/occurrence_map.yaml"
     authoritative_surface: "kitty-specs/database-legacy-retirement-01KSEFV2/occurrence_map.yaml"
+
     execution_mode: "code_change"
     requirement_refs: [FR-004, FR-005, NFR-001, NFR-002, NFR-005, C-002, C-003]
     subtasks: [T007, T008, T009, T010, T011, T012]
