@@ -110,3 +110,4 @@ All green.
 
 ## Activity Log
 - 2026-05-25T18:41:04Z – claude – Moved to in_progress
+- 2026-05-25T18:44:34Z – claude – GraphQL README banner + manifest demotion landed; gates green.
