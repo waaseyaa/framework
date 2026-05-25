@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-05-25T00:43:13.490456+00:00",
+  "friendly_name": "ai observability dashboard",
+  "mission_id": "01KSE9BXVFDDBGCPZ4KN1F8YPM",
+  "mission_number": null,
+  "mission_slug": "ai-observability-dashboard-01KSE9BX",
+  "mission_type": "software-dev",
+  "slug": "ai-observability-dashboard-01KSE9BX",
+  "target_branch": "main"
+}
