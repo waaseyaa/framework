@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-05-25T02:35:52.649750+00:00",
+  "friendly_name": "anokii distribution scaffold",
+  "mission_id": "01KSEFT768GN09JZXHWMAMJNFR",
+  "mission_number": null,
+  "mission_slug": "anokii-distribution-scaffold-01KSEFT7",
+  "mission_type": "software-dev",
+  "slug": "anokii-distribution-scaffold-01KSEFT7",
+  "target_branch": "main"
+}
