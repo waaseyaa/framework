@@ -119,4 +119,4 @@ The lane worktree has no `vendor/`; run `composer install` first.
 5. Confirmation that re-POSTing the same `code` returns `{error: "invalid_grant"}` and not the original token pair.
 
 ## Activity Log
-
+- 2026-05-25T05:29:40Z – unknown – subagent shipped code retroactively
