@@ -6,5 +6,7 @@
   "mission_slug": "offline-first-sync-substrate-01KSEFTM",
   "mission_type": "software-dev",
   "slug": "offline-first-sync-substrate-01KSEFTM",
-  "target_branch": "main"
+  "target_branch": "main",
+  "vcs": "git",
+  "vcs_locked_at": "2026-05-25T05:36:32.087040+00:00"
 }

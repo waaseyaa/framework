@@ -13,10 +13,14 @@ requirement_refs:
 planning_base_branch: main
 merge_target_branch: main
 branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
+base_branch: kitty/mission-offline-first-sync-substrate-01KSEFTM
+base_commit: 9e041b7090ba8a6e2eee100adaaeb96bc9a707d2
+created_at: '2026-05-25T05:36:32.793489+00:00'
 subtasks:
 - T-A
 - T-B
 - T-C
+shell_pid: '69774'
 history: []
 authoritative_surface: packages/admin/app/offline/db
 execution_mode: code_change
