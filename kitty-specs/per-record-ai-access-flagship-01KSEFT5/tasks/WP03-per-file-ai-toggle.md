@@ -27,8 +27,8 @@ subtasks:
 - T011
 phase: Phase 1 — Per-file AI toggle
 assignee: ''
-agent: ''
-shell_pid: '4172888'
+agent: "claude"
+shell_pid: "4172888"
 history:
 - timestamp: '2026-05-25T02:35:50Z'
   agent: system
@@ -187,3 +187,7 @@ spec-kitty agent tasks move-task WP03 --to for_review --mission per-record-ai-ac
 - Confirmation `bin/check-package-layers` is green (no L1 → L5 imports introduced).
 - Confirmation no `use Waaseyaa\AI\` import exists in `packages/access/src/Policy/AiAccessibilityPolicy.php`.
 - Any deviation from the `'inherit' → 'yes' until M-A4'` semantics + why.
+
+## Activity Log
+
+- 2026-05-25T04:47:43Z – claude – shell_pid=4172888 – Assigned agent via action command
