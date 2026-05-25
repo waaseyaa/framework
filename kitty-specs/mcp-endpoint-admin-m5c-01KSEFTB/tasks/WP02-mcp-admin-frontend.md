@@ -134,3 +134,4 @@ GET /api/mcp/server-config
 ## Activity Log
 
 (implementer appends here)
+- 2026-05-25T06:09:36Z – unknown – Moved to in_progress
