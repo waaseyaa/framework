@@ -1,31 +1,33 @@
 ---
 work_package_id: WP03
-title: "Deployer recipe overlay + branded UX baseline"
-dependencies: [WP02]
+title: Deployer recipe overlay + branded UX baseline
+dependencies:
+- WP02
 requirement_refs:
-  - FR-006
-  - FR-007
-  - NFR-004
-  - C-001
-  - C-005
+- FR-006
+- FR-007
+- NFR-004
+- C-001
+- C-005
 planning_base_branch: main
 merge_target_branch: main
-branch_strategy: "Planning artifacts generated on main. WP03 runs inside the Anokii repo created by WP01; commits land on the Anokii repo's main."
-authoritative_surface: "deploy.php"
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
+subtasks:
+- T010
+- T011
+- T012
+- T013
+agent: ''
+history: []
+authoritative_surface: deploy.php
 execution_mode: code_change
 owned_files:
-  - "deploy.php"
-  - "config/classification.anokii-default.yaml"
-  - "config/tenants/sagamok.yaml.example"
-  - "assets/theme/anokii-tokens.css"
-  - "CHANGELOG.md"
-subtasks:
-  - T010
-  - T011
-  - T012
-  - T013
-agent: ""
-history: []
+- deploy.php
+- config/classification.anokii-default.yaml
+- config/tenants/sagamok.yaml.example
+- assets/theme/anokii-tokens.css
+- CHANGELOG.md
+tags: []
 ---
 
 # WP03 — Deployer recipe overlay + branded UX baseline

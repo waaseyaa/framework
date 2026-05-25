@@ -1,35 +1,36 @@
 ---
 work_package_id: WP01
-title: "GitHub repo creation + initial Composer manifest"
+title: GitHub repo creation + initial Composer manifest
 dependencies: []
 requirement_refs:
-  - FR-001
-  - FR-002
-  - FR-003
-  - FR-011
-  - NFR-001
-  - NFR-002
-  - C-001
-  - C-003
+- FR-001
+- FR-002
+- FR-003
+- FR-011
+- NFR-001
+- NFR-002
+- C-001
+- C-003
 planning_base_branch: main
 merge_target_branch: main
-branch_strategy: "Planning artifacts generated on main. WP01 creates a NEW GitHub repo (anokii/anokii or <org>/anokii); commits land on the Anokii repo's main, not Waaseyaa's. The Waaseyaa-side mission lane records the WP01 outcome (commit SHAs, repo URL) in this WP's activity log."
-authoritative_surface: "composer.json"
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
+subtasks:
+- T001
+- T002
+- T003
+- T004
+- T005
+- T006
+agent: ''
+history: []
+authoritative_surface: composer.json
 execution_mode: code_change
 owned_files:
-  - "composer.json"
-  - "LICENSE.txt"
-  - "README.md"
-  - ".gitignore"
-subtasks:
-  - T001
-  - T002
-  - T003
-  - T004
-  - T005
-  - T006
-agent: ""
-history: []
+- composer.json
+- LICENSE.txt
+- README.md
+- .gitignore
+tags: []
 ---
 
 # WP01 — GitHub repo creation + initial Composer manifest

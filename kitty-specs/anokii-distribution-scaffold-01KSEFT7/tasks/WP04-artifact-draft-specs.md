@@ -1,37 +1,39 @@
 ---
 work_package_id: WP04
-title: "Ten artifact draft specs (8 surfaces + 2 cross-cutting)"
-dependencies: [WP02]
+title: Ten artifact draft specs (8 surfaces + 2 cross-cutting)
+dependencies:
+- WP02
 requirement_refs:
-  - FR-008
-  - FR-009
-  - FR-010
-  - NFR-003
-  - C-001
-  - C-002
+- FR-008
+- FR-009
+- FR-010
+- NFR-003
+- C-001
+- C-002
 planning_base_branch: main
 merge_target_branch: main
-branch_strategy: "Planning artifacts generated on main. WP04 runs in the Waaseyaa repo lane (NOT the Anokii repo); commits land in this scaffold mission's lane worktree."
-authoritative_surface: "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/"
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
+subtasks:
+- T014
+- T015
+- T016
+- T017
+agent: ''
+history: []
+authoritative_surface: kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/
 execution_mode: planning_artifact
 owned_files:
-  - "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/governed-drive.spec.md"
-  - "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/form-builder.spec.md"
-  - "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/tasks.spec.md"
-  - "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/data-rooms.spec.md"
-  - "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/governed-docs.spec.md"
-  - "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/governed-sheets.spec.md"
-  - "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/co-intelligence-workspaces.spec.md"
-  - "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/admin-centre.spec.md"
-  - "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/cross-cutting/offline-first.spec.md"
-  - "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/cross-cutting/aoda-aa-baseline.spec.md"
-subtasks:
-  - T014
-  - T015
-  - T016
-  - T017
-agent: ""
-history: []
+- kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/governed-drive.spec.md
+- kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/form-builder.spec.md
+- kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/tasks.spec.md
+- kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/data-rooms.spec.md
+- kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/governed-docs.spec.md
+- kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/governed-sheets.spec.md
+- kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/co-intelligence-workspaces.spec.md
+- kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/admin-centre.spec.md
+- kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/cross-cutting/offline-first.spec.md
+- kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/cross-cutting/aoda-aa-baseline.spec.md
+tags: []
 ---
 
 # WP04 — Ten artifact draft specs (8 surfaces + 2 cross-cutting)

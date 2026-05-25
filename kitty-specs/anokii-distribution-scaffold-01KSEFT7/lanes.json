@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "mission_slug": "anokii-distribution-scaffold-01KSEFT7",
+  "mission_id": "01KSEFT768GN09JZXHWMAMJNFR",
+  "mission_branch": "kitty/mission-anokii-distribution-scaffold-01KSEFT7",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01"
+      ],
+      "write_scope": [
+        ".gitignore",
+        "LICENSE.txt",
+        "README.md",
+        "composer.json"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "legacy-cleanup",
+        "workspace"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    },
+    {
+      "lane_id": "lane-b",
+      "wp_ids": [
+        "WP03"
+      ],
+      "write_scope": [
+        "CHANGELOG.md",
+        "assets/theme/anokii-tokens.css",
+        "config/classification.anokii-default.yaml",
+        "config/tenants/sagamok.yaml.example",
+        "deploy.php"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "artifact-rendering"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    },
+    {
+      "lane_id": "lane-planning",
+      "wp_ids": [
+        "WP02",
+        "WP04"
+      ],
+      "write_scope": [
+        ".kittify/SPEC_KITTY_VERSION",
+        ".kittify/charter/charter.md",
+        "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/cross-cutting/aoda-aa-baseline.spec.md",
+        "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/cross-cutting/offline-first.spec.md",
+        "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/admin-centre.spec.md",
+        "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/co-intelligence-workspaces.spec.md",
+        "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/data-rooms.spec.md",
+        "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/form-builder.spec.md",
+        "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/governed-docs.spec.md",
+        "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/governed-drive.spec.md",
+        "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/governed-sheets.spec.md",
+        "kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/tasks.spec.md"
+      ],
+      "predicted_surfaces": [
+        "planning"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-05-25T04:56:21.829352+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": [
+    "WP02",
+    "WP04"
+  ]
+}
