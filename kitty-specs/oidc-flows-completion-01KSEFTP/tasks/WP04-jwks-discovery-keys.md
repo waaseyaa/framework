@@ -141,4 +141,4 @@ cd <path printed by `spec-kitty agent action implement WP04`>
 5. Paste the `oidc:rotate-signing-key` output from a fresh run.
 
 ## Activity Log
-
+- 2026-05-25T05:30:09Z – unknown – subagent shipped retroactively
