@@ -1,28 +1,29 @@
 ---
 work_package_id: WP02
-title: ".kittify init + Anokii distribution charter"
-dependencies: [WP01]
+title: .kittify init + Anokii distribution charter
+dependencies:
+- WP01
 requirement_refs:
-  - FR-004
-  - FR-005
-  - C-001
-  - C-003
-  - C-004
+- FR-004
+- FR-005
+- C-001
+- C-003
+- C-004
 planning_base_branch: main
 merge_target_branch: main
-branch_strategy: "Planning artifacts generated on main. WP02 runs inside the Anokii repo created by WP01; commits land on the Anokii repo's main."
-authoritative_surface: ".kittify/charter/charter.md"
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
+subtasks:
+- T007
+- T008
+- T009
+agent: ''
+history: []
+authoritative_surface: .kittify/charter/charter.md
 execution_mode: planning_artifact
 owned_files:
-  - ".kittify/charter/charter.md"
-  - ".kittify/SPEC_KITTY_VERSION"
-  - ".gitignore"
-subtasks:
-  - T007
-  - T008
-  - T009
-agent: ""
-history: []
+- .kittify/charter/charter.md
+- .kittify/SPEC_KITTY_VERSION
+tags: []
 ---
 
 # WP02 — `.kittify` init + Anokii distribution charter

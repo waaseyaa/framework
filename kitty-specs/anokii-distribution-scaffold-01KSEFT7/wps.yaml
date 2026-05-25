@@ -18,7 +18,6 @@ work_packages:
     owned_files:
       - ".kittify/charter/charter.md"
       - ".kittify/SPEC_KITTY_VERSION"
-      - ".gitignore"
     authoritative_surface: ".kittify/charter/charter.md"
     execution_mode: "planning_artifact"
     requirement_refs: [FR-004, FR-005, C-001, C-003, C-004]
