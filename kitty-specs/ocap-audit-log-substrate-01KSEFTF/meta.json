@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-05-25T02:36:01.279444+00:00",
+  "friendly_name": "ocap audit log substrate",
+  "mission_id": "01KSEFTFKWPRMX3KTJCFKYS9P1",
+  "mission_number": null,
+  "mission_slug": "ocap-audit-log-substrate-01KSEFTF",
+  "mission_type": "software-dev",
+  "slug": "ocap-audit-log-substrate-01KSEFTF",
+  "target_branch": "main"
+}
