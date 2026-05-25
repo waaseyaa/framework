@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-05-25T02:36:06.579534+00:00",
+  "friendly_name": "offline first sync substrate",
+  "mission_id": "01KSEFTMSAV1E8WNDG6XXHPHHP",
+  "mission_number": null,
+  "mission_slug": "offline-first-sync-substrate-01KSEFTM",
+  "mission_type": "software-dev",
+  "slug": "offline-first-sync-substrate-01KSEFTM",
+  "target_branch": "main"
+}
