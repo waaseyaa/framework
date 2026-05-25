@@ -1,43 +1,48 @@
 ---
 work_package_id: WP03
-title: "Scheduled retention jobs (purge, redact, hold-scan), best-effort wrapping, FR-015 integration test with dead-code guard"
+title: Scheduled retention jobs (purge, redact, hold-scan), best-effort wrapping, FR-015 integration test with dead-code guard
 dependencies:
-  - WP01
-  - WP02
+- WP01
+- WP02
 requirement_refs:
-  - FR-009
-  - FR-010
-  - FR-011
-  - FR-012
-  - FR-015
-  - NFR-004
-  - C-003
-  - C-004
+- FR-009
+- FR-010
+- FR-011
+- FR-012
+- FR-015
+- NFR-004
+- C-003
+- C-004
 planning_base_branch: main
 merge_target_branch: main
-branch_strategy: "Branches from WP02 merge commit. Completed work merges back into main."
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
 subtasks:
-  - T-M
-  - T-N
-  - T-O
-  - T-P
-  - T-Q
-  - T-R
-authoritative_surface: "packages/field/src/Classification/Job"
+- T-M
+- T-N
+- T-O
+- T-P
+- T-Q
+- T-R
+history: []
+authoritative_surface: packages/field/src/Classification/Job
 execution_mode: code_change
 owned_files:
-  - packages/field/src/Classification/Schedule/ClassificationRetentionScheduleEntries.php
-  - packages/field/src/Classification/Job/PurgeJob.php
-  - packages/field/src/Classification/Job/RedactJob.php
-  - packages/field/src/Classification/Job/HoldScanJob.php
-  - packages/field/tests/Unit/Classification/Schedule/ClassificationRetentionScheduleEntriesTest.php
-  - packages/field/tests/Unit/Classification/Job/PurgeJobTest.php
-  - packages/field/tests/Unit/Classification/Job/RedactJobTest.php
-  - packages/field/tests/Unit/Classification/Job/HoldScanJobTest.php
-  - packages/field/tests/Unit/Classification/Job/BestEffortTest.php
-  - tests/Integration/PhaseClassificationRetention/ClassificationRetentionIntegrationTest.php
-tags: ["substrate", "classification", "retention", "scheduler", "integration-test"]
-history: []
+- packages/field/src/Classification/Schedule/ClassificationRetentionScheduleEntries.php
+- packages/field/src/Classification/Job/PurgeJob.php
+- packages/field/src/Classification/Job/RedactJob.php
+- packages/field/src/Classification/Job/HoldScanJob.php
+- packages/field/tests/Unit/Classification/Schedule/ClassificationRetentionScheduleEntriesTest.php
+- packages/field/tests/Unit/Classification/Job/PurgeJobTest.php
+- packages/field/tests/Unit/Classification/Job/RedactJobTest.php
+- packages/field/tests/Unit/Classification/Job/HoldScanJobTest.php
+- packages/field/tests/Unit/Classification/Job/BestEffortTest.php
+- tests/Integration/PhaseClassificationRetention/ClassificationRetentionIntegrationTest.php
+tags:
+- substrate
+- classification
+- retention
+- scheduler
+- integration-test
 ---
 
 # WP03 — Scheduled retention jobs + integration test
