@@ -9,6 +9,8 @@ use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Media\Http\Router\MediaRouter;
+use Waaseyaa\Media\Version\MediaVersion;
+use Waaseyaa\Media\Version\MediaVersionType;
 
 final class MediaServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface
 {
@@ -44,5 +46,8 @@ final class MediaServiceProvider extends ServiceProvider implements HasHttpDomai
             keys: ['id' => 'id', 'label' => 'label'],
             group: 'media',
         ));
+
+        // WP01 (versioned-blob-media-abstraction-01KSEFTJ): content-addressed version entity.
+        $this->entityType(MediaVersionType::create());
     }
 }
