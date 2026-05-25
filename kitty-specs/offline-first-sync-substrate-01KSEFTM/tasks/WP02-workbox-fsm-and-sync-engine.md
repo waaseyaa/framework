@@ -1,47 +1,54 @@
 ---
 work_package_id: WP02
-title: "Workbox service worker + PWA manifest, SyncStateMachine FSM, ConflictResolver (classification-aware), SyncEngine, Mercure consumer extension"
+title: Workbox service worker + PWA manifest, SyncStateMachine FSM, ConflictResolver (classification-aware), SyncEngine, Mercure consumer extension
 dependencies:
-  - WP01
+- WP01
 requirement_refs:
-  - FR-002
-  - FR-003
-  - FR-004
-  - FR-005
-  - FR-008
-  - FR-011
-  - NFR-001
-  - NFR-004
-  - NFR-005
-  - C-002
-  - C-003
-  - C-004
+- FR-002
+- FR-003
+- FR-004
+- FR-005
+- FR-008
+- FR-011
+- NFR-001
+- NFR-004
+- NFR-005
+- C-002
+- C-003
+- C-004
 planning_base_branch: main
 merge_target_branch: main
-branch_strategy: "Branches from WP01 merge commit. Completed work merges back into main."
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
 subtasks:
-  - T-D
-  - T-E
-  - T-F
-  - T-G
-  - T-H
-  - T-I
-authoritative_surface: "packages/admin/app/offline/sync"
+- T-D
+- T-E
+- T-F
+- T-G
+- T-H
+- T-I
+history: []
+authoritative_surface: packages/admin/app/offline/sync
 execution_mode: code_change
 owned_files:
-  - packages/admin/sw.ts
-  - packages/admin/nuxt.config.ts
-  - packages/admin/app/offline/sync/SyncStateMachine.ts
-  - packages/admin/app/offline/sync/ConflictResolver.ts
-  - packages/admin/app/offline/sync/SyncEngine.ts
-  - packages/admin/app/composables/useOfflineRealtime.ts
-  - packages/admin/app/composables/useRealtime.ts
-  - packages/admin/tests/unit/offline/sync/SyncStateMachineTest.test.ts
-  - packages/admin/tests/unit/offline/sync/ConflictResolverTest.test.ts
-  - packages/admin/tests/unit/offline/sync/SyncEngineTest.test.ts
-  - packages/admin/public/offline.html
-tags: ["substrate", "offline", "workbox", "service-worker", "fsm", "sync", "mercure"]
-history: []
+- packages/admin/sw.ts
+- packages/admin/nuxt.config.ts
+- packages/admin/app/offline/sync/SyncStateMachine.ts
+- packages/admin/app/offline/sync/ConflictResolver.ts
+- packages/admin/app/offline/sync/SyncEngine.ts
+- packages/admin/app/composables/useOfflineRealtime.ts
+- packages/admin/app/composables/useRealtime.ts
+- packages/admin/tests/unit/offline/sync/SyncStateMachineTest.test.ts
+- packages/admin/tests/unit/offline/sync/ConflictResolverTest.test.ts
+- packages/admin/tests/unit/offline/sync/SyncEngineTest.test.ts
+- packages/admin/public/offline.html
+tags:
+- substrate
+- offline
+- workbox
+- service-worker
+- fsm
+- sync
+- mercure
 ---
 
 # WP02 — Workbox service worker + sync FSM + ConflictResolver + SyncEngine + Mercure consumer

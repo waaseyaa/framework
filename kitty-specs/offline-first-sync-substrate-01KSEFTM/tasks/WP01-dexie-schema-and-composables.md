@@ -1,35 +1,41 @@
 ---
 work_package_id: WP01
-title: "Dexie IndexedDB schema (5 tables mirroring two-axis tuple), OfflineDatabase, base composables (useOfflineSync shell, useOfflineEntity)"
+title: Dexie IndexedDB schema (5 tables mirroring two-axis tuple), OfflineDatabase, base composables (useOfflineSync shell, useOfflineEntity)
 dependencies: []
 requirement_refs:
-  - FR-001
-  - FR-009
-  - FR-011
-  - NFR-001
-  - NFR-003
-  - C-001
-  - C-002
+- FR-001
+- FR-009
+- FR-011
+- NFR-001
+- NFR-003
+- C-001
+- C-002
 planning_base_branch: main
 merge_target_branch: main
-branch_strategy: "Planning artifacts generated on main. WP branches from main once both ocap-audit-log-substrate-01KSEFTF and classification-retention-engine-01KSEFTH have merged."
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
 subtasks:
-  - T-A
-  - T-B
-  - T-C
-authoritative_surface: "packages/admin/app/offline/db"
+- T-A
+- T-B
+- T-C
+history: []
+authoritative_surface: packages/admin/app/offline/db
 execution_mode: code_change
 owned_files:
-  - packages/admin/package.json
-  - packages/admin/app/offline/db/OfflineDatabase.ts
-  - packages/admin/app/offline/db/types.ts
-  - packages/admin/app/offline/db/index.ts
-  - packages/admin/app/composables/useOfflineSync.ts
-  - packages/admin/app/composables/useOfflineEntity.ts
-  - packages/admin/tests/unit/offline/db/OfflineDatabaseTest.test.ts
-  - packages/admin/tests/unit/offline/composables/useOfflineEntityTest.test.ts
-tags: ["substrate", "offline", "dexie", "indexeddb", "admin-spa", "layer-6"]
-history: []
+- packages/admin/package.json
+- packages/admin/app/offline/db/OfflineDatabase.ts
+- packages/admin/app/offline/db/types.ts
+- packages/admin/app/offline/db/index.ts
+- packages/admin/app/composables/useOfflineSync.ts
+- packages/admin/app/composables/useOfflineEntity.ts
+- packages/admin/tests/unit/offline/db/OfflineDatabaseTest.test.ts
+- packages/admin/tests/unit/offline/composables/useOfflineEntityTest.test.ts
+tags:
+- substrate
+- offline
+- dexie
+- indexeddb
+- admin-spa
+- layer-6
 ---
 
 # WP01 — Dexie IndexedDB schema + OfflineDatabase + composable shells

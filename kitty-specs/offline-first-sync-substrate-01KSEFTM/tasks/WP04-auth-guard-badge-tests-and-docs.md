@@ -1,42 +1,48 @@
 ---
 work_package_id: WP04
-title: "Auth offline guard, OfflineStatusBadge component, FR-012 integration test, FR-013 Playwright spec, docs, CHANGELOG"
+title: Auth offline guard, OfflineStatusBadge component, FR-012 integration test, FR-013 Playwright spec, docs, CHANGELOG
 dependencies:
-  - WP02
-  - WP03
+- WP02
+- WP03
 requirement_refs:
-  - FR-009
-  - FR-010
-  - FR-012
-  - FR-013
-  - FR-015
-  - NFR-002
-  - NFR-003
-  - C-005
+- FR-009
+- FR-010
+- FR-012
+- FR-013
+- FR-015
+- NFR-002
+- NFR-003
+- C-005
 planning_base_branch: main
 merge_target_branch: main
-branch_strategy: "Branches from WP03 merge commit. Completed work merges back into main."
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
 subtasks:
-  - T-N
-  - T-O
-  - T-P
-  - T-Q
-  - T-R
-authoritative_surface: "packages/admin/app/offline/auth"
+- T-N
+- T-O
+- T-P
+- T-Q
+- T-R
+history: []
+authoritative_surface: packages/admin/app/offline/auth
 execution_mode: code_change
 owned_files:
-  - packages/admin/app/offline/auth/OfflineAuthGuard.ts
-  - packages/admin/app/components/offline/OfflineStatusBadge.vue
-  - packages/admin/app/i18n/en.json
-  - packages/admin/app/layouts/default.vue
-  - packages/admin/tests/unit/offline/auth/OfflineAuthGuardTest.test.ts
-  - packages/admin/tests/integration/offline/OfflineSyncIntegrationTest.test.ts
-  - packages/admin/e2e/offline-sync.spec.ts
-  - docs/specs/offline-first-sync.md
-  - CLAUDE.md
-  - CHANGELOG.md
-tags: ["substrate", "offline", "auth", "ui-badge", "integration-test", "docs"]
-history: []
+- packages/admin/app/offline/auth/OfflineAuthGuard.ts
+- packages/admin/app/components/offline/OfflineStatusBadge.vue
+- packages/admin/app/i18n/en.json
+- packages/admin/app/layouts/default.vue
+- packages/admin/tests/unit/offline/auth/OfflineAuthGuardTest.test.ts
+- packages/admin/tests/integration/offline/OfflineSyncIntegrationTest.test.ts
+- packages/admin/e2e/offline-sync.spec.ts
+- docs/specs/offline-first-sync.md
+- CLAUDE.md
+- CHANGELOG.md
+tags:
+- substrate
+- offline
+- auth
+- ui-badge
+- integration-test
+- docs
 ---
 
 # WP04 — Auth offline guard + status badge + integration test + Playwright + docs

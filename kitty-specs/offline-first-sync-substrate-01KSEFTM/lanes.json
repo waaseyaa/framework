@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "mission_slug": "offline-first-sync-substrate-01KSEFTM",
+  "mission_id": "01KSEFTMSAV1E8WNDG6XXHPHHP",
+  "mission_branch": "kitty/mission-offline-first-sync-substrate-01KSEFTM",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01",
+        "WP02",
+        "WP03",
+        "WP04"
+      ],
+      "write_scope": [
+        "CHANGELOG.md",
+        "CLAUDE.md",
+        "docs/specs/offline-first-sync.md",
+        "packages/admin/app/components/offline/OfflineStatusBadge.vue",
+        "packages/admin/app/composables/useOfflineEntity.ts",
+        "packages/admin/app/composables/useOfflineRealtime.ts",
+        "packages/admin/app/composables/useOfflineSync.ts",
+        "packages/admin/app/composables/useRealtime.ts",
+        "packages/admin/app/i18n/en.json",
+        "packages/admin/app/layouts/default.vue",
+        "packages/admin/app/offline/auth/OfflineAuthGuard.ts",
+        "packages/admin/app/offline/db/OfflineDatabase.ts",
+        "packages/admin/app/offline/db/index.ts",
+        "packages/admin/app/offline/db/types.ts",
+        "packages/admin/app/offline/sync/ConflictResolver.ts",
+        "packages/admin/app/offline/sync/SyncEngine.ts",
+        "packages/admin/app/offline/sync/SyncStateMachine.ts",
+        "packages/admin/e2e/offline-sync.spec.ts",
+        "packages/admin/nuxt.config.ts",
+        "packages/admin/package.json",
+        "packages/admin/public/offline.html",
+        "packages/admin/sw.ts",
+        "packages/admin/tests/integration/offline/OfflineSyncIntegrationTest.test.ts",
+        "packages/admin/tests/unit/offline/auth/OfflineAuthGuardTest.test.ts",
+        "packages/admin/tests/unit/offline/composables/useOfflineEntityTest.test.ts",
+        "packages/admin/tests/unit/offline/db/OfflineDatabaseTest.test.ts",
+        "packages/admin/tests/unit/offline/sync/ConflictResolverTest.test.ts",
+        "packages/admin/tests/unit/offline/sync/SyncEngineTest.test.ts",
+        "packages/admin/tests/unit/offline/sync/SyncStateMachineTest.test.ts",
+        "packages/api/composer.json",
+        "packages/api/src/ApiServiceProvider.php",
+        "packages/api/src/Http/Router/SyncApiRouter.php",
+        "packages/api/src/Sync/OfflineBatchAuditController.php",
+        "packages/api/src/Sync/SyncAcknowledgeController.php",
+        "packages/api/tests/Unit/Sync/OfflineBatchAuditControllerTest.php",
+        "packages/api/tests/Unit/Sync/SyncAcknowledgeControllerTest.php",
+        "packages/foundation/src/Kernel/BuiltinRouteRegistrar.php",
+        "packages/mercure/src/MercurePublisher.php"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "app-shell",
+        "artifact-rendering",
+        "legacy-cleanup",
+        "tests",
+        "tracker-integration"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-05-25T05:36:18.281917+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": [],
+  "collapse_report": {
+    "events": [
+      {
+        "wp_a": "WP02",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP02 depends on WP01"
+      },
+      {
+        "wp_a": "WP03",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP03 depends on WP01"
+      },
+      {
+        "wp_a": "WP04",
+        "wp_b": "WP02",
+        "rule": "dependency",
+        "evidence": "WP04 depends on WP02"
+      }
+    ],
+    "total_merges": 3,
+    "independent_wps_collapsed": 0,
+    "by_rule": {
+      "dependency": 3
+    }
+  }
+}

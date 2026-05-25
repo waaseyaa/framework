@@ -1,39 +1,45 @@
 ---
 work_package_id: WP03
-title: "Server-side: SyncAcknowledgeController + OfflineBatchAuditController + Mercure sync.conflict event + classification-policy meta hints"
+title: 'Server-side: SyncAcknowledgeController + OfflineBatchAuditController + Mercure sync.conflict event + classification-policy meta hints'
 dependencies:
-  - WP01
+- WP01
 requirement_refs:
-  - FR-006
-  - FR-007
-  - FR-008
-  - FR-014
-  - NFR-002
-  - NFR-003
-  - C-001
-  - C-004
+- FR-006
+- FR-007
+- FR-008
+- FR-014
+- NFR-002
+- NFR-003
+- C-001
+- C-004
 planning_base_branch: main
 merge_target_branch: main
-branch_strategy: "Branches from WP01 merge commit (does NOT need WP02 — server-side endpoints are independent). Completed work merges back into main."
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
 subtasks:
-  - T-J
-  - T-K
-  - T-L
-  - T-M
-authoritative_surface: "packages/api/src/Sync"
+- T-J
+- T-K
+- T-L
+- T-M
+history: []
+authoritative_surface: packages/api/src/Sync
 execution_mode: code_change
 owned_files:
-  - packages/api/src/Sync/SyncAcknowledgeController.php
-  - packages/api/src/Sync/OfflineBatchAuditController.php
-  - packages/api/src/Http/Router/SyncApiRouter.php
-  - packages/api/src/ApiServiceProvider.php
-  - packages/api/composer.json
-  - packages/foundation/src/Kernel/BuiltinRouteRegistrar.php
-  - packages/mercure/src/MercurePublisher.php
-  - packages/api/tests/Unit/Sync/SyncAcknowledgeControllerTest.php
-  - packages/api/tests/Unit/Sync/OfflineBatchAuditControllerTest.php
-tags: ["substrate", "offline", "server-side", "json-api", "mercure", "audit-integration"]
-history: []
+- packages/api/src/Sync/SyncAcknowledgeController.php
+- packages/api/src/Sync/OfflineBatchAuditController.php
+- packages/api/src/Http/Router/SyncApiRouter.php
+- packages/api/src/ApiServiceProvider.php
+- packages/api/composer.json
+- packages/foundation/src/Kernel/BuiltinRouteRegistrar.php
+- packages/mercure/src/MercurePublisher.php
+- packages/api/tests/Unit/Sync/SyncAcknowledgeControllerTest.php
+- packages/api/tests/Unit/Sync/OfflineBatchAuditControllerTest.php
+tags:
+- substrate
+- offline
+- server-side
+- json-api
+- mercure
+- audit-integration
 ---
 
 # WP03 — Server-side sync endpoints + Mercure sync.conflict event
