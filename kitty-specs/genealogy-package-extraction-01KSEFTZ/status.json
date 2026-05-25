@@ -1,7 +1,7 @@
 {
-  "event_count": 6,
-  "last_event_id": "01KSEWKAPMST7V1AYEAVYPBV4K",
-  "materialized_at": "2026-05-25T06:19:18.100204+00:00",
+  "event_count": 8,
+  "last_event_id": "01KSEWKJ61B1R2VAWSZ5VTYYPQ",
+  "materialized_at": "2026-05-25T06:19:25.761630+00:00",
   "mission_number": "",
   "mission_slug": "genealogy-package-extraction-01KSEFTZ",
   "mission_type": "software-dev",
@@ -12,9 +12,9 @@
     "claimed": 0,
     "done": 0,
     "for_review": 1,
-    "in_progress": 0,
+    "in_progress": 1,
     "in_review": 0,
-    "planned": 2
+    "planned": 1
   },
   "work_packages": {
     "WP01": {
@@ -25,11 +25,11 @@
       "last_transition_at": "2026-05-25T06:19:18.100204+00:00"
     },
     "WP02": {
-      "actor": "finalize-tasks",
+      "actor": "claude",
       "force_count": 1,
-      "lane": "planned",
-      "last_event_id": "01KSEW644YHJHJ7E21PBSDFD5P",
-      "last_transition_at": "2026-05-25T06:12:05.406776+00:00"
+      "lane": "in_progress",
+      "last_event_id": "01KSEWKJ61B1R2VAWSZ5VTYYPQ",
+      "last_transition_at": "2026-05-25T06:19:25.761630+00:00"
     },
     "WP03": {
       "actor": "finalize-tasks",

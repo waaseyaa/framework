@@ -24,6 +24,8 @@ owned_files:
 - CLAUDE.md
 - docs/specs/extraction-log.md
 tags: []
+agent: "claude"
+shell_pid: "141541"
 ---
 # Work Package Prompt: WP02 — CLAUDE.md surfacing + extraction-log entry
 
@@ -146,3 +148,4 @@ Handoff to WP03.
 ## Activity Log
 
 _(populated during execution)_
+- 2026-05-25T06:19:25Z – claude – shell_pid=141541 – Started implementation via action command
