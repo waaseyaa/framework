@@ -108,3 +108,4 @@ Read `CHANGELOG.md`. Under `[Unreleased]` → `### Changed` (add the section if 
 ## Activity Log
 - 2026-05-25T06:12:21Z – unknown – Moved to in_progress
 - 2026-05-25T06:15:43Z – unknown – SPA bet section in admin-spa.md; DIR-007 attribution in admin/README.md; CHANGELOG entry. Audit sweep complete. Gates green. Commit 05f978bd3.
+- 2026-05-25T06:16:24Z – unknown – Opus review: docs-only; subagent worked on main worktree (lane discipline bypass acknowledged but acceptable for documentation execution_mode); DIR-007 banner + composer suggest block + SPA-bet section all in place; gates clean
