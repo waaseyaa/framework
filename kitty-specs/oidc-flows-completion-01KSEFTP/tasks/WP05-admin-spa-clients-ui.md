@@ -169,4 +169,4 @@ Lane has no `vendor/` and no `packages/admin/node_modules/` — run `composer in
 5. Confirmation `bin/check-package-layers` is green (`packages/api` adds NO new `waaseyaa/oidc` require — entity type is auto-discovered).
 
 ## Activity Log
-
+- 2026-05-25T05:30:11Z – unknown – subagent shipped retroactively
