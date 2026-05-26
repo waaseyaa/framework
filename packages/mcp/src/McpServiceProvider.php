@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Mcp;
 
+use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
+use Waaseyaa\Api\McpAdmin\ServerConfigReadModelInterface;
+use Waaseyaa\Api\McpAdmin\ToolRegistryReadModelInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Mcp\Admin\RecentInvocationsQueryInterface;
+use Waaseyaa\Mcp\Admin\ServerConfigReadModel;
+use Waaseyaa\Mcp\Admin\ToolRegistryReadModel;
 use Waaseyaa\Mcp\Auth\BearerTokenAuth;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Routing\WaaseyaaRouter;
@@ -36,6 +42,34 @@ final class McpServiceProvider extends ServiceProvider
         $this->singleton(
             McpAuthInterface::class,
             fn(): McpAuthInterface => new BearerTokenAuth(tokens: []),
+        );
+
+        // M5C WP01 T003: admin read-model bindings.
+        // ToolRegistryReadModelInterface → ToolRegistryReadModel (resolves
+        // AgentToolRegistryInterface from container; RecentInvocationsQueryInterface
+        // is optional — absent when waaseyaa/ai-observability is not installed).
+        $this->singleton(
+            ToolRegistryReadModelInterface::class,
+            function (): ToolRegistryReadModelInterface {
+                $agentRegistry = $this->make(AgentToolRegistryInterface::class);
+                $invocationQuery = $this->resolveOptional(RecentInvocationsQueryInterface::class);
+
+                return new ToolRegistryReadModel(
+                    agentRegistry: $agentRegistry,
+                    invocationQuery: $invocationQuery instanceof RecentInvocationsQueryInterface
+                        ? $invocationQuery
+                        : null,
+                );
+            },
+        );
+
+        // ServerConfigReadModelInterface → ServerConfigReadModel.
+        // Delegates to McpAuthInterface for registered-client enumeration.
+        $this->singleton(
+            ServerConfigReadModelInterface::class,
+            fn (): ServerConfigReadModelInterface => new ServerConfigReadModel(
+                auth: $this->make(McpAuthInterface::class),
+            ),
         );
     }
 

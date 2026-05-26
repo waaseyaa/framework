@@ -394,6 +394,35 @@ final class BuiltinRouteRegistrar
                 ->build(),
         );
 
+        // M5C WP01: MCP endpoint admin — read-only tool registry + server config.
+        // All three endpoints gated by `_role: admin`; controller does NOT
+        // re-check role (NFR-001 / DIR-004). Refs C-L6-01, DIR-004.
+        $mcpAdminController = 'Waaseyaa\\Api\\Controller\\McpAdminController';
+        $router->addRoute(
+            'api.mcp.admin.tools.index',
+            RouteBuilder::create('/api/mcp/tools')
+                ->controller($mcpAdminController . '::tools')
+                ->requireRole('admin')
+                ->methods('GET')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.mcp.admin.tools.show',
+            RouteBuilder::create('/api/mcp/tools/{name}')
+                ->controller($mcpAdminController . '::tool')
+                ->requireRole('admin')
+                ->methods('GET')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.mcp.admin.server-config',
+            RouteBuilder::create('/api/mcp/server-config')
+                ->controller($mcpAdminController . '::serverConfig')
+                ->requireRole('admin')
+                ->methods('GET')
+                ->build(),
+        );
+
         // WP05 (oidc-flows-completion-01KSEFTP): OIDC client admin CRUD API.
         // All endpoints require admin role. client_secret is returned once on
         // create/regenerate; omitted on all other responses.

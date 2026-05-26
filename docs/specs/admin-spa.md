@@ -831,6 +831,26 @@ Real-time SSE monitor for the Mercure broadcasting layer (gap-matrix C-L0-04, mi
 | `packages/admin/app/components/media/MediaVersionBrowser.vue` | Read-only version table rendered at `/media/{uuid}/versions` (DIR-005 WP04) |
 | `packages/admin/app/pages/media/[uuid]/versions.vue` | Media version browser page (DIR-005 WP04) |
 
+## MCP admin
+
+**Mission:** `mcp-endpoint-admin-m5c-01KSEFTB` (#1415, audit C-L6-01).
+
+Read-only admin surface for the MCP endpoint. Three pages under `/mcp/`, accessible via the "MCP" nav group in `NavBuilder.vue`:
+
+| Page | Route | Description |
+|------|-------|-------------|
+| Tool registry | `/mcp/tools` | Paginated list of registered MCP tools with name, category, capability chips, summary |
+| Tool detail | `/mcp/tools/{name}` | Per-tool header card + collapsible input-schema viewer + recent invocations table |
+| Server config | `/mcp/server-config` | Transport/protocol banner, server capabilities, registered clients table |
+
+**Composables:** `useMcpTools`, `useMcpTool`, `useMcpServerConfig` — all use `useApi().apiFetch`.
+
+**Security:** `McpRegisteredClient` TypeScript type has no `token` field; only `tokenFingerprint` (16-char hex) is exposed. Enforced by compile-time type assertion in `useMcpServerConfig.test.ts`.
+
+**URL encoding:** `useMcpTool.fetchTool(name)` runs `encodeURIComponent(name)` once before the request so tool names containing dots (e.g. `bimaaji.search_specs`) are safe in path segments.
+
+**M5B interop:** `RecentInvocationsTable.vue` renders `traceUuid` cells as router-links to `/ai/observability/runs/{uuid}` when the M5B route exists; falls back to plain text UUID when it does not (no broken links).
+
 ## Implementation gotchas
 
 - **Browser `fetch` loses binding when stored**: Passing `fetch` as a default parameter (`private fetchFn = fetch`) detaches it from `window`, causing "illegal invocation" at call time. Wrap in an arrow function: `(...args) => fetch(...args)`.
@@ -842,6 +862,7 @@ Real-time SSE monitor for the Mercure broadcasting layer (gap-matrix C-L0-04, mi
 - **Nuxt `.env` changes require dev server restart**: HMR picks up source file changes but NOT `.env` changes. Runtime config from `.env` is read at server startup only. Clear `.nuxt/` cache if values seem stale after restart.
 - **Git worktrees can't run Nuxt dev server**: Worktrees share source via symlinks but not `node_modules/.vite/` or `.nuxt/`. Vite module resolution fails with MIME type errors. Run E2E tests against the main repo's dev server, not from worktrees.
 
+<!-- Spec reviewed 2026-05-25 - mcp-endpoint-admin-m5c-01KSEFTB: MCP admin surface — tool registry browser (/mcp/tools), per-tool detail (/mcp/tools/{name}), server config viewer (/mcp/server-config). Nav group "MCP" added to NavBuilder.vue. -->
 <!-- Spec reviewed 2026-05-24 - workflow guards read-only matrix section on /workflows/{id} (M4A-5 Phase 1, #1470) -->
 <!-- Spec reviewed 2026-05-25 - inertia-demotion-nuxt-standardisation-01KSEFTS - WP03 - SPA bet section added per DIR-007 -->
 <!-- Spec reviewed 2026-05-25 - media version browser page /media/{uuid}/versions (DIR-005 versioned-blob-media-abstraction-01KSEFTJ WP04) -->

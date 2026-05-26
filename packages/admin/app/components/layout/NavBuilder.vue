@@ -92,6 +92,9 @@ function customSectionHeading(groupKey: string): string {
     </template>
     <div class="nav-section" data-testid="nav-section-ai">{{ t('nav_group_ai') }}</div>
     <NuxtLink to="/ai/observability/runs" class="nav-item" data-testid="nav-ai-observability-runs">{{ t('ai_runs_nav_label') }}</NuxtLink>
+    <div class="nav-section" data-testid="nav-section-mcp">{{ t('nav_group_mcp') }}</div>
+    <NuxtLink to="/mcp/tools" class="nav-item" data-testid="nav-mcp-tools">{{ t('mcp_tools_title') }}</NuxtLink>
+    <NuxtLink to="/mcp/server-config" class="nav-item" data-testid="nav-mcp-server-config">{{ t('mcp_server_config_title') }}</NuxtLink>
     <div class="nav-section" data-testid="nav-section-operations">{{ t('nav_group_operations') }}</div>
     <NuxtLink to="/workflows" class="nav-item">{{ t('workflows') }}</NuxtLink>
     <NuxtLink to="/queue" class="nav-item" data-testid="nav-queue">{{ t('queue_title') }}</NuxtLink>

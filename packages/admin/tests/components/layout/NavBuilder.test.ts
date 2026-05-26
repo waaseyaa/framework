@@ -87,8 +87,17 @@ describe('NavBuilder', () => {
     expect(wrapper.find('[data-testid="nav-scheduler"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="nav-notifications"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="nav-classification-policies"]').exists()).toBe(true)
-    expect(wrapper.findAll('.nav-section')).toHaveLength(2)
-    expect(wrapper.findAll('a')).toHaveLength(7)
+    expect(wrapper.find('[data-testid="nav-mcp-tools"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="nav-mcp-server-config"]').exists()).toBe(true)
+    // Static sections when the catalog is empty (both M5B AI runs and M5C MCP
+    // sections now ship alongside Operations + Governance):
+    //  - AI (M5B): /ai/observability/runs
+    //  - MCP (M5C): /mcp/tools, /mcp/server-config
+    //  - Operations: /workflows, /queue, /scheduler, /notifications, /mercure/monitor
+    //  - Governance: /classification/policies
+    // 4 sections; links: dashboard + 1 (AI) + 2 (MCP) + 5 (Operations) + 1 (Governance) = 10.
+    expect(wrapper.findAll('.nav-section')).toHaveLength(4)
+    expect(wrapper.findAll('a')).toHaveLength(10)
   })
 
   it('renders the pipeline link when the catalog entry declares board-config', async () => {

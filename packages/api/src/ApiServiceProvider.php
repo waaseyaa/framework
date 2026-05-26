@@ -11,6 +11,7 @@ use Waaseyaa\Api\Audit\ApiAuditQueryAdapter;
 use Waaseyaa\Api\Audit\AuditQueryReadModelInterface;
 use Waaseyaa\Api\Controller\AiObservabilityRunsController;
 use Waaseyaa\Api\Controller\AuditQueryController;
+use Waaseyaa\Api\Controller\McpAdminController;
 use Waaseyaa\Api\Controller\MediaVersionController;
 use Waaseyaa\Api\Controller\MercureMonitorController;
 use Waaseyaa\Api\Controller\NotificationController;
@@ -21,6 +22,7 @@ use Waaseyaa\Api\Controller\WorkflowGuardsController;
 use Waaseyaa\Api\Http\Router\AiObservabilityRunsApiRouter;
 use Waaseyaa\Api\Http\Router\AuditApiRouter;
 use Waaseyaa\Api\Http\Router\DiscoveryRouter;
+use Waaseyaa\Api\Http\Router\McpAdminApiRouter;
 use Waaseyaa\Api\Http\Router\MediaVersionApiRouter;
 use Waaseyaa\Api\Http\Router\MercureMonitorApiRouter;
 use Waaseyaa\Api\Http\Router\NotificationAdminApiRouter;
@@ -28,11 +30,15 @@ use Waaseyaa\Api\Http\Router\OidcClientApiRouter;
 use Waaseyaa\Api\Http\Router\QueueAdminApiRouter;
 use Waaseyaa\Api\Http\Router\SchedulerAdminApiRouter;
 use Waaseyaa\Api\Http\Router\WorkflowGuardsApiRouter;
+use Waaseyaa\Api\McpAdmin\ServerConfigReadModelInterface;
+use Waaseyaa\Api\McpAdmin\ToolRegistryReadModelInterface;
 use Waaseyaa\Api\Media\ApiMediaVersionAdapter;
 use Waaseyaa\Api\Media\MediaVersionReadModelInterface;
 use Waaseyaa\Api\MercureMonitor\ChannelInspectorInterface;
 use Waaseyaa\Api\MercureMonitor\EventStreamReadModelInterface;
 use Waaseyaa\Api\MercureMonitor\SubscriberObserverInterface;
+use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Gate\GateInterface;
 // Note: AuditQueryInterface is NOT imported at class-level — waaseyaa/audit
 // is a require-dev dep. The singleton factory resolves it by string (C-002).
@@ -222,6 +228,33 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
                     $runListModel instanceof RunListReadModelInterface ? $runListModel : null,
                     $runDetailModel instanceof RunDetailReadModelInterface ? $runDetailModel : null,
                     $runReplayService instanceof RunReplayServiceInterface ? $runReplayService : null,
+                ),
+            );
+        }
+
+        // M5C WP01: MCP endpoint admin (read-only tool registry + server config).
+        // McpServiceProvider (Layer 6) binds ToolRegistryReadModelInterface and
+        // ServerConfigReadModelInterface when waaseyaa/mcp is installed. Both are
+        // optional — the controller returns empty-shape responses when either or
+        // both adapters are absent (slimmed-down install without mcp package).
+        // EntityAccessHandler + AccountInterface are also resolved optionally so
+        // recentInvocations field-access gating degrades gracefully.
+        // All three endpoints gated by `_role: admin` in BuiltinRouteRegistrar.
+        // Refs C-L6-01, DIR-004.
+        $mcpRegistry = $this->resolveOptional(ToolRegistryReadModelInterface::class);
+        $mcpConfig = $this->resolveOptional(ServerConfigReadModelInterface::class);
+        if (
+            $mcpRegistry instanceof ToolRegistryReadModelInterface
+            || $mcpConfig instanceof ServerConfigReadModelInterface
+        ) {
+            $mcpAccessHandler = $this->resolveOptional(EntityAccessHandler::class);
+            $mcpAccount = $this->resolveOptional(AccountInterface::class);
+            $routers[] = new McpAdminApiRouter(
+                new McpAdminController(
+                    $mcpRegistry instanceof ToolRegistryReadModelInterface ? $mcpRegistry : null,
+                    $mcpConfig instanceof ServerConfigReadModelInterface ? $mcpConfig : null,
+                    $mcpAccessHandler instanceof EntityAccessHandler ? $mcpAccessHandler : null,
+                    $mcpAccount instanceof AccountInterface ? $mcpAccount : null,
                 ),
             );
         }
