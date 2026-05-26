@@ -35,7 +35,6 @@
 <!-- Spec reviewed 2026-04-22 - PackageManifest: removed persisted commands/routes (ADR docs/adr/0001); legacy extra.waaseyaa.commands|routes log warning only; fromArray strips legacy cache keys; mergeRootWaaseyaa merges providers+permissions only; attributeEntityTypes; ProviderRegistry entity_auto_register; ServiceProvider::mergeChildProvider; BuiltinRouteRegistrar: MCP route owned by mcp package only, sortRoutesByPriority after provider routes; MigrationLoader InstalledVersions; queue/notification/scheduler extra.waaseyaa.migrations -->
 <!-- Spec reviewed 2026-04-30 - layer-graph file-level scan + named-file kernel exemption surface (mission #824 WP02 surface C) -->
 <!-- Spec reviewed 2026-04-22 - require-dev layer audit script + CI integration (warn-only), plus composer layer graph docs -->
-<!-- Spec reviewed 2026-05-25 - database-legacy package retired (mission database-legacy-retirement-01KSEFV2 WP03); removed package table row, file tree section, and file path references; interface contracts retained in spec since Waaseyaa\Database\ symbols remain in waaseyaa/foundation; ADR-022 supersedes ADR-007 -->
 <!-- Spec reviewed 2026-04-21 - Composer layer graph (bin/check-package-layers), HTTP JSON-first error surface, database-legacy ADR 007 cross-link -->
 <!-- Spec reviewed 2026-04-05 - SovereigntyProfile/Config added to foundation, FoundationServiceProvider registers SovereigntyConfig singleton; CommunityContext/CommunityMiddleware added for community-scoped query isolation; SsrResponse removed, all controllers return Symfony Response/JsonResponse; ControllerDispatcher now delegates to DomainRouterInterface chain; both callable and router dispatch paths wrapped in try-catch returning 500 JSON:API errors; MediaRouter file move wrapped in try-catch; ViteAssetManager gained assetTags() method with devServerUrl constructor param for dev mode support; ControllerDispatcher uses Inertia::getRenderer() instead of hardcoded new RootTemplateRenderer(); RootTemplateRenderer accepts optional ViteAssetManager and injects Vite asset tags in default template; InertiaServiceProvider auto-configures renderer with ViteAssetManager for zero-config Inertia SPA support; AppControllerRouter added to dispatch Class::method controllers from ServiceProvider::routes() — delegates to SsrPageHandler::dispatchAppController, wired after SsrRouter in HttpKernel router chain (#1119); AppControllerRouter handle() relies on dispatchAppController's typed array shape contract (no runtime defensive casts); MediaRouter mkdir warning suppressed via @-prefix double-check idiom so a non-directory ancestor produces a clean 500 from the move catch block instead of a PHP warning under --fail-on-warning -->
 <!-- Spec reviewed 2026-04-05 - AbstractKernel extracted: AppEntityTypeLoader, ContentTypeValidator, KnowledgeExtensionBootstrapper join existing Bootstrap/ classes (DatabaseBootstrapper, ManifestBootstrapper, ProviderRegistry, AccessPolicyRegistry) -->
@@ -82,6 +81,7 @@ Authoritative dispositions are in `docs/public-surface-map.php`, verified by `Pu
 |---------|-------------------|
 | foundation | `AssetManagerInterface`, `HealthCheckerInterface`, `LoggerInterface`, `HandlerInterface`, `FormatterInterface`, `ProcessorInterface`, `LoggerTrait`, `HttpHandlerInterface`, `HttpMiddlewareInterface`, `JobHandlerInterface`, `JobMiddlewareInterface`, `RateLimiterInterface`, `SchemaRegistryInterface`, `ServiceProviderInterface`, `ServiceProvider`, `DomainEvent`, `WaaseyaaException`, `JsonApiResponseTrait`, `InboundHttpRequestInterface`, `DomainRouterInterface`, `LanguagePathStripperInterface`, `InertiaPageResultInterface`, `InertiaFullPageRendererInterface`, `Migration` |
 | cache | `CacheBackendInterface`, `CacheFactoryInterface`, `CacheTagsInvalidatorInterface`, `TagAwareCacheInterface` |
+| database-legacy | `DatabaseInterface`, `SelectInterface`, `InsertInterface`, `UpdateInterface`, `DeleteInterface`, `SchemaInterface`, `TransactionInterface` |
 | plugin | `PluginInspectionInterface`, `PluginManagerInterface`, `PluginBase` |
 | typed-data | `TypedDataInterface`, `DataDefinitionInterface`, `ComplexDataInterface`, `ListInterface`, `PrimitiveInterface`, `TypedDataManagerInterface`, `CastTokenMapper`, `CoercionException`, `EntityCastCoercion` |
 | i18n | `LanguageManagerInterface`, `TranslatorInterface` |
@@ -109,6 +109,7 @@ Authoritative dispositions are in `docs/public-surface-map.php`, verified by `Pu
 |---------|-----------|-------|---------|
 | `packages/foundation/` | `Waaseyaa\Foundation\` | 0 (Foundation) | DomainEvent, ServiceProvider, middleware interfaces, migration system, attribute discovery |
 | `packages/cache/` | `Waaseyaa\Cache\` | 0 (Foundation) | CacheBackendInterface, MemoryBackend, DatabaseBackend, NullBackend, tag invalidation |
+| `packages/database-legacy/` | `Waaseyaa\Database\` | 0 (Foundation) | DatabaseInterface, DBALDatabase (Doctrine DBAL), query builder (select/insert/update/delete), schema, transactions. Composer name keeps the `-legacy` suffix for historical reasons; see [ADR 007](../adr/007-database-legacy-package-naming.md). |
 | `packages/plugin/` | `Waaseyaa\Plugin\` | 0 (Foundation) | PluginManager, attribute-based plugin discovery, plugin factory |
 | `packages/mail/` | `Waaseyaa\Mail\` | 0 (Foundation) | `MailerInterface` + `Envelope`; pluggable `TransportInterface` (array, local file, SendGrid API when configured) |
 | `packages/http-client/` | `Waaseyaa\HttpClient\` | 0 (Foundation) | Minimal HTTP client for JSON APIs and webhooks, zero external dependencies |
@@ -407,7 +408,7 @@ Attribute instances built via `ReflectionAttribute::newInstance()` — used thro
 
 ### DatabaseInterface
 
-> **Note (2026-05-25):** `packages/database-legacy/` has been eliminated (ADR-022, mission `database-legacy-retirement-01KSEFV2`). The `Waaseyaa\Database\*` symbols now live in `waaseyaa/foundation`. The interface contracts below remain accurate.
+File: `packages/database-legacy/src/DatabaseInterface.php`
 
 ```php
 namespace Waaseyaa\Database;
@@ -428,6 +429,8 @@ interface DatabaseInterface
 
 ### DBALDatabase
 
+File: `packages/database-legacy/src/DBALDatabase.php`
+
 ```php
 final class DBALDatabase implements DatabaseInterface
 {
@@ -440,6 +443,8 @@ final class DBALDatabase implements DatabaseInterface
 `DBALDatabase` wraps a Doctrine DBAL `Connection`. The `createSqlite()` factory enables WAL mode for non-memory databases. Query results use `fetchAssociative()` (equivalent to FETCH_ASSOC — no duplicate numeric-indexed columns).
 
 ### TransactionInterface
+
+File: `packages/database-legacy/src/TransactionInterface.php`
 
 ```php
 interface TransactionInterface
@@ -454,6 +459,8 @@ interface TransactionInterface
 ## Query Builder
 
 ### SelectInterface
+
+File: `packages/database-legacy/src/SelectInterface.php`
 
 ```php
 interface SelectInterface
@@ -473,6 +480,8 @@ interface SelectInterface
 ```
 
 ### DBALSelect condition operators
+
+File: `packages/database-legacy/src/Query/DBALSelect.php`
 
 Supported operators in `condition()`:
 - `=`, `!=`, `<`, `>`, `<=`, `>=` -- standard comparison, single `?` placeholder
@@ -633,6 +642,8 @@ SSR cache invalidation remains workflow/graph-aware and deterministic:
 
 ### InsertInterface
 
+File: `packages/database-legacy/src/InsertInterface.php`
+
 ```php
 interface InsertInterface
 {
@@ -646,6 +657,8 @@ If `fields()` is not called, field names are inferred from the first `values()` 
 
 ### UpdateInterface
 
+File: `packages/database-legacy/src/UpdateInterface.php`
+
 ```php
 interface UpdateInterface
 {
@@ -656,6 +669,8 @@ interface UpdateInterface
 ```
 
 ### DeleteInterface
+
+File: `packages/database-legacy/src/DeleteInterface.php`
 
 ```php
 interface DeleteInterface
@@ -708,6 +723,8 @@ try {
 
 ### SchemaInterface (database DDL)
 
+File: `packages/database-legacy/src/SchemaInterface.php`
+
 ```php
 interface SchemaInterface
 {
@@ -728,7 +745,7 @@ interface SchemaInterface
 
 Note: SQLite cannot add a primary key to an existing table. `addPrimaryKey()` throws `\RuntimeException`.
 
-**Distinction from SchemaPresenter**: `SchemaInterface` is a database DDL abstraction for creating/altering tables (formerly in `packages/database-legacy/`, now in `waaseyaa/foundation`). It is unrelated to `SchemaPresenter` (`packages/api/src/Schema/SchemaPresenter.php`), which generates JSON Schema output from entity field definitions for the API layer. `SchemaPresenter` works with `EntityType::getFieldDefinitions()` and does not use `SchemaInterface`.
+**Distinction from SchemaPresenter**: `SchemaInterface` is a database DDL abstraction in `packages/database-legacy/` for creating/altering tables. It is unrelated to `SchemaPresenter` (`packages/api/src/Schema/SchemaPresenter.php`), which generates JSON Schema output from entity field definitions for the API layer. `SchemaPresenter` works with `EntityType::getFieldDefinitions()` and does not use `SchemaInterface`.
 
 ### SchemaRegistryInterface (ingestion payload schemas)
 
@@ -1794,6 +1811,27 @@ Listener/
     EntityCacheInvalidator.php   -- entity:{type}, entity:{type}:{id}
     ConfigCacheInvalidator.php   -- config, config:{name}
     TranslationCacheInvalidator.php
+```
+
+### packages/database-legacy/src/
+
+```
+DatabaseInterface.php            -- select/insert/update/delete/schema/transaction/query
+DBALDatabase.php                 -- implements DatabaseInterface, wraps Doctrine DBAL Connection
+SelectInterface.php              -- fluent select builder
+InsertInterface.php              -- fluent insert builder
+UpdateInterface.php              -- fluent update builder
+DeleteInterface.php              -- fluent delete builder
+SchemaInterface.php              -- DDL operations (createTable, addField, etc.)
+TransactionInterface.php         -- commit/rollBack
+DBALTransaction.php              -- DBAL transaction wrapper
+Query/
+    DBALSelect.php               -- SELECT with joins, conditions, ordering, pagination
+    DBALInsert.php               -- INSERT with field inference from values
+    DBALUpdate.php               -- UPDATE with conditions
+    DBALDelete.php               -- DELETE with conditions
+Schema/
+    DBALSchema.php               -- DDL implementation via Doctrine DBAL
 ```
 
 ### packages/http-client/src/
