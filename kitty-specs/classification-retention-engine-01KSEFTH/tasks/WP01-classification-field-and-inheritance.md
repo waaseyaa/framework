@@ -127,3 +127,4 @@ spec-kitty agent tasks move-task WP01 --to for_review --mission classification-r
 
 ## Activity Log
 - 2026-05-25T06:11:05Z – claude – Moved to in_progress
+- 2026-05-26T11:17:38Z – claude – Done override: Feature squash-merged to main (b170e0a44)
