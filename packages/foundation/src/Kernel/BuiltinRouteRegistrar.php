@@ -502,6 +502,37 @@ final class BuiltinRouteRegistrar
                 ->build(),
         );
 
+        // M5B WP01: AI observability runs list, detail, and replay endpoints.
+        // All require admin role; replay additionally requires the
+        // `ai.trace.replay` gate ability (DIR-004). String FQCN controller
+        // references so Foundation stays free of api-package class imports.
+        $runsController = 'Waaseyaa\\Api\\Controller\\AiObservabilityRunsController';
+        $router->addRoute(
+            'api.ai.observability.runs.index',
+            RouteBuilder::create('/api/ai/observability/runs')
+                ->controller($runsController . '::index')
+                ->requireRole('admin')
+                ->methods('GET')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.ai.observability.runs.show',
+            RouteBuilder::create('/api/ai/observability/runs/{uuid}')
+                ->controller($runsController . '::show')
+                ->requireRole('admin')
+                ->methods('GET')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.ai.observability.runs.replay',
+            RouteBuilder::create('/api/ai/observability/runs/{uuid}/replay')
+                ->controller($runsController . '::replay')
+                ->requireRole('admin')
+                ->requireGate('ai.trace.replay')
+                ->methods('POST')
+                ->build(),
+        );
+
         $router->sortRoutesByPriority();
     }
 }

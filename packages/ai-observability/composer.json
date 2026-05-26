@@ -5,14 +5,18 @@
     "license": "GPL-2.0-or-later",
     "repositories": [
         {"type": "path", "url": "../ai-agent"},
-        {"type": "path", "url": "../foundation"},
+        {"type": "path", "url": "../ai-pipeline"},
+        {"type": "path", "url": "../api"},
+        {"type": "path", "url": "../database-legacy"},
         {"type": "path", "url": "../entity"},
         {"type": "path", "url": "../entity-storage"},
-        {"type": "path", "url": "../database-legacy"}
+        {"type": "path", "url": "../foundation"}
     ],
     "require": {
         "php": ">=8.5",
         "waaseyaa/ai-agent": "^0.1.0-alpha.188",
+        "waaseyaa/ai-pipeline": "^0.1.0-alpha.188",
+        "waaseyaa/api": "^0.1.0-alpha.188",
         "waaseyaa/database-legacy": "^0.1.0-alpha.188",
         "waaseyaa/entity": "^0.1.0-alpha.188",
         "waaseyaa/entity-storage": "^0.1.0-alpha.188",

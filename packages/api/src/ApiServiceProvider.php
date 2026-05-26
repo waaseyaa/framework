@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Api;
 
+use Waaseyaa\Api\AiObservability\Runs\RunDetailReadModelInterface;
+use Waaseyaa\Api\AiObservability\Runs\RunListReadModelInterface;
+use Waaseyaa\Api\AiObservability\Runs\RunReplayServiceInterface;
 use Waaseyaa\Api\Audit\ApiAuditQueryAdapter;
 use Waaseyaa\Api\Audit\AuditQueryReadModelInterface;
+use Waaseyaa\Api\Controller\AiObservabilityRunsController;
 use Waaseyaa\Api\Controller\AuditQueryController;
 use Waaseyaa\Api\Controller\MediaVersionController;
 use Waaseyaa\Api\Controller\MercureMonitorController;
@@ -14,6 +18,7 @@ use Waaseyaa\Api\Controller\OidcClientController;
 use Waaseyaa\Api\Controller\QueueController;
 use Waaseyaa\Api\Controller\SchedulerController;
 use Waaseyaa\Api\Controller\WorkflowGuardsController;
+use Waaseyaa\Api\Http\Router\AiObservabilityRunsApiRouter;
 use Waaseyaa\Api\Http\Router\AuditApiRouter;
 use Waaseyaa\Api\Http\Router\DiscoveryRouter;
 use Waaseyaa\Api\Http\Router\MediaVersionApiRouter;
@@ -197,6 +202,29 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
                 $mediaVersionReadModel instanceof MediaVersionReadModelInterface ? $mediaVersionReadModel : null,
             ),
         );
+
+        // M5B WP01: AI observability runs list + detail + replay endpoints.
+        // Cross-layer: RunListReadModelInterface / RunDetailReadModelInterface /
+        // RunReplayServiceInterface are declared in api (L4); adapters live in
+        // ai-observability (L5) and are bound by ObservabilityServiceProvider.
+        // Any missing binding → null → controller returns empty-shape responses
+        // rather than crashing boot (C-003 / NFR-001).
+        $runListModel = $this->resolveOptional(RunListReadModelInterface::class);
+        $runDetailModel = $this->resolveOptional(RunDetailReadModelInterface::class);
+        $runReplayService = $this->resolveOptional(RunReplayServiceInterface::class);
+        if (
+            $runListModel instanceof RunListReadModelInterface
+            || $runDetailModel instanceof RunDetailReadModelInterface
+            || $runReplayService instanceof RunReplayServiceInterface
+        ) {
+            $routers[] = new AiObservabilityRunsApiRouter(
+                new AiObservabilityRunsController(
+                    $runListModel instanceof RunListReadModelInterface ? $runListModel : null,
+                    $runDetailModel instanceof RunDetailReadModelInterface ? $runDetailModel : null,
+                    $runReplayService instanceof RunReplayServiceInterface ? $runReplayService : null,
+                ),
+            );
+        }
 
         // WP05: OIDC client CRUD admin API. The oidc_client entity type is
         // registered by OidcServiceProvider (L6 oidc) which boots before api.

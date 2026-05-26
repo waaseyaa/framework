@@ -123,6 +123,21 @@ final class RouteBuilder
     }
 
     /**
+     * Require a gate ability check on this route.
+     *
+     * The `_gate` option is evaluated by AccessChecker at request time.
+     * Use for privileged actions that require a named gate ability beyond
+     * the standard role check (e.g., replay actions gated by `ai.trace.replay`).
+     *
+     * @param string $ability The gate ability name (e.g. 'ai.trace.replay').
+     */
+    public function requireGate(string $ability): self
+    {
+        $this->options['_gate'] = ['ability' => $ability, 'subject' => null];
+        return $this;
+    }
+
+    /**
      * Require that the user has a specific permission.
      */
     public function requirePermission(string $permission): self
