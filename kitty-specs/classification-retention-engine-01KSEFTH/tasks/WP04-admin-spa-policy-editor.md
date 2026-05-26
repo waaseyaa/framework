@@ -123,3 +123,4 @@ spec-kitty agent tasks move-task WP04 --to for_review --mission classification-r
 ## Activity Log
 - 2026-05-25T22:05:54Z – unknown – Admin SPA retention-policy editor: useRetentionPolicies composable + list/detail pages (SchemaForm) + Governance nav + i18n + vitest + deferred playwright spec + docs/spec/CLAUDE.md/CHANGELOG. Admin gate green: vitest 279/279, typecheck clean, lint 0 errors. Also greened 3 pre-existing oidc typecheck/lint failures (useI18n->useLanguage, void->unknown) that predated WP04 on the rebase base.
 - 2026-05-26T10:43:42Z – claude:opus:reviewer:reviewer – shell_pid=485303 – Started review via action command
+- 2026-05-26T10:49:58Z – claude:opus:reviewer:reviewer – shell_pid=485303 – Review passed (claude:reviewer): composable hits WP02 routes; pages reachable; Governance nav wired; i18n complete; vue-tsc+eslint+vitest green.
