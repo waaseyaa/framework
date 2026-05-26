@@ -7,11 +7,16 @@ namespace Waaseyaa\Mcp\Tests\Unit\Tools;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Access\AccessPolicyInterface;
+use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Api\ResourceSerializer;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Mcp\Serializer\McpEntityFieldFilter;
 use Waaseyaa\Mcp\Tools\EntityTools;
 use Waaseyaa\Mcp\Tools\McpTool;
 
@@ -63,6 +68,55 @@ final class EntityToolsTest extends TestCase
 
         $result = $tools->listEntityTypes();
 
+        self::assertSame(['data' => []], $result);
+    }
+
+    #[Test]
+    public function setFieldFilterWiresFieldAccessEnforcement(): void
+    {
+        // Verify that setFieldFilter() is callable and accepted — the field filter
+        // wiring is exercised end-to-end by the integration test (McpJsonApiFieldParityTest).
+        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager->method('getDefinitions')->willReturn([]);
+
+        $policy = new class implements AccessPolicyInterface, FieldAccessPolicyInterface {
+            public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+            {
+                return AccessResult::allowed();
+            }
+
+            public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+            {
+                return AccessResult::neutral();
+            }
+
+            public function appliesTo(string $entityTypeId): bool
+            {
+                return $entityTypeId === 'node';
+            }
+
+            public function fieldAccess(EntityInterface $entity, string $fieldName, string $operation, AccountInterface $account): AccessResult
+            {
+                if ($fieldName === 'body' && $operation === 'view') {
+                    return AccessResult::forbidden('Body restricted for anonymous.');
+                }
+                return AccessResult::neutral();
+            }
+        };
+
+        $accessHandler = new EntityAccessHandler([$policy]);
+        $tools = new EntityTools(
+            entityTypeManager: $manager,
+            serializer: new ResourceSerializer($manager),
+            accessHandler: $accessHandler,
+            account: $this->anonymousAccount(),
+        );
+
+        // Wire the field filter — must not throw.
+        $tools->setFieldFilter(new McpEntityFieldFilter($accessHandler));
+
+        // listEntityTypes() is unaffected by field filtering.
+        $result = $tools->listEntityTypes();
         self::assertSame(['data' => []], $result);
     }
 

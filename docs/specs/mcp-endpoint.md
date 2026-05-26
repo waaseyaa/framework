@@ -1,5 +1,6 @@
 # MCP Endpoint
 
+<!-- Spec reviewed 2026-05-25 - per-record-ai-access-flagship-01KSEFT5 WP02: McpEntityFieldFilter wired into McpController and EntityTools.getEntity(). Forbidden fields are now replaced by the canonical redaction marker {accessRestricted: true, reason: "field_forbidden_for_account"} rather than omitted. JSON:API omits; MCP redacts — both compliant with open-by-default; MCP redacts to preserve audit lineage. FR-005, FR-006, FR-007 satisfied. McpJsonApiFieldParityTest guards this contract. -->
 <!-- Spec reviewed 2026-05-23 - M3 WP04 (bimaaji-mcp-bridge-01KS5VS8): doctrine spec edits. Added supersession callout to the 2026-05-20 "Bimaaji MCP positioning (PHP-only)" section + new "Bimaaji MCP bridge" section at end of spec documenting the shipped surface (5 ai-agent tools, account-permission capability model, HTTP Streamable transport via /mcp, per-request bridge architecture, disk-write invariant, M-G → M3 transition rationale, post-WP01..WP03 file reference). Notes the divergence from the original AD-02 ten-tool inventory (collapsed to five by re-using IntrospectSection's section enumeration). -->
 <!-- Spec reviewed 2026-05-23 - M3 WP03 (bimaaji-mcp-bridge-01KS5VS8): closed the WP02 placeholder-account caveat. McpEndpoint::__construct signature changed from (McpAuthInterface, Mcp\Bridge\ToolRegistryInterface, Mcp\Bridge\ToolExecutorInterface) to (McpAuthInterface, Waaseyaa\AI\Tools\ToolRegistryInterface). McpEndpoint::dispatch() now constructs the per-request AgentToolRegistryBridge with the account McpAuthInterface::authenticate() resolved from the Authorization header — so per-tool capability gating (AbstractAgentTool::requireCapability) runs against the auth-resolved identity rather than the boot-time placeholder. McpServiceProvider::register() dropped the three placeholder bridge bindings; only McpAuthInterface remains. Mcp\Bridge\ToolRegistryInterface + ToolExecutorInterface still @api as bridge contracts but no longer container-bound. New end-to-end BimaajiMcpCapabilityTest pins both positive (read account → success) and negative (mutation tool with read-only account → forbidden envelope) paths. -->
 <!-- Spec reviewed 2026-05-23 - M3 WP02 (bimaaji-mcp-bridge-01KS5VS8): McpServiceProvider::register() now wires the bridge architecture documented in the Overview. Three new bindings — Mcp\Auth\McpAuthInterface → BearerTokenAuth(tokens: []), Mcp\Bridge\AgentToolRegistryBridge (singleton wrapping Waaseyaa\AI\Tools\ToolRegistryInterface from the kernel-services bus), and both Mcp\Bridge\ToolRegistryInterface + Mcp\Bridge\ToolExecutorInterface bound to the bridge singleton. Bridge account is a no-permission placeholder until WP03 lands per-request account passthrough (auth-resolved account from McpEndpoint::handle's typed injection). tools/list works through the bridge; tools/call returns the documented `forbidden` envelope. New end-to-end test tests/Integration/PhaseN/Mcp/BimaajiMcpReadTest.php pins both behaviours. Also added: bimaaji_search_specs ai-agent tool (in packages/ai-agent/src/Tool/Bimaaji/SearchSpecsTool.php) + SpecIndexProvider container binding in BimaajiServiceProvider. -->
@@ -689,9 +690,37 @@ package's own unit tests. They are no longer reachable from HTTP
 routing (the foundation `McpRouter` was retired in WP01); a future
 cleanup mission may delete them.
 
+## Serializer redaction shape (M-A5, FR-006, C-003)
+
+When a `FieldAccessPolicyInterface` policy returns `Forbidden` for a field during a `view` operation,
+`McpEntityFieldFilter` replaces the field value with the canonical redaction marker:
+
+```json
+{ "accessRestricted": true, "reason": "field_forbidden_for_account" }
+```
+
+This shape is uniquely identifiable (C-003) and must not change without a major version bump. The entity
+envelope itself is **not** 403'd unless entity-level access is denied — field redaction is an
+attribute-level substitution only (FR-006).
+
+**Asymmetric surface contract (FR-007):**
+
+| Surface  | Forbidden field behaviour | Rationale |
+|----------|--------------------------|-----------|
+| JSON:API | Field absent from `attributes` | Spec-compliant omission; no data leakage |
+| MCP      | Field present, value = redaction marker | Preserves audit lineage — callers know something was withheld |
+
+Both surfaces are open-by-default (Neutral and Allowed → field exposed). The parity integration test
+`tests/Integration/PhasePerRecordAiAccess/McpJsonApiFieldParityTest.php` guards this contract.
+
+The filter lives in `packages/mcp/src/Serializer/McpEntityFieldFilter.php` and is wired by
+`McpController` via `EntityTools::setFieldFilter()`.
+
 ### See also
 
 - Mission: `kitty-specs/bimaaji-mcp-bridge-01KS5VS8/`
+- Mission (M-A5): `kitty-specs/per-record-ai-access-flagship-01KSEFT5/`
 - SC-004 anchor: `kitty-specs/ai-agent-bimaaji-tools-01KS5VKR/verification.md`
 - Package README: `packages/mcp/README.md`
 - Bimaaji spec (MCP exposure subsection): `docs/specs/bimaaji.md`
+- Field access spec: `docs/specs/field-access.md`

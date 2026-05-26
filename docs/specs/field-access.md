@@ -293,6 +293,23 @@ packages/api/tests/Unit/Schema/SchemaPresenterFieldAccessTest.php
 tests/Integration/Phase6/FieldAccessIntegrationTest.php
 ```
 
+## MCP parity (M-A5, FR-007)
+
+The MCP serializer enforces field-level access with an **asymmetric shape** compared to JSON:API:
+
+- **JSON:API** (`ResourceSerializer`): forbidden fields are **absent** from `attributes`. This is the JSON:API-idiomatic approach — the field does not appear in the response at all.
+- **MCP** (`McpEntityFieldFilter`): forbidden fields are **replaced** by the canonical redaction marker `{"accessRestricted": true, "reason": "field_forbidden_for_account"}`. The field key is preserved so callers have audit lineage — they know something was withheld rather than silently receiving a smaller payload.
+
+Both surfaces honour open-by-default semantics: `Neutral` and `Allowed` results expose the field; only `Forbidden` triggers the surface-specific treatment.
+
+The parity integration test `tests/Integration/PhasePerRecordAiAccess/McpJsonApiFieldParityTest.php` (FR-007) boots a real SQLite database, registers a `BodyForbiddenFieldPolicy`, and asserts:
+
+1. MCP includes the redaction marker for `attributes.body`.
+2. JSON:API omits `attributes.body`.
+3. The set of reachable (non-forbidden) field keys is identical on both surfaces.
+
+Removing the `McpEntityFieldFilter` wiring in `McpController` MUST cause this test to fail.
+
 ## File Reference
 
 ```
@@ -303,10 +320,14 @@ packages/access/src/
     EntityAccessHandler.php          - checkFieldAccess(), filterFields()
 
 packages/api/src/
-    ResourceSerializer.php           - Omits view-denied fields
+    ResourceSerializer.php           - Omits view-denied fields (JSON:API)
     JsonApiController.php            - Checks edit access on mutations
     Schema/
         SchemaPresenter.php          - x-access-restricted annotation
+
+packages/mcp/src/
+    Serializer/McpEntityFieldFilter.php - Redacts forbidden fields for MCP callers (M-A5)
+    Tools/EntityTools.php               - Wires McpEntityFieldFilter via setFieldFilter()
 
 packages/admin/app/
     composables/useSchema.ts         - Reads x-access-restricted
@@ -314,4 +335,7 @@ packages/admin/app/
     components/schema/SchemaField.vue - Passes disabled to widgets
 
 public/index.php                     - Wires access context into controllers
+
+tests/Integration/PhasePerRecordAiAccess/
+    McpJsonApiFieldParityTest.php    - FR-007 dead-code guard + parity contract
 ```
