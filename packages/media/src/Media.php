@@ -155,4 +155,46 @@ final class Media extends ContentEntityBase
 
         return $this;
     }
+
+    /**
+     * Gets the AI accessibility setting for this media entity.
+     *
+     * Returns one of: 'yes', 'no', 'inherit' (default).
+     *
+     * - 'yes'     — AI tools may read this file.
+     * - 'no'      — AI tools may not read this file.
+     * - 'inherit' — Defer to the entity's classification label.
+     *               Until M-A4 ships, 'inherit' resolves to 'yes' for
+     *               unclassified entities (access-preserving default, C-004).
+     *
+     * @return 'yes'|'no'|'inherit'
+     */
+    public function getAiAccessible(): string
+    {
+        $value = $this->get('ai_accessible');
+
+        if ($value === 'yes' || $value === 'no') {
+            return $value;
+        }
+
+        return 'inherit';
+    }
+
+    /**
+     * Sets the AI accessibility setting for this media entity.
+     *
+     * @param 'yes'|'no'|'inherit' $value
+     */
+    public function setAiAccessible(string $value): static
+    {
+        if (!in_array($value, ['yes', 'no', 'inherit'], strict: true)) {
+            throw new \InvalidArgumentException(
+                sprintf('Invalid AI accessibility value "%s". Must be one of: yes, no, inherit.', $value),
+            );
+        }
+
+        $this->set('ai_accessible', $value);
+
+        return $this;
+    }
 }

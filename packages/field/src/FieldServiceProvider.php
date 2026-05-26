@@ -62,7 +62,12 @@ final class FieldServiceProvider extends ServiceProvider
 
         $this->singleton(
             FieldTypeManager::class,
-            fn() => new FieldTypeManager(),
+            fn() => new FieldTypeManager(
+                directories: [
+                    __DIR__ . '/Item',
+                    __DIR__ . '/FieldType',
+                ],
+            ),
         );
 
         $this->singleton(

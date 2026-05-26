@@ -146,7 +146,6 @@
   "nav_group_custom": "Shortcuts",
   "nav_group_operations": "Operations",
   "topbar_links": "Quick links",
-
   "entity_type_user": "User",
   "entity_type_node": "Content",
   "entity_type_node_type": "Content Type",
@@ -161,7 +160,6 @@
   "entity_type_pipeline": "Pipeline",
   "entity_type_note": "Note",
   "entity_type_relationship": "Relationship",
-
   "field_title": "Title",
   "field_machine_name": "Machine name",
   "field_published": "Published",
@@ -176,7 +174,6 @@
   "field_authored_on": "Authored on",
   "field_last_updated": "Last updated",
   "field_system_path": "System path",
-
   "create_entity": "Create {type}",
   "edit_entity": "Edit {type}",
   "view_entity": "{type} details",
@@ -184,7 +181,6 @@
   "no": "No",
   "field_not_set": "Not set",
   "close": "Close",
-
   "telescope_codified_context": "Codified Context",
   "telescope_cc_sessions": "Sessions",
   "telescope_cc_drift_score": "Drift Score",
@@ -196,10 +192,8 @@
   "telescope_cc_semantic": "Semantic Alignment",
   "telescope_cc_structural": "Structural Checks",
   "telescope_cc_contradictions": "Contradiction Checks",
-
   "bundle_filter_label": "Bundle:",
   "bundle_filter_all": "All bundles",
-
   "queue_title": "Queue jobs",
   "queue_empty": "No jobs in this view.",
   "queue_column_id": "ID",
@@ -223,7 +217,6 @@
   "queue_status_in_progress": "In progress",
   "queue_status_all": "All",
   "queue_age_seconds": "{seconds}s",
-
   "scheduler_title": "Scheduled tasks",
   "scheduler_empty": "No scheduled tasks are registered.",
   "scheduler_column_name": "Task",
@@ -240,7 +233,6 @@
   "scheduler_status_failed": "Failed",
   "scheduler_status_skipped": "Skipped",
   "scheduler_status_never": "Never run",
-
   "notifications_title": "Notifications",
   "notifications_empty": "No notification channels are registered.",
   "notifications_column_type": "Channel",
@@ -252,7 +244,6 @@
   "notifications_status_success": "Test sent",
   "notifications_status_failure": "Test failed",
   "notifications_help": "Lists the notification channels resolved at boot. Delivery log and per-channel enable/disable are tracked under a separate follow-up.",
-
   "oidc.clients.title": "OIDC Clients",
   "oidc.clients.titleNew": "New OIDC Client",
   "oidc.clients.titleEdit": "Edit OIDC Client",
@@ -279,7 +270,6 @@
   "oidc.clients.fields.scopes": "Allowed scopes",
   "oidc.clients.fields.grantTypes": "Grant types",
   "oidc.clients.fields.confidential": "Confidential client",
-
   "mercure_monitor_title": "Broadcast monitor",
   "mercure_monitor_refresh": "Refresh",
   "mercure_monitor_channels_heading": "Channels (last 24 h)",
@@ -314,5 +304,10 @@
   "classification_policy_exemptions": "Exemptions",
   "classification_policy_edit": "Edit",
   "classification_policy_delete": "Delete",
-  "classification_policy_confirm_delete": "Delete this retention policy? This cannot be undone."
+  "classification_policy_confirm_delete": "Delete this retention policy? This cannot be undone.",
+  "media_ai_accessible_label": "AI accessibility",
+  "media_ai_accessible_help": "Controls whether AI tools may read this file. Inherit defers to the file's classification.",
+  "media_ai_accessible_yes": "Yes — AI tools may read this file",
+  "media_ai_accessible_no": "No — AI tools may not read this file",
+  "media_ai_accessible_inherit": "Inherit from classification"
 }
