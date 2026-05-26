@@ -1,16 +1,16 @@
 {
-  "event_count": 26,
-  "last_event_id": "01KSJ02CQB8CYVY7QX0JR056WS",
-  "materialized_at": "2026-05-26T11:17:40.715274+00:00",
+  "event_count": 27,
+  "last_event_id": "01KSJ02FM4QFHNYSN74YZENKQJ",
+  "materialized_at": "2026-05-26T11:17:43.684783+00:00",
   "mission_number": "5",
   "mission_slug": "classification-retention-engine-01KSEFTH",
   "mission_type": "software-dev",
   "summary": {
-    "approved": 1,
+    "approved": 0,
     "blocked": 0,
     "canceled": 0,
     "claimed": 0,
-    "done": 3,
+    "done": 4,
     "for_review": 0,
     "in_progress": 0,
     "in_review": 0,
@@ -40,10 +40,10 @@
     },
     "WP04": {
       "actor": "user",
-      "force_count": 2,
-      "lane": "approved",
-      "last_event_id": "01KSHYFMVRJKBE2BVF1NP2VHZ7",
-      "last_transition_at": "2026-05-26T10:49:57.880197+00:00"
+      "force_count": 3,
+      "lane": "done",
+      "last_event_id": "01KSJ02FM4QFHNYSN74YZENKQJ",
+      "last_transition_at": "2026-05-26T11:17:43.684783+00:00"
     }
   }
 }
