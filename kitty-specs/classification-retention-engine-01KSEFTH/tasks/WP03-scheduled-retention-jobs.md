@@ -43,8 +43,8 @@ tags:
 - retention
 - scheduler
 - integration-test
-agent: "claude:opus:implementer:implementer"
-shell_pid: "492458"
+agent: "claude:opus:reviewer2:reviewer"
+shell_pid: "506289"
 ---
 
 # WP03 — Scheduled retention jobs + integration test
@@ -132,3 +132,4 @@ spec-kitty agent tasks move-task WP03 --to for_review --mission classification-r
 - 2026-05-26T10:48:35Z – claude:opus:reviewer:reviewer – shell_pid=485303 – Moved to planned
 - 2026-05-26T10:50:14Z – claude:opus:implementer:implementer – shell_pid=492458 – Started implementation via action command
 - 2026-05-26T11:08:04Z – claude:opus:implementer:implementer – shell_pid=492458 – FR-015 integration test fixed: PurgeJob/HoldScanJob invoked via booted-kernel real composition, retention.purge + hold_vs_purge audit events asserted, load-bearing dead-code guard (FieldServiceProvider clearance binding) verified by-hand
+- 2026-05-26T11:08:52Z – claude:opus:reviewer2:reviewer – shell_pid=506289 – Started review via action command
