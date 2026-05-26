@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Api;
 
+use Waaseyaa\Api\Audit\ApiAuditQueryAdapter;
+use Waaseyaa\Api\Audit\AuditQueryReadModelInterface;
+use Waaseyaa\Api\Controller\AuditQueryController;
 use Waaseyaa\Api\Controller\MercureMonitorController;
 use Waaseyaa\Api\Controller\NotificationController;
 use Waaseyaa\Api\Controller\OidcClientController;
 use Waaseyaa\Api\Controller\QueueController;
 use Waaseyaa\Api\Controller\SchedulerController;
 use Waaseyaa\Api\Controller\WorkflowGuardsController;
+use Waaseyaa\Api\Http\Router\AuditApiRouter;
 use Waaseyaa\Api\Http\Router\DiscoveryRouter;
 use Waaseyaa\Api\Http\Router\MercureMonitorApiRouter;
 use Waaseyaa\Api\Http\Router\NotificationAdminApiRouter;
@@ -20,6 +24,8 @@ use Waaseyaa\Api\Http\Router\WorkflowGuardsApiRouter;
 use Waaseyaa\Api\MercureMonitor\ChannelInspectorInterface;
 use Waaseyaa\Api\MercureMonitor\EventStreamReadModelInterface;
 use Waaseyaa\Api\MercureMonitor\SubscriberObserverInterface;
+// Note: AuditQueryInterface is NOT imported at class-level — waaseyaa/audit
+// is a require-dev dep. The singleton factory resolves it by string (C-002).
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
@@ -36,7 +42,24 @@ use Waaseyaa\Workflows\AuthoringRoleMatrix;
 
 final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface
 {
-    public function register(): void {}
+    public function register(): void
+    {
+        // OCAP audit log substrate (ocap-audit-log-substrate-01KSEFTF WP03).
+        // Bind the api-local read-model interface to the adapter that bridges
+        // L0 audit contracts (AuditQueryInterface) into L4 DTOs.
+        // DEAD-CODE GUARD: removing this singleton causes OcapAuditEndpointTest
+        // to receive empty {data: [], meta: {total: 0}} — the test's count()
+        // assertion fails, proving the binding is live.
+        // waaseyaa/audit is in require-dev (C-002 / NFR-002) so AuditQueryInterface
+        // is resolved by string to avoid a hard class-level import that would
+        // crash kernel boot on installs without waaseyaa/audit.
+        $this->singleton(AuditQueryReadModelInterface::class, function (): AuditQueryReadModelInterface {
+            /** @var \Waaseyaa\Audit\Contract\AuditQueryInterface $auditQuery */
+            $auditQuery = $this->resolve(\Waaseyaa\Audit\Contract\AuditQueryInterface::class);
+
+            return new ApiAuditQueryAdapter($auditQuery);
+        });
+    }
 
     public function httpDomainRouters(HttpKernel $httpKernel): iterable
     {
@@ -128,6 +151,17 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
                 ),
             );
         }
+
+        // OCAP audit log substrate (ocap-audit-log-substrate-01KSEFTF WP03).
+        // AuditQueryReadModelInterface is bound in register() above; resolve
+        // it optionally so slimmed-down installs lacking waaseyaa/audit boot
+        // cleanly. The controller handles null read-model → empty response.
+        $auditReadModel = $this->resolveOptional(AuditQueryReadModelInterface::class);
+        $routers[] = new AuditApiRouter(
+            new AuditQueryController(
+                $auditReadModel instanceof AuditQueryReadModelInterface ? $auditReadModel : null,
+            ),
+        );
 
         // WP05: OIDC client CRUD admin API. The oidc_client entity type is
         // registered by OidcServiceProvider (L6 oidc) which boots before api.
