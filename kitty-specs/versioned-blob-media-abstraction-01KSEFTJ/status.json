@@ -1,16 +1,16 @@
 {
-  "event_count": 21,
-  "last_event_id": "01KSJT9BMC45G6N1NJWH73ABCG",
-  "materialized_at": "2026-05-26T18:55:51.948040+00:00",
+  "event_count": 22,
+  "last_event_id": "01KSJT9EDPXGNQ6615S3V5KY83",
+  "materialized_at": "2026-05-26T18:55:54.806331+00:00",
   "mission_number": "",
   "mission_slug": "versioned-blob-media-abstraction-01KSEFTJ",
   "mission_type": "software-dev",
   "summary": {
-    "approved": 3,
+    "approved": 2,
     "blocked": 0,
     "canceled": 0,
     "claimed": 0,
-    "done": 1,
+    "done": 2,
     "for_review": 0,
     "in_progress": 0,
     "in_review": 0,
@@ -26,10 +26,10 @@
     },
     "WP02": {
       "actor": "user",
-      "force_count": 4,
-      "lane": "approved",
-      "last_event_id": "01KSEVKEND97GVHJ0YV6NZH77F",
-      "last_transition_at": "2026-05-25T06:01:53.581712+00:00"
+      "force_count": 5,
+      "lane": "done",
+      "last_event_id": "01KSJT9EDPXGNQ6615S3V5KY83",
+      "last_transition_at": "2026-05-26T18:55:54.806331+00:00"
     },
     "WP03": {
       "actor": "user",
