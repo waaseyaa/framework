@@ -6,5 +6,7 @@
   "mission_slug": "classification-retention-engine-01KSEFTH",
   "mission_type": "software-dev",
   "slug": "classification-retention-engine-01KSEFTH",
-  "target_branch": "main"
+  "target_branch": "main",
+  "vcs": "git",
+  "vcs_locked_at": "2026-05-25T18:39:25.954566+00:00"
 }
