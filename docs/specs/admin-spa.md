@@ -826,6 +826,9 @@ Real-time SSE monitor for the Mercure broadcasting layer (gap-matrix C-L0-04, mi
 | `packages/admin/playwright.config.ts` | Playwright E2E test configuration |
 | `packages/admin/app/composables/useWorkflowGuards.ts` | Fetches `/api/workflow-definitions/{id}/guards` (M4A-5 Phase 1, #1470) |
 | `packages/admin/app/components/workflow/WorkflowGuardsTable.vue` | Read-only guards matrix section embedded on `/workflows/{id}` (M4A-5 Phase 1, #1470) |
+| `packages/admin/app/composables/useMediaVersions.ts` | Fetches `/api/media/{uuid}/versions` (DIR-005, versioned-blob-media-abstraction-01KSEFTJ WP04) |
+| `packages/admin/app/components/media/MediaVersionBrowser.vue` | Read-only version table rendered at `/media/{uuid}/versions` (DIR-005 WP04) |
+| `packages/admin/app/pages/media/[uuid]/versions.vue` | Media version browser page (DIR-005 WP04) |
 
 ## Implementation gotchas
 
@@ -840,3 +843,4 @@ Real-time SSE monitor for the Mercure broadcasting layer (gap-matrix C-L0-04, mi
 
 <!-- Spec reviewed 2026-05-24 - workflow guards read-only matrix section on /workflows/{id} (M4A-5 Phase 1, #1470) -->
 <!-- Spec reviewed 2026-05-25 - inertia-demotion-nuxt-standardisation-01KSEFTS - WP03 - SPA bet section added per DIR-007 -->
+<!-- Spec reviewed 2026-05-25 - media version browser page /media/{uuid}/versions (DIR-005 versioned-blob-media-abstraction-01KSEFTJ WP04) -->

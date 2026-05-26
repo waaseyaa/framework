@@ -7,6 +7,7 @@ namespace Waaseyaa\Api;
 use Waaseyaa\Api\Audit\ApiAuditQueryAdapter;
 use Waaseyaa\Api\Audit\AuditQueryReadModelInterface;
 use Waaseyaa\Api\Controller\AuditQueryController;
+use Waaseyaa\Api\Controller\MediaVersionController;
 use Waaseyaa\Api\Controller\MercureMonitorController;
 use Waaseyaa\Api\Controller\NotificationController;
 use Waaseyaa\Api\Controller\OidcClientController;
@@ -15,21 +16,26 @@ use Waaseyaa\Api\Controller\SchedulerController;
 use Waaseyaa\Api\Controller\WorkflowGuardsController;
 use Waaseyaa\Api\Http\Router\AuditApiRouter;
 use Waaseyaa\Api\Http\Router\DiscoveryRouter;
+use Waaseyaa\Api\Http\Router\MediaVersionApiRouter;
 use Waaseyaa\Api\Http\Router\MercureMonitorApiRouter;
 use Waaseyaa\Api\Http\Router\NotificationAdminApiRouter;
 use Waaseyaa\Api\Http\Router\OidcClientApiRouter;
 use Waaseyaa\Api\Http\Router\QueueAdminApiRouter;
 use Waaseyaa\Api\Http\Router\SchedulerAdminApiRouter;
 use Waaseyaa\Api\Http\Router\WorkflowGuardsApiRouter;
+use Waaseyaa\Api\Media\ApiMediaVersionAdapter;
+use Waaseyaa\Api\Media\MediaVersionReadModelInterface;
 use Waaseyaa\Api\MercureMonitor\ChannelInspectorInterface;
 use Waaseyaa\Api\MercureMonitor\EventStreamReadModelInterface;
 use Waaseyaa\Api\MercureMonitor\SubscriberObserverInterface;
+use Waaseyaa\Access\Gate\GateInterface;
 // Note: AuditQueryInterface is NOT imported at class-level — waaseyaa/audit
 // is a require-dev dep. The singleton factory resolves it by string (C-002).
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Media\Version\MediaVersionRepository;
 use Waaseyaa\Notification\NotificationDispatcher;
 use Waaseyaa\Queue\FailedJobRepositoryInterface;
 use Waaseyaa\Queue\QueueInterface;
@@ -59,6 +65,23 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
 
             return new ApiAuditQueryAdapter($auditQuery);
         });
+
+        // DIR-005 (versioned-blob-media-abstraction-01KSEFTJ): bind the API
+        // read-model for MediaVersion. The adapter resolves MediaVersionRepository
+        // (L2 media) and GateInterface at boot-time via resolveOptional so that
+        // installs without the media package skip cleanly. The GateInterface is
+        // optional: when absent (no media access policy registered) all versions
+        // are accessible to authenticated accounts (open-by-default per spec).
+        // Bind only when MediaVersionRepository is resolvable (media package present).
+        // The httpDomainRouters() block uses resolveOptional to skip gracefully when absent.
+        $repo = $this->resolveOptional(MediaVersionRepository::class);
+        if ($repo instanceof MediaVersionRepository) {
+            $gate = $this->resolveOptional(GateInterface::class);
+            $this->singleton(MediaVersionReadModelInterface::class, fn(): ApiMediaVersionAdapter => new ApiMediaVersionAdapter(
+                repo: $repo,
+                gate: $gate instanceof GateInterface ? $gate : null,
+            ));
+        }
     }
 
     public function httpDomainRouters(HttpKernel $httpKernel): iterable
@@ -160,6 +183,18 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
         $routers[] = new AuditApiRouter(
             new AuditQueryController(
                 $auditReadModel instanceof AuditQueryReadModelInterface ? $auditReadModel : null,
+            ),
+        );
+
+        // DIR-005 (versioned-blob-media-abstraction-01KSEFTJ): media version
+        // read API. The read-model is bound in register() above; if the media
+        // package is absent (slimmed-down install) the controller falls back to
+        // empty/404 shapes without crashing boot. Routes are registered in
+        // BuiltinRouteRegistrar (T-L), gated by _authenticated.
+        $mediaVersionReadModel = $this->resolveOptional(MediaVersionReadModelInterface::class);
+        $routers[] = new MediaVersionApiRouter(
+            new MediaVersionController(
+                $mediaVersionReadModel instanceof MediaVersionReadModelInterface ? $mediaVersionReadModel : null,
             ),
         );
 

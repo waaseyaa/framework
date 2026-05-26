@@ -45,6 +45,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/mcp/*` | `waaseyaa:mcp-endpoint` | `docs/specs/mcp-endpoint.md` |
 | `public/index.php` | `waaseyaa:middleware-pipeline` | `docs/specs/http-entry-point.md` |
 | `packages/*/src/Middleware/*` | `waaseyaa:middleware-pipeline` | `docs/specs/middleware-pipeline.md` |
+| `packages/media/*`, `packages/media/src/Version/*` | — | `docs/specs/entity-storage-two-axis.md` (cross-ref: DIR-005 versioned blob) |
 | `packages/note/*` | — | `docs/specs/ingestion-defaults.md` |
 | `packages/relationship/*` | — | `docs/specs/relationship-modeling.md`, `docs/specs/relationship-inference-contract.md` |
 | `packages/genealogy/*` | — (distribution-extension) | `docs/specs/genealogy.md`, `docs/specs/relationship-modeling.md` |

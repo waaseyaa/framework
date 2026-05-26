@@ -336,3 +336,17 @@ Cross-WP cleanup landed in WP08: the WP01 `\RuntimeException` marker in
 swapped for the typed `StorageMigrationException::unsupportedTwoAxisField()`
 factory introduced in WP04. The literal `unsupportedTwoAxisField` token is
 preserved in the factory message so contract tests continue to pass.
+
+## Related: Versioned blob media abstraction (DIR-005)
+
+`MediaVersion` (mission `versioned-blob-media-abstraction-01KSEFTJ`) is a
+**non-revisioned, non-translatable** entity that sits alongside the two-axis
+storage shape rather than inside it. Each `MediaVersion` row represents one
+immutable CAS blob pointer (`blob_uri`, `sha256`) for a parent `media` entity.
+Version identity is a monotonic `vid` integer scoped to the parent UUID rather
+than the core-entity revision integer, deliberately avoiding the translatable ×
+revisioning lifecycle so the CAS lineage remains append-only and auditable.
+
+See `docs/specs/` for the versioned-blob-media spec (to be created in a
+follow-up spec pass) and `packages/media/src/Version/MediaVersionRepository.php`
+for the storage implementation.

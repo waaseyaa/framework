@@ -330,6 +330,30 @@ final class BuiltinRouteRegistrar
                 ->build(),
         );
 
+        // DIR-005 (versioned-blob-media-abstraction-01KSEFTJ WP03 T-L):
+        // Media version read API — list all versions + show a specific version.
+        // Gated by _authenticated (FR-008): any logged-in account may call;
+        // per-version filtering is applied inside the read-model adapter
+        // (GateInterface) — forbidden versions are silently omitted from lists
+        // and return 403 on direct show. Binary-stream download deferred (FR-010).
+        $mvController = 'Waaseyaa\\Api\\Controller\\MediaVersionController';
+        $router->addRoute(
+            'api.media.versions.index',
+            RouteBuilder::create('/api/media/{uuid}/versions')
+                ->controller($mvController . '::index')
+                ->requireAuthentication()
+                ->methods('GET')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.media.versions.show',
+            RouteBuilder::create('/api/media/{uuid}/versions/{vid}')
+                ->controller($mvController . '::show')
+                ->requireAuthentication()
+                ->methods('GET')
+                ->build(),
+        );
+
         // OCAP audit log substrate (ocap-audit-log-substrate-01KSEFTF).
         // Controller wired in WP03 (packages/api). Route reserved here so
         // foundation registers the named route independently of the api package.

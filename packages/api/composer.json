@@ -58,11 +58,15 @@
         },
         {
             "type": "path",
+            "url": "../workflows"
+        },
+        {
+            "type": "path",
             "url": "../audit"
         },
         {
             "type": "path",
-            "url": "../workflows"
+            "url": "../media"
         }
     ],
     "require": {
@@ -80,6 +84,7 @@
         "phpunit/phpunit": "^10.5",
         "waaseyaa/audit": "^0.1.0-alpha.188",
         "waaseyaa/database-legacy": "^0.1.0-alpha.188",
+        "waaseyaa/media": "^0.1.0-alpha.188",
         "waaseyaa/telescope": "^0.1.0-alpha.188"
     },
     "autoload": {

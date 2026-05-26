@@ -309,5 +309,14 @@
   "media_ai_accessible_help": "Controls whether AI tools may read this file. Inherit defers to the file's classification.",
   "media_ai_accessible_yes": "Yes — AI tools may read this file",
   "media_ai_accessible_no": "No — AI tools may not read this file",
-  "media_ai_accessible_inherit": "Inherit from classification"
+  "media_ai_accessible_inherit": "Inherit from classification",
+  "media_versions_title": "Media versions",
+  "media_versions_empty": "No versions found for this media asset.",
+  "media_versions_total": "Total versions: {total}",
+  "media_version_col_vid": "Version",
+  "media_version_col_mime": "MIME type",
+  "media_version_col_size": "Size",
+  "media_version_col_hash": "SHA-256",
+  "media_version_col_created": "Created at",
+  "media_version_col_creator": "Created by"
 }
