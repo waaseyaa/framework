@@ -17,7 +17,7 @@ subtasks:
   - "T008"
 phase: "Phase 2 - Audit + follow-ups"
 assignee: ""
-agent: "claude"
+agent: ""
 shell_pid: ""
 authoritative_surface: "docs/specs/jsonapi.md"
 execution_mode: "documentation"
@@ -95,6 +95,4 @@ Read `CHANGELOG.md`. Under `[Unreleased]` → `### Changed`, append the verbatim
 5. Output of `rg -c 'GAP' docs/specs/jsonapi.md` (must match the number of follow-up missions filed).
 
 ## Activity Log
-- 2026-05-25T18:41:07Z – claude – Moved to in_progress
-- 2026-05-25T18:44:37Z – claude – Parity matrix populated; zero GAP rows; CHANGELOG entry landed; Out-of-band updated.
-- 2026-05-25T18:45:22Z – claude – Opus review: 24-row parity matrix; 0 gaps; GraphQL demoted via banner + composer suggest; jsonapi.md + api-layer.md + CHANGELOG all stamped
+

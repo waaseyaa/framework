@@ -298,5 +298,21 @@
   "mercure_monitor_col_event": "Event",
   "mercure_monitor_col_created_at": "Created at",
   "mercure_monitor_col_account": "Account",
-  "mercure_monitor_col_connected_since": "Connected since"
+  "mercure_monitor_col_connected_since": "Connected since",
+  "nav_group_governance": "Governance",
+  "classification_policies_nav": "Retention policies",
+  "classification_policies_title": "Retention policies",
+  "classification_policies_empty": "No retention policies defined yet.",
+  "classification_policy_name": "Name",
+  "classification_policy_action": "Action",
+  "classification_policy_action_purge": "Purge",
+  "classification_policy_action_redact": "Redact",
+  "classification_policy_action_hold_flag": "Hold-flag",
+  "classification_policy_applies_to": "Applies to",
+  "classification_policy_trigger_kind": "Trigger kind",
+  "classification_policy_trigger_value": "Trigger value",
+  "classification_policy_exemptions": "Exemptions",
+  "classification_policy_edit": "Edit",
+  "classification_policy_delete": "Delete",
+  "classification_policy_confirm_delete": "Delete this retention policy? This cannot be undone."
 }

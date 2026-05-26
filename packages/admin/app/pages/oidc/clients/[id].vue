@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { OidcClient, OidcClientInput } from '~/composables/useOidcClients'
+import { useLanguage } from '~/composables/useLanguage'
 
 const route = useRoute()
 const { get, create, update, regenerateSecret } = useOidcClients()
-const { t } = useI18n()
+const { t } = useLanguage()
 
 const isNew = computed(() => route.params.id === 'new')
 const clientId = computed(() => String(route.params.id))

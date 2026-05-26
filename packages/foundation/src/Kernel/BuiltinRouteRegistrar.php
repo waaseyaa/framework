@@ -423,6 +423,61 @@ final class BuiltinRouteRegistrar
                 ->build(),
         );
 
+        // Classification retention-engine (classification-retention-engine-01KSEFTH WP02).
+        // Friendly URLs for the RetentionPolicy entity served via the framework's
+        // standard JSON:API entity controller. Read endpoints gate to
+        // `governance-viewer` (audit/legal read-only) OR `admin`; mutations gate
+        // to `admin` only. The auto-generated `/api/retention_policy` routes
+        // (from JsonApiRouteProvider) remain reachable; these aliases exist for
+        // discoverability and stable URL contracts documented in the admin SPA.
+        // Refs: FR-008, NFR-001 / DIR-004.
+        $retentionPolicyController = 'Waaseyaa\\Api\\JsonApiController';
+        $router->addRoute(
+            'api.classification.policies.index',
+            RouteBuilder::create('/api/classification/policies')
+                ->controller($retentionPolicyController . '::index')
+                ->requireRole('governance-viewer,admin')
+                ->methods('GET')
+                ->default('_entity_type', 'retention_policy')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.classification.policies.show',
+            RouteBuilder::create('/api/classification/policies/{id}')
+                ->controller($retentionPolicyController . '::show')
+                ->requireRole('governance-viewer,admin')
+                ->methods('GET')
+                ->default('_entity_type', 'retention_policy')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.classification.policies.store',
+            RouteBuilder::create('/api/classification/policies')
+                ->controller($retentionPolicyController . '::store')
+                ->requireRole('admin')
+                ->methods('POST')
+                ->default('_entity_type', 'retention_policy')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.classification.policies.update',
+            RouteBuilder::create('/api/classification/policies/{id}')
+                ->controller($retentionPolicyController . '::update')
+                ->requireRole('admin')
+                ->methods('PATCH')
+                ->default('_entity_type', 'retention_policy')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.classification.policies.destroy',
+            RouteBuilder::create('/api/classification/policies/{id}')
+                ->controller($retentionPolicyController . '::destroy')
+                ->requireRole('admin')
+                ->methods('DELETE')
+                ->default('_entity_type', 'retention_policy')
+                ->build(),
+        );
+
         $router->sortRoutesByPriority();
     }
 }

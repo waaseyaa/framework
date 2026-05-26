@@ -135,8 +135,9 @@ Decision preference order (per charter): preserve OCAP audit lineage > minimise 
 
 ## Out-of-band
 
-No GAP rows in the parity matrix; no follow-up missions filed.
-
-The WP03 audit (2026-05-25) found that every GraphQL-exposed operation (entity list, single-fetch, create, update, delete — auto-generated per entity type by `SchemaFactory`) has a direct equivalent in the JSON:API surface via `JsonApiController`. All additional JSON:API-only endpoints (queue, scheduler, notifications, workflow guards, Mercure monitor, OIDC clients, audit, discovery, broadcast, field auto-save, translations) are exclusive to JSON:API with no GraphQL equivalent — these are not gaps since JSON:API is the primary surface.
+- Per-gap follow-up missions filed by WP03. The implementer adds each slug here at finalisation time (one slug per line, format: `- <slug> — <one-sentence summary of the gap>`).
+- **Placeholder list (to be replaced by the WP03 implementer with the real audit output):**
+  - `- api-jsonapi-gap-<example>-<ULID> — JSON:API exposure for <entity or operation> currently only available via GraphQL.`
+- If the audit finds zero gaps, this section reads: `No GAP rows in the parity matrix; no follow-up missions filed.`
 - A future DIR-009 charter directive committing the framework to JSON:API at the constitutional level — defer to a separate charter-amendment mission only if a distribution explicitly asks for the stronger commitment.
 - If `composer.lock` regeneration surfaces unrelated transitive changes, file a separate lock-file-refresh mission.

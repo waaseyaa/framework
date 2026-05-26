@@ -23,6 +23,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | File pattern | Specialist skill | Cold memory spec |
 |---|---|---|
 | `packages/entity/*`, `packages/entity-storage/*`, `packages/field/*` | `waaseyaa:entity-system` | `docs/specs/entity-system.md` |
+| `packages/field/src/Classification/*`, `packages/field/src/Entity/{ClassificationLabelDefinition,RetentionPolicy}.php`, `packages/admin/app/pages/classification/*` (classification labels, inheritance, clearance/hold access, retention jobs) | — | `docs/specs/classification-and-retention.md` |
 | `packages/entity-storage/src/{Schema/TranslationSchemaHandler,Schema/RevisionTableBuilder,Driver/RevisionableStorageDriver,Listing/TwoAxisFilterResolver,Revision/RevisionPruningPolicy,Exception/StorageMigrationException}.php`, `packages/access/src/Policy/RevisionPolicyComposition.php` (two-axis storage: revisionable × translatable) | — | `docs/specs/entity-storage-two-axis.md`, `docs/cookbook/translatable-revisionable-entities.md`, `docs/upgrade-notes/two-axis-storage.md`, `docs/specs/entity-storage-translatable-revisions.md` |
 | `packages/config/*` (active store, runtime read API) | `waaseyaa:entity-system` | `docs/specs/entity-system.md` |
 | `packages/config/src/{Sync,Dependency,Audit,Backend}/*`, `packages/cli/src/Command/Config/*` (CMI: sync store, `config:*` CLI, `config.audit`) | — | `docs/specs/config-management.md`, `docs/cookbook/config-sync.md`, `docs/adr/018-configuration-management-sync.md` |

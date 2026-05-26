@@ -65,7 +65,7 @@ export function useOidcClients() {
   }
 
   async function remove(id: string): Promise<void> {
-    await apiFetch<void>(`/api/oidc-clients/${id}`, { method: 'DELETE' })
+    await apiFetch<unknown>(`/api/oidc-clients/${id}`, { method: 'DELETE' })
   }
 
   async function regenerateSecret(id: string): Promise<OidcClient> {
