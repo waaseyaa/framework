@@ -197,3 +197,4 @@ If any gate fails, transition to BLOCKED and do not merge.
 _(populated during execution; record the path decision and its audit-grounded rationale FIRST, before any edits)_
 - 2026-05-25T06:27:59Z – claude – shell_pid=154271 – Started implementation via action command
 - 2026-05-25T06:43:11Z – claude – shell_pid=154271 – Opus review: ELIMINATE per DIR-003; 13 files deleted; ADR-022 supersedes ADR-007; PR #1581 open; all gates green
+- 2026-05-26T18:48:50Z – claude – shell_pid=154271 – Done override: Sprint merge to main
