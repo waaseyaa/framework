@@ -1,16 +1,16 @@
 {
-  "event_count": 20,
-  "last_event_id": "01KSJT3JNT70K583NQRQ2JXGT0",
-  "materialized_at": "2026-05-26T18:52:42.554799+00:00",
+  "event_count": 21,
+  "last_event_id": "01KSJT3NEN85K0D72F5CSNS2F7",
+  "materialized_at": "2026-05-26T18:52:45.397758+00:00",
   "mission_number": "",
   "mission_slug": "per-record-ai-access-flagship-01KSEFT5",
   "mission_type": "software-dev",
   "summary": {
-    "approved": 1,
+    "approved": 0,
     "blocked": 0,
     "canceled": 0,
     "claimed": 0,
-    "done": 2,
+    "done": 3,
     "for_review": 0,
     "in_progress": 0,
     "in_review": 0,
@@ -33,10 +33,10 @@
     },
     "WP03": {
       "actor": "user",
-      "force_count": 1,
-      "lane": "approved",
-      "last_event_id": "01KSESJHBFK7Z38TYD3VKFM70C",
-      "last_transition_at": "2026-05-25T05:26:26.415316+00:00"
+      "force_count": 2,
+      "lane": "done",
+      "last_event_id": "01KSJT3NEN85K0D72F5CSNS2F7",
+      "last_transition_at": "2026-05-26T18:52:45.397758+00:00"
     }
   }
 }
