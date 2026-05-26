@@ -45,6 +45,8 @@ tags:
 - access-policy
 - retention
 - hold
+agent: "claude:opus:reviewer:reviewer"
+shell_pid: "485303"
 ---
 
 # WP02 — RetentionPolicy entity + ClassificationFieldAccessPolicy + clearance + permissions + JSON:API CRUD
@@ -130,3 +132,4 @@ spec-kitty agent tasks move-task WP02 --to for_review --mission classification-r
 ## Activity Log
 - 2026-05-25T20:19:52Z – unknown – Claiming WP02 in lane-a worktree
 - 2026-05-25T20:41:07Z – unknown – WP02 implementation complete on lane-a. 7 commits (0a2dd4819..e9855bbe1). Verification gate green: phpunit 455/455 (756 assertions), phpstan clean on WP02 surface, cs-check 0/1781, all check-* scripts pass. Hold-override smoke (FR-013/C-004): admin without legal-hold-bypass blocked from hold-legal entity.
+- 2026-05-26T10:43:38Z – claude:opus:reviewer:reviewer – shell_pid=485303 – Started review via action command
