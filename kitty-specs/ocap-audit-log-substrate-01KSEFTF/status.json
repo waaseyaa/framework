@@ -1,16 +1,16 @@
 {
-  "event_count": 20,
-  "last_event_id": "01KSJSTBQMBAVN4R9TD9R11DRG",
-  "materialized_at": "2026-05-26T18:47:40.532146+00:00",
+  "event_count": 21,
+  "last_event_id": "01KSJSTE8VF17QVZ1DK8ZRJ4NN",
+  "materialized_at": "2026-05-26T18:47:43.131053+00:00",
   "mission_number": "",
   "mission_slug": "ocap-audit-log-substrate-01KSEFTF",
   "mission_type": "software-dev",
   "summary": {
-    "approved": 1,
+    "approved": 0,
     "blocked": 0,
     "canceled": 0,
     "claimed": 0,
-    "done": 2,
+    "done": 3,
     "for_review": 0,
     "in_progress": 0,
     "in_review": 0,
@@ -33,10 +33,10 @@
     },
     "WP03": {
       "actor": "user",
-      "force_count": 1,
-      "lane": "approved",
-      "last_event_id": "01KSEV4C303VN02922JPE5F1C4",
-      "last_transition_at": "2026-05-25T05:53:39.424813+00:00"
+      "force_count": 2,
+      "lane": "done",
+      "last_event_id": "01KSJSTE8VF17QVZ1DK8ZRJ4NN",
+      "last_transition_at": "2026-05-26T18:47:43.131053+00:00"
     }
   }
 }
