@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Agent\AgentExecutor;
 use Waaseyaa\AI\Agent\Entity\AgentAuditLog;
 use Waaseyaa\AI\Agent\Entity\AgentRun;
@@ -224,6 +225,7 @@ final class AgentExecutorRetryTest extends TestCase
             toolRegistry: $this->emptyRegistry(),
             runRepository: $this->runRepository,
             auditRepository: $this->auditRepository,
+            entityAccessHandler: new EntityAccessHandler(),
             transcriptMaxBytes: 65536,
             hitlPollIntervalMs: 1,
             hitlTimeoutSeconds: 1,

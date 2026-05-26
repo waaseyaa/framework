@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Waaseyaa\AI\Agent;
 
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Agent\Entity\AgentAuditLog;
 use Waaseyaa\AI\Agent\Entity\AgentRun;
+use Waaseyaa\AI\Tools\AgentToolContext;
 use Waaseyaa\AI\Agent\Enum\EventType;
 use Waaseyaa\AI\Agent\Enum\HitlMode;
 use Waaseyaa\AI\Agent\Enum\RunStatus;
@@ -77,6 +79,7 @@ final class AgentExecutor
         private readonly ToolRegistryInterface $toolRegistry,
         private readonly AgentRunRepository $runRepository,
         private readonly AgentAuditLogRepository $auditRepository,
+        private readonly EntityAccessHandler $entityAccessHandler,
         private readonly int $transcriptMaxBytes = 262144,
         private readonly int $hitlPollIntervalMs = 1000,
         private readonly int $hitlTimeoutSeconds = 300,
@@ -315,8 +318,16 @@ final class AgentExecutor
                     toolArgumentsJson: json_encode($auditArgs, JSON_THROW_ON_ERROR),
                 );
 
+                // DIR-004: construct AgentToolContext per tool call so each
+                // tool receives the initiator account + EntityAccessHandler.
+                $toolContext = new AgentToolContext(
+                    account: $initiatorAccount,
+                    entityAccessHandler: $this->entityAccessHandler,
+                    agentRunId: $runId,
+                );
+
                 try {
-                    $toolResult = $tool->impl->execute($toolArgs, $initiatorAccount);
+                    $toolResult = $tool->impl->execute($toolArgs, $toolContext);
                 } catch (\Throwable $e) {
                     $this->logger->error(sprintf('Tool "%s" threw: %s', $toolName, $e->getMessage()));
                     $this->appendAudit(
@@ -429,8 +440,16 @@ final class AgentExecutor
             return AgentToolResult::error($e->getMessage());
         }
 
+        // DIR-004: construct AgentToolContext so executeTool callers also
+        // route through the EntityAccessHandler boundary.
+        $toolContext = new AgentToolContext(
+            account: $account,
+            entityAccessHandler: $this->entityAccessHandler,
+            agentRunId: $runId,
+        );
+
         try {
-            return $tool->impl->execute($arguments, $account);
+            return $tool->impl->execute($arguments, $toolContext);
         } catch (\Throwable $e) {
             if ($runId !== null) {
                 $this->appendError(

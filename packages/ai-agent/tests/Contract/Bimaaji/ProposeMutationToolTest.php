@@ -8,7 +8,9 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Agent\Tool\Bimaaji\ProposeMutationTool;
+use Waaseyaa\AI\Tools\AgentToolContext;
 use Waaseyaa\Bimaaji\Graph\ApplicationGraph;
 use Waaseyaa\Bimaaji\Graph\GraphSection;
 use Waaseyaa\Bimaaji\Mutation\MutationRequest;
@@ -23,7 +25,7 @@ final class ProposeMutationToolTest extends TestCase
         $tool = $this->makeTool();
         $result = $tool->execute(
             $this->validArguments(),
-            $this->accountWithPermission('bimaaji.mutate'),
+            $this->contextWithPermission('bimaaji.mutate'),
         );
 
         self::assertFalse($result->isError);
@@ -62,7 +64,7 @@ final class ProposeMutationToolTest extends TestCase
         $tool = $this->makeTool(entitiesData: []);
         $result = $tool->execute(
             $this->validArguments(),
-            $this->accountWithPermission('bimaaji.mutate'),
+            $this->contextWithPermission('bimaaji.mutate'),
         );
 
         self::assertFalse($result->isError, 'Validator denials ride the success envelope; only tool-level failures flip isError.');
@@ -83,13 +85,13 @@ final class ProposeMutationToolTest extends TestCase
         $graph = $this->graphWithUser();
         $validator = new MutationValidator($graph);
         $tool = new ProposeMutationTool($validator);
-        $account = $this->accountWithPermission('bimaaji.mutate');
+        $context = $this->contextWithPermission('bimaaji.mutate');
         $args = $this->validArguments();
         $request = new MutationRequest('add_field', 'User', 'nickname', ['type' => 'string']);
 
         // Warm-up — first call pays autoloading / initial caches.
         $validator->validate($request);
-        $tool->execute($args, $account);
+        $tool->execute($args, $context);
 
         $iterations = 20;
         $directDurations = [];
@@ -100,7 +102,7 @@ final class ProposeMutationToolTest extends TestCase
             $directDurations[] = hrtime(true) - $t0;
 
             $t1 = hrtime(true);
-            $tool->execute($args, $account);
+            $tool->execute($args, $context);
             $toolDurations[] = hrtime(true) - $t1;
         }
 
@@ -128,7 +130,7 @@ final class ProposeMutationToolTest extends TestCase
         $tool = $this->makeTool();
         $result = $tool->execute(
             $this->validArguments(),
-            $this->accountWithPermission('bimaaji.mutate'),
+            $this->contextWithPermission('bimaaji.mutate'),
         );
 
         $payload = $result->content[0]['data'] ?? null;
@@ -144,7 +146,7 @@ final class ProposeMutationToolTest extends TestCase
         $tool = $this->makeTool();
         $result = $tool->execute(
             $this->validArguments(),
-            $this->accountWithPermission('bimaaji.read'),
+            $this->contextWithPermission('bimaaji.read'),
         );
 
         self::assertTrue($result->isError);
@@ -155,7 +157,7 @@ final class ProposeMutationToolTest extends TestCase
     public function rejectsMissingArguments(): void
     {
         $tool = $this->makeTool();
-        $result = $tool->execute([], $this->accountWithPermission('bimaaji.mutate'));
+        $result = $tool->execute([], $this->contextWithPermission('bimaaji.mutate'));
 
         self::assertTrue($result->isError);
         self::assertSame('missing argument', $result->summary);
@@ -205,6 +207,15 @@ final class ProposeMutationToolTest extends TestCase
         return $count % 2 === 1
             ? (float) $samples[$mid]
             : ($samples[$mid - 1] + $samples[$mid]) / 2.0;
+    }
+
+    private function contextWithPermission(string $permission): AgentToolContext
+    {
+        return new AgentToolContext(
+            account: $this->accountWithPermission($permission),
+            entityAccessHandler: new EntityAccessHandler(),
+            agentRunId: null,
+        );
     }
 
     private function accountWithPermission(string $permission): AccountInterface

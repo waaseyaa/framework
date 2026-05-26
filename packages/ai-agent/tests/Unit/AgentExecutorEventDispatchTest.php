@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Agent\AgentExecutor;
 use Waaseyaa\AI\Agent\Entity\AgentAuditLog;
 use Waaseyaa\AI\Agent\Entity\AgentRun;
@@ -25,6 +26,7 @@ use Waaseyaa\AI\Observability\Event\AgentRunStarted;
 use Waaseyaa\AI\Observability\Event\AgentRunTerminated;
 use Waaseyaa\AI\Observability\Event\AgentRunToolCallObserved;
 use Waaseyaa\AI\Tools\AgentTool;
+use Waaseyaa\AI\Tools\AgentToolContext;
 use Waaseyaa\AI\Tools\AgentToolInterface;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
@@ -263,6 +265,7 @@ final class AgentExecutorEventDispatchTest extends TestCase
             toolRegistry: $registry,
             runRepository: $this->runRepository,
             auditRepository: $this->auditRepository,
+            entityAccessHandler: new EntityAccessHandler(),
             transcriptMaxBytes: 65536,
             hitlPollIntervalMs: 1,
             hitlTimeoutSeconds: 1,
@@ -330,12 +333,12 @@ final class AgentExecutorEventDispatchTest extends TestCase
     private function makeEchoTool(string $name): AgentTool
     {
         $impl = new class implements AgentToolInterface {
-            public function execute(array $arguments, AccountInterface $account): AgentToolResult
+            public function execute(array $arguments, AgentToolContext $context): AgentToolResult
             {
                 return AgentToolResult::text('ok');
             }
 
-            public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
+            public function dryRun(array $arguments, AgentToolContext $context): AgentToolResult
             {
                 return AgentToolResult::text('dry-ok');
             }

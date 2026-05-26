@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Agent\Tool\Bimaaji;
 
-use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
+use Waaseyaa\AI\Tools\AgentToolContext;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
+use Waaseyaa\AI\Tools\Attribute\Capability;
 use Waaseyaa\Bimaaji\Mutation\MutationRequest;
 use Waaseyaa\Bimaaji\Mutation\MutationValidator;
 use Waaseyaa\Bimaaji\Patch\PatchGenerator;
@@ -32,10 +33,14 @@ use Waaseyaa\Bimaaji\Patch\PatchGenerator;
  * the request internally. The duplicated work is the price of refusing to
  * trust client-supplied validation state.
  *
- * Capability: `bimaaji.mutate`.
+ * Capability: `bimaaji.mutate`. Metadata-only: generates in-memory patches
+ * for schema mutations; never reads or writes user-data entity records.
+ * `#[Capability(governedData: false)]` opts this tool out of the mandatory
+ * per-record EntityAccessHandler consultation (FR-003 / DIR-004).
  *
  * @api
  */
+#[Capability(governedData: false)]
 #[AsAgentTool(
     name: 'bimaaji_generate_patch',
     capability: 'bimaaji.mutate',
@@ -84,9 +89,9 @@ final class GeneratePatchTool extends AbstractAgentTool
         ];
     }
 
-    public function execute(array $arguments, AccountInterface $account): AgentToolResult
+    public function execute(array $arguments, AgentToolContext $context): AgentToolResult
     {
-        $denied = $this->requireCapability('bimaaji.mutate', $account);
+        $denied = $this->requireCapability('bimaaji.mutate', $context);
         if ($denied !== null) {
             return $denied;
         }
@@ -132,9 +137,9 @@ final class GeneratePatchTool extends AbstractAgentTool
         );
     }
 
-    public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
+    public function dryRun(array $arguments, AgentToolContext $context): AgentToolResult
     {
-        return $this->execute($arguments, $account);
+        return $this->execute($arguments, $context);
     }
 
     /**

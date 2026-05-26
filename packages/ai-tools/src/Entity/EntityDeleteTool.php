@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Tools\Entity;
 
-use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
+use Waaseyaa\AI\Tools\AgentToolContext;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -49,9 +49,9 @@ final class EntityDeleteTool extends AbstractAgentTool
         ];
     }
 
-    public function execute(array $arguments, AccountInterface $account): AgentToolResult
+    public function execute(array $arguments, AgentToolContext $context): AgentToolResult
     {
-        $denied = $this->requireCapability('tool.entity.delete', $account);
+        $denied = $this->requireCapability('tool.entity.delete', $context);
         if ($denied !== null) {
             return $denied;
         }
@@ -72,6 +72,25 @@ final class EntityDeleteTool extends AbstractAgentTool
             if ($entity === null) {
                 return AgentToolResult::error(sprintf('entity.delete: %s/%s not found', $entityType, (string) $id));
             }
+        } catch (\Throwable $e) {
+            return AgentToolResult::error(sprintf('entity.delete: %s', $e->getMessage()));
+        }
+
+        // FR-002 / DIR-004: check delete access before removing.
+        $accessResult = $context->entityAccessHandler->check($entity, 'delete', $context->account);
+        if ($accessResult->isForbidden()) {
+            return AgentToolResult::success(
+                content: [['type' => 'json', 'data' => [
+                    'accessDenied' => true,
+                    'entityType' => $entityType,
+                    'id' => $id,
+                    'reason' => 'entity_forbidden_for_account',
+                ]]],
+                summary: sprintf('Access denied: cannot delete %s/%s', $entityType, (string) $id),
+            );
+        }
+
+        try {
             $repository->delete($entity);
         } catch (\Throwable $e) {
             return AgentToolResult::error(sprintf('entity.delete: %s', $e->getMessage()));
@@ -83,9 +102,9 @@ final class EntityDeleteTool extends AbstractAgentTool
         );
     }
 
-    public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
+    public function dryRun(array $arguments, AgentToolContext $context): AgentToolResult
     {
-        $denied = $this->requireCapability('tool.entity.delete', $account);
+        $denied = $this->requireCapability('tool.entity.delete', $context);
         if ($denied !== null) {
             return $denied;
         }

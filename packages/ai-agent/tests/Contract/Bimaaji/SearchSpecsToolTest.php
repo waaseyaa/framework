@@ -8,7 +8,9 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Agent\Tool\Bimaaji\SearchSpecsTool;
+use Waaseyaa\AI\Tools\AgentToolContext;
 use Waaseyaa\Bimaaji\Spec\SpecIndexProvider;
 
 #[CoversClass(SearchSpecsTool::class)]
@@ -50,7 +52,7 @@ final class SearchSpecsToolTest extends TestCase
         );
 
         $tool = $this->makeTool();
-        $result = $tool->execute(['query' => 'entities'], $this->accountWithPermission('bimaaji.read'));
+        $result = $tool->execute(['query' => 'entities'], $this->contextWithPermission('bimaaji.read'));
 
         self::assertFalse($result->isError);
         $matches = $result->content[0]['data']['matches'] ?? [];
@@ -72,7 +74,7 @@ final class SearchSpecsToolTest extends TestCase
     public function rejectsMissingQueryArgument(): void
     {
         $tool = $this->makeTool();
-        $result = $tool->execute([], $this->accountWithPermission('bimaaji.read'));
+        $result = $tool->execute([], $this->contextWithPermission('bimaaji.read'));
 
         self::assertTrue($result->isError);
         self::assertSame('missing argument', $result->summary);
@@ -82,7 +84,7 @@ final class SearchSpecsToolTest extends TestCase
     public function rejectsNonStringQuery(): void
     {
         $tool = $this->makeTool();
-        $result = $tool->execute(['query' => 42], $this->accountWithPermission('bimaaji.read'));
+        $result = $tool->execute(['query' => 42], $this->contextWithPermission('bimaaji.read'));
 
         self::assertTrue($result->isError);
         self::assertSame('missing argument', $result->summary);
@@ -92,7 +94,7 @@ final class SearchSpecsToolTest extends TestCase
     public function rejectsEmptyStringQuery(): void
     {
         $tool = $this->makeTool();
-        $result = $tool->execute(['query' => ''], $this->accountWithPermission('bimaaji.read'));
+        $result = $tool->execute(['query' => ''], $this->contextWithPermission('bimaaji.read'));
 
         self::assertTrue($result->isError);
         self::assertSame('missing argument', $result->summary);
@@ -102,7 +104,7 @@ final class SearchSpecsToolTest extends TestCase
     public function rejectsInvalidLimit(): void
     {
         $tool = $this->makeTool();
-        $result = $tool->execute(['query' => 'x', 'limit' => 0], $this->accountWithPermission('bimaaji.read'));
+        $result = $tool->execute(['query' => 'x', 'limit' => 0], $this->contextWithPermission('bimaaji.read'));
 
         self::assertTrue($result->isError);
         self::assertSame('invalid argument', $result->summary);
@@ -112,7 +114,7 @@ final class SearchSpecsToolTest extends TestCase
     public function rejectsAccountWithoutCapability(): void
     {
         $tool = $this->makeTool();
-        $result = $tool->execute(['query' => 'x'], $this->accountWithPermission('not.bimaaji.read'));
+        $result = $tool->execute(['query' => 'x'], $this->contextWithPermission('not.bimaaji.read'));
 
         self::assertTrue($result->isError);
         self::assertSame('forbidden', $result->summary);
@@ -124,7 +126,7 @@ final class SearchSpecsToolTest extends TestCase
         file_put_contents($this->tempDir . '/dummy.md', "# Dummy\n");
 
         $tool = $this->makeTool();
-        $result = $tool->execute(['query' => 'zzzzz-nonsense'], $this->accountWithPermission('bimaaji.read'));
+        $result = $tool->execute(['query' => 'zzzzz-nonsense'], $this->contextWithPermission('bimaaji.read'));
 
         self::assertFalse($result->isError);
         self::assertSame([], $result->content[0]['data']['matches']);
@@ -144,7 +146,7 @@ final class SearchSpecsToolTest extends TestCase
         $tool = $this->makeTool();
         $result = $tool->execute(
             ['query' => 'marker', 'limit' => 2],
-            $this->accountWithPermission('bimaaji.read'),
+            $this->contextWithPermission('bimaaji.read'),
         );
 
         self::assertFalse($result->isError);
@@ -154,6 +156,15 @@ final class SearchSpecsToolTest extends TestCase
     private function makeTool(): SearchSpecsTool
     {
         return new SearchSpecsTool(new SpecIndexProvider($this->tempDir));
+    }
+
+    private function contextWithPermission(string $permission): AgentToolContext
+    {
+        return new AgentToolContext(
+            account: $this->accountWithPermission($permission),
+            entityAccessHandler: new EntityAccessHandler(),
+            agentRunId: null,
+        );
     }
 
     private function accountWithPermission(string $permission): AccountInterface

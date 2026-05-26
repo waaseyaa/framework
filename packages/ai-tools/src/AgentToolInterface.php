@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Tools;
 
-use Waaseyaa\Access\AccountInterface;
-
 /**
  * Contract implemented by every framework-shipped or third-party agent tool.
  *
@@ -13,9 +11,14 @@ use Waaseyaa\Access\AccountInterface;
  * the package manifest compiler), and registration is performed lazily by
  * {@see \Waaseyaa\AI\Tools\Catalogue\AttributeToolRegistry}.
  *
- * Implementers MUST enforce the tool's capability against the supplied
- * {@see AccountInterface} inside {@see execute()} / {@see dryRun()} — the
- * registry only enforces presence of the attribute, not authorization.
+ * Every implementation MUST consult the {@see AgentToolContext::$entityAccessHandler}
+ * per record touched during execution — unless the tool carries
+ * `#[Capability(governedData: false)]`, which signals that the tool's output
+ * is application metadata only and never user-data records (DIR-004 / FR-003).
+ *
+ * The context also carries the {@see AgentToolContext::$agentRunId} for audit
+ * lineage: every AccessChecker consultation MUST be recorded in `AgentAuditLog`
+ * (NFR-003 / DIR-004).
  *
  * @api
  */
@@ -26,11 +29,14 @@ interface AgentToolInterface
      *
      * Implementations MUST validate {@see $arguments} against the JSON
      * Schema returned by {@see inputSchema()} and MUST enforce the tool's
-     * capability against {@see $account}.
+     * capability against {@see AgentToolContext::$account}.
+     *
+     * Tools without `#[Capability(governedData: false)]` MUST also call
+     * {@see AgentToolContext::$entityAccessHandler} per entity record touched.
      *
      * @param array<string, mixed> $arguments
      */
-    public function execute(array $arguments, AccountInterface $account): AgentToolResult;
+    public function execute(array $arguments, AgentToolContext $context): AgentToolResult;
 
     /**
      * Perform a side-effect-free preview of {@see execute()}.
@@ -43,7 +49,7 @@ interface AgentToolInterface
      *
      * @param array<string, mixed> $arguments
      */
-    public function dryRun(array $arguments, AccountInterface $account): AgentToolResult;
+    public function dryRun(array $arguments, AgentToolContext $context): AgentToolResult;
 
     /**
      * Return a redacted view of {@see $arguments} for audit-log storage.

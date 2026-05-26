@@ -8,9 +8,9 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
-use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentTool;
+use Waaseyaa\AI\Tools\AgentToolContext;
 use Waaseyaa\AI\Tools\AgentToolInterface;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
@@ -146,7 +146,7 @@ final class AttributeToolRegistryTestFixture extends AbstractAgentTool implement
         return ['type' => 'object'];
     }
 
-    public function execute(array $arguments, AccountInterface $account): AgentToolResult
+    public function execute(array $arguments, AgentToolContext $context): AgentToolResult
     {
         return AgentToolResult::success([['type' => 'text', 'text' => 'fixture executed']]);
     }

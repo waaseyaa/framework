@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Tools\Vector;
 
-use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
+use Waaseyaa\AI\Tools\AgentToolContext;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
 
@@ -57,9 +57,9 @@ final class VectorSearchTool extends AbstractAgentTool
         ];
     }
 
-    public function execute(array $arguments, AccountInterface $account): AgentToolResult
+    public function execute(array $arguments, AgentToolContext $context): AgentToolResult
     {
-        $denied = $this->requireCapability('tool.vector.search', $account);
+        $denied = $this->requireCapability('tool.vector.search', $context);
         if ($denied !== null) {
             return $denied;
         }
@@ -96,8 +96,8 @@ final class VectorSearchTool extends AbstractAgentTool
         );
     }
 
-    public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
+    public function dryRun(array $arguments, AgentToolContext $context): AgentToolResult
     {
-        return $this->execute($arguments, $account);
+        return $this->execute($arguments, $context);
     }
 }

@@ -17,6 +17,9 @@ final readonly class AgentTool
 {
     /**
      * @param array<string, mixed> $inputSchema JSON Schema draft 2020-12
+     * @param bool $touchesGovernedData False for metadata-only tools carrying
+     *        `#[Capability(governedData: false)]`; true (default) for tools that
+     *        touch user-data records and MUST consult EntityAccessHandler per record.
      */
     public function __construct(
         public string $name,
@@ -26,6 +29,7 @@ final readonly class AgentTool
         public string $category,
         public array $inputSchema,
         public AgentToolInterface $impl,
+        public bool $touchesGovernedData = true,
     ) {}
 
     /**

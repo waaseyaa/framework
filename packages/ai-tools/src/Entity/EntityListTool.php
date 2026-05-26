@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Tools\Entity;
 
-use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
+use Waaseyaa\AI\Tools\AgentToolContext;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
 use Waaseyaa\Entity\EntityInterface;
@@ -50,9 +50,9 @@ final class EntityListTool extends AbstractAgentTool
         ];
     }
 
-    public function execute(array $arguments, AccountInterface $account): AgentToolResult
+    public function execute(array $arguments, AgentToolContext $context): AgentToolResult
     {
-        $denied = $this->requireCapability('tool.entity.list', $account);
+        $denied = $this->requireCapability('tool.entity.list', $context);
         if ($denied !== null) {
             return $denied;
         }
@@ -77,10 +77,17 @@ final class EntityListTool extends AbstractAgentTool
             return AgentToolResult::error(sprintf('entity.list: %s', $e->getMessage()));
         }
 
-        $items = array_map(fn(EntityInterface $e): array => [
-            'entity_type' => $e->getEntityTypeId(),
-            'id' => $e->id(),
-        ], $entities);
+        // FR-002 / DIR-004: per-record access check; omit forbidden records silently.
+        $items = [];
+        foreach ($entities as $entity) {
+            $accessResult = $context->entityAccessHandler->check($entity, 'view', $context->account);
+            if (!$accessResult->isForbidden()) {
+                $items[] = [
+                    'entity_type' => $entity->getEntityTypeId(),
+                    'id' => $entity->id(),
+                ];
+            }
+        }
 
         return AgentToolResult::success(
             content: [['type' => 'json', 'data' => ['items' => $items, 'count' => count($items)]]],
@@ -88,8 +95,8 @@ final class EntityListTool extends AbstractAgentTool
         );
     }
 
-    public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
+    public function dryRun(array $arguments, AgentToolContext $context): AgentToolResult
     {
-        return $this->execute($arguments, $account);
+        return $this->execute($arguments, $context);
     }
 }
