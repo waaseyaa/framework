@@ -57,10 +57,22 @@ final class MediaVersioningIntegrationTest extends TestCase
         $this->router = new MediaVersionApiRouter($this->controller);
 
         $this->account = new class implements AccountInterface {
-            public function id(): int|string { return 1; }
-            public function isAuthenticated(): bool { return true; }
-            public function getRoles(): array { return ['administrator']; }
-            public function hasPermission(string $permission): bool { return true; }
+            public function id(): int|string
+            {
+                return 1;
+            }
+            public function isAuthenticated(): bool
+            {
+                return true;
+            }
+            public function getRoles(): array
+            {
+                return ['administrator'];
+            }
+            public function hasPermission(string $permission): bool
+            {
+                return true;
+            }
         };
     }
 

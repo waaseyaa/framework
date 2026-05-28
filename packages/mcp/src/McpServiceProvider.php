@@ -67,7 +67,7 @@ final class McpServiceProvider extends ServiceProvider
         // Delegates to McpAuthInterface for registered-client enumeration.
         $this->singleton(
             ServerConfigReadModelInterface::class,
-            fn (): ServerConfigReadModelInterface => new ServerConfigReadModel(
+            fn(): ServerConfigReadModelInterface => new ServerConfigReadModel(
                 auth: $this->resolve(McpAuthInterface::class),
             ),
         );

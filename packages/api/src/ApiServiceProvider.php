@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Api;
 
+use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Api\Audit\ApiAuditQueryAdapter;
 use Waaseyaa\Api\Audit\AuditQueryReadModelInterface;
 use Waaseyaa\Api\Controller\AuditQueryController;
@@ -28,7 +29,6 @@ use Waaseyaa\Api\Media\MediaVersionReadModelInterface;
 use Waaseyaa\Api\MercureMonitor\ChannelInspectorInterface;
 use Waaseyaa\Api\MercureMonitor\EventStreamReadModelInterface;
 use Waaseyaa\Api\MercureMonitor\SubscriberObserverInterface;
-use Waaseyaa\Access\Gate\GateInterface;
 // Note: AuditQueryInterface is NOT imported at class-level — waaseyaa/audit
 // is a require-dev dep. The singleton factory resolves it by string (C-002).
 use Waaseyaa\Entity\EntityTypeManager;
