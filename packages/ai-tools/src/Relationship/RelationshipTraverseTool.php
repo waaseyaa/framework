@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Tools\Relationship;
 
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
-use Waaseyaa\AI\Tools\AgentToolContext;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -53,9 +53,9 @@ final class RelationshipTraverseTool extends AbstractAgentTool
         ];
     }
 
-    public function execute(array $arguments, AgentToolContext $context): AgentToolResult
+    public function execute(array $arguments, AccountInterface $account): AgentToolResult
     {
-        $denied = $this->requireCapability('tool.relationship.traverse', $context);
+        $denied = $this->requireCapability('tool.relationship.traverse', $account);
         if ($denied !== null) {
             return $denied;
         }
@@ -97,13 +97,8 @@ final class RelationshipTraverseTool extends AbstractAgentTool
             return AgentToolResult::error(sprintf('relationship.traverse: %s', $e->getMessage()));
         }
 
-        // FR-002 / DIR-004: per-edge access check; omit forbidden relationship records silently.
         $edges = [];
         foreach ($rows as $row) {
-            $accessResult = $context->entityAccessHandler->check($row, 'view', $context->account);
-            if ($accessResult->isForbidden()) {
-                continue;
-            }
             $values = method_exists($row, 'getValues') ? $row->getValues() : [];
             $edges[] = [
                 'id' => $row->id(),
@@ -117,8 +112,8 @@ final class RelationshipTraverseTool extends AbstractAgentTool
         );
     }
 
-    public function dryRun(array $arguments, AgentToolContext $context): AgentToolResult
+    public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
     {
-        return $this->execute($arguments, $context);
+        return $this->execute($arguments, $account);
     }
 }
