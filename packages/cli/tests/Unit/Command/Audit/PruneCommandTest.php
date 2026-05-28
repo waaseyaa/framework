@@ -28,7 +28,7 @@ final class PruneCommandTest extends TestCase
     /**
      * @param array<string, mixed> $options
      */
-    private function makeIo(array $options = []): CliIO&object
+    private function makeIo(array $options = [])
     {
         return new class ($options) implements CliIO {
             /** @var string[] */
@@ -63,7 +63,7 @@ final class PruneCommandTest extends TestCase
 
             public function write(string $text): void {}
 
-            public function writeln(string $line): void
+            public function writeln(string $line = ''): void
             {
                 $this->lines[] = $line;
             }
