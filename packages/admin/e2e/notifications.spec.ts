@@ -31,8 +31,8 @@ test.describe('Notification channels dashboard', () => {
     await page.goto('/notifications')
     await expect(page.getByTestId('notifications-table')).toBeVisible()
     await expect(page.getByTestId('notifications-help')).toBeVisible()
-    await expect(page.getByText('mail')).toBeVisible()
-    await expect(page.getByText('database')).toBeVisible()
+    await expect(page.getByText('mail', { exact: true })).toBeVisible()
+    await expect(page.getByText('database', { exact: true })).toBeVisible()
   })
 
   test('test button requires confirmation, then fires POST and shows success chip', async ({ page }) => {
