@@ -67,14 +67,6 @@
         {
             "type": "path",
             "url": "../media"
-        },
-        {
-            "type": "path",
-            "url": "../ai-observability"
-        },
-        {
-            "type": "path",
-            "url": "../mcp"
         }
     ],
     "require": {
@@ -90,10 +82,8 @@
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
-        "waaseyaa/ai-observability": "^0.1.0-alpha.188",
         "waaseyaa/audit": "^0.1.0-alpha.188",
         "waaseyaa/database-legacy": "^0.1.0-alpha.188",
-        "waaseyaa/mcp": "^0.1.0-alpha.188",
         "waaseyaa/media": "^0.1.0-alpha.188",
         "waaseyaa/telescope": "^0.1.0-alpha.188"
     },

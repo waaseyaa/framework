@@ -4,14 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Api;
 
-use Waaseyaa\Api\AiObservability\Runs\RunDetailReadModelInterface;
-use Waaseyaa\Api\AiObservability\Runs\RunListReadModelInterface;
-use Waaseyaa\Api\AiObservability\Runs\RunReplayServiceInterface;
 use Waaseyaa\Api\Audit\ApiAuditQueryAdapter;
 use Waaseyaa\Api\Audit\AuditQueryReadModelInterface;
-use Waaseyaa\Api\Controller\AiObservabilityRunsController;
 use Waaseyaa\Api\Controller\AuditQueryController;
-use Waaseyaa\Api\Controller\McpAdminController;
 use Waaseyaa\Api\Controller\MediaVersionController;
 use Waaseyaa\Api\Controller\MercureMonitorController;
 use Waaseyaa\Api\Controller\NotificationController;
@@ -19,10 +14,8 @@ use Waaseyaa\Api\Controller\OidcClientController;
 use Waaseyaa\Api\Controller\QueueController;
 use Waaseyaa\Api\Controller\SchedulerController;
 use Waaseyaa\Api\Controller\WorkflowGuardsController;
-use Waaseyaa\Api\Http\Router\AiObservabilityRunsApiRouter;
 use Waaseyaa\Api\Http\Router\AuditApiRouter;
 use Waaseyaa\Api\Http\Router\DiscoveryRouter;
-use Waaseyaa\Api\Http\Router\McpAdminApiRouter;
 use Waaseyaa\Api\Http\Router\MediaVersionApiRouter;
 use Waaseyaa\Api\Http\Router\MercureMonitorApiRouter;
 use Waaseyaa\Api\Http\Router\NotificationAdminApiRouter;
@@ -30,15 +23,11 @@ use Waaseyaa\Api\Http\Router\OidcClientApiRouter;
 use Waaseyaa\Api\Http\Router\QueueAdminApiRouter;
 use Waaseyaa\Api\Http\Router\SchedulerAdminApiRouter;
 use Waaseyaa\Api\Http\Router\WorkflowGuardsApiRouter;
-use Waaseyaa\Api\McpAdmin\ServerConfigReadModelInterface;
-use Waaseyaa\Api\McpAdmin\ToolRegistryReadModelInterface;
 use Waaseyaa\Api\Media\ApiMediaVersionAdapter;
 use Waaseyaa\Api\Media\MediaVersionReadModelInterface;
 use Waaseyaa\Api\MercureMonitor\ChannelInspectorInterface;
 use Waaseyaa\Api\MercureMonitor\EventStreamReadModelInterface;
 use Waaseyaa\Api\MercureMonitor\SubscriberObserverInterface;
-use Waaseyaa\Access\AccountInterface;
-use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Gate\GateInterface;
 // Note: AuditQueryInterface is NOT imported at class-level — waaseyaa/audit
 // is a require-dev dep. The singleton factory resolves it by string (C-002).
@@ -208,56 +197,6 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
                 $mediaVersionReadModel instanceof MediaVersionReadModelInterface ? $mediaVersionReadModel : null,
             ),
         );
-
-        // M5B WP01: AI observability runs list + detail + replay endpoints.
-        // Cross-layer: RunListReadModelInterface / RunDetailReadModelInterface /
-        // RunReplayServiceInterface are declared in api (L4); adapters live in
-        // ai-observability (L5) and are bound by ObservabilityServiceProvider.
-        // Any missing binding → null → controller returns empty-shape responses
-        // rather than crashing boot (C-003 / NFR-001).
-        $runListModel = $this->resolveOptional(RunListReadModelInterface::class);
-        $runDetailModel = $this->resolveOptional(RunDetailReadModelInterface::class);
-        $runReplayService = $this->resolveOptional(RunReplayServiceInterface::class);
-        if (
-            $runListModel instanceof RunListReadModelInterface
-            || $runDetailModel instanceof RunDetailReadModelInterface
-            || $runReplayService instanceof RunReplayServiceInterface
-        ) {
-            $routers[] = new AiObservabilityRunsApiRouter(
-                new AiObservabilityRunsController(
-                    $runListModel instanceof RunListReadModelInterface ? $runListModel : null,
-                    $runDetailModel instanceof RunDetailReadModelInterface ? $runDetailModel : null,
-                    $runReplayService instanceof RunReplayServiceInterface ? $runReplayService : null,
-                ),
-            );
-        }
-
-        // M5C WP01: MCP endpoint admin (read-only tool registry + server config).
-        // McpServiceProvider (Layer 6) binds ToolRegistryReadModelInterface and
-        // ServerConfigReadModelInterface when waaseyaa/mcp is installed. Both are
-        // optional — the controller returns empty-shape responses when either or
-        // both adapters are absent (slimmed-down install without mcp package).
-        // EntityAccessHandler + AccountInterface are also resolved optionally so
-        // recentInvocations field-access gating degrades gracefully.
-        // All three endpoints gated by `_role: admin` in BuiltinRouteRegistrar.
-        // Refs C-L6-01, DIR-004.
-        $mcpRegistry = $this->resolveOptional(ToolRegistryReadModelInterface::class);
-        $mcpConfig = $this->resolveOptional(ServerConfigReadModelInterface::class);
-        if (
-            $mcpRegistry instanceof ToolRegistryReadModelInterface
-            || $mcpConfig instanceof ServerConfigReadModelInterface
-        ) {
-            $mcpAccessHandler = $this->resolveOptional(EntityAccessHandler::class);
-            $mcpAccount = $this->resolveOptional(AccountInterface::class);
-            $routers[] = new McpAdminApiRouter(
-                new McpAdminController(
-                    $mcpRegistry instanceof ToolRegistryReadModelInterface ? $mcpRegistry : null,
-                    $mcpConfig instanceof ServerConfigReadModelInterface ? $mcpConfig : null,
-                    $mcpAccessHandler instanceof EntityAccessHandler ? $mcpAccessHandler : null,
-                    $mcpAccount instanceof AccountInterface ? $mcpAccount : null,
-                ),
-            );
-        }
 
         // WP05: OIDC client CRUD admin API. The oidc_client entity type is
         // registered by OidcServiceProvider (L6 oidc) which boots before api.
