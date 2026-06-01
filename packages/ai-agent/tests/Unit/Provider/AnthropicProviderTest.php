@@ -10,6 +10,7 @@ use Waaseyaa\AI\Agent\Provider\AnthropicProvider;
 use Waaseyaa\AI\Agent\Provider\MessageRequest;
 use Waaseyaa\AI\Agent\Provider\MessageResponse;
 use Waaseyaa\AI\Agent\Provider\StreamChunk;
+use Waaseyaa\AI\Agent\Provider\TransportException;
 
 #[CoversClass(AnthropicProvider::class)]
 final class AnthropicProviderTest extends TestCase
@@ -174,5 +175,48 @@ final class AnthropicProviderTest extends TestCase
         // Should have tool_use_start, 2 tool_use_delta, tool_use_end, message_stop
         $toolStartChunks = array_filter($chunks, fn ($c) => $c->type === 'tool_use_start');
         $this->assertCount(1, $toolStartChunks);
+    }
+
+    public function testAssertStreamTransferSucceededAcceptsAGoodTransfer(): void
+    {
+        $provider = new AnthropicProvider(apiKey: 'test-key');
+
+        // execResult true (RETURNTRANSFER is off for streaming), no errno, real status.
+        $provider->assertStreamTransferSucceeded(true, 0, '', 200);
+
+        $this->expectNotToPerformAssertions();
+    }
+
+    public function testAssertStreamTransferSucceededThrowsWhenCurlExecReturnsFalse(): void
+    {
+        $provider = new AnthropicProvider(apiKey: 'test-key');
+
+        $this->expectException(TransportException::class);
+        $this->expectExceptionMessage('SSL certificate problem');
+
+        // A transport failure: curl_exec() returned false, errno set, no HTTP status.
+        $provider->assertStreamTransferSucceeded(false, 60, 'SSL certificate problem', 0);
+    }
+
+    public function testAssertStreamTransferSucceededThrowsOnCurlErrnoEvenWithoutMessage(): void
+    {
+        $provider = new AnthropicProvider(apiKey: 'test-key');
+
+        $this->expectException(TransportException::class);
+        // Falls back to a synthetic detail when curl_error() is empty.
+        $this->expectExceptionMessage('no HTTP status received');
+
+        $provider->assertStreamTransferSucceeded(false, 28, '', 0);
+    }
+
+    public function testAssertStreamTransferSucceededThrowsWhenNoHttpStatusReceived(): void
+    {
+        $provider = new AnthropicProvider(apiKey: 'test-key');
+
+        $this->expectException(TransportException::class);
+
+        // curl_exec() can return true while still never receiving a status line;
+        // httpCode === 0 must still be treated as a failed transfer.
+        $provider->assertStreamTransferSucceeded(true, 0, '', 0);
     }
 }

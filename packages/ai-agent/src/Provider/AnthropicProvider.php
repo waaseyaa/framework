@@ -225,6 +225,29 @@ final class AnthropicProvider implements StreamingProviderInterface
     }
 
     /**
+     * Guard a completed streaming cURL transfer. Throws when the transfer failed
+     * at the transport level (cURL returned false, set an error number, or no HTTP
+     * status line was received) so a broken request can't masquerade as an empty,
+     * successful response. Public for testing.
+     *
+     * @param bool|string $execResult the return value of curl_exec()
+     *
+     * @throws TransportException
+     */
+    public function assertStreamTransferSucceeded(bool|string $execResult, int $errno, string $error, int $httpCode): void
+    {
+        if ($execResult !== false && $errno === 0 && $httpCode !== 0) {
+            return;
+        }
+
+        $detail = $error !== ''
+            ? $error
+            : "no HTTP status received (httpCode={$httpCode}, errno={$errno})";
+
+        throw new TransportException("cURL error: {$detail}");
+    }
+
+    /**
      * @return MessageResponse
      */
     private function httpPostStreaming(string $url, array $body, callable $onChunk): MessageResponse
@@ -279,8 +302,16 @@ final class AnthropicProvider implements StreamingProviderInterface
             },
         ]);
 
-        \curl_exec($ch);
+        $execResult = \curl_exec($ch);
+        $errno = \curl_errno($ch);
+        $error = \curl_error($ch);
         $httpCode = \curl_getinfo($ch, \CURLINFO_HTTP_CODE);
+
+        // A transport-level failure (TLS handshake, DNS, connect, timeout) leaves
+        // $httpCode === 0, which is not >= 400 — without this guard the method
+        // would return an empty MessageResponse that looks like a successful but
+        // contentless answer. Mirror httpPost(): surface it as a TransportException.
+        $this->assertStreamTransferSucceeded($execResult, $errno, $error, $httpCode);
 
         if ($httpCode >= 400) {
             $errorMessage = "HTTP {$httpCode}";
