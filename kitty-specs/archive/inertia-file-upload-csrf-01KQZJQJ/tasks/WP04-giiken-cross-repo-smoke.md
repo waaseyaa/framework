@@ -48,7 +48,7 @@ Prove the framework change actually reaches the consumer surface. A real Inertia
 - **Procedure**: Already specified step-by-step in `kitty-specs/inertia-file-upload-csrf-01KQZJQJ/quickstart.md` §5. This WP executes that procedure and captures evidence.
 - **Spec**: C-005, NFR-005, SC-4.
 - **Giiken state**: clean working tree on `main`, framework version pinned in `composer.json`. The path-repo step temporarily replaces the published version; the revert step restores it.
-- **Consumer surface**: The Sagamok Anishnawbek community Ingestion page at `/sagamok-anishnawbek/ingestion` (or current equivalent — verify in the giiken UI on first navigation).
+- **Consumer surface**: The Pilot Nation A Anishnawbek community Ingestion page at `/example-nation-anishnawbek/ingestion` (or current equivalent — verify in the giiken UI on first navigation).
 
 This WP runs after WP01 and WP02 are merged so the framework code on `main` is the version we test.
 
@@ -114,7 +114,7 @@ This WP runs after WP01 and WP02 are merged so the framework code on `main` is t
 3. `./vendor/bin/waaseyaa serve` — runs at `127.0.0.1:8080` (or `php -S 127.0.0.1:8080 -t public public/index.php`).
 4. In a browser, open `http://127.0.0.1:8080/`.
 5. Log in as the seeded admin/staff user (credentials in giiken `tests/` fixtures or `seeders/`).
-6. Navigate to the Sagamok Anishnawbek community management page → Ingestion.
+6. Navigate to the Pilot Nation A Anishnawbek community management page → Ingestion.
 7. Open the browser DevTools Network tab before the upload.
 
 **Validation**:

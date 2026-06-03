@@ -143,7 +143,7 @@ cd /home/jones/dev/giiken
 ### 5.3. Perform the real upload
 
 1. Open `http://127.0.0.1:8080/` in a browser, log in as the seeded admin/staff user.
-2. Navigate to the Sagamok Anishnawbek community management page.
+2. Navigate to the Pilot Nation A Anishnawbek community management page.
 3. Open the Ingestion page.
 4. Upload a real `.md` or `.csv` test file via the Inertia form.
 
