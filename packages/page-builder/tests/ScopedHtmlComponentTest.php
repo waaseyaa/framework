@@ -72,6 +72,59 @@ final class ScopedHtmlComponentTest extends TestCase
         self::assertSame(0, \preg_match('/\[portal_[a-z_]+/i', $component['html']), 'shortcodes stripped');
     }
 
+    private function strippedMembers(): string
+    {
+        $path = __DIR__ . '/Fixtures/members-stripped-component.html';
+        self::assertFileExists($path, 'Synthetic stripped-wrapper fixture must be committed.');
+
+        return (string) \file_get_contents($path);
+    }
+
+    #[Test]
+    public function it_reconstructs_card_wrappers_an_editor_stripped_using_the_css_contract(): void
+    {
+        // The fixture's CSS declares `.portal .card` and `.portal .card .icon`
+        // (etc.) but the markup lost every `.card` wrapper, leaving a flat run of
+        // icon/ttl/desc/meta children in the grid. The component must put the
+        // wrappers back from the stylesheet contract alone.
+        $component = HtmlComponent::fromHtml($this->strippedMembers());
+        self::assertNotNull($component);
+
+        $html = $component['html'];
+
+        // Three `.icon` boundaries -> three reconstructed `.card` wrappers.
+        self::assertSame(3, \substr_count($html, '<div class="card">'), 'one card per icon boundary');
+
+        // The wrappers are real ancestors: each card's inner pieces survive inside.
+        self::assertMatchesRegularExpression(
+            '#<div class="card"><div class="icon">A</div><div class="ttl">First Section</div>#',
+            $html,
+            'first card groups its icon + title',
+        );
+        // The trailing corner-pill before the next icon stays in the first card.
+        self::assertStringContainsString('<span class="corner-pill">New</span>', $html);
+
+        // Nothing fabricated: all three source titles are present, exactly once.
+        foreach (['First Section', 'Second Section', 'Third Section'] as $title) {
+            self::assertSame(1, \substr_count($html, $title), $title . ' preserved exactly once');
+        }
+        // The grid container itself is preserved.
+        self::assertStringContainsString('class="grid"', $html);
+    }
+
+    #[Test]
+    public function it_leaves_well_formed_card_markup_untouched(): void
+    {
+        // When the `.card` wrappers are already present (the happy path), the
+        // reconstruction must not fire or double-wrap.
+        $component = HtmlComponent::fromHtml($this->members());
+        self::assertNotNull($component);
+
+        // The fixture has exactly three real cards; reconstruction must not add more.
+        self::assertSame(3, \substr_count($component['html'], 'class="card"'), 'no extra wrappers added');
+        self::assertStringContainsString('Quarterly Report 2024', $component['html']);
+    }
+
     #[Test]
     public function registry_routes_pasted_html_to_the_component_decoder(): void
     {
