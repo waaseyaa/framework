@@ -22,6 +22,10 @@
         },
         {
             "type": "path",
+            "url": "../field"
+        },
+        {
+            "type": "path",
             "url": "../foundation"
         }
     ],
@@ -33,6 +37,7 @@
         "waaseyaa/database-legacy": "^0.1.0-alpha.188",
         "waaseyaa/entity": "^0.1.0-alpha.188",
         "waaseyaa/entity-storage": "^0.1.0-alpha.188",
+        "waaseyaa/field": "^0.1.0-alpha.188",
         "waaseyaa/foundation": "^0.1.0-alpha.188"
     },
     "require-dev": {
