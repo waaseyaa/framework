@@ -1,0 +1,254 @@
+[
+    {
+        "elType": "container",
+        "settings": {
+            "background_background": "gradient",
+            "min_height": {
+                "unit": "px",
+                "size": 540
+            },
+            "flex_justify_content": "center"
+        },
+        "elements": [
+            {
+                "elType": "widget",
+                "widgetType": "heading",
+                "settings": {
+                    "title": "Welcome",
+                    "header_size": "h1",
+                    "align": "center"
+                }
+            },
+            {
+                "elType": "widget",
+                "widgetType": "text-editor",
+                "settings": {
+                    "editor": "<p>Welcome to our community website.</p>"
+                }
+            }
+        ]
+    },
+    {
+        "elType": "container",
+        "settings": {
+            "background_background": "classic"
+        },
+        "elements": [
+            {
+                "elType": "widget",
+                "widgetType": "heading",
+                "settings": {
+                    "title": "Our Services",
+                    "header_size": "h2",
+                    "align": "center"
+                }
+            },
+            {
+                "elType": "container",
+                "settings": {
+                    "flex_direction": "row"
+                },
+                "elements": [
+                    {
+                        "elType": "container",
+                        "settings": {
+                            "border_radius": {
+                                "unit": "px",
+                                "size": 14
+                            },
+                            "box_shadow_box_shadow_type": "yes"
+                        },
+                        "elements": [
+                            {
+                                "elType": "widget",
+                                "widgetType": "icon-box",
+                                "settings": {
+                                    "title_text": "Education Program",
+                                    "description_text": "Learn about the Education Program."
+                                }
+                            },
+                            {
+                                "elType": "widget",
+                                "widgetType": "button",
+                                "settings": {
+                                    "text": "Learn More",
+                                    "selected_icon": {
+                                        "value": "fas fa-arrow-right"
+                                    },
+                                    "link": {
+                                        "url": "/pages/education-program"
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "elType": "container",
+                        "settings": {
+                            "border_radius": {
+                                "unit": "px",
+                                "size": 14
+                            },
+                            "box_shadow_box_shadow_type": "yes"
+                        },
+                        "elements": [
+                            {
+                                "elType": "widget",
+                                "widgetType": "icon-box",
+                                "settings": {
+                                    "title_text": "Health Services",
+                                    "description_text": "Learn about the Health Services."
+                                }
+                            },
+                            {
+                                "elType": "widget",
+                                "widgetType": "button",
+                                "settings": {
+                                    "text": "Learn More",
+                                    "selected_icon": {
+                                        "value": "fas fa-arrow-right"
+                                    },
+                                    "link": {
+                                        "url": "/pages/health-services"
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "elType": "container",
+                        "settings": {
+                            "border_radius": {
+                                "unit": "px",
+                                "size": 14
+                            },
+                            "box_shadow_box_shadow_type": "yes"
+                        },
+                        "elements": [
+                            {
+                                "elType": "widget",
+                                "widgetType": "icon-box",
+                                "settings": {
+                                    "title_text": "Housing Department",
+                                    "description_text": "Learn about the Housing Department."
+                                }
+                            },
+                            {
+                                "elType": "widget",
+                                "widgetType": "button",
+                                "settings": {
+                                    "text": "Learn More",
+                                    "selected_icon": {
+                                        "value": "fas fa-arrow-right"
+                                    },
+                                    "link": {
+                                        "url": "/pages/housing-department"
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "elType": "container",
+                        "settings": {
+                            "border_radius": {
+                                "unit": "px",
+                                "size": 14
+                            },
+                            "box_shadow_box_shadow_type": "yes"
+                        },
+                        "elements": [
+                            {
+                                "elType": "widget",
+                                "widgetType": "icon-box",
+                                "settings": {
+                                    "title_text": "Employment Office",
+                                    "description_text": "Learn about the Employment Office."
+                                }
+                            },
+                            {
+                                "elType": "widget",
+                                "widgetType": "button",
+                                "settings": {
+                                    "text": "Learn More",
+                                    "selected_icon": {
+                                        "value": "fas fa-arrow-right"
+                                    },
+                                    "link": {
+                                        "url": "/pages/employment-office"
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "elType": "container",
+                        "settings": {
+                            "border_radius": {
+                                "unit": "px",
+                                "size": 14
+                            },
+                            "box_shadow_box_shadow_type": "yes"
+                        },
+                        "elements": [
+                            {
+                                "elType": "widget",
+                                "widgetType": "icon-box",
+                                "settings": {
+                                    "title_text": "Recreation Centre",
+                                    "description_text": "Learn about the Recreation Centre."
+                                }
+                            },
+                            {
+                                "elType": "widget",
+                                "widgetType": "button",
+                                "settings": {
+                                    "text": "Learn More",
+                                    "selected_icon": {
+                                        "value": "fas fa-arrow-right"
+                                    },
+                                    "link": {
+                                        "url": "/pages/recreation-centre"
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "elType": "container",
+                        "settings": {
+                            "border_radius": {
+                                "unit": "px",
+                                "size": 14
+                            },
+                            "box_shadow_box_shadow_type": "yes"
+                        },
+                        "elements": [
+                            {
+                                "elType": "widget",
+                                "widgetType": "icon-box",
+                                "settings": {
+                                    "title_text": "Administration",
+                                    "description_text": "Learn about the Administration."
+                                }
+                            },
+                            {
+                                "elType": "widget",
+                                "widgetType": "button",
+                                "settings": {
+                                    "text": "Learn More",
+                                    "selected_icon": {
+                                        "value": "fas fa-arrow-right"
+                                    },
+                                    "link": {
+                                        "url": "/pages/administration"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+]
