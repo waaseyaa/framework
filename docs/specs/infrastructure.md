@@ -170,6 +170,9 @@ Every `Waaseyaa\Foundation\ServiceProvider\ServiceProvider` exposes a fixed set 
 | `configureHttpKernel(HttpKernel): void` | `Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface` | `HttpKernel::finalizeBoot()` |
 | `middleware(EntityTypeManager): list<HttpMiddlewareInterface>` | `Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface` | `HttpKernel::buildMiddlewarePipeline()` |
 | `httpDomainRouters(HttpKernel): iterable<DomainRouterInterface>` | `Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface` | `HttpKernel::buildDomainRouterChain()` |
+| `withMigrationProviders(list<object>): void` | `Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface` | `AbstractKernel::injectMigrationProviders()` |
+
+The `withMigrationProviders` hook lets the kernel hand the discovered migration providers (objects exposing application migrations, found via the Layer-3 `HasMigrationsInterface`) to the provider that owns the migration registry, before that provider's `boot()` resolves the registry. The capability interface lives in Foundation so the kernel guards the call site with a named interface (not a concrete FQCN) while the Layer-3 migration `ServiceProvider` opts in via a downward dependency; the interface param is `list<object>` and the implementation filters to migration providers.
 
 ### ServiceProvider kernel-services bus
 
