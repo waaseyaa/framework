@@ -153,7 +153,7 @@ final class ServiceProvider extends BaseServiceProvider implements AcceptsMigrat
     {
         $this->migrationProviders = \array_values(\array_filter(
             $providers,
-            static fn (object $provider): bool => $provider instanceof HasMigrationsInterface,
+            static fn(object $provider): bool => $provider instanceof HasMigrationsInterface,
         ));
     }
 
