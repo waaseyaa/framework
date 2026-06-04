@@ -33,7 +33,7 @@
         "CHANGELOG.md",
         "assets/theme/anokii-tokens.css",
         "config/classification.anokii-default.yaml",
-        "config/tenants/sagamok.yaml.example",
+        "config/tenants/example-nation.yaml.example",
         "deploy.php"
       ],
       "predicted_surfaces": [

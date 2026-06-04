@@ -49,6 +49,7 @@ final class TwoFactorTestKit
             public function getEntityTypeId(): string { return 'user'; }
         };
         return new class ($storage) implements EntityTypeManagerInterface {
+            public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array { return []; }
             public function __construct(private readonly EntityStorageInterface $storage) {}
             public function getDefinition(string $entityTypeId): EntityTypeInterface { throw new \BadMethodCallException(); }
             public function registerEntityType(EntityTypeInterface $type, ?string $registrant = null): void {}

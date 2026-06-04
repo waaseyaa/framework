@@ -8,6 +8,7 @@ use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
 use Waaseyaa\Entity\EntityTypeInterface;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\GraphQL\Resolver\ReferenceLoader;
 
 /**
@@ -22,17 +23,27 @@ final class EntityTypeBuilder
         private readonly TypeRegistry $registry,
         private readonly FieldTypeMapper $fieldTypeMapper,
         private readonly ReferenceLoader $referenceLoader,
+        private readonly EntityTypeManagerInterface $entityTypeManager,
     ) {}
 
-    public function buildObjectType(EntityTypeInterface $entityType): ObjectType
+    /**
+     * Build the GraphQL ObjectType for an entity type, optionally scoped to a
+     * bundle. With a bundle, the type is named `{Type}{Bundle}` (e.g. NodePage)
+     * and carries that content type's distinct typed fields, so page and news
+     * are genuinely different GraphQL types, not one merged shape.
+     */
+    public function buildObjectType(EntityTypeInterface $entityType, ?string $bundle = null): ObjectType
     {
-        $typeName = self::toPascalCase($entityType->id());
+        $typeName = self::toPascalCase($entityType->id())
+            . ($bundle !== null && $bundle !== '' ? self::toPascalCase($bundle) : '');
 
         /** @var ObjectType */
         return $this->registry->getOrCreate($typeName, fn(): ObjectType => new ObjectType([
             'name' => $typeName,
-            'description' => $entityType->getLabel(),
-            'fields' => fn(): array => $this->buildOutputFields($entityType),
+            'description' => $bundle !== null && $bundle !== ''
+                ? $entityType->getLabel() . ' (' . $bundle . ')'
+                : $entityType->getLabel(),
+            'fields' => fn(): array => $this->buildOutputFields($entityType, $bundle),
         ]));
     }
 
@@ -76,7 +87,7 @@ final class EntityTypeBuilder
     /**
      * @return array<string, array<string, mixed>>
      */
-    private function buildOutputFields(EntityTypeInterface $entityType): array
+    private function buildOutputFields(EntityTypeInterface $entityType, ?string $bundle = null): array
     {
         $fields = [];
         $keys = $entityType->getKeys();
@@ -97,7 +108,9 @@ final class EntityTypeBuilder
             ];
         }
 
-        $fieldDefs = $entityType->getFieldDefinitions();
+        // Canonical, bundle-aware field set so a bundle's distinct typed fields
+        // surface (e.g. page's body/blocks/featured_image).
+        $fieldDefs = $this->entityTypeManager->resolveFieldDefinitions($entityType->id(), $bundle);
         // Only skip id and uuid keys (explicitly re-added above).
         // The label key should pass through as a normal field.
         $skipFields = array_filter([
@@ -198,7 +211,7 @@ final class EntityTypeBuilder
     /**
      * @return array<string, array<string, mixed>>
      */
-    private function buildInputFields(EntityTypeInterface $entityType, bool $forCreate = true): array
+    private function buildInputFields(EntityTypeInterface $entityType, bool $forCreate = true, ?string $bundle = null): array
     {
         $fields = [];
         $keys = $entityType->getKeys();
@@ -208,7 +221,7 @@ final class EntityTypeBuilder
             $keys['id'] ?? null,
             $keys['uuid'] ?? null,
         ], static fn(?string $v): bool => $v !== null);
-        $fieldDefs = $entityType->getFieldDefinitions();
+        $fieldDefs = $this->entityTypeManager->resolveFieldDefinitions($entityType->id(), $bundle);
 
         foreach ($fieldDefs as $fieldName => $def) {
             // Skip entity keys (id, uuid) — not user-editable

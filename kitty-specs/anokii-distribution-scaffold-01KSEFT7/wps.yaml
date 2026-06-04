@@ -29,7 +29,7 @@ work_packages:
     owned_files:
       - "deploy.php"
       - "config/classification.anokii-default.yaml"
-      - "config/tenants/sagamok.yaml.example"
+      - "config/tenants/example-nation.yaml.example"
       - "assets/theme/anokii-tokens.css"
       - "CHANGELOG.md"
     authoritative_surface: "deploy.php"
