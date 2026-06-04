@@ -26,6 +26,7 @@ use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
 use Waaseyaa\Foundation\Community\CommunityContextInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
@@ -397,9 +398,8 @@ abstract class AbstractKernel
     protected function injectMigrationProviders(): void
     {
         $hasMigrationsFqcn = 'Waaseyaa\\Migration\\Discovery\\HasMigrationsInterface';
-        $migrationProviderFqcn = 'Waaseyaa\\Migration\\ServiceProvider';
 
-        if (!\interface_exists($hasMigrationsFqcn) || !\class_exists($migrationProviderFqcn)) {
+        if (!\interface_exists($hasMigrationsFqcn)) {
             return; // migration package not installed — nothing to wire.
         }
 
@@ -414,8 +414,11 @@ abstract class AbstractKernel
             return;
         }
 
+        // The receiving provider opts in via the Foundation capability interface,
+        // so the call site is guarded by a named interface (not a concrete FQCN)
+        // and the contract test can lock it in step.
         foreach ($this->providers as $provider) {
-            if ($provider instanceof $migrationProviderFqcn) {
+            if ($provider instanceof AcceptsMigrationProvidersInterface) {
                 $provider->withMigrationProviders($migrationProviders);
             }
         }

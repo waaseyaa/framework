@@ -6,6 +6,7 @@ namespace Waaseyaa\Migration;
 
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider as BaseServiceProvider;
 use Waaseyaa\Migration\Discovery\FilesystemManifestLoader;
 use Waaseyaa\Migration\Discovery\HasMigrationsInterface;
@@ -40,7 +41,7 @@ use Waaseyaa\Migration\Runner\RollbackWalker;
  *
  * @api
  */
-final class ServiceProvider extends BaseServiceProvider
+final class ServiceProvider extends BaseServiceProvider implements AcceptsMigrationProvidersInterface
 {
     /** @var list<HasMigrationsInterface> Providers injected by tests or future capability-dispatch wiring. */
     private array $migrationProviders = [];
@@ -139,17 +140,21 @@ final class ServiceProvider extends BaseServiceProvider
     /**
      * Inject migration providers prior to {@see register()}.
      *
-     * Used by the WP02 integration test and by future capability-dispatch
-     * wiring. Once a generic kernel capability bus lands the kernel will
-     * discover providers automatically and this seam can be removed.
+     * Implements {@see AcceptsMigrationProvidersInterface}: the kernel discovers
+     * providers that expose application migrations and hands them here before
+     * `boot()` resolves the registry. Also used directly by the WP02 integration
+     * test. The interface param is `list<object>` (Foundation cannot name the
+     * Layer-3 `HasMigrationsInterface`), so we filter to migration providers here;
+     * the kernel only ever passes those, so the filter is defensive.
      *
-     * @param list<HasMigrationsInterface> $providers
-     *
-     * @internal
+     * @param list<object> $providers
      */
     public function withMigrationProviders(array $providers): void
     {
-        $this->migrationProviders = $providers;
+        $this->migrationProviders = \array_values(\array_filter(
+            $providers,
+            static fn (object $provider): bool => $provider instanceof HasMigrationsInterface,
+        ));
     }
 
     /**

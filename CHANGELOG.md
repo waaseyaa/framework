@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **foundation: the kernel's migration-provider injection now resolves to a capability interface.** `AbstractKernel::injectMigrationProviders()` invoked `$provider->withMigrationProviders()` after an `instanceof` guard against the concrete migration `ServiceProvider` FQCN, which the `ServiceProviderContractTest` flags (kernel call sites must resolve to a named interface, not a concrete class). New Foundation capability interface `AcceptsMigrationProvidersInterface` declares `withMigrationProviders(list<object>): void`; the migration `ServiceProvider` implements it (filtering to migration providers), the kernel guards the call site with the interface, and the contract test's `CAPABILITY_INTERFACES` maps the method to it. Behaviour is unchanged; the `everyKernelCallSiteResolvesToInterfaceOrAbstractBase` contract is green again.
 - **admin: RichText widget no longer scrambles typed input.** The contenteditable was bound via a reactive `v-html`, so every keystroke re-rendered the element and reset the caret to the start, reversing typed characters. It is now driven imperatively (innerHTML set on mount and on external value changes only, skipping the component's own input echo), preserving the caret during typing.
 
 ### Changed
