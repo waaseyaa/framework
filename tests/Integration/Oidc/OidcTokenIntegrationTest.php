@@ -32,7 +32,6 @@ final class OidcTokenIntegrationTest extends TestCase
 
     private string $repoRoot;
     private string $projectRoot;
-    private string $publicKeyPem;
 
     protected function setUp(): void
     {
@@ -41,14 +40,8 @@ final class OidcTokenIntegrationTest extends TestCase
 
         mkdir($this->projectRoot . '/config', 0o755, true);
         mkdir($this->projectRoot . '/storage', 0o755, true);
-        mkdir($this->projectRoot . '/keys', 0o755, true);
 
         self::assertTrue(symlink($this->repoRoot . '/vendor', $this->projectRoot . '/vendor'));
-
-        [$privatePem, $publicPem] = $this->generateRsaKeypair();
-        $this->publicKeyPem = $publicPem;
-        file_put_contents($this->projectRoot . '/keys/signing.key', $privatePem);
-        file_put_contents($this->projectRoot . '/keys/signing.pub', $publicPem);
 
         file_put_contents($this->projectRoot . '/config/entity-types.php', "<?php\n\nreturn [];\n");
         file_put_contents($this->projectRoot . '/config/waaseyaa.php', $this->buildConfigFile());
@@ -92,7 +85,7 @@ final class OidcTokenIntegrationTest extends TestCase
         self::assertNotEmpty($payload['access_token']);
         self::assertIsString($payload['id_token']);
 
-        $claims = $this->verifyAndDecodeIdToken($payload['id_token']);
+        $claims = $this->verifyAndDecodeIdToken($payload['id_token'], $result['signing_public_key']);
         self::assertSame(self::ISSUER, $claims['iss']);
         self::assertSame(self::CLIENT_ID, $claims['aud']);
         self::assertSame('nonce-xyz', $claims['nonce']);
@@ -103,7 +96,7 @@ final class OidcTokenIntegrationTest extends TestCase
     }
 
     /**
-     * @return array{status:int,headers:array<string,string>,body:string}
+     * @return array{status:int,headers:array<string,string>,body:string,signing_public_key:string}
      */
     private function runTokenFlow(?string $nonce = null): array
     {
@@ -136,14 +129,17 @@ final class OidcTokenIntegrationTest extends TestCase
             'status' => (int) ($payload['status'] ?? 0),
             'headers' => is_array($payload['headers'] ?? null) ? $payload['headers'] : [],
             'body' => (string) ($payload['body'] ?? ''),
+            'signing_public_key' => (string) ($payload['signing_public_key'] ?? ''),
         ];
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function verifyAndDecodeIdToken(string $jwt): array
+    private function verifyAndDecodeIdToken(string $jwt, string $signingPublicKeyPem): array
     {
+        self::assertNotSame('', $signingPublicKeyPem, 'Runner did not surface the active signing key.');
+
         $parts = explode('.', $jwt);
         self::assertCount(3, $parts, 'ID token must have 3 segments');
 
@@ -152,8 +148,8 @@ final class OidcTokenIntegrationTest extends TestCase
 
         self::assertSame(
             1,
-            openssl_verify($signingInput, $signature, $this->publicKeyPem, OPENSSL_ALGO_SHA256),
-            'ID token signature did not verify against configured public key',
+            openssl_verify($signingInput, $signature, $signingPublicKeyPem, OPENSSL_ALGO_SHA256),
+            'ID token signature did not verify against the active signing key',
         );
 
         $claims = json_decode($this->base64UrlDecode($parts[1]), true);
@@ -171,30 +167,9 @@ final class OidcTokenIntegrationTest extends TestCase
         return $decoded;
     }
 
-    /**
-     * @return array{0:string,1:string} [private pem, public pem]
-     */
-    private function generateRsaKeypair(): array
-    {
-        $resource = openssl_pkey_new([
-            'private_key_bits' => 2048,
-            'private_key_type' => OPENSSL_KEYTYPE_RSA,
-        ]);
-        self::assertNotFalse($resource);
-
-        $privatePem = '';
-        openssl_pkey_export($resource, $privatePem);
-        $details = openssl_pkey_get_details($resource);
-        self::assertIsArray($details);
-
-        return [$privatePem, $details['key']];
-    }
-
     private function buildConfigFile(): string
     {
         $databasePath = $this->projectRoot . '/storage/waaseyaa.sqlite';
-        $privateKeyPath = $this->projectRoot . '/keys/signing.key';
-        $publicKeyPath = $this->projectRoot . '/keys/signing.pub';
 
         return <<<PHP
             <?php
@@ -208,13 +183,6 @@ final class OidcTokenIntegrationTest extends TestCase
                 'cors_origins' => ['http://localhost:3000'],
                 'oidc' => [
                     'issuer' => '{$this->issuer()}',
-                    'signing_keys' => [
-                        'test-kid' => [
-                            'algorithm' => 'RS256',
-                            'public_key_path' => '{$publicKeyPath}',
-                            'private_key_path' => '{$privateKeyPath}',
-                        ],
-                    ],
                     'clients' => [
                         'minoo-web' => [
                             'name' => 'Minoo',
