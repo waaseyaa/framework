@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **ai-agent: surface transport errors during `AnthropicProvider` streaming.** Streaming responses that failed mid-flight (network/transport errors) were previously swallowed; the provider now surfaces them to the caller so failures are observable rather than silent. (#1612, PR #1613)
+
 - **CI: green the Integration suite under PHP 8.5 `#[\NoDiscard]` + `failOnWarning`.** `packages/audit/src/Query/AuditEventQuery.php` discarded the return values of the `#[\NoDiscard]` fluent builder methods `DBALSelect::fields()`/`condition()`; the return is now assigned at each call site (no behaviour change — the builder mutates in place). This, together with the OIDC full-kernel integration tests realigned to the `/oidc/*` + DB-backed-key contract from mission `oidc-flows-completion-01KSEFTP`, clears the last `ci/unit-tests` failures that had kept `main` red.
 
 ### Added
