@@ -62,7 +62,7 @@ Initialize spec-kitty in the Anokii repo and hand-author the Anokii distribution
     3. **Anokii Project Directives** — numbered DIR-A001 onward:
        - **DIR-A001 — AODA Level AA is a design constraint, not an optional feature.** Every v0.1 surface MUST meet WCAG 2.1 AA + AODA-specific procurement-legibility requirements. axe-core CI gate enforces baseline. Bypass requires a charter-exception with a removal date.
        - **DIR-A002 — Offline-first is a design constraint, not an optional feature.** Every v0.1 surface MUST function in offline-degraded mode per the offline-first design (Dexie + Workbox + FSM sync engine composing on framework two-axis revisions). A surface that requires connectivity for read-after-write within the user's own classification scope is a charter violation.
-       - **DIR-A003 — Indigenous-language translation pipeline is a product layer, not a configuration toggle.** Extraction tooling → `translation_string` entity (mirrors framework two-axis storage shape) → contributor dashboard → `translation_review` workflow → glossary entity → per-Nation override layer. Pilot: English ↔ Anishinaabemowin (southern + northern Ojibwe), 20–30 glossary terms co-authored with a language keeper. Pilot Nations Sagamok then Sheguiandah; final selection deferred to language-keeper engagement.
+       - **DIR-A003 — Indigenous-language translation pipeline is a product layer, not a configuration toggle.** Extraction tooling → `translation_string` entity (mirrors framework two-axis storage shape) → contributor dashboard → `translation_review` workflow → glossary entity → per-Nation override layer. Pilot: English ↔ Anishinaabemowin (southern + northern Ojibwe), 20–30 glossary terms co-authored with a language keeper. Pilot Nations Pilot Nation A then Pilot Nation B; final selection deferred to language-keeper engagement.
        - **DIR-A004 — GPL-2.0-or-later license trajectory aligned with framework DIR-008.** Anokii is GPL-2.0-or-later because Waaseyaa is. Relicensing requires both a framework-charter amendment AND an Anokii-charter amendment.
        - **DIR-A005 — Product-surface OCAP-by-architecture commitments inherit framework DIR-004.** Anokii productivity surfaces MUST consume framework AccessChecker/FieldAccessPolicyInterface wiring; surface code never bypasses or weakens these. Per-record AI access (gap-matrix A5 flagship in framework) extends through Anokii Co-Intelligence Workspaces verbatim.
     4. **Amendment Process** — mirrors framework amendment process structure. Anokii charter amendments are recorded in Anokii's own Amendment History.
@@ -91,7 +91,7 @@ Ship a deployer overlay file inheriting from Waaseyaa's reference recipe, and a 
   - Inherits from `vendor/waaseyaa/deployer/recipes/waaseyaa.php` (or whatever path the framework's deployer package exposes). Overlays:
     - **Storage bucket naming:** `set('storage_bucket', fn($nation, $env) => "anokii-{$nation}-{$env}")`.
     - **Classification policy seed:** a Deployer task `anokii:seed:classification` that runs `bin/waaseyaa config:import config/classification.anokii-default.yaml` (which is also shipped in this WP at `config/classification.anokii-default.yaml`).
-    - **Sample tenant config stub:** `config/tenants/sagamok.yaml.example` with placeholder Nation metadata (Nation name, ISO-639-3 language code `oji` for Ojibwe, OIATC affiliation flag, sample classification taxonomy reference).
+    - **Sample tenant config stub:** `config/tenants/example-nation.yaml.example` with placeholder Nation metadata (Nation name, ISO-639-3 language code `oji` for Ojibwe, an existing tenant affiliation flag, sample classification taxonomy reference).
   - The recipe MUST be runnable in `--dry-run` mode by the implementer as a smoke check.
 - **T011 — Branded tokens file.**
   - Path: `assets/theme/anokii-tokens.css` (no `packages/` subdirectory yet — keeps the scaffold lean per C-005).
@@ -102,7 +102,7 @@ Ship a deployer overlay file inheriting from Waaseyaa's reference recipe, and a 
 - **T013 — Smoke verifications.**
   - `php -l deploy.php` (lint OK).
   - `cat assets/theme/anokii-tokens.css | grep -c '#0d4f4f\|#0f766e\|#14b8a6'` returns 3.
-  - `cat config/tenants/sagamok.yaml.example | head -5` shows valid YAML.
+  - `cat config/tenants/example-nation.yaml.example | head -5` shows valid YAML.
 
 ### Commits
 - `feat(deploy): deployer overlay inheriting Waaseyaa reference recipe`

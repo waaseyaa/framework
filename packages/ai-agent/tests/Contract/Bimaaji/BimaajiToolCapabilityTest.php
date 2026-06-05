@@ -9,10 +9,8 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use Waaseyaa\Access\AccountInterface;
-use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Agent\Tool\Bimaaji\IntrospectGraphTool;
 use Waaseyaa\AI\Agent\Tool\Bimaaji\IntrospectSectionTool;
-use Waaseyaa\AI\Tools\AgentToolContext;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
 use Waaseyaa\Bimaaji\Graph\ApplicationGraphGenerator;
 use Waaseyaa\Bimaaji\Graph\GraphSection;
@@ -66,14 +64,8 @@ final class BimaajiToolCapabilityTest extends TestCase
     {
         $generator = new ApplicationGraphGenerator(providers: $this->stubProviders());
         $tool = new $toolClass($generator);
-        $account = $this->accountWithPermission('not.' . $expectedCapability);
-        $context = new AgentToolContext(
-            account: $account,
-            entityAccessHandler: new EntityAccessHandler(),
-            agentRunId: null,
-        );
 
-        $result = $tool->execute($arguments, $context);
+        $result = $tool->execute($arguments, $this->accountWithPermission('not.' . $expectedCapability));
 
         self::assertTrue($result->isError);
         self::assertSame('forbidden', $result->summary);
@@ -89,14 +81,8 @@ final class BimaajiToolCapabilityTest extends TestCase
     {
         $generator = new ApplicationGraphGenerator(providers: $this->stubProviders());
         $tool = new $toolClass($generator);
-        $account = $this->accountWithPermission($expectedCapability);
-        $context = new AgentToolContext(
-            account: $account,
-            entityAccessHandler: new EntityAccessHandler(),
-            agentRunId: null,
-        );
 
-        $result = $tool->execute($arguments, $context);
+        $result = $tool->execute($arguments, $this->accountWithPermission($expectedCapability));
 
         self::assertFalse($result->isError);
     }

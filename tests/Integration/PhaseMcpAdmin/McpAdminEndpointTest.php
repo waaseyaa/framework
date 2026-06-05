@@ -15,13 +15,11 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Api\Controller\McpAdminController;
 use Waaseyaa\Api\Http\Router\McpAdminApiRouter;
 use Waaseyaa\Api\McpAdmin\ServerConfigReadModelInterface;
-use Waaseyaa\Api\McpAdmin\ServerConfigSnapshot;
 use Waaseyaa\Api\McpAdmin\ToolRegistryReadModelInterface;
 use Waaseyaa\Api\McpAdmin\ToolRegistryRow;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Kernel\BuiltinRouteRegistrar;
 use Waaseyaa\Mcp\Admin\ServerConfigReadModel;
-use Waaseyaa\Mcp\Admin\ToolRegistryReadModel;
 use Waaseyaa\Mcp\Auth\BearerTokenAuth;
 use Waaseyaa\Mcp\McpServiceProvider;
 use Waaseyaa\Routing\WaaseyaaRouter;
@@ -293,20 +291,44 @@ final class McpAdminEndpointTest extends TestCase
     private function adminAccount(): AccountInterface
     {
         return new class implements AccountInterface {
-            public function id(): int { return 1; }
-            public function getRoles(): array { return ['admin']; }
-            public function hasPermission(string $permission): bool { return true; }
-            public function isAuthenticated(): bool { return true; }
+            public function id(): int
+            {
+                return 1;
+            }
+            public function getRoles(): array
+            {
+                return ['admin'];
+            }
+            public function hasPermission(string $permission): bool
+            {
+                return true;
+            }
+            public function isAuthenticated(): bool
+            {
+                return true;
+            }
         };
     }
 
     private function nonAdminAccount(): AccountInterface
     {
         return new class implements AccountInterface {
-            public function id(): int { return 99; }
-            public function getRoles(): array { return ['editor']; }
-            public function hasPermission(string $permission): bool { return false; }
-            public function isAuthenticated(): bool { return true; }
+            public function id(): int
+            {
+                return 99;
+            }
+            public function getRoles(): array
+            {
+                return ['editor'];
+            }
+            public function hasPermission(string $permission): bool
+            {
+                return false;
+            }
+            public function isAuthenticated(): bool
+            {
+                return true;
+            }
         };
     }
 }

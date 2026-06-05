@@ -238,6 +238,10 @@ final class TwoFactorE2ETest extends TestCase
             }
         };
         return new class ($storage) implements EntityTypeManagerInterface {
+            public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array
+            {
+                return [];
+            }
             public function __construct(private readonly EntityStorageInterface $storage) {}
             public function getDefinition(string $entityTypeId): EntityTypeInterface
             {

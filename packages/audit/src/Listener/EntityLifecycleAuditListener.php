@@ -7,6 +7,7 @@ namespace Waaseyaa\Audit\Listener;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
+use Waaseyaa\Audit\Entity\AuditEvent;
 use Waaseyaa\Audit\Enum\AuditEventKind;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
@@ -56,6 +57,12 @@ final class EntityLifecycleAuditListener implements EventSubscriberInterface
 
     public function onPostSave(EntityEvent $event): void
     {
+        // Guard (#1587): auditing an AuditEvent re-enters the writer → save →
+        // POST_SAVE, causing unbounded recursion. The audit log never audits itself.
+        if ($event->entity instanceof AuditEvent) {
+            return;
+        }
+
         try {
             $entity = $event->entity;
             $accountUid = $this->resolveAccountUid($entity);
@@ -86,6 +93,12 @@ final class EntityLifecycleAuditListener implements EventSubscriberInterface
 
     public function onPostDelete(EntityEvent $event): void
     {
+        // Guard (#1587): mirror the recursion guard from onPostSave. AuditEvent is
+        // append-only, but stay defensive against any future delete path.
+        if ($event->entity instanceof AuditEvent) {
+            return;
+        }
+
         try {
             $entity = $event->entity;
             $accountUid = $this->resolveAccountUid($entity);

@@ -905,8 +905,22 @@ final class SqlSchemaHandler
             'string' => ['type' => 'varchar', 'length' => (int) ($settings['length'] ?? 255)],
             'text' => ['type' => 'text'],
             'text_long' => ['type' => 'text'],
+            // A JSON-encoded structured value (e.g. a decoded block tree) is a
+            // TEXT column; the field type carries the JSON Schema separately.
+            'json' => ['type' => 'text'],
             'uri' => ['type' => 'varchar', 'length' => (int) ($settings['length'] ?? 2048)],
-            'entity_reference' => ['type' => 'int'],
+            'email' => ['type' => 'varchar', 'length' => (int) ($settings['length'] ?? 255)],
+            // ISO-8601 datetime / Y-m-d date are stored as fixed-width strings,
+            // matching the DateTimeItem / DateItem field-type schemas.
+            'datetime' => ['type' => 'varchar', 'length' => 32],
+            'date' => ['type' => 'varchar', 'length' => 10],
+            // Waaseyaa cross-entity references are stored as the destination
+            // entity's UUID string (the framework's reference handle; see the
+            // migration as-built notes), not an integer id. The column must hold
+            // a UUID, so varchar — this stays correct on column-strict backends
+            // (MySQL/PostgreSQL for the production deploy), not only on SQLite's
+            // dynamic typing.
+            'entity_reference' => ['type' => 'varchar', 'length' => (int) ($settings['length'] ?? 255)],
             'integer', 'int' => ['type' => 'int'],
             'boolean', 'bool' => ['type' => 'boolean'],
             'float', 'decimal', 'numeric', 'number' => ['type' => 'float'],

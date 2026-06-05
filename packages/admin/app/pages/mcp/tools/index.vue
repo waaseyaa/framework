@@ -12,7 +12,7 @@ onMounted(fetchTools)
     <div v-if="error" class="alert-error mb-4">{{ error }}</div>
     <div v-if="loading" class="text-gray-500">{{ t('common.loading') }}</div>
 
-    <ToolRegistryTable v-else-if="rows.length > 0" :rows="rows" />
+    <McpToolRegistryTable v-else-if="rows.length > 0" :rows="rows" />
 
     <p v-else class="text-gray-500">{{ t('mcp_tools_empty') }}</p>
   </div>

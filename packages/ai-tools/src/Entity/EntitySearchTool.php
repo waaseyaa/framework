@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Tools\Entity;
 
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
-use Waaseyaa\AI\Tools\AgentToolContext;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
 use Waaseyaa\Entity\EntityInterface;
@@ -52,9 +52,9 @@ final class EntitySearchTool extends AbstractAgentTool
         ];
     }
 
-    public function execute(array $arguments, AgentToolContext $context): AgentToolResult
+    public function execute(array $arguments, AccountInterface $account): AgentToolResult
     {
-        $denied = $this->requireCapability('tool.entity.search', $context);
+        $denied = $this->requireCapability('tool.entity.search', $account);
         if ($denied !== null) {
             return $denied;
         }
@@ -87,11 +87,6 @@ final class EntitySearchTool extends AbstractAgentTool
             if (count($matches) >= $limit) {
                 break;
             }
-            // FR-002 / DIR-004: skip forbidden records silently before content-matching.
-            $accessResult = $context->entityAccessHandler->check($entity, 'view', $context->account);
-            if ($accessResult->isForbidden()) {
-                continue;
-            }
             if ($this->matches($entity, $needle)) {
                 $matches[] = ['entity_type' => $entity->getEntityTypeId(), 'id' => $entity->id()];
             }
@@ -103,9 +98,9 @@ final class EntitySearchTool extends AbstractAgentTool
         );
     }
 
-    public function dryRun(array $arguments, AgentToolContext $context): AgentToolResult
+    public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
     {
-        return $this->execute($arguments, $context);
+        return $this->execute($arguments, $account);
     }
 
     private function matches(EntityInterface $entity, string $needle): bool

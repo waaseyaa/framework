@@ -7,7 +7,6 @@ namespace Waaseyaa\AI\Tools\Catalogue;
 use Psr\Container\ContainerInterface;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolInterface;
-use Waaseyaa\AI\Tools\Attribute\Capability;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
@@ -77,29 +76,6 @@ final class AttributeToolRegistry implements ToolRegistryInterface
         return array_values($this->tools);
     }
 
-    /**
-     * Resolve the governed-data flag from a `#[Capability]` attribute on the class.
-     *
-     * Defaults to `true` (governed) when the attribute is absent — safe by default.
-     *
-     * @param class-string $class
-     */
-    private function resolveGovernedData(string $class): bool
-    {
-        try {
-            $reflection = new \ReflectionClass($class);
-            $attributes = $reflection->getAttributes(Capability::class);
-            if ($attributes === []) {
-                return true;
-            }
-            /** @var Capability $cap */
-            $cap = $attributes[0]->newInstance();
-            return $cap->governedData;
-        } catch (\Throwable) {
-            return true;
-        }
-    }
-
     private function hydrate(): void
     {
         if ($this->hydrated) {
@@ -141,8 +117,6 @@ final class AttributeToolRegistry implements ToolRegistryInterface
                 continue;
             }
 
-            $touchesGovernedData = $this->resolveGovernedData($class);
-
             $tool = new AgentTool(
                 name: $name,
                 capability: $entry['capability'],
@@ -151,7 +125,6 @@ final class AttributeToolRegistry implements ToolRegistryInterface
                 category: $entry['category'],
                 inputSchema: $impl->inputSchema(),
                 impl: $impl,
-                touchesGovernedData: $touchesGovernedData,
             );
             // Hand-registered tools win over discovery (allows tests + overrides).
             if (!isset($this->tools[$tool->name])) {
