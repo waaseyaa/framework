@@ -9,6 +9,7 @@ use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
 use GraphQL\Type\Schema;
 use GraphQL\Type\SchemaConfig;
+use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\GraphQL\Resolver\EntityResolver;
 use Waaseyaa\GraphQL\Resolver\ReferenceLoader;
@@ -88,12 +89,25 @@ final class SchemaFactory
             registry: $registry,
             fieldTypeMapper: $fieldTypeMapper,
             referenceLoader: $this->referenceLoader,
+            entityTypeManager: $this->entityTypeManager,
         );
 
         // Pre-register all ObjectTypes so entity_reference field type callables
         // can resolve targets even for types not yet processed in the loop below.
         foreach ($definitions as $entityType) {
             $entityTypeBuilder->buildObjectType($entityType);
+        }
+
+        // Build per-bundle object types (e.g. NodePage, NodeNews) so each content
+        // type surfaces its distinct typed fields in GraphQL introspection, not a
+        // single merged shape. These are additive: the base type and all existing
+        // queries/mutations are unchanged. Bundles are sourced from the bundle
+        // config entities (the registered content types).
+        $bundleTypes = [];
+        foreach ($definitions as $entityType) {
+            foreach ($this->bundlesFor($entityType) as $bundle) {
+                $bundleTypes[] = $entityTypeBuilder->buildObjectType($entityType, $bundle);
+            }
         }
 
         // Build query and mutation fields
@@ -178,10 +192,51 @@ final class SchemaFactory
             ]));
         }
 
+        // Per-bundle types are not referenced by any query/mutation field, so
+        // register them explicitly to keep them in the schema (and introspection).
+        if ($bundleTypes !== []) {
+            $config->setTypes($bundleTypes);
+        }
+
         $schema = new Schema($config);
         self::$schemaCache[$cacheKey] = $schema;
 
         return $schema;
+    }
+
+    /**
+     * Bundle ids for an entity type, sourced from its registered bundle config
+     * entities (e.g. node_type rows = the registered content types). Returns []
+     * when the type has no bundle container or none are registered. Best-effort:
+     * storage errors degrade to no per-bundle types rather than failing schema
+     * construction.
+     *
+     * @return list<string>
+     */
+    private function bundlesFor(EntityTypeInterface $entityType): array
+    {
+        $bundleTypeId = $entityType->getBundleEntityType();
+        if ($bundleTypeId === null || $bundleTypeId === '') {
+            return [];
+        }
+        if (!$this->entityTypeManager->hasDefinition($bundleTypeId)) {
+            return [];
+        }
+
+        try {
+            $bundles = [];
+            foreach ($this->entityTypeManager->getStorage($bundleTypeId)->loadMultiple() as $configEntity) {
+                $id = $configEntity->id();
+                if (is_string($id) && $id !== '') {
+                    $bundles[] = $id;
+                }
+            }
+            sort($bundles);
+
+            return $bundles;
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     /**

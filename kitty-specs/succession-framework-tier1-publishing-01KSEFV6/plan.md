@@ -24,7 +24,7 @@ Constitutional source: see DIR-006 in [`.kittify/charter/charter.md`](.kittify/c
 
 | Role | Name / account | Affiliation | Scope |
 |---|---|---|---|
-| Primary maintainer | Russell Jones (`jonesrussell`) | Sagamok Anishnawbek / OIATC | Merge authority on `main`; release authority on every `waaseyaa/*` Packagist package; charter amendment authority per the charter's Amendment Process. |
+| Primary maintainer | Russell Jones (`jonesrussell`) | Pilot Nation A Anishnawbek / an existing tenant | Merge authority on `main`; release authority on every `waaseyaa/*` Packagist package; charter amendment authority per the charter's Amendment Process. |
 | Packagist trustee | `<<TRUSTEE_PACKAGIST_ACCOUNT>>` | (recorded at trustee designation by WP03 of `succession-framework-tier1-publishing-01KSEFV6`) | Publish rights on `waaseyaa/*` namespace; activated if the primary maintainer becomes unavailable per the escalation procedure below. The trustee is an additional publisher; the namespace owner remains the primary maintainer. |
 
 ## Tier 0 substrate inventory
@@ -82,7 +82,7 @@ The trustee MUST NOT in escalation mode:
 - Add or remove maintainers.
 - Change the trustee designation.
 
-When the primary maintainer returns, the trustee MUST hand back authority by posting a "primary maintainer resumed" note to the same channels used at escalation time. If the primary maintainer does not return within 90 calendar days of the escalation start and no Tier 2 (OIATC stewards committee) is yet operational, the trustee MUST file a `charter-exception` issue documenting the extended escalation and the plan to either re-activate the primary maintainer or accelerate Tier 2 setup.
+When the primary maintainer returns, the trustee MUST hand back authority by posting a "primary maintainer resumed" note to the same channels used at escalation time. If the primary maintainer does not return within 90 calendar days of the escalation start and no Tier 2 (an existing tenant stewards committee) is yet operational, the trustee MUST file a `charter-exception` issue documenting the extended escalation and the plan to either re-activate the primary maintainer or accelerate Tier 2 setup.
 
 ### Pre-announced absences
 
@@ -123,7 +123,7 @@ If `github.com/waaseyaa/framework` becomes unavailable (vendor outage, account-l
 
 ### Mirror forge selection rationale
 
-Forge selection at WP04 time prioritised, in order: (1) Nation-controlled or OIATC-controlled host (rules out vendor SaaS even if cheaper); (2) FOSS forge software (Gitea or Forgejo) so future migration stays within the same data-portability envelope; (3) HTTPS-accessible and supports either webhook-driven mirror or polling-based mirror; (4) held under a domain a Nation procurement officer would recognise as Nation-controlled. The chosen forge meets all four criteria.
+Forge selection at WP04 time prioritised, in order: (1) Nation-controlled or an existing tenant-controlled host (rules out vendor SaaS even if cheaper); (2) FOSS forge software (Gitea or Forgejo) so future migration stays within the same data-portability envelope; (3) HTTPS-accessible and supports either webhook-driven mirror or polling-based mirror; (4) held under a domain a Nation procurement officer would recognise as Nation-controlled. The chosen forge meets all four criteria.
 
 ## Reading order for a new procurement officer
 
@@ -176,21 +176,21 @@ The framework's continuity is **managed by codified infrastructure, not by indiv
 
 **Who acts:** Primary maintainer in steady state. Trustee in escalation per the escalation procedure in [MAINTAINERS.md](MAINTAINERS.md).
 
-**Trigger to next tier:** Tier 2 activates when (a) framework v1.0 has shipped AND (b) OIATC leadership is ready to charter a stewards committee. Neither is required; Tier 1 is sustainable indefinitely if Tier 2 is not yet needed.
+**Trigger to next tier:** Tier 2 activates when (a) framework v1.0 has shipped AND (b) an existing tenant leadership is ready to charter a stewards committee. Neither is required; Tier 1 is sustainable indefinitely if Tier 2 is not yet needed.
 
 **What Nations get:** A documented, multi-tier continuity plan in writing. The framework's near-term continuity is rehearsed (escalation procedure is explicit); the framework is mirrored on Nation-controlled infrastructure; release publishing is not bottlenecked through a single human.
 
 ## Tier 2 — Near-term institutional continuity (post-v1.0)
 
-**Shape (sketched; not yet committed):** OIATC (Ontario Indigenous AI & Technical Council — where the primary maintainer already works) charters Waaseyaa as a maintained framework with formal governance. A stewards committee assumes merge authority on `main`. The primary maintainer steps into an advisor / architect role: design review, long-term vision, security escalation, but not every PR. The trustee designation (Tier 1) is folded into the stewards committee membership.
+**Shape (sketched; not yet committed):** an existing tenant (Ontario Indigenous AI & Technical Council — where the primary maintainer already works) charters Waaseyaa as a maintained framework with formal governance. A stewards committee assumes merge authority on `main`. The primary maintainer steps into an advisor / architect role: design review, long-term vision, security escalation, but not every PR. The trustee designation (Tier 1) is folded into the stewards committee membership.
 
-**Who acts:** OIATC-chartered stewards committee. Decision authority is committee-based; the committee charter (to be drafted in `docs/governance/stewards-charter.md` by a future mission) defines roles, voting, conflict resolution.
+**Who acts:** an existing tenant-chartered stewards committee. Decision authority is committee-based; the committee charter (to be drafted in `docs/governance/stewards-charter.md` by a future mission) defines roles, voting, conflict resolution.
 
 **Trigger to next tier:** Tier 3 activates when (a) Tier 2 is operational AND (b) a funded engagement (Nation adoption or grant) provides the resources to hire the first contractor.
 
 **What Nations get:** Framework maintenance is no longer single-maintainer-dependent. Decision authority is held by a chartered committee with documented governance. The framework's continuity transitions from "rehearsed escalation" to "ongoing committee operation".
 
-**Deferred to:** A future mission filed when v1.0 has shipped and OIATC leadership is ready to charter the committee. No implementation commitment in the present mission.
+**Deferred to:** A future mission filed when v1.0 has shipped and an existing tenant leadership is ready to charter the committee. No implementation commitment in the present mission.
 
 ## Tier 3 — Mid-term contributor pool (1–3 years post-v1.0)
 
@@ -198,7 +198,7 @@ The framework's continuity is **managed by codified infrastructure, not by indiv
 
 **Who acts:** Stewards committee (Tier 2) plus contracted maintainers. Per-package owners hold first-look review authority on PRs touching their package; stewards retain merge authority on `main`.
 
-**Trigger to next tier:** Tier 4 activates when (a) Tier 3 is operational with at least three contracted maintainers AND (b) Nation adoption signals warrant a long-term governance vehicle independent of OIATC.
+**Trigger to next tier:** Tier 4 activates when (a) Tier 3 is operational with at least three contracted maintainers AND (b) Nation adoption signals warrant a long-term governance vehicle independent of an existing tenant.
 
 **What Nations get:** Framework maintenance is no longer committee-bottlenecked at the merge boundary. Per-package owners absorb routine review load; stewards focus on cross-package and strategic decisions. Bus-factor is published and managed.
 
@@ -210,7 +210,7 @@ The framework's continuity is **managed by codified infrastructure, not by indiv
 
 - **Option 4A — Indigenous-tech foundation.** A new foundation chartered to govern Waaseyaa and adjacent Indigenous-tech infrastructure. Nation-elected governance, FN-centered. License stays GPLv2 (or dual). Funding via membership dues and grants. Slowest to launch (3–5 years) and highest cost ($50K–$200K legal/governance), but maximum Indigenous-tech credibility and Nation-accountable governance.
 - **Option 4B — Apache Software Foundation incubation.** Submit Waaseyaa to Apache as an incubated project. Faster to launch (1–2 years to apply, 2–3 years incubation) and zero launch cost (Apache hosts). License compatibility: Apache prefers ALv2 so a sovereignty-impact analysis covering relicensing would be required (per DIR-008 amendment process). Global OSS credibility; U.S.-model governance.
-- **Option 4C — Steward board under existing entity.** OIATC-hosted permanent steward board with Nation-accountable membership. Faster than 4A (2–3 years) and low cost (~$10K governance docs). License unchanged. Community-embedded credibility but not standalone.
+- **Option 4C — Steward board under existing entity.** an existing tenant-hosted permanent steward board with Nation-accountable membership. Faster than 4A (2–3 years) and low cost (~$10K governance docs). License unchanged. Community-embedded credibility but not standalone.
 
 **Who acts:** Whichever vehicle is selected (4A / 4B / 4C). The selection itself is a Nation-engaged decision, not a maintainer decision.
 
@@ -222,15 +222,15 @@ The framework's continuity is **managed by codified infrastructure, not by indiv
 
 ## Procurement-facing narrative
 
-> Waaseyaa's continuity is managed by codified infrastructure, not by individual people. The `bin/check-*` family enforces the framework's conventions on every commit; spec discipline plus a drift detector keeps documentation in sync with code; contributor onboarding ships automatically to seven major AI coding assistants. Today the framework is maintained by Russell Jones (Sagamok Anishnawbek / OIATC) with this substrate underneath. A Packagist namespace trustee and a Nation-hosted mirror repo are operational — see [MAINTAINERS.md](MAINTAINERS.md). The framework's near-term institutional home (post-v1.0) is OIATC, where the primary maintainer already works; the mid-term maintainer pool draws from NorthOps-trained contractors; the long-term governance vehicle is intended to be an Indigenous-tech foundation with Nation-elected governance, with Apache incubation and an OIATC-hosted steward board as fallback options. Nations adopting Waaseyaa on owned hardware are adopting infrastructure with a documented, multi-tier continuity plan — not a single-maintainer project.
+> Waaseyaa's continuity is managed by codified infrastructure, not by individual people. The `bin/check-*` family enforces the framework's conventions on every commit; spec discipline plus a drift detector keeps documentation in sync with code; contributor onboarding ships automatically to seven major AI coding assistants. Today the framework is maintained by Russell Jones (Pilot Nation A Anishnawbek / an existing tenant) with this substrate underneath. A Packagist namespace trustee and a Nation-hosted mirror repo are operational — see [MAINTAINERS.md](MAINTAINERS.md). The framework's near-term institutional home (post-v1.0) is an existing tenant, where the primary maintainer already works; the mid-term maintainer pool draws from NorthOps-trained contractors; the long-term governance vehicle is intended to be an Indigenous-tech foundation with Nation-elected governance, with Apache incubation and an an existing tenant-hosted steward board as fallback options. Nations adopting Waaseyaa on owned hardware are adopting infrastructure with a documented, multi-tier continuity plan — not a single-maintainer project.
 
 ## Glossary
 
 - **Tier 0:** Codified trust substrate already in place. See [MAINTAINERS.md](MAINTAINERS.md) "Tier 0 substrate inventory".
 - **Tier 1:** Published continuity floor — `MAINTAINERS.md`, this file, Packagist trustee, Nation-hosted mirror. Operational today.
-- **Tier 2:** OIATC-chartered stewards committee. Deferred to post-v1.0.
+- **Tier 2:** an existing tenant-chartered stewards committee. Deferred to post-v1.0.
 - **Tier 3:** NorthOps-trained contractor pool with per-package owner roster. Deferred to funded engagement.
-- **Tier 4:** Long-term governance vehicle (Indigenous-tech foundation, Apache incubation, or OIATC-hosted steward board). Deferred to long-horizon governance mission.
+- **Tier 4:** Long-term governance vehicle (Indigenous-tech foundation, Apache incubation, or an existing tenant-hosted steward board). Deferred to long-horizon governance mission.
 - **DIR-006:** The charter directive that declares the `bin/check-*` family the procurement-legible surface of the framework's invariants. See [`.kittify/charter/charter.md`](.kittify/charter/charter.md).
 - **OCAP:** Ownership, Control, Access, Possession — the First Nations data-sovereignty framework that Waaseyaa's architecture is designed to honour. The succession framework preserves OCAP audit lineage as the top-priority constraint at every tier transition.
 ````
@@ -244,7 +244,7 @@ WP03 has two parts. The documentation part edits `MAINTAINERS.md` to substitute 
 - Active Packagist account.
 - 2FA-enabled.
 - Held by an individual or organisation Russell trusts to publish security fixes on `waaseyaa/*` if the primary maintainer is unavailable for more than 14 days.
-- Candidate categories (not exhaustive; Russell's call): OIATC technical lead; a long-term external contributor with publish history on related namespaces; an academic-institution partner.
+- Candidate categories (not exhaustive; Russell's call): an existing tenant technical lead; a long-term external contributor with publish history on related namespaces; an academic-institution partner.
 - The chosen account preserves OCAP audit lineage on the namespace — it is an additional publisher, not a transfer of ownership.
 
 **Operational steps** (Russell or implementer with Russell's credentials):
@@ -256,7 +256,7 @@ WP03 has two parts. The documentation part edits `MAINTAINERS.md` to substitute 
 **Documentation step:**
 
 1. In `MAINTAINERS.md`, replace the two occurrences of `<<TRUSTEE_PACKAGIST_ACCOUNT>>` with the chosen Packagist username.
-2. In the "Current maintainers" table, fill the "Affiliation" cell for the trustee row with the trustee's affiliation (e.g. "OIATC", "Independent contributor", or the academic-institution name). The placeholder text `(recorded at trustee designation by WP03 of ...)` is replaced with the actual affiliation.
+2. In the "Current maintainers" table, fill the "Affiliation" cell for the trustee row with the trustee's affiliation (e.g. "an existing tenant", "Independent contributor", or the academic-institution name). The placeholder text `(recorded at trustee designation by WP03 of ...)` is replaced with the actual affiliation.
 3. Commit per NFR-001 commit-message convention.
 
 **Verification:**
@@ -270,7 +270,7 @@ WP04 has two parts. The documentation part edits `MAINTAINERS.md` to substitute 
 
 **Forge selection criteria** (Russell selects at execution time):
 
-- Nation-controlled or OIATC-controlled host (not a SaaS subdomain even if cheaper).
+- Nation-controlled or an existing tenant-controlled host (not a SaaS subdomain even if cheaper).
 - FOSS forge software (Gitea or Forgejo).
 - HTTPS-accessible URL.
 - Supports webhook-driven mirror push from GitHub Actions OR polling-based mirror pull.

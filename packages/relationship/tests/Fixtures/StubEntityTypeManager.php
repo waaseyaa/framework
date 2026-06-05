@@ -49,6 +49,11 @@ class StubEntityTypeManager implements EntityTypeManagerInterface
         };
     }
 
+    public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array
+    {
+        return $this->getDefinition($entityTypeId)->getFieldDefinitions();
+    }
+
     public function hasDefinition(string $entityTypeId): bool
     {
         if ($this->hasDefinitionOverride !== null) {

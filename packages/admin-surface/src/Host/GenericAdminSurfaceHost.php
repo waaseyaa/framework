@@ -269,7 +269,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         }
 
         return match ($action) {
-            'schema' => $this->handleSchema($type),
+            'schema' => $this->handleSchema($type, $payload),
             'create' => $this->handleCreate($type, $payload),
             'update' => $this->handleUpdate($type, $payload),
             'delete' => $this->handleDelete($type, $payload),
@@ -277,7 +277,10 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         };
     }
 
-    private function handleSchema(string $type): AdminSurfaceResultData
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function handleSchema(string $type, array $payload = []): AdminSurfaceResultData
     {
         $presenter = $this->schemaPresenter ?? new SchemaPresenter();
         $controller = new SchemaController(
@@ -286,7 +289,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             $this->accessHandler,
             $this->currentAccount,
         );
-        $doc = $controller->show($type);
+        $doc = $controller->show($type, $this->resolveSchemaBundle($type, $payload));
         if ($doc->errors !== []) {
             return $this->jsonApiDocumentToSurfaceError($doc);
         }
@@ -297,6 +300,51 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         }
 
         return AdminSurfaceResultData::success($schema);
+    }
+
+    /**
+     * Resolve the bundle to scope the schema to, so a bundled content type
+     * (e.g. a node of bundle "page") exposes its per-bundle fields in the editor
+     * form instead of only the shared core fields.
+     *
+     * Generic: an explicit `bundle` in the payload wins (used for create forms);
+     * otherwise, when an entity `id` is given, the bundle is read from that
+     * entity, so the client never needs to know which attribute is the bundle
+     * key. Returns null for non-bundled types or when nothing resolves, leaving
+     * the base (core-field) schema behaviour unchanged.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function resolveSchemaBundle(string $type, array $payload): ?string
+    {
+        $bundleHint = $payload['bundle'] ?? null;
+        if (is_string($bundleHint) && $bundleHint !== '') {
+            return $bundleHint;
+        }
+
+        $id = $payload['id'] ?? null;
+        if (!is_string($id) || $id === '') {
+            return null;
+        }
+
+        try {
+            $storage = $this->entityTypeManager->getStorage($type);
+            $entity = is_numeric($id) ? $storage->load($id) : null;
+            if ($entity === null) {
+                $entity = $storage->loadByKey('uuid', $id);
+            }
+            if ($entity === null) {
+                return null;
+            }
+            $bundle = $entity->bundle();
+
+            // A bundle equal to the entity type id means "no real bundle"
+            // (unbundled types report the type as their bundle).
+            return ($bundle !== '' && $bundle !== $type) ? $bundle : null;
+        } catch (\Throwable) {
+            // Best-effort: fall back to the base schema if the lookup fails.
+            return null;
+        }
     }
 
     /**

@@ -63,6 +63,7 @@ LAYER_BY_SHORT = {
     "analytics": 0,
     "oauth-provider": 0,
     "agent-output": 0,
+    "page-builder": 0,
     # 1 — Core data (testing ships entity fixtures; composer requires entity — see CLAUDE.md)
     "entity": 1,
     "entity-storage": 1,

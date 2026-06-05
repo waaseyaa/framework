@@ -14,12 +14,14 @@ use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\Event\DefaultEntityEventFactory;
 use Waaseyaa\Entity\Event\EntityEventFactoryInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
+use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\Entity\TranslatableInterface;
 use Waaseyaa\Entity\Validation\EntityTypeValidationConstraints;
 use Waaseyaa\Entity\Validation\EntityValidationException;
 use Waaseyaa\Entity\Validation\EntityValidator;
+use Waaseyaa\EntityStorage\Bundle\BundleSubtableGateway;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Event\AbortOperationException;
@@ -41,6 +43,11 @@ final class EntityRepository implements EntityRepositoryInterface
 
     private readonly EntityEventFactoryInterface $eventFactory;
 
+    private readonly \Waaseyaa\Foundation\Log\LoggerInterface $logger;
+
+    /** Lazily-resolved bundle subtable gateway; false until first resolution. */
+    private BundleSubtableGateway|false|null $bundleGatewayInstance = false;
+
     public function __construct(
         private readonly EntityTypeInterface $entityType,
         private readonly EntityStorageDriverInterface $driver,
@@ -60,8 +67,40 @@ final class EntityRepository implements EntityRepositoryInterface
         // always (CLI / queue / non-HTTP contexts).
         private readonly ?LanguageManagerInterface $languageManager = null,
         private readonly bool $readActiveLanguage = false,
+        // Optional field registry so validation resolves a content type's
+        // bundle-scoped field definitions (and their constraints), not just the
+        // entity-type base fields. Null in bare bootstraps falls back to the
+        // class-declared fields.
+        private readonly ?FieldDefinitionRegistryInterface $fieldRegistry = null,
+        ?\Waaseyaa\Foundation\Log\LoggerInterface $logger = null,
     ) {
         $this->eventFactory = $eventFactory ?? new DefaultEntityEventFactory();
+        $this->logger = $logger ?? new \Waaseyaa\Foundation\Log\NullLogger();
+    }
+
+    /**
+     * Lazily resolve the bundle subtable gateway for this entity type, or null
+     * when bundle persistence does not apply (no database, no registry, or no
+     * bundle fields registered for the type).
+     */
+    private function bundleGateway(): ?BundleSubtableGateway
+    {
+        if ($this->bundleGatewayInstance !== false) {
+            return $this->bundleGatewayInstance;
+        }
+
+        if ($this->database === null || $this->fieldRegistry === null) {
+            return $this->bundleGatewayInstance = null;
+        }
+
+        $gateway = new BundleSubtableGateway(
+            $this->database,
+            $this->fieldRegistry,
+            $this->entityType,
+            $this->logger,
+        );
+
+        return $this->bundleGatewayInstance = $gateway->hasBundleFields() ? $gateway : null;
     }
 
     /**
@@ -276,6 +315,37 @@ final class EntityRepository implements EntityRepositoryInterface
         });
     }
 
+    /**
+     * Resolve the field definitions used for validation: the entity type's
+     * class-declared base fields, plus registry core fields, plus the saved
+     * entity's bundle fields. Mirrors {@see \Waaseyaa\Entity\EntityTypeManager::resolveFieldDefinitions()}
+     * but is reachable from the storage layer (which holds the registry, not the
+     * manager). Falls back to class fields when no registry is wired.
+     *
+     * @return array<string, \Waaseyaa\Field\FieldDefinitionInterface>
+     */
+    private function resolveValidationFieldDefinitions(EntityInterface $entity): array
+    {
+        $fields = $this->entityType->getFieldDefinitions();
+        if ($this->fieldRegistry === null) {
+            return $fields;
+        }
+
+        $entityTypeId = $this->entityType->id();
+        foreach ($this->fieldRegistry->coreFieldsFor($entityTypeId) as $name => $definition) {
+            $fields[$name] = $definition;
+        }
+
+        $bundle = $entity->bundle();
+        if ($bundle !== '' && $bundle !== $entityTypeId) {
+            foreach ($this->fieldRegistry->bundleFieldsFor($entityTypeId, $bundle) as $name => $definition) {
+                $fields[$name] = $definition;
+            }
+        }
+
+        return $fields;
+    }
+
     private function doSave(
         EntityInterface $entity,
         ?UnitOfWork $unitOfWork = null,
@@ -287,7 +357,10 @@ final class EntityRepository implements EntityRepositoryInterface
         $resolvedContext = $saveContext ?? SaveContext::default();
 
         if ($validate && $this->validator !== null) {
-            $constraints = EntityTypeValidationConstraints::forEntityType($this->entityType);
+            $constraints = EntityTypeValidationConstraints::forEntityType(
+                $this->entityType,
+                $this->resolveValidationFieldDefinitions($entity),
+            );
             if ($constraints !== []) {
                 $violations = $this->validator->validate($entity, $constraints);
                 if ($violations->count() > 0) {
@@ -348,7 +421,33 @@ final class EntityRepository implements EntityRepositoryInterface
                 }
             }
 
-            $writtenId = $this->driver->write($entityTypeId, $id, $values);
+            // Bundle-aware write: pull this content type's column-stored bundle
+            // fields out of the base row so they persist in the per-bundle
+            // subtable (real typed columns) instead of the base `_data` blob.
+            // FieldStorage::Data bundle fields stay in the base row. If the
+            // subtable is somehow absent, fold the values back into the base row
+            // (never a silent drop) and log.
+            $baseValues = $values;
+            $bundleValues = [];
+            $bundleName = null;
+            $gateway = $this->bundleGateway();
+            if ($gateway !== null) {
+                [$baseValues, $bundleValues, $bundleName] = $gateway->partition($entity, $values);
+                if ($bundleValues !== [] && $bundleName !== null && !$gateway->subtableExists($bundleName)) {
+                    $gateway->logMissingSubtableOnSave($bundleName, \count($bundleValues));
+                    $baseValues = $values;
+                    $bundleValues = [];
+                    $bundleName = null;
+                }
+            }
+
+            $writtenId = $this->driver->write($entityTypeId, $id, $baseValues);
+
+            if ($gateway !== null && $bundleValues !== [] && $bundleName !== null) {
+                $persistId = ($id !== '') ? $id : $writtenId;
+                $gateway->upsert($bundleName, $persistId, $bundleValues);
+            }
+
             $transaction?->commit();
         } catch (\Throwable $e) {
             $transaction?->rollBack();
@@ -640,6 +739,23 @@ final class EntityRepository implements EntityRepositoryInterface
             }
             unset($row['_data']);
             $row = array_merge($row, $extra);
+        }
+
+        // Bundle-aware read: merge the per-bundle subtable columns (e.g. page's
+        // body/blocks) back onto the row so the loaded entity carries its full
+        // content-type field set.
+        $gateway = $this->bundleGateway();
+        if ($gateway !== null) {
+            $bundleKey = $keys['bundle'] ?? null;
+            $bundle = $bundleKey !== null ? ($row[$bundleKey] ?? null) : null;
+            $rowId = $row[$idKey] ?? null;
+            if (\is_string($bundle) && $bundle !== '' && $rowId !== null && $gateway->subtableExists($bundle)) {
+                foreach ($gateway->read($bundle, $rowId) as $bundleFieldName => $bundleFieldValue) {
+                    if ($bundleFieldName !== $idKey) {
+                        $row[$bundleFieldName] = $bundleFieldValue;
+                    }
+                }
+            }
         }
 
         $entity = $this->instantiateEntity($class, $row);
