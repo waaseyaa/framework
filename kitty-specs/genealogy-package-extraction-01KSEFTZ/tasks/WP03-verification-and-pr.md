@@ -18,6 +18,8 @@ execution_mode: planning_artifact
 owned_files:
 - kitty-specs/genealogy-package-extraction-01KSEFTZ/**
 tags: []
+agent: "claude"
+shell_pid: "145396"
 ---
 # Work Package Prompt: WP03 — Verification gates + PR
 
@@ -138,3 +140,7 @@ If any gate fails, transition to BLOCKED, capture the failure, and do not merge.
 ## Activity Log
 
 _(populated during execution)_
+- 2026-05-25T06:21:09Z – claude – shell_pid=145396 – Started implementation via action command
+- 2026-05-25T06:23:30Z – claude – shell_pid=145396 – All 8 acceptance commands passed. PR opened: https://github.com/waaseyaa/framework/pull/1580. Pre-push hooks (spec-drift, phpunit, composer-policy, phpstan) all green.
+- 2026-05-25T06:24:05Z – claude – shell_pid=145396 – Opus review: distribution-extension classification flip clean; cms/core/full grep confirmed clean; split.yml unchanged; PR #1580 opened
+- 2026-05-26T18:48:39Z – claude – shell_pid=145396 – Moved to done

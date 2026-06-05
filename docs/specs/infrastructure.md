@@ -1,5 +1,7 @@
 # Infrastructure
 
+<!-- Spec reviewed 2026-06-04 - PR #1614: kernel + foundation changes. New Foundation capability interface `AcceptsMigrationProvidersInterface` (Tier 3, documented in the ServiceProvider extension-hooks table below) gates `AbstractKernel::injectMigrationProviders()`, so the kernel hands the discovered migration providers to the migration ServiceProvider via a named interface instead of a concrete-FQCN `instanceof` (keeps the contract test's "kernel call sites resolve to an interface" invariant). `HttpKernel` gained `shouldUseDevFallbackAccount()` (development APP_ENV + `auth.dev_fallback_account` opt-in) for the local dev admin account. `PackageManifestCompiler` broadened its provider-scan `catch (\ReflectionException)` to `catch (\Throwable)` so a package shipping a class under `src/` that extends a dev-only symbol cannot crash a consumer's kernel boot. -->
+<!-- Spec reviewed 2026-05-28 - M5C WP01 (mcp-endpoint-admin-01KSEFTL) BuiltinRouteRegistrar gains three `_role: admin` routes for the MCP-admin REST surface — GET /api/mcp/tools, GET /api/mcp/tools/{name}, GET /api/mcp/server-config — all registered via string FQCN ('Waaseyaa\\Api\\Controller\\McpAdminController'), same L0-safe pattern that CodifiedContextController / WorkflowGuardsController / QueueController already use. Controller-side contract (DomainRouterInterface dispatch via McpAdminApiRouter, DTOs, NFR-003 no-plaintext-token guarantee) is owned by docs/specs/api-layer.md; this entry records only the route-registrar surface change. Pre-existing built-in routes unchanged. Also notes: McpServiceProvider (Layer 6) now binds ToolRegistryReadModelInterface + ServerConfigReadModelInterface via `$this->resolve(...)` / `$this->resolveOptional(...)` (the previous `$this->make(...)` form was retired — that method does not exist on the L0 ServiceProvider base and crashed kernel boot on installs exercising the MCP-admin surface). -->
 <!-- Spec reviewed 2026-05-24 - M4A-5 Phase 1 (#1470) workflow guards routes: BuiltinRouteRegistrar gets one more `_role: admin` route — GET /api/workflow-definitions/{workflow_id}/guards — registered via string FQCN ('Waaseyaa\\Api\\Controller\\WorkflowGuardsController'), same L0→L4 layer-safe pattern. WorkflowServiceProvider (packages/workflows, Layer 3) binds AuthoringRoleMatrix as a container singleton with editorial workflow guards seeded from EditorialTransitionAccessResolver::allowedRolesForTransition() — without this binding the dashboard surface was dead code in production (cycle-2 fix). Existing entity-type registration in WorkflowServiceProvider unchanged. -->
 <!-- Spec reviewed 2026-05-24 - #1576 post-merge fixup: DbalTransport::applyStatusFilter() now captures the fluent return from DBALSelect::isNull/isNotNull. No contract change — pure code-style cleanup to satisfy DBAL's fluent-builder warning under failOnWarning=true. -->
 <!-- Spec reviewed 2026-05-24 - #1576 TransportInterface::listJobs() extension: new mandatory method on the queue Transport contract (`@api`). DbalTransport implements via separate COUNT+SELECT against waaseyaa_queue_jobs (reserved_at IS NULL → queued, NOT NULL → in_progress). InMemoryTransport merges $queues + $reserved sorted by id. Existing push/pop/ack/reject/release/size/purge unchanged. New abstract contract test in packages/queue/tests/Contract/ (AbstractTransportContract base + concrete subclasses per backend) exercises both implementations against the same expectations. -->
@@ -169,6 +171,9 @@ Every `Waaseyaa\Foundation\ServiceProvider\ServiceProvider` exposes a fixed set 
 | `configureHttpKernel(HttpKernel): void` | `Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface` | `HttpKernel::finalizeBoot()` |
 | `middleware(EntityTypeManager): list<HttpMiddlewareInterface>` | `Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface` | `HttpKernel::buildMiddlewarePipeline()` |
 | `httpDomainRouters(HttpKernel): iterable<DomainRouterInterface>` | `Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface` | `HttpKernel::buildDomainRouterChain()` |
+| `withMigrationProviders(list<object>): void` | `Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface` | `AbstractKernel::injectMigrationProviders()` |
+
+The `withMigrationProviders` hook lets the kernel hand the discovered migration providers (objects exposing application migrations, found via the Layer-3 `HasMigrationsInterface`) to the provider that owns the migration registry, before that provider's `boot()` resolves the registry. The capability interface lives in Foundation so the kernel guards the call site with a named interface (not a concrete FQCN) while the Layer-3 migration `ServiceProvider` opts in via a downward dependency; the interface param is `list<object>` and the implementation filters to migration providers.
 
 ### ServiceProvider kernel-services bus
 
@@ -1293,6 +1298,37 @@ Optional follow-ups (full header map API, lazy adapter, JSON:API adoption) are t
 | `AppControllerRouter` (`Waaseyaa\SSR\Http\Router`) | `Class::method` strings | App-level controllers registered via `ServiceProvider::routes()`. Delegates to `SsrPageHandler::dispatchAppController()` which uses reflection-based constructor injection (EntityTypeManager, Twig, HttpRequest, AccountInterface, plus the kernel's `serviceResolver` fallback). Wired after `SsrRouter` so `render.page` retains its existing precedence. `supports()` claims a controller only when it contains `::`, has no whitespace, both class and method segments are non-empty, and the class segment is namespaced or starts with an uppercase letter. |
 | `BroadcastRouter` | `broadcast.stream` | SSE broadcast stream via `StreamedResponse` |
 
+#### BuiltinRouteRegistrar (named routes)
+
+File: `packages/foundation/src/Kernel/BuiltinRouteRegistrar.php`
+
+This kernel-adjacent registrar runs once at boot (called from `HttpKernel`) and writes every framework-built-in named route onto the `WaaseyaaRouter`. It lives under `<pkg>/src/Kernel/` so it falls under the implicit Kernel exemption tier of `bin/check-package-layers` — controllers from higher layers are referenced by **string FQCN** (e.g. `'Waaseyaa\\Api\\Controller\\McpAdminController'`) rather than `::class`, so foundation never holds a hard import to L1+ classes. App-provider routes are layered in (one call to `$provider->routes(...)` per provider) before the SSR catch-alls so app controllers can claim explicit paths; `sortRoutesByPriority()` is called once at the end so `priority()` overrides settle deterministically.
+
+Route groups currently registered (read directly from HEAD on `main`):
+
+| Group | Paths | Access gate |
+|-------|-------|-------------|
+| Schema + discovery (read) | `/api/schema/{entity_type}`, `/api/openapi.json`, `/api/entity-types`, `/api/discovery/{hub,cluster,timeline,endpoint}/{entity_type}/{id}` | `allowAll` / default |
+| Entity-type lifecycle | `POST /api/entity-types/{entity_type}/{enable,disable}` | `_role: admin` |
+| Broadcast (SSE) | `GET /api/broadcast` | default |
+| Media | `POST /api/media/upload` (`access media`); `GET /api/media/{uuid}/versions[/{vid}]` (authenticated) | mixed |
+| Semantic search | `GET /api/search` | `allowAll` |
+| Workflow admin | `GET /api/workflow-definitions`; `POST /api/workflow-definitions/dry-run`; `GET /api/workflow-definitions/{workflow_id}/guards` | `_role: admin` |
+| Queue admin | `GET /api/queue/jobs`; `POST /api/queue/jobs/{id}/{retry,discard}` | `_role: admin` |
+| Scheduler admin | `GET /api/scheduler/tasks`; `POST /api/scheduler/tasks/{name}/trigger` | `_role: admin` |
+| Notification admin | `GET /api/notification/channels`; `POST /api/notification/channels/{type}/test` | `_role: admin` |
+| Telescope agent-context + legacy codified-context | `GET /api/telescope/{agent-context,codified-context}/sessions[/{id}[/events\|/validation]]` | `_role: admin` |
+| Mercure monitor | `GET /api/mercure/{channels,events,subscribers}` | `_role: admin` |
+| OCAP audit log | `GET /api/audit/events` | `_role: admin` |
+| **MCP-admin REST (M5C WP01)** | `GET /api/mcp/tools`; `GET /api/mcp/tools/{name}`; `GET /api/mcp/server-config` | `_role: admin` |
+| OIDC client CRUD | `GET\|POST\|PATCH\|DELETE /api/oidc-clients[/{id}[/regenerate-secret]]` | `_role: admin` |
+| Classification retention policies | `GET\|POST\|PATCH\|DELETE /api/classification/policies[/{id}]` (proxied to `JsonApiController` with `_entity_type=retention_policy`) | `_role: governance-viewer,admin` (read) / `admin` (write) |
+| SSR catch-all | `GET /`, `GET /{path}` with negative-lookahead on `/api` | `allowAll` (render) |
+
+Dispatch contracts for each named route live in the API package (`packages/api/src/Http/Router/*` — e.g. `McpAdminApiRouter`, `QueueAdminApiRouter`, `WorkflowGuardsApiRouter`). See `docs/specs/api-layer.md` for per-router DTOs and response shapes.
+
+**Layer-discipline rationale.** Foundation is L0 but `BuiltinRouteRegistrar` references controller and route names that resolve to L1–L6 classes. This is acceptable because the registrar is an entry-point orchestrator, not reusable library code — controllers are passed as **string FQCNs** so foundation never `use`s a higher layer. Per `CLAUDE.md` Layer Architecture, kernels and built-in route registrars are explicit Kernel exemptions: they wire all layers together by design and are not imported by any other package.
+
 ### CorsHandler
 
 File: `packages/foundation/src/Http/CorsHandler.php`
@@ -1690,7 +1726,7 @@ Kernel/
     EnvLoader.php                -- .env file parser; writes to putenv(), $_ENV, and $_SERVER (each destination guarded independently — preset keys in any destination are never overwritten)
     ConfigLoader.php             -- config/waaseyaa.php loader
     EventListenerRegistrar.php   -- registers cache invalidation listeners
-    BuiltinRouteRegistrar.php    -- registers shared foundation-owned HTTP routes (schema, discovery, entity-types, telescope agent-context JSON, SSR catch-all)
+    BuiltinRouteRegistrar.php    -- registers shared foundation-owned HTTP routes (schema, discovery, entity-types, broadcast SSE, media upload/versions, semantic search, workflow/queue/scheduler/notification admin, telescope agent-context JSON, Mercure monitor, OCAP audit log, MCP-admin REST `/api/mcp/{tools,server-config}`, OIDC client CRUD, classification retention policies, SSR catch-all)
     Bootstrap/
         DatabaseBootstrapper.php     -- creates DBALDatabase connection
         ManifestBootstrapper.php     -- loads/compiles PackageManifest

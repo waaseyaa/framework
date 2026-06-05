@@ -115,3 +115,4 @@ spec-kitty agent tasks move-task WP01 --to for_review --mission versioned-blob-m
 - 2026-05-25T06:01:39Z – unknown – code already on main
 - 2026-05-25T06:01:42Z – unknown – code already on main
 - 2026-05-25T06:01:45Z – unknown – Opus review: WP01 (MediaVersion entity + CAS) and WP02 (storage hook + audit kind extension) shipped on main earlier by partial subagent; phpstan-clean; reconciled to canonical lifecycle state
+- 2026-05-26T18:55:52Z – unknown – Done override: Sprint merge to main

@@ -1,0 +1,42 @@
+# Classification clearance + governance defaults.
+#
+# Loaded via `bin/waaseyaa config:import packages/field/defaults/classification.yaml`.
+# A second import run is a no-op (managed by the config-sync subsystem).
+#
+# Two declarations:
+#
+# 1. `role_clearance` — the role → clearance-level mapping consumed by
+#    `RoleBasedClearanceChecker`. A role missing from this table contributes
+#    0 (no clearance). For an account carrying multiple roles, the resolved
+#    clearance is the MAX across matching roles. Nations may override or
+#    extend this catalogue post-install via their own config import (FR-006).
+#
+# 2. `roles_documentation` — informational catalogue of the two classification-
+#    facing roles shipped with the framework. The roles themselves are
+#    plain strings on user accounts; there is no central role-catalogue
+#    table to register against (verified in `packages/user` / `packages/access`).
+#    This block exists as documentation for operators and as a stable
+#    reference for the admin SPA's policy editor.
+
+role_clearance:
+  admin: 10
+  nation-steward: 9
+  editor: 5
+  viewer: 1
+  anonymous: 0
+
+roles_documentation:
+  legal-hold-bypass:
+    permission: legal-hold-bypass
+    intent: |
+      Grants read access to entities carrying any `hold-*` classification
+      label. Per C-004 hold semantics override every other access decision,
+      so this role is the sole escape hatch. Assign sparingly (typically
+      to legal-counsel users only). The default `admin` role does NOT
+      carry this permission.
+  governance-viewer:
+    permission: view classification policy
+    intent: |
+      Read-only access to `RetentionPolicy` entities served from
+      `/api/classification/policies`. Lets audit/legal staff inspect
+      retention configuration without granting mutation rights.

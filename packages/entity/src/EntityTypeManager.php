@@ -96,6 +96,14 @@ class EntityTypeManager implements EntityTypeManagerInterface
         private readonly ?FieldDefinitionRegistryInterface $fieldRegistry = null,
         ?LoggerInterface $logger = null,
         private readonly ?\Closure $bundleSubtableExistsProbe = null,
+        // Optional materializer used by addBundleFields() to auto-create and
+        // migrate the per-bundle subtable when fields are registered, so the
+        // values land in real typed columns rather than being skipped at save
+        // time. Signature: `fn(EntityTypeInterface $type, string $bundle): void`.
+        // Defaults to null for callers without a schema accessor (tests, bare
+        // bootstraps); registration still succeeds, and the missing-subtable
+        // notice/probe path documents that no columns were materialized.
+        private readonly ?\Closure $bundleSubtableMaterializer = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -259,7 +267,39 @@ class EntityTypeManager implements EntityTypeManagerInterface
 
         $this->fieldRegistry->registerBundleFields($entityTypeId, $bundle, $fields);
 
+        // Auto-create/migrate the per-bundle subtable so the just-registered
+        // fields persist in real typed columns. Idempotent and safe under the
+        // zero-and-re-migrate loop (create-if-missing, else add missing columns).
+        $this->materializeBundleSubtable($type, $bundle);
+
+        // Advisory: fires only when no materializer is wired and the subtable is
+        // still absent (e.g. a bare bootstrap). With a materializer present the
+        // probe finds the freshly-created subtable and stays silent.
         $this->maybeEmitMissingSubtableNotice($entityTypeId, $bundle);
+    }
+
+    /**
+     * Invoke the configured subtable materializer for a freshly-registered
+     * bundle, if one is wired. Best-effort: a materialization failure is logged
+     * and does not abort registration (the fields are still registered and the
+     * save-time path keeps a logged _data fallback).
+     */
+    private function materializeBundleSubtable(EntityTypeInterface $type, string $bundle): void
+    {
+        if ($this->bundleSubtableMaterializer === null) {
+            return;
+        }
+
+        try {
+            ($this->bundleSubtableMaterializer)($type, $bundle);
+        } catch (\Throwable $e) {
+            $this->logger->error(\sprintf(
+                'Failed to materialize bundle subtable for entity type "%s" bundle "%s": %s',
+                $type->id(),
+                $bundle,
+                $e->getMessage(),
+            ));
+        }
     }
 
     /**
@@ -337,6 +377,35 @@ class EntityTypeManager implements EntityTypeManagerInterface
         }
 
         return $this->definitions[$entityTypeId];
+    }
+
+    public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array
+    {
+        $type = $this->getDefinition($entityTypeId);
+
+        // Class-declared base fields are the floor.
+        $fields = $type->getFieldDefinitions();
+
+        if ($this->fieldRegistry === null) {
+            return $fields;
+        }
+
+        // Registry core fields already include the class base fields (seeded at
+        // registerEntityType time) plus any registered at runtime; union keeps
+        // the base fields present even if the registry was not seeded.
+        foreach ($this->fieldRegistry->coreFieldsFor($entityTypeId) as $name => $definition) {
+            $fields[$name] = $definition;
+        }
+
+        // A real bundle (not the bare entity-type id, not empty) contributes its
+        // distinct typed fields, so page and news resolve to different sets.
+        if ($bundle !== null && $bundle !== '' && $bundle !== $entityTypeId) {
+            foreach ($this->fieldRegistry->bundleFieldsFor($entityTypeId, $bundle) as $name => $definition) {
+                $fields[$name] = $definition;
+            }
+        }
+
+        return $fields;
     }
 
     /** @return array<string, EntityTypeInterface> */

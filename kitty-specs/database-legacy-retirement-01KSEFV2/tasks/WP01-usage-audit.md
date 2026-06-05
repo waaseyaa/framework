@@ -137,3 +137,6 @@ See T006. Hand off to WP02; WP02's `occurrence_map.yaml` derives from this audit
 
 _(populated during execution)_
 - 2026-05-25T06:16:26Z – claude – shell_pid=131417 – Started implementation via action command
+- 2026-05-25T06:21:31Z – claude – shell_pid=131417 – Audit complete: 307 files, 294 (a), 0 (b), 0 (c). Recommendation: ELIMINATE per DIR-003. Commit 3e5ee14f5.
+- 2026-05-25T06:43:05Z – claude – shell_pid=131417 – Opus review: ELIMINATE per DIR-003; 13 files deleted; ADR-022 supersedes ADR-007; PR #1581 open; all gates green
+- 2026-05-26T18:48:45Z – claude – shell_pid=131417 – Moved to done

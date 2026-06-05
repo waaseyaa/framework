@@ -1,0 +1,49 @@
+# Classification label seed data.
+#
+# These nine labels are imported idempotently by the config-import subsystem
+# keyed by `label_id` (NFR-005). A second import run MUST be a no-op.
+#
+# confidentiality_level is an ordinal: lower = less sensitive.
+# The admin widget renders labels ordered by confidentiality_level ASC.
+#
+# Refs: spec.md §In-scope, gap-matrix-A4, DIR-004
+
+entity_type: classification_label_definition
+idempotency_key: label_id
+
+labels:
+  - label_id: public
+    display_name: Public
+    confidentiality_level: 0
+
+  - label_id: internal
+    display_name: Internal
+    confidentiality_level: 10
+
+  - label_id: confidential
+    display_name: Confidential
+    confidentiality_level: 20
+
+  - label_id: restricted
+    display_name: Restricted
+    confidentiality_level: 30
+
+  - label_id: nation-confidential
+    display_name: Nation — Confidential
+    confidentiality_level: 40
+
+  - label_id: nation-sacred
+    display_name: Nation — Sacred
+    confidentiality_level: 50
+
+  - label_id: hold-legal
+    display_name: Hold — Legal
+    confidentiality_level: 60
+
+  - label_id: hold-research
+    display_name: Hold — Research
+    confidentiality_level: 70
+
+  - label_id: hold-ethics-review
+    display_name: Hold — Ethics Review
+    confidentiality_level: 80

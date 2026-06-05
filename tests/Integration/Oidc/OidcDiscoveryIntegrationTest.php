@@ -58,9 +58,9 @@ final class OidcDiscoveryIntegrationTest extends TestCase
 
         $body = json_decode($response['body'], true, 512, JSON_THROW_ON_ERROR);
         self::assertSame('https://id.example', $body['issuer']);
-        self::assertSame('https://id.example/authorize', $body['authorization_endpoint']);
-        self::assertSame('https://id.example/token', $body['token_endpoint']);
-        self::assertSame('https://id.example/userinfo', $body['userinfo_endpoint']);
+        self::assertSame('https://id.example/oidc/authorize', $body['authorization_endpoint']);
+        self::assertSame('https://id.example/oidc/token', $body['token_endpoint']);
+        self::assertSame('https://id.example/oidc/userinfo', $body['userinfo_endpoint']);
         self::assertSame('https://id.example/.well-known/jwks.json', $body['jwks_uri']);
         self::assertContains('code', $body['response_types_supported']);
         self::assertContains('RS256', $body['id_token_signing_alg_values_supported']);

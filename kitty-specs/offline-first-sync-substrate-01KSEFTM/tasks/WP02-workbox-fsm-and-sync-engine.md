@@ -26,6 +26,7 @@ subtasks:
 - T-G
 - T-H
 - T-I
+shell_pid: '588123'
 history: []
 authoritative_surface: packages/admin/app/offline/sync
 execution_mode: code_change

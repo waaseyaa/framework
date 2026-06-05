@@ -1,0 +1,70 @@
+# Occurrence map for database-legacy-retirement-01KSEFV2 (DIRECTIVE_035).
+#
+# Mission: retire waaseyaa/database-legacy (WP02 — bulk migration of (a) callsites).
+#
+# WP01 audit result: 294 consumer files, all category (a) migrate-to-target.
+# FR-008 CONSTRAINT: The Waaseyaa\Database\ PSR-4 prefix MUST NOT change under
+# either disposition path. PHP namespace imports are therefore DO NOT CHANGE.
+#
+# The bulk edit surface is the Composer package name reference
+# "waaseyaa/database-legacy" in composer.json files. Those are updated by WP03.
+# WP02 documents the scope and confirms zero PHP logic changes are required.
+
+target:
+  term: "waaseyaa/database-legacy"
+  replacement: ~
+  operation: remove
+
+categories:
+  # PHP class/interface/trait imports: use Waaseyaa\Database\*
+  # FR-008: namespace MUST NOT change. These are left as-is.
+  code_symbols:         { action: do_not_change }
+
+  # PHP use statements: use Waaseyaa\Database\DBALDatabase; etc.
+  # FR-008: namespace MUST NOT change. Import paths are left as-is.
+  import_paths:         { action: do_not_change }
+
+  # Filesystem path literals referencing packages/database-legacy/
+  # These are in split.yml, CLAUDE.md, root composer.json — owned by WP03.
+  filesystem_paths:     { action: do_not_change }
+
+  # composer.json "require"/"require-dev" entries: "waaseyaa/database-legacy"
+  # These ARE the bulk-edit surface. WP03 updates them during ELIMINATE.
+  serialized_keys:      { action: do_not_change }
+
+  # CLI commands: no waaseyaa CLI subcommand references this package by name.
+  cli_commands:         { action: do_not_change }
+
+  # User-facing strings: no user-facing UI/docs reference the package name.
+  user_facing_strings:  { action: do_not_change }
+
+  # Test files: same as code_symbols — FR-008 keeps namespace, no test changes.
+  tests_fixtures:       { action: do_not_change }
+
+  # Telemetry/logs: no metric names reference this package.
+  logs_telemetry:       { action: do_not_change }
+
+exceptions:
+  # WP02 scope: all 294 (a) files retain their Waaseyaa\Database\ imports unchanged.
+  # No file requires a PHP-level edit (FR-008 preserves the namespace).
+  # Composer package name updates (composer.json serialized_keys) are WP03 scope.
+  - path: "packages/*/composer.json"
+    action: do_not_change
+    reason: "composer.json require updates (waaseyaa/database-legacy → removed) are owned by WP03, not WP02"
+  - path: "packages/database-legacy/**"
+    action: do_not_change
+    reason: "Package self-files: deleted under ELIMINATE (WP03 scope)"
+
+# WP01 audit summary (recorded here for WP02 traceability):
+#
+# Total files: 307
+#   - database-legacy self (13): excluded — deleted by WP03
+#   - integration tests/  (48): (a) — namespace unchanged per FR-008
+#   - package consumers  (246): (a) — namespace unchanged per FR-008
+#
+# (b) intentional-bridge: 0
+# (c) misuse-migrate-elsewhere: 0
+# Out-of-band follow-ups: 0
+#
+# WP02 deliverable: this occurrence_map.yaml + stragglers verification (T011).
+# All T011 stragglers expected = 0 beyond packages/database-legacy/ and packages/migration/.

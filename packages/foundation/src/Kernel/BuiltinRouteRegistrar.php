@@ -330,6 +330,30 @@ final class BuiltinRouteRegistrar
                 ->build(),
         );
 
+        // DIR-005 (versioned-blob-media-abstraction-01KSEFTJ WP03 T-L):
+        // Media version read API — list all versions + show a specific version.
+        // Gated by _authenticated (FR-008): any logged-in account may call;
+        // per-version filtering is applied inside the read-model adapter
+        // (GateInterface) — forbidden versions are silently omitted from lists
+        // and return 403 on direct show. Binary-stream download deferred (FR-010).
+        $mvController = 'Waaseyaa\\Api\\Controller\\MediaVersionController';
+        $router->addRoute(
+            'api.media.versions.index',
+            RouteBuilder::create('/api/media/{uuid}/versions')
+                ->controller($mvController . '::index')
+                ->requireAuthentication()
+                ->methods('GET')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.media.versions.show',
+            RouteBuilder::create('/api/media/{uuid}/versions/{vid}')
+                ->controller($mvController . '::show')
+                ->requireAuthentication()
+                ->methods('GET')
+                ->build(),
+        );
+
         // OCAP audit log substrate (ocap-audit-log-substrate-01KSEFTF).
         // Controller wired in WP03 (packages/api). Route reserved here so
         // foundation registers the named route independently of the api package.
@@ -367,6 +391,35 @@ final class BuiltinRouteRegistrar
                 ->render()
                 ->methods('GET')
                 ->requirement('path', '(?!api(?:/|$)).+')
+                ->build(),
+        );
+
+        // M5C WP01: MCP endpoint admin — read-only tool registry + server config.
+        // All three endpoints gated by `_role: admin`; controller does NOT
+        // re-check role (NFR-001 / DIR-004). Refs C-L6-01, DIR-004.
+        $mcpAdminController = 'Waaseyaa\\Api\\Controller\\McpAdminController';
+        $router->addRoute(
+            'api.mcp.admin.tools.index',
+            RouteBuilder::create('/api/mcp/tools')
+                ->controller($mcpAdminController . '::tools')
+                ->requireRole('admin')
+                ->methods('GET')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.mcp.admin.tools.show',
+            RouteBuilder::create('/api/mcp/tools/{name}')
+                ->controller($mcpAdminController . '::tool')
+                ->requireRole('admin')
+                ->methods('GET')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.mcp.admin.server-config',
+            RouteBuilder::create('/api/mcp/server-config')
+                ->controller($mcpAdminController . '::serverConfig')
+                ->requireRole('admin')
+                ->methods('GET')
                 ->build(),
         );
 
@@ -420,6 +473,61 @@ final class BuiltinRouteRegistrar
                 ->controller($oidcClientController . '::regenerateSecret')
                 ->requireRole('admin')
                 ->methods('POST')
+                ->build(),
+        );
+
+        // Classification retention-engine (classification-retention-engine-01KSEFTH WP02).
+        // Friendly URLs for the RetentionPolicy entity served via the framework's
+        // standard JSON:API entity controller. Read endpoints gate to
+        // `governance-viewer` (audit/legal read-only) OR `admin`; mutations gate
+        // to `admin` only. The auto-generated `/api/retention_policy` routes
+        // (from JsonApiRouteProvider) remain reachable; these aliases exist for
+        // discoverability and stable URL contracts documented in the admin SPA.
+        // Refs: FR-008, NFR-001 / DIR-004.
+        $retentionPolicyController = 'Waaseyaa\\Api\\JsonApiController';
+        $router->addRoute(
+            'api.classification.policies.index',
+            RouteBuilder::create('/api/classification/policies')
+                ->controller($retentionPolicyController . '::index')
+                ->requireRole('governance-viewer,admin')
+                ->methods('GET')
+                ->default('_entity_type', 'retention_policy')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.classification.policies.show',
+            RouteBuilder::create('/api/classification/policies/{id}')
+                ->controller($retentionPolicyController . '::show')
+                ->requireRole('governance-viewer,admin')
+                ->methods('GET')
+                ->default('_entity_type', 'retention_policy')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.classification.policies.store',
+            RouteBuilder::create('/api/classification/policies')
+                ->controller($retentionPolicyController . '::store')
+                ->requireRole('admin')
+                ->methods('POST')
+                ->default('_entity_type', 'retention_policy')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.classification.policies.update',
+            RouteBuilder::create('/api/classification/policies/{id}')
+                ->controller($retentionPolicyController . '::update')
+                ->requireRole('admin')
+                ->methods('PATCH')
+                ->default('_entity_type', 'retention_policy')
+                ->build(),
+        );
+        $router->addRoute(
+            'api.classification.policies.destroy',
+            RouteBuilder::create('/api/classification/policies/{id}')
+                ->controller($retentionPolicyController . '::destroy')
+                ->requireRole('admin')
+                ->methods('DELETE')
+                ->default('_entity_type', 'retention_policy')
                 ->build(),
         );
 

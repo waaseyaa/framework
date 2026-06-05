@@ -14,7 +14,11 @@ requirement_refs:
 planning_base_branch: main
 merge_target_branch: main
 branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
+base_branch: kitty/mission-genealogy-package-extraction-01KSEFTZ
+base_commit: 6fe41e2dbfa4a096553c566232c553b0bad8cb71
+created_at: '2026-05-25T06:18:23.129679+00:00'
 subtasks: []
+shell_pid: "139060"
 history: []
 authoritative_surface: packages/genealogy/composer.json
 execution_mode: code_change
@@ -22,6 +26,7 @@ owned_files:
 - packages/genealogy/composer.json
 - docs/specs/genealogy.md
 tags: []
+agent: "claude"
 ---
 # Work Package Prompt: WP01 — Composer description + spec banner + metapackage pre-flight grep
 
@@ -144,3 +149,7 @@ See T005. Do not open a PR — WP03 owns the PR.
 ## Activity Log
 
 _(populated during execution)_
+- 2026-05-25T06:18:27Z – claude – shell_pid=139060 – Assigned agent via action command
+- 2026-05-25T06:19:18Z – claude – shell_pid=139060 – WP01 complete: composer.json description flipped, DIR-004 banner inserted in genealogy.md, all verification gates green
+- 2026-05-25T06:23:59Z – claude – shell_pid=139060 – Opus review: distribution-extension classification flip clean; cms/core/full grep confirmed clean; split.yml unchanged; PR #1580 opened
+- 2026-05-26T18:48:34Z – claude – shell_pid=139060 – Done override: Sprint merge to main

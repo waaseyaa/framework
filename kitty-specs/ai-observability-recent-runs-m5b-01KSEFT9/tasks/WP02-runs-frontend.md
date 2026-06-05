@@ -136,3 +136,4 @@ POST /api/ai/observability/runs/{uuid}/replay
 (implementer appends here)
 - 2026-05-25T06:06:57Z – unknown – Moved to for_review
 - 2026-05-25T06:07:58Z – unknown – Opus review: lane-a disciplined; WP01 (backend recent-runs + detail + replay with _gate) + WP02 (frontend with paginated list, span timeline honoring truncated marker, filter bar, replay button); 10 Vitest cases pass; specs stamped
+- 2026-05-26T18:58:35Z – unknown – Done override: Sprint merge to main

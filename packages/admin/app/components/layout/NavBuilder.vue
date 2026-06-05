@@ -90,12 +90,17 @@ function customSectionHeading(groupKey: string): string {
         </NuxtLink>
       </template>
     </template>
+    <div class="nav-section" data-testid="nav-section-mcp">{{ t('nav_group_mcp') }}</div>
+    <NuxtLink to="/mcp/tools" class="nav-item" data-testid="nav-mcp-tools">{{ t('mcp_tools_title') }}</NuxtLink>
+    <NuxtLink to="/mcp/server-config" class="nav-item" data-testid="nav-mcp-server-config">{{ t('mcp_server_config_title') }}</NuxtLink>
     <div class="nav-section" data-testid="nav-section-operations">{{ t('nav_group_operations') }}</div>
     <NuxtLink to="/workflows" class="nav-item">{{ t('workflows') }}</NuxtLink>
     <NuxtLink to="/queue" class="nav-item" data-testid="nav-queue">{{ t('queue_title') }}</NuxtLink>
     <NuxtLink to="/scheduler" class="nav-item" data-testid="nav-scheduler">{{ t('scheduler_title') }}</NuxtLink>
     <NuxtLink to="/notifications" class="nav-item" data-testid="nav-notifications">{{ t('notifications_title') }}</NuxtLink>
     <NuxtLink to="/mercure/monitor" class="nav-item" data-testid="nav-mercure-monitor">{{ t('mercure_monitor_title') }}</NuxtLink>
+    <div class="nav-section" data-testid="nav-section-governance">{{ t('nav_group_governance') }}</div>
+    <NuxtLink to="/classification/policies" class="nav-item" data-testid="nav-classification-policies">{{ t('classification_policies_nav') }}</NuxtLink>
   </nav>
 </template>
 

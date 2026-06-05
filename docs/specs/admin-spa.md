@@ -226,7 +226,7 @@ Fetches and caches JSON Schema for an entity type. Drives all form rendering.
 ```ts
 function useSchema(entityType: string): {
   schema: Ref<EntitySchema | null>; loading: Ref<boolean>; error: Ref<string | null>
-  fetch(): Promise<void>; invalidate(): void
+  fetch(scopeId?: string): Promise<void>; invalidate(scopeId?: string): void
   sortedProperties(editable?: boolean): [string, SchemaProperty][]
 }
 ```
@@ -248,7 +248,18 @@ interface EntitySchema {
 ```
 
 - Endpoint: `GET /api/schema/{entityType}` returns `{ meta: { schema: EntitySchema } }`
-- Module-level `Map<string, EntitySchema>` cache. Call `invalidate()` to clear a single type.
+- **Bundle-aware fetch:** `fetch(scopeId?)` passes the scoping entity id through the
+  transport (`transport.schema(type, id?)`) so the backend can scope the schema to
+  that entity's bundle and include its per-bundle fields. A node of bundle `page`
+  thus exposes `body`/`blocks` in the form, not only the shared core fields
+  (title, slug, published). The backend resolution lives in
+  `GenericAdminSurfaceHost::handleSchema` (an explicit `bundle` in the payload
+  wins, else the bundle is read from the entity named by `id`); non-bundled types
+  and a missing id keep the base schema. `SchemaForm`/`SchemaView` pass the record
+  id; lists and create forms call `fetch()` with no id and get the base schema.
+- Module-level `Map<string, EntitySchema>` cache keyed by `type:scopeId` (so a
+  bundled record's field set never collides with the bare type's). Call
+  `invalidate(scopeId?)` to clear a single key.
 - `sortedProperties(true)` filters out system `readOnly` fields (id, uuid) and hidden widgets, but keeps `x-access-restricted` fields (rendered as disabled inputs). Sorted by `x-weight` ascending.
 - `sortedProperties(false)` returns all properties sorted by weight.
 
@@ -376,6 +387,16 @@ When the PHP `SchemaPresenter` marks a field with `readOnly: true` + `x-access-r
 ### RichText Sanitization
 
 `WidgetsRichText` (`packages/admin/app/components/widgets/RichText.vue`) sanitizes HTML client-side using DOMParser. Allowed tags: `P, BR, B, I, U, STRONG, EM, A, UL, OL, LI, H1-H6, BLOCKQUOTE, PRE, CODE, SUB, SUP, HR`. Links restricted to `http://`, `https://`, or `/` prefixes.
+
+The contenteditable is driven **imperatively**, not via a reactive `v-html`
+binding: `innerHTML` is set on mount and only when the model changes from outside
+the component, and the component skips the reactive echo of its own `@input`
+emit. Binding `v-html` to a contenteditable re-renders it on every keystroke,
+resetting the caret to the start and scrambling typed text; the imperative
+approach preserves the caret. Because the editor emits sanitized semantic HTML,
+editing the body of content migrated as page-builder markup (e.g. a `pb-band`
+hero) simplifies that markup to clean prose; structured (blocks) editing that
+preserves rich layouts is a separate, future surface.
 
 ### EntityAutocomplete Widget
 
@@ -826,6 +847,29 @@ Real-time SSE monitor for the Mercure broadcasting layer (gap-matrix C-L0-04, mi
 | `packages/admin/playwright.config.ts` | Playwright E2E test configuration |
 | `packages/admin/app/composables/useWorkflowGuards.ts` | Fetches `/api/workflow-definitions/{id}/guards` (M4A-5 Phase 1, #1470) |
 | `packages/admin/app/components/workflow/WorkflowGuardsTable.vue` | Read-only guards matrix section embedded on `/workflows/{id}` (M4A-5 Phase 1, #1470) |
+| `packages/admin/app/composables/useMediaVersions.ts` | Fetches `/api/media/{uuid}/versions` (DIR-005, versioned-blob-media-abstraction-01KSEFTJ WP04) |
+| `packages/admin/app/components/media/MediaVersionBrowser.vue` | Read-only version table rendered at `/media/{uuid}/versions` (DIR-005 WP04) |
+| `packages/admin/app/pages/media/[uuid]/versions.vue` | Media version browser page (DIR-005 WP04) |
+
+## MCP admin
+
+**Mission:** `mcp-endpoint-admin-m5c-01KSEFTB` (#1415, audit C-L6-01).
+
+Read-only admin surface for the MCP endpoint. Three pages under `/mcp/`, accessible via the "MCP" nav group in `NavBuilder.vue`:
+
+| Page | Route | Description |
+|------|-------|-------------|
+| Tool registry | `/mcp/tools` | Paginated list of registered MCP tools with name, category, capability chips, summary |
+| Tool detail | `/mcp/tools/{name}` | Per-tool header card + collapsible input-schema viewer + recent invocations table |
+| Server config | `/mcp/server-config` | Transport/protocol banner, server capabilities, registered clients table |
+
+**Composables:** `useMcpTools`, `useMcpTool`, `useMcpServerConfig` — all use `useApi().apiFetch`.
+
+**Security:** `McpRegisteredClient` TypeScript type has no `token` field; only `tokenFingerprint` (16-char hex) is exposed. Enforced by compile-time type assertion in `useMcpServerConfig.test.ts`.
+
+**URL encoding:** `useMcpTool.fetchTool(name)` runs `encodeURIComponent(name)` once before the request so tool names containing dots (e.g. `bimaaji.search_specs`) are safe in path segments.
+
+**M5B interop:** `RecentInvocationsTable.vue` renders `traceUuid` cells as router-links to `/ai/observability/runs/{uuid}` when the M5B route exists; falls back to plain text UUID when it does not (no broken links).
 
 ## Implementation gotchas
 
@@ -838,5 +882,7 @@ Real-time SSE monitor for the Mercure broadcasting layer (gap-matrix C-L0-04, mi
 - **Nuxt `.env` changes require dev server restart**: HMR picks up source file changes but NOT `.env` changes. Runtime config from `.env` is read at server startup only. Clear `.nuxt/` cache if values seem stale after restart.
 - **Git worktrees can't run Nuxt dev server**: Worktrees share source via symlinks but not `node_modules/.vite/` or `.nuxt/`. Vite module resolution fails with MIME type errors. Run E2E tests against the main repo's dev server, not from worktrees.
 
+<!-- Spec reviewed 2026-05-25 - mcp-endpoint-admin-m5c-01KSEFTB: MCP admin surface — tool registry browser (/mcp/tools), per-tool detail (/mcp/tools/{name}), server config viewer (/mcp/server-config). Nav group "MCP" added to NavBuilder.vue. -->
 <!-- Spec reviewed 2026-05-24 - workflow guards read-only matrix section on /workflows/{id} (M4A-5 Phase 1, #1470) -->
 <!-- Spec reviewed 2026-05-25 - inertia-demotion-nuxt-standardisation-01KSEFTS - WP03 - SPA bet section added per DIR-007 -->
+<!-- Spec reviewed 2026-05-25 - media version browser page /media/{uuid}/versions (DIR-005 versioned-blob-media-abstraction-01KSEFTJ WP04) -->

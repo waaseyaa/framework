@@ -198,6 +198,38 @@ final class HttpKernelTest extends TestCase
     }
 
     #[Test]
+    public function dev_fallback_account_is_allowed_under_frankenphp_sapi_in_development_with_flag(): void
+    {
+        // FrankenPHP is the production runtime too, so the SAPI alone must not
+        // unlock the dev fallback: development mode AND the explicit opt-in flag
+        // are still required.
+        $kernel = new HttpKernel('/tmp/test-project');
+
+        $configProp = new \ReflectionProperty(\Waaseyaa\Foundation\Kernel\AbstractKernel::class, 'config');
+        $method = new \ReflectionMethod(HttpKernel::class, 'shouldUseDevFallbackAccount');
+
+        // dev + flag => enabled under FrankenPHP.
+        $configProp->setValue($kernel, [
+            'environment' => 'local',
+            'auth' => ['dev_fallback_account' => true],
+        ]);
+        $this->assertTrue($method->invoke($kernel, 'frankenphp'));
+
+        // production + flag => still locked (isDevelopmentMode() is false).
+        $configProp->setValue($kernel, [
+            'environment' => 'production',
+            'auth' => ['dev_fallback_account' => true],
+        ]);
+        $this->assertFalse($method->invoke($kernel, 'frankenphp'));
+
+        // dev, no flag => locked.
+        $configProp->setValue($kernel, [
+            'environment' => 'local',
+        ]);
+        $this->assertFalse($method->invoke($kernel, 'frankenphp'));
+    }
+
+    #[Test]
     public function registers_core_routes_on_router(): void
     {
         $kernel = new HttpKernel($this->projectRoot);

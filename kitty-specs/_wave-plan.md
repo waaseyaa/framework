@@ -109,7 +109,7 @@ Future Anokii roadmap. Draft specs in `artifacts/v1.0/`. Re-file in Anokii repo 
 
 Surfaces: Slides, Calendar, Chat (extending messaging — note that the L2 consolidation mission graduates `messaging` to L3 chat service, unblocking this), Email, Meet, Templates, Vault, Reporting, Community Intel.
 
-Cross-cutting: Indigenous-language UI translation pipeline (extraction → translation_string entity → contributor dashboard → translation_review workflow → glossary entity → per-Nation override; pilot Sagamok-first, Sheguiandah second). Licensing / multi-tenant. Nation↔Nation federation. k8s-class cluster ops. Mobile PWA.
+Cross-cutting: Indigenous-language UI translation pipeline (extraction → translation_string entity → contributor dashboard → translation_review workflow → glossary entity → per-Nation override; pilot Pilot Nation A-first, Pilot Nation B second). Licensing / multi-tenant. Nation↔Nation federation. k8s-class cluster ops. Mobile PWA.
 
 ---
 

@@ -23,6 +23,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | File pattern | Specialist skill | Cold memory spec |
 |---|---|---|
 | `packages/entity/*`, `packages/entity-storage/*`, `packages/field/*` | `waaseyaa:entity-system` | `docs/specs/entity-system.md` |
+| `packages/field/src/Classification/*`, `packages/field/src/Entity/{ClassificationLabelDefinition,RetentionPolicy}.php`, `packages/admin/app/pages/classification/*` (classification labels, inheritance, clearance/hold access, retention jobs) | — | `docs/specs/classification-and-retention.md` |
 | `packages/entity-storage/src/{Schema/TranslationSchemaHandler,Schema/RevisionTableBuilder,Driver/RevisionableStorageDriver,Listing/TwoAxisFilterResolver,Revision/RevisionPruningPolicy,Exception/StorageMigrationException}.php`, `packages/access/src/Policy/RevisionPolicyComposition.php` (two-axis storage: revisionable × translatable) | — | `docs/specs/entity-storage-two-axis.md`, `docs/cookbook/translatable-revisionable-entities.md`, `docs/upgrade-notes/two-axis-storage.md`, `docs/specs/entity-storage-translatable-revisions.md` |
 | `packages/config/*` (active store, runtime read API) | `waaseyaa:entity-system` | `docs/specs/entity-system.md` |
 | `packages/config/src/{Sync,Dependency,Audit,Backend}/*`, `packages/cli/src/Command/Config/*` (CMI: sync store, `config:*` CLI, `config.audit`) | — | `docs/specs/config-management.md`, `docs/cookbook/config-sync.md`, `docs/adr/018-configuration-management-sync.md` |
@@ -44,6 +45,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/mcp/*` | `waaseyaa:mcp-endpoint` | `docs/specs/mcp-endpoint.md` |
 | `public/index.php` | `waaseyaa:middleware-pipeline` | `docs/specs/http-entry-point.md` |
 | `packages/*/src/Middleware/*` | `waaseyaa:middleware-pipeline` | `docs/specs/middleware-pipeline.md` |
+| `packages/media/*`, `packages/media/src/Version/*` | — | `docs/specs/entity-storage-two-axis.md` (cross-ref: DIR-005 versioned blob) |
 | `packages/note/*` | — | `docs/specs/ingestion-defaults.md` |
 | `packages/relationship/*` | — | `docs/specs/relationship-modeling.md`, `docs/specs/relationship-inference-contract.md` |
 | `packages/genealogy/*` | — (distribution-extension) | `docs/specs/genealogy.md`, `docs/specs/relationship-modeling.md` |
@@ -62,7 +64,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/engagement/*` | — | `packages/engagement/README.md` |
 | `packages/geo/*` | — | `packages/geo/README.md` |
 | `packages/mercure/*` | — | `packages/mercure/README.md` |
-| `packages/messaging/*` | — | `packages/messaging/README.md` |
+| `packages/messaging/*` | `waaseyaa:messaging` | `docs/specs/messaging.md` |
 | `packages/oauth-provider/*` | — | `packages/oauth-provider/README.md` |
 | `packages/analytics/*` | — | `packages/analytics/README.md` (Umami proxy; L0, no waaseyaa deps) |
 | `packages/audit/*` | `waaseyaa:ocap-audit` | `docs/specs/ocap-audit-log.md` |
@@ -85,10 +87,10 @@ When the mapping is not obvious, search under `docs/specs/` (e.g. `rg -n "TopicO
 
 | Layer | Name | Packages |
 |---|---|---|
-| 0 | Foundation | agent-output, analytics, cache, database-legacy, error-handler, foundation, geo, http-client, i18n, ingestion, mail, mercure, oauth-provider, plugin, queue, scheduler, state, typed-data, validation |
+| 0 | Foundation | agent-output, analytics, cache, database-legacy, error-handler, foundation, geo, http-client, i18n, ingestion, mail, mercure, oauth-provider, page-builder, plugin, queue, scheduler, state, typed-data, validation |
 | 1 | Core Data | entity, entity-storage, access, audit, user, config, field, auth, oidc, testing |
-| 2 | Content Types | node, taxonomy, media, path, menu, note, relationship, groups, engagement, messaging |
-| 3 | Services | workflows, search, seo, notification, billing, github, migration, northcloud, listing |
+| 2 | Content Types | node, taxonomy, media, path, menu, note, relationship, groups, engagement |
+| 3 | Services | workflows, search, seo, notification, billing, github, migration, northcloud, listing, messaging |
 | 4 | API | api, bimaaji, routing |
 | 5 | AI | ai-agent, ai-observability, ai-pipeline, ai-schema, ai-vector |
 | 6 | Interfaces | cli, admin-surface, graphql, mcp, ssr, telescope, deployer, inertia, debug |

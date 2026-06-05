@@ -166,3 +166,4 @@ spec-kitty agent tasks move-task WP03 --to for_review --mission ocap-audit-log-s
 - 2026-05-25T05:33:32Z – claude – shell_pid=63322 – Assigned agent via action command
 - 2026-05-25T05:52:58Z – claude – shell_pid=63322 – Endpoint + CLI + integration tests complete; all gates pass (phpstan, check-package-layers, check-dead-code, check-getquery-bindings, check-composer-policy, cs-check). Commit d60076d66.
 - 2026-05-25T05:53:39Z – claude – shell_pid=63322 – Opus review: lane-a disciplined; single comprehensive commit; API + CLI + tests + 3-spec stamp; gates all clean; OCAP audit substrate now fully operational
+- 2026-05-26T18:47:43Z – claude – shell_pid=63322 – Done override: Sprint merge to main

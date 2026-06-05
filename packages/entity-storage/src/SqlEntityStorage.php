@@ -22,6 +22,7 @@ use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\TranslatableInterface;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
+use Waaseyaa\EntityStorage\Bundle\BundleSubtableGateway;
 use Waaseyaa\EntityStorage\Hydration\SqlColumnTranslationHydrator;
 use Waaseyaa\EntityStorage\Schema\TranslationSchemaHandler;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -50,18 +51,8 @@ final class SqlEntityStorage implements EntityStorageInterface
     /** @var array<string, bool> Column existence cache (column name => exists in table). */
     private array $columnCache = [];
 
-    /** @var array<string, bool> Bundle subtable existence cache (subtable name => exists). */
-    private array $bundleSubtableCache = [];
-
-    /**
-     * Bundles for which a load-side `[MISSING_BUNDLE_SUBTABLE]` notice has
-     * already been emitted in this storage instance. Keyed by bundle id.
-     * Independent of the save-time notice cadence — the two surfaces have
-     * different operator audiences (mission #1257 WP06, K4).
-     *
-     * @var array<string, true>
-     */
-    private array $missingBundleSubtableLoadLogged = [];
+    /** Lazily-resolved bundle subtable gateway; false until first resolution. */
+    private BundleSubtableGateway|false|null $bundleGatewayInstance = false;
 
     private readonly LoggerInterface $logger;
 
@@ -318,24 +309,32 @@ final class SqlEntityStorage implements EntityStorageInterface
         // Snapshot entity values AFTER PRE_SAVE so listener mutations are persisted.
         $values = $entity->toArray();
 
-        // Partition values into base-row + bundle-subtable shapes. Bundle-scoped
-        // fields (per the registry) are pulled out first so splitForStorage's
-        // _data fallback doesn't absorb them. Mismatched-bundle fields throw.
-        [$baseValues, $bundleValues, $currentBundle] = $this->partitionBundleValues($values, $entity);
-        $dbValues = $this->splitForStorage($baseValues);
-
-        $writesSubtable = false;
-        if ($bundleValues !== [] && $currentBundle !== null) {
-            $writesSubtable = $this->bundleSubtableExists($currentBundle);
-            if (!$writesSubtable) {
-                $this->logger->notice(\sprintf(
-                    '[MISSING_BUNDLE_SUBTABLE] Bundle-scoped fields are registered for entity type "%s" bundle "%s", but subtable "%s" does not exist at save time. Bundle-field values will not be persisted for this write. Run the schema migration or sync that materializes the subtable before saving this bundle.',
-                    $this->entityType->id(),
-                    $currentBundle,
-                    $this->bundleSubtableName($currentBundle),
-                ));
+        // Partition values into base-row + bundle-subtable shapes via the single
+        // bundle-persistence implementation (shared with EntityRepository), so the
+        // two write paths cannot drift. Column-stored bundle fields are pulled out
+        // so splitForStorage's _data fallback doesn't absorb them; FieldStorage::Data
+        // bundle fields and mismatched-bundle fields are handled by the gateway.
+        $baseValues = $values;
+        $bundleValues = [];
+        $currentBundle = null;
+        $gateway = $this->bundleGateway();
+        if ($gateway !== null) {
+            [$baseValues, $bundleValues, $currentBundle] = $gateway->partition($entity, $values);
+            if ($bundleValues !== [] && $currentBundle !== null && !$gateway->subtableExists($currentBundle)) {
+                // Never a silent drop. The subtable is normally materialized when
+                // the bundle fields are registered (EntityTypeManager::addBundleFields).
+                // If it is genuinely absent, fold the column-bound values into the
+                // base _data blob (no data loss) and log loudly; the _data merge on
+                // load recovers them.
+                $gateway->logMissingSubtableOnSave($currentBundle, \count($bundleValues));
+                $baseValues = \array_merge($baseValues, $bundleValues);
+                $bundleValues = [];
+                $currentBundle = null;
             }
         }
+        $writesSubtable = $bundleValues !== [] && $currentBundle !== null;
+
+        $dbValues = $this->splitForStorage($baseValues);
 
         $txn = $writesSubtable ? $this->database->transaction() : null;
         try {
@@ -347,9 +346,9 @@ final class SqlEntityStorage implements EntityStorageInterface
 
             if ($writesSubtable) {
                 $entityId = $entity->id();
-                if ($entityId !== null) {
+                if ($entityId !== null && $gateway !== null) {
                     /** @var string $currentBundle — narrowed by $writesSubtable. */
-                    $this->upsertBundleRow($currentBundle, $entityId, $bundleValues);
+                    $gateway->upsert($currentBundle, $entityId, $bundleValues);
                 }
             }
 
@@ -1444,157 +1443,29 @@ final class SqlEntityStorage implements EntityStorageInterface
     }
 
     /**
-     * Partition entity values into base-row and bundle-subtable shapes.
-     *
-     * When no FieldDefinitionRegistry is wired, or when the entity type has
-     * no bundleKey, or when no bundle fields are registered for the type, all
-     * values flow to the base row unchanged and the bundle is reported as null.
-     *
-     * Otherwise, fields whose name is registered as a bundle field for the
-     * entity's current bundle are pulled out into $bundleValues; fields
-     * registered as bundle fields for some OTHER bundle are rejected as a
-     * programming error (writing them would corrupt the schema).
-     *
-     * @param array<string, mixed> $values
-     * @return array{0: array<string, mixed>, 1: array<string, mixed>, 2: ?string}
+     * Lazily resolve the single bundle subtable gateway for this entity type, or
+     * null when bundle persistence does not apply (no registry, or no bundle
+     * fields registered). Shared implementation with EntityRepository, so the two
+     * persistence paths cannot drift.
      */
-    private function partitionBundleValues(array $values, EntityInterface $entity): array
+    private function bundleGateway(): ?BundleSubtableGateway
     {
-        if ($this->fieldRegistry === null || $this->bundleKey === null) {
-            return [$values, [], null];
+        if ($this->bundleGatewayInstance !== false) {
+            return $this->bundleGatewayInstance;
         }
 
-        $entityTypeId = $this->entityType->id();
-        $registeredBundles = $this->fieldRegistry->bundleNamesFor($entityTypeId);
-        if ($registeredBundles === []) {
-            return [$values, [], null];
+        if ($this->fieldRegistry === null) {
+            return $this->bundleGatewayInstance = null;
         }
 
-        $currentBundle = $entity->bundle();
-        if ($currentBundle === '' || $currentBundle === $entityTypeId) {
-            return [$values, [], null];
-        }
+        $gateway = new BundleSubtableGateway(
+            $this->database,
+            $this->fieldRegistry,
+            $this->entityType,
+            $this->logger,
+        );
 
-        $bundleFieldNames = [];
-        foreach ($this->fieldRegistry->bundleFieldsFor($entityTypeId, $currentBundle) as $name => $_def) {
-            $bundleFieldNames[$name] = true;
-        }
-
-        $otherBundleFields = [];
-        foreach ($registeredBundles as $bundle) {
-            if ($bundle === $currentBundle) {
-                continue;
-            }
-            foreach ($this->fieldRegistry->bundleFieldsFor($entityTypeId, $bundle) as $name => $_def) {
-                $otherBundleFields[$name] = $bundle;
-            }
-        }
-
-        $baseValues = [];
-        $bundleValues = [];
-        foreach ($values as $key => $value) {
-            if (isset($bundleFieldNames[$key])) {
-                $bundleValues[$key] = $value;
-                continue;
-            }
-            if (isset($otherBundleFields[$key])) {
-                throw new \InvalidArgumentException(\sprintf(
-                    'Field "%s" belongs to bundle "%s" but entity of type "%s" has bundle "%s".',
-                    $key,
-                    $otherBundleFields[$key],
-                    $entityTypeId,
-                    $currentBundle,
-                ));
-            }
-            $baseValues[$key] = $value;
-        }
-
-        return [$baseValues, $bundleValues, $currentBundle];
-    }
-
-    private function bundleSubtableName(string $bundle): string
-    {
-        return SqlSchemaHandler::resolveSubtableName($this->tableName, $bundle, $this->entityType->id());
-    }
-
-    private function bundleSubtableExists(string $bundle): bool
-    {
-        $subtable = $this->bundleSubtableName($bundle);
-        if (!isset($this->bundleSubtableCache[$subtable])) {
-            $this->bundleSubtableCache[$subtable] = $this->database->schema()->tableExists($subtable);
-        }
-        return $this->bundleSubtableCache[$subtable];
-    }
-
-    /**
-     * Emits a single `[MISSING_BUNDLE_SUBTABLE]` notice for the given bundle
-     * on the load path, memoized per bundle for the lifetime of this storage
-     * instance (mission #1257 WP06, K4 — bundle-load drift logging). The
-     * memo is independent of the save-time notice: load and save surfaces
-     * are different code paths with different operator audiences, so each
-     * gets its own once-per-(entity_type, bundle) cadence.
-     *
-     * The save-time notice already exists at the splitForStorage seam; this
-     * companion closes the symmetric gap on read so operators get a signal
-     * the bundle is in a half-migrated state regardless of which surface
-     * they touch first.
-     */
-    private function logMissingBundleSubtableLoadOnce(string $bundle): void
-    {
-        if (isset($this->missingBundleSubtableLoadLogged[$bundle])) {
-            return;
-        }
-        $this->missingBundleSubtableLoadLogged[$bundle] = true;
-
-        $this->logger->notice(\sprintf(
-            '[MISSING_BUNDLE_SUBTABLE] Bundle-scoped fields are registered for entity type "%s" bundle "%s", but subtable "%s" does not exist at load time. Bundle-field values will be omitted from loaded entities for this bundle. Run the schema migration or sync that materializes the subtable.',
-            $this->entityType->id(),
-            $bundle,
-            $this->bundleSubtableName($bundle),
-        ));
-    }
-
-    /**
-     * UPSERT a bundle subtable row by primary key.
-     *
-     * Portable across SQLite/MySQL/Postgres: probes for an existing row, then
-     * issues UPDATE or INSERT. The subtable's PK column matches the base
-     * table's idKey and carries an ON DELETE CASCADE FK per commit 3.
-     *
-     * @param array<string, mixed> $bundleValues
-     */
-    private function upsertBundleRow(string $bundle, int|string $id, array $bundleValues): void
-    {
-        $subtable = $this->bundleSubtableName($bundle);
-
-        $existingResult = $this->database->select($subtable)
-            ->fields($subtable, [$this->idKey])
-            ->condition($this->idKey, $id)
-            ->execute();
-
-        $exists = false;
-        foreach ($existingResult as $_) {
-            $exists = true;
-            break;
-        }
-
-        if ($exists) {
-            if ($bundleValues === []) {
-                return;
-            }
-            $this->database->update($subtable)
-                ->fields($bundleValues)
-                ->condition($this->idKey, $id)
-                ->execute();
-            return;
-        }
-
-        $insertRow = $bundleValues;
-        $insertRow[$this->idKey] = $id;
-        $this->database->insert($subtable)
-            ->fields(\array_keys($insertRow))
-            ->values($insertRow)
-            ->execute();
+        return $this->bundleGatewayInstance = $gateway->hasBundleFields() ? $gateway : null;
     }
 
     /**
@@ -1609,7 +1480,8 @@ final class SqlEntityStorage implements EntityStorageInterface
      */
     private function mergeBundleSubtableRow(array &$row): void
     {
-        if ($this->fieldRegistry === null || $this->bundleKey === null) {
+        $gateway = $this->bundleGateway();
+        if ($gateway === null || $this->bundleKey === null) {
             return;
         }
 
@@ -1623,29 +1495,17 @@ final class SqlEntityStorage implements EntityStorageInterface
             return;
         }
 
-        if (!$this->bundleSubtableExists($bundle)) {
-            $this->logMissingBundleSubtableLoadOnce($bundle);
+        if (!$gateway->subtableExists($bundle)) {
+            $gateway->logMissingSubtableOnLoad($bundle);
             return;
         }
 
-        $subtable = $this->bundleSubtableName($bundle);
-        $result = $this->database->select($subtable)
-            ->fields($subtable)
-            ->condition($this->idKey, $id)
-            ->execute();
-
-        foreach ($result as $subRow) {
-            $subRowArr = (array) $subRow;
-            unset($subRowArr[$this->idKey]);
-            foreach ($subRowArr as $k => $v) {
-                if (!\is_string($k)) {
-                    continue;
-                }
-                if (!\array_key_exists($k, $row)) {
-                    $row[$k] = $v;
-                }
+        foreach ($gateway->read($bundle, $id) as $k => $v) {
+            // Existing keys on the base row win: bundle columns cannot shadow
+            // base columns.
+            if (!\array_key_exists($k, $row)) {
+                $row[$k] = $v;
             }
-            break;
         }
     }
 
@@ -1658,7 +1518,8 @@ final class SqlEntityStorage implements EntityStorageInterface
      */
     private function mergeBundleSubtableRowsBatch(array &$rows): void
     {
-        if ($this->fieldRegistry === null || $this->bundleKey === null || $rows === []) {
+        $gateway = $this->bundleGateway();
+        if ($gateway === null || $this->bundleKey === null || $rows === []) {
             return;
         }
 
@@ -1675,31 +1536,18 @@ final class SqlEntityStorage implements EntityStorageInterface
         }
 
         foreach ($idsByBundle as $bundle => $ids) {
-            if (!$this->bundleSubtableExists($bundle)) {
-                $this->logMissingBundleSubtableLoadOnce($bundle);
+            if (!$gateway->subtableExists($bundle)) {
+                $gateway->logMissingSubtableOnLoad($bundle);
                 continue;
             }
-            $subtable = $this->bundleSubtableName($bundle);
-            $result = $this->database->select($subtable)
-                ->fields($subtable)
-                ->condition($this->idKey, $ids, 'IN')
-                ->execute();
 
-            foreach ($result as $subRow) {
-                $subRowArr = (array) $subRow;
-                $subId = $subRowArr[$this->idKey] ?? null;
-                if ($subId === null) {
-                    continue;
-                }
-                $rowIndex = $indexByBundleAndId[$bundle][(string) $subId] ?? null;
+            // One IN query per bundle (not one lookup per row).
+            foreach ($gateway->readMany($bundle, $ids) as $subId => $values) {
+                $rowIndex = $indexByBundleAndId[$bundle][$subId] ?? null;
                 if ($rowIndex === null) {
                     continue;
                 }
-                unset($subRowArr[$this->idKey]);
-                foreach ($subRowArr as $k => $v) {
-                    if (!\is_string($k)) {
-                        continue;
-                    }
+                foreach ($values as $k => $v) {
                     if (!\array_key_exists($k, $rows[$rowIndex])) {
                         $rows[$rowIndex][$k] = $v;
                     }

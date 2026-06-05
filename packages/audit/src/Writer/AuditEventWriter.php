@@ -35,8 +35,14 @@ final class AuditEventWriter implements AuditWriterInterface
                 'subject_uri'    => $descriptor->subjectUri,
                 'outcome'        => $descriptor->outcome,
                 'severity'       => $descriptor->severity,
-                'entity_type_id' => $descriptor->entityTypeId,
-                'entity_uuid'    => $descriptor->entityUuid,
+                // Schema uses NOT NULL DEFAULT '' (empty-sentinel design); non-entity
+                // events (entity.read on a path, access.denied, agent.tool.execute) carry
+                // no entity reference. Coalesce null → '' or the INSERT violates the
+                // NOT NULL constraint and the event is silently dropped (#1587 triage).
+                // The read model (AuditEvent::getEntityTypeId2/getEntityUuid) converts
+                // '' back to null.
+                'entity_type_id' => $descriptor->entityTypeId ?? '',
+                'entity_uuid'    => $descriptor->entityUuid ?? '',
                 'attributes'     => json_encode($descriptor->attributes, JSON_THROW_ON_ERROR),
                 'created_at'     => new \DateTimeImmutable()->format('Y-m-d H:i:s'),
                 'uuid'           => \Symfony\Component\Uid\Uuid::v4()->toRfc4122(),

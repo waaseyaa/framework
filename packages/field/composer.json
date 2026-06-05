@@ -10,15 +10,7 @@
         },
         {
             "type": "path",
-            "url": "../entity"
-        },
-        {
-            "type": "path",
-            "url": "../plugin"
-        },
-        {
-            "type": "path",
-            "url": "../typed-data"
+            "url": "../audit"
         },
         {
             "type": "path",
@@ -27,12 +19,30 @@
         {
             "type": "path",
             "url": "../config"
+        },
+        {
+            "type": "path",
+            "url": "../entity"
+        },
+        {
+            "type": "path",
+            "url": "../foundation"
+        },
+        {
+            "type": "path",
+            "url": "../plugin"
+        },
+        {
+            "type": "path",
+            "url": "../typed-data"
         }
     ],
     "require": {
         "php": ">=8.5",
         "waaseyaa/access": "^0.1.0-alpha.188",
+        "waaseyaa/audit": "^0.1.0-alpha.188",
         "waaseyaa/entity": "^0.1.0-alpha.188",
+        "waaseyaa/foundation": "^0.1.0-alpha.188",
         "waaseyaa/plugin": "^0.1.0-alpha.188",
         "waaseyaa/typed-data": "^0.1.0-alpha.188"
     },

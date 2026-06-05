@@ -1,45 +1,52 @@
 ---
 work_package_id: WP02
-title: "RetentionPolicy entity, ClassificationFieldAccessPolicy, RoleBasedClearanceChecker, label registry, JSON:API CRUD routes, legal-hold-bypass permission"
+title: RetentionPolicy entity, ClassificationFieldAccessPolicy, RoleBasedClearanceChecker, label registry, JSON:API CRUD routes, legal-hold-bypass permission
 dependencies:
-  - WP01
+- WP01
 requirement_refs:
-  - FR-005
-  - FR-006
-  - FR-008
-  - FR-013
-  - NFR-002
-  - NFR-003
-  - C-002
-  - C-004
+- FR-005
+- FR-006
+- FR-008
+- FR-013
+- NFR-002
+- NFR-003
+- C-002
+- C-004
 planning_base_branch: main
 merge_target_branch: main
-branch_strategy: "Branches from WP01 merge commit. Completed work merges back into main."
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
 subtasks:
-  - T-F
-  - T-G
-  - T-H
-  - T-I
-  - T-J
-  - T-K
-  - T-L
-authoritative_surface: "packages/field/src/Classification/Policy"
+- T-F
+- T-G
+- T-H
+- T-I
+- T-J
+- T-K
+- T-L
+history: []
+authoritative_surface: packages/field/src/Classification/Policy
 execution_mode: code_change
 owned_files:
-  - packages/field/src/Entity/RetentionPolicy.php
-  - packages/field/migrations/2026_05_25_000004_create_retention_policy_table.php
-  - packages/field/src/Classification/Policy/ClassificationFieldAccessPolicy.php
-  - packages/field/src/Classification/ClassificationClearanceCheckerInterface.php
-  - packages/field/src/Classification/RoleBasedClearanceChecker.php
-  - packages/field/src/Classification/ClassificationLabelRegistryInterface.php
-  - packages/field/src/Classification/ClassificationLabelRegistry.php
-  - packages/field/src/Classification/Permissions.php
-  - packages/foundation/src/Kernel/BuiltinRouteRegistrar.php
-  - packages/field/tests/Unit/Classification/Policy/ClassificationFieldAccessPolicyTest.php
-  - packages/field/tests/Unit/Classification/RoleBasedClearanceCheckerTest.php
-  - packages/field/tests/Unit/Entity/RetentionPolicyTest.php
-tags: ["substrate", "classification", "access-policy", "retention", "hold"]
-history: []
+- packages/field/src/Entity/RetentionPolicy.php
+- packages/field/migrations/2026_05_25_000004_create_retention_policy_table.php
+- packages/field/src/Classification/Policy/ClassificationFieldAccessPolicy.php
+- packages/field/src/Classification/ClassificationClearanceCheckerInterface.php
+- packages/field/src/Classification/RoleBasedClearanceChecker.php
+- packages/field/src/Classification/ClassificationLabelRegistryInterface.php
+- packages/field/src/Classification/ClassificationLabelRegistry.php
+- packages/field/src/Classification/Permissions.php
+- packages/foundation/src/Kernel/BuiltinRouteRegistrar.php
+- packages/field/tests/Unit/Classification/Policy/ClassificationFieldAccessPolicyTest.php
+- packages/field/tests/Unit/Classification/RoleBasedClearanceCheckerTest.php
+- packages/field/tests/Unit/Entity/RetentionPolicyTest.php
+tags:
+- substrate
+- classification
+- access-policy
+- retention
+- hold
+agent: "claude:opus:reviewer:reviewer"
+shell_pid: "485303"
 ---
 
 # WP02 — RetentionPolicy entity + ClassificationFieldAccessPolicy + clearance + permissions + JSON:API CRUD
@@ -123,3 +130,8 @@ spec-kitty agent tasks move-task WP02 --to for_review --mission classification-r
 5. `bin/check-package-layers` green output.
 
 ## Activity Log
+- 2026-05-25T20:19:52Z – unknown – Claiming WP02 in lane-a worktree
+- 2026-05-25T20:41:07Z – unknown – WP02 implementation complete on lane-a. 7 commits (0a2dd4819..e9855bbe1). Verification gate green: phpunit 455/455 (756 assertions), phpstan clean on WP02 surface, cs-check 0/1781, all check-* scripts pass. Hold-override smoke (FR-013/C-004): admin without legal-hold-bypass blocked from hold-legal entity.
+- 2026-05-26T10:43:38Z – claude:opus:reviewer:reviewer – shell_pid=485303 – Started review via action command
+- 2026-05-26T10:49:55Z – claude:opus:reviewer:reviewer – shell_pid=485303 – Review passed (claude:reviewer): all 7 criteria met; C-004/FR-013 hold-overrides-clearance enforced & test-proven; policy wired via #[PolicyAttribute]; gates green.
+- 2026-05-26T11:17:38Z – claude:opus:reviewer:reviewer – shell_pid=485303 – Done override: Feature squash-merged to main (b170e0a44)

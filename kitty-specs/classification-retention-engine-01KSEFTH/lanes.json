@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "mission_slug": "classification-retention-engine-01KSEFTH",
+  "mission_id": "01KSEFTHPTVHHNS6DREPTZAFJQ",
+  "mission_branch": "kitty/mission-classification-retention-engine-01KSEFTH",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01",
+        "WP02",
+        "WP03",
+        "WP04"
+      ],
+      "write_scope": [
+        "CHANGELOG.md",
+        "CLAUDE.md",
+        "docs/specs/classification-and-retention.md",
+        "packages/admin/app/composables/useRetentionPolicies.ts",
+        "packages/admin/app/i18n/en.json",
+        "packages/admin/app/pages/classification/policies/[id].vue",
+        "packages/admin/app/pages/classification/policies/index.vue",
+        "packages/admin/e2e/classification-policies.spec.ts",
+        "packages/admin/tests/unit/composables/useRetentionPolicies.test.ts",
+        "packages/field/defaults/classification-labels.yaml",
+        "packages/field/migrations/2026_05_25_000003_create_classification_label_definition_table.php",
+        "packages/field/migrations/2026_05_25_000004_create_retention_policy_table.php",
+        "packages/field/src/Attribute/FieldTemplate.php",
+        "packages/field/src/Classification/ClassificationClearanceCheckerInterface.php",
+        "packages/field/src/Classification/ClassificationDecision.php",
+        "packages/field/src/Classification/ClassificationLabelFieldType.php",
+        "packages/field/src/Classification/ClassificationLabelRegistry.php",
+        "packages/field/src/Classification/ClassificationLabelRegistryInterface.php",
+        "packages/field/src/Classification/ClassificationParentResolverInterface.php",
+        "packages/field/src/Classification/EntityLifecycleSubscriber.php",
+        "packages/field/src/Classification/Job/HoldScanJob.php",
+        "packages/field/src/Classification/Job/PurgeJob.php",
+        "packages/field/src/Classification/Job/RedactJob.php",
+        "packages/field/src/Classification/LabelInheritanceResolver.php",
+        "packages/field/src/Classification/ParentResolver/AttachmentParentResolver.php",
+        "packages/field/src/Classification/ParentResolver/MediaParentResolver.php",
+        "packages/field/src/Classification/ParentResolver/NodeParentResolver.php",
+        "packages/field/src/Classification/Permissions.php",
+        "packages/field/src/Classification/Policy/ClassificationFieldAccessPolicy.php",
+        "packages/field/src/Classification/RoleBasedClearanceChecker.php",
+        "packages/field/src/Classification/Schedule/ClassificationRetentionScheduleEntries.php",
+        "packages/field/src/Entity/ClassificationLabelDefinition.php",
+        "packages/field/src/Entity/RetentionPolicy.php",
+        "packages/field/src/FieldServiceProvider.php",
+        "packages/field/src/Form/Widget/ClassificationLabelWidget.php",
+        "packages/field/tests/Unit/Classification/EntityLifecycleSubscriberTest.php",
+        "packages/field/tests/Unit/Classification/Job/BestEffortTest.php",
+        "packages/field/tests/Unit/Classification/Job/HoldScanJobTest.php",
+        "packages/field/tests/Unit/Classification/Job/PurgeJobTest.php",
+        "packages/field/tests/Unit/Classification/Job/RedactJobTest.php",
+        "packages/field/tests/Unit/Classification/LabelInheritanceResolverTest.php",
+        "packages/field/tests/Unit/Classification/Policy/ClassificationFieldAccessPolicyTest.php",
+        "packages/field/tests/Unit/Classification/RoleBasedClearanceCheckerTest.php",
+        "packages/field/tests/Unit/Classification/Schedule/ClassificationRetentionScheduleEntriesTest.php",
+        "packages/field/tests/Unit/Entity/ClassificationLabelDefinitionTest.php",
+        "packages/field/tests/Unit/Entity/RetentionPolicyTest.php",
+        "packages/foundation/src/Kernel/BuiltinRouteRegistrar.php",
+        "tests/Integration/PhaseClassificationRetention/ClassificationRetentionIntegrationTest.php"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "artifact-rendering",
+        "tests",
+        "tracker-integration"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-05-25T18:39:19.043402+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": [],
+  "collapse_report": {
+    "events": [
+      {
+        "wp_a": "WP02",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP02 depends on WP01"
+      },
+      {
+        "wp_a": "WP03",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP03 depends on WP01"
+      },
+      {
+        "wp_a": "WP04",
+        "wp_b": "WP02",
+        "rule": "dependency",
+        "evidence": "WP04 depends on WP02"
+      }
+    ],
+    "total_merges": 3,
+    "independent_wps_collapsed": 0,
+    "by_rule": {
+      "dependency": 3
+    }
+  }
+}

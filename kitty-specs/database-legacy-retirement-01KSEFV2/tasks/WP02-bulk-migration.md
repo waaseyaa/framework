@@ -1,3 +1,42 @@
+---
+work_package_id: WP02
+title: Bulk migration of (a) callsites + (c) follow-up filing
+dependencies:
+- WP01
+requirement_refs:
+- FR-004
+- FR-005
+- NFR-001
+- NFR-002
+- NFR-005
+- C-002
+- C-003
+planning_base_branch: main
+merge_target_branch: main
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
+base_branch: kitty/mission-database-legacy-retirement-01KSEFV2
+base_commit: ff3393403448433f822374e1fdb21efa97656e11
+created_at: '2026-05-25T06:25:13.466505+00:00'
+subtasks:
+- T007
+- T008
+- T009
+- T010
+- T011
+- T012
+assignee: ''
+agent: "claude"
+shell_pid: "151282"
+history:
+- timestamp: '2026-05-25T00:00:00Z'
+  agent: system
+  action: Frontmatter added to fix malformed metadata
+authoritative_surface: kitty-specs/database-legacy-retirement-01KSEFV2/occurrence_map.yaml
+execution_mode: code_change
+owned_files:
+- kitty-specs/database-legacy-retirement-01KSEFV2/occurrence_map.yaml
+tags: []
+---
 # Work Package Prompt: WP02 — Bulk migration of (a) callsites + (c) follow-up filing
 
 **Mission:** `database-legacy-retirement-01KSEFV2`
@@ -120,3 +159,7 @@ Hand off to WP03 once T012 is green. WP03 makes the ELIMINATE-vs-RENAME decision
 ## Activity Log
 
 _(populated during execution; include out-of-band follow-up notes per T010)_
+- 2026-05-25T06:25:15Z – claude – shell_pid=151282 – Assigned agent via action command
+- 2026-05-25T06:27:55Z – claude – shell_pid=151282 – T007-T012 complete. FR-008: 0 PHP edits (namespace preserved). occurrence_map.yaml on main (ff3393403). T011: 251 retained (all (a)), 0 unexpected stragglers. T012 all gates green. --force: WP02 implementation is the occurrence_map.yaml committed to main before lane start.
+- 2026-05-25T06:43:08Z – claude – shell_pid=151282 – Opus review: ELIMINATE per DIR-003; 13 files deleted; ADR-022 supersedes ADR-007; PR #1581 open; all gates green
+- 2026-05-26T18:48:48Z – claude – shell_pid=151282 – Done override: Sprint merge to main
