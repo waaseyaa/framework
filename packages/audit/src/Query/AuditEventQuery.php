@@ -30,7 +30,7 @@ final class AuditEventQuery implements AuditQueryInterface
     public function findBy(AuditQuery $query): iterable
     {
         $select = $this->database->select('audit_event', 'ae');
-        $select->fields('ae');
+        $select = $select->fields('ae');
         $this->applyFilters($select, $query);
         $select->orderBy('ae.created_at', 'DESC');
         $select->range($query->offset, $query->limit);
@@ -43,7 +43,7 @@ final class AuditEventQuery implements AuditQueryInterface
     public function count(AuditQuery $query): int
     {
         $select = $this->database->select('audit_event', 'ae');
-        $select->fields('ae', ['id']);
+        $select = $select->fields('ae', ['id']);
         $this->applyFilters($select, $query);
         $countQuery = $select->countQuery();
 
@@ -59,28 +59,28 @@ final class AuditEventQuery implements AuditQueryInterface
     private function applyFilters(\Waaseyaa\Database\SelectInterface $select, AuditQuery $query): void
     {
         if ($query->accountUid !== null) {
-            $select->condition('ae.account_uid', $query->accountUid);
+            $select = $select->condition('ae.account_uid', $query->accountUid);
         }
 
         if ($query->entityType !== null) {
-            $select->condition('ae.entity_type_id', $query->entityType);
+            $select = $select->condition('ae.entity_type_id', $query->entityType);
         }
 
         if ($query->entityUuid !== null) {
-            $select->condition('ae.entity_uuid', $query->entityUuid);
+            $select = $select->condition('ae.entity_uuid', $query->entityUuid);
         }
 
         if ($query->kinds !== null && count($query->kinds) > 0) {
             $kindValues = array_map(fn($k) => $k->value, $query->kinds);
-            $select->condition('ae.event_kind', $kindValues, 'IN');
+            $select = $select->condition('ae.event_kind', $kindValues, 'IN');
         }
 
         if ($query->from !== null) {
-            $select->condition('ae.created_at', $query->from->format('Y-m-d H:i:s'), '>=');
+            $select = $select->condition('ae.created_at', $query->from->format('Y-m-d H:i:s'), '>=');
         }
 
         if ($query->to !== null) {
-            $select->condition('ae.created_at', $query->to->format('Y-m-d H:i:s'), '<=');
+            $select = $select->condition('ae.created_at', $query->to->format('Y-m-d H:i:s'), '<=');
         }
     }
 }
