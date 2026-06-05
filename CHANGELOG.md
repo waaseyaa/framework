@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **CI: green the Integration suite under PHP 8.5 `#[\NoDiscard]` + `failOnWarning`.** `packages/audit/src/Query/AuditEventQuery.php` discarded the return values of the `#[\NoDiscard]` fluent builder methods `DBALSelect::fields()`/`condition()`; the return is now assigned at each call site (no behaviour change — the builder mutates in place). This, together with the OIDC full-kernel integration tests realigned to the `/oidc/*` + DB-backed-key contract from mission `oidc-flows-completion-01KSEFTP`, clears the last `ci/unit-tests` failures that had kept `main` red.
+
 ### Added
 
 - **admin: bundle-aware entity edit form exposes per-bundle fields.** The admin edit/view form fetched the schema by entity type with no bundle, so a node's per-bundle fields (`body`, `blocks` for the `page` content type) never appeared and only core fields (title, slug, published) were editable. `GenericAdminSurfaceHost::handleSchema` now resolves the bundle for the schema (an explicit `bundle` in the payload, else read from the entity named by `id`) and passes it to the bundle-aware `SchemaController::show`, so the client needs no per-type bundle-key knowledge and non-bundled types are unchanged. The admin transport sends the entity id with the schema request; `useSchema` caches per type+id; `SchemaForm`/`SchemaView` fetch the bundle-scoped schema so the `body` rich-text field renders, edits, and saves through the existing bundle write path. The structured `blocks` field (no inline editor yet) round-trips as a hidden value. Verified end to end in a real browser: edit a page's body, save, the change is live on the public route, revert is live. (PR #1614)

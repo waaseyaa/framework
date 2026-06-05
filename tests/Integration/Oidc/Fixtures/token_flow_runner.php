@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface;
+use Waaseyaa\Oidc\Token\KeyMaterialProviderInterface;
 use Waaseyaa\User\DevAdminAccount;
 
 /**
@@ -68,7 +69,7 @@ $_FILES = [];
 $_REQUEST = $_POST;
 $_SERVER = [
     'REQUEST_METHOD' => 'POST',
-    'REQUEST_URI' => '/token',
+    'REQUEST_URI' => '/oidc/token',
     'QUERY_STRING' => '',
     'HTTP_HOST' => 'localhost',
     'SERVER_NAME' => 'localhost',
@@ -79,6 +80,15 @@ $_SERVER = [
 
 $response = $kernel->handle();
 
+// WP04: the ID token is signed by the DB-backed active signing key (auto-generated
+// on first boot), not by any file-configured key. Surface its public PEM so the
+// test can verify the JWT signature against the key that actually signed it.
+$signingPublicKey = '';
+$keyProvider = $resolver->resolve(KeyMaterialProviderInterface::class);
+if ($keyProvider instanceof KeyMaterialProviderInterface) {
+    $signingPublicKey = $keyProvider->currentKey()->publicKeyPem;
+}
+
 echo json_encode([
     'status' => $response->getStatusCode(),
     'headers' => [
@@ -87,4 +97,5 @@ echo json_encode([
         'pragma' => (string) $response->headers->get('Pragma'),
     ],
     'body' => (string) $response->getContent(),
+    'signing_public_key' => $signingPublicKey,
 ], JSON_THROW_ON_ERROR);
