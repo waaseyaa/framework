@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Agent\Tool\Bimaaji;
 
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
-use Waaseyaa\AI\Tools\AgentToolContext;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
-use Waaseyaa\AI\Tools\Attribute\Capability;
 use Waaseyaa\Bimaaji\Spec\SpecIndexProvider;
 
 /**
@@ -23,13 +22,8 @@ use Waaseyaa\Bimaaji\Spec\SpecIndexProvider;
  * trigram-based results, see AD-04 follow-up notes in the mission plan
  * (`kitty-specs/bimaaji-mcp-bridge-01KS5VS8/plan.md`).
  *
- * Metadata-only: searches spec markdown files, not user-data records, so
- * `#[Capability(governedData: false)]` opts this tool out of the mandatory
- * per-record EntityAccessHandler consultation (FR-003 / DIR-004).
- *
  * @api
  */
-#[Capability(governedData: false)]
 #[AsAgentTool(
     name: 'bimaaji_search_specs',
     capability: 'bimaaji.read',
@@ -74,9 +68,9 @@ final class SearchSpecsTool extends AbstractAgentTool
         ];
     }
 
-    public function execute(array $arguments, AgentToolContext $context): AgentToolResult
+    public function execute(array $arguments, AccountInterface $account): AgentToolResult
     {
-        $denied = $this->requireCapability('bimaaji.read', $context);
+        $denied = $this->requireCapability('bimaaji.read', $account);
         if ($denied !== null) {
             return $denied;
         }
@@ -127,9 +121,9 @@ final class SearchSpecsTool extends AbstractAgentTool
         );
     }
 
-    public function dryRun(array $arguments, AgentToolContext $context): AgentToolResult
+    public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
     {
-        return $this->execute($arguments, $context);
+        return $this->execute($arguments, $account);
     }
 
     /**

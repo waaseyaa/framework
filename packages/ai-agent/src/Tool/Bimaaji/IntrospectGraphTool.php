@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Agent\Tool\Bimaaji;
 
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
-use Waaseyaa\AI\Tools\AgentToolContext;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
-use Waaseyaa\AI\Tools\Attribute\Capability;
 use Waaseyaa\Bimaaji\Graph\ApplicationGraphGenerator;
 
 /**
@@ -19,13 +18,10 @@ use Waaseyaa\Bimaaji\Graph\ApplicationGraphGenerator;
  * entities, jsonapi, public_surface, routing, sovereignty) plus the graph
  * version. Gated by `bimaaji.read`; idempotent; no side effects.
  *
- * Capability: `bimaaji.read`. Metadata-only: no user-data records exposed,
- * so `#[Capability(governedData: false)]` opts this tool out of the
- * mandatory per-record EntityAccessHandler consultation (FR-003 / DIR-004).
+ * Capability: `bimaaji.read`.
  *
  * @api
  */
-#[Capability(governedData: false)]
 #[AsAgentTool(
     name: 'bimaaji_introspect_graph',
     capability: 'bimaaji.read',
@@ -54,9 +50,9 @@ final class IntrospectGraphTool extends AbstractAgentTool
         ];
     }
 
-    public function execute(array $arguments, AgentToolContext $context): AgentToolResult
+    public function execute(array $arguments, AccountInterface $account): AgentToolResult
     {
-        $denied = $this->requireCapability('bimaaji.read', $context);
+        $denied = $this->requireCapability('bimaaji.read', $account);
         if ($denied !== null) {
             return $denied;
         }
@@ -79,8 +75,8 @@ final class IntrospectGraphTool extends AbstractAgentTool
         );
     }
 
-    public function dryRun(array $arguments, AgentToolContext $context): AgentToolResult
+    public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
     {
-        return $this->execute($arguments, $context);
+        return $this->execute($arguments, $account);
     }
 }

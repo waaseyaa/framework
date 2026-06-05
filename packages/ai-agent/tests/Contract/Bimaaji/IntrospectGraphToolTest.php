@@ -8,9 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccountInterface;
-use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Agent\Tool\Bimaaji\IntrospectGraphTool;
-use Waaseyaa\AI\Tools\AgentToolContext;
 use Waaseyaa\Bimaaji\Graph\ApplicationGraphGenerator;
 use Waaseyaa\Bimaaji\Graph\GraphSection;
 use Waaseyaa\Bimaaji\Graph\GraphSectionProviderInterface;
@@ -22,7 +20,7 @@ final class IntrospectGraphToolTest extends TestCase
     public function returnsFullGraphPayloadOnSuccess(): void
     {
         $tool = $this->makeTool();
-        $result = $tool->execute([], $this->contextWithPermission('bimaaji.read'));
+        $result = $tool->execute([], $this->accountWithPermission('bimaaji.read'));
 
         self::assertFalse($result->isError);
 
@@ -44,7 +42,7 @@ final class IntrospectGraphToolTest extends TestCase
     public function envelopeIsJsonSerializable(): void // NFR-003
     {
         $tool = $this->makeTool();
-        $result = $tool->execute([], $this->contextWithPermission('bimaaji.read'));
+        $result = $tool->execute([], $this->accountWithPermission('bimaaji.read'));
 
         $payload = $result->content[0]['data'] ?? null;
         self::assertIsArray($payload);
@@ -57,7 +55,7 @@ final class IntrospectGraphToolTest extends TestCase
     public function rejectsAccountWithoutCapability(): void // FR-006 / FR-010
     {
         $tool = $this->makeTool();
-        $result = $tool->execute([], $this->contextWithPermission('something.else'));
+        $result = $tool->execute([], $this->accountWithPermission('something.else'));
 
         self::assertTrue($result->isError);
         self::assertSame('forbidden', $result->summary);
@@ -80,7 +78,7 @@ final class IntrospectGraphToolTest extends TestCase
         $generator = new ApplicationGraphGenerator(providers: [$failingProvider], strict: true);
         $tool = new IntrospectGraphTool($generator);
 
-        $result = $tool->execute([], $this->contextWithPermission('bimaaji.read'));
+        $result = $tool->execute([], $this->accountWithPermission('bimaaji.read'));
 
         self::assertTrue($result->isError);
         $message = $result->content[0]['text'] ?? '';
@@ -132,15 +130,6 @@ final class IntrospectGraphToolTest extends TestCase
                 return new GraphSection(key: $this->key, version: '1.0', data: $this->data);
             }
         };
-    }
-
-    private function contextWithPermission(string $permission): AgentToolContext
-    {
-        return new AgentToolContext(
-            account: $this->accountWithPermission($permission),
-            entityAccessHandler: new EntityAccessHandler(),
-            agentRunId: null,
-        );
     }
 
     private function accountWithPermission(string $permission): AccountInterface

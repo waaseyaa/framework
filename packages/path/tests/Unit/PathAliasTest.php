@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Path\Tests\Unit;
 
-use Waaseyaa\Path\PathAlias;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Path\PathAlias;
 
 #[CoversClass(PathAlias::class)]
 final class PathAliasTest extends TestCase
@@ -257,8 +258,11 @@ final class PathAliasTest extends TestCase
     }
 
     #[Test]
+    #[IgnoreDeprecations]
     public function languageMethodFromEntityBase(): void
     {
+        // Intentionally exercises the deprecated ContentEntityBase::language()
+        // backward-compat shim (see activeLangcode()); the deprecation is expected.
         $alias = new PathAlias(['langcode' => 'ja']);
 
         $this->assertSame('ja', $alias->language());

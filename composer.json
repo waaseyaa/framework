@@ -287,6 +287,10 @@
         {
             "type": "path",
             "url": "packages/listing"
+        },
+        {
+            "type": "path",
+            "url": "packages/page-builder"
         }
     ],
     "require": {
@@ -344,6 +348,7 @@
         "waaseyaa/notification": "self.version",
         "waaseyaa/oauth-provider": "self.version",
         "waaseyaa/oidc": "self.version",
+        "waaseyaa/page-builder": "self.version",
         "waaseyaa/path": "self.version",
         "waaseyaa/plugin": "self.version",
         "waaseyaa/queue": "self.version",

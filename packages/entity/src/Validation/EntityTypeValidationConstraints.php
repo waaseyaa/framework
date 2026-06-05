@@ -18,11 +18,17 @@ use Waaseyaa\Entity\EntityTypeInterface;
 final class EntityTypeValidationConstraints
 {
     /**
+     * @param array<string, \Waaseyaa\Field\FieldDefinitionInterface>|null $fieldDefinitions
+     *   Pre-resolved field definitions to derive constraints from (e.g. the
+     *   canonical bundle-aware set, so a content type's bundle fields are
+     *   validated). When null, falls back to the entity type's class-declared
+     *   base fields, preserving pre-bundle behaviour.
+     *
      * @return array<string, Constraint|list<Constraint>>
      */
-    public static function forEntityType(EntityTypeInterface $entityType): array
+    public static function forEntityType(EntityTypeInterface $entityType, ?array $fieldDefinitions = null): array
     {
-        $merged = FieldDefinitionConstraintBuilder::build($entityType->getFieldDefinitions());
+        $merged = FieldDefinitionConstraintBuilder::build($fieldDefinitions ?? $entityType->getFieldDefinitions());
 
         foreach ($entityType->getConstraints() as $field => $manual) {
             $merged[$field] = self::normalizeToList($manual);

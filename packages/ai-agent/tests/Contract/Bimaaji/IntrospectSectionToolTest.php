@@ -8,9 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccountInterface;
-use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Agent\Tool\Bimaaji\IntrospectSectionTool;
-use Waaseyaa\AI\Tools\AgentToolContext;
 use Waaseyaa\Bimaaji\Graph\ApplicationGraphGenerator;
 use Waaseyaa\Bimaaji\Graph\GraphSection;
 use Waaseyaa\Bimaaji\Graph\GraphSectionProviderInterface;
@@ -22,7 +20,7 @@ final class IntrospectSectionToolTest extends TestCase
     public function returnsSingleSectionPayloadOnSuccess(): void // FR-002
     {
         $tool = $this->makeTool();
-        $result = $tool->execute(['section' => 'routing'], $this->contextWithPermission('bimaaji.read'));
+        $result = $tool->execute(['section' => 'routing'], $this->accountWithPermission('bimaaji.read'));
 
         self::assertFalse($result->isError);
         $data = $result->content[0]['data'] ?? null;
@@ -36,7 +34,7 @@ final class IntrospectSectionToolTest extends TestCase
     public function reportsUnknownSectionWithAvailableList(): void // FR-002 error path
     {
         $tool = $this->makeTool();
-        $result = $tool->execute(['section' => 'nonexistent'], $this->contextWithPermission('bimaaji.read'));
+        $result = $tool->execute(['section' => 'nonexistent'], $this->accountWithPermission('bimaaji.read'));
 
         self::assertTrue($result->isError);
         $message = $result->content[0]['text'] ?? '';
@@ -50,7 +48,7 @@ final class IntrospectSectionToolTest extends TestCase
     public function rejectsMissingSectionArgument(): void
     {
         $tool = $this->makeTool();
-        $result = $tool->execute([], $this->contextWithPermission('bimaaji.read'));
+        $result = $tool->execute([], $this->accountWithPermission('bimaaji.read'));
 
         self::assertTrue($result->isError);
         self::assertSame('missing argument', $result->summary);
@@ -60,7 +58,7 @@ final class IntrospectSectionToolTest extends TestCase
     public function rejectsNonStringSection(): void
     {
         $tool = $this->makeTool();
-        $result = $tool->execute(['section' => 42], $this->contextWithPermission('bimaaji.read'));
+        $result = $tool->execute(['section' => 42], $this->accountWithPermission('bimaaji.read'));
 
         self::assertTrue($result->isError);
         self::assertSame('missing argument', $result->summary);
@@ -72,7 +70,7 @@ final class IntrospectSectionToolTest extends TestCase
         $tool = $this->makeTool();
         $result = $tool->execute(
             ['section' => 'routing'],
-            $this->contextWithPermission('not.bimaaji.read'),
+            $this->accountWithPermission('not.bimaaji.read'),
         );
 
         self::assertTrue($result->isError);
@@ -127,15 +125,6 @@ final class IntrospectSectionToolTest extends TestCase
                 return new GraphSection(key: $this->key, version: '1.0', data: $this->data);
             }
         };
-    }
-
-    private function contextWithPermission(string $permission): AgentToolContext
-    {
-        return new AgentToolContext(
-            account: $this->accountWithPermission($permission),
-            entityAccessHandler: new EntityAccessHandler(),
-            agentRunId: null,
-        );
     }
 
     private function accountWithPermission(string $permission): AccountInterface

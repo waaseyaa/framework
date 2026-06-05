@@ -13,7 +13,7 @@
 ## Upload #1 — `wp04-smoke-test.md` (Symfony detected as text/plain)
 
 ```
-POST http://127.0.0.1:8080/sagamok-anishnawbek/manage/ingestion
+POST http://127.0.0.1:8080/example-nation-anishnawbek/manage/ingestion
 Content-Type: multipart/form-data
 => 422 Unprocessable Entity
    Body: "No handler supports MIME type: text/plain"
@@ -26,7 +26,7 @@ Content-Type: multipart/form-data
 ## Upload #2 — `wp04-smoke-test.csv` (text/csv)
 
 ```
-POST http://127.0.0.1:8080/sagamok-anishnawbek/manage/ingestion
+POST http://127.0.0.1:8080/example-nation-anishnawbek/manage/ingestion
 Content-Type: multipart/form-data
 => 500 Internal Server Error
 
@@ -71,7 +71,7 @@ The 500 is **infrastructure**, not framework. The mission's CSRF gate works.
 ## Upload #3 — `wp04-smoke-test.html` (text/html)
 
 ```
-POST http://127.0.0.1:8080/sagamok-anishnawbek/manage/ingestion
+POST http://127.0.0.1:8080/example-nation-anishnawbek/manage/ingestion
 Content-Type: multipart/form-data
 => 500 Internal Server Error
    (same MarkItDown failure; now via HtmlIngestionHandler)

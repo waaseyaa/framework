@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Tools\Entity;
 
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
-use Waaseyaa\AI\Tools\AgentToolContext;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
 use Waaseyaa\Entity\EntityInterface;
@@ -13,10 +13,6 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 
 /**
  * Read a single entity by type + id.
- *
- * Consults {@see \Waaseyaa\Access\EntityAccessHandler} for entity-level access
- * (view operation) per FR-002 / DIR-004. Returns a structured `accessDenied`
- * entry rather than a 403 when the entity-level policy forbids access.
  *
  * @api
  */
@@ -53,9 +49,9 @@ final class EntityReadTool extends AbstractAgentTool
         ];
     }
 
-    public function execute(array $arguments, AgentToolContext $context): AgentToolResult
+    public function execute(array $arguments, AccountInterface $account): AgentToolResult
     {
-        $denied = $this->requireCapability('tool.entity.read', $context);
+        $denied = $this->requireCapability('tool.entity.read', $account);
         if ($denied !== null) {
             return $denied;
         }
@@ -83,36 +79,22 @@ final class EntityReadTool extends AbstractAgentTool
             return AgentToolResult::error(sprintf('entity.read: %s/%s not found', $entityType, $id));
         }
 
-        // FR-002 / DIR-004: entity-level access check per record.
-        $accessResult = $context->entityAccessHandler->check($entity, 'view', $context->account);
-        if ($accessResult->isForbidden()) {
-            return AgentToolResult::success(
-                content: [['type' => 'json', 'data' => [
-                    'accessDenied' => true,
-                    'entityType' => $entityType,
-                    'id' => $id,
-                    'reason' => 'entity_forbidden_for_account',
-                ]]],
-                summary: sprintf('Access denied for %s/%s', $entityType, $id),
-            );
-        }
-
         return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => $this->serialize($entity, $context)]],
+            content: [['type' => 'json', 'data' => $this->serialize($entity)]],
             summary: sprintf('Loaded %s/%s', $entityType, $id),
         );
     }
 
-    public function dryRun(array $arguments, AgentToolContext $context): AgentToolResult
+    public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
     {
         // Read-only — dryRun is the same as execute.
-        return $this->execute($arguments, $context);
+        return $this->execute($arguments, $account);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function serialize(EntityInterface $entity, AgentToolContext $context): array
+    private function serialize(EntityInterface $entity): array
     {
         $data = [
             'entity_type' => $entity->getEntityTypeId(),
@@ -121,24 +103,7 @@ final class EntityReadTool extends AbstractAgentTool
         if (method_exists($entity, 'getValues')) {
             $values = $entity->getValues();
             if (is_array($values)) {
-                // FR-002: field-level filtering via EntityAccessHandler.
-                $allFields = array_keys($values);
-                $allowedFields = $context->entityAccessHandler->filterFields(
-                    $entity,
-                    $allFields,
-                    'view',
-                    $context->account,
-                );
-                $allowedSet = array_flip($allowedFields);
-                $filtered = [];
-                foreach ($values as $field => $value) {
-                    if (isset($allowedSet[$field])) {
-                        $filtered[$field] = $value;
-                    }
-                    // Forbidden fields are silently omitted at entity-tool level;
-                    // MCP redaction marker is the WP02 concern for the MCP surface.
-                }
-                $data['values'] = $filtered;
+                $data['values'] = $values;
             }
         }
 
