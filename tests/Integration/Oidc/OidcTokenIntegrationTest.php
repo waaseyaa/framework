@@ -80,7 +80,7 @@ final class OidcTokenIntegrationTest extends TestCase
         $payload = json_decode($result['body'], true);
         self::assertIsArray($payload);
         self::assertSame('Bearer', $payload['token_type']);
-        self::assertSame(600, $payload['expires_in']);
+        self::assertSame(3600, $payload['expires_in']);
         self::assertIsString($payload['access_token']);
         self::assertNotEmpty($payload['access_token']);
         self::assertIsString($payload['id_token']);
