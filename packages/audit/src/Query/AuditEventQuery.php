@@ -32,8 +32,8 @@ final class AuditEventQuery implements AuditQueryInterface
         $select = $this->database->select('audit_event', 'ae');
         $select = $select->fields('ae');
         $this->applyFilters($select, $query);
-        $select->orderBy('ae.created_at', 'DESC');
-        $select->range($query->offset, $query->limit);
+        $select = $select->orderBy('ae.created_at', 'DESC');
+        $select = $select->range($query->offset, $query->limit);
 
         foreach ($select->execute() as $row) {
             yield new AuditEvent((array) $row);
