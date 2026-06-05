@@ -7,7 +7,6 @@ namespace Waaseyaa\Api\Controller;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Api\Media\MediaVersionReadModelInterface;
-use Waaseyaa\Api\Media\MediaVersionResource;
 
 /**
  * Read-only HTTP controller for the versioned-blob media version API surface.

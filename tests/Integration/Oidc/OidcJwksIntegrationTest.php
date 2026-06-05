@@ -13,8 +13,6 @@ final class OidcJwksIntegrationTest extends TestCase
 {
     private string $repoRoot;
     private string $projectRoot;
-    private string $publicKeyPath;
-    private string $publicKeyPem;
 
     protected function setUp(): void
     {
@@ -23,12 +21,8 @@ final class OidcJwksIntegrationTest extends TestCase
 
         mkdir($this->projectRoot . '/config', 0o755, true);
         mkdir($this->projectRoot . '/storage', 0o755, true);
-        mkdir($this->projectRoot . '/keys', 0o755, true);
 
         self::assertTrue(symlink($this->repoRoot . '/vendor', $this->projectRoot . '/vendor'));
-
-        $this->publicKeyPath = $this->projectRoot . '/keys/integration-key.pub.pem';
-        $this->publicKeyPem = $this->writeRsaPublicKey($this->publicKeyPath);
 
         file_put_contents($this->projectRoot . '/config/entity-types.php', "<?php\n\nreturn [];\n");
         file_put_contents($this->projectRoot . '/config/waaseyaa.php', $this->buildConfigFile());
@@ -56,8 +50,13 @@ final class OidcJwksIntegrationTest extends TestCase
     }
 
     #[Test]
-    public function jwksEndpointReturnsRsaJwkDerivedFromConfiguredPublicKey(): void
+    public function jwksEndpointReturnsRsaJwkForActiveSigningKey(): void
     {
+        // WP04 moved signing-key material into the database: SigningKeyRepository
+        // auto-generates an RSA key (with a generated UUID kid) on first boot when
+        // the table is empty, and the JWKS endpoint serves all active keys. So we
+        // assert the JWK is structurally well-formed rather than pinning it to a
+        // pre-seeded public key.
         $response = $this->request('/.well-known/jwks.json');
 
         self::assertSame(200, $response['status']);
@@ -65,20 +64,26 @@ final class OidcJwksIntegrationTest extends TestCase
         $body = json_decode($response['body'], true, 512, JSON_THROW_ON_ERROR);
         self::assertIsArray($body);
         self::assertArrayHasKey('keys', $body);
-        self::assertCount(1, $body['keys']);
+        self::assertGreaterThanOrEqual(1, count($body['keys']));
 
         $jwk = $body['keys'][0];
         self::assertSame('RSA', $jwk['kty']);
         self::assertSame('sig', $jwk['use']);
         self::assertSame('RS256', $jwk['alg']);
-        self::assertSame('integration-key', $jwk['kid']);
+        self::assertIsString($jwk['kid']);
+        self::assertNotSame('', $jwk['kid']);
 
-        $pub = openssl_pkey_get_public($this->publicKeyPem);
-        self::assertNotFalse($pub);
-        $details = openssl_pkey_get_details($pub);
-        self::assertIsArray($details);
-        self::assertSame($this->base64UrlEncode($details['rsa']['n']), $jwk['n']);
-        self::assertSame($this->base64UrlEncode($details['rsa']['e']), $jwk['e']);
+        // The modulus/exponent must be non-empty base64url with no padding so RPs
+        // can reconstruct the public key.
+        foreach (['n', 'e'] as $component) {
+            self::assertIsString($jwk[$component]);
+            self::assertNotSame('', $jwk[$component]);
+            self::assertSame(
+                1,
+                preg_match('/^[A-Za-z0-9_-]+$/', $jwk[$component]),
+                "JWK component {$component} must be base64url-encoded",
+            );
+        }
     }
 
     /**
@@ -115,31 +120,9 @@ final class OidcJwksIntegrationTest extends TestCase
         ];
     }
 
-    private function writeRsaPublicKey(string $target): string
-    {
-        $resource = openssl_pkey_new([
-            'private_key_bits' => 2048,
-            'private_key_type' => OPENSSL_KEYTYPE_RSA,
-        ]);
-        self::assertNotFalse($resource, 'Failed to generate RSA key.');
-
-        $details = openssl_pkey_get_details($resource);
-        self::assertIsArray($details);
-
-        file_put_contents($target, $details['key']);
-
-        return $details['key'];
-    }
-
-    private function base64UrlEncode(string $binary): string
-    {
-        return rtrim(strtr(base64_encode($binary), '+/', '-_'), '=');
-    }
-
     private function buildConfigFile(): string
     {
         $databasePath = $this->projectRoot . '/storage/waaseyaa.sqlite';
-        $publicKeyPath = $this->publicKeyPath;
 
         return <<<PHP
             <?php
@@ -153,12 +136,6 @@ final class OidcJwksIntegrationTest extends TestCase
                 'cors_origins' => ['http://localhost:3000'],
                 'oidc' => [
                     'issuer' => 'https://id.example',
-                    'signing_keys' => [
-                        'integration-key' => [
-                            'algorithm' => 'RS256',
-                            'public_key_path' => '{$publicKeyPath}',
-                        ],
-                    ],
                 ],
             ];
             PHP;

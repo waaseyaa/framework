@@ -1,0 +1,31 @@
+[
+    {
+        "elType": "container",
+        "settings": {
+            "background_background": "gradient",
+            "min_height": {
+                "unit": "px",
+                "size": 420
+            },
+            "flex_justify_content": "center"
+        },
+        "elements": [
+            {
+                "elType": "widget",
+                "widgetType": "heading",
+                "settings": {
+                    "title": "Our Mission",
+                    "header_size": "h1",
+                    "align": "center"
+                }
+            },
+            {
+                "elType": "widget",
+                "widgetType": "text-editor",
+                "settings": {
+                    "editor": "<p>Acme Community Project covers a land area of 12.34 sq. km. and serves the surrounding region.</p>"
+                }
+            }
+        ]
+    }
+]

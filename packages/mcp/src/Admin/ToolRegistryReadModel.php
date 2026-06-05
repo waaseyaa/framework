@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Waaseyaa\Mcp\Admin;
 
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
-use Waaseyaa\Api\McpAdmin\RecentInvocation;
 use Waaseyaa\Api\McpAdmin\ToolDetail;
 use Waaseyaa\Api\McpAdmin\ToolRegistryReadModelInterface;
 use Waaseyaa\Api\McpAdmin\ToolRegistryRow;

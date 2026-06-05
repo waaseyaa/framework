@@ -92,10 +92,14 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
     )
   }
 
-  async schema(type: string): Promise<EntitySchema> {
+  async schema(type: string, id?: string): Promise<EntitySchema> {
+    // Pass the entity id (when editing/viewing a specific record) so the backend
+    // can scope the schema to that entity's bundle and include its per-bundle
+    // fields (e.g. body, blocks for a node of bundle "page").
+    const body = id ? JSON.stringify({ id }) : '{}'
     return this.request<EntitySchema>(
       this.surfaceUrl('admin_surface.action', { type, action: 'schema' }),
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body },
     )
   }
 

@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Agent\Tool\Bimaaji;
 
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
-use Waaseyaa\AI\Tools\AgentToolContext;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
-use Waaseyaa\AI\Tools\Attribute\Capability;
 use Waaseyaa\Bimaaji\Mutation\MutationRequest;
 use Waaseyaa\Bimaaji\Mutation\MutationValidator;
 
@@ -21,14 +20,10 @@ use Waaseyaa\Bimaaji\Mutation\MutationValidator;
  * can introspect `data.status` without parsing error semantics. Gated by
  * `bimaaji.mutate`; no filesystem side effects (validator is pure).
  *
- * Capability: `bimaaji.mutate`. Metadata-only: validates schema mutation
- * requests against the application graph; never reads or writes user-data
- * entity records. `#[Capability(governedData: false)]` opts this tool out of
- * the mandatory per-record EntityAccessHandler consultation (FR-003 / DIR-004).
+ * Capability: `bimaaji.mutate`.
  *
  * @api
  */
-#[Capability(governedData: false)]
 #[AsAgentTool(
     name: 'bimaaji_propose_mutation',
     capability: 'bimaaji.mutate',
@@ -76,9 +71,9 @@ final class ProposeMutationTool extends AbstractAgentTool
         ];
     }
 
-    public function execute(array $arguments, AgentToolContext $context): AgentToolResult
+    public function execute(array $arguments, AccountInterface $account): AgentToolResult
     {
-        $denied = $this->requireCapability('bimaaji.mutate', $context);
+        $denied = $this->requireCapability('bimaaji.mutate', $account);
         if ($denied !== null) {
             return $denied;
         }
@@ -110,9 +105,9 @@ final class ProposeMutationTool extends AbstractAgentTool
         );
     }
 
-    public function dryRun(array $arguments, AgentToolContext $context): AgentToolResult
+    public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
     {
-        return $this->execute($arguments, $context);
+        return $this->execute($arguments, $account);
     }
 
     /**

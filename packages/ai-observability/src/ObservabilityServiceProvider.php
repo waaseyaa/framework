@@ -13,16 +13,9 @@ use Waaseyaa\AI\Observability\Cost\ModelPricing;
 use Waaseyaa\AI\Observability\Cost\TokenAccountant;
 use Waaseyaa\AI\Observability\Listener\LlmCallListener;
 use Waaseyaa\AI\Observability\Listener\ToolCallListener;
-use Waaseyaa\AI\Observability\ReadModel\RunDetailReadModel;
-use Waaseyaa\AI\Observability\ReadModel\RunListReadModel;
 use Waaseyaa\AI\Observability\Recorder\NullTraceRecorder;
 use Waaseyaa\AI\Observability\Recorder\TraceRecorder;
 use Waaseyaa\AI\Observability\Recorder\TraceRecorderInterface;
-use Waaseyaa\AI\Observability\Replay\RunReplayService;
-use Waaseyaa\AI\Pipeline\PipelineDispatcher;
-use Waaseyaa\Api\AiObservability\Runs\RunDetailReadModelInterface;
-use Waaseyaa\Api\AiObservability\Runs\RunListReadModelInterface;
-use Waaseyaa\Api\AiObservability\Runs\RunReplayServiceInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -77,22 +70,6 @@ final class ObservabilityServiceProvider extends ServiceProvider
         ));
 
         $this->singleton(AnomalyDetector::class, fn(): AnomalyDetector => new AnomalyDetector());
-
-        // M5B: AI Observability Runs read models + replay service
-        $this->singleton(RunListReadModelInterface::class, fn(): RunListReadModelInterface => new RunListReadModel(
-            $this->resolve(EntityTypeManager::class)->getRepository('trace'),
-            $this->resolve(DatabaseInterface::class),
-        ));
-
-        $this->singleton(RunDetailReadModelInterface::class, fn(): RunDetailReadModelInterface => new RunDetailReadModel(
-            $this->resolve(EntityTypeManager::class)->getRepository('trace'),
-            $this->resolve(DatabaseInterface::class),
-        ));
-
-        $this->singleton(RunReplayServiceInterface::class, fn(): RunReplayServiceInterface => new RunReplayService(
-            $this->resolve(EntityTypeManager::class),
-            $this->resolve(PipelineDispatcher::class),
-        ));
     }
 
     public function boot(): void

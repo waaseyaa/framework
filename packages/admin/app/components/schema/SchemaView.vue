@@ -16,7 +16,9 @@ const entityData = ref<Record<string, any>>({})
 const loadError = ref<string | null>(null)
 
 onMounted(async () => {
-  await fetchSchema()
+  // Scope the schema to this entity's bundle so its per-bundle fields (e.g. a
+  // page's body) are shown, not just the shared core fields.
+  await fetchSchema(props.entityId)
   if (schema.value) {
     try {
       const resource = await get(props.entityType, props.entityId)
@@ -27,7 +29,12 @@ onMounted(async () => {
   }
 })
 
-const allFields = computed(() => sortedProperties(false))
+// Exclude widgets with no human-readable display (e.g. the structured "blocks"
+// widget, which has no editor/viewer yet) so the view never shows raw payloads.
+const NON_DISPLAY_WIDGETS = new Set(['blocks', 'hidden'])
+const allFields = computed(() =>
+  sortedProperties(false).filter(([, prop]) => !NON_DISPLAY_WIDGETS.has(prop['x-widget'] ?? '')),
+)
 
 const hasValue = (fieldName: string): boolean => {
   const val = entityData.value[fieldName]

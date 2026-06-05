@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Agent;
 
-use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Agent\Repository\AgentAuditLogRepository;
 use Waaseyaa\AI\Agent\Repository\AgentRunRepository;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
@@ -46,7 +45,6 @@ final class AiAgentServiceProvider extends ServiceProvider
                     toolRegistry: $this->resolve(ToolRegistryInterface::class),
                     runRepository: $this->resolve(AgentRunRepository::class),
                     auditRepository: $this->resolve(AgentAuditLogRepository::class),
-                    entityAccessHandler: $this->resolve(EntityAccessHandler::class),
                     transcriptMaxBytes: (int) ($this->config['ai']['transcript_max_bytes'] ?? 262144),
                     hitlPollIntervalMs: (int) ($this->config['ai']['hitl_poll_interval_ms'] ?? 1000),
                     hitlTimeoutSeconds: (int) ($this->config['ai']['hitl_timeout_seconds'] ?? 300),
