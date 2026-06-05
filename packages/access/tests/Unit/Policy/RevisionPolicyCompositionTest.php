@@ -67,7 +67,9 @@ final class RevisionPolicyCompositionTest extends TestCase
 
         $policy = $this->capturingPolicy(AccessResult::allowed());
 
-        $composer->composeAccess($policy, $entity, $account, 'translate', $revision);
+        // The composed result is asserted via the captured policy below; the
+        // return value is intentionally ignored here (cast to void per #[\NoDiscard]).
+        (void) $composer->composeAccess($policy, $entity, $account, 'translate', $revision);
 
         self::assertSame('oj', $policy->lastEntity?->activeLangcode());
         self::assertSame('translate', $policy->lastOperation);
@@ -84,7 +86,7 @@ final class RevisionPolicyCompositionTest extends TestCase
         $policy = $this->capturingPolicy(AccessResult::allowed());
 
         foreach (['view', 'update', 'delete'] as $operation) {
-            $composer->composeAccess($policy, $entity, $account, $operation, $revision);
+            (void) $composer->composeAccess($policy, $entity, $account, $operation, $revision);
 
             self::assertSame(
                 'en',
@@ -105,7 +107,7 @@ final class RevisionPolicyCompositionTest extends TestCase
 
         $policy = $this->capturingPolicy(AccessResult::allowed());
 
-        $composer->composeAccess($policy, $entity, $account, 'view_revision', $revision);
+        (void) $composer->composeAccess($policy, $entity, $account, 'view_revision', $revision);
 
         self::assertSame($entity, $policy->lastEntity, 'non-translatable entity must not be cloned/swapped');
     }
@@ -151,7 +153,7 @@ final class RevisionPolicyCompositionTest extends TestCase
 
         $policy = $this->capturingPolicy(AccessResult::allowed());
 
-        $composer->composeAccess($policy, $entity, $account, 'view_revision', $revision);
+        (void) $composer->composeAccess($policy, $entity, $account, 'view_revision', $revision);
 
         // The revision arg is the caller's responsibility to introspect when needed;
         // the helper guarantees translation routing keyed on the revision's langcode.
@@ -164,7 +166,7 @@ final class RevisionPolicyCompositionTest extends TestCase
      */
     private function makeAccount(array $roles): AccountInterface
     {
-        return new class($roles) implements AccountInterface {
+        return new class ($roles) implements AccountInterface {
             /**
              * @param string[] $roles
              */
@@ -197,7 +199,7 @@ final class RevisionPolicyCompositionTest extends TestCase
      */
     private function makeTwoAxisEntity(array $langcodes, string $activeLangcode): EntityInterface&TranslatableInterface
     {
-        return new class($langcodes, $activeLangcode) implements EntityInterface, TranslatableInterface {
+        return new class ($langcodes, $activeLangcode) implements EntityInterface, TranslatableInterface {
             /**
              * @param string[] $langcodes
              */
@@ -363,7 +365,7 @@ final class RevisionPolicyCompositionTest extends TestCase
 
     private function makeRevision(int $vid, string $langcode): RevisionableEntityInterface&TranslatableInterface
     {
-        return new class($vid, $langcode) implements EntityInterface, RevisionableEntityInterface, TranslatableInterface {
+        return new class ($vid, $langcode) implements EntityInterface, RevisionableEntityInterface, TranslatableInterface {
             public function __construct(
                 private readonly int $vid,
                 private readonly string $activeLangcode,
@@ -487,7 +489,7 @@ final class RevisionPolicyCompositionTest extends TestCase
      */
     private function capturingPolicy(AccessResult $primary): object
     {
-        return new class($primary) implements AccessPolicyInterface {
+        return new class ($primary) implements AccessPolicyInterface {
             public ?EntityInterface $lastEntity = null;
 
             public ?string $lastOperation = null;

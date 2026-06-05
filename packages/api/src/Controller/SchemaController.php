@@ -34,9 +34,11 @@ final class SchemaController
     }
 
     /**
-     * GET /api/schema/{entity_type} — return JSON Schema for the given entity type.
+     * GET /api/schema/{entity_type}[?bundle=...] — return JSON Schema for the
+     * given entity type, scoped to a bundle when one is supplied so a content
+     * type's distinct typed fields surface (e.g. page vs news).
      */
-    public function show(string $entityTypeId): JsonApiDocument
+    public function show(string $entityTypeId, ?string $bundle = null): JsonApiDocument
     {
         if (!$this->entityTypeManager->hasDefinition($entityTypeId)) {
             return JsonApiDocument::fromErrors(
@@ -46,12 +48,20 @@ final class SchemaController
         }
 
         $entityType = $this->entityTypeManager->getDefinition($entityTypeId);
+        $bundle = ($bundle === null || $bundle === '') ? null : $bundle;
 
         $entity = null;
         if ($this->accessHandler !== null && $this->account !== null) {
             $class = $entityType->getClass();
+            // Build the prototype entity with the requested bundle so field
+            // access checks evaluate against the right content type.
+            $protoValues = [];
+            $bundleKey = $entityType->getKeys()['bundle'] ?? null;
+            if ($bundle !== null && $bundleKey !== null) {
+                $protoValues[$bundleKey] = $bundle;
+            }
             try {
-                $entity = new $class([]);
+                $entity = new $class($protoValues);
             } catch (\Throwable $e) {
                 $this->logger->warning(sprintf(
                     'SchemaController: failed to create prototype entity for %s (%s): %s',
@@ -64,18 +74,23 @@ final class SchemaController
 
         $schema = $this->schemaPresenter->present(
             $entityType,
-            $entityType->getFieldDefinitions(),
+            $this->entityTypeManager->resolveFieldDefinitions($entityTypeId, $bundle),
             $entity,
             $this->accessHandler,
             $this->account,
         );
+
+        $self = "/api/schema/{$entityTypeId}";
+        if ($bundle !== null) {
+            $self .= '?bundle=' . rawurlencode($bundle);
+        }
 
         return new JsonApiDocument(
             meta: [
                 'schema' => $schema,
             ],
             links: [
-                'self' => "/api/schema/{$entityTypeId}",
+                'self' => $self,
             ],
             statusCode: 200,
         );

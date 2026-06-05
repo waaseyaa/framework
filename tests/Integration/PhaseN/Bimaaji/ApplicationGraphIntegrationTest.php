@@ -201,6 +201,10 @@ final class ApplicationGraphIntegrationTest extends TestCase
             private static function stubEntityTypeManager(): EntityTypeManagerInterface
             {
                 return new class implements EntityTypeManagerInterface {
+                    public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array
+                    {
+                        return [];
+                    }
                     public function getDefinition(string $entityTypeId): \Waaseyaa\Entity\EntityTypeInterface
                     {
                         throw new \RuntimeException('Not exercised in this integration test.');

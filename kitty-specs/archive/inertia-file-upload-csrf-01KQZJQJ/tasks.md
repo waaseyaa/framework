@@ -49,7 +49,7 @@ The `[P]` marker indicates the subtask is parallel-safe across files/concerns wi
 | T016 | Verify docs build / lint (if applicable per Taskfile); zero new warnings | WP03 | | [D] |
 | T017 | In `/home/jones/dev/giiken`: `cp composer.json composer.json.smoke-backup`; add path repository for `/home/jones/dev/waaseyaa/packages/*` (symlink); `composer update 'waaseyaa/*'` | WP04 | | [D] |
 | T018 | Verify symlink resolution (`vendor/waaseyaa/user` points to local source); confirm framework SHA in use | WP04 | | [D] |
-| T019 | `./vendor/bin/waaseyaa migrate` (idempotent); `./vendor/bin/waaseyaa serve`; log in as seeded admin/staff; navigate to Sagamok Anishnawbek community Ingestion page | WP04 | | [D] |
+| T019 | `./vendor/bin/waaseyaa migrate` (idempotent); `./vendor/bin/waaseyaa serve`; log in as seeded admin/staff; navigate to Pilot Nation A Anishnawbek community Ingestion page | WP04 | | [D] |
 | T020 | Upload real test file (.md or .csv); capture (a) browser screenshot → `artifacts/giiken-smoke-<utc>.png`, (b) network capture (DevTools "copy as cURL" or `curl -v`) showing `X-XSRF-TOKEN` header and 200/302 → `artifacts/giiken-smoke-<utc>-network.txt`, (c) server log excerpt showing `knowledge_item` creation → `artifacts/giiken-smoke-<utc>-server.log` | WP04 | | [D] |
 | T021 | Write `artifacts/giiken-smoke-<utc>.md` summary (framework SHA, giiken SHA, test file used, outcome, links to evidence) | WP04 | | [D] |
 | T022 | Revert giiken `composer.json` (`mv composer.json.smoke-backup composer.json && composer update 'waaseyaa/*'`); verify giiken `git status` clean | WP04 | | [D] |

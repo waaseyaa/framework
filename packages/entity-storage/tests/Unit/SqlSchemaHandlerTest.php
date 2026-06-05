@@ -220,8 +220,11 @@ final class SqlSchemaHandlerTest extends TestCase
         $uriCustom = new FieldDefinition(name: 'booking_url', type: 'uri', settings: ['length' => 512]);
         self::assertSame(512, $this->invokeDeriveColumnSpec($m, $handler, $uriCustom)['length']);
 
+        // Waaseyaa cross-entity references are the destination entity's UUID
+        // string, so the column is varchar (correct on column-strict backends),
+        // not int. See BUGLOG B14.
         $ref = new FieldDefinition(name: 'community_id', type: 'entity_reference', targetEntityTypeId: 'node');
-        self::assertSame('int', $this->invokeDeriveColumnSpec($m, $handler, $ref)['type']);
+        self::assertSame('varchar', $this->invokeDeriveColumnSpec($m, $handler, $ref)['type']);
     }
 
     public function testDeriveColumnSpecLogsWarningForUnknownType(): void

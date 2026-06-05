@@ -779,8 +779,17 @@ final class PackageManifestCompiler
                 if ($hasDiscoveryAttribute) {
                     $classes[] = $class;
                 }
-            } catch (\ReflectionException) {
-                // Skip classes that can't be reflected
+            } catch (\Throwable) {
+                // Skip classes that cannot be reflected OR cannot be autoloaded.
+                // The latter is a hard requirement for framework consumability: a
+                // package may ship a class under src/ that extends/implements a
+                // dev-only symbol (e.g. a PHPUnit extension), which throws a
+                // fatal \Error (not a \ReflectionException) at class-definition
+                // time when the dev dependency is absent in a consumer install.
+                // Such a class can never carry a discovery attribute we care
+                // about, so skipping it (rather than crashing the whole boot) is
+                // safe and keeps the framework bootable in any app that requires
+                // it without dev dependencies.
                 continue;
             }
         }

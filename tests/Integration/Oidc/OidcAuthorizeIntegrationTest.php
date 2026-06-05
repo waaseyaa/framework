@@ -62,7 +62,7 @@ final class OidcAuthorizeIntegrationTest extends TestCase
     public function anonymousGetAuthorizeRedirectsToLogin(): void
     {
         $response = $this->request(
-            '/authorize?client_id=minoo-web&redirect_uri=https%3A%2F%2Fminoo.test%2Fcallback'
+            '/oidc/authorize?client_id=minoo-web&redirect_uri=https%3A%2F%2Fminoo.test%2Fcallback'
             . '&response_type=code&scope=openid%20profile&state=xyz'
             . '&code_challenge=abc&code_challenge_method=S256',
         );
