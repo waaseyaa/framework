@@ -356,6 +356,10 @@ final class SingleEntityWorkSurfaceTest extends TestCase
     private function buildEmptyEntityTypeManager(): \Waaseyaa\Entity\EntityTypeManagerInterface
     {
         return new class implements \Waaseyaa\Entity\EntityTypeManagerInterface {
+            public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array
+            {
+                return [];
+            }
             public function hasDefinition(string $entityTypeId): bool
             {
                 return false;

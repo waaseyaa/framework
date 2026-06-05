@@ -1,0 +1,31 @@
+<style>
+body.page-template { margin: 0; }
+.portal { padding: 2rem; }
+.portal .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+.portal .card { border: 1px solid #e6e8ee; border-radius: 14px; padding: 22px; display: flex; flex-direction: column; gap: 12px; position: relative; }
+.portal .card:hover { transform: translateY(-2px); }
+.portal .card .icon { width: 44px; height: 44px; border-radius: 12px; }
+.portal .card .ttl { font-size: 17px; font-weight: 600; }
+.portal .card .desc { color: #5a5f77; font-size: 14px; }
+.portal .card .meta { display: flex; align-items: center; gap: 10px; margin-top: auto; }
+.portal .card .corner-pill { position: absolute; top: 16px; right: 16px; }
+@media (max-width: 720px) { .portal .grid { grid-template-columns: 1fr; } }
+</style>
+<div class="portal">
+  <h2 class="h2">Sections <span class="count">3</span></h2>
+  <div class="grid">
+    <div class="icon">A</div>
+    <div class="ttl">First Section</div>
+    <p class="desc">Description for the first section of the portal.</p>
+    <div class="meta"><span class="pill">9 documents</span><span class="open">Open</span></div>
+    <p><span class="corner-pill">New</span></p>
+    <div class="icon">B</div>
+    <div class="ttl">Second Section</div>
+    <p class="desc">Description for the second section of the portal.</p>
+    <div class="meta"><span class="pill">Coming soon</span><span class="open">Open</span></div>
+    <div class="icon">C</div>
+    <div class="ttl">Third Section</div>
+    <p class="desc">Description for the third section of the portal.</p>
+    <div class="meta"><span class="pill">Active</span><span class="open">Open</span></div>
+  </div>
+</div>
