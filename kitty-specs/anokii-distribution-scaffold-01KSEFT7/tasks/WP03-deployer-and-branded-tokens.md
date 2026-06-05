@@ -24,7 +24,7 @@ execution_mode: code_change
 owned_files:
 - deploy.php
 - config/classification.anokii-default.yaml
-- config/tenants/sagamok.yaml.example
+- config/tenants/example-nation.yaml.example
 - assets/theme/anokii-tokens.css
 - CHANGELOG.md
 tags: []
@@ -53,7 +53,7 @@ You are working in the Anokii repo clone. WP02 has landed (`.kittify/` and chart
 - Overlay points (all minimal; each can be ~3–8 lines):
   - **Storage bucket naming:** `set('storage_bucket', fn($nation, $env) => "anokii-{$nation}-{$env}");` (or the equivalent Deployer-3.x setter API).
   - **Classification-policy seed task:** define a `task('anokii:seed:classification', function () { run('bin/waaseyaa config:import config/classification.anokii-default.yaml'); });` and chain it after the framework's `deploy:writable` task.
-  - **Sample tenant config:** the `config/tenants/sagamok.yaml.example` file is shipped in T011 below; the deployer task `anokii:tenant:bootstrap` references it as a template for `cp config/tenants/sagamok.yaml.example config/tenants/<nation>.yaml`.
+  - **Sample tenant config:** the `config/tenants/example-nation.yaml.example` file is shipped in T011 below; the deployer task `anokii:tenant:bootstrap` references it as a template for `cp config/tenants/example-nation.yaml.example config/tenants/<nation>.yaml`.
 - Add a header comment block: SPDX-License-Identifier: GPL-2.0-or-later. Reference the mission slug.
 - `php -l deploy.php` must lint clean.
 
@@ -70,7 +70,7 @@ You are working in the Anokii repo clone. WP02 has landed (`.kittify/` and chart
   }
   ```
 - `config/classification.anokii-default.yaml` — minimal Anokii default classification taxonomy seed. Three classification levels: `public`, `community`, `nation-restricted`. Each with `label`, `description`, `default_field_access` (matches framework FieldAccessPolicyInterface semantics: `Neutral` for public, `Neutral` for community, `Forbidden` for nation-restricted on cross-Nation reads).
-- `config/tenants/sagamok.yaml.example` — minimal example Nation tenant config stub. Fields: `nation_name: "Sagamok Anishnawbek First Nation"`, `nation_short: "sagamok"`, `language: "oji"` (ISO-639-3 for Ojibwe), `dialect: "southern-ojibwe"`, `oiatc_member: true`, `classification_taxonomy: "anokii-default"`, `storage_bucket: "anokii-sagamok-prod"`, `theme: "anokii-default"`.
+- `config/tenants/example-nation.yaml.example` — minimal example Nation tenant config stub. Fields: `nation_name: "Pilot Nation A Anishnawbek First Nation"`, `nation_short: "example-nation"`, `language: "oji"` (ISO-639-3 for Ojibwe), `dialect: "southern-ojibwe"`, `oiatc_member: true`, `classification_taxonomy: "anokii-default"`, `storage_bucket: "anokii-example-nation-prod"`, `theme: "anokii-default"`.
 
 **T012 — `CHANGELOG.md` init.**
 - Create `CHANGELOG.md` at Anokii repo root. Header `# Changelog`. `## [Unreleased]` section with `### Added` listing the scaffold elements (composer.json + LICENSE.txt + README.md + .gitignore + .kittify init + charter + deployer overlay + branded tokens). Link the mission slug at the bottom.
@@ -78,7 +78,7 @@ You are working in the Anokii repo clone. WP02 has landed (`.kittify/` and chart
 **T013 — Smoke verifications.**
 - `php -l deploy.php` → `No syntax errors detected`.
 - `grep -c '#0d4f4f\|#0f766e\|#14b8a6' assets/theme/anokii-tokens.css` → `3`.
-- `php -r "var_export(yaml_parse_file('config/tenants/sagamok.yaml.example'));"` (if `php-yaml` is available) OR `python -c "import yaml; yaml.safe_load(open('config/tenants/sagamok.yaml.example'))"` — must parse without error.
+- `php -r "var_export(yaml_parse_file('config/tenants/example-nation.yaml.example'));"` (if `php-yaml` is available) OR `python -c "import yaml; yaml.safe_load(open('config/tenants/example-nation.yaml.example'))"` — must parse without error.
 - `php -r "var_export(yaml_parse_file('config/classification.anokii-default.yaml'));"` — must parse without error.
 
 ## Commits
@@ -96,4 +96,4 @@ You are working in the Anokii repo clone. WP02 has landed (`.kittify/` and chart
 
 ## Activity Log
 
-- 2026-05-25T05:09:50Z – unknown – Opus review: new repo waaseyaa/anokii live with composer + LICENSE + README + charter (DIR-A001..DIR-A005) + deploy + branded tokens + Sagamok tenant stub. Repo currently public (consider toggling to private). 10 v0.1 surface seeds left in Waaseyaa artifacts/ for future Anokii-repo re-filing.
+- 2026-05-25T05:09:50Z – unknown – Opus review: new repo waaseyaa/anokii live with composer + LICENSE + README + charter (DIR-A001..DIR-A005) + deploy + branded tokens + Pilot Nation A tenant stub. Repo currently public (consider toggling to private). 10 v0.1 surface seeds left in Waaseyaa artifacts/ for future Anokii-repo re-filing.

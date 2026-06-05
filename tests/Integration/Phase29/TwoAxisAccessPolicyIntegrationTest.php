@@ -111,7 +111,9 @@ final class TwoAxisAccessPolicyIntegrationTest extends TestCase
         $observer = new ObservingPolicy(AccessResult::allowed());
 
         $composer = new RevisionPolicyComposition();
-        $composer->composeAccess($observer, $teaching, $keeper, 'view_revision', $revisionOj);
+        // This test asserts on the entity the policy received, not the access
+        // decision, so the #[\NoDiscard] return is intentionally ignored here.
+        (void) $composer->composeAccess($observer, $teaching, $keeper, 'view_revision', $revisionOj);
 
         self::assertNotNull($observer->lastEntity);
         self::assertInstanceOf(TranslatableInterface::class, $observer->lastEntity);

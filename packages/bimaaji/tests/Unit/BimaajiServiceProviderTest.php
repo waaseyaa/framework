@@ -133,6 +133,7 @@ final class BimaajiServiceProviderTest extends TestCase
             private static function stubEntityTypeManager(): EntityTypeManagerInterface
             {
                 return new class implements EntityTypeManagerInterface {
+            public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array { return []; }
                     public function getDefinition(string $entityTypeId): \Waaseyaa\Entity\EntityTypeInterface
                     {
                         throw new \RuntimeException('not used in WP01 unit test');
@@ -300,6 +301,7 @@ final class BimaajiServiceProviderTest extends TestCase
             private static function stubEntityTypeManager(): EntityTypeManagerInterface
             {
                 return new class implements EntityTypeManagerInterface {
+            public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array { return []; }
                     public function getDefinition(string $entityTypeId): \Waaseyaa\Entity\EntityTypeInterface
                     {
                         throw new \RuntimeException('not used in WP01 unit test');

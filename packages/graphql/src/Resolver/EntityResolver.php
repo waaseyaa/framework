@@ -310,8 +310,7 @@ final class EntityResolver
             return $input;
         }
 
-        $definition = $this->entityTypeManager->getDefinition($entityTypeId);
-        $fieldDefinitions = $definition->getFieldDefinitions();
+        $fieldDefinitions = $this->entityTypeManager->resolveFieldDefinitions($entityTypeId);
 
         if (isset($fieldDefinitions['account_id']) && !isset($input['account_id'])) {
             $input['account_id'] = (string) $this->account->id();
