@@ -8,9 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccountInterface;
-use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Agent\Tool\Bimaaji\GeneratePatchTool;
-use Waaseyaa\AI\Tools\AgentToolContext;
 use Waaseyaa\Bimaaji\Graph\ApplicationGraph;
 use Waaseyaa\Bimaaji\Graph\GraphSection;
 use Waaseyaa\Bimaaji\Mutation\MutationValidator;
@@ -46,7 +44,7 @@ final class GeneratePatchToolTest extends TestCase
         $tool = $this->makeTool();
         $result = $tool->execute(
             $this->validArguments(),
-            $this->contextWithPermission('bimaaji.mutate'),
+            $this->accountWithPermission('bimaaji.mutate'),
         );
 
         self::assertFalse($result->isError);
@@ -79,7 +77,7 @@ final class GeneratePatchToolTest extends TestCase
         $tool = $this->makeTool();
         $result = $tool->execute(
             $this->validArguments(),
-            $this->contextWithPermission('bimaaji.mutate'),
+            $this->accountWithPermission('bimaaji.mutate'),
         );
 
         self::assertFalse($result->isError);
@@ -108,7 +106,7 @@ final class GeneratePatchToolTest extends TestCase
         $tool = $this->makeTool();
         $result = $tool->execute(
             $this->validArguments(),
-            $this->contextWithPermission('bimaaji.mutate'),
+            $this->accountWithPermission('bimaaji.mutate'),
         );
 
         $payload = $result->content[0]['data'] ?? null;
@@ -139,7 +137,7 @@ final class GeneratePatchToolTest extends TestCase
 
         $result = $tool->execute(
             $args,
-            $this->contextWithPermission('bimaaji.mutate'),
+            $this->accountWithPermission('bimaaji.mutate'),
         );
 
         self::assertTrue($result->isError, 'Tool must re-validate; an unknown entity must surface as a tool error.');
@@ -152,7 +150,7 @@ final class GeneratePatchToolTest extends TestCase
         $tool = $this->makeTool();
         $result = $tool->execute(
             $this->validArguments(),
-            $this->contextWithPermission('bimaaji.read'),
+            $this->accountWithPermission('bimaaji.read'),
         );
 
         self::assertTrue($result->isError);
@@ -163,7 +161,7 @@ final class GeneratePatchToolTest extends TestCase
     public function rejectsMissingArguments(): void
     {
         $tool = $this->makeTool();
-        $result = $tool->execute([], $this->contextWithPermission('bimaaji.mutate'));
+        $result = $tool->execute([], $this->accountWithPermission('bimaaji.mutate'));
 
         self::assertTrue($result->isError);
         self::assertSame('missing argument', $result->summary);
@@ -214,15 +212,6 @@ final class GeneratePatchToolTest extends TestCase
         ksort($snapshot);
 
         return $snapshot;
-    }
-
-    private function contextWithPermission(string $permission): AgentToolContext
-    {
-        return new AgentToolContext(
-            account: $this->accountWithPermission($permission),
-            entityAccessHandler: new EntityAccessHandler(),
-            agentRunId: null,
-        );
     }
 
     private function accountWithPermission(string $permission): AccountInterface

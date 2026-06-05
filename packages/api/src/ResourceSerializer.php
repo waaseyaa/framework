@@ -68,9 +68,14 @@ final class ResourceSerializer
 
         $attributes = $this->attributesFromEntity($entity, $keys);
 
+        // Canonical, bundle-aware field set so a content type's distinct typed
+        // fields (e.g. page's body/blocks/featured_image) are filtered and cast
+        // with their real definitions, not just the entity-type base fields.
+        $fieldDefinitions = $this->entityTypeManager->resolveFieldDefinitions($entityTypeId, $entity->bundle());
+
         // Drop fields marked `internal: true` and any always-internal credential keys.
         // Runs before the per-account filter so credentials never reach EntityAccessHandler.
-        $attributes = $this->filterInternalFields($attributes, $entityType->getFieldDefinitions());
+        $attributes = $this->filterInternalFields($attributes, $fieldDefinitions);
 
         // Filter out fields the account cannot view.
         if ($accessHandler !== null && $account !== null) {
@@ -78,7 +83,7 @@ final class ResourceSerializer
             $attributes = array_intersect_key($attributes, array_flip($allowedFields));
         }
 
-        $attributes = $this->castAttributes($attributes, $entityType->getFieldDefinitions());
+        $attributes = $this->castAttributes($attributes, $fieldDefinitions);
         $attributes = $this->normalizeAttributesForJson($attributes);
 
         // Build self link.

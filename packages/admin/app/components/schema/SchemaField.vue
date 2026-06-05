@@ -27,6 +27,9 @@ const widgetMap: Record<string, Component> = {
   datetime: resolveComponent('WidgetsDateTimeInput') as Component,
   entity_autocomplete: resolveComponent('WidgetsEntityAutocomplete') as Component,
   hidden: resolveComponent('WidgetsHiddenField') as Component,
+  // The structured "blocks" field has no inline editor yet; keep its value as a
+  // hidden field so it round-trips on save instead of rendering as raw JSON.
+  blocks: resolveComponent('WidgetsHiddenField') as Component,
   machine_name: resolveComponent('WidgetsMachineNameInput') as Component,
   password: resolveComponent('WidgetsTextInput') as Component,
   image: resolveComponent('WidgetsFileUpload') as Component,

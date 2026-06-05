@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Agent\Mcp;
 
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentTool;
-use Waaseyaa\AI\Tools\AgentToolContext;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\Config\Schema\Ai\McpServersConfig;
@@ -229,9 +229,9 @@ final class McpClientToolSource
                 private readonly LoggerInterface $logger,
             ) {}
 
-            public function execute(array $arguments, AgentToolContext $context): AgentToolResult
+            public function execute(array $arguments, AccountInterface $account): AgentToolResult
             {
-                $denied = $this->requireCapability($this->capability, $context);
+                $denied = $this->requireCapability($this->capability, $account);
                 if ($denied !== null) {
                     return $denied;
                 }

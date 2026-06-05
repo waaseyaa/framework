@@ -51,7 +51,7 @@ final class McpServiceProvider extends ServiceProvider
         $this->singleton(
             ToolRegistryReadModelInterface::class,
             function (): ToolRegistryReadModelInterface {
-                $agentRegistry = $this->make(AgentToolRegistryInterface::class);
+                $agentRegistry = $this->resolve(AgentToolRegistryInterface::class);
                 $invocationQuery = $this->resolveOptional(RecentInvocationsQueryInterface::class);
 
                 return new ToolRegistryReadModel(
@@ -67,8 +67,8 @@ final class McpServiceProvider extends ServiceProvider
         // Delegates to McpAuthInterface for registered-client enumeration.
         $this->singleton(
             ServerConfigReadModelInterface::class,
-            fn (): ServerConfigReadModelInterface => new ServerConfigReadModel(
-                auth: $this->make(McpAuthInterface::class),
+            fn(): ServerConfigReadModelInterface => new ServerConfigReadModel(
+                auth: $this->resolve(McpAuthInterface::class),
             ),
         );
     }

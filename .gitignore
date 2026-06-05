@@ -132,3 +132,15 @@ phpstan-tests/
 # PHP tempnam() output (3-letter prefix + 18+ alnum chars). Pattern is strict
 # enough not to match phpstan*.neon, phpunit.xml.dist, etc. (those have '.' or '-').
 /php[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]*
+
+# --- App-content guards (waaseyaa/framework must stay app-agnostic) ---
+# The framework is the substrate; consumer apps (e.g. the SFN site) live in their
+# OWN sibling project that depends on waaseyaa/framework, never nested here. These
+# guards make it impossible to accidentally commit app content into the framework.
+/public/media/
+/public/assets/sfn-*
+/packages-local/
+/templates/
+# No app/site fixtures inside framework packages (tests must use synthetic data).
+packages/**/Fixtures/sfn-*
+packages/**/tests/**/sfn-*

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Tools;
 
+use Waaseyaa\Access\AccountInterface;
+
 /**
  * Convenience base for {@see AgentToolInterface} implementations.
  *
@@ -29,7 +31,7 @@ abstract class AbstractAgentTool implements AgentToolInterface
     /**
      * {@inheritDoc}
      */
-    public function dryRun(array $arguments, AgentToolContext $context): AgentToolResult
+    public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
     {
         return AgentToolResult::error(
             message: 'dry_run_not_supported',
@@ -61,17 +63,17 @@ abstract class AbstractAgentTool implements AgentToolInterface
     }
 
     /**
-     * Enforce the tool's capability against the account in the supplied context.
+     * Enforce the tool's capability against the supplied account.
      *
      * Returns a `forbidden` {@see AgentToolResult} when the account lacks
      * the capability; concrete tools can call this from {@see execute()}
      * to short-circuit cleanly.
      */
-    protected function requireCapability(string $capability, AgentToolContext $context): ?AgentToolResult
+    protected function requireCapability(string $capability, AccountInterface $account): ?AgentToolResult
     {
-        if (!$context->account->hasPermission($capability)) {
+        if (!$account->hasPermission($capability)) {
             return AgentToolResult::error(
-                message: sprintf('Account %s is not permitted to call %s', $context->account->id(), $capability),
+                message: sprintf('Account %s is not permitted to call %s', $account->id(), $capability),
                 summary: 'forbidden',
             );
         }

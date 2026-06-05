@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
+use Waaseyaa\Audit\Entity\AuditEvent;
 use Waaseyaa\Audit\Enum\AuditEventKind;
 use Waaseyaa\Audit\Listener\EntityLifecycleAuditListener;
 use Waaseyaa\Entity\EntityInterface;
@@ -94,6 +95,50 @@ final class EntityLifecycleAuditListenerTest extends TestCase
         // Must not throw.
         $listener->onPostSave(new EntityEvent($entity));
         $this->assertTrue(true, 'Best-effort: no exception bubbled up');
+    }
+
+    #[Test]
+    public function it_does_not_record_when_the_entity_is_itself_an_audit_event_on_save(): void
+    {
+        // Regression (#1587): auditing an AuditEvent save would re-enter the
+        // writer → save → POST_SAVE → infinite recursion.
+        $recorded = [];
+        $writer = new class ($recorded) implements AuditWriterInterface {
+            public function __construct(private array &$recorded) {}
+            public function record(AuditEventDescriptor $d): void
+            {
+                $this->recorded[] = $d;
+            }
+        };
+
+        $auditEvent = new AuditEvent(['id' => 1, 'uuid' => '00000000-0000-0000-0000-0000000000aa']);
+
+        $listener = new EntityLifecycleAuditListener($writer);
+        $listener->onPreSave(new EntityEvent($auditEvent));
+        $listener->onPostSave(new EntityEvent($auditEvent));
+
+        $this->assertCount(0, $recorded, 'AuditEvent saves must not be re-audited');
+    }
+
+    #[Test]
+    public function it_does_not_record_when_the_entity_is_itself_an_audit_event_on_delete(): void
+    {
+        // Regression (#1587): same recursion guard on the delete path.
+        $recorded = [];
+        $writer = new class ($recorded) implements AuditWriterInterface {
+            public function __construct(private array &$recorded) {}
+            public function record(AuditEventDescriptor $d): void
+            {
+                $this->recorded[] = $d;
+            }
+        };
+
+        $auditEvent = new AuditEvent(['id' => 1, 'uuid' => '00000000-0000-0000-0000-0000000000bb']);
+
+        $listener = new EntityLifecycleAuditListener($writer);
+        $listener->onPostDelete(new EntityEvent($auditEvent));
+
+        $this->assertCount(0, $recorded, 'AuditEvent deletes must not be re-audited');
     }
 
     #[Test]

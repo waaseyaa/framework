@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Taxonomy\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\IgnoreDeprecations;
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\ContentEntityInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\FieldableInterface;
 use Waaseyaa\Taxonomy\Term;
-use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \Waaseyaa\Taxonomy\Term
@@ -76,7 +77,7 @@ class TermTest extends TestCase
         $this->assertNotEmpty($uuid);
         $this->assertMatchesRegularExpression(
             '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/',
-            $uuid
+            $uuid,
         );
     }
 
@@ -392,6 +393,7 @@ class TermTest extends TestCase
     // Language
     // ---------------------------------------------------------------
 
+    #[IgnoreDeprecations]
     public function testLanguageDefaultsToEn(): void
     {
         $term = new Term(['vid' => 'tags', 'name' => 'PHP']);
@@ -399,6 +401,7 @@ class TermTest extends TestCase
         $this->assertSame('en', $term->language());
     }
 
+    #[IgnoreDeprecations]
     public function testLanguageCanBeSet(): void
     {
         $term = new Term(['vid' => 'tags', 'name' => 'PHP', 'langcode' => 'fr']);

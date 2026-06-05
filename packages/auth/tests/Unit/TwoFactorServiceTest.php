@@ -82,6 +82,7 @@ final class TwoFactorServiceTest extends TestCase
         };
 
         $typeManager = new class ($storage) implements EntityTypeManagerInterface {
+            public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array { return []; }
             public function __construct(private readonly EntityStorageInterface $storage)
             {
             }
