@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.189] - 2026-06-05
+
 ### Fixed
 
 - **ai-agent: surface transport errors during `AnthropicProvider` streaming.** Streaming responses that failed mid-flight (network/transport errors) were previously swallowed; the provider now surfaces them to the caller so failures are observable rather than silent. (#1612, PR #1613)

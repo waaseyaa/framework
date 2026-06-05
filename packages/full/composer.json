@@ -4,20 +4,20 @@
     "type": "metapackage",
     "license": "GPL-2.0-or-later",
     "require": {
-        "waaseyaa/ai-agent": "^0.1.0-alpha.188",
-        "waaseyaa/ai-pipeline": "^0.1.0-alpha.188",
-        "waaseyaa/ai-schema": "^0.1.0-alpha.188",
-        "waaseyaa/ai-tools": "^0.1.0-alpha.188",
-        "waaseyaa/ai-vector": "^0.1.0-alpha.188",
-        "waaseyaa/attachment": "^0.1.0-alpha.188",
-        "waaseyaa/cms": "^0.1.0-alpha.188",
-        "waaseyaa/mcp": "^0.1.0-alpha.188",
-        "waaseyaa/ssr": "^0.1.0-alpha.188",
-        "waaseyaa/structured-import": "^0.1.0-alpha.188"
+        "waaseyaa/ai-agent": "^0.1.0-alpha.189",
+        "waaseyaa/ai-pipeline": "^0.1.0-alpha.189",
+        "waaseyaa/ai-schema": "^0.1.0-alpha.189",
+        "waaseyaa/ai-tools": "^0.1.0-alpha.189",
+        "waaseyaa/ai-vector": "^0.1.0-alpha.189",
+        "waaseyaa/attachment": "^0.1.0-alpha.189",
+        "waaseyaa/cms": "^0.1.0-alpha.189",
+        "waaseyaa/mcp": "^0.1.0-alpha.189",
+        "waaseyaa/ssr": "^0.1.0-alpha.189",
+        "waaseyaa/structured-import": "^0.1.0-alpha.189"
     },
     "suggest": {
-        "waaseyaa/graphql": "GraphQL endpoint + schema introspection (L6, optional). Install if your distribution prefers GraphQL over the framework's primary JSON:API surface.",
-        "waaseyaa/inertia": "Server-side Inertia.js v3 protocol adapter (L6, optional). Install if your distribution prefers server-driven UI over the standalone Nuxt SPA."
+        "waaseyaa/graphql": "^0.1.0-alpha.189",
+        "waaseyaa/inertia": "^0.1.0-alpha.189"
     },
     "minimum-stability": "stable",
     "extra": {
