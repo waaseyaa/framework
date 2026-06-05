@@ -1,3 +1,10 @@
+> **Distribution-extension package** — `waaseyaa/genealogy` is a *distribution-extension*,
+> not framework substrate. Per charter directive DIR-004 (Framework vs Distribution
+> Architecture), domain content like Indigenous family lineage modelling is delivered
+> as a separately-versioned package consumers opt into, and is **not** required by
+> `waaseyaa/core`, `waaseyaa/cms`, or `waaseyaa/full`. See
+> `docs/specs/extraction-log.md` for the reclassification record.
+
 # Genealogy package (v0.1)
 
 Greenfield genealogy modeling for Waaseyaa, inspired by public feature areas of HuMo-genealogy (person/family views, charts, relationships) without schema or code migration from HuMo.

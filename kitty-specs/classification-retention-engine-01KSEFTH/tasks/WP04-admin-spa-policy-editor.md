@@ -1,32 +1,38 @@
 ---
 work_package_id: WP04
-title: "Admin SPA retention-policy editor — useRetentionPolicies composable, list + detail pages, nav entry, i18n, docs, CHANGELOG"
+title: Admin SPA retention-policy editor — useRetentionPolicies composable, list + detail pages, nav entry, i18n, docs, CHANGELOG
 dependencies:
-  - WP02
+- WP02
 requirement_refs:
-  - FR-014
-  - FR-016
-  - NFR-003
+- FR-014
+- FR-016
+- NFR-003
 planning_base_branch: main
 merge_target_branch: main
-branch_strategy: "Branches from WP02 merge commit; may proceed in parallel with WP03. Completed work merges back into main."
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
 subtasks:
-  - T-S
-  - T-T
-authoritative_surface: "packages/admin/app/pages/classification/policies"
+- T-S
+- T-T
+history: []
+authoritative_surface: packages/admin/app/pages/classification/policies
 execution_mode: code_change
 owned_files:
-  - packages/admin/app/composables/useRetentionPolicies.ts
-  - packages/admin/app/pages/classification/policies/index.vue
-  - packages/admin/app/pages/classification/policies/[id].vue
-  - packages/admin/app/i18n/en.json
-  - packages/admin/tests/unit/composables/useRetentionPolicies.test.ts
-  - packages/admin/e2e/classification-policies.spec.ts
-  - docs/specs/classification-and-retention.md
-  - CLAUDE.md
-  - CHANGELOG.md
-tags: ["admin-spa", "classification", "schema-form", "frontend"]
-history: []
+- packages/admin/app/composables/useRetentionPolicies.ts
+- packages/admin/app/pages/classification/policies/index.vue
+- packages/admin/app/pages/classification/policies/[id].vue
+- packages/admin/app/i18n/en.json
+- packages/admin/tests/unit/composables/useRetentionPolicies.test.ts
+- packages/admin/e2e/classification-policies.spec.ts
+- docs/specs/classification-and-retention.md
+- CLAUDE.md
+- CHANGELOG.md
+tags:
+- admin-spa
+- classification
+- schema-form
+- frontend
+agent: "claude:opus:reviewer:reviewer"
+shell_pid: "485303"
 ---
 
 # WP04 — Admin SPA retention-policy editor + docs
@@ -115,3 +121,7 @@ spec-kitty agent tasks move-task WP04 --to for_review --mission classification-r
 5. CLAUDE.md orchestration-table diff (the row added).
 
 ## Activity Log
+- 2026-05-25T22:05:54Z – unknown – Admin SPA retention-policy editor: useRetentionPolicies composable + list/detail pages (SchemaForm) + Governance nav + i18n + vitest + deferred playwright spec + docs/spec/CLAUDE.md/CHANGELOG. Admin gate green: vitest 279/279, typecheck clean, lint 0 errors. Also greened 3 pre-existing oidc typecheck/lint failures (useI18n->useLanguage, void->unknown) that predated WP04 on the rebase base.
+- 2026-05-26T10:43:42Z – claude:opus:reviewer:reviewer – shell_pid=485303 – Started review via action command
+- 2026-05-26T10:49:58Z – claude:opus:reviewer:reviewer – shell_pid=485303 – Review passed (claude:reviewer): composable hits WP02 routes; pages reachable; Governance nav wired; i18n complete; vue-tsc+eslint+vitest green.
+- 2026-05-26T11:17:44Z – claude:opus:reviewer:reviewer – shell_pid=485303 – Done override: Feature squash-merged to main (b170e0a44)

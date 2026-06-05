@@ -170,6 +170,7 @@ final class MakeMigrationAddTranslationsTest extends TestCase
     private function emptyManager(): EntityTypeManagerInterface
     {
         return new class implements EntityTypeManagerInterface {
+            public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array { return []; }
             public function getDefinition(string $entityTypeId): EntityTypeInterface
             {
                 throw new \RuntimeException('not used in this test path');
@@ -308,6 +309,7 @@ final class MakeMigrationAddTranslationsTest extends TestCase
         };
 
         return new class ($entityTypeId, $entityType) implements EntityTypeManagerInterface {
+            public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array { return []; }
             public function __construct(
                 private readonly string $expectedId,
                 private readonly EntityTypeInterface $entityType,

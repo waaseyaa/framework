@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "94c575e862b000c29b07aaaca9b9f5bf",
+    "content-hash": "23d773ee3018a38526a4596df325f52c",
     "packages": [
         {
             "name": "defuse/php-encryption",
@@ -3741,60 +3741,29 @@
             }
         },
         {
-            "name": "waaseyaa/analytics",
-            "version": "dev-main",
-            "dist": {
-                "type": "path",
-                "url": "packages/analytics",
-                "reference": "96caca661e79a6b146fd3fccbdf4f9574a73d95f"
-            },
-            "require": {
-                "php": ">=8.5"
-            },
-            "type": "library",
-            "extra": {
-                "branch-alias": {
-                    "dev-main": "0.1.x-dev"
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Waaseyaa\\Analytics\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Waaseyaa\\Analytics\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "Shared Umami analytics integration for Waaseyaa apps — backend sender, JS helpers, and Twig partial.",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
             "name": "waaseyaa/api",
             "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "packages/api",
-                "reference": "75751d9f6c426165e33f8052ef805589b3dfc6a2"
+                "reference": "37b0e40a051d67083f757a6334871e865713f312"
             },
             "require": {
                 "php": ">=8.5",
                 "waaseyaa/access": "^0.1.0-alpha.188",
                 "waaseyaa/entity": "^0.1.0-alpha.188",
                 "waaseyaa/foundation": "^0.1.0-alpha.188",
+                "waaseyaa/notification": "^0.1.0-alpha.188",
                 "waaseyaa/queue": "^0.1.0-alpha.188",
                 "waaseyaa/routing": "^0.1.0-alpha.188",
+                "waaseyaa/scheduler": "^0.1.0-alpha.188",
                 "waaseyaa/workflows": "^0.1.0-alpha.188"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5",
+                "waaseyaa/audit": "^0.1.0-alpha.188",
                 "waaseyaa/database-legacy": "^0.1.0-alpha.188",
+                "waaseyaa/media": "^0.1.0-alpha.188",
                 "waaseyaa/telescope": "^0.1.0-alpha.188"
             },
             "type": "library",
@@ -3868,6 +3837,55 @@
                 "GPL-2.0-or-later"
             ],
             "description": "Attachment content type with parent-entity reference and at-most-one-active invariant.",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/audit",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/audit",
+                "reference": "7448aa06f059eaa270eb4f119c3f3219c33ee2e7"
+            },
+            "require": {
+                "php": ">=8.5",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.188",
+                "waaseyaa/entity": "^0.1.0-alpha.188",
+                "waaseyaa/entity-storage": "^0.1.0-alpha.188",
+                "waaseyaa/foundation": "^0.1.0-alpha.188"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5",
+                "waaseyaa/entity-storage": "^0.1.0-alpha.188"
+            },
+            "type": "library",
+            "extra": {
+                "waaseyaa": {
+                    "providers": [
+                        "Waaseyaa\\Audit\\AuditServiceProvider"
+                    ]
+                },
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev",
+                    "dev-develop/v1.1": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Audit\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\Audit\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "OCAP append-only audit log substrate — unified event table, writer + query contracts, retention policy.",
             "transport-options": {
                 "relative": true
             }
@@ -4066,12 +4084,13 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
-                "reference": "b6c3710fd795f7e162ecd5daa9fdf3ad7f03e560"
+                "reference": "1f88408b6f0c80ebd0c0b35775242e62a29de42e"
             },
             "require": {
                 "php": ">=8.5",
                 "waaseyaa/access": "^0.1.0-alpha.188",
                 "waaseyaa/ai-agent": "^0.1.0-alpha.188",
+                "waaseyaa/audit": "^0.1.0-alpha.188",
                 "waaseyaa/cache": "^0.1.0-alpha.188",
                 "waaseyaa/config": "^0.1.0-alpha.188",
                 "waaseyaa/entity": "^0.1.0-alpha.188",
@@ -4102,6 +4121,7 @@
                     "providers": [
                         "Waaseyaa\\CLI\\CliServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\AiServiceProvider",
+                        "Waaseyaa\\CLI\\Provider\\AuditServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\BundleFixtureServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\EntityTypeServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\HealthSchemaServiceProvider",
@@ -4120,7 +4140,8 @@
                         "Waaseyaa\\CLI\\Provider\\MiscAServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\MiscBServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\OtherScaffoldsServiceProvider",
-                        "Waaseyaa\\CLI\\Provider\\NorthCloudServiceProvider"
+                        "Waaseyaa\\CLI\\Provider\\NorthCloudServiceProvider",
+                        "Waaseyaa\\CLI\\Provider\\OidcServiceProvider"
                     ]
                 }
             },
@@ -4495,12 +4516,14 @@
             "dist": {
                 "type": "path",
                 "url": "packages/field",
-                "reference": "7638b2b6f4511dbd52c55733701fb99cedf10919"
+                "reference": "b8e7c7034f4208fbc97268bd2d83211efc78a242"
             },
             "require": {
                 "php": ">=8.5",
                 "waaseyaa/access": "^0.1.0-alpha.188",
+                "waaseyaa/audit": "^0.1.0-alpha.188",
                 "waaseyaa/entity": "^0.1.0-alpha.188",
+                "waaseyaa/foundation": "^0.1.0-alpha.188",
                 "waaseyaa/plugin": "^0.1.0-alpha.188",
                 "waaseyaa/typed-data": "^0.1.0-alpha.188"
             },
@@ -4543,7 +4566,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/foundation",
-                "reference": "4515a15a04e89e4ca28e1b7129c82b0a368e2d40"
+                "reference": "0858770771157b3010bfb0d3942ccbd6fb4f5b87"
             },
             "require": {
                 "doctrine/dbal": "^4.0",
@@ -4566,7 +4589,8 @@
             "extra": {
                 "waaseyaa": {
                     "providers": [
-                        "Waaseyaa\\Foundation\\FoundationServiceProvider"
+                        "Waaseyaa\\Foundation\\FoundationServiceProvider",
+                        "Waaseyaa\\Foundation\\MercureMonitorServiceProvider"
                     ]
                 },
                 "branch-alias": {
@@ -4601,7 +4625,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/genealogy",
-                "reference": "3a3f5ed44c95cbb0567e352f8916684b5ecf1fe9"
+                "reference": "d204d91fb5291d115ba6614ffb7d977da0897e8a"
             },
             "require": {
                 "php": ">=8.5",
@@ -4651,7 +4675,7 @@
             "license": [
                 "GPL-2.0-or-later"
             ],
-            "description": "Genealogy domain entities, graph traversal, and public SSR for Waaseyaa",
+            "description": "Distribution-extension package — Indigenous genealogy entities, graph traversal, and public SSR for Waaseyaa-based distributions",
             "transport-options": {
                 "relative": true
             }
@@ -4740,7 +4764,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/graphql",
-                "reference": "05076812d822115ebcd747782f28077816e53467"
+                "reference": "d0eb7e160655f44788c99818868c6af672ecb4a5"
             },
             "require": {
                 "php": ">=8.5",
@@ -4781,7 +4805,7 @@
             "license": [
                 "GPL-2.0-or-later"
             ],
-            "description": "GraphQL endpoint for Waaseyaa — auto-generated schema from entity types",
+            "description": "GraphQL endpoint + schema introspection for Waaseyaa — optional/experimental L6 surface; see README for the primary JSON:API framing.",
             "transport-options": {
                 "relative": true
             }
@@ -4919,7 +4943,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/inertia",
-                "reference": "fc4533cff7381a73cc2a5d983aaf945a3fa2bf25"
+                "reference": "f015492fcf0f77cee24dfacafebc46fd38bae909"
             },
             "require": {
                 "php": ">=8.5",
@@ -4953,7 +4977,7 @@
             "license": [
                 "GPL-2.0-or-later"
             ],
-            "description": "Server-side Inertia.js v3 protocol adapter for Waaseyaa",
+            "description": "Server-side Inertia.js v3 protocol adapter for Waaseyaa — optional/experimental L6 surface; see README for the DIR-007 framing.",
             "transport-options": {
                 "relative": true
             }
@@ -5343,7 +5367,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/migration",
-                "reference": "c6090c948971c6acae288afcbdc24b839b8071e5"
+                "reference": "4b5100ad9b2f647690f26e48e712f77f5a9b19a5"
             },
             "require": {
                 "php": ">=8.5",
@@ -5353,6 +5377,7 @@
                 "waaseyaa/database-legacy": "^0.1.0-alpha.188",
                 "waaseyaa/entity": "^0.1.0-alpha.188",
                 "waaseyaa/entity-storage": "^0.1.0-alpha.188",
+                "waaseyaa/field": "^0.1.0-alpha.188",
                 "waaseyaa/foundation": "^0.1.0-alpha.188"
             },
             "require-dev": {
@@ -5666,6 +5691,50 @@
                 "GPL-2.0-or-later"
             ],
             "description": "OpenID Connect issuer for Waaseyaa — ecosystem-wide single sign-on",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/page-builder",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/page-builder",
+                "reference": "6256926703de9b59768a742202a14dc7af7199b4"
+            },
+            "require": {
+                "ext-dom": "*",
+                "php": ">=8.5"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "type": "library",
+            "extra": {
+                "waaseyaa": {
+                    "providers": [
+                        "Waaseyaa\\PageBuilder\\PageBuilderServiceProvider"
+                    ]
+                },
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\PageBuilder\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\PageBuilder\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Builder-agnostic page-builder decode capability for Waaseyaa: detect a page builder (Elementor, Gutenberg, ...) and decode its raw body into clean semantic HTML plus a structured block list.",
             "transport-options": {
                 "relative": true
             }
@@ -10915,9 +10984,9 @@
         "waaseyaa/ai-schema": 20,
         "waaseyaa/ai-tools": 20,
         "waaseyaa/ai-vector": 20,
-        "waaseyaa/analytics": 20,
         "waaseyaa/api": 20,
         "waaseyaa/attachment": 20,
+        "waaseyaa/audit": 20,
         "waaseyaa/auth": 20,
         "waaseyaa/billing": 20,
         "waaseyaa/bimaaji": 20,
@@ -10956,6 +11025,7 @@
         "waaseyaa/notification": 20,
         "waaseyaa/oauth-provider": 20,
         "waaseyaa/oidc": 20,
+        "waaseyaa/page-builder": 20,
         "waaseyaa/path": 20,
         "waaseyaa/plugin": 20,
         "waaseyaa/queue": 20,

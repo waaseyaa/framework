@@ -152,3 +152,4 @@ _(populated during execution)_
 - 2026-05-25T06:18:27Z – claude – shell_pid=139060 – Assigned agent via action command
 - 2026-05-25T06:19:18Z – claude – shell_pid=139060 – WP01 complete: composer.json description flipped, DIR-004 banner inserted in genealogy.md, all verification gates green
 - 2026-05-25T06:23:59Z – claude – shell_pid=139060 – Opus review: distribution-extension classification flip clean; cms/core/full grep confirmed clean; split.yml unchanged; PR #1580 opened
+- 2026-05-26T18:48:34Z – claude – shell_pid=139060 – Done override: Sprint merge to main

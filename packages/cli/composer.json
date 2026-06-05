@@ -10,6 +10,10 @@
         },
         {
             "type": "path",
+            "url": "../audit"
+        },
+        {
+            "type": "path",
             "url": "../http-client"
         },
         {
@@ -69,6 +73,7 @@
         "php": ">=8.5",
         "waaseyaa/access": "^0.1.0-alpha.188",
         "waaseyaa/ai-agent": "^0.1.0-alpha.188",
+        "waaseyaa/audit": "^0.1.0-alpha.188",
         "waaseyaa/cache": "^0.1.0-alpha.188",
         "waaseyaa/config": "^0.1.0-alpha.188",
         "waaseyaa/entity": "^0.1.0-alpha.188",
@@ -110,6 +115,7 @@
             "providers": [
                 "Waaseyaa\\CLI\\CliServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\AiServiceProvider",
+                "Waaseyaa\\CLI\\Provider\\AuditServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\BundleFixtureServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\EntityTypeServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\HealthSchemaServiceProvider",

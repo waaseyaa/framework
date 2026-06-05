@@ -43,12 +43,6 @@ parameters:
 			path: packages/config/src/EventAwareStorage.php
 
 		-
-			message: '#^Unused Waaseyaa\\EntityStorage\\SqlEntityQuery\:\:exists$#'
-			identifier: shipmonk.deadMethod
-			count: 1
-			path: packages/entity-storage/src/SqlEntityQuery.php
-
-		-
 			message: '#^Unused Waaseyaa\\EntityStorage\\SqlEntityQuery\:\:notExists$#'
 			identifier: shipmonk.deadMethod
 			count: 1

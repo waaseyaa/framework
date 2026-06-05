@@ -455,6 +455,7 @@ SQL);
 
 final class DiscoveryEntityTypeManager implements EntityTypeManagerInterface
 {
+            public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array { return []; }
     /**
      * @param array<string, EntityStorageInterface> $storages
      */

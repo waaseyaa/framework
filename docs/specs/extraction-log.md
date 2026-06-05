@@ -6,6 +6,72 @@ See `waaseyaa:framework-extraction` skill for the extraction process.
 
 ---
 
+## 2026-05 — genealogy distribution-extension reclassification
+
+**Mission:** `genealogy-package-extraction-01KSEFTZ`
+**Source:** `packages/genealogy/` (in-tree before and after — no physical move)
+**Target:** Packagist `waaseyaa/genealogy` (already split-mirrored; classification flipped from framework-layer to distribution-extension)
+
+### Rationale
+
+`packages/genealogy/` is the first package to be reclassified under the
+framework-vs-distribution boundary codified in charter directive DIR-004 (see
+`charter-amendment-anokii-track-01KSEFE0`). Its subject-matter scope —
+Indigenous family lineage modelling, living-person rules, B2 identity-mapping
+precedence, tombstones — is domain content, not framework substrate. Framework
+consumers (`core`, `cms`, `full`) must not be forced to pull genealogy entities
+to use the entity / storage / relationship / access primitives.
+
+### Scope
+
+Metadata-only classification flip. Package name, namespace, autoload,
+dependencies, split-mirror configuration, src tree, and tests are all
+preserved verbatim. Five files touched: `packages/genealogy/composer.json`
+(description), `docs/specs/genealogy.md` (banner block), `CLAUDE.md` (Layer 6
+table row removed, new `## Distribution Extensions` section added,
+orchestration-table row annotated), `docs/specs/extraction-log.md` (this
+entry), and `.github/workflows/split.yml` (verified unchanged).
+
+### What changed in this repo
+
+- `packages/genealogy/composer.json` `description` now begins
+  `Distribution-extension package —`.
+- `docs/specs/genealogy.md` now opens with a DIR-004 banner block.
+- `CLAUDE.md` Layer 6 table no longer lists `genealogy`; new
+  `## Distribution Extensions` H2 lists it with package / purpose /
+  distribution channel / spec link columns.
+- `CLAUDE.md` orchestration row for `packages/genealogy/*` carries the
+  `(distribution-extension)` annotation.
+
+### Downstream consumer impact
+
+**None.** `waaseyaa/genealogy` keeps its Packagist URL, its PSR-4 namespace
+(`Waaseyaa\Genealogy\`), and its `^<current-tag>` framework constraints.
+Consumers (notably Minoo) require it by name; nothing changes for them.
+
+### Layer-guard reasoning
+
+`bin/check-package-layers` enforces internal `waaseyaa/*` dependency layers
+against the table in `CLAUDE.md`. Because the Layer 6 row no longer lists
+`genealogy`, the script no longer layer-checks it as a framework package; the
+verification command (`bin/check-package-layers`) continues to exit 0 because
+metapackages and packages not in the layer table are skipped. A future
+re-introduction of a genealogy framework-layer dep would surface as a
+classification audit follow-up here (see Follow-ups, below) and via the
+extraction-log entry being out of date relative to actual layer-table state.
+
+### Follow-ups
+
+- Future Bimaaji- or Minoo-specific package extractions should mirror this
+  playbook: rationale → scope → what-changed → downstream-impact →
+  layer-guard-reasoning → follow-ups. Use this entry as the canonical template.
+- A periodic audit should verify that `packages/genealogy/` has not acquired
+  new `require` edges that would make it re-qualify as a framework-layer package
+  (e.g. if it were to depend on a layer-7+ package or add cross-cutting
+  infrastructure concerns).
+
+---
+
 ## 2026-04 — SlugGenerator (#692)
 
 | | |

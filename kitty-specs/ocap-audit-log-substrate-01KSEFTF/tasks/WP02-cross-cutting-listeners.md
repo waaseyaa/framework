@@ -145,3 +145,4 @@ spec-kitty agent tasks move-task WP02 --to for_review --mission ocap-audit-log-s
 ## Activity Log
 - 2026-05-25T05:20:29Z – unknown – Moved to for_review
 - 2026-05-25T05:30:59Z – unknown – Opus review: cross-cutting listeners wired across entity/api/agent/mcp/broadcast; best-effort try-catch preserves primary request; NFR-001 chaos test included
+- 2026-05-26T18:47:41Z – unknown – Done override: Sprint merge to main

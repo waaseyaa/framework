@@ -1,43 +1,50 @@
 ---
 work_package_id: WP03
-title: "Scheduled retention jobs (purge, redact, hold-scan), best-effort wrapping, FR-015 integration test with dead-code guard"
+title: Scheduled retention jobs (purge, redact, hold-scan), best-effort wrapping, FR-015 integration test with dead-code guard
 dependencies:
-  - WP01
-  - WP02
+- WP01
+- WP02
 requirement_refs:
-  - FR-009
-  - FR-010
-  - FR-011
-  - FR-012
-  - FR-015
-  - NFR-004
-  - C-003
-  - C-004
+- FR-009
+- FR-010
+- FR-011
+- FR-012
+- FR-015
+- NFR-004
+- C-003
+- C-004
 planning_base_branch: main
 merge_target_branch: main
-branch_strategy: "Branches from WP02 merge commit. Completed work merges back into main."
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
 subtasks:
-  - T-M
-  - T-N
-  - T-O
-  - T-P
-  - T-Q
-  - T-R
-authoritative_surface: "packages/field/src/Classification/Job"
+- T-M
+- T-N
+- T-O
+- T-P
+- T-Q
+- T-R
+history: []
+authoritative_surface: packages/field/src/Classification/Job
 execution_mode: code_change
 owned_files:
-  - packages/field/src/Classification/Schedule/ClassificationRetentionScheduleEntries.php
-  - packages/field/src/Classification/Job/PurgeJob.php
-  - packages/field/src/Classification/Job/RedactJob.php
-  - packages/field/src/Classification/Job/HoldScanJob.php
-  - packages/field/tests/Unit/Classification/Schedule/ClassificationRetentionScheduleEntriesTest.php
-  - packages/field/tests/Unit/Classification/Job/PurgeJobTest.php
-  - packages/field/tests/Unit/Classification/Job/RedactJobTest.php
-  - packages/field/tests/Unit/Classification/Job/HoldScanJobTest.php
-  - packages/field/tests/Unit/Classification/Job/BestEffortTest.php
-  - tests/Integration/PhaseClassificationRetention/ClassificationRetentionIntegrationTest.php
-tags: ["substrate", "classification", "retention", "scheduler", "integration-test"]
-history: []
+- packages/field/src/Classification/Schedule/ClassificationRetentionScheduleEntries.php
+- packages/field/src/Classification/Job/PurgeJob.php
+- packages/field/src/Classification/Job/RedactJob.php
+- packages/field/src/Classification/Job/HoldScanJob.php
+- packages/field/tests/Unit/Classification/Schedule/ClassificationRetentionScheduleEntriesTest.php
+- packages/field/tests/Unit/Classification/Job/PurgeJobTest.php
+- packages/field/tests/Unit/Classification/Job/RedactJobTest.php
+- packages/field/tests/Unit/Classification/Job/HoldScanJobTest.php
+- packages/field/tests/Unit/Classification/Job/BestEffortTest.php
+- tests/Integration/PhaseClassificationRetention/ClassificationRetentionIntegrationTest.php
+tags:
+- substrate
+- classification
+- retention
+- scheduler
+- integration-test
+agent: "claude:opus:reviewer2:reviewer"
+shell_pid: "506289"
 ---
 
 # WP03 — Scheduled retention jobs + integration test
@@ -120,3 +127,11 @@ spec-kitty agent tasks move-task WP03 --to for_review --mission classification-r
 6. `bin/check-package-layers` + `bin/check-dead-code` + `bin/check-getquery-bindings` green.
 
 ## Activity Log
+- 2026-05-25T21:52:48Z – unknown – Scheduled retention jobs (purge/redact/hold-scan) + ClassificationRetentionScheduleEntries + FR-015 integration test in place. 4 commits (e6fd6a92b..275b73bd3). Gate green: phpunit 477/477 (812 assertions incl FR-015 integration), composer phpstan no errors, cs-check 0/1786, check-dead-code clean (stale SqlEntityQuery::exists baseline entry removed), package-layers/getquery/composer-policy all OK. Best-effort isolation (NFR-004) and hold-vs-purge conflict detection (FR-012) covered.
+- 2026-05-26T10:43:41Z – claude:opus:reviewer:reviewer – shell_pid=485303 – Started review via action command
+- 2026-05-26T10:48:35Z – claude:opus:reviewer:reviewer – shell_pid=485303 – Moved to planned
+- 2026-05-26T10:50:14Z – claude:opus:implementer:implementer – shell_pid=492458 – Started implementation via action command
+- 2026-05-26T11:08:04Z – claude:opus:implementer:implementer – shell_pid=492458 – FR-015 integration test fixed: PurgeJob/HoldScanJob invoked via booted-kernel real composition, retention.purge + hold_vs_purge audit events asserted, load-bearing dead-code guard (FieldServiceProvider clearance binding) verified by-hand
+- 2026-05-26T11:08:52Z – claude:opus:reviewer2:reviewer – shell_pid=506289 – Started review via action command
+- 2026-05-26T11:12:24Z – claude:opus:reviewer2:reviewer – shell_pid=506289 – Re-review (claude:reviewer2) cycle 2 PASSED: all 3 prior blockers fixed — jobs invoked via PurgeJob/HoldScanJob.run() with retention.purge + hold_vs_purge audit-event assertions; real kernel/FieldServiceProvider composition; load-bearing dead-code guard (removing the binding breaks boot); no env hacks in commit 6406513d1; NFR-004/schedule/exists-baseline intact.
+- 2026-05-26T11:17:41Z – claude:opus:reviewer2:reviewer – shell_pid=506289 – Done override: Feature squash-merged to main (b170e0a44)

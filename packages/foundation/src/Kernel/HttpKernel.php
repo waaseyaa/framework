@@ -629,10 +629,21 @@ final class HttpKernel extends AbstractKernel
         return array_values(array_filter($entries, static fn(string $e): bool => $e !== ''));
     }
 
+    /**
+     * SAPIs under which the dev fallback admin account may be enabled.
+     *
+     * `cli-server` is `php -S`. `frankenphp` is the FrankenPHP runtime, which is
+     * also used in production — so the SAPI alone is not a safe gate there. The
+     * real gates remain {@see isDevelopmentMode()} (APP_ENV must be a dev
+     * environment) and the explicit `auth.dev_fallback_account` opt-in below; a
+     * production FrankenPHP deployment satisfies neither and stays locked.
+     */
+    private const array DEV_FALLBACK_SAPIS = ['cli-server', 'frankenphp'];
+
     private function shouldUseDevFallbackAccount(?string $sapi = null): bool
     {
         $resolvedSapi = $sapi ?? PHP_SAPI;
-        if ($resolvedSapi !== 'cli-server') {
+        if (!in_array($resolvedSapi, self::DEV_FALLBACK_SAPIS, true)) {
             return false;
         }
 

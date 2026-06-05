@@ -1,6 +1,9 @@
 # API Layer
 
-<!-- Spec reviewed 2026-05-24 - M4A-5 Phase 1 (#1470) read-only workflow guards: new WorkflowGuardsController + WorkflowGuardsApiRouter follow the same DomainRouterInterface shape. ApiServiceProvider gains a fourth resolveOptional() block for AuthoringRoleMatrix. GET /api/workflow-definitions/{workflow_id}/guards returns {data: [{bundle, transition, required_roles}, ...]} or 404 JSON:API error envelope when the workflow id isn't in the registry. Closure-based workflow registry mirrors WorkflowDefinitionsController (M4A-1). Phase 2 (edit) deferred to #1579 (M4A-5b). -->
+<!-- Spec reviewed 2026-06-04 - PR #1614 (real content types): schema + serialization become bundle-aware. `SchemaController::show(string $entityTypeId, ?string $bundle = null)` scopes the emitted JSON Schema to a content type's bundle via `EntityTypeManagerInterface::resolveFieldDefinitions`, building the prototype entity with the bundle key, so a bundled entity (e.g. a node of bundle `page`) exposes its per-bundle fields (`body`, `blocks`) and not just the shared core fields; `SchemaRouter` threads an optional `?bundle` query param. `ResourceSerializer` filters/casts attributes through the same bundle-aware `resolveFieldDefinitions($entityTypeId, $entity->bundle())`. The admin AdminSurface schema action (`GenericAdminSurfaceHost::handleSchema`) resolves the bundle from the payload `bundle` or from the entity named by `id` and calls the same controller, so the admin edit form, JSON:API, and GraphQL all read through one bundle-aware path. -->
+<!-- Spec reviewed 2026-05-28 - M5C WP01 (mcp-endpoint-admin-01KSEFTL) MCP-admin REST surface: BuiltinRouteRegistrar gains three `_role: admin` routes — GET /api/mcp/tools, GET /api/mcp/tools/{name}, GET /api/mcp/server-config — all dispatched by `McpAdminApiRouter` (supports() matches `_controller` containing `McpAdminController::`) to `McpAdminController` actions `tools`, `tool`, `serverConfig`. Controller deps `ToolRegistryReadModelInterface` and `ServerConfigReadModelInterface` (both `packages/api/src/McpAdmin/`) are nullable: when the bindings are absent the controller returns empty-shape JSON (`{data:{rows:[]}}` / `{data:{tool:null}}` / `{data:{config:null}}`) rather than crashing. The bindings are registered in `packages/mcp/src/McpServiceProvider.php` (Layer 6) via `$this->resolve(...)` / `$this->resolveOptional(...)` — the previous `$this->make(...)` form was retired (no such method on the L0 ServiceProvider base; it crashed boot on installs that exercised the MCP-admin surface). Concrete implementations live in `packages/mcp/src/Admin/{ToolRegistryReadModel,ServerConfigReadModel}.php`. Per-tool detail uses `ToolDetail` (name, summary, description, category, requiredCapabilities, inputSchema JSON Schema 2020-12, recentInvocations list); registry-index rows use `ToolRegistryRow` (name, summary, category, requiredCapabilities). Server-config snapshot uses `ServerConfigSnapshot` (transport `streamable-http|sse`, protocolVersion, registeredClients, serverCapabilities) and per-client `RegisteredClient` (clientId, addedAt, lastSeenAt, tokenFingerprint). `RecentInvocation` carries traceUuid, invokedAt, account, outcome `ok|error`, errorMessage, latencyMs and may be redacted to `_redacted:true` when an `EntityAccessHandler` + `AccountInterface` are wired and the account lacks `ai_observability.view_traces`. NFR-003: no plaintext bearer token ever appears in any response — `tokenFingerprint` is the 16-char lowercase-hex SHA-256 prefix. -->
+<!-- Spec reviewed 2026-05-25 - mission ocap-audit-log-substrate-01KSEFTF WP03: JSON:API audit query endpoint `GET /api/audit/events` (admin-only, filterable by kind/account/entity/date-range, page[limit] max 500, default 50, ordered by created_at DESC). New `AuditQueryReadModelInterface` + `AuditEventResource` + `AuditQueryDto` (api-local DTOs); `ApiAuditQueryAdapter implements AuditQueryReadModelInterface` bridges L0 `AuditQueryInterface` into L4 DTOs (api→audit = downward = allowed). `AuditQueryController` is null-safe: null read model → empty `{data:[], meta:{total:0}}` (dead-code guard FR-013). `AuditApiRouter implements DomainRouterInterface` mirrors WorkflowGuardsApiRouter shape. `ApiServiceProvider::register()` adds `singleton(AuditQueryReadModelInterface::class, ApiAuditQueryAdapter(...))` wired via string-based resolution (waaseyaa/audit in require-dev, C-002). `ApiServiceProvider::httpDomainRouters()` gains an `AuditApiRouter` block via `resolveOptional`. Route registered in `BuiltinRouteRegistrar` (WP01). Refs gap-matrix-A3, DIR-004. -->
+<!-- Spec reviewed 2026-05-25 - M4A-5 Phase 1 (#1470) read-only workflow guards: new WorkflowGuardsController + WorkflowGuardsApiRouter follow the same DomainRouterInterface shape. ApiServiceProvider gains a fourth resolveOptional() block for AuthoringRoleMatrix. GET /api/workflow-definitions/{workflow_id}/guards returns {data: [{bundle, transition, required_roles}, ...]} or 404 JSON:API error envelope when the workflow id isn't in the registry. Closure-based workflow registry mirrors WorkflowDefinitionsController (M4A-1). Phase 2 (edit) deferred to #1579 (M4A-5b). -->
 <!-- Spec reviewed 2026-05-24 - #1576 queue dashboard listJobs extension: QueueController.index() now accepts ?status=failed|queued|in_progress|all (default failed for M4B backward compat). Failed branch keeps the FailedJobRepository path; queued/in_progress branches delegate to TransportInterface::listJobs(); all merges. ApiServiceProvider's queue resolveOptional block also resolves TransportInterface (optional, falls back to failed-only). QueueController constructor gains nullable ?TransportInterface third arg. JSON:API meta envelope unchanged ({page, per_page, total}) so existing callers stay compatible. -->
 <!-- Spec reviewed 2026-05-24 - M4C (#1472) admin notification channels dashboard: new NotificationController + NotificationAdminApiRouter follow the established DomainRouterInterface shape. ApiServiceProvider gains a third resolveOptional() block for NotificationDispatcher::class. New endpoints GET /api/notification/channels (lists `{type, class}` map) and POST /api/notification/channels/{type}/test (synthetic test send, never serialises a `\Throwable`). Pattern parity with QueueController. Delivery log + channel enable/disable deferred to follow-up #1578. -->
 <!-- Spec reviewed 2026-05-24 - M4B (#1471) admin queue + scheduler dashboards: two new domain routers (QueueAdminApiRouter, SchedulerAdminApiRouter) and matching controllers (QueueController, SchedulerController) land under packages/api/src/. Both follow the existing DomainRouterInterface shape (supports/handle, JSON:API error envelope) and are wired by ApiServiceProvider::httpDomainRouters() via the same resolveOptional() pattern AuthOidcRouteServiceProvider uses — Layer-0 bindings (FailedJobRepositoryInterface + QueueInterface for queue; ScheduleInterface + ScheduleRunner + ScheduleStateRepository for scheduler) resolved at boot, skipped gracefully on slimmed-down installs. Routes registered in BuiltinRouteRegistrar with `_role: admin` (the controllers never re-check). Spec body is otherwise unchanged: JSON:API resource contract, pagination meta, DomainRouterInterface dispatch all carry over verbatim. See docs/specs/admin-spa.md for the consumer-side route inventory. -->
@@ -54,6 +57,41 @@ Foundation still wires several shared HTTP surfaces that are not entity-package 
 
 **Response JSON (admin SPA):** Successful payloads use **camelCase** keys aligned with the admin composable **`useCodifiedContext`** (`packages/admin/app/composables/useCodifiedContext.ts`): session list and `GET …/sessions/{id}` return objects with `sessionId`, `startedAt`, `endedAt`, `durationMs`, `eventCount`, `latestDriftScore`, `latestSeverity`, etc. (timestamps as ISO-8601/RFC3339 strings). `GET …/events` returns rows with `eventType` (semantic type: stored `event_type` underscores mapped to dots, e.g. `context_load` → `context.load`), `createdAt`, and `data`. `GET …/validation` returns a single flat validation object (`driftScore` as 0–100 integer, `components`, `issues`, `recommendation`, `validatedAt`) — not a nested `report` envelope.
 
+### MCP-admin REST surface
+
+The MCP-admin read API powers the admin SPA's MCP-endpoint dashboard (M5C WP01, mission `mcp-endpoint-admin-01KSEFTL`). All three routes are registered in `BuiltinRouteRegistrar` with `_role: admin`; the controller does **not** re-check the role (NFR-001 / DIR-004).
+
+| Route | Method | Controller action | Response shape |
+|-------|--------|------------------|----------------|
+| `/api/mcp/tools` | `GET` | `McpAdminController::tools` | `{data: {rows: list<{name, summary, category, requiredCapabilities}>}}` |
+| `/api/mcp/tools/{name}` | `GET` | `McpAdminController::tool` | `{data: {tool: ToolDetail|null}}` |
+| `/api/mcp/server-config` | `GET` | `McpAdminController::serverConfig` | `{data: {config: ServerConfigSnapshot|null}}` |
+
+Dispatch lives in `Waaseyaa\Api\Http\Router\McpAdminApiRouter` (implements `DomainRouterInterface`; `supports()` matches when the `_controller` attribute contains `McpAdminController::`). It mirrors the `MercureMonitorApiRouter` shape and returns `application/vnd.api+json` with status 200, or a JSON:API error envelope for unknown actions (404) / invalid controller refs (500).
+
+The `{name}` segment is `rawurldecode()`-ed once inside `tool()` so tool names containing dots (e.g. `bimaaji.search_specs`) survive double URL encoding by the SPA client.
+
+**Read-model bindings.** The controller depends on two **api-local** interfaces under `Waaseyaa\Api\McpAdmin\`:
+
+- `ToolRegistryReadModelInterface` — `listTools(): list<ToolRegistryRow>` and `findTool(string): ?ToolDetail`.
+- `ServerConfigReadModelInterface` — `serverConfig(): ServerConfigSnapshot`.
+
+Both interfaces live in L4 `packages/api/`. The concrete implementations live in L6 `packages/mcp/src/Admin/` (`ToolRegistryReadModel`, `ServerConfigReadModel`) and are bound in `packages/mcp/src/McpServiceProvider.php`. The provider resolves dependencies through `$this->resolve(...)` for required deps (`AgentToolRegistryInterface`, `McpAuthInterface`) and `$this->resolveOptional(...)` for optional deps (`RecentInvocationsQueryInterface`, which is absent on installs without `waaseyaa/ai-observability`). The previous `$this->make(...)` form was retired — that method does not exist on the L0 `ServiceProvider` base, and the unguarded call crashed kernel boot on installs that exercised the MCP-admin surface.
+
+Both controller deps are nullable (`?ToolRegistryReadModelInterface = null`, `?ServerConfigReadModelInterface = null`) so slimmed-down installs without `waaseyaa/mcp` boot cleanly and the endpoints return empty-shape payloads (`{data: {rows: []}}`, `{data: {tool: null}}`, `{data: {config: null}}`) instead of 500.
+
+**DTOs.** All under `packages/api/src/McpAdmin/`:
+
+- `ToolRegistryRow` — `{name, summary, category, requiredCapabilities: list<string>}` (registry-index row).
+- `ToolDetail` — `{name, summary, description, category, requiredCapabilities, inputSchema: array<string,mixed> (JSON Schema 2020-12), recentInvocations: list<RecentInvocation>}` (max 25 invocations).
+- `RecentInvocation` — `{traceUuid, invokedAt, account, outcome: 'ok'|'error', errorMessage, latencyMs}`.
+- `RegisteredClient` — `{clientId, addedAt, lastSeenAt, tokenFingerprint}` (16-char lowercase-hex SHA-256 prefix of the client bearer token).
+- `ServerConfigSnapshot` — `{transport: 'streamable-http'|'sse', protocolVersion, registeredClients: list<RegisteredClient>, serverCapabilities: list<string>}`.
+
+**NFR-003 (no plaintext token leak).** No plaintext bearer token ever appears in any response shape. Clients surface only via `tokenFingerprint`, which is enough for operator correlation without exposing the secret.
+
+**Field-access redaction (M-A5 hook).** When the controller is wired with both an `EntityAccessHandler` and an authenticated `AccountInterface`, `serializeInvocations()` checks `ai_observability.view_traces` on the account. If the permission is missing, the row's `account` and `errorMessage` are nulled and `_redacted: true` is set so the SPA can render a placeholder. Without the access-handler+account pair the controller emits full invocation rows (the dashboard then relies on route-level `_role: admin` for protection).
+
 ### packages/api/
 
 | File | Namespace | Purpose |
@@ -84,6 +122,15 @@ Foundation still wires several shared HTTP surfaces that are not entity-package 
 | `src/Exception/JsonApiDocumentException.php` | `Waaseyaa\Api\Exception` | Exception carrying a JsonApiDocument error response for controller helpers |
 | `src/MutableTranslatableInterface.php` | `Waaseyaa\Api` | Extension of TranslatableInterface with `addTranslation()` |
 | `src/Http/Router/DiscoveryRouter.php` | `Waaseyaa\Api\Http\Router` | Discovery topic hub, cluster, timeline, and endpoint pages (`discovery.*` controllers); uses `DiscoveryApiHandler` |
+| `src/Http/Router/McpAdminApiRouter.php` | `Waaseyaa\Api\Http\Router` | Dispatches `/api/mcp/{tools,tools/{name},server-config}` to `McpAdminController` actions (M5C WP01) |
+| `src/Controller/McpAdminController.php` | `Waaseyaa\Api\Controller` | Admin-only read controller for the MCP-endpoint admin surface; nullable read-model deps return empty-shape on missing bindings (M5C WP01) |
+| `src/McpAdmin/ToolRegistryReadModelInterface.php` | `Waaseyaa\Api\McpAdmin` | Read contract for the MCP tool registry — `listTools()` + `findTool(name)`. Implementation in `packages/mcp/src/Admin/ToolRegistryReadModel.php` (L6) |
+| `src/McpAdmin/ServerConfigReadModelInterface.php` | `Waaseyaa\Api\McpAdmin` | Read contract for the MCP server-config snapshot. Implementation in `packages/mcp/src/Admin/ServerConfigReadModel.php` (L6) |
+| `src/McpAdmin/ToolRegistryRow.php` | `Waaseyaa\Api\McpAdmin` | Registry-index DTO `{name, summary, category, requiredCapabilities}` |
+| `src/McpAdmin/ToolDetail.php` | `Waaseyaa\Api\McpAdmin` | Per-tool detail DTO `{name, summary, description, category, requiredCapabilities, inputSchema (JSON Schema 2020-12), recentInvocations}` |
+| `src/McpAdmin/RecentInvocation.php` | `Waaseyaa\Api\McpAdmin` | Audit/trace row `{traceUuid, invokedAt, account, outcome: ok\|error, errorMessage, latencyMs}` |
+| `src/McpAdmin/RegisteredClient.php` | `Waaseyaa\Api\McpAdmin` | MCP client record `{clientId, addedAt, lastSeenAt, tokenFingerprint}` — `tokenFingerprint` is a 16-char SHA-256 hex prefix (NFR-003) |
+| `src/McpAdmin/ServerConfigSnapshot.php` | `Waaseyaa\Api\McpAdmin` | Server-config snapshot `{transport, protocolVersion, registeredClients, serverCapabilities}` |
 
 ### packages/routing/
 
@@ -881,12 +928,23 @@ packages/api/
     Controller/
       BroadcastStorage.php
       CodifiedContextController.php
+      McpAdminController.php
       SchemaController.php
       TranslationController.php
     Exception/
       JsonApiDocumentException.php
     Http/
       DiscoveryApiHandler.php
+      Router/
+        McpAdminApiRouter.php
+    McpAdmin/
+      RecentInvocation.php
+      RegisteredClient.php
+      ServerConfigReadModelInterface.php
+      ServerConfigSnapshot.php
+      ToolDetail.php
+      ToolRegistryReadModelInterface.php
+      ToolRegistryRow.php
     OpenApi/
       OpenApiGenerator.php
       SchemaBuilder.php
@@ -1005,3 +1063,6 @@ bin/check-symfony-imports --list-stale # also reports legacy_files entries
 <!-- Spec reviewed 2026-05-25 - mission ocap-audit-log-substrate-01KSEFTF: introduces `waaseyaa/audit` package (renamed from `analytics`) as the canonical OCAP audit log. New entity `AuditEvent` with append-only semantics indexed by `(account_uuid, entity_uuid, event_kind, occurred_at)`. Listeners on entity lifecycle, API requests, agent runs, MCP dispatch, and broadcasting; best-effort try-catch wrapping per CLAUDE.md gotcha. Query API `GET /api/audit/events` with filterable `kind`/`account`/`entity`/`date-range`. Retention CLI `bin/waaseyaa audit:prune --older-than=<duration>`. Operationally embodies DIR-004 (OCAP-by-architecture) at the substrate layer; M-A5 is the per-record AI-access wiring on top of it. -->
 
 <!-- Spec reviewed 2026-05-25 - mission per-record-ai-access-flagship-01KSEFT5 (gap-matrix A5): operationally embodies DIR-004. WP02 wires `FieldAccessPolicyInterface` into the MCP entity serializer (`packages/mcp/src/Serializer/McpEntityFieldFilter`); forbidden fields are replaced in MCP responses with `{accessRestricted: true, reason: "field_forbidden_for_account"}` (canonical redaction shape, single source of truth). WP03 adds `AiAccessibleField` tri-state field type (`yes/no/inherit`, default `inherit`) on `media` and `attachment` entities; `AiAccessibilityPolicy` (intersection type implementing `AccessPolicyInterface & FieldAccessPolicyInterface`) returns Forbidden only when `ai_accessible='no'` AND the request is agent-initiated (detected via `_agent_run_id` request attribute, no L1↔L5 coupling). -->
+
+<!-- Spec reviewed 2026-05-25 - mission api-surface-consolidation-jsonapi-primary-01KSEFTV: JSON:API declared the framework's primary API surface (DIR-007). GraphQL demoted from waaseyaa/full require to suggest; README banner added to packages/graphql/. Parity matrix in docs/specs/jsonapi.md confirms zero GAP rows — all GraphQL entity operations (list, show, create, update, delete) have JSON:API equivalents via JsonApiController. Admin-specific endpoints (queue, scheduler, notifications, workflow guards, Mercure monitor, OIDC clients, audit, discovery, broadcast, field auto-save, translations) are JSON:API-only with no GraphQL equivalent (no gap — JSON:API is primary). -->
+<!-- Spec reviewed 2026-05-25 - mission versioned-blob-media-abstraction-01KSEFTJ WP03 (DIR-005): adds `GET /api/media/{uuid}/versions` (list) and `GET /api/media/{uuid}/versions/{vid}` (show) read-only endpoints. Gated by `_authenticated` route option. Per-version access filtering via `GateInterface` in `ApiMediaVersionAdapter` — forbidden versions silently omitted from list, 403 on direct show. Binary-stream download deferred (FR-010). DTOs and interface in `packages/api/src/Media/` (`MediaVersionReadModelInterface`, `MediaVersionResource`, `ApiMediaVersionAdapter`). Controller `MediaVersionController` returns typed array payloads; router `MediaVersionApiRouter` maps to JSON:API responses. Routes registered in `BuiltinRouteRegistrar` (`api.media.versions.index`, `api.media.versions.show`). Wired in `ApiServiceProvider::register()` (singleton) and `httpDomainRouters()`. Integration-tested by `PhaseMediaVersioning/MediaVersioningIntegrationTest` (dedup + ordering) and `ForbiddenVersionIntegrationTest` (per-version gate). Refs FR-008, FR-009, FR-013, FR-014. -->

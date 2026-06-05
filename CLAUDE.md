@@ -23,6 +23,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | File pattern | Specialist skill | Cold memory spec |
 |---|---|---|
 | `packages/entity/*`, `packages/entity-storage/*`, `packages/field/*` | `waaseyaa:entity-system` | `docs/specs/entity-system.md` |
+| `packages/field/src/Classification/*`, `packages/field/src/Entity/{ClassificationLabelDefinition,RetentionPolicy}.php`, `packages/admin/app/pages/classification/*` (classification labels, inheritance, clearance/hold access, retention jobs) | — | `docs/specs/classification-and-retention.md` |
 | `packages/entity-storage/src/{Schema/TranslationSchemaHandler,Schema/RevisionTableBuilder,Driver/RevisionableStorageDriver,Listing/TwoAxisFilterResolver,Revision/RevisionPruningPolicy,Exception/StorageMigrationException}.php`, `packages/access/src/Policy/RevisionPolicyComposition.php` (two-axis storage: revisionable × translatable) | — | `docs/specs/entity-storage-two-axis.md`, `docs/cookbook/translatable-revisionable-entities.md`, `docs/upgrade-notes/two-axis-storage.md`, `docs/specs/entity-storage-translatable-revisions.md` |
 | `packages/config/*` (active store, runtime read API) | `waaseyaa:entity-system` | `docs/specs/entity-system.md` |
 | `packages/config/src/{Sync,Dependency,Audit,Backend}/*`, `packages/cli/src/Command/Config/*` (CMI: sync store, `config:*` CLI, `config.audit`) | — | `docs/specs/config-management.md`, `docs/cookbook/config-sync.md`, `docs/adr/018-configuration-management-sync.md` |
@@ -44,9 +45,10 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/mcp/*` | `waaseyaa:mcp-endpoint` | `docs/specs/mcp-endpoint.md` |
 | `public/index.php` | `waaseyaa:middleware-pipeline` | `docs/specs/http-entry-point.md` |
 | `packages/*/src/Middleware/*` | `waaseyaa:middleware-pipeline` | `docs/specs/middleware-pipeline.md` |
+| `packages/media/*`, `packages/media/src/Version/*` | — | `docs/specs/entity-storage-two-axis.md` (cross-ref: DIR-005 versioned blob) |
 | `packages/note/*` | — | `docs/specs/ingestion-defaults.md` |
 | `packages/relationship/*` | — | `docs/specs/relationship-modeling.md`, `docs/specs/relationship-inference-contract.md` |
-| `packages/genealogy/*` | — | `docs/specs/genealogy.md`, `docs/specs/relationship-modeling.md` |
+| `packages/genealogy/*` | — (distribution-extension) | `docs/specs/genealogy.md`, `docs/specs/relationship-modeling.md` |
 | `packages/graphql/*` | — | `packages/graphql/README.md` |
 | `packages/search/*` | — | `packages/search/README.md` |
 | `packages/seo/*` | — | `docs/specs/seo.md` |
@@ -85,13 +87,13 @@ When the mapping is not obvious, search under `docs/specs/` (e.g. `rg -n "TopicO
 
 | Layer | Name | Packages |
 |---|---|---|
-| 0 | Foundation | agent-output, analytics, cache, database-legacy, error-handler, foundation, geo, http-client, i18n, ingestion, mail, mercure, oauth-provider, plugin, queue, scheduler, state, typed-data, validation |
+| 0 | Foundation | agent-output, analytics, cache, database-legacy, error-handler, foundation, geo, http-client, i18n, ingestion, mail, mercure, oauth-provider, page-builder, plugin, queue, scheduler, state, typed-data, validation |
 | 1 | Core Data | entity, entity-storage, access, audit, user, config, field, auth, oidc, testing |
 | 2 | Content Types | node, taxonomy, media, path, menu, note, relationship, groups, engagement |
 | 3 | Services | workflows, search, seo, notification, billing, github, migration, northcloud, listing, messaging |
 | 4 | API | api, bimaaji, routing |
 | 5 | AI | ai-agent, ai-observability, ai-pipeline, ai-schema, ai-vector |
-| 6 | Interfaces | cli, admin-surface, graphql, mcp, ssr, genealogy, telescope, deployer, inertia, debug |
+| 6 | Interfaces | cli, admin-surface, graphql, mcp, ssr, telescope, deployer, inertia, debug |
 
 **Rule:** Packages can only import from their own layer or lower. Upward communication via DomainEvents.
 
@@ -100,6 +102,18 @@ When the mapping is not obvious, search under `docs/specs/` (e.g. `rg -n "TopicO
 **Exemption:** The `Kernel/` classes in Foundation (`AbstractKernel`, `HttpKernel`, `ConsoleKernel`) are application bootstrappers that wire all layers together. They intentionally import from all layers. This is acceptable because kernels are entry-point orchestrators, not reusable library code — no other package imports from them.
 
 **Auth and OIDC HTTP routes:** Route registration (RouteBuilder / WaaseyaaRouter) for `waaseyaa/auth` and `waaseyaa/oidc` is implemented in `Waaseyaa\Routing\AuthOidcRouteServiceProvider` ([packages/routing](packages/routing)) so L1 auth/oidc packages do not `use` Layer 4 routing types. Service bindings stay in their respective L1 `ServiceProvider` classes; only route wiring is lifted to L4.
+
+## Distribution Extensions
+
+Distribution-extension packages live in `packages/` and split-mirror to Packagist
+on the same release cadence as the framework, but they are **not** part of the
+framework substrate. Consumers (Nation distributions, civic-tech apps) opt into
+them by name. They are not required by `core`, `cms`, or `full`. The
+framework-vs-distribution boundary is codified in charter directive DIR-004.
+
+| Package | Purpose | Distribution channel | Spec |
+|---|---|---|---|
+| `genealogy` | Indigenous family lineage modelling — `genealogy_person`, `genealogy_family`, `genealogy_event`, `genealogy_tree`, lineage / spouse / membership / identity relationship bundles, OCAP-aligned access policies, public SSR pedigree views | Packagist `waaseyaa/genealogy` (split-mirror) | [docs/specs/genealogy.md](docs/specs/genealogy.md) |
 
 ## Operation Checklists
 

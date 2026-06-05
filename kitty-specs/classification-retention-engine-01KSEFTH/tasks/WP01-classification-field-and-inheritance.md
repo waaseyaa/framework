@@ -1,50 +1,55 @@
 ---
 work_package_id: WP01
-title: "Classification field type, ClassificationLabelDefinition entity, LabelInheritanceResolver + parent resolvers, EntityLifecycleSubscriber, label-seed YAML"
+title: Classification field type, ClassificationLabelDefinition entity, LabelInheritanceResolver + parent resolvers, EntityLifecycleSubscriber, label-seed YAML
 dependencies: []
 requirement_refs:
-  - FR-001
-  - FR-002
-  - FR-003
-  - FR-004
-  - FR-007
-  - NFR-001
-  - NFR-005
-  - C-001
-  - C-002
-  - C-005
+- FR-001
+- FR-002
+- FR-003
+- FR-004
+- FR-007
+- NFR-001
+- NFR-005
+- C-001
+- C-002
+- C-005
 planning_base_branch: main
 merge_target_branch: main
-branch_strategy: "Planning artifacts generated on main. WP branches from main once ocap-audit-log-substrate-01KSEFTF has merged; completed work merges back into main."
+branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
 subtasks:
-  - T-A
-  - T-B
-  - T-C
-  - T-D
-  - T-E
-authoritative_surface: "packages/field/src/Classification"
+- T-A
+- T-B
+- T-C
+- T-D
+- T-E
+agent: claude
+history: []
+authoritative_surface: packages/field/src/Classification
 execution_mode: code_change
 owned_files:
-  - packages/field/src/Classification/ClassificationLabelFieldType.php
-  - packages/field/src/Classification/ClassificationDecision.php
-  - packages/field/src/Classification/LabelInheritanceResolver.php
-  - packages/field/src/Classification/ClassificationParentResolverInterface.php
-  - packages/field/src/Classification/ParentResolver/MediaParentResolver.php
-  - packages/field/src/Classification/ParentResolver/NodeParentResolver.php
-  - packages/field/src/Classification/ParentResolver/AttachmentParentResolver.php
-  - packages/field/src/Classification/EntityLifecycleSubscriber.php
-  - packages/field/src/Form/Widget/ClassificationLabelWidget.php
-  - packages/field/src/Entity/ClassificationLabelDefinition.php
-  - packages/field/migrations/2026_05_25_000003_create_classification_label_definition_table.php
-  - packages/field/defaults/classification-labels.yaml
-  - packages/field/src/Attribute/FieldTemplate.php
-  - packages/field/src/FieldServiceProvider.php
-  - packages/field/tests/Unit/Classification/LabelInheritanceResolverTest.php
-  - packages/field/tests/Unit/Classification/EntityLifecycleSubscriberTest.php
-  - packages/field/tests/Unit/Entity/ClassificationLabelDefinitionTest.php
-tags: ["substrate", "classification", "field-type", "inheritance", "layer-1"]
-history: []
-agent: "claude"
+- packages/field/src/Classification/ClassificationLabelFieldType.php
+- packages/field/src/Classification/ClassificationDecision.php
+- packages/field/src/Classification/LabelInheritanceResolver.php
+- packages/field/src/Classification/ClassificationParentResolverInterface.php
+- packages/field/src/Classification/ParentResolver/MediaParentResolver.php
+- packages/field/src/Classification/ParentResolver/NodeParentResolver.php
+- packages/field/src/Classification/ParentResolver/AttachmentParentResolver.php
+- packages/field/src/Classification/EntityLifecycleSubscriber.php
+- packages/field/src/Form/Widget/ClassificationLabelWidget.php
+- packages/field/src/Entity/ClassificationLabelDefinition.php
+- packages/field/migrations/2026_05_25_000003_create_classification_label_definition_table.php
+- packages/field/defaults/classification-labels.yaml
+- packages/field/src/Attribute/FieldTemplate.php
+- packages/field/src/FieldServiceProvider.php
+- packages/field/tests/Unit/Classification/LabelInheritanceResolverTest.php
+- packages/field/tests/Unit/Classification/EntityLifecycleSubscriberTest.php
+- packages/field/tests/Unit/Entity/ClassificationLabelDefinitionTest.php
+tags:
+- substrate
+- classification
+- field-type
+- inheritance
+- layer-1
 ---
 
 # WP01 — Classification field type + label inheritance
@@ -122,3 +127,4 @@ spec-kitty agent tasks move-task WP01 --to for_review --mission classification-r
 
 ## Activity Log
 - 2026-05-25T06:11:05Z – claude – Moved to in_progress
+- 2026-05-26T11:17:38Z – claude – Done override: Feature squash-merged to main (b170e0a44)

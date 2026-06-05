@@ -29,8 +29,10 @@ provide(schemaFormContextKey, {
 })
 
 // Load schema, then optionally load existing entity if schema succeeded.
+// In edit mode the entity id scopes the schema to the record's bundle so its
+// per-bundle fields (e.g. a page's body) appear in the form.
 onMounted(async () => {
-  await fetchSchema()
+  await fetchSchema(props.entityId)
 
   if (schema.value && props.entityId) {
     // Edit mode: load existing entity.

@@ -76,16 +76,27 @@ describe('NavBuilder', () => {
     const wrapper = await mountSuspended(NavBuilder)
 
     expect(wrapper.text()).toContain('Dashboard')
-    // M4B WP01 + WP02 + M4C WP01 add an always-present "Operations" nav
-    // section with links to /workflows, /queue, /scheduler, and
-    // /notifications, so the dashboard is no longer the only nav element
-    // when the catalog is empty.
+    // Two always-present static sections when the catalog is empty:
+    //  - "Operations" (M4B/M4C/M5D): /workflows, /queue, /scheduler,
+    //    /notifications, /mercure/monitor.
+    //  - "Governance" (classification-retention-engine-01KSEFTH WP04):
+    //    /classification/policies.
     expect(wrapper.text()).toContain('Operations')
+    expect(wrapper.text()).toContain('Governance')
     expect(wrapper.find('[data-testid="nav-queue"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="nav-scheduler"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="nav-notifications"]').exists()).toBe(true)
-    expect(wrapper.findAll('.nav-section')).toHaveLength(1)
-    expect(wrapper.findAll('a')).toHaveLength(5)
+    expect(wrapper.find('[data-testid="nav-classification-policies"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="nav-mcp-tools"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="nav-mcp-server-config"]').exists()).toBe(true)
+    // Static sections when the catalog is empty (M5C MCP section ships
+    // alongside Operations + Governance):
+    //  - MCP (M5C): /mcp/tools, /mcp/server-config
+    //  - Operations: /workflows, /queue, /scheduler, /notifications, /mercure/monitor
+    //  - Governance: /classification/policies
+    // 3 sections; links: dashboard + 2 (MCP) + 5 (Operations) + 1 (Governance) = 9.
+    expect(wrapper.findAll('.nav-section')).toHaveLength(3)
+    expect(wrapper.findAll('a')).toHaveLength(9)
   })
 
   it('renders the pipeline link when the catalog entry declares board-config', async () => {

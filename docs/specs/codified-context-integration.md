@@ -175,3 +175,19 @@ When creating a new Waaseyaa application:
 3. Add app-specific rules to `.claude/rules/` if needed
 4. Create `docs/specs/` entries for each app domain
 5. Populate the orchestration table as features are built
+
+---
+
+## Cross-Reference: OCAP Audit Log Read-Contract Pattern
+
+The OCAP audit log substrate (`packages/audit`, L1) uses the same L0↔L4
+read-contract pattern documented throughout this spec. The read-side contract
+(`AuditQueryInterface`) lives in L0; the api-local read-model interface
+(`AuditQueryReadModelInterface`) lives in L4 (`packages/api/src/Audit/`).
+The adapter (`ApiAuditQueryAdapter`) also lives in L4 and imports the L0
+interface — the import direction is api→audit (downward = allowed). The binding
+is registered in `ApiServiceProvider::register()` as a container singleton.
+
+This is the same pattern used by the AI observability dashboard (M5A) and
+the Mercure broadcast monitor (M5D). See `docs/specs/ocap-audit-log.md` for
+the full audit substrate contract.

@@ -27,4 +27,19 @@ final readonly class BearerTokenAuth implements McpAuthInterface
 
         return $this->tokens[$token] ?? null;
     }
+
+    /**
+     * Expose the registered token strings for admin-surface fingerprinting.
+     *
+     * Used exclusively by `ServerConfigReadModel` to derive `tokenFingerprint`
+     * values (NFR-003: only the first 16 chars of SHA-256 are returned; the
+     * plaintext token never leaves this class or its direct caller).
+     *
+     * @return array<string, AccountInterface> Token → Account mapping.
+     * @api
+     */
+    public function getTokens(): array
+    {
+        return $this->tokens;
+    }
 }

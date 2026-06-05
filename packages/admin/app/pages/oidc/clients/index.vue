@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { OidcClient } from '~/composables/useOidcClients'
+import { useLanguage } from '~/composables/useLanguage'
 
 const { list, remove } = useOidcClients()
-const { t } = useI18n()
+const { t } = useLanguage()
 
 const clients = ref<OidcClient[]>([])
 const loading = ref(true)

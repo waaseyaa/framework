@@ -1,6 +1,6 @@
 {
     "name": "waaseyaa/graphql",
-    "description": "GraphQL endpoint for Waaseyaa \u2014 auto-generated schema from entity types",
+    "description": "GraphQL endpoint + schema introspection for Waaseyaa \u2014 optional/experimental L6 surface; see README for the primary JSON:API framing.",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [

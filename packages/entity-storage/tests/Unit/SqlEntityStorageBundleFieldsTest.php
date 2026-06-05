@@ -12,6 +12,9 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
@@ -195,10 +198,14 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
             },
         );
 
-        // Poison the cache so writesSubtable=true, then drop the real subtable
-        // so upsertBundleRow hits "no such table" inside the transaction.
-        $cacheProp = new \ReflectionProperty(SqlEntityStorage::class, 'bundleSubtableCache');
-        $cacheProp->setValue($storage, ['group__business' => true]);
+        // Make the bundle gateway believe the subtable exists (poison its cache),
+        // then drop the real subtable so the upsert hits "no such table" inside the
+        // transaction, exercising the rollback path.
+        $gatewayMethod = new \ReflectionMethod(SqlEntityStorage::class, 'bundleGateway');
+        $gateway = $gatewayMethod->invoke($storage);
+        self::assertNotNull($gateway);
+        $existsProp = new \ReflectionProperty($gateway::class, 'existsCache');
+        $existsProp->setValue($gateway, ['business' => true]);
         $this->database->getConnection()->executeStatement('DROP TABLE "group__business"');
 
         $entity = $storage->create([
@@ -230,11 +237,12 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
      */
     /**
      * Test 5: when bundle-scoped fields are present but the bundle subtable is
-     * missing at save time, the write continues on the base row and emits a
-     * deterministic notice instead of failing silently.
+     * missing at save time, the write continues on the base row, the column-bound
+     * bundle value is folded into the base `_data` blob (NEVER a silent drop), a
+     * loud warning is emitted, and the value is recovered on load.
      */
     #[Test]
-    public function saveEmitsNoticeWhenBundleSubtableIsMissing(): void
+    public function saveLogsWarningAndFallsBackToDataWhenBundleSubtableIsMissing(): void
     {
         $this->registerBusinessFields();
         $this->ensureSchema(['business']);
@@ -256,7 +264,7 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
 
             public function log(\Waaseyaa\Foundation\Log\LogLevel $level, string|\Stringable $message, array $context = []): void
             {
-                if ($level === \Waaseyaa\Foundation\Log\LogLevel::NOTICE) {
+                if ($level === \Waaseyaa\Foundation\Log\LogLevel::WARNING) {
                     $this->messages[] = (string) $message;
                 }
             }
@@ -278,11 +286,15 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
         self::assertCount(1, $messages);
         self::assertStringContainsString('[MISSING_BUNDLE_SUBTABLE]', $messages[0]);
         self::assertStringContainsString('entity type "group" bundle "business"', $messages[0]);
-        self::assertStringContainsString('subtable "group__business"', $messages[0]);
+        self::assertStringContainsString('"group__business"', $messages[0]);
+        self::assertStringContainsString('_data', $messages[0], 'the fallback path is named in the warning');
 
+        // Never a silent drop: the bundle value is folded into the base `_data`
+        // blob and recovered on load.
         $loaded = $storage->load($entity->id());
         self::assertNotNull($loaded);
-        self::assertFalse($loaded->hasField('email'));
+        self::assertTrue($loaded->hasField('email'), 'the value is recovered from the _data fallback');
+        self::assertSame('hi@acme.example', $loaded->get('email'));
     }
 
     /**
@@ -385,6 +397,67 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
         $loaded = $storage->load($entity->id());
         self::assertNotNull($loaded);
         self::assertSame('Solo', $loaded->label());
+    }
+
+    /**
+     * Cross-path unification: write an entity through the EntityRepository (the
+     * migration / canonical write path) and read it back through SqlEntityStorage
+     * (the admin/API getStorage() path). Both share the single
+     * {@see \Waaseyaa\EntityStorage\Bundle\BundleSubtableGateway}, so the bundle
+     * values round-trip identically from the typed subtable columns, never the
+     * `_data` blob.
+     */
+    #[Test]
+    public function bundleValuesRoundTripAcrossRepositoryWriteAndStorageRead(): void
+    {
+        $this->registerBusinessFields();
+        $this->ensureSchema(['business']);
+
+        $resolver = new SingleConnectionResolver($this->database);
+        $driver = new SqlStorageDriver($resolver, 'gid');
+        $repository = new EntityRepository(
+            $this->groupType,
+            $driver,
+            $this->dispatcher,
+            database: $this->database,
+            fieldRegistry: $this->registry,
+        );
+        $storage = $this->makeStorage();
+
+        // WRITE through the repository.
+        $entity = $storage->create([
+            'uuid' => 'uuid-xpath',
+            'type' => 'business',
+            'label' => 'Acme',
+            'langcode' => 'en',
+            'email' => 'cross@acme.example',
+            'phone' => '555-0199',
+        ]);
+        $repository->save($entity, validate: false);
+        $id = $entity->id();
+        self::assertNotNull($id);
+        $id = (int) $id;
+
+        // The values landed in the subtable COLUMNS, not the base `_data` blob.
+        $sub = \iterator_to_array(
+            $this->database->query('SELECT email, phone FROM "group__business" WHERE gid = ' . $id, []),
+        );
+        self::assertCount(1, $sub, 'a subtable row was written by the repository path');
+        self::assertSame('cross@acme.example', ((array) $sub[0])['email']);
+        self::assertSame('555-0199', ((array) $sub[0])['phone']);
+
+        $baseRows = \iterator_to_array(
+            $this->database->query('SELECT _data FROM "group" WHERE gid = ' . $id, []),
+        );
+        $data = \json_decode((string) (((array) $baseRows[0])['_data'] ?? '{}'), true) ?: [];
+        self::assertArrayNotHasKey('email', $data, 'bundle value must not leak into _data');
+        self::assertArrayNotHasKey('phone', $data, 'bundle value must not leak into _data');
+
+        // READ through the storage path: identical round-trip from the columns.
+        $loaded = $storage->load($id);
+        self::assertNotNull($loaded);
+        self::assertSame('cross@acme.example', $loaded->get('email'));
+        self::assertSame('555-0199', $loaded->get('phone'));
     }
 
     private function registerBusinessFields(): void
