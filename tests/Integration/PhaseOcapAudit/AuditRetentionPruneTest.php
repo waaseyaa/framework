@@ -195,7 +195,7 @@ final class AuditRetentionPruneTest extends TestCase
 
             public function write(string $text): void {}
 
-            public function writeln(string $line): void
+            public function writeln(string $line = ''): void
             {
                 $this->lines[] = $line;
             }

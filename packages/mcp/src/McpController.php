@@ -14,7 +14,6 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Mcp\Cache\ReadCache;
 use Waaseyaa\Mcp\Rpc\ResponseFormatter;
 use Waaseyaa\Mcp\Rpc\ToolIntrospector;
-use Waaseyaa\Mcp\Serializer\McpEntityFieldFilter;
 use Waaseyaa\Mcp\Tools\DiscoveryTools;
 use Waaseyaa\Mcp\Tools\EditorialTools;
 use Waaseyaa\Mcp\Tools\EntityTools;
@@ -60,9 +59,6 @@ final class McpController
             accessHandler: $this->accessHandler,
             account: $this->account,
         );
-        // Wire field-level access enforcement (FR-005, FR-006): MCP replaces forbidden
-        // fields with the canonical redaction marker rather than omitting them.
-        $this->entityTools->setFieldFilter(new McpEntityFieldFilter($this->accessHandler));
         $this->editorialWorkflow = EditorialWorkflowPreset::create();
         $this->editorialTransitionResolver = new EditorialTransitionAccessResolver($this->editorialWorkflow);
         $this->workflowVisibility = new WorkflowVisibility($this->editorialWorkflow);

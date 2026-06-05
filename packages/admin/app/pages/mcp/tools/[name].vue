@@ -45,13 +45,13 @@ onMounted(() => fetchTool(toolName.value))
 
       <!-- Input schema -->
       <section class="mb-6">
-        <InputSchemaViewer :schema="tool.inputSchema" />
+        <McpInputSchemaViewer :schema="tool.inputSchema" />
       </section>
 
       <!-- Recent invocations -->
       <section>
         <h2 class="text-lg font-medium mb-3">{{ t('mcp_tool_detail_recent_invocations') }}</h2>
-        <RecentInvocationsTable
+        <McpRecentInvocationsTable
           v-if="tool.recentInvocations.length > 0"
           :rows="tool.recentInvocations"
         />

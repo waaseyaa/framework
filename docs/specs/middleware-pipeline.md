@@ -1,5 +1,6 @@
 # Middleware Pipeline
 
+<!-- Spec reviewed 2026-06-04 - PR #1614: the front controller (`public/index.php`) now supports three runtimes ahead of the same authorization pipeline: (1) FrankenPHP worker mode — boot once then loop on `frankenphp_handle_request()` so the app stays warm and requests are served concurrently across threads (a long-lived SSE `/api/broadcast` stream pins one thread while the rest stay responsive); (2) FrankenPHP/FPM classic — one request per invocation; (3) `php -S` cli-server — single request with static-file passthrough. The middleware pipeline (SessionMiddleware -> AuthorizationMiddleware) and its onion/attribute model are unchanged; only the request-loop wrapper differs by runtime. -->
 <!-- Spec reviewed 2026-04-22 - public/index.php: optional Dotenv loadEnv(..., APP_ENV, production), REQUEST_URI ?? '/' in cli-server guard, outer Throwable catch JSON:API 500 -->
 
 Waaseyaa implements typed middleware pipelines for two execution contexts: HTTP requests and background jobs. Each pipeline uses the onion pattern with separate, type-safe interface pairs. Middleware is discovered via PHP 8 attributes and compiled into sorted stacks.

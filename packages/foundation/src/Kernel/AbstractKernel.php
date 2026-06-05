@@ -46,6 +46,7 @@ use Waaseyaa\Foundation\Log\LogManager;
 use Waaseyaa\Foundation\Migration\MigrationLoader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
+use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Plugin\Extension\KnowledgeToolingExtensionRunner;
 use Waaseyaa\Scheduler\Schedule;
@@ -156,6 +157,7 @@ abstract class AbstractKernel
         $this->compileManifest();
         $this->bootMigrations();
         $this->discoverAndRegisterProviders();
+        $this->injectMigrationProviders();
         $this->loadAppEntityTypes();
         $this->validateContentTypes();
         $this->bootProviders();
@@ -223,6 +225,8 @@ abstract class AbstractKernel
                     $dispatcher,
                     $revisionDriver,
                     $database,
+                    fieldRegistry: $fieldRegistry,
+                    logger: $this->logger,
                 );
             },
             $fieldRegistry,
@@ -236,6 +240,16 @@ abstract class AbstractKernel
                 return $database->schema()->tableExists(
                     SqlSchemaHandler::resolveSubtableName($entityTypeId, $bundle),
                 );
+            },
+            // Materializer used by EntityTypeManager::addBundleFields() to
+            // auto-create/migrate the per-bundle subtable (e.g. node__page) with
+            // real typed columns when bundle fields are registered. ensureTable()
+            // is idempotent: it creates the base table if missing and the
+            // subtable(s) for every registered bundle, so it is safe under the
+            // zero-and-re-migrate loop and on re-runs against an existing DB.
+            function (EntityTypeInterface $type) use ($database, $fieldRegistry): void {
+                $handler = new SqlSchemaHandler($type, $database, $fieldRegistry, null, $this->logger);
+                $handler->ensureTable();
             },
         );
     }
@@ -361,6 +375,53 @@ abstract class AbstractKernel
     protected function loadAppEntityTypes(): void
     {
         new AppEntityTypeLoader($this->logger)->load($this->projectRoot, $this->entityTypeManager);
+    }
+
+    /**
+     * Feed sibling providers implementing the migration package's
+     * {@see \Waaseyaa\Migration\Discovery\HasMigrationsInterface} into the
+     * migration ServiceProvider so the {@see \Waaseyaa\Migration\Discovery\MigrationRegistry}
+     * it exposes discovers application migrations.
+     *
+     * The migration package ships `withMigrationProviders()` for exactly this
+     * "until the kernel grows a generic capability bus" seam (see that package's
+     * ServiceProvider docblock). This is that bus, scoped to migrations: it runs
+     * after register() (so $this->providers is populated) and before
+     * bootProviders() (so the migration provider's eager registry resolve in
+     * boot() sees the injected providers).
+     *
+     * Layer note: AbstractKernel is the application bootstrapper and may wire
+     * across layers (CLAUDE.md "Kernel/ exemption"). String FQCNs are used so
+     * Foundation carries no compile-time edge to the Layer-3 migration package;
+     * if that package is absent the step is a no-op.
+     */
+    protected function injectMigrationProviders(): void
+    {
+        $hasMigrationsFqcn = 'Waaseyaa\\Migration\\Discovery\\HasMigrationsInterface';
+
+        if (!\interface_exists($hasMigrationsFqcn)) {
+            return; // migration package not installed — nothing to wire.
+        }
+
+        $migrationProviders = [];
+        foreach ($this->providers as $provider) {
+            if ($provider instanceof $hasMigrationsFqcn) {
+                $migrationProviders[] = $provider;
+            }
+        }
+
+        if ($migrationProviders === []) {
+            return;
+        }
+
+        // The receiving provider opts in via the Foundation capability interface,
+        // so the call site is guarded by a named interface (not a concrete FQCN)
+        // and the contract test can lock it in step.
+        foreach ($this->providers as $provider) {
+            if ($provider instanceof AcceptsMigrationProvidersInterface) {
+                $provider->withMigrationProviders($migrationProviders);
+            }
+        }
     }
 
     protected function validateContentTypes(): void

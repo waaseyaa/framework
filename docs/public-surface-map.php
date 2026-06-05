@@ -46,6 +46,9 @@ return [
     'Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\HasRenderCacheListenersInterface' => 'public',
+    // Migration-provider injection capability (PR #1614): kernel guards provider
+    // wiring via this named interface instead of a Layer-3 concrete edge.
+    'Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface' => 'public',
     'Waaseyaa\Foundation\Event\DomainEvent' => 'public',
     'Waaseyaa\Foundation\Event\EventDispatcherInterface' => 'public',
     'Waaseyaa\Foundation\Ingestion\IngestionErrorCode' => 'public',
@@ -311,6 +314,10 @@ return [
     'Waaseyaa\Field\FieldItemBase' => 'public',
     'Waaseyaa\Field\Item\LabeledCase' => 'public',
     'Waaseyaa\Field\ViewModeConfigInterface' => 'public',
+    // Classification labels: clearance/hold access, label registry, parent resolution.
+    'Waaseyaa\Field\Classification\ClassificationClearanceCheckerInterface' => 'public',
+    'Waaseyaa\Field\Classification\ClassificationLabelRegistryInterface' => 'public',
+    'Waaseyaa\Field\Classification\ClassificationParentResolverInterface' => 'public',
 
     // Layer 1: Core Data — internal
     'Waaseyaa\EntityStorage\Hydration\EntityInstantiator' => 'internal',
@@ -342,6 +349,8 @@ return [
     'Waaseyaa\Migration\Discovery\HasMigrationPluginsInterface' => 'public',
     // Migration platform discovery / dependency graph (mission migration-platform-v1-01KRCDE9 WP02).
     'Waaseyaa\Migration\Discovery\HasMigrationsInterface' => 'public',
+    // Migration content-model derivation contract.
+    'Waaseyaa\Migration\ContentModel\DerivesContentModelInterface' => 'public',
     // Migration platform DTOs / value objects (mission migration-platform-v1-01KRCDE9 WP01..WP04).
     'Waaseyaa\Migration\MigrationDefinition' => 'public',
     'Waaseyaa\Migration\SourceId' => 'public',
@@ -411,6 +420,14 @@ return [
     // Layer 4: API — public
     'Waaseyaa\Api\CodifiedContext\CodifiedContextSessionStoreInterface' => 'public',
     'Waaseyaa\Api\MutableTranslatableInterface' => 'public',
+    // Admin read-model contracts: audit, MCP admin, media versions, Mercure monitor.
+    'Waaseyaa\Api\Audit\AuditQueryReadModelInterface' => 'public',
+    'Waaseyaa\Api\McpAdmin\ServerConfigReadModelInterface' => 'public',
+    'Waaseyaa\Api\McpAdmin\ToolRegistryReadModelInterface' => 'public',
+    'Waaseyaa\Api\Media\MediaVersionReadModelInterface' => 'public',
+    'Waaseyaa\Api\MercureMonitor\ChannelInspectorInterface' => 'public',
+    'Waaseyaa\Api\MercureMonitor\EventStreamReadModelInterface' => 'public',
+    'Waaseyaa\Api\MercureMonitor\SubscriberObserverInterface' => 'public',
     'Waaseyaa\Routing\Language\LanguageNegotiatorInterface' => 'public',
 
     // Layer 5: AI — public
@@ -453,13 +470,23 @@ return [
     'Waaseyaa\Mcp\Bridge\ToolExecutorInterface' => 'public',
     'Waaseyaa\Mcp\Bridge\ToolRegistryInterface' => 'public',
     'Waaseyaa\Mcp\Auth\McpAuthInterface' => 'public',
+    'Waaseyaa\Mcp\Admin\RecentInvocationsQueryInterface' => 'public',
     'Waaseyaa\Oidc\Keys\OidcKeyLoaderInterface' => 'public',
     'Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface' => 'public',
+    'Waaseyaa\Oidc\Token\KeyMaterialProviderInterface' => 'public',
     'Waaseyaa\SSR\ThemeInterface' => 'public',
 
     // Layer 1: Core Data — public (discovered during L5-L6 scan)
     'Waaseyaa\OAuthProvider\OAuthProviderInterface' => 'public',
     'Waaseyaa\OAuthProvider\SessionInterface' => 'public',
+    // Audit log: query/write contracts and event-kind enum.
+    'Waaseyaa\Audit\Contract\AuditQueryInterface' => 'public',
+    'Waaseyaa\Audit\Contract\AuditWriterInterface' => 'public',
+    'Waaseyaa\Audit\Enum\AuditEventKind' => 'public',
+
+    // Layer 0: Foundation — page-builder decoder extension points.
+    'Waaseyaa\PageBuilder\Contract\PageBuilderDecoderInterface' => 'public',
+    'Waaseyaa\PageBuilder\Discovery\HasPageBuilderDecodersInterface' => 'public',
 
     // Layer 3: Services — public (single-entity-work-surface-01KQ7M1P)
     'Waaseyaa\StructuredImport\StructuredImporterInterface' => 'public',

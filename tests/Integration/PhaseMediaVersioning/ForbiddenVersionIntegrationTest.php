@@ -58,17 +58,41 @@ final class ForbiddenVersionIntegrationTest extends TestCase
         $this->seedVersion($this->mediaUuid, 3, str_repeat('c', 64));
 
         $this->adminAccount = new class implements AccountInterface {
-            public function id(): int|string { return 1; }
-            public function isAuthenticated(): bool { return true; }
-            public function getRoles(): array { return ['administrator']; }
-            public function hasPermission(string $permission): bool { return true; }
+            public function id(): int|string
+            {
+                return 1;
+            }
+            public function isAuthenticated(): bool
+            {
+                return true;
+            }
+            public function getRoles(): array
+            {
+                return ['administrator'];
+            }
+            public function hasPermission(string $permission): bool
+            {
+                return true;
+            }
         };
 
         $this->nonAdminAccount = new class implements AccountInterface {
-            public function id(): int|string { return 2; }
-            public function isAuthenticated(): bool { return true; }
-            public function getRoles(): array { return ['authenticated']; }
-            public function hasPermission(string $permission): bool { return false; }
+            public function id(): int|string
+            {
+                return 2;
+            }
+            public function isAuthenticated(): bool
+            {
+                return true;
+            }
+            public function getRoles(): array
+            {
+                return ['authenticated'];
+            }
+            public function hasPermission(string $permission): bool
+            {
+                return false;
+            }
         };
     }
 

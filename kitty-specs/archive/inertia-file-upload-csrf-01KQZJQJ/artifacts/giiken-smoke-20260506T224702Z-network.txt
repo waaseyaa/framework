@@ -21,7 +21,7 @@ This satisfies **FR-001** (token reachable to JS) and the cookie attributes from
 ## Multipart POST observed
 
 ```
-[POST] http://127.0.0.1:8080/sagamok-anishnawbek/manage/ingestion
+[POST] http://127.0.0.1:8080/example-nation-anishnawbek/manage/ingestion
        Content-Type: multipart/form-data
        (Inertia axios auto-forwarded XSRF-TOKEN cookie value as X-XSRF-TOKEN header)
 => [500] Internal Server Error
