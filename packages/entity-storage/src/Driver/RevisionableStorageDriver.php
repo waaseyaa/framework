@@ -107,8 +107,42 @@ final class RevisionableStorageDriver
             return;
         }
 
+        // Route changed fields into real revision-table columns vs the `_data`
+        // blob, preserving existing `_data` keys this update does not touch.
+        $schema = $db->schema();
+        $columnUpdates = [];
+        $dataChanges = [];
+        foreach ($updateFields as $key => $value) {
+            if ($schema->fieldExists($this->revisionTable, $key)) {
+                $columnUpdates[$key] = $value;
+            } else {
+                $dataChanges[$key] = $value;
+            }
+        }
+        if ($dataChanges !== [] && $schema->fieldExists($this->revisionTable, '_data')) {
+            $merged = $this->readRevision($entityId, $revisionId) ?? [];
+            foreach ($dataChanges as $key => $value) {
+                $merged[$key] = $value;
+            }
+            $extra = [];
+            foreach ($merged as $key => $value) {
+                if (\in_array($key, [$idKey, 'entity_id', 'revision_id', 'revision_created', 'revision_log', 'is_default_revision', 'is_latest_revision'], true)) {
+                    continue;
+                }
+                if ($schema->fieldExists($this->revisionTable, $key)) {
+                    continue;
+                }
+                $extra[$key] = $value;
+            }
+            $columnUpdates['_data'] = json_encode($extra, \JSON_THROW_ON_ERROR);
+        }
+
+        if ($columnUpdates === []) {
+            return;
+        }
+
         $db->update($this->revisionTable)
-            ->fields($updateFields)
+            ->fields($columnUpdates)
             ->condition('entity_id', $entityId)
             ->condition('revision_id', (string) $revisionId)
             ->execute();
@@ -130,7 +164,7 @@ final class RevisionableStorageDriver
             ->execute();
 
         foreach ($result as $row) {
-            return (array) $row;
+            return $this->mergeData((array) $row);
         }
 
         return null;
@@ -287,6 +321,7 @@ final class RevisionableStorageDriver
             $row[$key] = $value;
         }
 
+        $row = $this->foldData($this->revisionTable, $row);
         $db->insert($this->revisionTable)
             ->fields(array_keys($row))
             ->values($row)
@@ -341,6 +376,7 @@ final class RevisionableStorageDriver
             $row[$key] = $value;
         }
 
+        $row = $this->foldData($this->translationRevisionTable, $row);
         $db->insert($this->translationRevisionTable)
             ->fields(array_keys($row))
             ->values($row)
@@ -418,5 +454,89 @@ final class RevisionableStorageDriver
     private function getDatabase(): DatabaseInterface
     {
         return $this->connectionResolver->connection();
+    }
+
+    /**
+     * Split a revision row into the real columns of $table plus a `_data` JSON
+     * blob for everything else.
+     *
+     * Revision tables (like base tables) materialise only system-key columns
+     * (id/uuid/bundle/label/langcode + revision bookkeeping) and a `_data`
+     * column. A revisionable sql-blob entity carries arbitrary fields (folder,
+     * source_uri, ...) that have no dedicated column, so they must be folded
+     * into `_data` exactly as {@see SqlStorageDriver} does for the base table.
+     * Without this, writing a revision of such an entity fails with
+     * "no column named ...". Inverse of {@see self::mergeData()}.
+     *
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function foldData(string $table, array $row): array
+    {
+        $schema = $this->getDatabase()->schema();
+        $hasDataColumn = $schema->fieldExists($table, '_data');
+
+        $columns = [];
+        $extraData = [];
+        foreach ($row as $key => $value) {
+            if ($key === '_data') {
+                if (is_string($value) && $value !== '') {
+                    try {
+                        $decoded = json_decode($value, associative: true, flags: \JSON_THROW_ON_ERROR);
+                        if (is_array($decoded)) {
+                            $extraData = $decoded + $extraData;
+                        }
+                    } catch (\JsonException) {
+                        // ignore malformed pre-built blob
+                    }
+                } elseif (is_array($value)) {
+                    $extraData = $value + $extraData;
+                }
+                continue;
+            }
+
+            if ($schema->fieldExists($table, $key)) {
+                $columns[$key] = $value;
+            } else {
+                $extraData[$key] = $value;
+            }
+        }
+
+        if ($hasDataColumn) {
+            $columns['_data'] = json_encode($extraData, \JSON_THROW_ON_ERROR);
+        }
+
+        return $columns;
+    }
+
+    /**
+     * Decode the `_data` JSON blob on a revision row and merge its keys back
+     * onto the row. Inverse of {@see self::foldData()}; applied at every
+     * revision read so callers see a flat value map.
+     *
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function mergeData(array $row): array
+    {
+        if (!array_key_exists('_data', $row)) {
+            return $row;
+        }
+
+        $raw = $row['_data'];
+        unset($row['_data']);
+
+        if (!is_string($raw) || $raw === '') {
+            return $row;
+        }
+
+        try {
+            $extra = json_decode($raw, associative: true, flags: \JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return $row;
+        }
+
+        // Column values win over `_data` on key collision.
+        return is_array($extra) ? $row + $extra : $row;
     }
 }

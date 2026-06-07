@@ -76,6 +76,64 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
     }
 
     #[Test]
+    public function create_with_auto_assigned_id_records_revision_one(): void
+    {
+        // No pre-set id (auto-increment). The create revision must be recorded
+        // keyed on the real assigned id, not orphaned under entity_id ''.
+        $e = new TestRevisionableEntity(values: ['title' => 'first', 'uuid' => 'auto-a']);
+        $e->set('source_uri', 'public://documents/first.docx');
+        $e->enforceIsNew();
+        $this->repo->save($e);
+        $id = (string) $e->id();
+        $this->assertNotSame('', $id, 'id was auto-assigned');
+
+        $e = $this->repo->find($id);
+        $e->set('title', 'second');
+        $e->set('source_uri', 'public://documents/second.docx');
+        $this->repo->save($e);
+
+        $revisions = $this->repo->listRevisions($id);
+        $this->assertCount(2, $revisions, 'both the create and the edit recorded a revision');
+        $this->assertSame('second', $revisions[0]->label());
+        $this->assertSame('public://documents/second.docx', $revisions[0]->get('source_uri'));
+        $this->assertSame('first', $revisions[1]->label());
+        $this->assertSame('public://documents/first.docx', $revisions[1]->get('source_uri'));
+    }
+
+    #[Test]
+    public function revisions_carry_non_column_data_fields(): void
+    {
+        // Fields that are not key columns (folder, source_uri) live in the
+        // _data blob. They must round-trip through the revision tables, per
+        // version, exactly like the base table. Regression for the sql-blob
+        // revisionable gap (revision write previously mapped every field to a
+        // column and failed with "no column named folder").
+        $e = new TestRevisionableEntity(values: ['title' => 'v1', 'id' => '1', 'uuid' => 'a']);
+        $e->set('folder', 'CANCOM');
+        $e->set('source_uri', 'public://documents/v1.docx');
+        $e->enforceIsNew();
+        $this->repo->save($e);
+
+        $e = $this->repo->find('1');
+        $e->set('title', 'v2');
+        $e->set('source_uri', 'public://documents/v2.docx');
+        $this->repo->save($e);
+
+        $revisions = $this->repo->listRevisions('1');
+        $this->assertCount(2, $revisions);
+        // Newest first, each carrying its own _data fields.
+        $this->assertSame('public://documents/v2.docx', $revisions[0]->get('source_uri'));
+        $this->assertSame('CANCOM', $revisions[0]->get('folder'));
+        $this->assertSame('public://documents/v1.docx', $revisions[1]->get('source_uri'));
+
+        // loadRevision of the older version returns that version's _data.
+        $old = $this->repo->loadRevision('1', 1);
+        $this->assertNotNull($old);
+        $this->assertSame('public://documents/v1.docx', $old->get('source_uri'));
+        $this->assertSame('CANCOM', $old->get('folder'));
+    }
+
+    #[Test]
     public function list_revisions_returns_history_newest_first(): void
     {
         $this->createWithEdits('1', 'v1', 'v2', 'v3');

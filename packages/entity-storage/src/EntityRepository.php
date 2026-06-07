@@ -407,8 +407,14 @@ final class EntityRepository implements EntityRepositoryInterface
         // Wrap revision + base table writes in a transaction (invariant #4).
         // Skip if already inside a UnitOfWork transaction.
         $transaction = ($unitOfWork === null) ? $this->database?->transaction() : null;
+        // A new entity with an auto-assigned id does not know its id until the
+        // base row is inserted below. Writing the revision now would key it
+        // under entity_id '' (an orphan listRevisions never sees), so defer the
+        // revision write until after the base insert.
+        $deferRevision = $createRevision && $this->revisionDriver !== null && $id === '';
+
         try {
-            if ($createRevision && $this->revisionDriver !== null) {
+            if ($createRevision && $this->revisionDriver !== null && !$deferRevision) {
                 $log = ($entity instanceof RevisionableInterface) ? $entity->getRevisionLog() : null;
                 $revisionId = $this->revisionDriver->writeRevision($id, $values, $log);
                 $values['revision_id'] = $revisionId;
@@ -448,6 +454,23 @@ final class EntityRepository implements EntityRepositoryInterface
             if ($gateway !== null && $bundleValues !== [] && $bundleName !== null) {
                 $persistId = ($id !== '') ? $id : $writtenId;
                 $gateway->upsert($bundleName, $persistId, $bundleValues);
+            }
+
+            if ($deferRevision && $writtenId !== '') {
+                // The base row now exists with a real id. Write revision 1 keyed
+                // on it, then point the base row at it by updating only the
+                // revision-pointer column (leaving the _data blob untouched).
+                $log = ($entity instanceof RevisionableInterface) ? $entity->getRevisionLog() : null;
+                $revisionId = $this->revisionDriver->writeRevision($writtenId, $values, $log);
+                $revisionKey = $this->entityType->getKeys()['revision'] ?? 'revision_id';
+                $idKeyName = $this->entityType->getKeys()['id'] ?? 'id';
+                $this->database?->update($entityTypeId)
+                    ->fields([$revisionKey => $revisionId])
+                    ->condition($idKeyName, $writtenId)
+                    ->execute();
+                if ($entity instanceof ContentEntityInterface) {
+                    $entity->set($revisionKey, $revisionId);
+                }
             }
 
             $transaction?->commit();
