@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.192] - 2026-06-07
+
 ### Fixed
 
 - **Revisions now carry arbitrary `_data` fields for sql-blob entities.** `RevisionableStorageDriver` mapped every entity value to a revision-table column, so a revisionable sql-blob entity with non-key fields (anything beyond id/uuid/bundle/label/langcode) failed to write a revision with "table … has no column named …". The driver now folds non-column fields into the revision row's `_data` blob on write and merges them back on read, mirroring `SqlStorageDriver` (base table). This makes revisions usable for real content entities, not just key-only types. Surfaced by the first entity-native consumer of the revision system.
