@@ -8,7 +8,6 @@ declare(strict_types=1);
 
 return [
     // Layer 0: Foundation — public
-    'Waaseyaa\AgentOutput\FormatterInterface' => 'public',
     'Waaseyaa\Foundation\Asset\AssetManagerInterface' => 'public',
     'Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface' => 'public',
     'Waaseyaa\Foundation\Diagnostic\DiagnosticCode' => 'public',
@@ -483,10 +482,6 @@ return [
     'Waaseyaa\Audit\Contract\AuditQueryInterface' => 'public',
     'Waaseyaa\Audit\Contract\AuditWriterInterface' => 'public',
     'Waaseyaa\Audit\Enum\AuditEventKind' => 'public',
-
-    // Layer 0: Foundation — page-builder decoder extension points.
-    'Waaseyaa\PageBuilder\Contract\PageBuilderDecoderInterface' => 'public',
-    'Waaseyaa\PageBuilder\Discovery\HasPageBuilderDecodersInterface' => 'public',
 
     // Layer 3: Services — public (single-entity-work-surface-01KQ7M1P)
     'Waaseyaa\StructuredImport\StructuredImporterInterface' => 'public',

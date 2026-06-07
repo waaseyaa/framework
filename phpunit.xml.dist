@@ -8,13 +8,6 @@
          displayDetailsOnTestsThatTriggerDeprecations="true"
          failOnRisky="true"
          failOnWarning="true">
-    <extensions>
-        <!-- M4 WP04D: agent-output NDJSON envelope is emitted on the last
-             line of stdout when WAASEYAA_OUTPUT=json. Activation is a
-             no-op when the env var is unset, so the extension adds zero
-             overhead to human-mode test runs. -->
-        <bootstrap class="Waaseyaa\AgentOutput\Listener\AgentOutputPhpUnitExtension"/>
-    </extensions>
     <testsuites>
         <testsuite name="Unit">
             <directory>packages/*/tests/Unit</directory>
