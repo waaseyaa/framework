@@ -109,6 +109,29 @@ interface EntityRepositoryInterface
     public function rollback(string $entityId, int $targetRevisionId): EntityInterface;
 
     /**
+     * List an entity's revisions, newest first.
+     *
+     * Each entity is hydrated with revision metadata (revision id, created,
+     * log, and the is_default_revision / is_latest_revision flags).
+     *
+     * @param string $entityId The entity ID.
+     * @return list<EntityInterface> Revisions ordered newest-first (empty if none).
+     */
+    public function listRevisions(string $entityId): array;
+
+    /**
+     * Make an existing revision the current/default revision in place, without
+     * creating a new revision (unlike rollback, which records a fresh revision).
+     *
+     * @param string $entityId The entity ID.
+     * @param int $revisionId The existing revision to make current.
+     * @return EntityInterface The entity hydrated from the now-current revision.
+     * @throws \InvalidArgumentException If the revision does not exist.
+     */
+    #[\NoDiscard('lookup result must be checked for null')]
+    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface;
+
+    /**
      * Save multiple entities in a single transaction.
      *
      * Events are buffered during the transaction and dispatched after commit.

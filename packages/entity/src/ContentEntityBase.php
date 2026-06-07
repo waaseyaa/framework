@@ -25,9 +25,17 @@ use Waaseyaa\Field\FieldDefinitionInterface;
  *
  * @phpstan-consistent-constructor
  */
-abstract class ContentEntityBase extends EntityBase implements ContentEntityInterface, HydratableFromStorageInterface, TranslatableInterface
+abstract class ContentEntityBase extends EntityBase implements ContentEntityInterface, HydratableFromStorageInterface, TranslatableInterface, RevisionableEntityInterface
 {
     use TranslatableEntityTrait;
+
+    // Revision-capability for content entities. The methods are inert for
+    // non-revisionable types (revisionId() stays null, isCurrentRevision()
+    // stays true, revisionMetadata() stays null) — actual revision history is
+    // only created when the EntityType is registered with revisionable: true.
+    // The trait carries the standard revision-metadata slot (author, timestamp,
+    // log) and the storage layer hydrates it via the set* helpers.
+    use RevisionableEntityTrait;
 
     /**
      * Process-wide field registry consulted by {@see getFieldDefinitions()}.

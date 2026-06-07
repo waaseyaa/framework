@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Provider;
 
+use Waaseyaa\CLI\ArgumentDefinition;
+use Waaseyaa\CLI\ArgumentMode;
 use Waaseyaa\CLI\CommandDefinition;
 use Waaseyaa\CLI\Handler\HealthCheckHandler;
 use Waaseyaa\CLI\Handler\HealthReportHandler;
+use Waaseyaa\CLI\Handler\RevisionsEnableHandler;
 use Waaseyaa\CLI\Handler\SchemaCheckHandler;
 use Waaseyaa\CLI\Handler\SchemaListHandler;
 use Waaseyaa\CLI\Handler\SchemaSyncHandler;
@@ -83,6 +86,26 @@ final class HealthSchemaServiceProvider extends ServiceProvider implements HasNa
                 ),
             ],
             handler: [SchemaSyncHandler::class, 'execute'],
+        );
+
+        yield new CommandDefinition(
+            name: 'revisions:enable',
+            description: 'Make an existing entity type revisionable: ensure its revision schema and backfill an initial revision for each existing row.',
+            arguments: [
+                new ArgumentDefinition(
+                    name: 'entity_type',
+                    mode: ArgumentMode::Required,
+                    description: 'The entity type ID to enable revisions for (must already be registered with revisionable: true).',
+                ),
+            ],
+            options: [
+                new OptionDefinition(
+                    name: 'dry-run',
+                    mode: OptionMode::None,
+                    description: 'Report what would happen without writing schema or backfilling.',
+                ),
+            ],
+            handler: [RevisionsEnableHandler::class, 'execute'],
         );
     }
 }

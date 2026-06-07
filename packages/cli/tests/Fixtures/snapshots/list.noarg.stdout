@@ -80,6 +80,8 @@ Available commands:
   perf:compare           Compare current performance measurements against a baseline artifact
  permission
   permission:list        List all registered permissions
+ revisions
+  revisions:enable       Make an existing entity type revisionable: ensure its revision schema and backfill an initial revision for each existing row.
  route
   route:list             List all registered routes
  scaffold

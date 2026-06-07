@@ -16,7 +16,9 @@ use Waaseyaa\Entity\Event\EntityEventFactoryInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableInterface;
+use Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy;
 use Waaseyaa\Entity\TranslatableInterface;
 use Waaseyaa\Entity\Validation\EntityTypeValidationConstraints;
 use Waaseyaa\Entity\Validation\EntityValidationException;
@@ -571,7 +573,21 @@ final class EntityRepository implements EntityRepositoryInterface
         $row['is_default_revision'] = ($revisionId === $currentRevId);
         $row['is_latest_revision'] = ($revisionId === $latestRevId);
 
-        return $this->hydrate($row);
+        $entity = $this->hydrate($row);
+
+        // Propagate the new-contract revision state onto the entity so
+        // RevisionableEntityInterface::revisionId() / isCurrentRevision() are
+        // accurate for a historical revision (the trait defaults to "current").
+        if ($entity instanceof RevisionableEntityInterface) {
+            if (method_exists($entity, 'setRevisionId')) {
+                $entity->setRevisionId($revisionId);
+            }
+            if (method_exists($entity, 'setIsCurrentRevision')) {
+                $entity->setIsCurrentRevision($revisionId === $currentRevId);
+            }
+        }
+
+        return $entity;
     }
 
     public function rollback(string $entityId, int $targetRevisionId): EntityInterface
@@ -623,6 +639,193 @@ final class EntityRepository implements EntityRepositoryInterface
         );
 
         return $entity;
+    }
+
+    /**
+     * List an entity's revisions, newest first, each hydrated with revision
+     * metadata (revision_id, revision_created, revision_log, is_default_revision,
+     * is_latest_revision). The high-level companion to loadRevision()/rollback().
+     *
+     * @return list<EntityInterface>
+     */
+    public function listRevisions(string $entityId): array
+    {
+        if ($this->revisionDriver === null) {
+            throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
+        }
+
+        $revisionIds = $this->revisionDriver->getRevisionIds($entityId);
+        rsort($revisionIds);
+
+        $revisions = [];
+        foreach ($revisionIds as $revisionId) {
+            $entity = $this->loadRevision($entityId, (int) $revisionId);
+            if ($entity !== null) {
+                $revisions[] = $entity;
+            }
+        }
+
+        return $revisions;
+    }
+
+    /**
+     * Make an existing revision the current/default revision by moving the
+     * base-table pointer in place — WITHOUT creating a new revision.
+     *
+     * Use this to "switch" the published revision (e.g. revert a bad edit back
+     * to a known-good revision while keeping linear history untouched). Prefer
+     * rollback() when the revert should itself be recorded as a fresh revision
+     * at the head of history.
+     */
+    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface
+    {
+        if ($this->revisionDriver === null) {
+            throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
+        }
+
+        $row = $this->revisionDriver->readRevision($entityId, $revisionId);
+        if ($row === null) {
+            throw new \InvalidArgumentException(
+                "Revision {$revisionId} does not exist for entity {$entityId}.",
+            );
+        }
+
+        // Re-point the base table at this revision's values. Strip revision-table
+        // bookkeeping columns; the base table tracks the current revision via the
+        // revision_id pointer column.
+        unset($row['revision_created'], $row['revision_log'], $row['entity_id']);
+        $keys = $this->entityType->getKeys();
+        $idKey = $keys['id'] ?? 'id';
+        $row[$idKey] = $entityId;
+        $row['revision_id'] = $revisionId;
+
+        $transaction = $this->database?->transaction();
+        try {
+            $this->driver->write($this->entityType->id(), $entityId, $row);
+            $transaction?->commit();
+        } catch (\Throwable $e) {
+            $transaction?->rollBack();
+            throw $e;
+        }
+
+        $entity = $this->loadRevision($entityId, $revisionId);
+
+        $this->dispatchEvent(
+            $this->eventFactory->create($entity),
+            EntityEvents::REVISION_REVERTED->value,
+        );
+
+        return $entity;
+    }
+
+    /**
+     * Prune an entity's revision history per a retention policy so revision
+     * tables do not grow unbounded — opt-in (the framework never auto-prunes on
+     * save, FR-039). Keeps the newest N revisions and NEVER deletes the current
+     * revision (FR-038, enforced via {@see RevisionPruningPolicy::candidateExcluded()}).
+     *
+     * A no-op policy ({@see RevisionPruningPolicy::default()}) returns a disabled
+     * report and deletes nothing. Drive this from a CLI/scheduled task with a
+     * policy such as {@see RevisionPruningPolicy::keepLastUniform()}.
+     */
+    public function pruneRevisions(string $entityId, RevisionPruningPolicy $policy): RevisionPruningReport
+    {
+        if ($this->revisionDriver === null) {
+            throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
+        }
+
+        if ($policy->isNoOp()) {
+            return RevisionPruningReport::disabled();
+        }
+
+        $revisionIds = array_map('intval', $this->revisionDriver->getRevisionIds($entityId));
+        sort($revisionIds); // oldest -> newest
+        $total = count($revisionIds);
+
+        // The current (default) revision is immortal regardless of policy.
+        $baseRow = $this->driver->read($this->entityType->id(), $entityId);
+        $currentRevisionId = $baseRow !== null ? (int) ($baseRow['revision_id'] ?? 0) : 0;
+
+        $keep = $policy->keepLastNFor(RevisionPruningPolicy::DEFAULT_LANGCODE_KEY);
+        if ($keep === null) {
+            // No keep-count constraint applies to this entity — nothing to prune.
+            return new RevisionPruningReport(candidatesFound: 0, pruned: 0, retained: $total);
+        }
+
+        $newestKept = $keep > 0 ? array_slice($revisionIds, -$keep) : [];
+
+        $candidatesFound = 0;
+        $pruned = 0;
+        foreach ($revisionIds as $vid) {
+            if (in_array($vid, $newestKept, true)) {
+                continue;
+            }
+            ++$candidatesFound;
+            if ($policy->candidateExcluded($vid, $currentRevisionId)) {
+                continue; // never delete the current revision
+            }
+            $this->revisionDriver->deleteRevision($entityId, $vid);
+            ++$pruned;
+        }
+
+        return new RevisionPruningReport(
+            candidatesFound: $candidatesFound,
+            pruned: $pruned,
+            retained: $total - $pruned,
+        );
+    }
+
+    /**
+     * Backfill an initial revision for every existing row that has none, and
+     * point the base table at it. Idempotent — rows that already have a
+     * revision are skipped.
+     *
+     * Run this once after flipping an EntityType to revisionable: true (and
+     * after its revision table exists, e.g. via schema:sync) so pre-existing
+     * content gets a baseline revision and full history from then on. This is
+     * what the `revisions:enable` command drives.
+     *
+     * @return int Number of rows backfilled.
+     */
+    public function backfillInitialRevisions(?string $log = null): int
+    {
+        if ($this->revisionDriver === null) {
+            throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
+        }
+        if (!$this->entityType->isRevisionable()) {
+            throw new \LogicException(
+                'Cannot backfill revisions: entity type ' . $this->entityType->id() . ' is not revisionable.',
+            );
+        }
+
+        $log ??= 'Initial revision (backfilled)';
+        $count = 0;
+
+        foreach ($this->findBy([]) as $entity) {
+            $id = (string) ($entity->id() ?? '');
+            if ($id === '') {
+                continue;
+            }
+            if ($this->revisionDriver->getLatestRevisionId($id) !== null) {
+                continue; // already has revision history
+            }
+
+            $values = $entity->toArray();
+            $transaction = $this->database?->transaction();
+            try {
+                $revisionId = $this->revisionDriver->writeRevision($id, $values, $log);
+                $values['revision_id'] = $revisionId;
+                $this->driver->write($this->entityType->id(), $id, $values);
+                $transaction?->commit();
+            } catch (\Throwable $e) {
+                $transaction?->rollBack();
+                throw $e;
+            }
+
+            ++$count;
+        }
+
+        return $count;
     }
 
     /**

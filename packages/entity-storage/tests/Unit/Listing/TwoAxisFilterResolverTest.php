@@ -149,6 +149,16 @@ final class TwoAxisFilterResolverTest extends TestCase
                 throw new \LogicException('not used');
             }
 
+            public function listRevisions(string $entityId): array
+            {
+                return [];
+            }
+
+            public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface
+            {
+                throw new \LogicException('not used');
+            }
+
             public function saveMany(array $entities, bool $validate = true): array
             {
                 return [];

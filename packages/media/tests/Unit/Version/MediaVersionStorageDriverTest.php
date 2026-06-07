@@ -58,6 +58,8 @@ final class MediaVersionStorageDriverTest extends TestCase
             public function count(array $criteria = []): int { return 0; }
             public function loadRevision(string $entityId, int $revisionId): ?EntityInterface { return null; }
             public function rollback(string $entityId, int $targetRevisionId): EntityInterface { throw new \RuntimeException('not implemented'); }
+            public function listRevisions(string $entityId): array { return []; }
+            public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface { throw new \RuntimeException('not implemented'); }
             public function saveMany(array $entities, bool $validate = true): array { return []; }
             public function deleteMany(array $entities): int { return 0; }
             public function findTranslations(EntityInterface $entity): array { return []; }
