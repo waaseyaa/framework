@@ -164,6 +164,7 @@ abstract class AbstractKernel
         $this->discoverAccessPolicies();
         $this->bootScheduleEntries();
         $this->validateQueryDefinitions();
+        $this->validateEntitySchemas();
         $this->bootKnowledgeExtensionRunner();
 
         $this->finalizeBoot();
@@ -495,6 +496,71 @@ abstract class AbstractKernel
 
         $resolver = new BackendResolver($registrar);
         new DefinitionValidator($this->entityTypeManager, $resolver, $this->logger)->validateAll();
+    }
+
+    /**
+     * Boot-time guard that a registered entity type actually has a backing table.
+     *
+     * Companion to {@see validateQueryDefinitions()}. Entity tables are created
+     * lazily on first storage access, so this check is **opt-in** and OFF by
+     * default — an existing consumer's behaviour is unchanged. Enable it after
+     * running `schema:sync` / `db:init --sync-schema` to assert the deploy left
+     * no registered entity type tableless:
+     *
+     *   - `off`    (default) — no-op.
+     *   - `warn`   — log a warning naming the tableless entity types.
+     *   - `strict` — throw and abort boot on the first missing table.
+     *
+     * Resolution: env `WAASEYAA_SCHEMA_VALIDATION` > config `entity_schema_validation` > `off`.
+     *
+     * @throws \RuntimeException In `strict` mode when a registered type has no table.
+     */
+    protected function validateEntitySchemas(): void
+    {
+        $mode = $this->resolveSchemaValidationMode();
+        if ($mode === 'off') {
+            return;
+        }
+
+        $schema = $this->database->schema();
+        $missing = [];
+        foreach ($this->entityTypeManager->getDefinitions() as $type) {
+            if (!$schema->tableExists($type->id())) {
+                $missing[] = $type->id();
+            }
+        }
+
+        if ($missing === []) {
+            return;
+        }
+
+        sort($missing);
+        $message = sprintf(
+            'Entity schema validation: %d registered entity type(s) have no table: %s. '
+            . 'Run `waaseyaa schema:sync` (or `waaseyaa db:init --sync-schema`) to materialize them.',
+            count($missing),
+            implode(', ', $missing),
+        );
+
+        if ($mode === 'strict') {
+            throw new \RuntimeException($message);
+        }
+
+        $this->logger->warning($message);
+    }
+
+    /**
+     * @return 'off'|'warn'|'strict'
+     */
+    private function resolveSchemaValidationMode(): string
+    {
+        $env = getenv('WAASEYAA_SCHEMA_VALIDATION');
+        $raw = is_string($env) && $env !== ''
+            ? $env
+            : ($this->config['entity_schema_validation'] ?? 'off');
+        $value = is_string($raw) ? strtolower($raw) : 'off';
+
+        return in_array($value, ['off', 'warn', 'strict'], true) ? $value : 'off';
     }
 
     protected function bootKnowledgeExtensionRunner(): void

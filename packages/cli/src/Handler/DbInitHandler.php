@@ -6,7 +6,9 @@ namespace Waaseyaa\CLI\Handler;
 
 use Waaseyaa\CLI\CliIO;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\EntityStorage\EntitySchemaSyncRunner;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
+use Waaseyaa\Foundation\Kernel\ConsoleKernel;
 use Waaseyaa\Foundation\Kernel\EnvLoader;
 use Waaseyaa\Foundation\Migration\MigrationLoader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
@@ -94,10 +96,46 @@ final class DbInitHandler
                 $io->writeln(sprintf('Ran %d %s.', $result->count, $label));
             }
 
+            if ((bool) $io->option('sync-schema')) {
+                $this->syncSchema($io);
+            }
+
             $io->writeln('Database ready.');
             return 0;
         } finally {
             $this->releaseLock($lockHandle);
+        }
+    }
+
+    /**
+     * Materialize tables for every registered entity type (idempotent).
+     *
+     * Boots a console kernel so all service-provider and app-defined entity
+     * types are registered, then runs the hardened schema sync against the
+     * just-migrated database. This is the deploy-time complement to the
+     * `schema:sync` command: one `db:init --sync-schema` brings a fresh
+     * database fully up — migrations plus every registered entity's schema.
+     */
+    private function syncSchema(CliIO $io): void
+    {
+        $kernel = new ConsoleKernel($this->projectRoot);
+        $kernel->bootForCli();
+
+        $entityTypeManager = $kernel->getEntityTypeManager();
+        $runner = new EntitySchemaSyncRunner(
+            $kernel->getDatabase(),
+            $entityTypeManager->getFieldRegistry(),
+        );
+        $report = $runner->run($entityTypeManager->getDefinitions());
+
+        if ($report->created === []) {
+            $io->writeln(sprintf('Schema sync: all %d registered entity table(s) already exist.', $report->total()));
+            return;
+        }
+
+        $io->writeln(sprintf('Schema sync: created %d table(s):', count($report->created)));
+        foreach ($report->created as $table) {
+            $io->writeln(sprintf('  + %s', $table));
         }
     }
 

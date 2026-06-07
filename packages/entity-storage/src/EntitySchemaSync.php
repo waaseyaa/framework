@@ -6,16 +6,24 @@ namespace Waaseyaa\EntityStorage;
 
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
+use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\Schema\TranslationSchemaHandler;
 use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Foundation\Log\LoggerInterface;
 
 /**
  * Materializes entity-storage tables for a list of entity types.
  *
  * Thin wrapper around SqlSchemaHandler::ensureTable() that lets migrations
- * (or install commands) sync schemas for many entity types at once without
- * each caller repeating the construction boilerplate.
+ * (or install/schema-sync commands) sync schemas for many entity types at once
+ * without each caller repeating the construction boilerplate.
+ *
+ * When a {@see FieldDefinitionRegistryInterface} is supplied, the handler also
+ * materializes per-bundle subtables (`{base_table}__{bundle}`) for multi-bundle
+ * entity types — matching the kernel's lazy storage-factory path. Without it,
+ * bundle subtables are skipped (status-quo behaviour, kept for the existing
+ * registry-less call sites).
  *
  * Translatable storage layout (FR-020..FR-025):
  *   - `sql-blob` translatable types fold per-langcode rows directly into the
@@ -29,8 +37,16 @@ use Waaseyaa\Field\FieldDefinition;
  */
 final class EntitySchemaSync
 {
+    /**
+     * @param \Closure|null $bundleEnumerator Optional fn(EntityTypeInterface): iterable<string>
+     *   forwarded to SqlSchemaHandler for bundle discovery (defaults to the
+     *   field registry's bundleNamesFor() when null and a registry is set).
+     */
     public function __construct(
         private readonly DatabaseInterface $database,
+        private readonly ?FieldDefinitionRegistryInterface $fieldRegistry = null,
+        private readonly ?\Closure $bundleEnumerator = null,
+        private readonly ?LoggerInterface $logger = null,
     ) {}
 
     /**
@@ -58,6 +74,9 @@ final class EntitySchemaSync
             $handler = new SqlSchemaHandler(
                 entityType: $entityType,
                 database: $this->database,
+                fieldRegistry: $this->fieldRegistry,
+                bundleEnumerator: $this->bundleEnumerator,
+                logger: $this->logger,
                 primaryBackendId: $backend,
                 entityLevelFields: $entityLevelFields,
             );

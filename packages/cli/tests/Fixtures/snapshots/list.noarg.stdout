@@ -91,6 +91,7 @@ Available commands:
  schema
   schema:check           Detect schema drift between entity type definitions and database tables
   schema:list            List registered schemas with versions and compatibility policy
+  schema:sync            Materialize the storage schema (tables) for every registered entity type. Idempotent.
  semantic
   semantic:refresh       Run resumable semantic index refresh batches
   semantic:warm          Warm semantic embeddings for deterministic read paths

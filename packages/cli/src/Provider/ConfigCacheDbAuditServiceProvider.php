@@ -64,6 +64,11 @@ final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements
                     mode: OptionMode::None,
                     description: 'Show what would happen without creating files or running migrations.',
                 ),
+                new OptionDefinition(
+                    name: 'sync-schema',
+                    mode: OptionMode::None,
+                    description: 'After migrations, materialize tables for every registered entity type (idempotent). Closes the app-entity persistence gap.',
+                ),
             ],
             handler: \Closure::fromCallable([$dbInitHandler, 'execute']),
         );
