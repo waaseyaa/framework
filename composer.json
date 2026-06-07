@@ -6,10 +6,6 @@
     "repositories": [
         {
             "type": "path",
-            "url": "packages/agent-output"
-        },
-        {
-            "type": "path",
             "url": "packages/cache"
         },
         {
@@ -274,6 +270,10 @@
         },
         {
             "type": "path",
+            "url": "packages/analytics"
+        },
+        {
+            "type": "path",
             "url": "packages/audit"
         },
         {
@@ -287,10 +287,6 @@
         {
             "type": "path",
             "url": "packages/listing"
-        },
-        {
-            "type": "path",
-            "url": "packages/page-builder"
         }
     ],
     "require": {
@@ -300,14 +296,13 @@
         "symfony/html-sanitizer": "^8.0",
         "waaseyaa/access": "self.version",
         "waaseyaa/admin-surface": "self.version",
-        "waaseyaa/agent-output": "self.version",
         "waaseyaa/ai-agent": "self.version",
         "waaseyaa/ai-observability": "self.version",
         "waaseyaa/ai-pipeline": "self.version",
         "waaseyaa/ai-schema": "self.version",
         "waaseyaa/ai-tools": "self.version",
         "waaseyaa/ai-vector": "self.version",
-        "waaseyaa/audit": "self.version",
+        "waaseyaa/analytics": "self.version",
         "waaseyaa/api": "self.version",
         "waaseyaa/attachment": "self.version",
         "waaseyaa/auth": "self.version",
@@ -348,7 +343,6 @@
         "waaseyaa/notification": "self.version",
         "waaseyaa/oauth-provider": "self.version",
         "waaseyaa/oidc": "self.version",
-        "waaseyaa/page-builder": "self.version",
         "waaseyaa/path": "self.version",
         "waaseyaa/plugin": "self.version",
         "waaseyaa/queue": "self.version",

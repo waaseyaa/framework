@@ -94,6 +94,20 @@ jobs:
       - name: Verify monorepo release shape
         run: bash bin/check-monorepo-release-shape HEAD
 
+      - name: Verify root require / split parity
+        # Pre-tag structural gate: every waaseyaa/* in the root composer.json
+        # require list must have a split.yml matrix entry AND an existing split
+        # repo. This is the gate that would have caught the alpha.189 break —
+        # the root meta required waaseyaa/{agent-output,audit,page-builder} with
+        # no split target and no Packagist registration, producing a published
+        # but uninstallable release. Runs BEFORE the tag is cut, so the poisoned
+        # tag is never created (the existing tag-parity check can only run after
+        # the split, once the poison has already shipped to Packagist).
+        env:
+          REPO_OWNER: ${{ github.repository_owner }}
+          GITHUB_TOKEN: ${{ secrets.SPLIT_GITHUB_TOKEN }}
+        run: bash bin/check-release-require-parity
+
       - name: Verify tag does not exist
         env:
           VERSION: ${{ inputs.version }}

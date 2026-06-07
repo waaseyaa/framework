@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **release: make the published meta-package installable again (alpha.189 regression).** alpha.189's root `composer.json` (published verbatim as `waaseyaa/framework`) gained `require` entries for `waaseyaa/agent-output`, `waaseyaa/audit`, and `waaseyaa/page-builder`, but none had a split-target repo or Packagist registration — so `composer require waaseyaa/framework:^0.1.0-alpha.189` was unresolvable even though Packagist listed the tag (alpha.188 stayed the latest installable). `waaseyaa/audit` is a real, load-bearing dependency (required by `api`/`cli`/`field` — the OCAP audit-log substrate), so it is now properly shipped: added to the `split.yml` matrix (Layer 1) with its `github.com/waaseyaa/audit` split repo created and Packagist registration. The two genuinely-unused leaves (`agent-output`, `page-builder`) are removed from the root `require` + path-`repositories` and deferred until they are wired in; `waaseyaa/analytics` (collaterally dropped by the alpha.189 analytics→audit swap, kept for coexistence per ADR-021) is restored. The root require set now equals alpha.188's, plus `audit` as an additive transitive dependency.
+
+### Added
+
+- **release gate: `bin/check-release-require-parity`** — fails a release if any `waaseyaa/*` runtime require (root `composer.json` **or** any `packages/*/composer.json`) lacks both a `split.yml` matrix entry and an existing split-target repo. This is the gate that would have caught the alpha.189 break, including the transitive `field`→`audit` miss. Wired pre-tag in `release-cut.yml` (blocks the tag from being cut) and as a defense-in-depth `verify-require-parity` job in `split.yml` that gates the GitHub-release publish.
+
 ## [0.1.0-alpha.189] - 2026-06-05
 
 ### Fixed

@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# check-release-require-parity
+# ----------------------------
+# Release-time structural gate that would have caught the alpha.189 break.
+#
+# Every waaseyaa/* entry in a first-party "require" list must:
+#   (1) have a matching entry in the split.yml split matrix (a `remote:` target), AND
+#   (2) point at a split target repo that already exists on the owner org.
+#
+# Scope = the ROOT composer.json require list PLUS every packages/*/composer.json
+# require list. The root-only check catches packages a consumer pulls directly
+# from the meta-package; the packages/* scan additionally catches TRANSITIVE
+# misses — e.g. alpha.189 wired waaseyaa/field -> waaseyaa/audit, but audit was
+# never split or registered, so the framework was uninstallable even though the
+# root manifest looked plausible. Runtime `require` only (require-dev is allowed
+# to pull higher-layer test fixtures and is out of scope, matching
+# bin/check-package-layers).
+#
+# Rationale: the published manifests are resolved verbatim by consumers. A
+# first-party require pointing at a sibling that was never split to its own repo
+# / never registered on Packagist makes the whole release uninstallable even
+# though Packagist happily lists the tag.
+#
+# Network: repo-existence uses `git ls-remote`. Set CHECK_REMOTE=0 to run the
+# matrix-membership half only (offline / no token). A GITHUB_TOKEN is used when
+# present so private/just-created repos resolve.
+#
+# Overridable for testing (e.g. running this script against a worktree of an
+# older tag):
+#   COMPOSER_JSON   path to the root composer.json   (default: <root>/composer.json)
+#   SPLIT_YML       path to the split workflow        (default: <root>/.github/workflows/split.yml)
+#   PACKAGES_DIR    path to the packages/ directory   (default: <root>/packages)
+#   REPO_OWNER      org that owns the split repos      (default: waaseyaa)
+#   CHECK_REMOTE    1=check repo existence, 0=skip     (default: 1)
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_OWNER="${REPO_OWNER:-waaseyaa}"
+GITHUB_TOKEN="${GITHUB_TOKEN:-}"
+COMPOSER_JSON="${COMPOSER_JSON:-${ROOT_DIR}/composer.json}"
+SPLIT_YML="${SPLIT_YML:-${ROOT_DIR}/.github/workflows/split.yml}"
+PACKAGES_DIR="${PACKAGES_DIR:-${ROOT_DIR}/packages}"
+CHECK_REMOTE="${CHECK_REMOTE:-1}"
+
+if [[ ! -f "${COMPOSER_JSON}" ]]; then
+  echo "FAIL [RR000] composer.json not found: ${COMPOSER_JSON}"
+  exit 1
+fi
+if [[ ! -f "${SPLIT_YML}" ]]; then
+  echo "FAIL [RR000] split.yml not found: ${SPLIT_YML}"
+  exit 1
+fi
+if [[ ! -d "${PACKAGES_DIR}" ]]; then
+  echo "FAIL [RR000] packages directory not found: ${PACKAGES_DIR}"
+  exit 1
+fi
+
+export ROOT_DIR REPO_OWNER GITHUB_TOKEN COMPOSER_JSON SPLIT_YML PACKAGES_DIR CHECK_REMOTE
+
+python3 - <<'PY'
+import json
+import os
+import re
+import subprocess
+import sys
+import pathlib
+
+composer_path = pathlib.Path(os.environ["COMPOSER_JSON"])
+split_path = pathlib.Path(os.environ["SPLIT_YML"])
+packages_dir = pathlib.Path(os.environ["PACKAGES_DIR"])
+owner = os.environ["REPO_OWNER"]
+token = os.environ["GITHUB_TOKEN"]
+check_remote = os.environ.get("CHECK_REMOTE", "1") == "1"
+
+# Collect every first-party waaseyaa/* runtime require, tracking which manifest
+# asked for it so failures point at the real offender.
+sources: list[tuple[str, pathlib.Path]] = [("root composer.json", composer_path)]
+for pkg_composer in sorted(packages_dir.glob("*/composer.json")):
+    sources.append((f"packages/{pkg_composer.parent.name}", pkg_composer))
+
+required: dict[str, set[str]] = {}
+for label, path in sources:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    self_name = data.get("name", "")
+    for name in data.get("require", {}):
+        if isinstance(name, str) and name.startswith("waaseyaa/") and name != self_name:
+            pkg = name.split("/", 1)[1]
+            required.setdefault(pkg, set()).add(label)
+
+# Split matrix `remote:` targets. Parsed with a regex so we don't depend on a
+# YAML library being installed on the runner.
+split_text = split_path.read_text(encoding="utf-8")
+matrix_remotes = set(re.findall(r"remote:\s*'([^']+)'", split_text))
+
+if not matrix_remotes:
+    print("FAIL [RR000] No `remote:` matrix entries parsed from split.yml — refusing to pass blind.")
+    sys.exit(1)
+
+
+def repo_exists(repo: str) -> bool:
+    if token:
+        remote = f"https://x-access-token:{token}@github.com/{owner}/{repo}.git"
+    else:
+        remote = f"https://github.com/{owner}/{repo}.git"
+    result = subprocess.run(
+        ["git", "ls-remote", remote, "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    # A reachable repo exits 0 (even when empty: a freshly-created split target
+    # has no refs yet, but it exists and the split will force-push into it). A
+    # missing repo exits 128 (fatal: repository not found). Distinguish on the
+    # exit code, not on whether refs were returned.
+    return result.returncode == 0
+
+
+def whoneeds(pkg: str) -> str:
+    return ", ".join(sorted(required[pkg]))
+
+
+not_in_matrix: list[str] = []
+missing_repo: list[str] = []
+
+for pkg in sorted(required):
+    if pkg not in matrix_remotes:
+        not_in_matrix.append(pkg)
+        continue  # a package with no split target can't have a repo to check
+    if check_remote and not repo_exists(pkg):
+        missing_repo.append(pkg)
+
+if not_in_matrix or missing_repo:
+    print("FAIL [RR001] First-party require / split parity drift detected.")
+    if not_in_matrix:
+        print("  required by a first-party manifest but NOT in the split.yml matrix:")
+        for pkg in not_in_matrix:
+            print(f"    - waaseyaa/{pkg}   (required by: {whoneeds(pkg)})")
+    if missing_repo:
+        print(f"  in the split matrix but target repo github.com/{owner}/<pkg> does not exist:")
+        for pkg in missing_repo:
+            print(f"    - waaseyaa/{pkg}   (required by: {whoneeds(pkg)})")
+    print()
+    print("  Every waaseyaa/* runtime require (root manifest OR any packages/*)")
+    print("  must have a split.yml matrix entry AND an existing target repo")
+    print("  BEFORE the release is tagged. Fix: add the matrix entry and create")
+    print("  the split repo (and register it on Packagist), or drop the premature")
+    print("  require from the manifest.")
+    sys.exit(1)
+
+scanned = len(sources)
+mode = "matrix + existing repo" if check_remote else "matrix membership (remote check skipped)"
+print(
+    f"OK: Require parity verified - {len(required)} distinct waaseyaa/* requires "
+    f"across {scanned} first-party manifests, all satisfy {mode}."
+)
+PY

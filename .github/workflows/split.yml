@@ -35,6 +35,7 @@ jobs:
           - { local: 'packages/entity', remote: 'entity' }
           - { local: 'packages/entity-storage', remote: 'entity-storage' }
           - { local: 'packages/access', remote: 'access' }
+          - { local: 'packages/audit', remote: 'audit' }
           - { local: 'packages/user', remote: 'user' }
           - { local: 'packages/config', remote: 'config' }
           - { local: 'packages/field', remote: 'field' }
@@ -192,11 +193,30 @@ jobs:
         run: |
           bash bin/check-release-tag-parity "${TAG_NAME}"
 
+  verify-require-parity:
+    # Defense-in-depth mirror of the pre-tag gate in release-cut.yml. Catches a
+    # poisoned root manifest if a tag was pushed by a path that bypasses
+    # release-cut (e.g. a manual `git push --tags`). Companion to the
+    # tag-parity check above: tag-parity verifies the tag propagated to every
+    # split repo; require-parity verifies every root waaseyaa/* require has a
+    # split target + existing repo in the first place.
+    needs: split
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Verify root require / split parity
+        env:
+          REPO_OWNER: ${{ github.repository_owner }}
+          GITHUB_TOKEN: ${{ secrets.SPLIT_GITHUB_TOKEN }}
+        run: bash bin/check-release-require-parity
+
   # Publish only after split matrix + monorepo integrity + parity —
   # avoids racing github-release.yml on tag push, and blocks releases if main was overwritten.
   publish-github-release:
     name: Publish GitHub Release
-    needs: [verify-monorepo-main-intact, verify-tag-parity]
+    needs: [verify-monorepo-main-intact, verify-tag-parity, verify-require-parity]
     runs-on: ubuntu-latest
     permissions:
       contents: write
