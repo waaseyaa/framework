@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.191] - 2026-06-07
+
 ### Added
 
 - **Clean app-entity schema sync (Recon 2).** An app can now register an entity type and get its tables created + migrated cleanly on deploy instead of the raw-table workaround. New `schema:sync` command (with `--dry-run`) and `db:init --sync-schema` flag boot the console kernel, enumerate `EntityTypeManager` definitions, and materialize every registered type's schema (base, translation, revision, and per-bundle subtables) via the hardened, idempotent `EntitySchemaSyncRunner` / `EntitySchemaSync` (the latter now accepts a `FieldDefinitionRegistry` so bundle subtables are created). `AbstractKernel::validateEntitySchemas()` adds an opt-in boot-time guard (companion to `validateQueryDefinitions`) controlled by `entity_schema_validation` / `WAASEYAA_SCHEMA_VALIDATION`: `off` (default — no behaviour change) | `warn` (log tableless types) | `strict` (abort boot). All additive and opt-in.
