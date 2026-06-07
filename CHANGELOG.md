@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Clean app-entity schema sync (Recon 2).** An app can now register an entity type and get its tables created + migrated cleanly on deploy instead of the raw-table workaround. New `schema:sync` command (with `--dry-run`) and `db:init --sync-schema` flag boot the console kernel, enumerate `EntityTypeManager` definitions, and materialize every registered type's schema (base, translation, revision, and per-bundle subtables) via the hardened, idempotent `EntitySchemaSyncRunner` / `EntitySchemaSync` (the latter now accepts a `FieldDefinitionRegistry` so bundle subtables are created). `AbstractKernel::validateEntitySchemas()` adds an opt-in boot-time guard (companion to `validateQueryDefinitions`) controlled by `entity_schema_validation` / `WAASEYAA_SCHEMA_VALIDATION`: `off` (default — no behaviour change) | `warn` (log tableless types) | `strict` (abort boot). All additive and opt-in.
+- **Revisionable content entities (Recon 3), opt-in.** `EntityRepository` now surfaces `listRevisions()` (newest-first, hydrated with revision metadata) and `setCurrentRevision()` (move the default-revision pointer in place, no new revision) alongside the existing `loadRevision()` / `rollback()`. `ContentEntityBase` implements `RevisionableEntityInterface` via `RevisionableEntityTrait`, giving every content entity the standard revision-metadata slot (author/timestamp/log) — inert unless the `EntityType` is registered `revisionable: true`. New `revisions:enable <entity_type>` command + `EntityRepository::backfillInitialRevisions()` make an existing type revisionable (ensure revision schema, backfill revision 1; idempotent). Revision pruning is activated via `EntityRepository::pruneRevisions()` using the two-axis `RevisionPruningPolicy` (keeps newest N, never deletes the current revision). Media's content-addressed blob versioning is unchanged.
+
+### Changed
+
+- **`EntityRepository::loadRevision()`** now propagates the revision id and `isCurrentRevision()` onto the loaded entity (the `RevisionableEntityTrait` previously defaulted to "current", so a historical revision reported its current-ness incorrectly). Affects only consumers already loading revisions of a revisionable type — a correctness fix.
+- **`ContentEntityBase` now implements `RevisionableEntityInterface`**, so every content entity satisfies that `instanceof` check and carries the trait's revision methods. Inert for non-revisionable types.
+- **`EntityRepositoryInterface` gains `listRevisions()` and `setCurrentRevision()`** — additive for callers; a custom class that *implements* the interface must add the two methods (no known external implementors).
+
+### Removed
+
+- **`waaseyaa/agent-output` and `waaseyaa/page-builder` packages** — real code wired into nothing (not required by any package nor by `core`/`cms`/`full`, and never registered on Packagist, so no consumer could resolve them). Removed from the monorepo and the `split.yml` matrix so the release split goes fully green; they will be reintroduced "the audit way" when a feature needs them.
+
 ## [0.1.0-alpha.190] - 2026-06-07
 
 ### Fixed
