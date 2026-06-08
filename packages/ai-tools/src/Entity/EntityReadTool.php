@@ -105,11 +105,19 @@ final class EntityReadTool extends AbstractAgentTool
             'entity_type' => $entity->getEntityTypeId(),
             'id' => $entity->id(),
         ];
+        // Prefer a curated getValues() when an entity provides one; otherwise use
+        // the EntityInterface-guaranteed toArray(), so field values are exposed
+        // for every entity, not only those that happen to define getValues().
+        $values = [];
         if (method_exists($entity, 'getValues')) {
-            $values = $entity->getValues();
-            if (is_array($values)) {
-                $data['values'] = $values;
-            }
+            $curated = $entity->getValues();
+            $values = is_array($curated) ? $curated : [];
+        }
+        if ($values === []) {
+            $values = $entity->toArray();
+        }
+        if ($values !== []) {
+            $data['values'] = $values;
         }
 
         return $data;

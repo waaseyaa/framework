@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Entity read/search tools expose values for every entity (`ai-tools`).** `entity.read` and `entity.search` sourced field values only from an optional `getValues()` method, so entities that do not define it (most content entities) returned nothing: read showed only the id, and content search matched nothing. They now fall back to the `EntityInterface`-guaranteed `toArray()`, so field values are exposed and content search works for any entity type, and `entity.search` recurses into nested arrays (for example the `_data` blob). `entity.list` items now include each entity's `label`. Surfaced by the confirm-before-apply agent, which could not find or inspect content entities.
+
 ## [0.1.0-alpha.193] - 2026-06-08
 
 ### Added

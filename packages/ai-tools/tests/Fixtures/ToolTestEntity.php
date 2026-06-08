@@ -71,11 +71,8 @@ final class ToolTestEntity implements EntityInterface
         return $this->values;
     }
 
-    /** @return array<string, mixed> */
-    public function getValues(): array
-    {
-        return $this->values;
-    }
+    // Intentionally no getValues(): the read/search tools must fall back to the
+    // EntityInterface-guaranteed toArray() so they work for every entity.
 
     public function language(): string
     {

@@ -105,16 +105,31 @@ final class EntitySearchTool extends AbstractAgentTool
 
     private function matches(EntityInterface $entity, string $needle): bool
     {
-        if (!method_exists($entity, 'getValues')) {
-            return false;
+        // Use a curated getValues() when present, else the guaranteed toArray(),
+        // so search works for every entity type, not only those defining
+        // getValues(). Recurse into nested arrays (e.g. _data blobs).
+        $values = [];
+        if (method_exists($entity, 'getValues')) {
+            $curated = $entity->getValues();
+            $values = is_array($curated) ? $curated : [];
         }
-        /** @var mixed $values */
-        $values = $entity->getValues();
-        if (!is_array($values)) {
-            return false;
+        if ($values === []) {
+            $values = $entity->toArray();
         }
+
+        return $this->haystackMatches($values, $needle);
+    }
+
+    /**
+     * @param array<int|string, mixed> $values
+     */
+    private function haystackMatches(array $values, string $needle): bool
+    {
         foreach ($values as $value) {
             if (is_string($value) && str_contains(mb_strtolower($value), $needle)) {
+                return true;
+            }
+            if (is_array($value) && $this->haystackMatches($value, $needle)) {
                 return true;
             }
         }

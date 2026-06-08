@@ -14,7 +14,9 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Tools\Entity\EntityCreateTool;
 use Waaseyaa\AI\Tools\Entity\EntityDeleteTool;
 use Waaseyaa\AI\Tools\Entity\EntityListRevisionsTool;
+use Waaseyaa\AI\Tools\Entity\EntityReadTool;
 use Waaseyaa\AI\Tools\Entity\EntityRollbackTool;
+use Waaseyaa\AI\Tools\Entity\EntitySearchTool;
 use Waaseyaa\AI\Tools\Entity\EntitySetCurrentRevisionTool;
 use Waaseyaa\AI\Tools\Entity\EntityUpdateTool;
 use Waaseyaa\AI\Tools\Tests\Fixtures\InMemoryToolRepository;
@@ -36,6 +38,8 @@ use Waaseyaa\Entity\EntityType;
 #[CoversClass(EntitySetCurrentRevisionTool::class)]
 #[CoversClass(EntityRollbackTool::class)]
 #[CoversClass(EntityListRevisionsTool::class)]
+#[CoversClass(EntityReadTool::class)]
+#[CoversClass(EntitySearchTool::class)]
 final class EntityToolAccessTest extends TestCase
 {
     private InMemoryToolRepository $repo;
@@ -235,6 +239,32 @@ final class EntityToolAccessTest extends TestCase
         $ok = $tool->execute(['entity_type' => 'tool_test', 'id' => '1', 'target_revision_id' => 1], $this->account(['tool.entity.update', 'may write']));
         $this->assertFalse($ok->isError);
         $this->assertSame([['1', 1]], $this->repo->rollbackCalls);
+    }
+
+    #[Test]
+    public function read_exposes_values_via_toarray_without_getvalues(): void
+    {
+        // ToolTestEntity has no getValues(); read must still surface its fields
+        // through the EntityInterface-guaranteed toArray().
+        $tool = new EntityReadTool($this->etm);
+        $result = $tool->execute(['entity_type' => 'tool_test', 'id' => '1'], $this->account(['tool.entity.read']));
+
+        $this->assertFalse($result->isError);
+        $data = $result->content[0]['data'] ?? [];
+        $this->assertArrayHasKey('values', $data);
+        $this->assertSame('Original', $data['values']['title'] ?? null);
+    }
+
+    #[Test]
+    public function search_matches_content_via_toarray(): void
+    {
+        $tool = new EntitySearchTool($this->etm);
+        $result = $tool->execute(['entity_type' => 'tool_test', 'query' => 'origin'], $this->account(['tool.entity.search']));
+
+        $this->assertFalse($result->isError);
+        $data = $result->content[0]['data'] ?? [];
+        $this->assertSame(1, $data['count']);
+        $this->assertSame('1', (string) $data['items'][0]['id']);
     }
 
     #[Test]

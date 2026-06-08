@@ -80,6 +80,7 @@ final class EntityListTool extends AbstractAgentTool
         $items = array_map(fn(EntityInterface $e): array => [
             'entity_type' => $e->getEntityTypeId(),
             'id' => $e->id(),
+            'label' => $e->label(),
         ], $entities);
 
         return AgentToolResult::success(
