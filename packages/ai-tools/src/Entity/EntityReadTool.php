@@ -79,6 +79,11 @@ final class EntityReadTool extends AbstractAgentTool
             return AgentToolResult::error(sprintf('entity.read: %s/%s not found', $entityType, $id));
         }
 
+        $forbidden = $this->requireEntityAccess($entity, 'view', $account);
+        if ($forbidden !== null) {
+            return $forbidden;
+        }
+
         return AgentToolResult::success(
             content: [['type' => 'json', 'data' => $this->serialize($entity)]],
             summary: sprintf('Loaded %s/%s', $entityType, $id),

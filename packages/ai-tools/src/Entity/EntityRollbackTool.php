@@ -11,20 +11,23 @@ use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 
 /**
- * Load + mutate + save an existing entity.
+ * Roll a revisionable entity back to a previous revision, recording the revert
+ * as a new head revision (copy-forward, so history is preserved).
  *
- * Destructive; the HITL gate applies.
+ * Destructive; the HITL gate applies. Shares the `tool.entity.update`
+ * capability and, when an access handler is attached, the entity's `update`
+ * AccessPolicy.
  *
  * @api
  */
 #[AsAgentTool(
-    name: 'entity.update',
+    name: 'entity.rollback',
     capability: 'tool.entity.update',
     destructive: true,
     dryRunSupported: true,
     category: 'entity',
 )]
-final class EntityUpdateTool extends AbstractAgentTool
+final class EntityRollbackTool extends AbstractAgentTool
 {
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
@@ -32,7 +35,7 @@ final class EntityUpdateTool extends AbstractAgentTool
 
     public function description(): string
     {
-        return 'Update fields of an existing entity by type + id.';
+        return 'Roll a revisionable entity back to a previous revision (records a new head revision).';
     }
 
     public function inputSchema(): array
@@ -43,10 +46,9 @@ final class EntityUpdateTool extends AbstractAgentTool
             'properties' => [
                 'entity_type' => ['type' => 'string'],
                 'id' => ['type' => ['string', 'integer']],
-                'values' => ['type' => 'object', 'additionalProperties' => true],
-                'revision_log' => ['type' => 'string', 'description' => 'Optional revision log message (revisionable entities only).'],
+                'target_revision_id' => ['type' => 'integer', 'description' => 'The revision to roll back to.'],
             ],
-            'required' => ['entity_type', 'id', 'values'],
+            'required' => ['entity_type', 'id', 'target_revision_id'],
             'additionalProperties' => false,
         ];
     }
@@ -60,43 +62,37 @@ final class EntityUpdateTool extends AbstractAgentTool
 
         $entityType = $arguments['entity_type'] ?? null;
         $id = $arguments['id'] ?? null;
-        $values = $arguments['values'] ?? null;
-        if (!is_string($entityType) || $entityType === '' || (!is_string($id) && !is_int($id)) || !is_array($values)) {
-            return AgentToolResult::error('entity.update: missing required arguments entity_type, id, values.');
+        $targetRevisionId = $arguments['target_revision_id'] ?? null;
+        if (!is_string($entityType) || $entityType === '' || (!is_string($id) && !is_int($id)) || !is_int($targetRevisionId)) {
+            return AgentToolResult::error('entity.rollback: missing required arguments entity_type, id, target_revision_id.');
         }
 
         if (!$this->entityTypeManager->hasDefinition($entityType)) {
-            return AgentToolResult::error(sprintf('entity.update: unknown entity type "%s"', $entityType));
+            return AgentToolResult::error(sprintf('entity.rollback: unknown entity type "%s"', $entityType));
         }
 
         try {
             $repository = $this->entityTypeManager->getRepository($entityType);
             $entity = $repository->find((string) $id);
             if ($entity === null) {
-                return AgentToolResult::error(sprintf('entity.update: %s/%s not found', $entityType, (string) $id));
+                return AgentToolResult::error(sprintf('entity.rollback: %s/%s not found', $entityType, (string) $id));
             }
             $forbidden = $this->requireEntityAccess($entity, 'update', $account);
             if ($forbidden !== null) {
                 return $forbidden;
             }
-            foreach ($values as $field => $value) {
-                if (!is_string($field)) {
-                    continue;
-                }
-                $entity->set($field, $value);
-            }
-            $revisionLog = $arguments['revision_log'] ?? null;
-            if (is_string($revisionLog) && $revisionLog !== '' && method_exists($entity, 'setRevisionLog')) {
-                $entity->setRevisionLog($revisionLog);
-            }
-            $result = $repository->save($entity);
+            $reverted = $repository->rollback((string) $id, $targetRevisionId);
+        } catch (\LogicException $e) {
+            return AgentToolResult::error(sprintf('entity.rollback: %s is not revisionable (%s)', $entityType, $e->getMessage()));
         } catch (\Throwable $e) {
-            return AgentToolResult::error(sprintf('entity.update: %s', $e->getMessage()));
+            return AgentToolResult::error(sprintf('entity.rollback: %s', $e->getMessage()));
         }
 
+        $newRevision = method_exists($reverted, 'getRevisionId') ? $reverted->getRevisionId() : null;
+
         return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => ['entity_type' => $entityType, 'id' => $id, 'result' => $result]]],
-            summary: sprintf('Updated %s/%s', $entityType, (string) $id),
+            content: [['type' => 'json', 'data' => ['entity_type' => $entityType, 'id' => $id, 'rolled_back_to' => $targetRevisionId, 'new_revision' => $newRevision]]],
+            summary: sprintf('Rolled %s/%s back to revision %d', $entityType, (string) $id, $targetRevisionId),
         );
     }
 
@@ -108,8 +104,8 @@ final class EntityUpdateTool extends AbstractAgentTool
         }
 
         return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => ['would_update' => $arguments]]],
-            summary: 'Dry-run: would update entity',
+            content: [['type' => 'json', 'data' => ['would_rollback' => $arguments]]],
+            summary: 'Dry-run: would roll back',
         );
     }
 }

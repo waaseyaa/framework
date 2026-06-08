@@ -72,6 +72,10 @@ final class EntityDeleteTool extends AbstractAgentTool
             if ($entity === null) {
                 return AgentToolResult::error(sprintf('entity.delete: %s/%s not found', $entityType, (string) $id));
             }
+            $forbidden = $this->requireEntityAccess($entity, 'delete', $account);
+            if ($forbidden !== null) {
+                return $forbidden;
+            }
             $repository->delete($entity);
         } catch (\Throwable $e) {
             return AgentToolResult::error(sprintf('entity.delete: %s', $e->getMessage()));

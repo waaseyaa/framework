@@ -43,6 +43,7 @@ final class EntityCreateTool extends AbstractAgentTool
             'properties' => [
                 'entity_type' => ['type' => 'string'],
                 'values' => ['type' => 'object', 'additionalProperties' => true],
+                'revision_log' => ['type' => 'string', 'description' => 'Optional revision log message (revisionable entities only).'],
             ],
             'required' => ['entity_type', 'values'],
             'additionalProperties' => false,
@@ -66,6 +67,11 @@ final class EntityCreateTool extends AbstractAgentTool
             return AgentToolResult::error(sprintf('entity.create: unknown entity type "%s"', $entityType));
         }
 
+        $forbidden = $this->requireCreateAccess($entityType, '', $account);
+        if ($forbidden !== null) {
+            return $forbidden;
+        }
+
         try {
             $definition = $this->entityTypeManager->getDefinition($entityType);
             /** @var class-string $class */
@@ -78,6 +84,10 @@ final class EntityCreateTool extends AbstractAgentTool
             // Critical gotcha (CLAUDE.md): force INSERT path when ID is supplied.
             if (method_exists($entity, 'enforceIsNew')) {
                 $entity->enforceIsNew();
+            }
+            $revisionLog = $arguments['revision_log'] ?? null;
+            if (is_string($revisionLog) && $revisionLog !== '' && method_exists($entity, 'setRevisionLog')) {
+                $entity->setRevisionLog($revisionLog);
             }
             $repository = $this->entityTypeManager->getRepository($entityType);
             $result = $repository->save($entity);
