@@ -39,12 +39,12 @@
     ],
     "require": {
         "php": ">=8.5",
-        "waaseyaa/access": "^0.1.0-alpha.192",
-        "waaseyaa/audit": "^0.1.0-alpha.192",
-        "waaseyaa/entity": "^0.1.0-alpha.192",
-        "waaseyaa/foundation": "^0.1.0-alpha.192",
-        "waaseyaa/plugin": "^0.1.0-alpha.192",
-        "waaseyaa/typed-data": "^0.1.0-alpha.192"
+        "waaseyaa/access": "^0.1.0-alpha.193",
+        "waaseyaa/audit": "^0.1.0-alpha.193",
+        "waaseyaa/entity": "^0.1.0-alpha.193",
+        "waaseyaa/foundation": "^0.1.0-alpha.193",
+        "waaseyaa/plugin": "^0.1.0-alpha.193",
+        "waaseyaa/typed-data": "^0.1.0-alpha.193"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.193] - 2026-06-08
+
 ### Added
 
 - **Policy-gated entity agent tools + revision tools (`ai-tools`).** The native entity CRUD tools (`entity.create` / `read` / `update` / `delete`) can now enforce the same per-entity `AccessPolicy` the rest of the framework uses, not just the coarse `tool.entity.*` capability: attach an `EntityAccessHandler` via the new `AbstractAgentTool::setAccessHandler()` and each write/read additionally consults `check()` / `checkCreateAccess()` for (entity, operation, account). The default (no handler attached) is unchanged — capability-only — so tool discovery, container instantiation, and existing consumers (including the MCP tool surface) are unaffected. `entity.create` and `entity.update` gain an optional `revision_log` argument, applied to revisionable entities. Three new revision tools — `entity.set_current_revision`, `entity.rollback`, and `entity.list_revisions` — wrap the existing `EntityRepository` revision API (guarding non-revisionable types). Adds the first real test coverage for the entity tool layer. Additive and backward-compatible; surfaced by the first confirm-before-apply agent consumer.
