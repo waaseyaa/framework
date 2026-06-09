@@ -18,7 +18,6 @@ use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableInterface;
-use Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy;
 use Waaseyaa\Entity\TranslatableInterface;
 use Waaseyaa\Entity\Validation\EntityTypeValidationConstraints;
 use Waaseyaa\Entity\Validation\EntityValidationException;
@@ -29,6 +28,7 @@ use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Event\AbortOperationException;
 use Waaseyaa\EntityStorage\Event\AfterSaveEvent;
 use Waaseyaa\EntityStorage\Event\BeforeSaveEvent;
+use Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy;
 use Waaseyaa\I18n\LanguageManagerInterface;
 
 /**
@@ -977,6 +977,141 @@ final class EntityRepository implements EntityRepositoryInterface
         $driver = $this->assertTwoAxis(__FUNCTION__);
 
         return $driver->getLangcodesWithRevisions($entityId);
+    }
+
+    /**
+     * Unified two-axis save of one language's content: in a single transaction,
+     * upsert the peer `(id, langcode)` base row that holds this language's
+     * current values AND record a per-language revision. The peer row and its
+     * history move together, so a language is a true peer (its own base row and
+     * its own independent revision sequence), not an overlay on another
+     * language's row. The default-language row and any non-translatable fields
+     * are untouched.
+     *
+     * This is the single repository entry point for editing a translation; the
+     * `(id, langcode)` row is created on first save for a new language.
+     *
+     * @param array<string, mixed> $values This language's field values.
+     * @return int The new per-language revision id.
+     */
+    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int
+    {
+        $driver = $this->assertTwoAxis(__FUNCTION__);
+        if ($this->database === null) {
+            throw new \LogicException(
+                'saveTranslation requires a database connection for entity type ' . $this->entityType->id(),
+            );
+        }
+
+        $transaction = $this->database->transaction();
+        try {
+            $this->upsertLangcodePeerRow($entityId, $langcode, $values);
+            $revisionId = $driver->writeRevision($entityId, $values, $log, $langcode);
+            $transaction->commit();
+        } catch (\Throwable $e) {
+            $transaction->rollBack();
+            throw $e;
+        }
+
+        $entity = $this->loadTranslation($entityId, $langcode);
+        if ($entity !== null) {
+            $this->dispatchEvent($this->eventFactory->create($entity), EntityEvents::REVISION_CREATED->value);
+        }
+
+        return $revisionId;
+    }
+
+    /**
+     * Load the current value of one language from its peer `(id, langcode)` base
+     * row, or null when that language has no row yet.
+     */
+    public function loadTranslation(string $entityId, string $langcode): ?EntityInterface
+    {
+        $this->assertTwoAxis(__FUNCTION__);
+
+        $row = $this->driver->read($this->entityType->id(), $entityId, $langcode);
+        if ($row === null) {
+            return null;
+        }
+
+        return $this->hydrate($row);
+    }
+
+    /**
+     * Upsert the peer `(id, langcode)` base row carrying this language's values.
+     *
+     * For a blob-primary entity, non-system values ride the `_data` blob; the
+     * label column mirrors the label field when supplied. A new peer row copies
+     * the shared identity (`uuid`) from the default row so the partial-unique
+     * UUID index (which only constrains default-langcode rows) is satisfied.
+     *
+     * @param array<string, mixed> $values
+     */
+    private function upsertLangcodePeerRow(string $entityId, string $langcode, array $values): void
+    {
+        \assert($this->database !== null);
+
+        $table = $this->entityType->id();
+        $keys = $this->entityType->getKeys();
+        $idKey = $keys['id'] ?? 'id';
+        $langKey = $keys['langcode'] ?? 'langcode';
+        $labelKey = $keys['label'] ?? 'label';
+        $schema = $this->database->schema();
+
+        // Split the values into real columns vs the `_data` blob.
+        $columns = [];
+        $data = [];
+        foreach ($values as $key => $value) {
+            if ($key === $idKey || $key === $langKey || $key === '_data') {
+                continue;
+            }
+            if ($schema->fieldExists($table, $key)) {
+                $columns[$key] = $value;
+            } else {
+                $data[$key] = $value;
+            }
+        }
+        if ($labelKey !== '' && isset($values[$labelKey]) && $schema->fieldExists($table, $labelKey)) {
+            $columns[$labelKey] = (string) $values[$labelKey];
+        }
+
+        $row = $columns;
+        if ($schema->fieldExists($table, '_data')) {
+            $row['_data'] = json_encode($data, \JSON_THROW_ON_ERROR);
+        }
+
+        $exists = false;
+        foreach ($this->database->query(
+            'SELECT 1 FROM ' . $table . ' WHERE ' . $idKey . ' = ? AND ' . $langKey . ' = ?',
+            [$entityId, $langcode],
+        ) as $_) {
+            $exists = true;
+            break;
+        }
+
+        if ($exists) {
+            $this->database->update($table)
+                ->fields($row)
+                ->condition($idKey, $entityId)
+                ->condition($langKey, $langcode)
+                ->execute();
+
+            return;
+        }
+
+        $row[$idKey] = $entityId;
+        $row[$langKey] = $langcode;
+        if (isset($keys['uuid'])) {
+            $defaultRow = $this->driver->read($table, $entityId);
+            if ($defaultRow !== null && isset($defaultRow[$keys['uuid']])) {
+                $row[$keys['uuid']] = $defaultRow[$keys['uuid']];
+            }
+        }
+
+        $this->database->insert($table)
+            ->fields(array_keys($row))
+            ->values($row)
+            ->execute();
     }
 
     /**

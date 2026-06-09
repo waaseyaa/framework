@@ -149,4 +149,48 @@ final class EntityRepositoryTranslationAxisTest extends TestCase
         // The single-axis revision was still recorded for the new entity.
         $this->assertCount(1, $this->repo->listRevisions('1'));
     }
+
+    #[Test]
+    public function save_translation_writes_a_peer_row_and_its_revision_atomically(): void
+    {
+        // English: the default-language base row, written the ordinary way.
+        $en = new TestRevisionableEntity(values: ['title' => 'Seven Grandfathers', 'uuid' => 'g7']);
+        $en->enforceIsNew();
+        $this->repo->save($en);
+        $id = (string) $en->id();
+
+        // Anishinaabemowin: a true peer — its own (id, langcode) base row AND its
+        // own per-language revision, in one call.
+        $rev = $this->repo->saveTranslation($id, 'oj', ['title' => 'Niizhwaaswi Mishomis']);
+        $this->assertSame(1, $rev);
+
+        // The peer base row is the current oj value; the default row is unchanged.
+        $ojNow = $this->repo->loadTranslation($id, 'oj');
+        $this->assertNotNull($ojNow);
+        $this->assertSame('Niizhwaaswi Mishomis', $ojNow->label());
+
+        $default = $this->repo->find($id);
+        $this->assertNotNull($default);
+        $this->assertSame('Seven Grandfathers', $default->label());
+
+        // find() by langcode reads the peer row directly.
+        $ojByFind = $this->repo->find($id, 'oj');
+        $this->assertNotNull($ojByFind);
+        $this->assertSame('Niizhwaaswi Mishomis', $ojByFind->label());
+
+        // The per-language revision history exists and sequences independently.
+        $this->assertCount(1, $this->repo->listTranslationRevisions($id, 'oj'));
+        $this->assertSame(2, $this->repo->saveTranslation($id, 'oj', ['title' => 'oj v2']));
+        $this->assertCount(2, $this->repo->listTranslationRevisions($id, 'oj'));
+
+        // The second save updated the same peer row in place (no duplicate).
+        $ojV2 = $this->repo->loadTranslation($id, 'oj');
+        $this->assertNotNull($ojV2);
+        $this->assertSame('oj v2', $ojV2->label());
+
+        // An old peer revision is still recoverable verbatim.
+        $ojFirst = $this->repo->loadTranslationRevision($id, 'oj', 1);
+        $this->assertNotNull($ojFirst);
+        $this->assertSame('Niizhwaaswi Mishomis', $ojFirst->label());
+    }
 }

@@ -46,19 +46,19 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
             if ($db->schema()->tableExists($translationTable)) {
                 return $this->readWithTranslation($db, $entityType, $id, $langcode);
             }
+
+            // No sibling translation table: the language lives in a peer
+            // (id, langcode) base row (the two-axis blob model). Select that row
+            // directly rather than post-filtering whichever row sorts first.
+            if ($db->schema()->fieldExists($entityType, 'langcode')) {
+                $query = $query->condition('langcode', $langcode);
+            }
         }
 
         $result = $query->execute();
 
         foreach ($result as $row) {
             $row = (array) $row;
-
-            if ($langcode !== null && $db->schema()->fieldExists($entityType, 'langcode')) {
-                // If no translation table, filter by langcode in base table.
-                if (isset($row['langcode']) && $row['langcode'] !== $langcode) {
-                    return null;
-                }
-            }
 
             return $this->mergeFromRead($row);
         }
