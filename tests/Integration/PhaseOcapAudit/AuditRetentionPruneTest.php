@@ -7,22 +7,17 @@ namespace Waaseyaa\Tests\Integration\PhaseOcapAudit;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Audit\Contract\AuditQuery;
 use Waaseyaa\Audit\Contract\AuditQueryInterface;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
 use Waaseyaa\Audit\Query\AuditEventQuery;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
+use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
 use Waaseyaa\Audit\Writer\AuditEventWriter;
 use Waaseyaa\CLI\CliIO;
 use Waaseyaa\CLI\Command\Audit\PruneCommand;
 use Waaseyaa\Database\DBALDatabase;
-use Waaseyaa\Entity\EntityType;
-use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
-use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
-use Waaseyaa\EntityStorage\EntityRepository;
 
 /**
  * Integration test for the `audit:prune` CLI command (T-O §2).
@@ -45,24 +40,12 @@ final class AuditRetentionPruneTest extends TestCase
     {
         $this->database = DBALDatabase::createSqlite();
 
-        $schemaHandler = new AuditEventSchemaHandler($this->database);
-        $schemaHandler->ensureSchema();
+        new AuditEventSchemaHandler($this->database)->ensureSchema();
 
-        $dispatcher = new EventDispatcher();
-        $entityTypeManager = new EntityTypeManager($dispatcher);
-
-        $auditEventType = new EntityType(
-            id: 'audit_event',
-            label: 'Audit Event',
-            class: \Waaseyaa\Audit\Entity\AuditEvent::class,
-            keys: ['id' => 'id', 'uuid' => 'uuid'],
-        );
-        $entityTypeManager->registerEntityType($auditEventType);
-        $resolver = new SingleConnectionResolver($this->database);
-        $driver = new SqlStorageDriver($resolver);
-        $repo = new EntityRepository($auditEventType, $driver, $dispatcher);
-        $this->writer = new AuditEventWriter($repo);
-
+        // Production wiring: the writer appends through the append-only decorator;
+        // the prune command and reads use the raw database directly. audit_event is
+        // a plain OCAP log table, not a registered entity.
+        $this->writer = new AuditEventWriter(new AppendOnlyAuditDatabase($this->database));
         $this->query = new AuditEventQuery($this->database);
     }
 
