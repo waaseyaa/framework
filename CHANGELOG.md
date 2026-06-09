@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0-alpha.201] - 2026-06-09
+## [0.1.0-alpha.202] - 2026-06-09
+
+Continued internal framework-hygiene (no new product capability). Resolves the two design forks surfaced in alpha.201.
+
+### Changed
+
+- **OCAP audit log: `audit_event` / `audit_retention_policy` de-registered as content entities (`audit`).** They are now what they always physically were — flat OCAP log tables built by `AuditEventSchemaHandler`, not registered `#[ContentEntityType]`s. This clears the 8 permanent `schema:check` false-positives the lean log tables produced (`HealthChecker` enumerates drift expectations from the entity registry) and removes the false implication of an entity CRUD/update path for an append-only log. The `AuditEvent` / `AuditRetentionPolicy` classes survive as typed read-model accessors over a row (each overrides `get()` so reads no longer depend on entity-type registration); reads still flow through `AuditEventQuery`. (#1625)
+- **OCAP audit log: append-only is now actively enforced (`audit`).** `AuditEventWriter` was migrated off `EntityRepository::save()` to a raw, parameterized, **insert-only** `DatabaseInterface` INSERT, wrapped by the new `AppendOnlyAuditDatabase` decorator, which throws `\LogicException` on any `UPDATE`/`DELETE` of `audit_event`. The writer is wired with the decorator, so the only mutation it can express is an append. The one sanctioned deletion — the `audit:prune` retention purge — keeps resolving the raw `DatabaseInterface`, so retention is unaffected. This replaces the former `AppendOnlyDriverGuard`, which was never instantiated (the append-only guarantee was dormant) and guarded an entity-storage path that no longer exists. An `AuditImmutabilityTest` proves a written event cannot be updated or deleted through any supported audit path; an independent adversarial review found no remaining mutation path.
+- **`TranslatableInterface::language()` un-deprecated (`entity`).** It is a distinct, supported accessor — the lenient sibling of `activeLangcode()`: it returns the `langcode`/`'en'` fallback when an entity has no `default_langcode`, where `activeLangcode()` throws. The `language()→activeLangcode()` migration is not a mechanical swap (the BC fallback differs for non-translatable entities that inherit the contract via `ContentEntityBase`), so the deprecation was removed and the two accessors documented as a deliberate pair.
 
 Continued internal framework-hygiene (alpha.201 fast-follow; no new product capability).
 
