@@ -116,6 +116,32 @@ final class MessagingServiceProvider extends ServiceProvider
     }
 
     /**
+     * Warn when the effective {@see ProviderInterface} is still the placeholder
+     * {@see NullLlmProvider} after every provider has registered (DX #1608).
+     *
+     * Runs after all `register()` passes, so {@see $kernelServices} sees the
+     * binding from any app provider that rebound {@see ProviderInterface} to a
+     * real provider — in that case the resolved instance is not a
+     * {@see NullLlmProvider} and the warning stays silent. It fires only when no
+     * LLM is configured, surfacing why agent runs return the canned placeholder
+     * response instead of failing loudly.
+     */
+    public function boot(): void
+    {
+        $provider = $this->kernelServices?->get(ProviderInterface::class)
+            ?? $this->safeResolve(ProviderInterface::class);
+
+        if ($provider instanceof NullLlmProvider) {
+            $this->resolveLogger()->warning(
+                'No LLM provider configured; agent runs use NullLlmProvider and '
+                . 'return a placeholder response. Bind '
+                . ProviderInterface::class
+                . ' to a real provider in an app service provider to enable AI features.',
+            );
+        }
+    }
+
+    /**
      * Build a synchronous {@see MessageBus} that dispatches
      * {@see RunAgent} directly to the resolved {@see RunAgentHandler}.
      *
@@ -147,5 +173,12 @@ final class MessagingServiceProvider extends ServiceProvider
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    private function resolveLogger(): LoggerInterface
+    {
+        $candidate = $this->kernelServices?->get(LoggerInterface::class);
+
+        return $candidate instanceof LoggerInterface ? $candidate : new NullLogger();
     }
 }
