@@ -38,7 +38,6 @@
         ],
         "regen-lock": "@composer update 'waaseyaa/*' --no-plugins --no-install --no-scripts",
         "post-create-project-cmd": [
-            "chmod +x bin/maintenance/waaseyaa-version bin/maintenance/verify-deploy-rsync bin/maintenance/waaseyaa-audit-site bin/maintenance/deploy-artifact-smoke",
             "php bin/post-create-setup.php"
         ]
     },
