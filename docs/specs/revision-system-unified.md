@@ -69,6 +69,27 @@ Driver support already exists (`RevisionableStorageDriver::writeRevision(..., ?s
 → `writePerLangcodeRevision`); Phase 1 makes the schema, the repository wiring,
 and the load side real and tested rather than dormant.
 
+### 3a. Unified two-axis write (`saveTranslation`)
+
+Phase 1 records per-language *revisions*; it does not by itself move the peer
+*base row* that holds a language's current value. `EntityRepository::saveTranslation($entityId, $langcode, array $values, ?string $log)`
+closes that gap: in **one transaction** it both
+
+1. upserts the peer `(id, langcode)` base row (the language's current value —
+   blob entities ride `_data`; the label column mirrors the label field; a new
+   peer row copies the shared `uuid` from the default row so the partial-unique
+   UUID index, which only constrains default-langcode rows, is satisfied), and
+2. writes the per-language revision (`writeRevision(..., $langcode)`).
+
+The base row and its history therefore move together: a language is a true peer
+with its own base row and its own independent `revision_id` sequence, not an
+overlay on another language's row. The default-language row and any
+non-translatable fields are untouched. This is the single repository entry point
+for editing a translation; storage logic stays in one place (the repository),
+not orchestrated across two storage APIs by the application. `loadTranslation($id, $langcode)`
+reads a language's current value back from its peer base row (the driver's
+`read(..., $langcode)` selects the peer row directly on a widened-PK base table).
+
 ## 4. Load contract
 
 - `find($id)` — tip of each language (latest `revision_id` per `(entity, langcode)`),
