@@ -15,7 +15,12 @@ final class InertiaServiceProvider extends ServiceProvider implements HasMiddlew
 {
     public function register(): void
     {
-        $this->registerWithRoot(null);
+        // Prefer the kernel-provided project root over getcwd(): the documented dev
+        // server (`bin/waaseyaa serve`) launches the PHP built-in server with
+        // `-t {projectRoot}/public`, which chdir()s into public/ per request, so
+        // getcwd() returns the docroot and `$root . '/public'` would double-append
+        // /public (manifest never found -> blank <head>). #1626 snag 1.
+        $this->registerWithRoot($this->projectRoot !== '' ? $this->projectRoot : null);
     }
 
     /**
@@ -33,13 +38,25 @@ final class InertiaServiceProvider extends ServiceProvider implements HasMiddlew
         $viteRaw = $_ENV['VITE_DEV_SERVER'] ?? getenv('VITE_DEV_SERVER');
         $devServerUrl = is_string($viteRaw) && $viteRaw !== '' ? $viteRaw : null;
 
+        // Make the Vite bundle/entrypoint overridable instead of hardcoded. Null
+        // preserves ViteAssetManager's current defaults ('build' / 'resources/js/app.ts'),
+        // so default emitted HTML is byte-identical. #1626 snag 4.
+        $bundleRaw = $_ENV['VITE_BUNDLE'] ?? getenv('VITE_BUNDLE');
+        $bundle = is_string($bundleRaw) && $bundleRaw !== '' ? $bundleRaw : null;
+        $entrypointRaw = $_ENV['VITE_ENTRYPOINT'] ?? getenv('VITE_ENTRYPOINT');
+        $entrypoint = is_string($entrypointRaw) && $entrypointRaw !== '' ? $entrypointRaw : null;
+
         $assetManager = new ViteAssetManager(
             basePath: $root . '/public',
             baseUrl: '',
             devServerUrl: $devServerUrl,
         );
 
-        $renderer = new RootTemplateRenderer(assetManager: $assetManager);
+        $renderer = new RootTemplateRenderer(
+            assetManager: $assetManager,
+            bundle: $bundle,
+            entrypoint: $entrypoint,
+        );
         Inertia::setRenderer($renderer);
         $this->singleton(InertiaFullPageRendererInterface::class, static fn(): InertiaFullPageRendererInterface => $renderer);
     }

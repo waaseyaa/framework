@@ -12,6 +12,8 @@ final class RootTemplateRenderer implements InertiaFullPageRendererInterface
     public function __construct(
         private readonly ?\Closure $template = null,
         private readonly ?ViteAssetManager $assetManager = null,
+        private readonly ?string $bundle = null,
+        private readonly ?string $entrypoint = null,
     ) {}
 
     /** @param array<string, mixed> $pageObject */
@@ -33,7 +35,15 @@ final class RootTemplateRenderer implements InertiaFullPageRendererInterface
 
     private function defaultTemplate(string $scriptTag): string
     {
-        $assetTags = $this->assetManager?->assetTags() ?? '';
+        // Thread overridable bundle/entrypoint only when set; null args fall back to
+        // ViteAssetManager::assetTags()'s own defaults ('build' / 'resources/js/app.ts').
+        $assetTags = $this->assetManager === null
+            ? ''
+            : ($this->bundle !== null && $this->entrypoint !== null
+                ? $this->assetManager->assetTags($this->bundle, $this->entrypoint)
+                : ($this->bundle !== null
+                    ? $this->assetManager->assetTags($this->bundle)
+                    : $this->assetManager->assetTags()));
 
         return <<<HTML
             <!DOCTYPE html>
