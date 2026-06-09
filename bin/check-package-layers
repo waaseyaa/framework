@@ -339,7 +339,10 @@ def scan_php_imports(pkg_dir: pathlib.Path, self_layer: int) -> list[tuple[str, 
     if not src.is_dir():
         return findings
     for php in src.rglob("*.php"):
-        rel = str(php.relative_to(root / "packages"))
+        # Normalize to POSIX separators so the kernel-exempt suffix/file
+        # allowlists (which use forward slashes) match on Windows too.
+        # Mirrors bin/check-composer-policy's .as_posix() convention. (#1600-era b5)
+        rel = php.relative_to(root / "packages").as_posix()
         if is_kernel_exempt(rel):
             continue
         try:
