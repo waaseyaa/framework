@@ -48,14 +48,14 @@
     "require": {
         "php": ">=8.5",
         "symfony/html-sanitizer": "^8.0",
-        "waaseyaa/api": "^0.1.0-alpha.201",
-        "waaseyaa/access": "^0.1.0-alpha.201",
-        "waaseyaa/cache": "^0.1.0-alpha.201",
-        "waaseyaa/config": "^0.1.0-alpha.201",
-        "waaseyaa/entity": "^0.1.0-alpha.201",
-        "waaseyaa/field": "^0.1.0-alpha.201",
-        "waaseyaa/foundation": "^0.1.0-alpha.201",
-        "waaseyaa/routing": "^0.1.0-alpha.201",
+        "waaseyaa/api": "^0.1.0-alpha.202",
+        "waaseyaa/access": "^0.1.0-alpha.202",
+        "waaseyaa/cache": "^0.1.0-alpha.202",
+        "waaseyaa/config": "^0.1.0-alpha.202",
+        "waaseyaa/entity": "^0.1.0-alpha.202",
+        "waaseyaa/field": "^0.1.0-alpha.202",
+        "waaseyaa/foundation": "^0.1.0-alpha.202",
+        "waaseyaa/routing": "^0.1.0-alpha.202",
         "twig/twig": "^3.0"
     },
     "require-dev": {
