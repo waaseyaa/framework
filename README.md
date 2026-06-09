@@ -23,6 +23,7 @@ Waaseyaa replaces Drupal's legacy runtime with a clean, modular architecture org
 ## Requirements
 
 - PHP 8.5 or later
+- `ext-sodium` (required transitively by `waaseyaa/oidc` → `lcobucci/jwt` for JWT signing)
 - Composer 2.x
 - SQLite 3 (default) or MySQL/PostgreSQL via Doctrine DBAL
 

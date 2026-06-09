@@ -291,6 +291,7 @@
     ],
     "require": {
         "php": ">=8.5",
+        "ext-sodium": "*",
         "dragonmantank/cron-expression": "^3.0",
         "symfony/dotenv": "^8.0",
         "symfony/html-sanitizer": "^8.0",
