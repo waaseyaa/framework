@@ -2,7 +2,7 @@
 
 **Introduced in:** alpha train shipping M-004 (`entity-storage-translatable-revisions-01KRCDEE`), closed 2026-05-17.
 **Charter linkage:** [`../specs/stability-charter.md`](../specs/stability-charter.md) §5.3, §7 (upgrade guide requirement).
-**Canonical doctrine:** [`../specs/entity-storage-two-axis.md`](../specs/entity-storage-two-axis.md).
+**Canonical doctrine (LIVE):** [`../specs/revision-system-unified.md`](../specs/revision-system-unified.md) — the M-004 `vid` model below is retired (alpha.196); declare `'revision' => 'revision_id'` (not `'vid'`).
 **Cookbook:** [`../cookbook/translatable-revisionable-entities.md`](../cookbook/translatable-revisionable-entities.md).
 
 ---
@@ -89,7 +89,7 @@ new EntityType(
     id: 'teaching',
     label: 'Teaching',
     class: Teaching::class,
-    keys: [..., 'revision' => 'vid', 'default_langcode' => 'default_langcode'],
+    keys: [..., 'revision' => 'revision_id', 'default_langcode' => 'default_langcode'],
     revisionable: true,
     translatable: true,
 )
