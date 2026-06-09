@@ -204,6 +204,42 @@ final class SqlSchemaHandlerTest extends TestCase
         $this->assertTrue($db->schema()->fieldExists('node', 'revision_id'));
     }
 
+    public function testEnsureTableAddsPublishedRevisionPointerForRevisionableTypes(): void
+    {
+        $entityType = new EntityType(
+            id: 'node',
+            label: 'Content',
+            class: TestStorageEntity::class,
+            keys: ['id' => 'nid', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
+            revisionable: true,
+        );
+
+        $db = DBALDatabase::createSqlite();
+        $handler = new SqlSchemaHandler($entityType, $db);
+        $handler->ensureTable();
+
+        // Published-revision pointer is materialised alongside (and separate
+        // from) the current-revision pointer for every revisionable type.
+        $this->assertTrue($db->schema()->fieldExists('node', 'published_revision_id'));
+    }
+
+    public function testNonRevisionableTypesHaveNoPublishedRevisionPointer(): void
+    {
+        $entityType = new EntityType(
+            id: 'note',
+            label: 'Note',
+            class: TestStorageEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title'],
+            revisionable: false,
+        );
+
+        $db = DBALDatabase::createSqlite();
+        $handler = new SqlSchemaHandler($entityType, $db);
+        $handler->ensureTable();
+
+        $this->assertFalse($db->schema()->fieldExists('note', 'published_revision_id'));
+    }
+
     public function testDeriveColumnSpecMapsTextLongUriAndEntityReference(): void
     {
         $handler = new SqlSchemaHandler($this->entityType, $this->database);

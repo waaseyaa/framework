@@ -97,6 +97,16 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
         return null;
     }
 
+    public function loadPublishedRevision(string $entityId): ?EntityInterface
+    {
+        return null;
+    }
+
+    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface
+    {
+        return $this->store[$entityId] ?? new ToolTestEntity(['id' => $entityId]);
+    }
+
     public function saveMany(array $entities, bool $validate = true): array
     {
         return [];

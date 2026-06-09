@@ -132,6 +132,37 @@ interface EntityRepositoryInterface
     public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface;
 
     /**
+     * Load the entity's PUBLISHED revision, or null when none is published yet.
+     *
+     * The published revision is tracked by a base-table pointer that is
+     * SEPARATE from the current/latest revision, so the public view can render
+     * a stable published revision while newer draft revisions exist. Returns
+     * null when the entity has no published revision (the pointer is NULL) or
+     * when the entity does not exist.
+     *
+     * @param string $entityId The entity ID.
+     * @return EntityInterface|null The entity hydrated from the published revision, or null.
+     */
+    #[\NoDiscard('lookup result must be checked for null')]
+    public function loadPublishedRevision(string $entityId): ?EntityInterface;
+
+    /**
+     * Promote an existing revision to be the PUBLISHED revision.
+     *
+     * Moves only the published-revision pointer; the current/latest revision
+     * (the working draft) is left untouched, so the live view and the draft can
+     * differ. Publishing an older revision is how rollback of the live view
+     * works. This is the deliberate "go live" step, distinct from saving a draft.
+     *
+     * @param string $entityId The entity ID.
+     * @param int $revisionId The existing revision to publish.
+     * @return EntityInterface The entity hydrated from the now-published revision.
+     * @throws \InvalidArgumentException If the revision does not exist.
+     */
+    #[\NoDiscard('lookup result must be checked for null')]
+    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface;
+
+    /**
      * Save multiple entities in a single transaction.
      *
      * Events are buffered during the transaction and dispatched after commit.

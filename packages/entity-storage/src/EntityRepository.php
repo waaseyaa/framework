@@ -742,6 +742,96 @@ final class EntityRepository implements EntityRepositoryInterface
     }
 
     /**
+     * Load the entity's published revision, or null when nothing is published.
+     *
+     * Reads the base-table `published_revision_id` pointer (separate from the
+     * current/latest `revision_id` pointer) and hydrates that revision. Returns
+     * null when the pointer is NULL/absent — an unpublished entity, or a base
+     * table predating the published-pointer column — so the call is safe and
+     * backward-compatible on any revisionable entity type.
+     */
+    public function loadPublishedRevision(string $entityId): ?EntityInterface
+    {
+        if ($this->revisionDriver === null) {
+            throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
+        }
+
+        $baseRow = $this->driver->read($this->entityType->id(), $entityId);
+        if ($baseRow === null) {
+            return null;
+        }
+
+        $publishedRevisionId = $baseRow['published_revision_id'] ?? null;
+        if ($publishedRevisionId === null || (int) $publishedRevisionId <= 0) {
+            return null;
+        }
+
+        return $this->loadRevision($entityId, (int) $publishedRevisionId);
+    }
+
+    /**
+     * Promote an existing revision to be the published revision by moving ONLY
+     * the base-table `published_revision_id` pointer — the current/latest
+     * revision (the working draft) and the entity's field values are untouched,
+     * so the live view and an in-progress draft can differ. Publishing an older
+     * revision is how a live-view rollback works.
+     */
+    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface
+    {
+        if ($this->revisionDriver === null) {
+            throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
+        }
+
+        // Validate the target revision exists for this entity.
+        if ($this->revisionDriver->readRevision($entityId, $revisionId) === null) {
+            throw new \InvalidArgumentException(
+                "Revision {$revisionId} does not exist for entity {$entityId}.",
+            );
+        }
+
+        $keys = $this->entityType->getKeys();
+        $idKey = $keys['id'] ?? 'id';
+
+        $transaction = $this->database?->transaction();
+        try {
+            if ($this->database !== null) {
+                // Targeted single-column update: touch only the published pointer.
+                $this->database->update($this->entityType->id())
+                    ->fields(['published_revision_id' => $revisionId])
+                    ->condition($idKey, $entityId)
+                    ->execute();
+            } else {
+                // Driver-only fallback (no DatabaseInterface wired): round-trip
+                // the base row, flipping just the published pointer.
+                $baseRow = $this->driver->read($this->entityType->id(), $entityId);
+                if ($baseRow === null) {
+                    throw new \InvalidArgumentException("Entity {$entityId} does not exist.");
+                }
+                $baseRow['published_revision_id'] = $revisionId;
+                $this->driver->write($this->entityType->id(), $entityId, $baseRow);
+            }
+            $transaction?->commit();
+        } catch (\Throwable $e) {
+            $transaction?->rollBack();
+            throw $e;
+        }
+
+        $entity = $this->loadPublishedRevision($entityId);
+        if ($entity === null) {
+            throw new \LogicException(
+                "Failed to load published revision {$revisionId} for entity {$entityId} after publishing.",
+            );
+        }
+
+        $this->dispatchEvent(
+            $this->eventFactory->create($entity),
+            EntityEvents::REVISION_REVERTED->value,
+        );
+
+        return $entity;
+    }
+
+    /**
      * Prune an entity's revision history per a retention policy so revision
      * tables do not grow unbounded — opt-in (the framework never auto-prunes on
      * save, FR-039). Keeps the newest N revisions and NEVER deletes the current

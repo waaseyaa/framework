@@ -159,6 +159,16 @@ final class TwoAxisFilterResolverTest extends TestCase
                 throw new \LogicException('not used');
             }
 
+            public function loadPublishedRevision(string $entityId): ?EntityInterface
+            {
+                return null;
+            }
+
+            public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface
+            {
+                throw new \LogicException('not used');
+            }
+
             public function saveMany(array $entities, bool $validate = true): array
             {
                 return [];

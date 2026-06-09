@@ -306,7 +306,10 @@ final class SqlSchemaHandler
             $revRow['revision_created'] = date('Y-m-d H:i:s');
             $revRow['revision_log'] = 'Seeded from existing data';
             foreach ($row as $col => $val) {
-                if ($col === $idKey || $col === $revisionKey) {
+                // Skip the base-table-only pointer columns: the current-revision
+                // pointer and the published-revision pointer have no counterpart
+                // in the revision snapshot table.
+                if ($col === $idKey || $col === $revisionKey || $col === 'published_revision_id') {
                     continue;
                 }
                 $revRow[$col] = $val;
@@ -443,6 +446,21 @@ final class SqlSchemaHandler
         if ($this->entityType->isRevisionable()) {
             $revisionKey = $keys['revision'] ?? 'revision_id';
             $fields[$revisionKey] = [
+                'type' => 'int',
+                'not null' => false,
+                'default' => null,
+            ];
+
+            // Published-revision pointer. Records which revision the public /
+            // "published" view renders, kept SEPARATE from the current/latest
+            // revision pointer above so the live view can differ from an
+            // in-progress draft (draft-then-publish; publishing an older
+            // revision is rollback). Nullable, default NULL: an entity with
+            // nothing published yet — and every pre-existing revisionable row —
+            // is unaffected (the column reads NULL). Moved only via
+            // EntityRepository::setPublishedRevision(); see
+            // EntityRepository::loadPublishedRevision().
+            $fields['published_revision_id'] = [
                 'type' => 'int',
                 'not null' => false,
                 'default' => null,
