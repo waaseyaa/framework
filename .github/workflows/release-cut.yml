@@ -150,13 +150,19 @@ jobs:
           SEMVER="${VERSION#v}"
           bin/sync-internal-versions "$SEMVER"
 
-      - name: Mutate CHANGELOG and capture tag message
+      - name: Mutate CHANGELOG and VERSION, capture tag message
         id: changelog
         env:
           VERSION: ${{ inputs.version }}
         run: |
           semver="${VERSION#v}"
           today=$(date -u +%Y-%m-%d)
+          # Stamp the VERSION file to match the tag being cut. It had drifted
+          # (frozen at an early alpha) because no cut step ever wrote it, so a
+          # cold clone misreported its version. Writing it here keeps VERSION in
+          # lockstep with the tag from this release forward. The value is bare
+          # semver (no leading 'v'), matching the file's existing format.
+          printf '%s\n' "$semver" > VERSION
           # Capture content for the tag message before mutation.
           tag_msg=$(sed -n '/^## \[Unreleased\]/,/^## \[/{/^## \[Unreleased\]/d;/^## \[/d;p;}' CHANGELOG.md)
           # Rename [Unreleased] → [X.Y.Z] - DATE, insert fresh [Unreleased].
@@ -183,7 +189,7 @@ jobs:
           # internal `waaseyaa/*` constraint still points at the prior version,
           # and the next pre-push composer-policy gate fails with 200+ CP-NEW
           # violations. See incident: alpha.178 cut on 2026-05-14.
-          git add CHANGELOG.md packages/*/composer.json
+          git add CHANGELOG.md VERSION packages/*/composer.json
           git commit -m "chore: release ${VERSION}"
           git tag -a "$VERSION" -m "Release ${VERSION}
 

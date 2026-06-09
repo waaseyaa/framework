@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Published-revision pointer, separate from the current/latest revision (`entity-storage`, `entity`).** Revisionable entity types now carry a nullable `published_revision_id` column on their base table, distinct from the existing current-revision pointer, so the published view of an entity can differ from its latest draft revision (draft-then-publish; publishing an older revision is how a live rollback works). `EntityRepository` (and `EntityRepositoryInterface`) gain `loadPublishedRevision()` and `setPublishedRevision()`: the former hydrates whatever revision the pointer names (null when nothing is published), the latter moves only the pointer, leaving the working draft and field values untouched. Additive and backward-compatible: the column defaults to NULL, every pre-existing revisionable row is unaffected, and `loadPublishedRevision()` safely returns null on base tables that predate the column. The base-table-only pointer columns are skipped by the revision-seed path.
 
+### Fixed
+
+- **`release-cut.yml` (and the `scripts/release.sh` fallback) now stamp the `VERSION` file to match the tag on every cut.** No cut step ever wrote `VERSION`, so it stayed frozen at an early alpha and a cold clone misreported the framework version; it is now written in lockstep with the tag from this release forward.
+
 ## [0.1.0-alpha.194] - 2026-06-08
 
 ### Fixed

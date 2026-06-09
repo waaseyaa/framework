@@ -76,8 +76,12 @@ echo "Changes:"
 echo "$TAG_MSG"
 echo ""
 
-# Commit changelog, tag, push
-git add CHANGELOG.md
+# Stamp the VERSION file to match the tag (lockstep with release-cut.yml).
+# Without this, the file stays frozen and cold clones misreport the version.
+printf '%s\n' "$SEMVER" > VERSION
+
+# Commit changelog, version, tag, push
+git add CHANGELOG.md VERSION
 git commit -m "chore: release ${VERSION}"
 git tag -a "$VERSION" -m "Release ${VERSION}
 
