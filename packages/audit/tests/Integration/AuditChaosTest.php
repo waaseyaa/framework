@@ -10,11 +10,12 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Enum\AuditEventKind;
 use Waaseyaa\Audit\Listener\EntityLifecycleAuditListener;
+use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
 use Waaseyaa\Audit\Writer\AuditEventWriter;
 use Waaseyaa\Audit\Writer\NullAuditWriter;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\Event\EntityEvent;
-use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 
 /**
  * NFR-001 chaos test: a broken audit table MUST NOT 500 primary requests.
@@ -30,13 +31,9 @@ final class AuditChaosTest extends TestCase
     #[Test]
     public function broken_audit_table_does_not_throw_on_entity_save(): void
     {
-        // Broken repo: always throws on save.
-        $brokenRepo = $this->createMock(EntityRepositoryInterface::class);
-        $brokenRepo->method('save')->willThrowException(
-            new \RuntimeException('audit_event table does not exist — simulated chaos'),
-        );
-
-        $writer = new AuditEventWriter($brokenRepo);
+        // Broken database: schema is never created, so the audit_event table does
+        // not exist and the writer's INSERT throws at execute() — simulated chaos.
+        $writer = new AuditEventWriter(new AppendOnlyAuditDatabase(DBALDatabase::createSqlite()));
 
         $entity = $this->createMock(EntityInterface::class);
         $entity->method('isNew')->willReturn(true);

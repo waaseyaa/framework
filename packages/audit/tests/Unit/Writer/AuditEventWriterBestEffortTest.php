@@ -9,8 +9,9 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Enum\AuditEventKind;
+use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
 use Waaseyaa\Audit\Writer\AuditEventWriter;
-use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Database\DBALDatabase;
 
 /**
  * NFR-001: a broken writer MUST NOT throw and MUST NOT disrupt the caller.
@@ -19,12 +20,11 @@ use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 final class AuditEventWriterBestEffortTest extends TestCase
 {
     #[Test]
-    public function it_swallows_exceptions_from_a_broken_repository(): void
+    public function it_swallows_exceptions_from_a_broken_database(): void
     {
-        $repo = $this->createMock(EntityRepositoryInterface::class);
-        $repo->method('save')->willThrowException(new \RuntimeException('DB exploded'));
-
-        $writer = new AuditEventWriter($repo);
+        // Schema is intentionally NOT created: the audit_event table is missing,
+        // so the INSERT throws at execute(). The writer must swallow it.
+        $writer = new AuditEventWriter(new AppendOnlyAuditDatabase(DBALDatabase::createSqlite()));
 
         // Must not throw.
         $writer->record(new AuditEventDescriptor(

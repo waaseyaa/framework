@@ -16,11 +16,11 @@ use Waaseyaa\Audit\Listener\EntityLifecycleAuditListener;
 use Waaseyaa\Audit\Listener\McpDispatchAuditListener;
 use Waaseyaa\Audit\Query\AuditEventQuery;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
+use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
 use Waaseyaa\Audit\Writer\AuditEventWriter;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
@@ -63,12 +63,13 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
         ));
 
         $this->singleton(AuditWriterInterface::class, function (): AuditWriterInterface {
-            /** @var EntityRepositoryInterface $repo */
-            $repo = $this->resolve(EntityTypeManager::class)->getRepository('audit_event');
+            $database = $this->resolve(DatabaseInterface::class);
             $logger = $this->resolveOptional(LoggerInterface::class);
 
+            // Wrap the database in the append-only decorator: the writer can only
+            // ever append to audit_event — never update or delete (OCAP FR-003).
             return new AuditEventWriter(
-                repository: $repo,
+                database: new AppendOnlyAuditDatabase($database),
                 logger: $logger instanceof LoggerInterface ? $logger : null,
             );
         });
