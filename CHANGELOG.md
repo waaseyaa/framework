@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.196] - 2026-06-09
+
 ### Changed
 
 - **One revision system with an optional translation axis (`entity-storage`, `entity`).** The revisionable storage system (`EntityRepository` + `RevisionableStorageDriver`) now natively carries an OPTIONAL translation axis: an entity that is both `revisionable: true` and `translatable: true` keeps per-language revision history in `<entity>__translation__revision` with INDEPENDENT sequencing — editing English does not bump the Anishinaabemowin revision count, and vice versa. `EntityRepository` gains `saveTranslationRevision()` / atomic `saveTranslationRevisions()` / `loadTranslationRevision()` / `loadTranslationTip()` / `listTranslationRevisions()` / `translationLangcodes()`; `SqlSchemaHandler::ensureTranslationRevisionTable()` materialises the table and is gated on the two-axis flags. Single-axis (revisionable-only) types are the zero-translation default and are byte-for-byte unchanged. This folds the per-language design of the never-wired parallel `vid` storage stack into the single live system.
