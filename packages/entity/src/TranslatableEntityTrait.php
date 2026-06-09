@@ -100,15 +100,14 @@ trait TranslatableEntityTrait
     /**
      * {@inheritDoc}
      *
-     * @deprecated Use activeLangcode() instead.
-     *
      * Backward-compatibility behaviour (pre-M-006): when the entity has no
-     * `default_langcode` set (e.g., a non-translatable entity that inherits
-     * this trait via ContentEntityBase), fall back to the `langcode` value or
-     * `'en'` instead of throwing. Translatable entity types should set
-     * `default_langcode` explicitly per FR-034.
+     * `default_langcode` set (e.g., a non-translatable entity that inherits this
+     * trait via ContentEntityBase), fall back to the `langcode` value or `'en'`
+     * instead of throwing — unlike activeLangcode(), which throws. Both are
+     * supported, distinct accessors; pick by whether a missing default should be
+     * an error. Translatable entity types should still set `default_langcode`
+     * explicitly per FR-034.
      */
-    #[\Deprecated('Use activeLangcode() instead', since: '0.next')]
     public function language(): string
     {
         $defaultLc = $this->values['default_langcode'] ?? null;
