@@ -404,6 +404,22 @@ final class EntityRepository implements EntityRepositoryInterface
         $values = $entity->toArray();
         $id = (string) ($entity->id() ?? '');
 
+        // Translatable entity types widen the base-table primary key to
+        // (id, langcode), so the id column is a plain int shared across a row's
+        // language peers rather than an autoincrement serial. The database will
+        // not assign it, so allocate the next id here for a new entity. For
+        // single-axis (non-translatable) types this is skipped and the serial
+        // autoincrement id is used unchanged.
+        if ($isNew && $id === '' && $this->entityType->isTranslatable()) {
+            $idKey = $this->entityType->getKeys()['id'] ?? 'id';
+            $nextId = $this->nextTranslatableBaseId($idKey);
+            $id = (string) $nextId;
+            $values[$idKey] = $nextId;
+            if ($entity instanceof ContentEntityInterface) {
+                $entity->set($idKey, $nextId);
+            }
+        }
+
         // Wrap revision + base table writes in a transaction (invariant #4).
         // Skip if already inside a UnitOfWork transaction.
         $transaction = ($unitOfWork === null) ? $this->database?->transaction() : null;
@@ -1014,6 +1030,31 @@ final class EntityRepository implements EntityRepositoryInterface
         }
 
         return $this->revisionDriver;
+    }
+
+    /**
+     * Allocate the next base-table id for a new translatable entity type.
+     *
+     * Translatable types share one int id across language-peer rows (PK
+     * `(id, langcode)`), so the database does not autoincrement it; `MAX(id)+1`
+     * over the base table yields the next entity id. Single-axis types never
+     * call this — they use the serial autoincrement id.
+     */
+    private function nextTranslatableBaseId(string $idKey): int
+    {
+        if ($this->database === null) {
+            return 1;
+        }
+
+        foreach ($this->database->query(
+            'SELECT MAX(' . $idKey . ') AS max_id FROM ' . $this->entityType->id(),
+        ) as $row) {
+            $row = (array) $row;
+
+            return ((int) ($row['max_id'] ?? 0)) + 1;
+        }
+
+        return 1;
     }
 
     /**

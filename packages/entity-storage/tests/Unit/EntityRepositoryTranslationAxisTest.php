@@ -127,4 +127,26 @@ final class EntityRepositoryTranslationAxisTest extends TestCase
         $this->assertNull($this->repo->loadTranslationTip('1', 'fr'));
         $this->assertSame([], $this->repo->listTranslationRevisions('1', 'fr'));
     }
+
+    #[Test]
+    public function translatable_entity_gets_an_assigned_id_on_save(): void
+    {
+        // Translatable base tables do not autoincrement (PK is (id, langcode)),
+        // so save() must assign the id for a new entity with none pre-set.
+        $a = new TestRevisionableEntity(values: ['title' => 'Alpha', 'uuid' => 'a']);
+        $a->enforceIsNew();
+        $this->repo->save($a);
+        $this->assertSame(1, (int) $a->id());
+
+        $b = new TestRevisionableEntity(values: ['title' => 'Beta', 'uuid' => 'b']);
+        $b->enforceIsNew();
+        $this->repo->save($b);
+        $this->assertSame(2, (int) $b->id());
+
+        $loaded = $this->repo->find('1');
+        $this->assertNotNull($loaded);
+        $this->assertSame('Alpha', $loaded->label());
+        // The single-axis revision was still recorded for the new entity.
+        $this->assertCount(1, $this->repo->listRevisions('1'));
+    }
 }
