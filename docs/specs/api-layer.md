@@ -145,6 +145,17 @@ Both controller deps are nullable (`?ToolRegistryReadModelInterface = null`, `?S
 | `src/RouteMatch.php` | `Waaseyaa\Routing` | Value object for matched route (name, route, parameters) |
 | `src/AccessChecker.php` (in `waaseyaa/access`, not routing) | `Waaseyaa\Access` | Route-level access checking via route options. Owned by the access package; routing depends on access (mission #824 WP05 surface A). |
 | `src/AuthOidcRouteServiceProvider.php` | `Waaseyaa\Routing` | Registers `/api/auth/*`, `/api/user/me`, and OIDC discovery/authorize/token routes; depends on `waaseyaa/auth` and `waaseyaa/oidc` for controllers only. `api.user.me` is registered with `->priority(10)` (#1532) so it beats `JsonApiRouteProvider`'s `/api/user/{id}` catch-all — without the bump, `me` was treated as a literal entity id and returned 404. |
+
+### Route precedence and the SSR `render.page` fallback (#1632)
+
+Route resolution order is governed by `WaaseyaaRouter::sortRoutesByPriority()`, **not** by registration order. The router sorts the whole collection by `RouteBuilder::priority()` (the `_waaseyaa_priority` option, **default 0**) descending, using each route's original registration index only as a tiebreaker among equal priorities. The first matching route (by `Symfony\Component\Routing\Matcher\UrlMatcher` order) wins.
+
+`BuiltinRouteRegistrar` registers the SSR fallback `public.page` (`/{path}` → `render.page`, with `path` constrained to exclude `api/…`) at **default priority 0**, after the provider route loop. Consequently:
+
+- A default-priority (0) app `/{alias}` route registered by a provider sorts ahead of `public.page` *only* because it has a lower registration index — a fragile tiebreaker that can be lost if any route re-sorts the collection or competes at the same priority.
+- To make an app catch-all **deterministically** outrank the SSR `render.page` fallback, give it an explicit `->priority(>=1)`. This is the same mechanism used by `api.user.me ->priority(10)` (#1532) to beat `JsonApiRouteProvider`'s `/api/user/{id}` catch-all.
+
+The framework intentionally leaves the fallback at priority 0 (changing the default would silently reorder existing apps); apps opt into precedence explicitly. See the inline comments at the `public.page` registration in `packages/foundation/src/Kernel/BuiltinRouteRegistrar.php`.
 | `src/OidcHttpRoutes.php` | `Waaseyaa\Routing` | OIDC path table (discovery, jwks, optional authorize/token) used by `AuthOidcRouteServiceProvider` |
 | `src/Attribute/GateAttribute.php` | `Waaseyaa\Routing\Attribute` | PHP attribute for gate-based access control on controller methods |
 | `src/ParamConverter/EntityParamConverter.php` | `Waaseyaa\Routing\ParamConverter` | Converts route parameter IDs to loaded entity objects |
@@ -593,7 +604,9 @@ if ($this->accessHandler !== null && $this->account !== null) {
 This means:
 - The SQL query runs with `accessCheck(false)` -- no access checks in the database layer.
 - Entities are loaded, then filtered by view access in PHP.
-- The `total` count in pagination meta reflects the **unfiltered** count (from the count query, also with `accessCheck(false)`). This means `total` may be higher than the number of resources returned.
+- The `total` count in pagination meta reflects the **unfiltered** count (from the count query, also with `accessCheck(false)`), and is then **recounted to match the access-filtered visible set** before the response is built (`$total = count($entities)`). So `meta.total` equals the number of resources returned, even when access filtering dropped rows.
+
+**Empty `data` is access-filtering, not missing data.** When a restrictive view policy is registered for the entity type and filters out *every* matched row, `index()` returns HTTP **200** with `data: []` and `meta.total: 0` -- there is no logger on this controller and no error/warning is emitted, by design (an authenticated principal seeing nothing they may view is a normal authorization outcome, not a fault). Consumers debugging an unexpectedly empty collection should therefore not assume the rows are absent: check whether a registered `AccessPolicy` denied `view` for the current account before concluding the data does not exist. A genuinely empty table and a fully access-filtered table are indistinguishable on the wire by intent (no enumeration oracle). To tell them apart during development, re-issue the query in a system context (no account bound, `accessCheck(false)`) or inspect the policy directly.
 
 Access result semantics differ by level:
 - **Entity level**: uses `isAllowed()` -- deny unless explicitly granted.

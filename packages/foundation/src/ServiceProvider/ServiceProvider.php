@@ -35,6 +35,14 @@ abstract class ServiceProvider implements ServiceProviderInterface
 
     public function boot(): void {}
 
+    /**
+     * No-op default. Override to contribute HTTP routes.
+     *
+     * Called exactly once at boot by `BuiltinRouteRegistrar`. Resolve
+     * request-scoped services (e.g. `DatabaseInterface`) lazily inside the
+     * route handler, never eagerly when building a controller here, or writes
+     * may be silently lost (#1611). See {@see ServiceProviderInterface::routes()}.
+     */
     public function routes(\Waaseyaa\Routing\WaaseyaaRouter $router, \Waaseyaa\Entity\EntityTypeManager $entityTypeManager): void {}
 
     public function provides(): array
