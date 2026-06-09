@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.198] - 2026-06-09
+
 ### Added
 
 - **Unified two-axis save: `EntityRepository::saveTranslation()` (`entity-storage`).** One repository call writes a language's peer `(id, langcode)` base row AND its per-language revision in a single transaction, so a language is a true peer — its own base row plus its own independent `revision_id` sequence — rather than an overlay on another language's row. The default-language row and any non-translatable fields are untouched; a new peer row copies the shared `uuid` from the default row so the partial-unique UUID index (which only constrains default-langcode rows) is satisfied. `loadTranslation($id, $langcode)` reads a language's current value back from its peer base row. This keeps two-axis storage logic in one place (the repository) instead of orchestrating two storage APIs in the application.
