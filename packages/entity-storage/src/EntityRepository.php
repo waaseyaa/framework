@@ -698,7 +698,7 @@ final class EntityRepository implements EntityRepositoryInterface
 
         $revisions = [];
         foreach ($revisionIds as $revisionId) {
-            $entity = $this->loadRevision($entityId, (int) $revisionId);
+            $entity = $this->loadRevision($entityId, $revisionId);
             if ($entity !== null) {
                 $revisions[] = $entity;
             }
