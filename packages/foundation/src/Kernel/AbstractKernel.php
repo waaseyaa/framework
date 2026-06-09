@@ -16,12 +16,14 @@ use Waaseyaa\Entity\EntityTypeLifecycleManager;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\EntityStorage\Backend\BackendRegistrarFactory;
+use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\BackendResolver;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Query\DefinitionValidator;
+use Waaseyaa\EntityStorage\Schema\TranslationSchemaHandler;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
@@ -204,7 +206,21 @@ abstract class AbstractKernel
                     $schemaHandler->ensureRevisionTable();
                 }
                 if ($definition->isTranslatable()) {
-                    $schemaHandler->ensureTranslationTable();
+                    // Gate translation-table creation on the storage backend model,
+                    // mirroring EntitySchemaSync::syncAll (the CLI db:init path).
+                    // sql-blob translatable types keep per-langcode rows IN the base
+                    // table (FR-020) and must NOT get a `<entity>_translations`
+                    // sibling: materialising an empty one is exactly what forced the
+                    // alpha.199 peer-first read fallback to exist. (b2)
+                    $backend = $definition->getPrimaryStorageBackend();
+                    $backend = (\is_string($backend) && $backend !== '')
+                        ? $backend
+                        : ReservedBackendIds::SQL_BLOB;
+                    if ($backend === ReservedBackendIds::SQL_COLUMN) {
+                        new TranslationSchemaHandler($database)->sync($definition);
+                    } elseif ($backend !== ReservedBackendIds::SQL_BLOB) {
+                        $schemaHandler->ensureTranslationTable();
+                    }
                 }
 
                 $keys = $definition->getKeys();

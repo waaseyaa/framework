@@ -94,6 +94,14 @@ final class EntitySchemaSync
                     $translationHandler->sync($entityType);
                 } elseif ($backend !== ReservedBackendIds::SQL_BLOB) {
                     $handler->ensureTranslationTable();
+                } else {
+                    // sql-blob: per-langcode rows live IN the base table; there is
+                    // no `<entity>_translations` sibling. A pre-alpha.200 kernel boot
+                    // could materialise an empty one (the root cause behind the
+                    // alpha.199 peer-first read fallback). Drop the stale empty
+                    // sibling so existing installs self-heal on db:init and the read
+                    // fallback stops being load-bearing. (b2)
+                    $this->dropStaleBlobTranslationSibling($handler->getTranslationTableName());
                 }
             }
 
@@ -105,6 +113,40 @@ final class EntitySchemaSync
                 $handler->ensureTranslationRevisionTable();
             }
         }
+    }
+
+    /**
+     * Drop a stale, EMPTY `<entity>_translations` sibling left behind by a
+     * pre-alpha.200 kernel boot for a sql-blob translatable type. Only drops
+     * when the table is empty — blob translation rows live in the base table,
+     * so a non-empty `_translations` table is unexpected and is left intact
+     * (logged) rather than risking data loss. Idempotent; self-heals on db:init.
+     * (b2)
+     */
+    private function dropStaleBlobTranslationSibling(string $siblingTable): void
+    {
+        $schema = $this->database->schema();
+        if (!$schema->tableExists($siblingTable)) {
+            return;
+        }
+
+        $probe = iterator_to_array(
+            $this->database->select($siblingTable, 't')->fields('t')->range(0, 1)->execute(),
+        );
+        if ($probe !== []) {
+            $this->logger?->warning(sprintf(
+                'EntitySchemaSync: stale translation sibling "%s" is non-empty; leaving it intact (sql-blob translations belong in the base table).',
+                $siblingTable,
+            ));
+
+            return;
+        }
+
+        $schema->dropTable($siblingTable);
+        $this->logger?->info(sprintf(
+            'EntitySchemaSync: dropped stale empty translation sibling "%s" (sql-blob two-axis; rows live in the base table). (b2)',
+            $siblingTable,
+        ));
     }
 
     /**
