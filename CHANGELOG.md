@@ -7,8 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0-alpha.202] - 2026-06-09
-
 Continued internal framework-hygiene (no new product capability). Resolves the two design forks surfaced in alpha.201.
 
 ### Changed
