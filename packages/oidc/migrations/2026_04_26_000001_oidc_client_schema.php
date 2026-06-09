@@ -23,10 +23,10 @@ return new class extends Migration {
             $conn->executeStatement(
                 'CREATE TABLE oidc_client (
                     id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                    uuid VARCHAR(128) NOT NULL DEFAULT \'\',
-                    bundle VARCHAR(128) NOT NULL DEFAULT \'\',
-                    name VARCHAR(255) NOT NULL DEFAULT \'\',
-                    langcode VARCHAR(12) NOT NULL DEFAULT \'en\',
+                    uuid TEXT NOT NULL DEFAULT \'\',
+                    bundle TEXT NOT NULL DEFAULT \'\',
+                    name TEXT NOT NULL DEFAULT \'\',
+                    langcode TEXT NOT NULL DEFAULT \'en\',
                     _data TEXT NOT NULL DEFAULT \'{}\'
                 )',
             );
@@ -35,7 +35,7 @@ return new class extends Migration {
         }
 
         $this->addColumnIfMissing($schema, 'oidc_client', 'client_id', 'VARCHAR(255) NOT NULL DEFAULT \'\'');
-        $this->addColumnIfMissing($schema, 'oidc_client', 'name', 'VARCHAR(255) NOT NULL DEFAULT \'\'');
+        $this->addColumnIfMissing($schema, 'oidc_client', 'name', 'TEXT NOT NULL DEFAULT \'\'');
         $this->addColumnIfMissing($schema, 'oidc_client', 'is_confidential', 'INTEGER NOT NULL DEFAULT 0');
         $this->addColumnIfMissing($schema, 'oidc_client', 'client_secret_hash', 'VARCHAR(255) NULL');
     }
