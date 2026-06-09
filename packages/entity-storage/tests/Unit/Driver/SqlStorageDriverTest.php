@@ -281,6 +281,35 @@ final class SqlStorageDriverTest extends TestCase
     }
 
     #[Test]
+    public function findByMatchesAFieldStoredInTheDataBlob(): void
+    {
+        // Regression for #1610: `category` is not a real column — it lives in the
+        // _data JSON blob. findBy must filter on it via json_extract(_data, '$.category')
+        // instead of silently ignoring a non-column criterion and returning wrong rows.
+        $this->driver->write('test_entity', '1', [
+            'id' => 1,
+            'uuid' => 'uuid-1',
+            'label' => 'News A',
+            'bundle' => 'article',
+            'langcode' => 'en',
+            '_data' => json_encode(['category' => 'news'], JSON_THROW_ON_ERROR),
+        ]);
+        $this->driver->write('test_entity', '2', [
+            'id' => 2,
+            'uuid' => 'uuid-2',
+            'label' => 'Opinion B',
+            'bundle' => 'article',
+            'langcode' => 'en',
+            '_data' => json_encode(['category' => 'opinion'], JSON_THROW_ON_ERROR),
+        ]);
+
+        $results = $this->driver->findBy('test_entity', ['category' => 'news']);
+
+        $this->assertCount(1, $results);
+        $this->assertSame('uuid-1', $results[0]['uuid']);
+    }
+
+    #[Test]
     public function findByWithLimit(): void
     {
         $this->driver->write('test_entity', '1', [
