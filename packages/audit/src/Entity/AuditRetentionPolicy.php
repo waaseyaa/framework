@@ -4,25 +4,19 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit\Entity;
 
-use Waaseyaa\Entity\Attribute\ContentEntityKeys;
-use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\ContentEntityBase;
 
 /**
- * Retention policy entity for the OCAP audit log.
+ * Retention policy read model for the OCAP audit log.
  *
- * Each policy row describes a rule: events matching `kind_pattern` that are
- * older than `older_than_seconds` seconds are eligible for the `action`
- * (currently only `purge`).
- *
- * The `audit:prune` CLI command reads these policies and executes them
- * (FR-013, FR-014). Each execution is itself audit-logged with kind
- * {@see \Waaseyaa\Audit\Enum\AuditEventKind::AuditRetentionPruned} (FR-012).
+ * audit_retention_policy is deliberately NOT a registered content entity type —
+ * it is a flat OCAP config table, not content. Each policy row describes a rule:
+ * events matching `kind_pattern` older than `older_than_seconds` seconds are
+ * eligible for the `action` (currently only `purge`). This class is a typed
+ * accessor over a row; rows are accessed through the raw DatabaseInterface.
  *
  * @api
  */
-#[ContentEntityType(id: 'audit_retention_policy', label: 'Audit Retention Policy', description: 'OCAP audit log retention rule')]
-#[ContentEntityKeys()]
 final class AuditRetentionPolicy extends ContentEntityBase
 {
     public function __construct(
@@ -32,6 +26,16 @@ final class AuditRetentionPolicy extends ContentEntityBase
         array $fieldDefinitions = [],
     ) {
         parent::__construct($values, $entityTypeId, $entityKeys, $fieldDefinitions);
+    }
+
+    /**
+     * Flat value accessor — audit_retention_policy is not a registered entity
+     * type, so bypass TranslatableEntityTrait::get() (which resolves
+     * getEntityType()) and read the value bag directly.
+     */
+    public function get(string $name): mixed
+    {
+        return $this->values[$name] ?? null;
     }
 
     /**

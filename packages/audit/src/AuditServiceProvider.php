@@ -7,8 +7,6 @@ namespace Waaseyaa\Audit;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Audit\Contract\AuditQueryInterface;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
-use Waaseyaa\Audit\Entity\AuditEvent;
-use Waaseyaa\Audit\Entity\AuditRetentionPolicy;
 use Waaseyaa\Audit\Listener\AgentToolAuditListener;
 use Waaseyaa\Audit\Listener\ApiRequestAuditListener;
 use Waaseyaa\Audit\Listener\BroadcastAuditListener;
@@ -19,7 +17,6 @@ use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
 use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
 use Waaseyaa\Audit\Writer\AuditEventWriter;
 use Waaseyaa\Database\DatabaseInterface;
-use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
@@ -30,9 +27,10 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
  * Wires the OCAP audit log substrate into the application container.
  *
  * register():
- *   - Registers audit_event + audit_retention_policy entity types.
- *   - Binds AuditWriterInterface → AuditEventWriter (best-effort).
+ *   - Binds AuditWriterInterface → AuditEventWriter (append-only, best-effort).
  *   - Binds AuditQueryInterface → AuditEventQuery.
+ *   - audit_event / audit_retention_policy are deliberately NOT registered as
+ *     content entities — they are raw OCAP log tables, not entity types.
  *
  * boot():
  *   - Ensures schema tables exist.
@@ -44,23 +42,13 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
 {
     public function register(): void
     {
-        $this->entityType(new EntityType(
-            id: 'audit_event',
-            label: 'Audit Event',
-            class: AuditEvent::class,
-            keys: ['id' => 'id', 'uuid' => 'uuid'],
-            description: 'OCAP append-only audit log entry',
-            group: 'audit',
-        ));
-
-        $this->entityType(new EntityType(
-            id: 'audit_retention_policy',
-            label: 'Audit Retention Policy',
-            class: AuditRetentionPolicy::class,
-            keys: ['id' => 'id', 'uuid' => 'uuid'],
-            description: 'OCAP audit log retention rule',
-            group: 'audit',
-        ));
+        // audit_event and audit_retention_policy are intentionally NOT registered
+        // as content entity types. They are flat OCAP log tables built by
+        // AuditEventSchemaHandler and accessed through raw DatabaseInterface
+        // writes/reads — never the entity repository. Registering them as content
+        // entities produced 8 permanent schema:check false-positives (the lean
+        // log tables lack the content-entity column set) and falsely implied an
+        // entity CRUD/update path for an append-only log. See ocap-audit-log.md.
 
         $this->singleton(AuditWriterInterface::class, function (): AuditWriterInterface {
             $database = $this->resolve(DatabaseInterface::class);

@@ -4,25 +4,26 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit\Entity;
 
-use Waaseyaa\Entity\Attribute\ContentEntityKeys;
-use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\ContentEntityBase;
 
 /**
- * Append-only audit event entity.
+ * Append-only audit event read model.
  *
- * Instances are created via {@see \Waaseyaa\Audit\Writer\AuditEventWriter::record()}
- * and MUST NOT be updated or deleted through normal entity channels.
- * The {@see \Waaseyaa\Audit\Storage\AppendOnlyDriverGuard} enforces this at the
- * storage driver layer by throwing \LogicException on update/delete calls.
+ * audit_event is deliberately NOT a registered content entity type — it is a
+ * flat OCAP log table. Rows are appended via
+ * {@see \Waaseyaa\Audit\Writer\AuditEventWriter::record()} through a raw,
+ * insert-only DatabaseInterface write, and read back via
+ * {@see \Waaseyaa\Audit\Query\AuditEventQuery}, which hydrates instances of this
+ * class purely as a typed accessor over the row. Append-only immutability is
+ * enforced structurally by {@see \Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase}
+ * (throws \LogicException on any UPDATE/DELETE of audit_event); the only legal
+ * deletion is the `audit:prune` retention purge via the raw DatabaseInterface.
  *
  * Schema columns: id, uuid, event_kind, account_uid, entity_type_id, entity_uuid,
  * subject_uri, outcome, severity, attributes (JSON), created_at.
  *
  * @api
  */
-#[ContentEntityType(id: 'audit_event', label: 'Audit Event', description: 'OCAP append-only audit log entry')]
-#[ContentEntityKeys()]
 final class AuditEvent extends ContentEntityBase
 {
     public function __construct(
@@ -32,6 +33,19 @@ final class AuditEvent extends ContentEntityBase
         array $fieldDefinitions = [],
     ) {
         parent::__construct($values, $entityTypeId, $entityKeys, $fieldDefinitions);
+    }
+
+    /**
+     * Flat value accessor for the append-only audit read model.
+     *
+     * audit_event is not a registered entity type, so bypass
+     * TranslatableEntityTrait::get() — which resolves getEntityType() and would
+     * throw for an unregistered type — and read the value bag directly. Audit
+     * rows are never translatable and carry no field casts.
+     */
+    public function get(string $name): mixed
+    {
+        return $this->values[$name] ?? null;
     }
 
     public function getEventKind(): string
