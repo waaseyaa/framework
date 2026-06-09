@@ -2,12 +2,14 @@
 
 declare(strict_types=1);
 
-if ($argc !== 3) {
-    fwrite(STDERR, "Usage: php tools/sync-skeleton-requirements.php <source-composer.json> <target-composer.json>\n");
+if ($argc !== 3 && $argc !== 4) {
+    fwrite(STDERR, "Usage: php tools/sync-skeleton-requirements.php <source-composer.json> <target-composer.json> [framework-version]\n");
     exit(1);
 }
 
 [$_, $sourcePath, $targetPath] = $argv;
+// Optional: pin waaseyaa/framework to the release being cut (bare or v-prefixed semver).
+$frameworkVersion = $argv[3] ?? null;
 
 /** @return array<string, mixed> */
 function loadComposerJson(string $path): array
@@ -27,7 +29,7 @@ function loadComposerJson(string $path): array
  * @param array<string, mixed> $target
  * @return array<string, mixed>
  */
-function syncSkeletonRequirements(array $source, array $target): array
+function syncSkeletonRequirements(array $source, array $target, ?string $frameworkVersion = null): array
 {
     $sourceRequire = is_array($source['require'] ?? null) ? $source['require'] : [];
     $targetRequire = is_array($target['require'] ?? null) ? $target['require'] : [];
@@ -50,6 +52,17 @@ function syncSkeletonRequirements(array $source, array $target): array
         $nextRequire[$package] = $constraint;
     }
 
+    // Pin waaseyaa/framework to the release being cut so the published skeleton
+    // never drifts behind the framework it ships against (issue #1622). Only
+    // overrides an already-declared pin; never injects the dependency.
+    if (
+        $frameworkVersion !== null
+        && $frameworkVersion !== ''
+        && isset($nextRequire['waaseyaa/framework'])
+    ) {
+        $nextRequire['waaseyaa/framework'] = '^' . ltrim($frameworkVersion, 'v');
+    }
+
     ksort($nextRequire);
 
     $target['require'] = $nextRequire;
@@ -60,7 +73,7 @@ function syncSkeletonRequirements(array $source, array $target): array
 try {
     $source = loadComposerJson($sourcePath);
     $target = loadComposerJson($targetPath);
-    $updated = syncSkeletonRequirements($source, $target);
+    $updated = syncSkeletonRequirements($source, $target, $frameworkVersion);
 
     file_put_contents(
         $targetPath,

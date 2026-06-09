@@ -31,10 +31,20 @@ jobs:
             framework/skeleton/ skeleton/
 
       - name: Update skeleton composer.json packages
+        # Pin waaseyaa/framework to the tag being released so the published
+        # skeleton never drifts behind the framework (issue #1622).
+        env:
+          TAG_NAME: ${{ github.ref_name }}
         run: |
           php framework/tools/sync-skeleton-requirements.php \
             framework/skeleton/composer.json \
-            skeleton/composer.json
+            skeleton/composer.json \
+            "${TAG_NAME}"
+
+      - name: Validate synced skeleton manifest
+        # Release gate: a malformed/inconsistent published skeleton manifest
+        # fails the sync before it is tagged and pushed (issue #1599).
+        run: composer validate --no-check-publish --no-check-lock skeleton/composer.json
 
       - name: Commit, tag, and push if changed
         env:

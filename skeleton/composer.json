@@ -4,9 +4,9 @@
     "type": "project",
     "license": "GPL-2.0-or-later",
     "require": {
-        "php": ">=8.4",
+        "php": ">=8.5",
         "symfony/dotenv": "^8.0",
-        "waaseyaa/framework": "^0.1.0-alpha.150"
+        "waaseyaa/framework": "^0.1.0-alpha.199"
     },
     "autoload": {
         "psr-4": {

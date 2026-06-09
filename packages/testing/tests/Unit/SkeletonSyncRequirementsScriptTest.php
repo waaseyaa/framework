@@ -64,4 +64,42 @@ final class SkeletonSyncRequirementsScriptTest extends TestCase
         self::assertArrayNotHasKey('waaseyaa/oauth-provider', $updated['require']);
         self::assertArrayNotHasKey('waaseyaa/scheduler', $updated['require']);
     }
+
+    #[Test]
+    public function syncPinsFrameworkToTheProvidedReleaseVersion(): void
+    {
+        $tempDir = sys_get_temp_dir() . '/waaseyaa-sync-' . bin2hex(random_bytes(8));
+
+        mkdir($tempDir, 0777, true);
+
+        $skeletonComposer = $tempDir . '/skeleton.json';
+        $targetComposer = $tempDir . '/target.json';
+        $script = dirname(__DIR__, 4) . '/tools/sync-skeleton-requirements.php';
+
+        $manifest = json_encode([
+            'require' => [
+                'php' => '>=8.5',
+                'waaseyaa/framework' => '^0.1.0-alpha.150',
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+
+        file_put_contents($skeletonComposer, $manifest);
+        file_put_contents($targetComposer, $manifest);
+
+        // A leading 'v' in the tag must be stripped to a bare semver constraint.
+        exec(sprintf(
+            'php %s %s %s %s 2>&1',
+            escapeshellarg($script),
+            escapeshellarg($skeletonComposer),
+            escapeshellarg($targetComposer),
+            escapeshellarg('v0.1.0-alpha.200'),
+        ), $output, $exitCode);
+
+        self::assertSame(0, $exitCode, implode("\n", $output));
+
+        /** @var array{require: array<string, string>} $updated */
+        $updated = json_decode((string) file_get_contents($targetComposer), true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame('^0.1.0-alpha.200', $updated['require']['waaseyaa/framework']);
+    }
 }
