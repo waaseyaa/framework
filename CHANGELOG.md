@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+An internal framework-hygiene milestone (no new product capability).
+
+### Changed
+
+- **`EntityRepositoryInterface` carries the two-axis translation surface (`entity`).** The 8 two-axis methods (`saveTranslation`, `saveTranslationRevision`/`saveTranslationRevisions`, `loadTranslation`, `loadTranslationRevision`, `loadTranslationTip`, `listTranslationRevisions`, `translationLangcodes`) were promoted (signatures only, bodies unchanged) from the concrete `EntityRepository` onto `EntityRepositoryInterface`, so consumers depend on the contract instead of narrowing with `instanceof EntityRepository`. The methods are valid only on a two-axis entity type and throw on a single-axis type (unchanged behaviour). **BREAKING** for third-party implementers of `EntityRepositoryInterface` — they must add the 8 methods (single-axis impls may throw); see `UPGRADING.md`. (b1)
+- **`ext-sodium` is a declared platform requirement (`oidc`, root).** It was already required transitively via `waaseyaa/oidc` → `lcobucci/jwt`; declaring it surfaces the need up front on `composer create-project` instead of as a deep transitive error. (#1601)
+
+### Fixed
+
+- **Translation-table creation is gated on the storage backend, and stale blob siblings self-heal (`foundation`, `entity-storage`).** The kernel's lazy repository factory called `ensureTranslationTable()` unconditionally for every translatable type, materialising an empty `<entity>_translations` sql-column sibling even for sql-blob two-axis entities (whose per-langcode rows live in the base table) — the root cause behind the alpha.199 peer-first read fallback. The kernel now gates translation-table creation on the backend model, mirroring `EntitySchemaSync` (sql-column → `TranslationSchemaHandler`, sql-blob → none). `EntitySchemaSync` additionally drops a stale **empty** `<entity>_translations` sibling on `db:init`, so existing installs self-heal; a non-empty sibling is left intact (never risks data loss). The alpha.199 read fallback is intentionally kept for installs not yet re-synced. (b2)
+- **`schema:check` no longer reports `oidc_client` drift on a clean install (`oidc`).** The SQLite migration declared `uuid`/`bundle`/`name`/`langcode` as `VARCHAR(n)` while the entity system expects `TEXT` (identical affinity in SQLite); the migration now emits `TEXT`. The `audit_event`/`audit_retention_policy` drift is a separate audit-subsystem follow-up. (#1625)
+- **`bin/check-package-layers` kernel-exempt matching is OS-agnostic.** It compared backslash Windows paths against forward-slash allowlists, false-failing every kernel-adjacent file on Windows; normalised with `.as_posix()`. (b5)
+- **The project skeleton no longer resolves a stale package set.** `skeleton/composer.json` pinned `waaseyaa/framework ^0.1.0-alpha.150` and `php >=8.4` (the framework requires `>=8.5`); both were bumped, and the tag-time sync now pins the framework to the released version so the published skeleton tracks each release. A `composer validate` release gate guards the synced manifest. (#1622, #1599)
+- **The monolith metapackage no longer vendors the same classes as the split mirrors (root).** The root autoload re-declared `Waaseyaa\GitHub\` and `Waaseyaa\Engagement\` alongside their split packages, producing ~10 "Ambiguous class resolution" warnings on consumer installs; the duplicate psr-4 entries were dropped. (#1600)
+- **`findBy()` on a `_data` blob field is locked by a regression test (`entity-storage`).** Confirmed already-fixed at HEAD (`json_extract` fallback); added coverage. (#1610)
+
 ## [0.1.0-alpha.199] - 2026-06-09
 
 ### Fixed
