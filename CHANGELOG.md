@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.199] - 2026-06-09
+
 ### Fixed
 
 - **Blob two-axis reads no longer hidden by a column-translations sibling (`entity-storage`).** `SqlStorageDriver::read()` / `readMultiple()` diverted every language-scoped read into a `<entity>_translations` sibling table whenever one existed. For a blob-translatable entity (the M-006 widened `(id, langcode)` peer-row model) that sibling belongs to the *other* (sql-column) translation model and is empty, so a translated language was wrongly reported as missing — `loadTranslation($id, $langcode)` and `find($id, $langcode)` returned null even though the peer row existed. The driver now reads the base-table `(id, langcode)` peer row FIRST and only falls back to the column sibling for ids with no peer row; a langcode-aware base table with no matching peer and no sibling correctly returns null (untranslated) instead of the default-language row. `EntityRepository::loadTranslation()` additionally guards that the row it got back is actually the requested language (exact-or-null), so a driver-level language fallback can never surface the wrong language's content. Regression test added (`EntityRepositoryTranslationAxisTest`): a peer row is returned even with an empty `<entity>_translations` sibling present. (A schema-sync that materialises that sibling for a blob-translatable entity is harmless with this fix; removing it is a separate follow-up.)

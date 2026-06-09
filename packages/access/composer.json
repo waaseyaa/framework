@@ -31,9 +31,9 @@
     ],
     "require": {
         "php": ">=8.5",
-        "waaseyaa/entity": "^0.1.0-alpha.198",
-        "waaseyaa/plugin": "^0.1.0-alpha.198",
-        "waaseyaa/foundation": "^0.1.0-alpha.198",
+        "waaseyaa/entity": "^0.1.0-alpha.199",
+        "waaseyaa/plugin": "^0.1.0-alpha.199",
+        "waaseyaa/foundation": "^0.1.0-alpha.199",
         "symfony/http-foundation": "^7.0",
         "symfony/routing": "^7.0"
     },
