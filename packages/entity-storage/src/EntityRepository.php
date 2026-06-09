@@ -831,6 +831,191 @@ final class EntityRepository implements EntityRepositoryInterface
         return $entity;
     }
 
+    // ---------------------------------------------------------------------
+    // Translation axis (two-axis: revisionable + translatable)
+    //
+    // Optional second axis. A revisionable + translatable entity keeps per-
+    // language revision history in `<entity>__translation__revision` with
+    // INDEPENDENT sequencing per (entity, langcode): editing one language does
+    // not bump another's revision count. These methods are additive and only
+    // valid on a two-axis type; the single-axis revision path above is untouched.
+    // ---------------------------------------------------------------------
+
+    /**
+     * Write a new revision of one language's content, returning its per-language
+     * revision id (independent of other languages and of the single-axis sequence).
+     *
+     * @param array<string, mixed> $values Field values for this language.
+     */
+    public function saveTranslationRevision(string $entityId, string $langcode, array $values, ?string $log = null): int
+    {
+        $driver = $this->assertTwoAxis(__FUNCTION__);
+
+        $revisionId = $driver->writeRevision($entityId, $values, $log, $langcode);
+
+        $entity = $this->loadTranslationRevision($entityId, $langcode, $revisionId);
+        if ($entity !== null) {
+            $this->dispatchEvent($this->eventFactory->create($entity), EntityEvents::REVISION_CREATED->value);
+        }
+
+        return $revisionId;
+    }
+
+    /**
+     * Atomic multi-language write: one revision per langcode in a single
+     * transaction, all-or-nothing. Other languages' sequences are independent.
+     *
+     * @param array<string, array<string, mixed>> $byLangcode langcode => field values
+     * @return array<string, int> langcode => new per-language revision id
+     */
+    public function saveTranslationRevisions(string $entityId, array $byLangcode, ?string $log = null): array
+    {
+        $driver = $this->assertTwoAxis(__FUNCTION__);
+        if ($byLangcode === []) {
+            throw new \InvalidArgumentException('saveTranslationRevisions requires at least one langcode.');
+        }
+
+        $transaction = $this->database?->transaction();
+        $created = [];
+        try {
+            foreach ($byLangcode as $langcode => $values) {
+                $created[$langcode] = $driver->writeRevision($entityId, $values, $log, $langcode);
+            }
+            $transaction?->commit();
+        } catch (\Throwable $e) {
+            $transaction?->rollBack();
+            throw $e;
+        }
+
+        foreach ($created as $langcode => $revisionId) {
+            $entity = $this->loadTranslationRevision($entityId, $langcode, $revisionId);
+            if ($entity !== null) {
+                $this->dispatchEvent($this->eventFactory->create($entity), EntityEvents::REVISION_CREATED->value);
+            }
+        }
+
+        return $created;
+    }
+
+    /**
+     * Load a specific per-language revision, or null when it does not exist.
+     */
+    public function loadTranslationRevision(string $entityId, string $langcode, int $revisionId): ?EntityInterface
+    {
+        $driver = $this->assertTwoAxis(__FUNCTION__);
+
+        $row = $driver->readLangcodeRevision($entityId, $langcode, $revisionId);
+        if ($row === null) {
+            return null;
+        }
+
+        return $this->hydrateTranslationRow($driver, $entityId, $langcode, $revisionId, $row);
+    }
+
+    /**
+     * Load the tip (latest revision) of one language, or null when that language
+     * has no revisions yet.
+     */
+    public function loadTranslationTip(string $entityId, string $langcode): ?EntityInterface
+    {
+        $driver = $this->assertTwoAxis(__FUNCTION__);
+
+        $latest = $driver->getLatestLangcodeRevisionId($entityId, $langcode);
+        if ($latest === null) {
+            return null;
+        }
+
+        return $this->loadTranslationRevision($entityId, $langcode, $latest);
+    }
+
+    /**
+     * One language's revisions, newest first.
+     *
+     * @return list<EntityInterface>
+     */
+    public function listTranslationRevisions(string $entityId, string $langcode): array
+    {
+        $driver = $this->assertTwoAxis(__FUNCTION__);
+
+        $ids = $driver->getLangcodeRevisionIds($entityId, $langcode);
+        rsort($ids);
+
+        $out = [];
+        foreach ($ids as $rid) {
+            $entity = $this->loadTranslationRevision($entityId, $langcode, $rid);
+            if ($entity !== null) {
+                $out[] = $entity;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Langcodes this entity carries a translation revision for, ascending.
+     *
+     * @return string[]
+     */
+    public function translationLangcodes(string $entityId): array
+    {
+        $driver = $this->assertTwoAxis(__FUNCTION__);
+
+        return $driver->getLangcodesWithRevisions($entityId);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function hydrateTranslationRow(
+        RevisionableStorageDriver $driver,
+        string $entityId,
+        string $langcode,
+        int $revisionId,
+        array $row,
+    ): EntityInterface {
+        $keys = $this->entityType->getKeys();
+        $idKey = $keys['id'] ?? 'id';
+        $langKey = $keys['langcode'] ?? 'langcode';
+
+        $row[$idKey] = $row['entity_id'] ?? $entityId;
+        $row[$langKey] = $langcode;
+        $row['revision_id'] = $revisionId;
+        $latest = $driver->getLatestLangcodeRevisionId($entityId, $langcode);
+        $row['is_latest_revision'] = ($revisionId === $latest);
+
+        $entity = $this->hydrate($row);
+
+        if ($entity instanceof RevisionableEntityInterface) {
+            if (method_exists($entity, 'setRevisionId')) {
+                $entity->setRevisionId($revisionId);
+            }
+            if (method_exists($entity, 'setIsCurrentRevision')) {
+                $entity->setIsCurrentRevision($revisionId === $latest);
+            }
+        }
+
+        return $entity;
+    }
+
+    private function assertTwoAxis(string $method): RevisionableStorageDriver
+    {
+        if ($this->revisionDriver === null) {
+            throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
+        }
+        if (!$this->entityType->isRevisionable() || !$this->entityType->isTranslatable()) {
+            throw new \LogicException(\sprintf(
+                'EntityRepository::%s requires a revisionable + translatable (two-axis) entity type; '
+                . '"%s" is revisionable=%s translatable=%s.',
+                $method,
+                $this->entityType->id(),
+                $this->entityType->isRevisionable() ? 'true' : 'false',
+                $this->entityType->isTranslatable() ? 'true' : 'false',
+            ));
+        }
+
+        return $this->revisionDriver;
+    }
+
     /**
      * Prune an entity's revision history per a retention policy so revision
      * tables do not grow unbounded — opt-in (the framework never auto-prunes on

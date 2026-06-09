@@ -179,6 +179,26 @@ final class TwoAxisListingFilterIntegrationTest extends TestCase
             {
                 return [];
             }
+
+            public function listRevisions(string $entityId): array
+            {
+                return [];
+            }
+
+            public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface
+            {
+                throw new \LogicException('not used');
+            }
+
+            public function loadPublishedRevision(string $entityId): ?EntityInterface
+            {
+                return null;
+            }
+
+            public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface
+            {
+                throw new \LogicException('not used');
+            }
         };
     }
 

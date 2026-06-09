@@ -99,6 +99,10 @@ final class EntitySchemaSync
 
             if ($entityType->isRevisionable()) {
                 $handler->ensureRevisionTable();
+                // Optional translation axis: two-axis (revisionable + translatable)
+                // types additionally get a per-language revision table. No-op for
+                // single-axis types, so their schema is unchanged.
+                $handler->ensureTranslationRevisionTable();
             }
         }
     }

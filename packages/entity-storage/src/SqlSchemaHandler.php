@@ -267,6 +267,41 @@ final class SqlSchemaHandler
     }
 
     /**
+     * Translation-revision table name for two-axis entity types:
+     * `<entity>__translation__revision`.
+     */
+    public function getTranslationRevisionTableName(): string
+    {
+        return $this->tableName . '__translation__revision';
+    }
+
+    /**
+     * Ensure the per-language revision table exists for entity types that are
+     * BOTH revisionable AND translatable (the optional translation axis).
+     *
+     * Additive and gated: single-axis (revisionable-only) types never get this
+     * table, so their schema is byte-for-byte unchanged. Each row is one
+     * revision of one language; `revision_id` is monotonic per
+     * `(entity_id, langcode)` so languages sequence independently. Field values
+     * ride the `_data` JSON blob, mirroring the base/`_revision` table; the
+     * driver folds non-key fields into it.
+     */
+    public function ensureTranslationRevisionTable(): void
+    {
+        if (!$this->entityType->isRevisionable() || !$this->entityType->isTranslatable()) {
+            return;
+        }
+
+        $schema = $this->database->schema();
+        $tableName = $this->getTranslationRevisionTableName();
+        if ($schema->tableExists($tableName)) {
+            return;
+        }
+
+        $schema->createTable($tableName, $this->buildTranslationRevisionTableSpec());
+    }
+
+    /**
      * Seed revision 1 for all existing rows in the base table.
      *
      * Used when enabling revisions on an entity type with existing data.
@@ -678,6 +713,40 @@ final class SqlSchemaHandler
             'fields' => $fields,
             'primary key' => ['entity_id', 'revision_id'],
             'indexes' => [],
+        ];
+    }
+
+    /**
+     * Builds the createTable spec for `<entity>__translation__revision`.
+     *
+     * One row per `(entity_id, langcode, revision_id)`; `revision_id` is
+     * monotonic per `(entity_id, langcode)` so each language has its own
+     * revision sequence (independent per-language history). Non-key field values
+     * ride the `_data` blob, mirroring the base/`_revision` tables — the driver
+     * folds them in. The composite key is the logical primary key; the index
+     * serves per-language tip/list lookups.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildTranslationRevisionTableSpec(): array
+    {
+        $tableName = $this->getTranslationRevisionTableName();
+
+        $fields = [
+            'entity_id' => ['type' => 'varchar', 'length' => 128, 'not null' => true],
+            'langcode' => ['type' => 'varchar', 'length' => 12, 'not null' => true],
+            'revision_id' => ['type' => 'int', 'not null' => true],
+            'revision_created' => ['type' => 'varchar', 'length' => 32, 'not null' => true],
+            'revision_log' => ['type' => 'text', 'not null' => false],
+            '_data' => ['type' => 'text', 'not null' => true, 'default' => '{}'],
+        ];
+
+        return [
+            'fields' => $fields,
+            'primary key' => ['entity_id', 'langcode', 'revision_id'],
+            'indexes' => [
+                $tableName . '_lang_rev' => ['entity_id', 'langcode', 'revision_id'],
+            ],
         ];
     }
 

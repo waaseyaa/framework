@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **One revision system with an optional translation axis (`entity-storage`, `entity`).** The revisionable storage system (`EntityRepository` + `RevisionableStorageDriver`) now natively carries an OPTIONAL translation axis: an entity that is both `revisionable: true` and `translatable: true` keeps per-language revision history in `<entity>__translation__revision` with INDEPENDENT sequencing — editing English does not bump the Anishinaabemowin revision count, and vice versa. `EntityRepository` gains `saveTranslationRevision()` / atomic `saveTranslationRevisions()` / `loadTranslationRevision()` / `loadTranslationTip()` / `listTranslationRevisions()` / `translationLangcodes()`; `SqlSchemaHandler::ensureTranslationRevisionTable()` materialises the table and is gated on the two-axis flags. Single-axis (revisionable-only) types are the zero-translation default and are byte-for-byte unchanged. This folds the per-language design of the never-wired parallel `vid` storage stack into the single live system.
+
+### Removed
+
+- **The never-wired parallel `vid` revision storage stack.** `RevisionableSqlBlobStorage`, `RevisionableSqlColumnStorage`, `RevisionRowHydrator`, `RevisionableEntityStorageInterface`, and the disabled `RevisionPruner` scaffold are removed: they were a second, never-instantiated implementation of two-axis revisions whose capability now lives in the single revision system above. No consuming app referenced them (no entity was registered two-axis). The translation substrate (`RevisionTableBuilder`, `TranslationSchemaHandler`), the pruning policy/report value objects, `RevisionPolicyComposition`, and the `make:storage-migration` generators are kept.
+
 ## [0.1.0-alpha.195] - 2026-06-09
 
 ### Added

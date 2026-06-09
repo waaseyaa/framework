@@ -38,11 +38,10 @@ final class RevisionableStorageDriver
     /**
      * In-process per-`(entity_id, langcode)` current-revision pointer (FR-007).
      *
-     * Persistence of this pointer in `<entity>__translation` is owned by
-     * higher-level storage classes (RevisionableSqlBlobStorage /
-     * RevisionableSqlColumnStorage); this driver tracks the in-flight pointer
-     * for the duration of a save so the coordinator can update other tables
-     * without re-querying.
+     * The persisted per-language tip is the MAX(revision_id) per
+     * `(entity_id, langcode)` in `<entity>__translation__revision`; this driver
+     * tracks the in-flight pointer for the duration of a save so the repository
+     * can read the just-written revision without re-querying.
      *
      * @var array<string, array<string, int>>  entityId -> langcode -> revisionId
      */
@@ -410,6 +409,110 @@ final class RevisionableStorageDriver
         }
 
         return 1;
+    }
+
+    /**
+     * Read one per-language revision row from `<entity>__translation__revision`.
+     *
+     * Counterpart to {@see readRevision()} for the translation axis. Returns the
+     * merged value map (the `_data` blob decoded onto the row), or null when no
+     * such `(entity_id, langcode, revision_id)` row exists.
+     *
+     * @return array<string, mixed>|null
+     *
+     * @api
+     */
+    public function readLangcodeRevision(string $entityId, string $langcode, int $revisionId): ?array
+    {
+        $db = $this->getDatabase();
+
+        $result = $db->select($this->translationRevisionTable)
+            ->fields($this->translationRevisionTable)
+            ->condition('entity_id', $entityId)
+            ->condition('langcode', $langcode)
+            ->condition('revision_id', (string) $revisionId)
+            ->execute();
+
+        foreach ($result as $row) {
+            return $this->mergeData((array) $row);
+        }
+
+        return null;
+    }
+
+    /**
+     * Latest (tip) revision id for one `(entity, langcode)`, or null when that
+     * language has no revisions yet. Independent of other languages.
+     *
+     * @api
+     */
+    public function getLatestLangcodeRevisionId(string $entityId, string $langcode): ?int
+    {
+        $db = $this->getDatabase();
+
+        $result = $db->query(
+            'SELECT MAX(revision_id) AS max_rev FROM ' . $this->translationRevisionTable
+            . ' WHERE entity_id = ? AND langcode = ?',
+            [$entityId, $langcode],
+        );
+
+        foreach ($result as $row) {
+            $row = (array) $row;
+            return $row['max_rev'] !== null ? (int) $row['max_rev'] : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * All revision ids for one `(entity, langcode)`, ascending.
+     *
+     * @return int[]
+     *
+     * @api
+     */
+    public function getLangcodeRevisionIds(string $entityId, string $langcode): array
+    {
+        $db = $this->getDatabase();
+
+        $result = $db->query(
+            'SELECT revision_id FROM ' . $this->translationRevisionTable
+            . ' WHERE entity_id = ? AND langcode = ? ORDER BY revision_id ASC',
+            [$entityId, $langcode],
+        );
+
+        $ids = [];
+        foreach ($result as $row) {
+            $ids[] = (int) ((array) $row)['revision_id'];
+        }
+
+        return $ids;
+    }
+
+    /**
+     * Langcodes that have at least one translation revision for this entity,
+     * ascending. Used to enumerate the languages an entity carries.
+     *
+     * @return string[]
+     *
+     * @api
+     */
+    public function getLangcodesWithRevisions(string $entityId): array
+    {
+        $db = $this->getDatabase();
+
+        $result = $db->query(
+            'SELECT DISTINCT langcode FROM ' . $this->translationRevisionTable
+            . ' WHERE entity_id = ? ORDER BY langcode ASC',
+            [$entityId],
+        );
+
+        $langcodes = [];
+        foreach ($result as $row) {
+            $langcodes[] = (string) ((array) $row)['langcode'];
+        }
+
+        return $langcodes;
     }
 
     /**

@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Waaseyaa\EntityStorage;
 
 /**
- * Value object describing the retention rules for revision pruning.
+ * Value object describing the retention rules for single-axis revision pruning
+ * (M-001 legacy surface; kept at this namespace for backward compatibility).
  *
- * Used by {@see RevisionPruner} when (and if) pruning is enabled. Auto-pruning
- * is a NON-GOAL for the current milestone (spec §1.2 / §2.2); this class is
- * scaffolded here to reserve the surface for a later work package.
+ * Auto-pruning is a NON-GOAL for the current milestone (spec §1.2 / §2.2); this
+ * class reserves the legacy surface. The active pruning entry point is
+ * {@see EntityRepository::pruneRevisions()} with
+ * {@see \Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy}.
  *
  * ## Retention rules (any may be combined; the most permissive wins)
  *

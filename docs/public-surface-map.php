@@ -170,7 +170,6 @@ return [
     'Waaseyaa\EntityStorage\Exception\UnknownFieldException' => 'public',
     'Waaseyaa\EntityStorage\Exception\BundleAmbiguousFieldException' => 'public',
     // entity-storage-v2 mission public surface (WP01–WP12, M-001)
-    'Waaseyaa\EntityStorage\RevisionableEntityStorageInterface' => 'public',
     // WP01 — backend registration
     'Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface' => 'public',
     'Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsInterface' => 'public',
@@ -209,9 +208,6 @@ return [
     'Waaseyaa\Entity\RevisionMetadata' => 'public',
     'Waaseyaa\EntityStorage\Schema\RevisionTableBuilder' => 'public',
     // WP08 — revisionable storage
-    'Waaseyaa\EntityStorage\RevisionableSqlBlobStorage' => 'public',
-    'Waaseyaa\EntityStorage\RevisionableSqlColumnStorage' => 'public',
-    'Waaseyaa\EntityStorage\RevisionPruner' => 'public',
     'Waaseyaa\EntityStorage\RevisionPruningPolicy' => 'public',
     'Waaseyaa\EntityStorage\RevisionPruningReport' => 'public',
     // WP09 — revision access (access package)

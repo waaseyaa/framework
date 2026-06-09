@@ -12,10 +12,10 @@ namespace Waaseyaa\Entity;
  * `entityKeys['revision']` key. The `RevisionableEntityTrait` provides
  * default property storage and implementations for the three methods below.
  *
- * ## WP07 scope
- * This interface defines the entity-side contract only. The storage-side
- * contract (`RevisionableEntityStorageInterface`) lives in `waaseyaa/entity-storage`
- * and is introduced in WP08+.
+ * This interface defines the entity-side contract only. The storage side lives
+ * in `waaseyaa/entity-storage` (`EntityRepository` + `RevisionableStorageDriver`),
+ * the single revision system, which also carries the optional translation axis
+ * for revisionable + translatable types.
  *
  * @api
  */

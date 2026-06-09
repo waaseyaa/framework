@@ -7,8 +7,9 @@ namespace Waaseyaa\EntityStorage;
 /**
  * Immutable value object holding the result of a revision pruning pass.
  *
- * Returned by {@see RevisionPruner::prune()}. When the pruner is disabled,
- * `$pruned` is `0` and `$skipped` contains a single entry explaining why.
+ * Returned by {@see EntityRepository::pruneRevisions()}. When pruning is
+ * disabled (the default — auto-pruning is a non-goal), `$pruned` is `0` and
+ * `$skipped` carries a single entry explaining why.
  *
  * @api
  */
@@ -36,7 +37,7 @@ final class RevisionPruningReport
             candidatesFound: 0,
             pruned: 0,
             retained: 0,
-            skipped: ['RevisionPruner is disabled; auto-pruning is a non-goal (spec §1.2).'],
+            skipped: ['Revision pruning is disabled; auto-pruning is a non-goal (spec §1.2).'],
         );
     }
 }
