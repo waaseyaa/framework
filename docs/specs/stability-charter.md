@@ -314,7 +314,7 @@ This section enumerates the major contract families and the per-phase rules for 
 - Access-policy attribute system (`PolicyAttribute`, `GateInterface`), including the `view_revision` operation (per ADR 016).
 - **Field storage backend contract** — `FieldStorageBackendInterface` and the backend id namespace; ids `sql-blob`, `sql-column`, `vector` are reserved (per ADR 010).
 - **Entity lifecycle events** — `BeforeSaveEvent`, `AfterSaveEvent`, `BeforeDeleteEvent`, `AfterDeleteEvent`, marker interface `EntityLifecycleEventInterface`, and `AbortOperationException` (per ADR 011). `EntityEvent` is non-`final` so the `TranslationEvent` sibling family may extend it (per M-006 / ADR 017).
-- **Revisionable surface** — `RevisionableEntityInterface`, `RevisionableEntityStorageInterface` (per ADR 016).
+- **Revisionable surface** — `RevisionableEntityInterface` (per ADR 016). (`RevisionableEntityStorageInterface` and the rest of the `vid` revision stack were removed in alpha.196.)
 - **Translatable surface (M-006 / ADR 017):**
   - `Waaseyaa\Entity\TranslatableInterface` — `getTranslation`, `hasTranslation`, `addTranslation`, `removeTranslation`, `translations`, `defaultLangcode`, `activeLangcode`, `fieldLangcode`. `language()` is retained as a deprecated alias for `activeLangcode()`.
   - `Waaseyaa\Entity\Exception\EntityTranslationException` with named-constructor factories `langcodeRequired`, `cannotRemoveDefault`, `translationAlreadyExists`, `translationNotFound`.

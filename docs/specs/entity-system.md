@@ -1801,11 +1801,11 @@ a `getPrimaryStorageBackend()` in their `EntityType`. The entity class implement
 carrying revision id, author, timestamp, and log message. `RevisionTableBuilder`
 creates the `{entity_type}_revision` table.
 
-Revisionable storage is provided by `RevisionableSqlBlobStorage` and
-`RevisionableSqlColumnStorage`, both implementing
-`RevisionableEntityStorageInterface`. `RevisionPruner` removes old revisions
-according to a `RevisionPruningPolicy`; results are returned as
-`RevisionPruningReport`. `RevisionAccessRouter` (in `waaseyaa/access`) maps
+The legacy `vid`-keyed revisionable storage stack — `RevisionableSqlBlobStorage`,
+`RevisionableSqlColumnStorage`, `RevisionableEntityStorageInterface`, and
+`RevisionPruner` — was **removed in alpha.196**. See
+`docs/specs/revision-system-unified.md` for the current revisionable storage
+model. `RevisionAccessRouter` (in `waaseyaa/access`) maps
 `GateInterface::VIEW_REVISION` operations to the revision access policy.
 
 ### Storage migration CLI (WP10)
