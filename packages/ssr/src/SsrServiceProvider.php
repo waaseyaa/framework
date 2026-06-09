@@ -171,4 +171,16 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
     {
         return ThemeServiceProvider::createTwigEnvironment($projectRoot, $config);
     }
+
+    /**
+     * Wire a pre-built Twig environment so the SSR render path can use it under
+     * test, or reset it with null between tests. `createTwigEnvironment()` is a
+     * pure factory that never populated the static the renderer reads, so there
+     * was no wired test-render path; pair them:
+     * `SsrServiceProvider::setTwigEnvironment(SsrServiceProvider::createTwigEnvironment($root))`. (#1604)
+     */
+    public static function setTwigEnvironment(?Environment $env): void
+    {
+        self::$twigEnvironment = $env;
+    }
 }

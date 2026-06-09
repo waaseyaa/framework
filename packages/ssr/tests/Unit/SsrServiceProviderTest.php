@@ -31,6 +31,26 @@ final class SsrServiceProviderTest extends TestCase
     }
 
     #[Test]
+    public function setTwigEnvironmentWiresAndResetsTheRenderEnvironment(): void
+    {
+        // Regression for #1604: createTwigEnvironment() is a pure factory; the
+        // render path reads the static via getTwigEnvironment(). setTwigEnvironment()
+        // wires that static for tests, and null resets it for isolation.
+        $projectRoot = sys_get_temp_dir() . '/waaseyaa_ssr_provider_' . uniqid();
+        mkdir($projectRoot . '/templates', 0755, true);
+        file_put_contents($projectRoot . '/templates/page.html.twig', '<h1>{{ path }}</h1>');
+
+        $env = SsrServiceProvider::createTwigEnvironment($projectRoot);
+        SsrServiceProvider::setTwigEnvironment($env);
+        $this->assertSame($env, SsrServiceProvider::getTwigEnvironment());
+
+        SsrServiceProvider::setTwigEnvironment(null);
+        $this->assertNull(SsrServiceProvider::getTwigEnvironment());
+
+        $this->removeDirectory($projectRoot);
+    }
+
+    #[Test]
     public function bootInitializesSharedTwigEnvironment(): void
     {
         $projectRoot = sys_get_temp_dir() . '/waaseyaa_ssr_boot_' . uniqid();
