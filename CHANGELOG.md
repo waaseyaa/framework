@@ -13,6 +13,21 @@ Continued internal framework-hygiene (alpha.201 fast-follow; no new product capa
 
 - **`EntityRepositoryInterface` two-axis surface narrowed to the 3 consumer-used methods (`entity`).** alpha.200 promoted all 8 two-axis methods onto the interface; alpha.201 keeps only the 3 that consumers actually call through the contract (`saveTranslation`, `loadTranslation`, `listTranslationRevisions`) and returns the lower-level per-revision API (`saveTranslationRevision`/`saveTranslationRevisions`, `loadTranslationRevision`, `loadTranslationTip`, `translationLangcodes`) to the concrete `EntityRepository` only. Interface-segregation cleanup done pre-adoption — no consumer depended on the 5 removed methods through the interface. (b1)
 
+### Fixed
+
+- **Windows `composer create-project` now generates `.env` (`skeleton`).** The post-create `chmod` ran as a shell step and aborted on Windows (no `chmod` command) before the PHP setup; moved into `post-create-setup.php` via PHP `chmod` (no-op on Windows, +x on POSIX). (#1628)
+- **No silent LLM placeholder (`ai-agent`).** `MessagingServiceProvider` now warns at boot when the effective `ProviderInterface` is still the default `NullLlmProvider`, so operators aren't served placeholder output unknowingly. (#1608)
+- **Inertia/Vite dev on-ramp (`inertia`).** The Vite asset base resolves from the kernel project root instead of `getcwd()` (which `waaseyaa serve` chdirs into `public/`, blanking the `<head>`); the entrypoint is configurable. (#1626)
+- **Log noise (`api`).** `BroadcastStorageScheduleEntries` logs at debug (not warning) when broadcasting is unconfigured — the normal state for apps not using SSE. (#1603)
+- **SSR test-render path (`ssr`).** Added `SsrServiceProvider::setTwigEnvironment()` so tests can wire the render environment the factory never stored. (#1604)
+- **Internal CI hygiene.** `composer phpstan` is green honestly (removed a genuinely-useless `(int)` cast and a stale "trait used zero times" baseline entry — both red on every OS) and the dead-code baseline was regenerated (46→29, dropping `@api`-covered stale entries). (b3)
+
+### Documentation
+
+- **Two-axis docs reconciled to the live `revision_id` model.** Superseded `entity-storage-two-axis.md` and repointed `CLAUDE.md` to `revision-system-unified.md`; corrected `'revision' => 'vid'` → `'revision_id'` in the cookbook / upgrade-notes / trait docblock; purged the alpha.196-removed `vid` revision classes (`RevisionableSql*Storage`, `RevisionRowHydrator`, `RevisionableEntityStorageInterface`, `RevisionPruner`) from the surface maps and specs.
+- **Real add-on package READMEs** for `inertia` / `groups` / `notification` / `mercure` / `workflows`. (#1630)
+- **DX clarifications** (no behavior change): route precedence vs the SSR `render.page` fallback (#1632), provider `routes()` boot-time lifecycle and lazy request-scoped resolution (#1611), and access-filtered empty `data[]` over JSON:API collections (#1605).
+
 ## [0.1.0-alpha.200] - 2026-06-09
 
 An internal framework-hygiene milestone (no new product capability).
