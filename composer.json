@@ -372,12 +372,6 @@
         "shipmonk/dead-code-detector": "^1.1",
         "waaseyaa/testing": "self.version"
     },
-    "autoload": {
-        "psr-4": {
-            "Waaseyaa\\GitHub\\": "packages/github/src/",
-            "Waaseyaa\\Engagement\\": "packages/engagement/src/"
-        }
-    },
     "autoload-dev": {
         "psr-4": {
             "Waaseyaa\\Tools\\PHPStan\\": "tools/phpstan/",
