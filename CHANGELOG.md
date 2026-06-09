@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Continued internal framework-hygiene (alpha.201 fast-follow; no new product capability).
+
+### Changed
+
+- **`EntityRepositoryInterface` two-axis surface narrowed to the 3 consumer-used methods (`entity`).** alpha.200 promoted all 8 two-axis methods onto the interface; alpha.201 keeps only the 3 that consumers actually call through the contract (`saveTranslation`, `loadTranslation`, `listTranslationRevisions`) and returns the lower-level per-revision API (`saveTranslationRevision`/`saveTranslationRevisions`, `loadTranslationRevision`, `loadTranslationTip`, `translationLangcodes`) to the concrete `EntityRepository` only. Interface-segregation cleanup done pre-adoption — no consumer depended on the 5 removed methods through the interface. (b1)
+
 ## [0.1.0-alpha.200] - 2026-06-09
 
 An internal framework-hygiene milestone (no new product capability).
