@@ -193,4 +193,43 @@ final class EntityRepositoryTranslationAxisTest extends TestCase
         $this->assertNotNull($ojFirst);
         $this->assertSame('Niizhwaaswi Mishomis', $ojFirst->label());
     }
+
+    #[Test]
+    public function a_spurious_column_translations_sibling_does_not_hide_blob_peer_rows(): void
+    {
+        // Regression: a schema-sync may materialise a `<entity>_translations`
+        // sibling (the sql-COLUMN translation model's table) alongside the blob
+        // peer rows. That sibling is empty for a blob-translatable entity, and
+        // the driver used to divert every language-scoped read into it, so a
+        // translated language was wrongly reported as missing. The base-table
+        // peer read must take precedence.
+        $this->db->getConnection()->executeStatement(
+            'CREATE TABLE test_revisionable_translations '
+            . '(entity_id INTEGER NOT NULL, langcode VARCHAR(12) NOT NULL, _data TEXT, '
+            . 'PRIMARY KEY (entity_id, langcode))',
+        );
+
+        $en = new TestRevisionableEntity(values: ['title' => 'Seven Grandfathers', 'uuid' => 'g7']);
+        $en->enforceIsNew();
+        $this->repo->save($en);
+        $id = (string) $en->id();
+
+        $this->repo->saveTranslation($id, 'oj', ['title' => 'Niizhwaaswi Mishomis']);
+
+        // The Anishinaabemowin peer is found despite the sibling table existing.
+        $oj = $this->repo->loadTranslation($id, 'oj');
+        $this->assertNotNull($oj, 'a blob peer row must not be hidden by an empty column-translations sibling');
+        $this->assertSame('Niizhwaaswi Mishomis', $oj->label());
+        $this->assertSame('Niizhwaaswi Mishomis', $this->repo->find($id, 'oj')?->label());
+
+        // English is still the default row; an untranslated language is null.
+        $this->assertSame('Seven Grandfathers', $this->repo->find($id, 'en')?->label());
+        $this->assertNull($this->repo->loadTranslation($id, 'fr'));
+
+        // readMultiple is consistent: the peer row wins over the sibling.
+        $driver = new SqlStorageDriver(new SingleConnectionResolver($this->db));
+        $many = $driver->readMultiple('test_revisionable', [$id], 'oj');
+        $this->assertArrayHasKey($id, $many);
+        $this->assertSame('Niizhwaaswi Mishomis', $many[$id]['title'] ?? null);
+    }
 }

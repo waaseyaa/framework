@@ -1034,6 +1034,15 @@ final class EntityRepository implements EntityRepositoryInterface
             return null;
         }
 
+        // A two-axis read is exact-or-nothing: if a driver-level language
+        // fallback returned a different language's row (e.g. the default), treat
+        // this language as untranslated rather than surfacing the wrong content.
+        $langKey = $this->entityType->getKeys()['langcode'] ?? 'langcode';
+        $rowLangcode = $row[$langKey] ?? null;
+        if ($rowLangcode !== null && (string) $rowLangcode !== $langcode) {
+            return null;
+        }
+
         return $this->hydrate($row);
     }
 

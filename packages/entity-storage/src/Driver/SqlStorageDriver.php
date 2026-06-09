@@ -42,16 +42,44 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
         }
 
         if ($langcode !== null) {
+            $hasLangcodeColumn = $db->schema()->fieldExists($entityType, 'langcode');
+
+            // Two-axis BLOB model: the language is a peer (id, langcode) row in
+            // the base table itself. Prefer reading that peer row directly. This
+            // takes PRECEDENCE over a `<entity>_translations` sibling (the
+            // sql-COLUMN model): that sibling is empty for a blob-translatable
+            // entity, so diverting to it would wrongly yield null for a language
+            // that exists as a peer row in the base table.
+            if ($hasLangcodeColumn) {
+                $peerQuery = $db->select($entityType)
+                    ->fields($entityType)
+                    ->condition($this->idKey, $id)
+                    ->condition('langcode', $langcode);
+
+                if ($this->communityScope?->isActive()) {
+                    $peerQuery->condition('community_id', $this->communityScope->getCommunityId());
+                }
+
+                foreach ($peerQuery->execute() as $row) {
+                    return $this->mergeFromRead((array) $row);
+                }
+            }
+
+            // sql-COLUMN model: the language lives in a `<entity>_translations`
+            // sibling (with its own base-row language fallback). Consulted only
+            // when the base table has no peer row for this language.
             $translationTable = $entityType . '_translations';
             if ($db->schema()->tableExists($translationTable)) {
                 return $this->readWithTranslation($db, $entityType, $id, $langcode);
             }
 
-            // No sibling translation table: the language lives in a peer
-            // (id, langcode) base row (the two-axis blob model). Select that row
-            // directly rather than post-filtering whichever row sorts first.
-            if ($db->schema()->fieldExists($entityType, 'langcode')) {
-                $query = $query->condition('langcode', $langcode);
+            // A langcode-aware base table with no matching peer row and no sibling
+            // means this language is untranslated: return null rather than falling
+            // through to the unfiltered base row (which would be a different
+            // language). When the base table is not langcode-aware at all, the
+            // langcode does not apply and we fall through to the plain base read.
+            if ($hasLangcodeColumn) {
+                return null;
             }
         }
 
@@ -82,11 +110,51 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
             return [];
         }
 
-        if ($langcode !== null) {
-            $translationTable = $entityType . '_translations';
-            if ($db->schema()->tableExists($translationTable)) {
-                return $this->readMultipleWithTranslation($db, $entityType, $idList, $langcode);
+        $hasLangcodeColumn = $langcode !== null && $db->schema()->fieldExists($entityType, 'langcode');
+        $hasTranslationSibling = $langcode !== null && $db->schema()->tableExists($entityType . '_translations');
+
+        // Only take the language-scoped path when the entity is actually
+        // langcode-aware (a base langcode column or a translation sibling).
+        // Otherwise the langcode does not apply and we fall through to the plain
+        // base read below.
+        if ($hasLangcodeColumn || $hasTranslationSibling) {
+            $byId = [];
+
+            // Two-axis BLOB model: collect the peer (id, langcode) base rows
+            // first. This takes precedence over a `<entity>_translations` sibling
+            // (empty for a blob-translatable entity), mirroring read().
+            if ($hasLangcodeColumn) {
+                $peerQuery = $db->select($entityType)
+                    ->fields($entityType)
+                    ->condition($this->idKey, $idList, 'IN')
+                    ->condition('langcode', $langcode);
+
+                if ($this->communityScope?->isActive()) {
+                    $peerQuery->condition('community_id', $this->communityScope->getCommunityId());
+                }
+
+                foreach ($peerQuery->execute() as $row) {
+                    $row = (array) $row;
+                    $pk = $row[$this->idKey] ?? null;
+                    if ($pk !== null) {
+                        $byId[(string) $pk] = $this->mergeFromRead($row);
+                    }
+                }
             }
+
+            // sql-COLUMN model: for any ids still missing a peer row, fall back to
+            // the `<entity>_translations` sibling (with its own base fallback).
+            $missing = array_values(array_filter(
+                $idList,
+                static fn(int|string $id): bool => !isset($byId[$id]),
+            ));
+            if ($missing !== [] && $hasTranslationSibling) {
+                foreach ($this->readMultipleWithTranslation($db, $entityType, $missing, $langcode) as $key => $row) {
+                    $byId[$key] = $row;
+                }
+            }
+
+            return $byId;
         }
 
         $query = $db->select($entityType)
@@ -104,12 +172,7 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
             if ($pk === null) {
                 continue;
             }
-            $key = (string) $pk;
-            if ($langcode !== null && $db->schema()->fieldExists($entityType, 'langcode')
-                && isset($row['langcode']) && $row['langcode'] !== $langcode) {
-                continue;
-            }
-            $byId[$key] = $this->mergeFromRead($row);
+            $byId[(string) $pk] = $this->mergeFromRead($row);
         }
 
         return $byId;
