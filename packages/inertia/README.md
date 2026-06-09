@@ -1,23 +1,71 @@
 # waaseyaa/inertia
 
-> **Alternative protocol — not the primary workspace UI.**
->
-> Per charter directive **DIR-007** (see `.kittify/charter/charter.md`), the framework's
-> committed workspace UI surface is the standalone Nuxt SPA in `packages/admin/`.
-> `waaseyaa/inertia` remains supported as an **optional / experimental** L6 protocol
-> adapter for distributions that prefer server-driven UI. It is not bundled by
-> `waaseyaa/full`; install it explicitly when your distribution chooses Inertia.
+> **Optional / experimental — not the primary workspace UI.** Per charter directive
+> **DIR-007** (`.kittify/charter/charter.md`), the committed workspace UI is the Nuxt SPA
+> in `packages/admin/`. This L6 adapter is supported for distributions that prefer
+> server-driven UI, but is **not** bundled by `waaseyaa/full`.
 
 **Layer 6 — Interfaces**
 
-Server-side Inertia.js v3 protocol adapter for Waaseyaa.
+Server-side Inertia.js v3 protocol adapter. A controller returns
+`Inertia::render($component, $props)`, producing an `InertiaResponse` that carries the
+Inertia page object. `InertiaMiddleware` reads the `X-Inertia-*` headers to tell an
+initial full-page load (HTML via `RootTemplateRenderer`) from an XHR navigation (JSON
+page object), and returns `409` + `X-Inertia-Location` on an asset-version mismatch.
+`OptionalProp` / `PropResolver` defer expensive props so partial reloads (`only` /
+`except`) recompute only requested keys. Implements the foundation contracts
+`InertiaPageResultInterface` and `InertiaFullPageRendererInterface`.
 
-`Inertia::render($component, $props)` produces an `InertiaResponse` that distinguishes initial full-page loads (HTML root template) from XHR navigation (JSON payload). `InertiaMiddleware` reads the `X-Inertia-*` request headers and switches the response shape accordingly. `OptionalProp` and `PropResolver` defer expensive prop computation when partial reloads only request specific keys.
+## Install
 
-Key classes: `Inertia`, `InertiaResponse`, `InertiaMiddleware`, `InertiaServiceProvider`, `OptionalProp`, `PropResolver`.
+Ships in the `waaseyaa/framework` metapackage but is not pulled in by `waaseyaa/full`;
+add it explicitly: `composer require waaseyaa/inertia`. Register
+`Waaseyaa\Inertia\InertiaServiceProvider` (auto-discovered via `extra.waaseyaa.providers`)
+to wire the renderer and HTTP middleware.
 
-## Status
+## Key API
 
-- **Stability:** optional / experimental. The public API surface (`Inertia::render()`, `InertiaResponse`, `InertiaMiddleware`, `OptionalProp`, `PropResolver`, `InertiaServiceProvider`) is frozen at its current shape. The framework cadence ships no new feature work for this package; community contributions are accepted under the same review bar as any other package.
-- **Bundle membership:** suggested by `waaseyaa/full` (not required). To install in a distribution that wants Inertia: `composer require waaseyaa/inertia`.
-- **Decision provenance:** charter directive **DIR-007** (ratified by mission `charter-amendment-anokii-track-01KSEFE0`); manifest demotion + this README banner landed by mission `inertia-demotion-nuxt-standardisation-01KSEFTS`.
+```php
+// Inertia — static response factory + shared-prop / version state.
+Inertia::setVersion(string $version): void
+Inertia::getVersion(): string
+Inertia::setRenderer(RootTemplateRenderer $renderer): void
+Inertia::getRenderer(): RootTemplateRenderer
+Inertia::share(string $key, mixed $value): void
+Inertia::render(string $component, array $props, bool $encryptHistory = false, bool $clearHistory = false): InertiaResponse
+Inertia::reset(): void
+
+// InertiaResponse implements InertiaPageResultInterface — readonly: component, props,
+//   url, version, encryptHistory, clearHistory, preserveFragment, and the
+//   deferred/merge/prepend/deepMerge/once prop sets.
+public function toPageObject(): array
+
+// InertiaMiddleware — #[AsMiddleware(pipeline: 'http', priority: 20)]
+public function __construct(string $version)
+public function process(Request $request, HttpHandlerInterface $next): Response
+
+// PropResolver
+public static function optional(\Closure $callback): OptionalProp
+public function resolve(array $props, array $only = [], array $except = []): array
+
+// RootTemplateRenderer implements InertiaFullPageRendererInterface
+public function __construct(?\Closure $template = null, ?ViteAssetManager $assetManager = null)
+public function render(array $pageObject): string
+
+// InertiaServiceProvider implements HasMiddlewareInterface
+public function register(): void
+public function registerWithRoot(?string $root): void
+public function middleware(EntityTypeManager $entityTypeManager): array
+```
+
+## Usage
+
+```php
+Inertia::setVersion('abc123');
+Inertia::share('auth', fn() => ['user' => currentUser()]);
+$response = Inertia::render('Users/Index', ['users' => [1, 2, 3]]);
+$page = $response->toPageObject();
+```
+
+Page props override shared props of the same key; shared closures resolve fresh per
+`render()`; `toPageObject()` always injects `props.errors`.
