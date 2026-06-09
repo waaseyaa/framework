@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.197] - 2026-06-09
+
 ### Fixed
 
 - **Translatable entity types now get an assigned id on save (`entity-storage`).** A translatable entity widens its base-table primary key to `(id, langcode)`, so the id column is a plain int shared across a row's language peers rather than an autoincrement serial — the database does not assign it. `EntityRepository::save()` now allocates the next id (`MAX(id)+1` over the base table) for a new translatable entity, so creating one through the standard repository path works instead of failing with a `NOT NULL` violation on the id column. Single-axis (non-translatable) types are unaffected and keep their serial autoincrement id. This unblocks declaring an existing revisionable entity `translatable: true` to gain peer-language `(id, langcode)` rows, each with independent revision history.
