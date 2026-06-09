@@ -209,4 +209,70 @@ interface EntityRepositoryInterface
      * @return array<string, EntityInterface>
      */
     public function findTranslations(EntityInterface $entity): array;
+
+    // ---------------------------------------------------------------------
+    // Two-axis translation surface (revisionable × translatable). Each edits one
+    // language as a true peer — its own (id, langcode) base row and its own
+    // independent per-language revision sequence. Only valid on a two-axis entity
+    // type; a single-axis implementation throws. Promoted from the concrete
+    // EntityRepository so consumers depend on the interface rather than narrowing
+    // with instanceof. (b1)
+    // ---------------------------------------------------------------------
+
+    /**
+     * Unified two-axis save of one language's content: upsert the peer
+     * (id, langcode) base row AND record a per-language revision in one
+     * transaction. Returns the new per-language revision id.
+     *
+     * @param array<string, mixed> $values This language's field values.
+     */
+    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int;
+
+    /**
+     * Write a new revision of one language's content, returning its per-language
+     * revision id (independent of other languages and of the single-axis sequence).
+     *
+     * @param array<string, mixed> $values Field values for this language.
+     */
+    public function saveTranslationRevision(string $entityId, string $langcode, array $values, ?string $log = null): int;
+
+    /**
+     * Atomic multi-language write: one revision per langcode in a single
+     * transaction, all-or-nothing. Other languages' sequences are independent.
+     *
+     * @param array<string, array<string, mixed>> $byLangcode langcode => field values
+     * @return array<string, int> langcode => new per-language revision id
+     */
+    public function saveTranslationRevisions(string $entityId, array $byLangcode, ?string $log = null): array;
+
+    /**
+     * Load the current value of one language from its peer (id, langcode) base
+     * row, or null when that language has no row yet.
+     */
+    public function loadTranslation(string $entityId, string $langcode): ?EntityInterface;
+
+    /**
+     * Load a specific per-language revision, or null when it does not exist.
+     */
+    public function loadTranslationRevision(string $entityId, string $langcode, int $revisionId): ?EntityInterface;
+
+    /**
+     * Load the tip (latest revision) of one language, or null when that language
+     * has no revisions yet.
+     */
+    public function loadTranslationTip(string $entityId, string $langcode): ?EntityInterface;
+
+    /**
+     * One language's revisions, newest first.
+     *
+     * @return list<EntityInterface>
+     */
+    public function listTranslationRevisions(string $entityId, string $langcode): array;
+
+    /**
+     * Langcodes this entity carries a translation revision for, ascending.
+     *
+     * @return string[]
+     */
+    public function translationLangcodes(string $entityId): array;
 }

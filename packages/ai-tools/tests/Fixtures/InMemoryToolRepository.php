@@ -121,4 +121,47 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
     {
         return [];
     }
+
+    // Two-axis translation surface (EntityRepositoryInterface, b1) — this fixture
+    // is single-axis only and never exercises it.
+
+    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int
+    {
+        throw new \BadMethodCallException('two-axis translation is not supported by ' . self::class);
+    }
+
+    public function saveTranslationRevision(string $entityId, string $langcode, array $values, ?string $log = null): int
+    {
+        throw new \BadMethodCallException('two-axis translation is not supported by ' . self::class);
+    }
+
+    public function saveTranslationRevisions(string $entityId, array $byLangcode, ?string $log = null): array
+    {
+        throw new \BadMethodCallException('two-axis translation is not supported by ' . self::class);
+    }
+
+    public function loadTranslation(string $entityId, string $langcode): ?EntityInterface
+    {
+        throw new \BadMethodCallException('two-axis translation is not supported by ' . self::class);
+    }
+
+    public function loadTranslationRevision(string $entityId, string $langcode, int $revisionId): ?EntityInterface
+    {
+        throw new \BadMethodCallException('two-axis translation is not supported by ' . self::class);
+    }
+
+    public function loadTranslationTip(string $entityId, string $langcode): ?EntityInterface
+    {
+        throw new \BadMethodCallException('two-axis translation is not supported by ' . self::class);
+    }
+
+    public function listTranslationRevisions(string $entityId, string $langcode): array
+    {
+        throw new \BadMethodCallException('two-axis translation is not supported by ' . self::class);
+    }
+
+    public function translationLangcodes(string $entityId): array
+    {
+        throw new \BadMethodCallException('two-axis translation is not supported by ' . self::class);
+    }
 }

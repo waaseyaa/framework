@@ -183,6 +183,46 @@ final class TwoAxisFilterResolverTest extends TestCase
             {
                 return [];
             }
+
+            public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int
+            {
+                throw new \LogicException('not used');
+            }
+
+            public function saveTranslationRevision(string $entityId, string $langcode, array $values, ?string $log = null): int
+            {
+                throw new \LogicException('not used');
+            }
+
+            public function saveTranslationRevisions(string $entityId, array $byLangcode, ?string $log = null): array
+            {
+                throw new \LogicException('not used');
+            }
+
+            public function loadTranslation(string $entityId, string $langcode): ?EntityInterface
+            {
+                throw new \LogicException('not used');
+            }
+
+            public function loadTranslationRevision(string $entityId, string $langcode, int $revisionId): ?EntityInterface
+            {
+                throw new \LogicException('not used');
+            }
+
+            public function loadTranslationTip(string $entityId, string $langcode): ?EntityInterface
+            {
+                throw new \LogicException('not used');
+            }
+
+            public function listTranslationRevisions(string $entityId, string $langcode): array
+            {
+                throw new \LogicException('not used');
+            }
+
+            public function translationLangcodes(string $entityId): array
+            {
+                throw new \LogicException('not used');
+            }
         };
     }
 

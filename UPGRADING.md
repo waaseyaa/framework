@@ -37,6 +37,24 @@ alias metadata as first-class properties of the field definition. Per
 `DIR-003`, no compatibility shim is provided — implementers update in
 the same release.
 
+### `EntityRepositoryInterface` gained the two-axis translation surface (Waaseyaa\Entity)
+
+`Waaseyaa\Entity\Repository\EntityRepositoryInterface` gained 8 methods promoted
+from the concrete `EntityRepository` (added to the concrete in alpha.196–198):
+
+- `saveTranslation`, `saveTranslationRevision`, `saveTranslationRevisions`
+- `loadTranslation`, `loadTranslationRevision`, `loadTranslationTip`
+- `listTranslationRevisions`, `translationLangcodes`
+
+- **Consumers** no longer need to narrow with `instanceof EntityRepository` to
+  reach the two-axis (revisionable × translatable) translation API — call it on
+  the interface. The methods are valid only on a two-axis entity type and throw
+  on a single-axis type (unchanged behavior).
+- **Third-party implementers of `EntityRepositoryInterface`** must add these 8
+  methods. Single-axis implementations may throw (e.g. `BadMethodCallException`),
+  mirroring the concrete repository's `assertTwoAxis()` guard. Per `DIR-003`, no
+  compatibility shim is provided — implementers update in the same release.
+
 ## 2026-04-27 - Attribute-first entity definition (M1)
 
 The `EntityType` constructor no longer accepts `fieldDefinitions:`. The entity class itself is the source of truth for field shape — declare fields with `#[Waaseyaa\Entity\Attribute\Field]` on typed PHP properties and register the type via `EntityType::fromClass()`. The class-level `#[ContentEntityType]` attribute also gained `label:` and `description:` parameters so the human-facing strings live next to the id.
