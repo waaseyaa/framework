@@ -26,7 +26,7 @@ verification possible.
 - **Security audit trail** — access-denied events and agent tool executions
   must be captured immutably.
 - **Retention compliance** — different event kinds may need different retention
-  windows; the `audit:prune` CLI and `AuditRetentionPolicy` entity support that.
+  windows; the `audit:prune` CLI and `audit_retention_policy` table support that.
 - **Foundation for M-A5** — per-record AI access policies need an audit trail
   to verify OCAP invariants.
 
@@ -44,10 +44,11 @@ L1 packages/audit
   AuditWriterInterface         ← write-side contract (record)
   AuditEventDescriptor         ← write DTO
   AuditQuery                   ← read query value object
-  AuditEvent (entity)          ← storage entity
-  AuditRetentionPolicy (entity)← retention rule entity
-  AuditEventQuery              ← DatabaseInterface-backed impl
-  AuditEventWriter             ← EntityRepository-backed impl
+  AuditEvent                   ← typed read model over an audit_event row (NOT a registered entity)
+  AuditRetentionPolicy         ← typed read model over a retention-policy row (NOT a registered entity)
+  AuditEventQuery              ← DatabaseInterface-backed read impl
+  AuditEventWriter             ← insert-only raw DatabaseInterface impl (via AppendOnlyAuditDatabase)
+  AppendOnlyAuditDatabase      ← DatabaseInterface decorator; throws on UPDATE/DELETE of audit_event
 
 L4 packages/api
   AuditQueryReadModelInterface ← api-local read-model interface (@api)
@@ -268,13 +269,32 @@ to satisfy this budget on SQLite and MySQL/PostgreSQL.
 
 ## Implementation Notes
 
-- `AuditEventWriter` is best-effort: `record()` catches all exceptions and logs
-  via `LoggerInterface`. It never throws (FR-005).
-- `AuditEventQuery` uses `DatabaseInterface` directly (not `EntityRepository`)
-  for read performance — no entity hydration overhead for bulk queries.
-- `AppendOnlyDriverGuard` wraps the entity storage driver to throw
-  `\LogicException` on update/delete calls, enforcing immutability at the
-  storage layer (C-001).
+- **`audit_event` and `audit_retention_policy` are NOT registered content
+  entities.** They are flat OCAP log tables built by `AuditEventSchemaHandler`
+  and accessed through raw `DatabaseInterface` writes/reads. The `AuditEvent` /
+  `AuditRetentionPolicy` classes are typed read-model accessors over a row
+  (each overrides `get()` to read the value bag directly, so reads never depend
+  on entity-type registration). They were de-registered in alpha.202 because the
+  registration produced 8 permanent `schema:check` false-positives (the lean log
+  tables lack the content-entity column set) and falsely implied an entity
+  CRUD/update path for an append-only log.
+- `AuditEventWriter` appends rows via a raw, parameterized, **insert-only**
+  `DatabaseInterface` INSERT — never `EntityRepository::save()`. It is best-effort:
+  `record()` catches all exceptions and logs via `LoggerInterface`; it never
+  throws (FR-005).
+- `AuditEventQuery` uses `DatabaseInterface` directly for read performance — no
+  entity hydration overhead for bulk queries.
+- **`AppendOnlyAuditDatabase`** is the active append-only enforcer (C-001): a
+  `DatabaseInterface` decorator that throws `\LogicException` on any `UPDATE` or
+  `DELETE` of `audit_event`, passing inserts/reads/other-table access through.
+  The writer (and only the writer) is wired with it, so the sole mutation it can
+  express is an append. The one sanctioned deletion — the `audit:prune` retention
+  purge — resolves the **raw** `DatabaseInterface`, deliberately bypassing the
+  decorator, so retention works while every writer path stays immutable.
+  (This replaces the former `AppendOnlyDriverGuard`, an entity-storage-driver
+  decorator that was never instantiated and guarded a path that no longer exists
+  now that audit_event is not an entity.) See
+  `packages/audit/tests/Integration/AuditImmutabilityTest.php` for the proof.
 - The `ApiAuditQueryAdapter` silently skips unknown `kind` string values during
   enum resolution — future-compatible with new enum cases arriving via
   downstream amendment.
@@ -290,3 +310,4 @@ to satisfy this budget on SQLite and MySQL/PostgreSQL.
 - `packages/api/src/ApiServiceProvider.php` — L4 binding + `resolveOptional` wiring.
 
 <!-- Spec written 2026-05-25 - mission ocap-audit-log-substrate-01KSEFTF WP03: JSON:API audit endpoint + audit:prune CLI + integration tests. Refs gap-matrix-A3, DIR-004. -->
+<!-- Spec reviewed 2026-06-09 - alpha.202: audit_event/audit_retention_policy de-registered as content entities (now raw OCAP log tables + typed read models); append-only enforcement moved from the dormant AppendOnlyDriverGuard to the active AppendOnlyAuditDatabase DatabaseInterface decorator; writer migrated to insert-only raw INSERT. Refs #1625. -->
