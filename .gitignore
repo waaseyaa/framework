@@ -3,6 +3,10 @@ vendor
 vendor/
 packages/*/vendor/
 packages/*/composer.lock
+# The skeleton ships without a lock (create-project writes a fresh one per
+# project); ignore artifacts from running composer inside skeleton/ locally.
+skeleton/composer.lock
+skeleton/vendor/
 
 # IDE
 .idea/
