@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "782aa570adde95988d7cc7bfeec8e3a1",
+    "content-hash": "44ed2cf9d1a41162420449a51b6dec6e",
     "packages": [
         {
             "name": "defuse/php-encryption",
@@ -3413,15 +3413,15 @@
             "dist": {
                 "type": "path",
                 "url": "packages/access",
-                "reference": "dd2b81bef4e4c671989d448010d680d1ec6951f6"
+                "reference": "2730a0cd0c92d2782beb12d53205e7a9f3952a32"
             },
             "require": {
                 "php": ">=8.5",
                 "symfony/http-foundation": "^7.0",
                 "symfony/routing": "^7.0",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199",
-                "waaseyaa/plugin": "^0.1.0-alpha.199"
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202",
+                "waaseyaa/plugin": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -3457,16 +3457,16 @@
             "dist": {
                 "type": "path",
                 "url": "packages/admin-surface",
-                "reference": "10beacbf166427c16a9a1807c8c414fd74742891"
+                "reference": "a3d5a0d97ba1b578021b31144df622a410951214"
             },
             "require": {
                 "php": ">=8.5",
                 "symfony/http-foundation": "^7.0",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/api": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199",
-                "waaseyaa/routing": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/api": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202",
+                "waaseyaa/routing": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -3507,23 +3507,23 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-agent",
-                "reference": "a92b93343e4b9fb5ed5074f0e789fcd710819dc4"
+                "reference": "e5143d64080d9e32f9bf3dd517402120ab83c6ad"
             },
             "require": {
                 "php": ">=8.5",
                 "symfony/messenger": "^7.0",
                 "symfony/uid": "^7.0",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/ai-observability": "^0.1.0-alpha.199",
-                "waaseyaa/ai-schema": "^0.1.0-alpha.199",
-                "waaseyaa/ai-tools": "^0.1.0-alpha.199",
-                "waaseyaa/api": "^0.1.0-alpha.199",
-                "waaseyaa/bimaaji": "^0.1.0-alpha.199",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/entity-storage": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199",
-                "waaseyaa/http-client": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/ai-observability": "^0.1.0-alpha.202",
+                "waaseyaa/ai-schema": "^0.1.0-alpha.202",
+                "waaseyaa/ai-tools": "^0.1.0-alpha.202",
+                "waaseyaa/api": "^0.1.0-alpha.202",
+                "waaseyaa/bimaaji": "^0.1.0-alpha.202",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/entity-storage": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202",
+                "waaseyaa/http-client": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -3567,15 +3567,15 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-observability",
-                "reference": "f52c366bbc9b4b3a29a6fd56734db3a9165bae84"
+                "reference": "30288d643f43f461d6aa8537c54b6a87c491da28"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/ai-agent": "^0.1.0-alpha.199",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/entity-storage": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199"
+                "waaseyaa/ai-agent": "^0.1.0-alpha.202",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/entity-storage": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -3617,13 +3617,13 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-pipeline",
-                "reference": "39c99eb2455814021be5857397c279d534afa75a"
+                "reference": "924a7c17ee1b091fe2a284eb246104bbb50f96dc"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/ai-vector": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/queue": "^0.1.0-alpha.199"
+                "waaseyaa/ai-vector": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/queue": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -3664,11 +3664,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-schema",
-                "reference": "9d6b80624934840741cb868ace13c86c7c06d351"
+                "reference": "d9b02925c2535bdf2cef66973613cd0230daecc5"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/entity": "^0.1.0-alpha.199"
+                "waaseyaa/entity": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -3704,17 +3704,17 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-tools",
-                "reference": "7b8b82a4a3c8535249793dcda879f08d8ced943e"
+                "reference": "54b81b99367b3c1e4dafa5bf7c64da399f51e903"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5",
-                "waaseyaa/testing": "^0.1.0-alpha.199"
+                "waaseyaa/testing": "^0.1.0-alpha.202"
             },
             "type": "library",
             "extra": {
@@ -3753,15 +3753,15 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-vector",
-                "reference": "80514f4f526093f075882b0a2e804136041c7af5"
+                "reference": "8a8640ee36803c1b850267cde82a1abe315df95a"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/api": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/queue": "^0.1.0-alpha.199",
-                "waaseyaa/workflows": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/api": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/queue": "^0.1.0-alpha.202",
+                "waaseyaa/workflows": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -3832,25 +3832,25 @@
             "dist": {
                 "type": "path",
                 "url": "packages/api",
-                "reference": "bc6a2767c673bbe760d1e79062de2a4865e7c9fd"
+                "reference": "e96a0fb3e0488e7d6ec93cf9383e8ee6abffe9c7"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199",
-                "waaseyaa/notification": "^0.1.0-alpha.199",
-                "waaseyaa/queue": "^0.1.0-alpha.199",
-                "waaseyaa/routing": "^0.1.0-alpha.199",
-                "waaseyaa/scheduler": "^0.1.0-alpha.199",
-                "waaseyaa/workflows": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202",
+                "waaseyaa/notification": "^0.1.0-alpha.202",
+                "waaseyaa/queue": "^0.1.0-alpha.202",
+                "waaseyaa/routing": "^0.1.0-alpha.202",
+                "waaseyaa/scheduler": "^0.1.0-alpha.202",
+                "waaseyaa/workflows": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5",
-                "waaseyaa/audit": "^0.1.0-alpha.199",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.199",
-                "waaseyaa/media": "^0.1.0-alpha.199",
-                "waaseyaa/telescope": "^0.1.0-alpha.199"
+                "waaseyaa/audit": "^0.1.0-alpha.202",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.202",
+                "waaseyaa/media": "^0.1.0-alpha.202",
+                "waaseyaa/telescope": "^0.1.0-alpha.202"
             },
             "type": "library",
             "extra": {
@@ -3888,15 +3888,15 @@
             "dist": {
                 "type": "path",
                 "url": "packages/attachment",
-                "reference": "ef71dcd1f79f8c58ec48346bd100748305979807"
+                "reference": "f5a4808d27eae8c1b359dc2f7ff8b9ac8781b7c9"
             },
             "require": {
                 "php": "^8.5",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/entity-storage": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/entity-storage": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -3933,18 +3933,18 @@
             "dist": {
                 "type": "path",
                 "url": "packages/audit",
-                "reference": "0e887d239e7b4bead38746147f1a1da6c8aa1f14"
+                "reference": "24709df9b5aa4d98ac3e8a1edd48e3e4d3f36897"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/entity-storage": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199"
+                "waaseyaa/database-legacy": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/entity-storage": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5",
-                "waaseyaa/entity-storage": "^0.1.0-alpha.199"
+                "waaseyaa/entity-storage": "^0.1.0-alpha.202"
             },
             "type": "library",
             "extra": {
@@ -3982,13 +3982,13 @@
             "dist": {
                 "type": "path",
                 "url": "packages/auth",
-                "reference": "355ada9d1731ce06049cc93f9efc13e97e179765"
+                "reference": "b5a866ba7381a23494b64b6ddf1defe5a3a3d8d6"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/foundation": "^0.1.0-alpha.199",
-                "waaseyaa/mail": "^0.1.0-alpha.199",
-                "waaseyaa/user": "^0.1.0-alpha.199"
+                "waaseyaa/foundation": "^0.1.0-alpha.202",
+                "waaseyaa/mail": "^0.1.0-alpha.202",
+                "waaseyaa/user": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -4029,12 +4029,12 @@
             "dist": {
                 "type": "path",
                 "url": "packages/billing",
-                "reference": "7d98b76a1d6ac956cee31c5a5041fc639c442e27"
+                "reference": "11eb0b3f9ede6e6b2d99fc69924b32241366da68"
             },
             "require": {
                 "php": ">=8.5",
                 "stripe/stripe-php": "^16.0",
-                "waaseyaa/foundation": "^0.1.0-alpha.199"
+                "waaseyaa/foundation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -4075,15 +4075,15 @@
             "dist": {
                 "type": "path",
                 "url": "packages/bimaaji",
-                "reference": "1c744fb4ed7b657f82b2dfe379775af49a770a32"
+                "reference": "da3d31961ae93ecfd6bc95f4cce7952d451e6375"
             },
             "require": {
                 "nikic/php-parser": "^5.0",
                 "php": ">=8.5",
                 "symfony/routing": "^7.0",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199",
-                "waaseyaa/routing": "^0.1.0-alpha.199"
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202",
+                "waaseyaa/routing": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -4124,20 +4124,20 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cache",
-                "reference": "c7e732c7b1d717e13bcf7a5abb351e1ff93e3d1b"
+                "reference": "6243adbb12777212878cbda59bad33beb58d8dd2"
             },
             "require": {
                 "php": ">=8.5",
                 "psr/cache": "^3.0",
                 "psr/simple-cache": "^3.0",
-                "waaseyaa/foundation": "^0.1.0-alpha.199"
+                "waaseyaa/foundation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
             },
             "suggest": {
-                "waaseyaa/config": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199"
+                "waaseyaa/config": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202"
             },
             "type": "library",
             "extra": {
@@ -4170,23 +4170,23 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
-                "reference": "b256ef24709a0846119d36e61ef9a0eec9186230"
+                "reference": "36ee2fb3e0801b8d48eef347087f1ffac2bad658"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/ai-agent": "^0.1.0-alpha.199",
-                "waaseyaa/audit": "^0.1.0-alpha.199",
-                "waaseyaa/cache": "^0.1.0-alpha.199",
-                "waaseyaa/config": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/entity-storage": "^0.1.0-alpha.199",
-                "waaseyaa/http-client": "^0.1.0-alpha.199",
-                "waaseyaa/migration": "^0.1.0-alpha.199",
-                "waaseyaa/northcloud": "^0.1.0-alpha.199",
-                "waaseyaa/queue": "^0.1.0-alpha.199",
-                "waaseyaa/scheduler": "^0.1.0-alpha.199",
-                "waaseyaa/user": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/ai-agent": "^0.1.0-alpha.202",
+                "waaseyaa/audit": "^0.1.0-alpha.202",
+                "waaseyaa/cache": "^0.1.0-alpha.202",
+                "waaseyaa/config": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/entity-storage": "^0.1.0-alpha.202",
+                "waaseyaa/http-client": "^0.1.0-alpha.202",
+                "waaseyaa/migration": "^0.1.0-alpha.202",
+                "waaseyaa/northcloud": "^0.1.0-alpha.202",
+                "waaseyaa/queue": "^0.1.0-alpha.202",
+                "waaseyaa/scheduler": "^0.1.0-alpha.202",
+                "waaseyaa/user": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -4336,12 +4336,12 @@
             "dist": {
                 "type": "path",
                 "url": "packages/debug",
-                "reference": "a0a79c605d36825b100d427ad90a5653b837579f"
+                "reference": "1802250895501fff1fbf8db928700a6503710175"
             },
             "require": {
                 "php": ">=8.5",
                 "symfony/var-dumper": "^7.0",
-                "waaseyaa/foundation": "^0.1.0-alpha.199"
+                "waaseyaa/foundation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -4411,13 +4411,13 @@
             "dist": {
                 "type": "path",
                 "url": "packages/engagement",
-                "reference": "e6348316a136140f6e8eb2cc4a384fc7c55c465d"
+                "reference": "710162736a31de9ca6b612ebc465b859a1386c9c"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -4457,20 +4457,20 @@
             "dist": {
                 "type": "path",
                 "url": "packages/entity",
-                "reference": "764023f79bf09c5fb4991fd8255fc91bebe8bd37"
+                "reference": "4cd73187452d495a1e02f32e9123a451f86d701b"
             },
             "require": {
                 "php": ">=8.5",
                 "symfony/event-dispatcher": "^7.0",
                 "symfony/uid": "^7.0",
                 "symfony/validator": "^7.0",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/cache": "^0.1.0-alpha.199",
-                "waaseyaa/config": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199",
-                "waaseyaa/plugin": "^0.1.0-alpha.199",
-                "waaseyaa/typed-data": "^0.1.0-alpha.199",
-                "waaseyaa/validation": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/cache": "^0.1.0-alpha.202",
+                "waaseyaa/config": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202",
+                "waaseyaa/plugin": "^0.1.0-alpha.202",
+                "waaseyaa/typed-data": "^0.1.0-alpha.202",
+                "waaseyaa/validation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpstan/phpstan": "^2.0",
@@ -4513,19 +4513,19 @@
             "dist": {
                 "type": "path",
                 "url": "packages/entity-storage",
-                "reference": "30cdccf208d572edbe09768014a456791475a6aa"
+                "reference": "4684c0ada76aea2c6b5e0b6700b8b4db2cf04b6b"
             },
             "require": {
                 "php": ">=8.5",
                 "symfony/event-dispatcher": "^7.0",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/cache": "^0.1.0-alpha.199",
-                "waaseyaa/config": "^0.1.0-alpha.199",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/field": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199",
-                "waaseyaa/i18n": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/cache": "^0.1.0-alpha.202",
+                "waaseyaa/config": "^0.1.0-alpha.202",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/field": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202",
+                "waaseyaa/i18n": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -4562,11 +4562,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/error-handler",
-                "reference": "8620975d12654ff9e3d034a1c24bea273285e2e3"
+                "reference": "e293b9beccc3770132348dd2520ecbe04ac3eb71"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/foundation": "^0.1.0-alpha.199"
+                "waaseyaa/foundation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -4602,16 +4602,16 @@
             "dist": {
                 "type": "path",
                 "url": "packages/field",
-                "reference": "6faab09e9de0301272d5ae1be41ff08e0232a992"
+                "reference": "54e650b2708a4a376b8dd8e90f2ef4648f638a74"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/audit": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199",
-                "waaseyaa/plugin": "^0.1.0-alpha.199",
-                "waaseyaa/typed-data": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/audit": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202",
+                "waaseyaa/plugin": "^0.1.0-alpha.202",
+                "waaseyaa/typed-data": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -4652,7 +4652,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/foundation",
-                "reference": "b9a9820d17a64cfa09d3901b2bfd47a41534ed17"
+                "reference": "d31c128d5baf295fe4a69efa0d96e07cb774004b"
             },
             "require": {
                 "doctrine/dbal": "^4.0",
@@ -4663,13 +4663,13 @@
                 "symfony/http-foundation": "^7.0",
                 "symfony/messenger": "^7.0",
                 "symfony/uid": "^7.0",
-                "waaseyaa/queue": "^0.1.0-alpha.199"
+                "waaseyaa/queue": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/error-handler": "^0.1.0-alpha.199",
-                "waaseyaa/routing": "^0.1.0-alpha.199"
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/error-handler": "^0.1.0-alpha.202",
+                "waaseyaa/routing": "^0.1.0-alpha.202"
             },
             "type": "library",
             "extra": {
@@ -4711,25 +4711,25 @@
             "dist": {
                 "type": "path",
                 "url": "packages/genealogy",
-                "reference": "9adfc867df463b159a268ee313ec616e5b45727c"
+                "reference": "0e8dab8b7c557eb7a16635c26ceef96b14469ce4"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/field": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199",
-                "waaseyaa/relationship": "^0.1.0-alpha.199",
-                "waaseyaa/routing": "^0.1.0-alpha.199",
-                "waaseyaa/ssr": "^0.1.0-alpha.199",
-                "waaseyaa/user": "^0.1.0-alpha.199",
-                "waaseyaa/workflows": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/field": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202",
+                "waaseyaa/relationship": "^0.1.0-alpha.202",
+                "waaseyaa/routing": "^0.1.0-alpha.202",
+                "waaseyaa/ssr": "^0.1.0-alpha.202",
+                "waaseyaa/user": "^0.1.0-alpha.202",
+                "waaseyaa/workflows": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5",
-                "waaseyaa/api": "^0.1.0-alpha.199",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.199",
-                "waaseyaa/entity-storage": "^0.1.0-alpha.199"
+                "waaseyaa/api": "^0.1.0-alpha.202",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.202",
+                "waaseyaa/entity-storage": "^0.1.0-alpha.202"
             },
             "type": "library",
             "extra": {
@@ -4772,11 +4772,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/geo",
-                "reference": "2a52157f0a8289d535fb2b148ebc047c33622d68"
+                "reference": "25df52159c4ce46de269c87b00e1c710a1bdecfd"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/foundation": "^0.1.0-alpha.199"
+                "waaseyaa/foundation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -4850,16 +4850,16 @@
             "dist": {
                 "type": "path",
                 "url": "packages/graphql",
-                "reference": "a493e16278bd33391351725ed74b0049e39f7acf"
+                "reference": "e03429e3aa29f6c27ba6a15b3e48b37d871e945a"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/api": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/field": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199",
-                "waaseyaa/routing": "^0.1.0-alpha.199",
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/api": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/field": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202",
+                "waaseyaa/routing": "^0.1.0-alpha.202",
                 "webonyx/graphql-php": "^15.31.5"
             },
             "require-dev": {
@@ -4902,14 +4902,14 @@
             "dist": {
                 "type": "path",
                 "url": "packages/groups",
-                "reference": "02b8c6f9587cda7f740135ba0e1ba92ab4e5574a"
+                "reference": "9430e5d22ef1d5f18fa4e0b878a2efc3401d13c2"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/entity-storage": "^0.1.0-alpha.199",
-                "waaseyaa/field": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199"
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/entity-storage": "^0.1.0-alpha.202",
+                "waaseyaa/field": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -5029,11 +5029,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/inertia",
-                "reference": "0bd17849ea5f0181700b497cb5a44f33c6e5227e"
+                "reference": "4b48e6311cb4f0bceee61c5c4494b3bbf2dcf9cd"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/foundation": "^0.1.0-alpha.199"
+                "waaseyaa/foundation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -5115,17 +5115,17 @@
             "dist": {
                 "type": "path",
                 "url": "packages/listing",
-                "reference": "e65fdc635d945ff5ef3885231dc81175aa31e2bf"
+                "reference": "9263756a12d437b403b418d9c5c06ba0b0613978"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/cache": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/entity-storage": "^0.1.0-alpha.199",
-                "waaseyaa/field": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199",
-                "waaseyaa/typed-data": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/cache": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/entity-storage": "^0.1.0-alpha.202",
+                "waaseyaa/field": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202",
+                "waaseyaa/typed-data": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -5167,11 +5167,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/mail",
-                "reference": "6e958a6b6dff25b91f9cfc91528e28bb9270f803"
+                "reference": "a7d9594f92e96e9fad017eaf2b935f189f977dcd"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/foundation": "^0.1.0-alpha.199"
+                "waaseyaa/foundation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5",
@@ -5217,20 +5217,20 @@
             "dist": {
                 "type": "path",
                 "url": "packages/mcp",
-                "reference": "1ed6fc079c58e75a951bca6d2e1e45c26bd01a58"
+                "reference": "4e8fa12c76a6204ce6d8f7040b1712a27feae2b4"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/ai-agent": "^0.1.0-alpha.199",
-                "waaseyaa/ai-schema": "^0.1.0-alpha.199",
-                "waaseyaa/ai-tools": "^0.1.0-alpha.199",
-                "waaseyaa/ai-vector": "^0.1.0-alpha.199",
-                "waaseyaa/api": "^0.1.0-alpha.199",
-                "waaseyaa/cache": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/routing": "^0.1.0-alpha.199",
-                "waaseyaa/workflows": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/ai-agent": "^0.1.0-alpha.202",
+                "waaseyaa/ai-schema": "^0.1.0-alpha.202",
+                "waaseyaa/ai-tools": "^0.1.0-alpha.202",
+                "waaseyaa/ai-vector": "^0.1.0-alpha.202",
+                "waaseyaa/api": "^0.1.0-alpha.202",
+                "waaseyaa/cache": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/routing": "^0.1.0-alpha.202",
+                "waaseyaa/workflows": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -5271,18 +5271,18 @@
             "dist": {
                 "type": "path",
                 "url": "packages/media",
-                "reference": "0ad8a9d4c7e6e4b2ab292532d3e56336bc1c1d43"
+                "reference": "186835ca7fb2dfb1ecdb30f28732bcd8836c0bc0"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199"
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/api": "^0.1.0-alpha.199",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/api": "^0.1.0-alpha.202",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.202"
             },
             "type": "library",
             "extra": {
@@ -5320,11 +5320,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/menu",
-                "reference": "51f3e56a7bee317e5ed2f1950845c36abed8c69e"
+                "reference": "4b30c8feee562205acd5db399922f192bdd3ab0b"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/entity": "^0.1.0-alpha.199"
+                "waaseyaa/entity": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -5408,12 +5408,12 @@
             "dist": {
                 "type": "path",
                 "url": "packages/messaging",
-                "reference": "defd5fc650b74a1dc502d4067ca66a98b67075a8"
+                "reference": "32dbfccc85f4bcf9f6d28ad15738859a4b9b9554"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199"
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -5453,18 +5453,18 @@
             "dist": {
                 "type": "path",
                 "url": "packages/migration",
-                "reference": "ca9c809b05a22d0eaa518b560103f576044d880a"
+                "reference": "fee21a3f9b29102204118c198727eb5ae908c79c"
             },
             "require": {
                 "php": ">=8.5",
                 "psr/event-dispatcher": "^1.0",
                 "symfony/uid": "^7.0",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/entity-storage": "^0.1.0-alpha.199",
-                "waaseyaa/field": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/entity-storage": "^0.1.0-alpha.202",
+                "waaseyaa/field": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5",
@@ -5509,12 +5509,12 @@
             "dist": {
                 "type": "path",
                 "url": "packages/node",
-                "reference": "70f7d7926fc3b741391927e5e539a076120cd3eb"
+                "reference": "5ec2d4d912279eba1ff3ba41ad8beef6471b4133"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -5555,15 +5555,15 @@
             "dist": {
                 "type": "path",
                 "url": "packages/northcloud",
-                "reference": "6e891598ecdada09e969902ae78b69f99fe94ca5"
+                "reference": "4557e7da21b8469f642dcf763404705eb8ebaa5d"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/config": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199",
-                "waaseyaa/http-client": "^0.1.0-alpha.199",
-                "waaseyaa/search": "^0.1.0-alpha.199"
+                "waaseyaa/config": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202",
+                "waaseyaa/http-client": "^0.1.0-alpha.202",
+                "waaseyaa/search": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -5604,12 +5604,12 @@
             "dist": {
                 "type": "path",
                 "url": "packages/note",
-                "reference": "30d721600c3ed8d2dee8355bf0c202f14202284e"
+                "reference": "edac70eaff1d720e0dbfd11ccc431f225f53d820"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -5650,14 +5650,14 @@
             "dist": {
                 "type": "path",
                 "url": "packages/notification",
-                "reference": "c05384d2f3e349e7226fec4e768ac959c5eb64d9"
+                "reference": "e9ea2f5d04678c6176eaddcedbd4d0768fa94fd7"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199",
-                "waaseyaa/mail": "^0.1.0-alpha.199",
-                "waaseyaa/queue": "^0.1.0-alpha.199"
+                "waaseyaa/database-legacy": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202",
+                "waaseyaa/mail": "^0.1.0-alpha.202",
+                "waaseyaa/queue": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -5698,11 +5698,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/oauth-provider",
-                "reference": "9901a5c44db21c13834649acbe2c005715f076be"
+                "reference": "b2574c0a9ec9643b93a9abc534f6b4bf6a25ec3c"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/http-client": "^0.1.0-alpha.199"
+                "waaseyaa/http-client": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -5737,16 +5737,16 @@
             "dist": {
                 "type": "path",
                 "url": "packages/oidc",
-                "reference": "a792b35e071dbf26f3df543cfb6ed6aace9ab125"
+                "reference": "38018a10e76ec8535520220e6175d200ddead1d3"
             },
             "require": {
                 "ext-sodium": "*",
                 "lcobucci/jwt": "^5.3",
                 "league/oauth2-server": "^9.0",
                 "php": ">=8.5",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199",
-                "waaseyaa/user": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202",
+                "waaseyaa/user": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -5788,11 +5788,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/path",
-                "reference": "259c8d4e6b07be0482b492f5fc255a9711c743d0"
+                "reference": "3f413ad65faf5dc05d519d561d3003d2e1e845b1"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/entity": "^0.1.0-alpha.199"
+                "waaseyaa/entity": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -5833,11 +5833,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/plugin",
-                "reference": "02d3c6432eed3ac9337cad0dd2e6db459409d23a"
+                "reference": "032b624fec8454d984d7c6af839be0d06fd2f72c"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/cache": "^0.1.0-alpha.199"
+                "waaseyaa/cache": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -5873,13 +5873,13 @@
             "dist": {
                 "type": "path",
                 "url": "packages/queue",
-                "reference": "f571f7544343bb7fe98f7d774f535c50b3449f86"
+                "reference": "bdd31b7035029063e43a19f118daa6007b0eba5f"
             },
             "require": {
                 "php": ">=8.5",
                 "symfony/messenger": "^7.0",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199"
+                "waaseyaa/database-legacy": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -5921,13 +5921,13 @@
             "dist": {
                 "type": "path",
                 "url": "packages/relationship",
-                "reference": "dc39bb19e319ae5d88267439c1ca7fc16360a4bf"
+                "reference": "531271d85fe17df81d525d7a5622c74ff80751d7"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202"
             },
             "type": "library",
             "extra": {
@@ -5965,16 +5965,16 @@
             "dist": {
                 "type": "path",
                 "url": "packages/routing",
-                "reference": "2b5d31e252cf136318c8827a7b2a17b00035b634"
+                "reference": "47642d5b65992bf81bad6ed0f51b6e08d8f41ccf"
             },
             "require": {
                 "php": ">=8.5",
                 "symfony/routing": "^7.0",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/auth": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/i18n": "^0.1.0-alpha.199",
-                "waaseyaa/oidc": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/auth": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/i18n": "^0.1.0-alpha.202",
+                "waaseyaa/oidc": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -6015,14 +6015,14 @@
             "dist": {
                 "type": "path",
                 "url": "packages/scheduler",
-                "reference": "7f609c07f7ad8e094a827adf2ac9d305511c66e1"
+                "reference": "7ace0a128ac0d2fe99dc2d1e92569f4bb5543d62"
             },
             "require": {
                 "dragonmantank/cron-expression": "^3.0",
                 "php": ">=8.5",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199",
-                "waaseyaa/queue": "^0.1.0-alpha.199"
+                "waaseyaa/database-legacy": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202",
+                "waaseyaa/queue": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -6063,15 +6063,15 @@
             "dist": {
                 "type": "path",
                 "url": "packages/search",
-                "reference": "dcd33a091577a8267c539a340d9703e700428970"
+                "reference": "d8289db450efedfc8c294950ad8c97a50e61bb1d"
             },
             "require": {
                 "php": ">=8.5",
                 "symfony/event-dispatcher": "^7.0",
                 "twig/twig": "^3.0",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199"
+                "waaseyaa/database-legacy": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -6112,13 +6112,13 @@
             "dist": {
                 "type": "path",
                 "url": "packages/seo",
-                "reference": "6a8d5768e2b7c2c3f913e49faa82b6a591535b7f"
+                "reference": "04efbde7772a2a65d1b2ba43395743eba18eefbd"
             },
             "require": {
                 "php": ">=8.5",
                 "twig/twig": "^3.0",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199"
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -6159,20 +6159,20 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ssr",
-                "reference": "e724fb1393e854baf8ceb4cafa15c3e483be4e04"
+                "reference": "382868f4aabb3d5e7546b7c89d4746c027ee34a6"
             },
             "require": {
                 "php": ">=8.5",
                 "symfony/html-sanitizer": "^8.0",
                 "twig/twig": "^3.0",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/api": "^0.1.0-alpha.199",
-                "waaseyaa/cache": "^0.1.0-alpha.199",
-                "waaseyaa/config": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/field": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199",
-                "waaseyaa/routing": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/api": "^0.1.0-alpha.202",
+                "waaseyaa/cache": "^0.1.0-alpha.202",
+                "waaseyaa/config": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/field": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202",
+                "waaseyaa/routing": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -6214,11 +6214,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/state",
-                "reference": "b2c192d350cf70e17aa11009919d8f3eafd48fd1"
+                "reference": "3b765622edec5f56fff52dfe2c0c2e9f198eece0"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.199"
+                "waaseyaa/database-legacy": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -6254,12 +6254,12 @@
             "dist": {
                 "type": "path",
                 "url": "packages/structured-import",
-                "reference": "8c8c21881fd2599d6ab046e274f81ac3d166e3c3"
+                "reference": "081af2894922b76e20c8ad52eeb70b5f906f2c56"
             },
             "require": {
                 "php": "^8.5",
-                "waaseyaa/field": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199"
+                "waaseyaa/field": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -6296,12 +6296,12 @@
             "dist": {
                 "type": "path",
                 "url": "packages/taxonomy",
-                "reference": "480a4ba3763fe89172cfb64737b6b7690310f9d4"
+                "reference": "cc4213d422d9ee605108889a69eed328bb4f5db9"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -6342,11 +6342,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/telescope",
-                "reference": "41ae9bc906cbc36695f56212c33813ce614c42f5"
+                "reference": "7d4a1c355e4a870f00409b88e377a9f641016cca"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/api": "^0.1.0-alpha.199"
+                "waaseyaa/api": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -6427,16 +6427,16 @@
             "dist": {
                 "type": "path",
                 "url": "packages/user",
-                "reference": "970609d3661f168062c2e6e1491d5485f4af28d3"
+                "reference": "1944e9c5cf69be1982c39e7f3b8e16a313564a48"
             },
             "require": {
                 "php": ">=8.5",
                 "symfony/http-foundation": "^7.0",
                 "twig/twig": "^3.0",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/foundation": "^0.1.0-alpha.199",
-                "waaseyaa/mail": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/foundation": "^0.1.0-alpha.202",
+                "waaseyaa/mail": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -6477,12 +6477,12 @@
             "dist": {
                 "type": "path",
                 "url": "packages/validation",
-                "reference": "886ed438c20e1b16f40033eb742a57182d0e3856"
+                "reference": "ffcd90c925509e977dffc07d33980666d69557da"
             },
             "require": {
                 "php": ">=8.5",
                 "symfony/validator": "^7.0",
-                "waaseyaa/typed-data": "^0.1.0-alpha.199"
+                "waaseyaa/typed-data": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -6518,13 +6518,13 @@
             "dist": {
                 "type": "path",
                 "url": "packages/workflows",
-                "reference": "b49dee72ff9f9c4614dd35ca9b9940b138556af4"
+                "reference": "283a1cab081a00985e34e8d73fb2726852ea5d1d"
             },
             "require": {
                 "php": ">=8.5",
-                "waaseyaa/access": "^0.1.0-alpha.199",
-                "waaseyaa/entity": "^0.1.0-alpha.199",
-                "waaseyaa/relationship": "^0.1.0-alpha.199"
+                "waaseyaa/access": "^0.1.0-alpha.202",
+                "waaseyaa/entity": "^0.1.0-alpha.202",
+                "waaseyaa/relationship": "^0.1.0-alpha.202"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
@@ -10978,13 +10978,13 @@
             "dist": {
                 "type": "path",
                 "url": "packages/testing",
-                "reference": "4c42a2833efb8879935809425ffa8c9b4f3c7872"
+                "reference": "d3fc36cbd79adb2b1f43de0c1835d77ffadb67bb"
             },
             "require": {
                 "php": ">=8.5",
                 "phpunit/phpunit": "^10.5",
                 "symfony/event-dispatcher": "^7.0",
-                "waaseyaa/entity": "^0.1.0-alpha.199"
+                "waaseyaa/entity": "^0.1.0-alpha.202"
             },
             "suggest": {
                 "fakerphp/faker": "Optional realistic strings and emails for EntityTypeFixtureValues (framework#1186)."

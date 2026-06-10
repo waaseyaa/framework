@@ -114,6 +114,10 @@
         },
         {
             "type": "path",
+            "url": "packages/workspace"
+        },
+        {
+            "type": "path",
             "url": "packages/api"
         },
         {
@@ -389,6 +393,8 @@
             "Waaseyaa\\Foundation\\Tests\\": "packages/foundation/tests/",
             "Waaseyaa\\Geo\\Tests\\": "packages/geo/tests/",
             "Waaseyaa\\Genealogy\\Tests\\": "packages/genealogy/tests/",
+            "Waaseyaa\\Workspace\\": "packages/workspace/src/",
+            "Waaseyaa\\Workspace\\Tests\\": "packages/workspace/tests/",
             "Waaseyaa\\GitHub\\Tests\\": "packages/github/tests/",
             "Waaseyaa\\I18n\\Tests\\": "packages/i18n/tests/",
             "Waaseyaa\\Listing\\Tests\\": "packages/listing/tests/",

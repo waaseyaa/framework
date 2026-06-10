@@ -79,3 +79,4 @@ parameters:
         - packages/user/src
         - packages/validation/src
         - packages/workflows/src
+        - packages/workspace/src

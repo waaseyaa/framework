@@ -93,7 +93,7 @@ When the mapping is not obvious, search under `docs/specs/` (e.g. `rg -n "TopicO
 | 3 | Services | workflows, search, seo, notification, billing, github, migration, northcloud, listing, messaging |
 | 4 | API | api, bimaaji, routing |
 | 5 | AI | ai-agent, ai-observability, ai-pipeline, ai-schema, ai-vector |
-| 6 | Interfaces | cli, admin-surface, graphql, mcp, ssr, telescope, deployer, inertia, debug |
+| 6 | Interfaces | cli, admin-surface, graphql, mcp, ssr, telescope, deployer, inertia, debug, workspace |
 
 **Rule:** Packages can only import from their own layer or lower. Upward communication via DomainEvents.
 
