@@ -12,6 +12,13 @@
 # `Create GitHub release? [y/N]` prompt below is redundant — split.yml's
 # `publish-github-release` job creates the GitHub Release on every tag.
 # See docs/specs/workflow.md → "Cutting Releases".
+#
+# RELEASE GATE: tags require green Linux CI (alpha.200–202 red-at-tag
+# post-mortem). This script enforces the gate on the release BASE via the
+# Actions API; it cannot CI-prove the release commit itself the way
+# release-cut.yml's gate branch does — one more reason it is not the
+# canonical path. WAASEYAA_EMERGENCY_RELEASE=1 skips the gate for genuine
+# offline emergencies only.
 set -euo pipefail
 
 VERSION="${1:?Usage: scripts/release.sh <version>}"
@@ -38,6 +45,19 @@ REMOTE=$(git rev-parse origin/main)
 
 # Tag must not exist
 git rev-parse "$VERSION" > /dev/null 2>&1 && { echo "ERROR: tag $VERSION already exists"; exit 1; }
+
+# Release gate: green Linux CI on the release base. Local gate runs (any OS,
+# especially Windows) are advisory only — the Actions API is authoritative.
+if [ "${WAASEYAA_EMERGENCY_RELEASE:-}" != "1" ]; then
+    command -v gh > /dev/null 2>&1 || { echo "ERROR: gh CLI required for the CI release gate. Set WAASEYAA_EMERGENCY_RELEASE=1 only for a genuine offline emergency."; exit 1; }
+    bash bin/wait-for-green-ci "$LOCAL" 0 || {
+        echo "ERROR: CI is not green on HEAD (${LOCAL}). Releases cannot be cut from a red base."
+        echo "       Prefer: gh workflow run release-cut.yml -f version=${VERSION}"
+        exit 1
+    }
+else
+    echo "WARNING: WAASEYAA_EMERGENCY_RELEASE=1 — skipping the CI release gate. This tag will NOT be CI-proven."
+fi
 
 # CHANGELOG.md must exist and have Unreleased content
 [ -f CHANGELOG.md ] || { echo "ERROR: CHANGELOG.md not found"; exit 1; }
@@ -80,8 +100,10 @@ echo ""
 # Without this, the file stays frozen and cold clones misreport the version.
 printf '%s\n' "$SEMVER" > VERSION
 
-# Commit changelog, version, tag, push
-git add CHANGELOG.md VERSION
+# Commit changelog, version, synced manifests, tag, push.
+# packages/*/composer.json staging matches release-cut.yml — omitting it was
+# the alpha.178 incident (synced constraints discarded, 200+ CP-NEW failures).
+git add CHANGELOG.md VERSION packages/*/composer.json
 git commit -m "chore: release ${VERSION}"
 git tag -a "$VERSION" -m "Release ${VERSION}
 
