@@ -19,10 +19,10 @@
 | T009 | DatabaseBootstrapper: project-root absolutization (Windows-aware) + optional logger + docroot warning; AbstractKernel passes logger | WP02 | | [D] |
 | T010 | CLI parity: DbInitHandler resolution rules; HealthReport/About display resolved path; handler tests | WP02 | | [D] |
 | T011 | Tests: DatabaseBootstrapper resolution/warning matrix + tests/Integration/DbPath HTTP-vs-CLI agreement under docroot CWD | WP02 | | [D] |
-| T012 | CHANGELOG [Unreleased]: 403→404 break (C-001, prominent), discovery default + flag, bearer hardening, path fix + warning | WP03 | |
-| T013 | Spec docs: api-layer.md, mcp-endpoint.md, infrastructure.md updated from the contracts | WP03 | |
-| T014 | Drift detector run; resolve flags for the three touched specs | WP03 | |
-| T015 | Execute quickstart.md steps 1–6 as final validation; record per-step results | WP03 | |
+| T012 | CHANGELOG [Unreleased]: 403→404 break (C-001, prominent), discovery default + flag, bearer hardening, path fix + warning | WP03 | | [D] |
+| T013 | Spec docs: api-layer.md, mcp-endpoint.md, infrastructure.md updated from the contracts | WP03 | | [D] |
+| T014 | Drift detector run; resolve flags for the three touched specs | WP03 | | [D] |
+| T015 | Execute quickstart.md steps 1–6 as final validation; record per-step results | WP03 | | [D] |
 
 ## WP01 — API Hardening: Discovery Filtering & Denied-as-404 (#1649)
 
@@ -62,10 +62,10 @@
 **Independent test**: quickstart.md steps 1–6 pass end-to-end; `composer verify` components green.
 **Dependencies**: WP01, WP02
 
-- [ ] T012 CHANGELOG `[Unreleased]` (appending alongside any still-uncut alpha.205 entries — never a pre-stamped heading): **Changed** — denied single reads 403→404 byte-identical to missing (C-001, clients keying on 403 must adapt) + anonymous discovery lists no types (authenticated-only default; anonymous clients walking `links.*` see only `self`) + relative WAASEYAA_DB/config paths now resolve against the project root (CWD-relative setups change deliberately); **Added** — `EntityType` `discoverable` flag, docroot boot warning; **Security** — bearer constant-time comparison + blocked-account fail-closed rejection (WP03)
-- [ ] T013 docs/specs updates from the contracts (not from the diff): `api-layer.md` — discovery response contract (account-dependent links, flag semantics, route stays `_public`) + show() denied-as-404 + the adjacent-enumeration boundary note (`/api/entity-types`, `/api/openapi.json`, `/api/schema/*` follow-up); `mcp-endpoint.md` — BearerTokenAuth comparison + blocked-account contract + custom-auth liveness ownership note; `infrastructure.md` — WAASEYAA_DB resolution table + docroot warning (WP03)
-- [ ] T014 `tools/drift-detector.sh` run; resolve flags for the three touched specs (WP03)
-- [ ] T015 Execute quickstart.md steps 1–6 as final validation; record per-step results in the WP file (WP03)
+- [x] T012 CHANGELOG `[Unreleased]` (appending alongside any still-uncut alpha.205 entries — never a pre-stamped heading): **Changed** — denied single reads 403→404 byte-identical to missing (C-001, clients keying on 403 must adapt) + anonymous discovery lists no types (authenticated-only default; anonymous clients walking `links.*` see only `self`) + relative WAASEYAA_DB/config paths now resolve against the project root (CWD-relative setups change deliberately); **Added** — `EntityType` `discoverable` flag, docroot boot warning; **Security** — bearer constant-time comparison + blocked-account fail-closed rejection (WP03)
+- [x] T013 docs/specs updates from the contracts (not from the diff): `api-layer.md` — discovery response contract (account-dependent links, flag semantics, route stays `_public`) + show() denied-as-404 + the adjacent-enumeration boundary note (`/api/entity-types`, `/api/openapi.json`, `/api/schema/*` follow-up); `mcp-endpoint.md` — BearerTokenAuth comparison + blocked-account contract + custom-auth liveness ownership note; `infrastructure.md` — WAASEYAA_DB resolution table + docroot warning (WP03)
+- [x] T014 `tools/drift-detector.sh` run; resolve flags for the three touched specs (WP03)
+- [x] T015 Execute quickstart.md steps 1–6 as final validation; record per-step results in the WP file (WP03)
 
 **Implementation sketch**: write docs from the two contracts and data-model.md. CHANGELOG-under-[Unreleased] is the alpha.202 lesson; the release-cut workflow stamps the heading. Note `[Unreleased]` may still contain the alpha.205 provenance entries — append, don't restructure.
 
