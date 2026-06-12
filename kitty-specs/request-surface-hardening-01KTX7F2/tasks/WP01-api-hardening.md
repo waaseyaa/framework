@@ -22,7 +22,8 @@ subtasks:
 - T004
 - T005
 - T006
-shell_pid: '27092'
+shell_pid: "27092"
+agent: "claude:fable-5:implementer:implementer"
 history:
 - date: '2026-06-12T00:00:00Z'
   event: created
@@ -221,3 +222,4 @@ No new manifest edges; no PHPStan baseline additions; `isDiscoverable()` is wire
 ## Activity Log
 
 - 2026-06-12T00:00:00Z – spec-kitty.tasks – created
+- 2026-06-12T06:42:09Z – claude:fable-5:implementer:implementer – shell_pid=27092 – Assigned agent via action command
