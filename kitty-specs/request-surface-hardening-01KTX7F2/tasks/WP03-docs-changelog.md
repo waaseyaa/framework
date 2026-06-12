@@ -138,6 +138,7 @@ Execute `quickstart.md` steps 1–6 end-to-end against merged WP01+WP02 and reco
 
 - 2026-06-12T00:00:00Z – spec-kitty.tasks – created
 - 2026-06-12T07:23:48Z – claude:fable-5:implementer:implementer – shell_pid=21672 – Started implementation via action command
+- 2026-06-12T07:34:20Z – claude:fable-5:implementer:implementer – shell_pid=21672 – Ready for review
 
 ## Completion notes — T015 quickstart walkthrough + gates (2026-06-12, lane commit ca44e1b2f)
 
