@@ -239,3 +239,4 @@ Pre-existing Windows-local failures (OIDC PEM, CLI snapshots, temp-dir races —
 
 - 2026-06-12T03:32:00Z – spec-kitty.tasks – created
 - 2026-06-12T05:50:19Z – claude:fable-5:implementer:implementer – shell_pid=27204 – Started implementation via action command
+- 2026-06-12T06:03:57Z – claude:fable-5:implementer:implementer – shell_pid=27204 – Ready for review: CHANGELOG [Unreleased] break notes + four spec updates (revision-system-unified incl. FR-009 retirement, ocap-audit-log, mcp-endpoint, access-control); drift detector clean on owned specs; quickstart steps 1-7 PASS (getquery gate pre-existing Windows failure documented against clean main)
