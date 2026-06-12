@@ -13,7 +13,7 @@ Applies to `EntityRepository::doSave()` (reached via `save()`), `SaveContext`, a
 ## Refusal semantics (FR-001, FR-002)
 
 4. **Pre-write refusal**: when the loaded head's revision differs from the expectation (or the row no longer exists), the save throws `RevisionConflictException` BEFORE any write, before `preSave()`, and before ANY lifecycle event (`PRE_SAVE`, `BeforeSaveEvent` are not dispatched; `AfterSaveEvent`/`POST_SAVE` never fire for a refused save).
-5. **Structured conflict**: `RevisionConflictException` carries `entityTypeId` (string), `entityId` (string), `expectedRevisionId` (int), `currentRevisionId` (?int — `null` if and only if the base row no longer exists), `errorCode === 'REVISION_CONFLICT'`. Content is deterministic: no timestamps, nothing timing-dependent beyond the revision ids (NFR-003).
+5. **Structured conflict**: `RevisionConflictException` carries `entityTypeId` (string), `entityId` (string), `expectedRevisionId` (int), `currentRevisionId` (?int — `null` if and only if no readable head exists: the base row vanished, or it is a pre-backfill row carrying no revision pointer; a null head can never match a valid expectation (≥ 1), so it always conflicts — wording updated per WP01's premortem resolution, see the exception docblock), `errorCode === 'REVISION_CONFLICT'`. Content is deterministic: no timestamps, nothing timing-dependent beyond the revision ids (NFR-003).
 6. **The entity object is not mutated** by a refused save: no revision id back-fill, no `enforceIsNew` flip, no `preSave`/`postSave` hooks.
 
 ## Atomicity — the race closure (FR-004, NFR-002)
