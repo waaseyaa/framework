@@ -140,6 +140,7 @@ Execute `quickstart.md` steps 1–6 end-to-end against merged WP01+WP02 and reco
 - 2026-06-12T07:23:48Z – claude:fable-5:implementer:implementer – shell_pid=21672 – Started implementation via action command
 - 2026-06-12T07:34:20Z – claude:fable-5:implementer:implementer – shell_pid=21672 – Ready for review
 - 2026-06-12T07:35:04Z – claude:fable-5:reviewer:reviewer – shell_pid=20092 – Started review via action command
+- 2026-06-12T07:37:49Z – claude:fable-5:reviewer:reviewer – shell_pid=20092 – Review passed: diff scope exactly the 4 owned files (CHANGELOG +15/-0, prior entries byte-untouched); C-001 leads Changed with explicit clients-keying-on-403-must-adapt language, no version heading, #1649/#1650/#1652 present, adjacent-routes boundary stated; all 5 docs-vs-code spot checks verified against landed source (show() denied path/notFoundDocument factory, discover() visibility formula, BearerTokenAuth full-scan+(string) cast+duck-typed isActive, absolutize() matrix, BuiltinRouteRegistrar routes confirmed option-less); gates re-run green (phpstan, cs-check, check-dead-code) and api+mcp suites 626 tests/1889 assertions OK
 
 ## Completion notes — T015 quickstart walkthrough + gates (2026-06-12, lane commit ca44e1b2f)
 
