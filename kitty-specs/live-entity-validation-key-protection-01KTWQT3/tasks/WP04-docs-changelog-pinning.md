@@ -101,6 +101,32 @@ Under `[Unreleased]`, following the file's existing section conventions (check h
 - The specs must describe behavior (contract language), not implementation diff narration.
 - The pinning test must go through the update path (not insert) and assert storage state, not driver return values.
 
+## Quickstart Walkthrough (T018)
+
+**Run**: 2026-06-11, WP04 worktree at commit d7a68d59b (Windows 11, PHP 8.5.5, PHPUnit 10.5.63). Per-step results for `quickstart.md` steps 1–6:
+
+| Step | Command / check | Result |
+|---|---|---|
+| 1. Declared constraints enforce on save | `./vendor/bin/phpunit tests/Integration/Validation/ --no-progress` | **PASS** — 7 tests, 22 assertions, OK |
+| 2. Per-field declared constraints honored | `./vendor/bin/phpunit packages/entity/tests/Unit/Validation/ --no-progress` (builder cases incl. GreaterThan append, Range min/max/both/neither, fail-loud) | **PASS** — 40 tests, 69 assertions, OK |
+| 3. Agent tools refuse identity keys | `./vendor/bin/phpunit packages/ai-tools/tests/ --no-progress` | **PASS** — 36 tests, 124 assertions, OK |
+| 4. Validation errors are model-correctable | `validation_failed` shape pinned in `EntityKeyGuardTest` / `EntityToolKeyRefusalTest` (`--filter validation`: 3 tests, 9 assertions) | **PASS** |
+| 5. Opt-outs | `WAASEYAA_ENTITY_VALIDATION=0 ./vendor/bin/phpunit tests/Integration/Validation/ --filter OptOut` | **PASS** — 2 tests, 4 assertions, OK |
+| 6. Gates (`composer verify` components run individually per the Windows-local convention; Linux CI is the release gate) | see below | **PASS** (2 pre-existing local artifacts, identical on clean main) |
+
+Step 6 component results:
+
+- Targeted phpunit: `tests/Integration/Validation/` 7/7 OK; `packages/ai-tools/tests/` 36/36 OK; `packages/entity-storage/tests/` 689 tests / 1878 assertions OK (incl. the new `updateNeverRewritesTheIdColumn` pinning test; 2 pre-existing deprecation notices in `PipelineInvariantTest`).
+- `composer phpstan` — **clean** (0 errors).
+- `composer cs-check` — **clean** (0 files flagged).
+- `composer check-composer-policy` — **clean**.
+- `bin/check-dead-code` — **clean** (no new findings beyond baseline).
+- `bin/check-package-layers` — **clean**.
+- `bin/check-getquery-bindings` — 2 "new" callsites reported (`packages/entity/src\Storage\EntityStorageInterface.php:19`, `packages/northcloud/src\Sync\NcSyncService.php:140`): the known Windows path-separator artifact (mixed `/` and `\` defeats baseline matching), reproduces identically on clean main — not introduced by this mission.
+- Full-suite Windows-local failures (~145: OIDC PEM, CLI snapshots, temp-dir races, coverage-driver warning) are pre-existing and documented in WP02's Triage Log; unchanged by WP04 (docs + one driver comment + one test).
+
+Drift detector (`tools/drift-detector.sh`): post-commit, `docs/specs/entity-system.md` **OK** and `docs/specs/ai-integration.md` **OK** (the two specs this WP owns). Remaining flag: `docs/specs/infrastructure.md` STALE via WP02's `packages/foundation/src/Kernel/AbstractKernel.php` change — outside WP04 `owned_files`, not fixed here; the kernel validation wiring is documented in `entity-system.md` § Entity Validation ("Kernel wiring"). Reviewer may want a one-line cross-reference in infrastructure.md if that flag should clear independently.
+
 ## Activity Log
 
 - 2026-06-12T03:05:17Z – claude:fable-5:implementer:implementer – shell_pid=15484 – Started implementation via action command
