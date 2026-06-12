@@ -220,3 +220,4 @@ After this WP: `entity.update` accepts `expected_revision_id` and turns a moved 
 
 - 2026-06-12T00:00:00Z – spec-kitty.tasks – created
 - 2026-06-12T08:46:58Z – claude:fable-5:implementer:implementer – shell_pid=27620 – Started implementation via action command
+- 2026-06-12T09:07:22Z – claude:fable-5:implementer:implementer – shell_pid=27620 – Ready for review
