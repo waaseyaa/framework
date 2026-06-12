@@ -19,6 +19,10 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * Attributes include the method name and a SHA-256 hash of the params —
  * NEVER the raw params (privacy / confidentiality constraint).
  *
+ * Actor source: the event's `accountUid` (?int, the bearer-auth-resolved
+ * account), preserved verbatim — a null or absent account stays null
+ * ("no known account"), never coerced to 0 (#1645, contract clause 19).
+ *
  * Best-effort: exceptions caught and logged; primary request never disrupted
  * (NFR-001).
  *
@@ -42,14 +46,18 @@ final class McpDispatchAuditListener implements EventSubscriberInterface
     }
 
     /**
-     * @param object $event  Expects properties: method (string), params (array), accountUid (int).
+     * @param object $event  Expects properties: method (string), params (array), accountUid (?int).
      */
     public function onMcpDispatch(object $event): void
     {
         try {
             $method = property_exists($event, 'method') ? (string) $event->method : 'unknown';
             $params = property_exists($event, 'params') ? $event->params : [];
-            $accountUid = property_exists($event, 'accountUid') ? (int) $event->accountUid : 0;
+            // Null-preserving duck-read: an absent or null accountUid stays null
+            // ("no known account") — never coerced to 0 (#1645, clause 19).
+            $accountUid = property_exists($event, 'accountUid') && $event->accountUid !== null
+                ? (int) $event->accountUid
+                : null;
 
             $paramsHash = hash('sha256', json_encode($params, JSON_THROW_ON_ERROR));
 

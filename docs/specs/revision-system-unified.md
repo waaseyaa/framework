@@ -44,11 +44,36 @@ it does now.
 We keep A's `revision_id` idiom on both tables (not the M-004 `vid` surrogate),
 so single-axis and the translation axis read the same way and the existing
 single-axis path is untouched. `<entity>__translation__revision` columns:
-`entity_id`, `langcode`, `revision_id`, `revision_created`, `revision_log`, and
-the field values (a `_data` JSON blob for sql-blob entities, the framework
-default). A composite `UNIQUE (entity_id, langcode, revision_id)` plus an index
-`(entity_id, langcode, revision_id DESC)` expresses the logical key and serves
-the per-language tip/list hot paths.
+`entity_id`, `langcode`, `revision_id`, `revision_created`, `revision_log`,
+`revision_author`, and the field values (a `_data` JSON blob for sql-blob
+entities, the framework default). A composite `UNIQUE (entity_id, langcode, revision_id)`
+plus an index `(entity_id, langcode, revision_id DESC)` expresses the logical
+key and serves the per-language tip/list hot paths.
+
+### 2a. Revision metadata columns (both live tables)
+
+Every revision row on **both** live tables carries the same metadata block:
+
+| Column | Type | Nullability | Semantics |
+|---|---|---|---|
+| `revision_created` | varchar(32) | NOT NULL | write timestamp |
+| `revision_log` | text | NULL | optional log message |
+| `revision_author` | int | **NULL, no default** | acting account uid that created the revision. Soft FK — no FK constraint, no ON DELETE: revision history survives user deletion. `0` if and only if the anonymous account acted; SQL NULL = no acting context (never coerced to 0). |
+
+`revision_author` was added by mission `revision-audit-provenance-01KTWY5V`
+(FR-001/FR-003). Its name and nullable-int soft-FK definition are adopted
+verbatim from the dormant `RevisionTableBuilder` dialect (see §6) so exactly
+one authoritative author definition exists — the live one described here.
+
+**Additive sync for pre-existing tables.** `ensureRevisionTable()` and
+`ensureTranslationRevisionTable()` no longer pure-early-return when the table
+exists: they additively add `revision_author` if missing (`fieldExists` →
+`addField`, the `ensureBundleSubtable()` pattern). Idempotent; no other column
+is touched and no row is rewritten. The sync runs at kernel boot / `db:init`
+(both production callers — the kernel repository factory and
+`EntitySchemaSync` — flow through `SqlSchemaHandler`), never per save.
+Pre-existing rows keep SQL NULL and read back a `null` author with zero
+migration.
 
 ## 3. Save contract
 
@@ -102,6 +127,89 @@ reads a language's current value back from its peer base row (the driver's
 - Published pointer (`loadPublishedRevision` / `setPublishedRevision`) is
   unchanged and remains on the revision axis.
 
+## 4a. Revision authorship (provenance)
+
+Mission `revision-audit-provenance-01KTWY5V` (#1644). Every revision-creating
+operation records the **acting account** into `revision_author`, and revision
+loads finally hydrate the `RevisionMetadata` read model.
+
+### Recording
+
+- **Coverage:** all production revision writes flow through
+  `EntityRepository` → `RevisionableStorageDriver::writeRevision(..., ?int $author)`:
+  `doSave()` (immediate and deferred-id writes), `rollback()`,
+  `saveTranslationRevision()` / `saveTranslationRevisions()`,
+  `saveTranslation()`, and `backfillInitialRevisions()`. No path constructs a
+  revision row without going through the resolution. The driver writes what it
+  is given; resolution is the repository's job.
+- **Resolution order** (computed once per operation, never per row):
+  1. `SaveContext::withActorUid(?int)` override when set — including an
+     explicit `withActorUid(null)`, which forces a NULL author inside an
+     authenticated request (system-attributed maintenance writes). The
+     override is a `(actorUid, actorOverridden)` pair: a context that never
+     called `withActorUid()` defers to the ambient holder.
+  2. The ambient request-scoped acting-account context
+     (`Waaseyaa\Access\Context\AccountContextInterface`, attached to the
+     repository by the kernel factory via `setAccountContext()`) —
+     `current()?->id()` cast to int.
+  3. `null`.
+- **Null-vs-0 rule:** `0` is recorded if and only if the resolved actor IS the
+  anonymous account (id 0). Absence of an acting context (CLI, queue,
+  bootstrap — anywhere nothing set the context) records SQL NULL. No fallback
+  or default ever coerces null to 0.
+- **Revert authorship:** a revision created by `rollback()` is authored by
+  whoever performed the revert, resolved at revert time. The reverted-to
+  (target) revision row is never modified, and its original author never
+  leaks onto the new revision (the copied row's `revision_author` is
+  stripped before the write; the explicit author parameter is authoritative).
+- **Immutability:** in-place revision updates
+  (`SaveContext::withoutNewRevision()` → `updateRevision()`) never touch
+  `revision_author` — it is immutable revision metadata, like
+  `revision_created` / `revision_log`.
+
+### Readback
+
+`loadRevision()` and the translation-revision load paths (hence
+`listRevisions()` / `listTranslationRevisions()` transitively) hydrate
+
+```
+RevisionMetadata(
+    revisionCreatedAt: \DateTimeImmutable   ← revision_created
+    revisionAuthor:    ?int                 ← revision_author (SQL NULL → null)
+    revisionLog:       ?string              ← revision_log
+)
+```
+
+and attach it via `setRevisionMetadata()` on entities implementing
+`RevisionableEntityInterface` (instanceof-guarded — non-revisionable entity
+classes are unaffected). `revisionMetadata()->revisionAuthor` round-trips
+exactly what was recorded: `int` for an account (including `0` for
+anonymous), `null` for no actor. Rows whose `revision_author` is SQL NULL —
+including every row created before the column existed — hydrate
+`revisionAuthor: null`; no error, no sentinel.
+
+### Pointer-move event (`RevisionPointerMovedEvent`)
+
+`Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent` is dispatched (by
+FQCN) when a revision **pointer** moves without creating a new revision:
+
+- `setPublishedRevision()` — operation `'publish'`; `fromRevisionId` is the
+  prior `published_revision_id` (null when previously unpublished).
+- `setCurrentRevision()` — operation `'revert'`; `fromRevisionId` is the
+  prior base `revision_id` pointer.
+
+Payload: `entityTypeId`, `entityId`, `operation`, `fromRevisionId: ?int`,
+`toRevisionId: int`, plus `actorUid: ?int` — the actor resolved at dispatch
+time (same resolution and null-vs-0 semantics as above), carried so listeners
+need not re-resolve. Both dispatches happen **after** the pointer transaction
+commits (a rolled-back move produces no event) and ride alongside — not
+replacing — the legacy `EntityEvents::REVISION_REVERTED` dispatch.
+`rollback()` dispatches **no** pointer event: it creates a new revision
+(authorship covered by `revision_author`) and flows through
+`REVISION_CREATED`. The audit subsystem subscribes via
+`PublishPointerAuditListener` (`revision.publish` / `revision.revert` kinds —
+see `docs/specs/ocap-audit-log.md`).
+
 ## 5. Access
 
 Per-language revision access composes through
@@ -124,6 +232,32 @@ Kept: `SaveContext`, the typed exceptions, `RevisionPolicyComposition`, the
 `RevisionTableBuilder`/`TranslationSchemaHandler` where still used by the
 translation substrate.
 
+### 6a. Dormant `__revision` emission dialect — explicitly retired (FR-009)
+
+Mission `revision-audit-provenance-01KTWY5V` closes the two-dialect ambiguity
+the M-004 leftovers created:
+
+- **`RevisionTableBuilder`'s `<entity>__revision` (double-underscore) vid
+  emission dialect is non-live and superseded** — including its
+  `revision_created_at` / `revision_author` / `revision_log` metadata block
+  and its surrogate `vid` primary key. No production code creates or reads
+  those tables. Its only production reference,
+  `TranslationSchemaHandler::syncTwoAxis()`, **has no production callers**
+  (the kernel and `EntitySchemaSync` call `sync()` only); everything else is
+  tests.
+- **The single authoritative author definition is the live dialect's
+  `revision_author` column** on `<entity>_revision` /
+  `<entity>__translation__revision` (§2a) — the dormant dialect's column
+  definition (name, nullable int, soft FK) was adopted verbatim into the live
+  tables, so its author semantics now live exclusively there. The
+  `RevisionMetadata` docblock references the live table/columns
+  (`revision_created`, not the dormant `revision_created_at`).
+- **Deletion of the dormant stack is NOT part of this retirement.** It stays
+  conditioned on this section's staged plan (live two-axis capability tests
+  before removal). Do not wire `syncTwoAxis()` into production to "reconcile
+  by activation" — it would create second, parallel `__revision` tables
+  alongside the live `_revision` ones.
+
 ## 7. Acceptance
 
 - Framework suite green; the existing single-axis revision tests pass
@@ -132,3 +266,6 @@ translation substrate.
   FR-043 timeline: create en → add oj → edit en ×3 → edit oj ×2 ⇒ en at
   revision 4, oj at revision 3).
 - FNPI full suite + page-parity green after the framework pin bump.
+
+<!-- Spec reviewed 2026-06-12 - mission revision-audit-provenance-01KTWY5V WP05: added §2a (revision_author column + additive sync on both live revision tables), §4a (authorship recording/resolution order/null-vs-0/revert authorship, RevisionMetadata hydration on loads, RevisionPointerMovedEvent), §6a (explicit FR-009 retirement of the dormant RevisionTableBuilder `<entity>__revision` vid dialect incl. its revision_created_at metadata block; live revision_author is the single authoritative author definition). Refs #1644, #1645. -->
+

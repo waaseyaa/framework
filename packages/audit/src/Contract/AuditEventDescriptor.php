@@ -14,11 +14,17 @@ use Waaseyaa\Audit\Enum\AuditEventKind;
 final readonly class AuditEventDescriptor
 {
     /**
+     * @param ?int                 $accountUid  Three-state actor: account id N, `0` only when
+     *                                          the resolved actor IS the anonymous account, or
+     *                                          `null` for "no acting context" (CLI, queue,
+     *                                          bootstrap). Never coerce a missing actor to 0.
+     *                                          Persisted verbatim to `actor_uid`; the legacy
+     *                                          `account_uid` column receives `actor ?? 0`.
      * @param array<string, mixed> $attributes  Freeform JSON-serialisable metadata.
      */
     public function __construct(
         public readonly AuditEventKind $kind,
-        public readonly int $accountUid,
+        public readonly ?int $accountUid,
         public readonly string $subjectUri,
         public readonly string $outcome,
         public readonly string $severity,

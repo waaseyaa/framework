@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\EntityStorage;
 
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\ContentEntityInterface;
 use Waaseyaa\Entity\EntityBase;
@@ -18,6 +19,7 @@ use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableInterface;
+use Waaseyaa\Entity\RevisionMetadata;
 use Waaseyaa\Entity\TranslatableInterface;
 use Waaseyaa\Entity\Validation\EntityTypeValidationConstraints;
 use Waaseyaa\Entity\Validation\EntityValidationException;
@@ -28,6 +30,7 @@ use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Event\AbortOperationException;
 use Waaseyaa\EntityStorage\Event\AfterSaveEvent;
 use Waaseyaa\EntityStorage\Event\BeforeSaveEvent;
+use Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent;
 use Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy;
 use Waaseyaa\I18n\LanguageManagerInterface;
 
@@ -49,6 +52,14 @@ final class EntityRepository implements EntityRepositoryInterface
 
     /** Lazily-resolved bundle subtable gateway; false until first resolution. */
     private BundleSubtableGateway|false|null $bundleGatewayInstance = false;
+
+    /**
+     * Request-scoped acting-account context, the ambient source for
+     * `revision_author` resolution (mission revision-audit-provenance-01KTWY5V,
+     * FR-001/FR-002). Null = no ambient context (every save records a NULL
+     * author unless a {@see SaveContext::withActorUid()} override applies).
+     */
+    private ?AccountContextInterface $accountContext = null;
 
     public function __construct(
         private readonly EntityTypeInterface $entityType,
@@ -125,6 +136,82 @@ final class EntityRepository implements EntityRepositoryInterface
     public function setFallbackChain(array $chain): void
     {
         $this->fallbackChain = $chain;
+    }
+
+    /**
+     * Attach the request-scoped acting-account context used to resolve
+     * `revision_author` on every revision-creating operation (mission
+     * revision-audit-provenance-01KTWY5V, FR-001/FR-002).
+     *
+     * Set by the kernel repository factory ({@see \Waaseyaa\Foundation\Kernel\AbstractKernel},
+     * WP01 forward seam) — adding this method activates that seam. Direct
+     * constructions (tests, consumers) may call it or rely on the null
+     * default, which means "no ambient context": every save resolves a NULL
+     * author unless a {@see SaveContext::withActorUid()} override applies.
+     * Queue jobs and CLI runs that never set the context behave the same —
+     * null author, by design (no special-casing; an upstream executor may
+     * scope the context or callers may pass an explicit override).
+     *
+     * @api
+     */
+    public function setAccountContext(?AccountContextInterface $accountContext): void
+    {
+        $this->accountContext = $accountContext;
+    }
+
+    /**
+     * Resolve the acting account for one revision-creating operation —
+     * computed ONCE per operation, never per row (contract revision-author.md
+     * clauses 1–3; NFR-001).
+     *
+     * Resolution order: explicit {@see SaveContext::withActorUid()} override
+     * (including `withActorUid(null)`) → ambient account context account id →
+     * null. `0` is returned if and only if the resolved actor IS the anonymous
+     * account (id 0); null is never coerced to 0.
+     */
+    private function resolveActor(?SaveContext $context): ?int
+    {
+        if ($context !== null && $context->actorOverridden()) {
+            return $context->actorUid();
+        }
+
+        $id = $this->accountContext?->current()?->id();
+
+        // AccountInterface::id() is int|string; revision_author is an int uid.
+        return $id === null ? null : (int) $id;
+    }
+
+    /**
+     * Build the {@see RevisionMetadata} read model from a raw revision row and
+     * attach it to entities implementing {@see RevisionableEntityInterface}
+     * (contract revision-author.md clauses 7–10). SQL NULL author — including
+     * every pre-mission row — hydrates `revisionAuthor: null`; `0` round-trips
+     * as `0` (anonymous).
+     *
+     * @param array<string, mixed> $row
+     */
+    private function attachRevisionMetadata(EntityInterface $entity, array $row): void
+    {
+        if (!$entity instanceof RevisionableEntityInterface) {
+            return;
+        }
+        if (!isset($row['revision_created']) || !method_exists($entity, 'setRevisionMetadata')) {
+            return;
+        }
+
+        try {
+            $createdAt = new \DateTimeImmutable((string) $row['revision_created']);
+        } catch (\Exception) {
+            // Unparseable timestamp on a legacy/foreign row: no metadata
+            // rather than a crashed load.
+            return;
+        }
+
+        $entity->setRevisionMetadata(new RevisionMetadata(
+            revisionCreatedAt: $createdAt,
+            revisionAuthor: isset($row['revision_author']) ? (int) $row['revision_author'] : null,
+            revisionLog: ($row['revision_log'] ?? null) !== null ? (string) $row['revision_log'] : null,
+        ));
     }
 
     public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
@@ -357,6 +444,10 @@ final class EntityRepository implements EntityRepositoryInterface
         $isNew = $entity->isNew();
         $entityTypeId = $this->entityType->id();
         $resolvedContext = $saveContext ?? SaveContext::default();
+        // Revision author — resolved ONCE per save operation (override →
+        // ambient context → null) and passed to BOTH the immediate and the
+        // deferred-id revision writes below (FR-001, clause 2).
+        $actor = $this->resolveActor($resolvedContext);
 
         if ($validate && $this->validator !== null) {
             $constraints = EntityTypeValidationConstraints::forEntityType(
@@ -432,7 +523,7 @@ final class EntityRepository implements EntityRepositoryInterface
         try {
             if ($createRevision && $this->revisionDriver !== null && !$deferRevision) {
                 $log = ($entity instanceof RevisionableInterface) ? $entity->getRevisionLog() : null;
-                $revisionId = $this->revisionDriver->writeRevision($id, $values, $log);
+                $revisionId = $this->revisionDriver->writeRevision($id, $values, $log, author: $actor);
                 $values['revision_id'] = $revisionId;
                 if ($entity instanceof ContentEntityInterface) {
                     $revisionKey = $this->entityType->getKeys()['revision'] ?? 'revision_id';
@@ -477,7 +568,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 // on it, then point the base row at it by updating only the
                 // revision-pointer column (leaving the _data blob untouched).
                 $log = ($entity instanceof RevisionableInterface) ? $entity->getRevisionLog() : null;
-                $revisionId = $this->revisionDriver->writeRevision($writtenId, $values, $log);
+                $revisionId = $this->revisionDriver->writeRevision($writtenId, $values, $log, author: $actor);
                 $revisionKey = $this->entityType->getKeys()['revision'] ?? 'revision_id';
                 $idKeyName = $this->entityType->getKeys()['id'] ?? 'id';
                 $this->database?->update($entityTypeId)
@@ -624,6 +715,10 @@ final class EntityRepository implements EntityRepositoryInterface
             if (method_exists($entity, 'setIsCurrentRevision')) {
                 $entity->setIsCurrentRevision($revisionId === $currentRevId);
             }
+            // Hydrate the per-revision metadata read model (author/created/log)
+            // from the raw row (FR-001 readback, clauses 7–9). listRevisions()
+            // inherits this via loadRevision().
+            $this->attachRevisionMetadata($entity, $row);
         }
 
         return $entity;
@@ -635,6 +730,11 @@ final class EntityRepository implements EntityRepositoryInterface
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
 
+        // Revert authorship (clause 4): the NEW revision is authored by whoever
+        // performs the revert — resolved once, from the ambient context (no
+        // SaveContext on this path). The target revision row is never modified.
+        $actor = $this->resolveActor(null);
+
         // Load the target revision.
         $targetRow = $this->revisionDriver->readRevision($entityId, $targetRevisionId);
         if ($targetRow === null) {
@@ -644,13 +744,15 @@ final class EntityRepository implements EntityRepositoryInterface
         }
 
         // Remove revision metadata from the row — we're creating a new revision.
-        unset($targetRow['revision_id'], $targetRow['revision_created'], $targetRow['revision_log'], $targetRow['entity_id']);
+        // revision_author included: the old revision's author must not leak
+        // onto the new revision or into the base row.
+        unset($targetRow['revision_id'], $targetRow['revision_created'], $targetRow['revision_log'], $targetRow['revision_author'], $targetRow['entity_id']);
 
         // Wrap in transaction (invariant #4: atomic pointer update).
         $transaction = $this->database?->transaction();
         try {
             $log = "Reverted to revision {$targetRevisionId}";
-            $newRevisionId = $this->revisionDriver->writeRevision($entityId, $targetRow, $log);
+            $newRevisionId = $this->revisionDriver->writeRevision($entityId, $targetRow, $log, author: $actor);
 
             // Update the base table pointer.
             $keys = $this->entityType->getKeys();
@@ -729,10 +831,18 @@ final class EntityRepository implements EntityRepositoryInterface
             );
         }
 
+        // Pointer-move actor + prior pointer for the transition event (FR-006).
+        $actor = $this->resolveActor(null);
+        $priorBaseRow = $this->driver->read($this->entityType->id(), $entityId);
+        $fromRevisionId = null;
+        if ($priorBaseRow !== null && (int) ($priorBaseRow['revision_id'] ?? 0) > 0) {
+            $fromRevisionId = (int) $priorBaseRow['revision_id'];
+        }
+
         // Re-point the base table at this revision's values. Strip revision-table
         // bookkeeping columns; the base table tracks the current revision via the
         // revision_id pointer column.
-        unset($row['revision_created'], $row['revision_log'], $row['entity_id']);
+        unset($row['revision_created'], $row['revision_log'], $row['revision_author'], $row['entity_id']);
         $keys = $this->entityType->getKeys();
         $idKey = $keys['id'] ?? 'id';
         $row[$idKey] = $entityId;
@@ -752,6 +862,22 @@ final class EntityRepository implements EntityRepositoryInterface
         $this->dispatchEvent(
             $this->eventFactory->create($entity),
             EntityEvents::REVISION_REVERTED->value,
+        );
+
+        // Typed pointer-transition event (FR-006, research D4) — dispatched by
+        // FQCN AFTER the pointer transaction committed (a rolled-back move
+        // throws above and produces no event), alongside — not replacing —
+        // the legacy REVISION_REVERTED dispatch.
+        $this->dispatchEvent(
+            new RevisionPointerMovedEvent(
+                entityTypeId: $this->entityType->id(),
+                entityId: $entityId,
+                operation: 'revert',
+                fromRevisionId: $fromRevisionId,
+                toRevisionId: $revisionId,
+                actorUid: $actor,
+            ),
+            RevisionPointerMovedEvent::class,
         );
 
         return $entity;
@@ -808,8 +934,20 @@ final class EntityRepository implements EntityRepositoryInterface
         $keys = $this->entityType->getKeys();
         $idKey = $keys['id'] ?? 'id';
 
+        // Pointer-move actor + prior published pointer for the transition
+        // event (FR-006). Null when previously unpublished.
+        $actor = $this->resolveActor(null);
+        $fromRevisionId = null;
+
         $transaction = $this->database?->transaction();
         try {
+            // Read the prior pointer inside the transaction so the from→to
+            // transition the event reports is the one this move performed.
+            $priorBaseRow = $this->driver->read($this->entityType->id(), $entityId);
+            if ($priorBaseRow !== null && (int) ($priorBaseRow['published_revision_id'] ?? 0) > 0) {
+                $fromRevisionId = (int) $priorBaseRow['published_revision_id'];
+            }
+
             if ($this->database !== null) {
                 // Targeted single-column update: touch only the published pointer.
                 $this->database->update($this->entityType->id())
@@ -819,10 +957,10 @@ final class EntityRepository implements EntityRepositoryInterface
             } else {
                 // Driver-only fallback (no DatabaseInterface wired): round-trip
                 // the base row, flipping just the published pointer.
-                $baseRow = $this->driver->read($this->entityType->id(), $entityId);
-                if ($baseRow === null) {
+                if ($priorBaseRow === null) {
                     throw new \InvalidArgumentException("Entity {$entityId} does not exist.");
                 }
+                $baseRow = $priorBaseRow;
                 $baseRow['published_revision_id'] = $revisionId;
                 $this->driver->write($this->entityType->id(), $entityId, $baseRow);
             }
@@ -842,6 +980,21 @@ final class EntityRepository implements EntityRepositoryInterface
         $this->dispatchEvent(
             $this->eventFactory->create($entity),
             EntityEvents::REVISION_REVERTED->value,
+        );
+
+        // Typed pointer-transition event (FR-006, research D4) — by FQCN,
+        // AFTER the pointer transaction committed (a rolled-back move throws
+        // above and produces no event), alongside the legacy dispatch.
+        $this->dispatchEvent(
+            new RevisionPointerMovedEvent(
+                entityTypeId: $this->entityType->id(),
+                entityId: $entityId,
+                operation: 'publish',
+                fromRevisionId: $fromRevisionId,
+                toRevisionId: $revisionId,
+                actorUid: $actor,
+            ),
+            RevisionPointerMovedEvent::class,
         );
 
         return $entity;
@@ -867,7 +1020,10 @@ final class EntityRepository implements EntityRepositoryInterface
     {
         $driver = $this->assertTwoAxis(__FUNCTION__);
 
-        $revisionId = $driver->writeRevision($entityId, $values, $log, $langcode);
+        // Author resolved once per operation (FR-001; ambient context — this
+        // path carries no SaveContext).
+        $actor = $this->resolveActor(null);
+        $revisionId = $driver->writeRevision($entityId, $values, $log, $langcode, $actor);
 
         $entity = $this->loadTranslationRevision($entityId, $langcode, $revisionId);
         if ($entity !== null) {
@@ -891,11 +1047,15 @@ final class EntityRepository implements EntityRepositoryInterface
             throw new \InvalidArgumentException('saveTranslationRevisions requires at least one langcode.');
         }
 
+        // Author resolved ONCE for the whole multi-language operation — every
+        // language row carries the same value (FR-001; never per langcode).
+        $actor = $this->resolveActor(null);
+
         $transaction = $this->database?->transaction();
         $created = [];
         try {
             foreach ($byLangcode as $langcode => $values) {
-                $created[$langcode] = $driver->writeRevision($entityId, $values, $log, $langcode);
+                $created[$langcode] = $driver->writeRevision($entityId, $values, $log, $langcode, $actor);
             }
             $transaction?->commit();
         } catch (\Throwable $e) {
@@ -1003,10 +1163,13 @@ final class EntityRepository implements EntityRepositoryInterface
             );
         }
 
+        // Author resolved once per operation (FR-001).
+        $actor = $this->resolveActor(null);
+
         $transaction = $this->database->transaction();
         try {
             $this->upsertLangcodePeerRow($entityId, $langcode, $values);
-            $revisionId = $driver->writeRevision($entityId, $values, $log, $langcode);
+            $revisionId = $driver->writeRevision($entityId, $values, $log, $langcode, $actor);
             $transaction->commit();
         } catch (\Throwable $e) {
             $transaction->rollBack();
@@ -1152,6 +1315,10 @@ final class EntityRepository implements EntityRepositoryInterface
             if (method_exists($entity, 'setIsCurrentRevision')) {
                 $entity->setIsCurrentRevision($revisionId === $latest);
             }
+            // Same metadata hydration as the single-axis loadRevision() path
+            // (clauses 7–9) — translation-revision rows carry the same
+            // revision_created / revision_author / revision_log columns.
+            $this->attachRevisionMetadata($entity, $row);
         }
 
         return $entity;
@@ -1284,6 +1451,11 @@ final class EntityRepository implements EntityRepositoryInterface
         $log ??= 'Initial revision (backfilled)';
         $count = 0;
 
+        // Same resolution as every other revision-creating path — resolved
+        // once per invocation, NOT an override site (research D2): a CLI
+        // backfill with no ambient context records null, correctly.
+        $actor = $this->resolveActor(null);
+
         foreach ($this->findBy([]) as $entity) {
             $id = (string) ($entity->id() ?? '');
             if ($id === '') {
@@ -1296,7 +1468,7 @@ final class EntityRepository implements EntityRepositoryInterface
             $values = $entity->toArray();
             $transaction = $this->database?->transaction();
             try {
-                $revisionId = $this->revisionDriver->writeRevision($id, $values, $log);
+                $revisionId = $this->revisionDriver->writeRevision($id, $values, $log, author: $actor);
                 $values['revision_id'] = $revisionId;
                 $this->driver->write($this->entityType->id(), $id, $values);
                 $transaction?->commit();

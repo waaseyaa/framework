@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Audit;
 
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
+use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Audit\Contract\AuditQueryInterface;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Listener\AgentToolAuditListener;
@@ -12,6 +13,7 @@ use Waaseyaa\Audit\Listener\ApiRequestAuditListener;
 use Waaseyaa\Audit\Listener\BroadcastAuditListener;
 use Waaseyaa\Audit\Listener\EntityLifecycleAuditListener;
 use Waaseyaa\Audit\Listener\McpDispatchAuditListener;
+use Waaseyaa\Audit\Listener\PublishPointerAuditListener;
 use Waaseyaa\Audit\Query\AuditEventQuery;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
 use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
@@ -92,10 +94,17 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
         $logger = $this->resolveOptional(LoggerInterface::class);
         $resolvedLogger = $logger instanceof LoggerInterface ? $logger : null;
 
-        $dispatcher->addSubscriber(new EntityLifecycleAuditListener($writer, $resolvedLogger));
-        $dispatcher->addSubscriber(new AgentToolAuditListener($writer, $resolvedLogger));
+        // The kernel's shared acting-account holder, served via the
+        // kernel-services bus (null in bare-provider tests — listeners then
+        // record null actors, the correct degraded behavior).
+        $accountContext = $this->resolveOptional(AccountContextInterface::class);
+        $resolvedContext = $accountContext instanceof AccountContextInterface ? $accountContext : null;
+
+        $dispatcher->addSubscriber(new EntityLifecycleAuditListener($writer, $resolvedLogger, $resolvedContext));
+        $dispatcher->addSubscriber(new AgentToolAuditListener($writer, $resolvedLogger, $resolvedContext));
         $dispatcher->addSubscriber(new McpDispatchAuditListener($writer, $resolvedLogger));
         $dispatcher->addSubscriber(new BroadcastAuditListener($writer, $resolvedLogger));
+        $dispatcher->addSubscriber(new PublishPointerAuditListener($writer, $resolvedLogger, $resolvedContext));
     }
 
     /**

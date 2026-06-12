@@ -110,4 +110,96 @@ final class SaveContextTest extends TestCase
         self::assertFalse($a->isImport);
         self::assertTrue($b->isImport);
     }
+
+    // ------------------------------------------------------------------
+    // Actor override surface (mission revision-audit-provenance-01KTWY5V,
+    // FR-002 / contract revision-author.md clause 5)
+    // ------------------------------------------------------------------
+
+    #[Test]
+    public function default_state_is_not_actor_overridden(): void
+    {
+        $ctx = SaveContext::default();
+
+        self::assertFalse($ctx->actorOverridden());
+        self::assertNull($ctx->actorUid());
+    }
+
+    #[Test]
+    public function withActorUid_sets_override_and_uid(): void
+    {
+        $ctx = SaveContext::default()->withActorUid(7);
+
+        self::assertTrue($ctx->actorOverridden());
+        self::assertSame(7, $ctx->actorUid());
+    }
+
+    #[Test]
+    public function withActorUid_null_is_overridden_with_null_uid(): void
+    {
+        // The three-state pin: explicit withActorUid(null) ≠ "not overridden".
+        // It forces a NULL author even inside an authenticated request.
+        $ctx = SaveContext::default()->withActorUid(null);
+
+        self::assertTrue($ctx->actorOverridden());
+        self::assertNull($ctx->actorUid());
+    }
+
+    #[Test]
+    public function withActorUid_zero_is_overridden_with_anonymous_uid(): void
+    {
+        $ctx = SaveContext::default()->withActorUid(0);
+
+        self::assertTrue($ctx->actorOverridden());
+        self::assertSame(0, $ctx->actorUid());
+    }
+
+    #[Test]
+    public function chained_builders_after_withActorUid_preserve_the_override(): void
+    {
+        $ctx = SaveContext::default()->withActorUid(7)->withoutNewRevision();
+
+        self::assertTrue($ctx->actorOverridden());
+        self::assertSame(7, $ctx->actorUid());
+        self::assertTrue($ctx->withoutNewRevision);
+    }
+
+    #[Test]
+    public function withActorUid_after_other_builders_preserves_their_flags(): void
+    {
+        $ctx = SaveContext::default()->withoutNewRevision()->withActorUid(7);
+
+        self::assertTrue($ctx->actorOverridden());
+        self::assertSame(7, $ctx->actorUid());
+        self::assertTrue($ctx->withoutNewRevision);
+    }
+
+    #[Test]
+    public function every_builder_carries_the_actor_override(): void
+    {
+        $ctx = SaveContext::default()
+            ->withActorUid(null)
+            ->withLangcode('fr')
+            ->asImport()
+            ->withTranslations(['en', 'fr'])
+            ->withoutNewRevision();
+
+        self::assertTrue($ctx->actorOverridden(), 'A chained builder silently dropped the actor override.');
+        self::assertNull($ctx->actorUid());
+        self::assertSame('fr', $ctx->langcode);
+        self::assertTrue($ctx->isImport);
+        self::assertSame(['en', 'fr'], $ctx->translations);
+        self::assertTrue($ctx->withoutNewRevision);
+    }
+
+    #[Test]
+    public function withActorUid_does_not_touch_existing_flags(): void
+    {
+        $ctx = SaveContext::default()->withActorUid(42);
+
+        self::assertFalse($ctx->withoutNewRevision);
+        self::assertNull($ctx->langcode);
+        self::assertFalse($ctx->isImport);
+        self::assertNull($ctx->translations);
+    }
 }

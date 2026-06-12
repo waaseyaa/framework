@@ -11,6 +11,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\User\AnonymousUser;
@@ -351,6 +352,119 @@ final class SessionMiddlewareTest extends TestCase
         $middleware->process($request, $next);
 
         $this->assertSame($existingSession, $capturedSession);
+    }
+
+    #[Test]
+    public function mirrors_resolved_account_into_account_context(): void
+    {
+        $user = new User(['uid' => 42, 'name' => 'admin', 'permissions' => ['access content']]);
+
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage->expects($this->once())
+            ->method('load')
+            ->with(42)
+            ->willReturn($user);
+
+        $context = new RequestAccountContext();
+        $middleware = new SessionMiddleware($storage, accountContext: $context);
+        $request = Request::create('/test');
+        $request->attributes->set('_session', ['waaseyaa_uid' => 42]);
+
+        $capturedAccount = null;
+        $next = new class($capturedAccount) implements HttpHandlerInterface {
+            public function __construct(private ?AccountInterface &$ref) {}
+
+            public function handle(Request $request): Response
+            {
+                $this->ref = $request->attributes->get('_account');
+                return new Response('ok');
+            }
+        };
+
+        $middleware->process($request, $next);
+
+        // Both surfaces agree: the `_account` attribute and the context hold
+        // the same object.
+        $this->assertSame($user, $capturedAccount);
+        $this->assertSame($user, $context->current());
+    }
+
+    #[Test]
+    public function mirrors_anonymous_fallback_into_account_context(): void
+    {
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage->expects($this->never())->method('load');
+
+        $context = new RequestAccountContext();
+        $middleware = new SessionMiddleware($storage, accountContext: $context);
+        $request = Request::create('/test');
+
+        $next = new class implements HttpHandlerInterface {
+            public function handle(Request $request): Response
+            {
+                return new Response('ok');
+            }
+        };
+
+        $middleware->process($request, $next);
+
+        // Anonymous (id 0) is an actor — the context holds it, not null.
+        $this->assertInstanceOf(AnonymousUser::class, $context->current());
+        $this->assertSame(0, $context->current()->id());
+    }
+
+    #[Test]
+    public function mirrors_preset_authenticated_account_into_account_context(): void
+    {
+        $existing = new User(['uid' => 88, 'name' => 'token-user']);
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage->expects($this->never())->method('load');
+
+        $context = new RequestAccountContext();
+        $middleware = new SessionMiddleware($storage, accountContext: $context);
+        $request = Request::create('/test');
+        $request->attributes->set('_account', $existing);
+
+        $next = new class implements HttpHandlerInterface {
+            public function handle(Request $request): Response
+            {
+                return new Response('ok');
+            }
+        };
+
+        $middleware->process($request, $next);
+
+        // The early-return branch (BearerAuthMiddleware already resolved an
+        // account) must mirror the pre-set account too.
+        $this->assertSame($existing, $context->current());
+    }
+
+    #[Test]
+    public function works_without_account_context_param(): void
+    {
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage->expects($this->never())->method('load');
+
+        // Legacy construction — no context param. The `?->` guard means no
+        // error, and `_account` behavior is unchanged.
+        $middleware = new SessionMiddleware($storage);
+        $request = Request::create('/test');
+
+        $capturedAccount = null;
+        $next = new class($capturedAccount) implements HttpHandlerInterface {
+            public function __construct(private ?AccountInterface &$ref) {}
+
+            public function handle(Request $request): Response
+            {
+                $this->ref = $request->attributes->get('_account');
+                return new Response('ok');
+            }
+        };
+
+        $response = $middleware->process($request, $next);
+
+        $this->assertSame('ok', $response->getContent());
+        $this->assertInstanceOf(AnonymousUser::class, $capturedAccount);
     }
 
     #[Test]

@@ -56,4 +56,101 @@ final class AuditEventWriterTest extends TestCase
 
         $this->assertInstanceOf(AuditWriterInterface::class, $writer);
     }
+
+    // ------------------------------------------------------------------
+    // Dual-column actor mapping (FR-004, contract clauses 1–2):
+    // actor_uid = descriptor actor verbatim (null preserved as SQL NULL);
+    // account_uid = actor ?? 0 (legacy sentinel unchanged).
+    // ------------------------------------------------------------------
+
+    /**
+     * @return array{DBALDatabase, AuditEventWriter}
+     */
+    private function writerOnFreshSchema(): array
+    {
+        $inner = DBALDatabase::createSqlite();
+        new AuditEventSchemaHandler($inner)->ensureSchema();
+
+        return [$inner, new AuditEventWriter(new AppendOnlyAuditDatabase($inner))];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function singleRow(DBALDatabase $inner): array
+    {
+        $rows = [];
+        foreach ($inner->query('SELECT actor_uid, account_uid FROM audit_event') as $row) {
+            $rows[] = (array) $row;
+        }
+        $this->assertCount(1, $rows);
+
+        return $rows[0];
+    }
+
+    private function descriptorWithActor(?int $actor): AuditEventDescriptor
+    {
+        return new AuditEventDescriptor(
+            kind: AuditEventKind::EntityWrite,
+            accountUid: $actor,
+            subjectUri: '/entities/note/abc-123',
+            outcome: 'allowed',
+            severity: 'info',
+        );
+    }
+
+    #[Test]
+    public function a_null_actor_is_written_as_sql_null_with_legacy_account_uid_zero(): void
+    {
+        [$inner, $writer] = $this->writerOnFreshSchema();
+
+        $writer->record($this->descriptorWithActor(null));
+
+        // The null-vs-0 distinctness witness, straight off the table: SAME
+        // row, actor_uid IS NULL while account_uid = 0.
+        $row = $this->singleRow($inner);
+        $this->assertNull($row['actor_uid'], 'No acting context must persist as SQL NULL, not 0');
+        $this->assertSame(0, (int) $row['account_uid']);
+    }
+
+    #[Test]
+    public function an_anonymous_zero_actor_is_written_as_zero_in_both_columns(): void
+    {
+        [$inner, $writer] = $this->writerOnFreshSchema();
+
+        $writer->record($this->descriptorWithActor(0));
+
+        $row = $this->singleRow($inner);
+        $this->assertSame(0, (int) $row['actor_uid'], 'Anonymous actor is a real 0 — distinct from NULL');
+        $this->assertNotNull($row['actor_uid']);
+        $this->assertSame(0, (int) $row['account_uid']);
+    }
+
+    #[Test]
+    public function an_account_actor_is_written_verbatim_to_both_columns(): void
+    {
+        [$inner, $writer] = $this->writerOnFreshSchema();
+
+        $writer->record($this->descriptorWithActor(7));
+
+        $row = $this->singleRow($inner);
+        $this->assertSame(7, (int) $row['actor_uid']);
+        $this->assertSame(7, (int) $row['account_uid']);
+    }
+
+    #[Test]
+    public function existing_int_passing_descriptor_constructions_still_compile_and_behave(): void
+    {
+        // Clause 3: the int → ?int widening is parameter-compatible — a plain
+        // int keeps flowing through unchanged.
+        $descriptor = new AuditEventDescriptor(
+            kind: AuditEventKind::EntityWrite,
+            accountUid: 1,
+            subjectUri: '/entities/note/abc-123',
+            outcome: 'allowed',
+            severity: 'info',
+        );
+
+        $this->assertSame(1, $descriptor->accountUid);
+    }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\AI\Agent;
 
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\AI\Agent\Entity\AgentAuditLog;
 use Waaseyaa\AI\Agent\Entity\AgentRun;
 use Waaseyaa\AI\Agent\Enum\EventType;
@@ -84,6 +85,7 @@ final class AgentExecutor
         ?\Closure $sleepMs = null,
         ?\Closure $now = null,
         private readonly ?EventDispatcherInterface $eventDispatcher = null,
+        private readonly ?AccountContextInterface $accountContext = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
         $this->sleepMs = $sleepMs ?? static function (int $ms): void {
@@ -131,6 +133,49 @@ final class AgentExecutor
         array $tools = [],
         int $maxIterations = 10,
         int $maxTokens = 4096,
+    ): AgentResult {
+        // Scope the acting-account context to the run initiator (research D1
+        // writer 3, FR-002) so entity saves made *by agent tools* — including
+        // queue-driven runs with no HTTP request — carry the initiator.
+        // Set/restore in `finally`: a thrown run must not leak the initiator
+        // into the next job on the same long-lived worker, and the restore
+        // targets the PREVIOUS value (not blindly null) so nested scopes
+        // unwind correctly.
+        $previousActor = $this->accountContext?->current();
+        $this->accountContext?->set($initiatorAccount);
+
+        try {
+            return $this->doExecuteRun(
+                $run,
+                $initiatorAccount,
+                $provider,
+                $messages,
+                $system,
+                $tools,
+                $maxIterations,
+                $maxTokens,
+            );
+        } finally {
+            $this->accountContext?->set($previousActor);
+        }
+    }
+
+    /**
+     * Run-loop body for {@see executeRun()} — executed inside the
+     * acting-account context scope.
+     *
+     * @param array<int, array<string, mixed>> $messages Initial messages.
+     * @param array<int, array<string, mixed>> $tools     Tool descriptors to advertise to the provider.
+     */
+    private function doExecuteRun(
+        AgentRun $run,
+        AccountInterface $initiatorAccount,
+        ProviderInterface $provider,
+        array $messages,
+        ?string $system,
+        array $tools,
+        int $maxIterations,
+        int $maxTokens,
     ): AgentResult {
         $runId = (string) $run->get('id');
         $hitl = $run->getDestructiveApproval();
@@ -334,10 +379,13 @@ final class AgentExecutor
                         isError: true,
                     )->toArray();
                     // Dispatch tool-call-observed for the failed (threw) path. FR-013.
+                    // Carries the initiator account so the audit listener can
+                    // attribute failed tool calls identically to successes (FR-005).
                     $this->dispatchSafely(new AgentRunToolCallObserved(
                         runId: $runId,
                         toolName: $toolName,
                         succeeded: false,
+                        accountId: (int) $initiatorAccount->id(),
                     ));
                     continue;
                 }
@@ -363,11 +411,13 @@ final class AgentExecutor
                 )->toArray();
 
                 // Dispatch tool-call-observed event after terminal lifecycle
-                // (completed or failed). FR-013.
+                // (completed or failed). FR-013. Carries the initiator account
+                // for audit attribution (FR-005).
                 $this->dispatchSafely(new AgentRunToolCallObserved(
                     runId: $runId,
                     toolName: $toolName,
                     succeeded: !$toolResult->isError,
+                    accountId: (int) $initiatorAccount->id(),
                 ));
             }
 

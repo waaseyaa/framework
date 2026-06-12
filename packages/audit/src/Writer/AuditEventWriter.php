@@ -39,7 +39,13 @@ final class AuditEventWriter implements AuditWriterInterface
             $this->database->insert('audit_event')->values([
                 'uuid'           => \Symfony\Component\Uid\Uuid::v4()->toRfc4122(),
                 'event_kind'     => $descriptor->kind->value,
-                'account_uid'    => $descriptor->accountUid,
+                // actor_uid is the authoritative three-state actor (N / 0 / NULL):
+                // a null descriptor actor is preserved as SQL NULL — "no acting
+                // context" stays distinct from the anonymous account 0 (FR-004).
+                // account_uid keeps its legacy NOT NULL 0-sentinel semantics so
+                // existing dashboards/filters keep working byte-for-byte (C-004).
+                'actor_uid'      => $descriptor->accountUid,
+                'account_uid'    => $descriptor->accountUid ?? 0,
                 // Schema uses NOT NULL DEFAULT '' (empty-sentinel design); non-entity
                 // events (entity.read on a path, access.denied, agent.tool.execute) carry
                 // no entity reference. Coalesce null → '' or the INSERT violates the

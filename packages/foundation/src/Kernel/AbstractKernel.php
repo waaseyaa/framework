@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Kernel;
 
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface as SymfonyContractEventDispatcherInterface;
+use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
@@ -83,6 +85,16 @@ abstract class AbstractKernel
     private ?KnowledgeToolingExtensionRunner $knowledgeExtensionRunner = null;
     private bool $booted = false;
     protected LoggerInterface $logger;
+
+    /**
+     * The single per-kernel acting-account context (mission
+     * revision-audit-provenance-01KTWY5V WP01, research D1). Constructed
+     * lazily behind {@see accountContext()} — every exposure path (the
+     * repository factory closure, the kernel-services bus, the handler
+     * container, the HTTP middleware) MUST serve this same instance; a
+     * second construction site would silently fork the context.
+     */
+    private ?RequestAccountContext $accountContext = null;
 
     /**
      * Optional community context for tenancy-scoped entity types
@@ -249,7 +261,7 @@ abstract class AbstractKernel
                     ? new RevisionableStorageDriver($resolver, $definition)
                     : null;
 
-                return new EntityRepository(
+                $repository = new EntityRepository(
                     $definition,
                     $driver,
                     $dispatcher,
@@ -263,6 +275,13 @@ abstract class AbstractKernel
                     fieldRegistry: $fieldRegistry,
                     logger: $this->logger,
                 );
+                // revision-audit-provenance-01KTWY5V WP01: forward seam — the
+                // kernel's shared acting-account context is attached once
+                // EntityRepository grows setAccountContext() (WP02 of this
+                // mission); a guarded no-op until then. See attachAccountContext().
+                $this->attachAccountContext($repository);
+
+                return $repository;
             },
             $fieldRegistry,
             $this->logger,
@@ -304,6 +323,39 @@ abstract class AbstractKernel
     public function setCommunityContext(?CommunityContextInterface $context): void
     {
         $this->communityContext = $context;
+    }
+
+    /**
+     * The kernel's request-scoped acting-account context (mission
+     * revision-audit-provenance-01KTWY5V FR-002).
+     *
+     * One instance per kernel: the repository factory closure, the
+     * kernel-services bus, the handler container, and the HTTP session
+     * middleware all share the object returned here. Public because tests
+     * and entry points may need it in addition to the HttpKernel subclass;
+     * the L1 import rides the Kernel/ cross-layer exemption.
+     */
+    public function accountContext(): AccountContextInterface
+    {
+        return $this->accountContext ??= new RequestAccountContext();
+    }
+
+    /**
+     * revision-audit-provenance-01KTWY5V WP01: forward seam — EntityRepository
+     * gains setAccountContext() in WP02 of this mission; until then this is a
+     * deliberate no-op (method_exists precedent: loadRevision() hydration).
+     *
+     * The parameter is typed `object` on purpose: EntityRepository is final
+     * and does not yet declare the method, so a precisely-typed variable
+     * would let PHPStan prove the method_exists() guard always-false and
+     * flag the seam. Do NOT replace this with a named `accountContext:`
+     * constructor argument — it will not compile until WP02 lands.
+     */
+    private function attachAccountContext(object $repository): void
+    {
+        if (method_exists($repository, 'setAccountContext')) {
+            $repository->setAccountContext($this->accountContext());
+        }
     }
 
     /**
@@ -404,6 +456,7 @@ abstract class AbstractKernel
             $this->entityTypeManager,
             $this->database,
             $this->dispatcher,
+            $this->accountContext(),
         );
     }
 
@@ -481,6 +534,7 @@ abstract class AbstractKernel
             $this->dispatcher,
             $this->logger,
             static fn() => $providers,
+            $this->accountContext(),
         );
         $resolver = new KernelPolicyDependencyResolver($kernelServices);
         $this->accessHandler = new AccessPolicyRegistry($this->logger, $resolver)->discover($this->manifest);
@@ -508,6 +562,7 @@ abstract class AbstractKernel
             $this->dispatcher,
             $this->logger,
             static fn() => $providers,
+            $this->accountContext(),
         );
         $resolver = new KernelPolicyDependencyResolver($kernelServices);
         new ScheduleEntryRegistry($this->logger, $resolver)
@@ -786,6 +841,8 @@ abstract class AbstractKernel
                 static fn(\Psr\Container\ContainerInterface $c) => $c->get(\Waaseyaa\Entity\EntityTypeManager::class),
 
             // Kernel-owned services not bound by any provider.
+            \Waaseyaa\Access\Context\AccountContextInterface::class =>
+                static fn(\Psr\Container\ContainerInterface $c) => $kernel->accountContext(),
             \Waaseyaa\Foundation\Diagnostic\BootDiagnosticReport::class =>
                 static fn(\Psr\Container\ContainerInterface $c) => $kernel->getBootReport(),
             \Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface::class =>

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Mcp;
 
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
+use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Api\McpAdmin\ServerConfigReadModelInterface;
 use Waaseyaa\Api\McpAdmin\ToolRegistryReadModelInterface;
@@ -42,6 +44,27 @@ final class McpServiceProvider extends ServiceProvider
         $this->singleton(
             McpAuthInterface::class,
             fn(): McpAuthInterface => new BearerTokenAuth(tokens: []),
+        );
+
+        // McpEndpoint: bound explicitly so AppControllerRouter's controller
+        // resolution (which checks provider bindings before falling back to
+        // reflection autowiring) injects the kernel-services event dispatcher
+        // and acting-account context. Both are optional — when the kernel
+        // bus cannot supply one, the endpoint degrades to its pre-provenance
+        // behavior (no `waaseyaa.mcp.dispatch` event / no context scoping).
+        $this->singleton(
+            McpEndpoint::class,
+            function (): McpEndpoint {
+                $dispatcher = $this->resolveOptional(EventDispatcherInterface::class);
+                $accountContext = $this->resolveOptional(AccountContextInterface::class);
+
+                return new McpEndpoint(
+                    auth: $this->resolve(McpAuthInterface::class),
+                    agentRegistry: $this->resolve(AgentToolRegistryInterface::class),
+                    dispatcher: $dispatcher instanceof EventDispatcherInterface ? $dispatcher : null,
+                    accountContext: $accountContext instanceof AccountContextInterface ? $accountContext : null,
+                );
+            },
         );
 
         // M5C WP01 T003: admin read-model bindings.

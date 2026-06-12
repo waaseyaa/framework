@@ -244,6 +244,13 @@ final class SqlSchemaHandler
      *
      * The revision table stores snapshots of all field values for each revision.
      * Primary key is composite (entity_id, revision_id).
+     *
+     * When the table already exists, revision-metadata columns added since it
+     * was created are synced additively (`fieldExists` → `addField`, mirroring
+     * {@see ensureBundleSubtable()}) — currently `revision_author` (mission
+     * revision-audit-provenance-01KTWY5V FR-003). Idempotent; no other column
+     * is touched and no row is rewritten (C-001). Runs at kernel boot /
+     * db:init, never per save.
      */
     public function ensureRevisionTable(): void
     {
@@ -251,11 +258,36 @@ final class SqlSchemaHandler
         $revisionTableName = $this->getRevisionTableName();
 
         if ($schema->tableExists($revisionTableName)) {
+            $this->ensureRevisionAuthorColumn($revisionTableName);
             return;
         }
 
         $spec = $this->buildRevisionTableSpec();
         $schema->createTable($revisionTableName, $spec);
+    }
+
+    /**
+     * Additive sync arm for the `revision_author` column on a pre-existing
+     * revision (or translation-revision) table (FR-003, contract
+     * revision-author.md clauses 12–14).
+     *
+     * Nullable int, NO default, NO FK constraint (soft FK — revision history
+     * survives user deletion; definition adopted verbatim from the dormant
+     * RevisionTableBuilder dialect, research D7). Pre-existing rows read back
+     * SQL NULL with zero migration. Without this arm the column would only
+     * exist on fresh installs and foldData() would silently absorb the author
+     * into the `_data` blob.
+     */
+    private function ensureRevisionAuthorColumn(string $tableName): void
+    {
+        $schema = $this->database->schema();
+
+        if (!$schema->fieldExists($tableName, 'revision_author')) {
+            $schema->addField($tableName, 'revision_author', [
+                'type' => 'int',
+                'not null' => false,
+            ]);
+        }
     }
 
     /**
@@ -295,6 +327,9 @@ final class SqlSchemaHandler
         $schema = $this->database->schema();
         $tableName = $this->getTranslationRevisionTableName();
         if ($schema->tableExists($tableName)) {
+            // Same additive author-column sync as ensureRevisionTable() —
+            // the translation axis gets identical treatment (DIR-005).
+            $this->ensureRevisionAuthorColumn($tableName);
             return;
         }
 
@@ -668,6 +703,14 @@ final class SqlSchemaHandler
             'not null' => false,
         ];
 
+        // Acting account that created the revision (FR-001/FR-003). Nullable,
+        // NO default (absence is SQL NULL, never 0), NO FK constraint — soft
+        // FK so history survives user deletion (D7 dialect convergence).
+        $fields['revision_author'] = [
+            'type' => 'int',
+            'not null' => false,
+        ];
+
         // Mirror base table field columns.
         $labelKey = $keys['label'] ?? 'label';
         $fields[$labelKey] = [
@@ -738,6 +781,9 @@ final class SqlSchemaHandler
             'revision_id' => ['type' => 'int', 'not null' => true],
             'revision_created' => ['type' => 'varchar', 'length' => 32, 'not null' => true],
             'revision_log' => ['type' => 'text', 'not null' => false],
+            // Acting account (FR-001/FR-003): nullable int, no default, soft FK
+            // — identical definition to the single-axis revision table.
+            'revision_author' => ['type' => 'int', 'not null' => false],
             '_data' => ['type' => 'text', 'not null' => true, 'default' => '{}'],
         ];
 

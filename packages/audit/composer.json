@@ -6,6 +6,10 @@
     "repositories": [
         {
             "type": "path",
+            "url": "../access"
+        },
+        {
+            "type": "path",
             "url": "../database-legacy"
         },
         {
@@ -23,6 +27,7 @@
     ],
     "require": {
         "php": ">=8.5",
+        "waaseyaa/access": "^0.1.0-alpha.204",
         "waaseyaa/database-legacy": "^0.1.0-alpha.204",
         "waaseyaa/entity": "^0.1.0-alpha.204",
         "waaseyaa/entity-storage": "^0.1.0-alpha.204",

@@ -1,5 +1,6 @@
 # Access Control
 
+<!-- Spec reviewed 2026-06-12 - mission revision-audit-provenance-01KTWY5V WP05: new request-scoped acting-account context — Waaseyaa\Access\Context\AccountContextInterface + RequestAccountContext (three-state actor model: account N / anonymous 0 / null = no acting context, never coerced). One kernel-shared instance (AbstractKernel::accountContext()) exposed via the kernel-services bus, the handler container, the repository factory (EntityRepository::setAccountContext) and HttpKernel's SessionMiddleware wiring; writers are SessionMiddleware (unconditional per-request overwrite, incl. bearer-auth accounts), McpEndpoint and AgentExecutor (set/restore in finally); readers are entity-storage revision_author resolution (SaveContext::withActorUid override wins) and the audit listeners. SessionMiddleware constructor gained ?AccountContextInterface. Refs #1644, #1645. -->
 <!-- Spec reviewed 2026-06-04 - PR #1614: the local dev-fallback admin account (`Waaseyaa\User\DevAdminAccount`) is gated by `HttpKernel::shouldUseDevFallbackAccount()` — a development `APP_ENV` plus the explicit `auth.dev_fallback_account` opt-in are the real gates, with the `cli-server` SAPI check kept only as a secondary safety belt so the FrankenPHP worker runtime can also use it. No change to the access-decision pipeline, policies, or field-access semantics. -->
 <!-- Spec reviewed 2026-05-20 - updated for M-B container-resolved registry (PolicyDependencyResolverInterface), fail-closed CI gate (bin/check-getquery-bindings), and WP05 retro regression tests. -->
 <!-- Spec reviewed 2026-05-20 - post-#1525 sweep caught two more #1495 misses: SitemapGenerator::collectFromEntityTypes() (sitemap generation is anonymous-served by definition; same shape as PathAliasResolver) and UserBlockService::isBlocked() (block-relationship existence is an integrity primitive; same shape as RelationshipValidator). Both opt out via accessCheck(false) with C-004 inline references; audit doc updated. No change to access pipeline, gate logic, or access semantics. -->
@@ -474,6 +475,7 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         ?LoggerInterface $logger = null,
         private readonly ?array $sessionCookieOptions = null,
         private readonly array $trustedProxies = [],
+        private readonly ?AccountContextInterface $accountContext = null,
     ) {}
 
     public function process(Request $request, HttpHandlerInterface $next): Response
@@ -485,8 +487,9 @@ Behavior:
 2. Loads User entity via `$this->userStorage->load($uid)`.
 3. Falls back to `AnonymousUser` if: no UID in session, load fails, or loaded entity is not `AccountInterface`.
 4. Sets `$request->attributes->set('_account', $account)`.
-5. Calls `$next->handle($request)`.
-6. Creates `NativeSession` with `$trustedProxies` so session cookie secure flag respects proxy trust.
+5. Mirrors the same account into the acting-account context (`$this->accountContext?->set($account)`) — unconditionally, on every request, including `AnonymousUser` (id 0). When `BearerAuthMiddleware` (higher priority) already resolved an authenticated `_account`, that account is mirrored instead. See "Acting-account context" below.
+6. Calls `$next->handle($request)`.
+7. Creates `NativeSession` with `$trustedProxies` so session cookie secure flag respects proxy trust.
 
 **Trusted proxy guard:** Both `NativeSession::isSecureConnection()` and `SessionMiddleware::isHttpsRequest()` only trust `X-Forwarded-Proto` when `REMOTE_ADDR` matches a configured trusted proxy IP. The header comparison is case-insensitive (`HTTPS`, `Https`, `https` all match). Both methods return `false` early when `REMOTE_ADDR` is empty or missing, preventing accidental matches against empty-string entries in the trusted list. Without trusted proxies configured, the header is ignored. Only exact IP addresses are supported (no CIDR notation). Configure via `'trusted_proxies' => ['127.0.0.1']` in `config/waaseyaa.php`.
 
@@ -534,6 +537,96 @@ Requires SessionMiddleware to run first. Enforced by middleware priority orderin
 ```
 
 Content-Type: `application/vnd.api+json`.
+
+## Acting-account context (`AccountContextInterface`)
+
+**Files:** `packages/access/src/Context/AccountContextInterface.php`,
+`packages/access/src/Context/RequestAccountContext.php`
+**Namespace:** `Waaseyaa\Access\Context`
+**Mission:** `revision-audit-provenance-01KTWY5V` (FR-002, #1644/#1645)
+
+A request-scoped holder for the **acting account** — the account in whose
+name the current operation runs. It exists so deep, non-HTTP-aware
+subsystems (entity storage's `revision_author` recording, the audit
+listeners' actor attribution) can read "who is acting" without the
+`_account` request attribute being threaded through every call signature.
+
+```php
+interface AccountContextInterface
+{
+    /** The acting account, or null when no acting context exists. */
+    public function current(): ?AccountInterface;
+
+    /** Set (or clear with null) the acting account for the current request/run scope. */
+    public function set(?AccountInterface $account): void;
+}
+```
+
+### Three-state model
+
+| State | `current()` | Meaning | Example contexts |
+|---|---|---|---|
+| Account N | account with `id() >= 1` (incl. `PHP_INT_MAX` dev fallback) | a real authenticated account is acting | web session, MCP bearer token, agent run initiator |
+| Anonymous | account with `id() === 0` (`AnonymousUser`) | an anonymous web actor is acting — anonymous IS an actor | unauthenticated HTTP request |
+| None | `null` | no acting context exists | CLI batch, queue worker, system bootstrap |
+
+Consumers must never collapse the last two: `0` means "the anonymous account
+did it", `null` means "nobody was in scope". No reader or writer may coerce
+`null → 0`.
+
+### Writer table (scoping discipline)
+
+`RequestAccountContext` is a deliberately dumb holder — it stores exactly
+what it is given. The set/restore discipline lives at the writer sites:
+
+| Writer | Scope | Discipline |
+|---|---|---|
+| `SessionMiddleware` (`packages/user`) | per HTTP request | HTTP requests are the outermost scope: **unconditional overwrite** on every request, never restores. Mirrors whatever lands in `_account` (authenticated N, `AnonymousUser` 0, dev fallback, or a bearer-auth-resolved account from `BearerAuthMiddleware`) |
+| `McpEndpoint` (`packages/mcp`) | per MCP request | sets the bearer-auth-resolved account after `authenticate()` succeeds; captures the prior value and **restores it in `finally`** (the MCP account deliberately differs from any session account) |
+| `AgentExecutor` (`packages/ai-agent`) | per agent run | sets the run's `$initiatorAccount` for the duration of the run (including queue-driven runs with no HTTP request); **restores the prior value in `finally`** so a thrown run never leaks the initiator into the next job on a long-lived worker, and nested scopes unwind correctly |
+| *(nothing)* | CLI / queue / bootstrap | nothing sets the context; readers get `null` |
+
+### Single kernel-shared instance and resolution
+
+The kernel constructs **exactly one** `RequestAccountContext` per process
+(`AbstractKernel::accountContext()`, lazily) and serves that same instance on
+every exposure path — a second construction site would silently fork the
+context. Resolution paths:
+
+- **Kernel-services bus** — service providers resolve
+  `AccountContextInterface::class` via `resolveOptional()` /
+  `safeResolve()` (this is how `AuditServiceProvider` injects it into the
+  audit listeners and `AiAgentServiceProvider` into `AgentExecutor`).
+  Bare-provider construction without a kernel resolves null; consumers then
+  read null actors — the correct degraded behavior.
+- **Handler container** — `AbstractKernel::buildHandlerContainer()` binds
+  `AccountContextInterface::class` to the kernel instance for
+  controller-side resolution (e.g. `McpServiceProvider`'s explicit
+  `McpEndpoint` binding).
+- **Repository factory** — the kernel attaches the instance to every
+  `EntityRepository` it builds (`setAccountContext()`), where it is the
+  ambient source for `revision_author` resolution.
+- **HTTP middleware** — `HttpKernel` passes the instance to
+  `SessionMiddleware`'s constructor.
+
+### Readers and the `SaveContext::withActorUid()` override
+
+- **Entity storage** (`packages/entity-storage`): `EntityRepository`
+  resolves the revision author once per revision-creating operation as
+  `SaveContext override → AccountContextInterface::current()?->id() → null`.
+  `SaveContext::withActorUid(?int)` is the explicit per-save override and
+  **wins over the ambient context** — including `withActorUid(null)`, which
+  forces a NULL author inside an authenticated request (system-attributed
+  maintenance writes). A context that never called `withActorUid()` defers
+  to this holder. Full contract: `docs/specs/revision-system-unified.md` §4a.
+- **Audit listeners** (`packages/audit`): `EntityLifecycleAuditListener`
+  reads it as the sole actor source; `AgentToolAuditListener` and
+  `PublishPointerAuditListener` use it as the fallback behind their events'
+  carried actor. Full catalogue: `docs/specs/ocap-audit-log.md`.
+
+There is no configuration surface: attribution has no opt-out switch by
+design (nullable columns and additive events make recording non-breaking);
+the per-save `withActorUid()` override is the only knob.
 
 ## CSRF Protection
 
@@ -676,6 +769,9 @@ packages/access/src/
     PermissionHandlerInterface.php   - Permission registry contract
     Attribute/
         AccessPolicy.php             - Plugin discovery attribute
+    Context/
+        AccountContextInterface.php  - Request-scoped acting-account holder contract (see "Acting-account context")
+        RequestAccountContext.php    - Default mutable holder (one instance per kernel)
     Gate/
         GateInterface.php            - Gate contract (allows/denies/authorize)
         Gate.php                     - Gate implementation with policy resolution

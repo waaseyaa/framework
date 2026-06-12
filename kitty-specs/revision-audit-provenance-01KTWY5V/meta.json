@@ -2,7 +2,7 @@
   "created_at": "2026-06-12T03:31:59.567088+00:00",
   "friendly_name": "Revision & Audit Provenance",
   "mission_id": "01KTWY5VRQH4QPFMCHX6BHX64F",
-  "mission_number": null,
+  "mission_number": 7,
   "mission_slug": "revision-audit-provenance-01KTWY5V",
   "mission_type": "software-dev",
   "slug": "revision-audit-provenance-01KTWY5V",

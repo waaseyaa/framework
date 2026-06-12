@@ -354,4 +354,142 @@ final class SqlSchemaHandlerTest extends TestCase
         $handler = new SqlSchemaHandler($configType, $this->database);
         $handler->ensureTable();
     }
+
+    // ------------------------------------------------------------------
+    // revision_author column (mission revision-audit-provenance-01KTWY5V
+    // FR-003, contract revision-author.md clauses 11–12)
+    // ------------------------------------------------------------------
+
+    private function revisionableType(string $id = 'node', bool $translatable = false): EntityType
+    {
+        $keys = ['id' => 'nid', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'];
+        if ($translatable) {
+            $keys['langcode'] = 'langcode';
+            $keys['default_langcode'] = 'default_langcode';
+        }
+
+        return new EntityType(
+            id: $id,
+            label: 'Content',
+            // Translatable types must implement TranslatableInterface;
+            // TestRevisionableEntity (ContentEntityBase) satisfies both axes.
+            class: \Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity::class,
+            keys: $keys,
+            revisionable: true,
+            revisionDefault: true,
+            translatable: $translatable,
+        );
+    }
+
+    /**
+     * @return array<string, mixed> Pre-mission revision-table spec (no revision_author).
+     */
+    private function preMissionRevisionTableSpec(bool $translation = false): array
+    {
+        $fields = [
+            'entity_id' => ['type' => 'varchar', 'length' => 128, 'not null' => true],
+            'revision_id' => ['type' => 'int', 'not null' => true],
+            'revision_created' => ['type' => 'varchar', 'length' => 32, 'not null' => true],
+            'revision_log' => ['type' => 'text', 'not null' => false],
+            '_data' => ['type' => 'text', 'not null' => true, 'default' => '{}'],
+        ];
+        $primaryKey = ['entity_id', 'revision_id'];
+        if ($translation) {
+            $fields = array_slice($fields, 0, 1, true)
+                + ['langcode' => ['type' => 'varchar', 'length' => 12, 'not null' => true]]
+                + $fields;
+            $primaryKey = ['entity_id', 'langcode', 'revision_id'];
+        }
+
+        return ['fields' => $fields, 'primary key' => $primaryKey, 'indexes' => []];
+    }
+
+    public function testNewRevisionTableSpecIncludesRevisionAuthor(): void
+    {
+        $db = DBALDatabase::createSqlite();
+        $handler = new SqlSchemaHandler($this->revisionableType(), $db);
+        $handler->ensureTable();
+        $handler->ensureRevisionTable();
+
+        $this->assertTrue($db->schema()->fieldExists('node_revision', 'revision_author'));
+    }
+
+    public function testNewTranslationRevisionTableSpecIncludesRevisionAuthor(): void
+    {
+        $db = DBALDatabase::createSqlite();
+        $handler = new SqlSchemaHandler($this->revisionableType('node', translatable: true), $db);
+        $handler->ensureTable();
+        $handler->ensureRevisionTable();
+        $handler->ensureTranslationRevisionTable();
+
+        $this->assertTrue($db->schema()->fieldExists('node__translation__revision', 'revision_author'));
+    }
+
+    public function testEnsureRevisionTableAddsAuthorColumnToPreExistingTable(): void
+    {
+        // Pre-mission-shaped revision table: created WITHOUT revision_author.
+        $db = DBALDatabase::createSqlite();
+        $db->schema()->createTable('node_revision', $this->preMissionRevisionTableSpec());
+        $this->assertFalse($db->schema()->fieldExists('node_revision', 'revision_author'));
+
+        $handler = new SqlSchemaHandler($this->revisionableType(), $db);
+        $handler->ensureRevisionTable();
+
+        $this->assertTrue(
+            $db->schema()->fieldExists('node_revision', 'revision_author'),
+            'The additive arm must add revision_author to a pre-existing revision table.',
+        );
+
+        // Idempotent: a second run is a no-op (no throw, column still present).
+        $handler->ensureRevisionTable();
+        $this->assertTrue($db->schema()->fieldExists('node_revision', 'revision_author'));
+    }
+
+    public function testEnsureTranslationRevisionTableAddsAuthorColumnToPreExistingTable(): void
+    {
+        $db = DBALDatabase::createSqlite();
+        $db->schema()->createTable('node__translation__revision', $this->preMissionRevisionTableSpec(translation: true));
+        $this->assertFalse($db->schema()->fieldExists('node__translation__revision', 'revision_author'));
+
+        $handler = new SqlSchemaHandler($this->revisionableType('node', translatable: true), $db);
+        $handler->ensureTranslationRevisionTable();
+
+        $this->assertTrue(
+            $db->schema()->fieldExists('node__translation__revision', 'revision_author'),
+            'The translation-revision sibling must get the same additive treatment.',
+        );
+
+        $handler->ensureTranslationRevisionTable();
+        $this->assertTrue($db->schema()->fieldExists('node__translation__revision', 'revision_author'));
+    }
+
+    public function testAdditiveAuthorArmTouchesNoOtherColumnAndNoRow(): void
+    {
+        $db = DBALDatabase::createSqlite();
+        $db->schema()->createTable('node_revision', $this->preMissionRevisionTableSpec());
+        $db->insert('node_revision')
+            ->fields(['entity_id', 'revision_id', 'revision_created', 'revision_log', '_data'])
+            ->values([
+                'entity_id' => '1',
+                'revision_id' => 1,
+                'revision_created' => '2026-01-01 00:00:00',
+                'revision_log' => 'pre-mission row',
+                '_data' => '{}',
+            ])
+            ->execute();
+
+        $handler = new SqlSchemaHandler($this->revisionableType(), $db);
+        $handler->ensureRevisionTable();
+
+        // C-001: no row rewritten — the pre-existing row is intact and its
+        // new author column reads SQL NULL.
+        $rows = [];
+        foreach ($db->query('SELECT * FROM node_revision') as $row) {
+            $rows[] = (array) $row;
+        }
+        $this->assertCount(1, $rows);
+        $this->assertSame('pre-mission row', $rows[0]['revision_log']);
+        $this->assertSame('2026-01-01 00:00:00', $rows[0]['revision_created']);
+        $this->assertNull($rows[0]['revision_author']);
+    }
 }

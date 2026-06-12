@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Kernel\Bootstrap;
 
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
+use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -29,6 +30,9 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
 
     /**
      * @param \Closure(): list<ServiceProvider> $providersAccessor
+     * @param AccountContextInterface|null $accountContext The kernel's shared acting-account
+     *        context (mission revision-audit-provenance-01KTWY5V FR-002); null when the
+     *        construction site has no kernel context.
      */
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
@@ -36,6 +40,7 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
         private readonly EventDispatcherInterface $dispatcher,
         private readonly LoggerInterface $logger,
         \Closure $providersAccessor,
+        private readonly ?AccountContextInterface $accountContext = null,
     ) {
         $this->providersAccessor = $providersAccessor;
     }
@@ -53,6 +58,9 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
         }
         if ($abstract === LoggerInterface::class) {
             return $this->logger;
+        }
+        if ($abstract === AccountContextInterface::class) {
+            return $this->accountContext;
         }
         if ($abstract === \PDO::class) {
             assert($this->database instanceof DBALDatabase);

@@ -69,21 +69,27 @@ final class RevisionableStorageDriver
      *
      * @param array<string, mixed> $values   Field values to snapshot.
      * @param ?string              $langcode Optional per-langcode pin. Two-axis only.
+     * @param ?int                 $author   Resolved acting account uid recorded as
+     *     `revision_author` (mission revision-audit-provenance-01KTWY5V, FR-001).
+     *     `0` = the anonymous account acted; `null` = no acting context (SQL NULL,
+     *     never coerced to 0). Resolution happens in EntityRepository — this
+     *     driver writes what it is given.
      * @return int The new revision ID.
      */
-    public function writeRevision(string $entityId, array $values, ?string $log, ?string $langcode = null): int
+    public function writeRevision(string $entityId, array $values, ?string $log, ?string $langcode = null, ?int $author = null): int
     {
         if ($langcode !== null && $this->isTwoAxis()) {
-            return $this->writePerLangcodeRevision($entityId, $values, $log, $langcode);
+            return $this->writePerLangcodeRevision($entityId, $values, $log, $langcode, $author);
         }
 
-        return $this->writeDefaultRevision($entityId, $values, $log);
+        return $this->writeDefaultRevision($entityId, $values, $log, $author);
     }
 
     /**
      * Update an existing revision row's field values in place.
      *
-     * Preserves revision_created and revision_log (immutable metadata).
+     * Preserves revision_created, revision_log, and revision_author
+     * (immutable revision metadata — contract revision-author.md clause 6).
      *
      * @param array<string, mixed> $values Updated field values.
      */
@@ -96,7 +102,7 @@ final class RevisionableStorageDriver
 
         $updateFields = [];
         foreach ($values as $key => $value) {
-            if (\in_array($key, [$idKey, 'entity_id', 'revision_id', 'revision_created', 'revision_log', 'is_default_revision', 'is_latest_revision'], true)) {
+            if (\in_array($key, [$idKey, 'entity_id', 'revision_id', 'revision_created', 'revision_log', 'revision_author', 'is_default_revision', 'is_latest_revision'], true)) {
                 continue;
             }
             $updateFields[$key] = $value;
@@ -125,7 +131,7 @@ final class RevisionableStorageDriver
             }
             $extra = [];
             foreach ($merged as $key => $value) {
-                if (\in_array($key, [$idKey, 'entity_id', 'revision_id', 'revision_created', 'revision_log', 'is_default_revision', 'is_latest_revision'], true)) {
+                if (\in_array($key, [$idKey, 'entity_id', 'revision_id', 'revision_created', 'revision_log', 'revision_author', 'is_default_revision', 'is_latest_revision'], true)) {
                     continue;
                 }
                 if ($schema->fieldExists($this->revisionTable, $key)) {
@@ -298,7 +304,7 @@ final class RevisionableStorageDriver
      *
      * @param array<string, mixed> $values
      */
-    private function writeDefaultRevision(string $entityId, array $values, ?string $log): int
+    private function writeDefaultRevision(string $entityId, array $values, ?string $log, ?int $author = null): int
     {
         $db = $this->getDatabase();
 
@@ -309,12 +315,18 @@ final class RevisionableStorageDriver
             'revision_id'      => $revisionId,
             'revision_created' => date('Y-m-d H:i:s'),
             'revision_log'     => $log,
+            // Resolved acting account (FR-001). SQL NULL when no actor was in
+            // scope; 0 if and only if the anonymous account acted.
+            'revision_author'  => $author,
         ];
 
         $keys = $this->entityType->getKeys();
         $idKey = $keys['id'] ?? 'id';
         foreach ($values as $key => $value) {
-            if ($key === $idKey || $key === 'revision_id' || $key === 'is_default_revision' || $key === 'is_latest_revision') {
+            // `revision_author` in $values is skipped: the explicit $author
+            // parameter is authoritative (a rollback re-reads an old revision
+            // row whose author must NOT leak onto the new revision).
+            if ($key === $idKey || $key === 'revision_id' || $key === 'revision_author' || $key === 'is_default_revision' || $key === 'is_latest_revision') {
                 continue;
             }
             $row[$key] = $value;
@@ -347,6 +359,7 @@ final class RevisionableStorageDriver
         array $values,
         ?string $log,
         string $langcode,
+        ?int $author = null,
     ): int {
         $db = $this->getDatabase();
 
@@ -358,6 +371,9 @@ final class RevisionableStorageDriver
             'revision_id'      => $revisionId,
             'revision_created' => date('Y-m-d H:i:s'),
             'revision_log'     => $log,
+            // Resolved acting account (FR-001) — same semantics as the
+            // single-axis path: NULL = no actor, 0 = anonymous.
+            'revision_author'  => $author,
         ];
 
         $keys = $this->entityType->getKeys();
@@ -367,6 +383,7 @@ final class RevisionableStorageDriver
                 $key === $idKey
                 || $key === 'revision_id'
                 || $key === 'langcode'
+                || $key === 'revision_author'
                 || $key === 'is_default_revision'
                 || $key === 'is_latest_revision'
             ) {

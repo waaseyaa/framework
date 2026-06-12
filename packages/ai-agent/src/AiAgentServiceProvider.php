@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Agent;
 
+use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\AI\Agent\Repository\AgentAuditLogRepository;
 use Waaseyaa\AI\Agent\Repository\AgentRunRepository;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
@@ -41,6 +42,11 @@ final class AiAgentServiceProvider extends ServiceProvider
             function (): AgentExecutor {
                 $logger = $this->safeResolve(LoggerInterface::class) ?? new NullLogger();
 
+                // Acting-account context (research D1 writer 3): resolved from
+                // the kernel-services bus when available; absent resolution →
+                // null, behavior-identical to before the context existed.
+                $accountContext = $this->safeResolve(AccountContextInterface::class);
+
                 return new AgentExecutor(
                     toolRegistry: $this->resolve(ToolRegistryInterface::class),
                     runRepository: $this->resolve(AgentRunRepository::class),
@@ -49,6 +55,7 @@ final class AiAgentServiceProvider extends ServiceProvider
                     hitlPollIntervalMs: (int) ($this->config['ai']['hitl_poll_interval_ms'] ?? 1000),
                     hitlTimeoutSeconds: (int) ($this->config['ai']['hitl_timeout_seconds'] ?? 300),
                     logger: $logger,
+                    accountContext: $accountContext instanceof AccountContextInterface ? $accountContext : null,
                 );
             },
         );

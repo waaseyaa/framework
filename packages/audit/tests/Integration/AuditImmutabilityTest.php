@@ -119,4 +119,55 @@ final class AuditImmutabilityTest extends TestCase
 
         $this->assertCount(0, $this->readAll(), 'Retention purge via the raw database must still work');
     }
+
+    // ------------------------------------------------------------------
+    // FR-008 / SC-003 (#1648, additions only): raw SQL through the
+    // decorator's query() can no longer mutate audit rows either.
+    // ------------------------------------------------------------------
+
+    #[Test]
+    public function a_written_event_cannot_be_mutated_by_raw_sql_through_the_audit_database(): void
+    {
+        $this->writeOneEvent();
+        $before = $this->readAll();
+        $this->assertCount(1, $before);
+
+        $mutations = [
+            "UPDATE audit_event SET outcome = 'denied'",
+            'DELETE FROM audit_event',
+            'DROP TABLE audit_event',
+            'ALTER TABLE audit_event ADD tampered INT',
+        ];
+
+        foreach ($mutations as $sql) {
+            try {
+                iterator_to_array($this->auditDb->query($sql));
+                $this->fail(sprintf('Raw SQL "%s" should have thrown \LogicException', $sql));
+            } catch (\LogicException $e) {
+                $this->assertStringContainsString('append-only', $e->getMessage());
+            }
+        }
+
+        // The row is byte-for-byte intact after every blocked attempt.
+        $after = $this->readAll();
+        $this->assertCount(1, $after);
+        $this->assertSame($before[0]->getEventKind(), $after[0]->getEventKind());
+        $this->assertSame($before[0]->getAccountUid(), $after[0]->getAccountUid());
+        $this->assertSame((string) $before[0]->get('uuid'), (string) $after[0]->get('uuid'));
+    }
+
+    #[Test]
+    public function a_raw_select_through_the_audit_database_still_works(): void
+    {
+        $this->writeOneEvent();
+
+        $rows = [];
+        foreach ($this->auditDb->query('SELECT event_kind, account_uid FROM audit_event') as $row) {
+            $rows[] = (array) $row;
+        }
+
+        $this->assertCount(1, $rows);
+        $this->assertSame(AuditEventKind::EntityWrite->value, $rows[0]['event_kind']);
+        $this->assertSame(7, (int) $rows[0]['account_uid']);
+    }
 }

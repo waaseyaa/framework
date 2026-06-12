@@ -7,6 +7,7 @@ namespace Waaseyaa\User\Middleware;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -27,6 +28,9 @@ final class SessionMiddleware implements HttpMiddlewareInterface
      * @param array<string, mixed>|null $sessionCookieOptions Optional session ini overrides before session_start().
      *        Keys: httponly (bool), secure (bool|'auto' — auto uses HTTPS detection), samesite (string), use_strict_mode (bool).
      * @param list<string> $trustedProxies IP addresses allowed to set X-Forwarded-Proto.
+     * @param AccountContextInterface|null $accountContext Request-scoped acting-account holder,
+     *        mirrored alongside the `_account` attribute on every request (mission
+     *        revision-audit-provenance-01KTWY5V FR-002). Null keeps legacy construction working.
      */
     public function __construct(
         private readonly EntityStorageInterface $userStorage,
@@ -34,6 +38,7 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         ?LoggerInterface $logger = null,
         private readonly ?array $sessionCookieOptions = null,
         private readonly array $trustedProxies = [],
+        private readonly ?AccountContextInterface $accountContext = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -54,11 +59,17 @@ final class SessionMiddleware implements HttpMiddlewareInterface
 
         $existingAccount = $request->attributes->get('_account');
         if ($existingAccount instanceof AccountInterface && $existingAccount->isAuthenticated()) {
+            // BearerAuthMiddleware (higher priority) already resolved an
+            // account — mirror it into the acting-account context too.
+            $this->accountContext?->set($existingAccount);
             return $next->handle($request);
         }
 
         $account = $this->resolveAccount($request);
         $request->attributes->set('_account', $account);
+        // HTTP requests are the outermost scope: overwrite unconditionally,
+        // never restore. Anonymous (id 0) is an actor and flows through too.
+        $this->accountContext?->set($account);
 
         return $next->handle($request);
     }

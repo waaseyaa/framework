@@ -19,8 +19,9 @@ use Waaseyaa\Entity\ContentEntityBase;
  * (throws \LogicException on any UPDATE/DELETE of audit_event); the only legal
  * deletion is the `audit:prune` retention purge via the raw DatabaseInterface.
  *
- * Schema columns: id, uuid, event_kind, account_uid, entity_type_id, entity_uuid,
- * subject_uri, outcome, severity, attributes (JSON), created_at.
+ * Schema columns: id, uuid, event_kind, account_uid, actor_uid (nullable
+ * three-state actor), entity_type_id, entity_uuid, subject_uri, outcome,
+ * severity, attributes (JSON), created_at.
  *
  * @api
  */
@@ -56,6 +57,22 @@ final class AuditEvent extends ContentEntityBase
     public function getAccountUid(): int
     {
         return (int) ($this->get('account_uid') ?? 0);
+    }
+
+    /**
+     * Authoritative three-state actor: account id N, `0` for the anonymous
+     * account, or `null` for "no acting context".
+     *
+     * Missing column (pre-migration row), SQL NULL, and the `''` empty
+     * sentinel all read as null — mirroring the {@see getEntityTypeId2()}
+     * empty-sentinel precedent. {@see getAccountUid()} stays the legacy
+     * `actor ?? 0` compat accessor.
+     */
+    public function getActorUid(): ?int
+    {
+        $val = $this->get('actor_uid');
+
+        return $val !== null && $val !== '' ? (int) $val : null;
     }
 
     public function getSubjectUri(): string

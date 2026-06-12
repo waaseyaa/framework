@@ -327,6 +327,9 @@ final class HttpKernel extends AbstractKernel
                 $this->logger,
                 $this->sessionCookieOptions(),
                 is_array($this->config['trusted_proxies'] ?? null) ? $this->config['trusted_proxies'] : [],
+                // The kernel's single acting-account context — the middleware
+                // mirrors `_account` into it on every request (FR-002).
+                accountContext: $this->accountContext(),
             ),
             new CsrfMiddleware(),
             new AuthorizationMiddleware($accessChecker, $errorPageRenderer),

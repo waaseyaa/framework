@@ -1,5 +1,6 @@
 # MCP Endpoint
 
+<!-- Spec reviewed 2026-06-12 - mission revision-audit-provenance-01KTWY5V WP05: McpEndpoint gains two optional ctor params (?EventDispatcherInterface, ?AccountContextInterface, container-injected via McpServiceProvider's explicit binding); dispatch() scopes the acting-account context to the bearer-auth account post-auth/pre-parse with finally-restore, and fires Waaseyaa\Mcp\Event\McpDispatchEvent ('waaseyaa.mcp.dispatch': method, raw params, ?accountUid) exactly once per authenticated well-formed JSON-RPC request, post-parse pre-routing, best-effort; 401/parse-error fire nothing; event name pinned cross-package to McpDispatchAuditListener::EVENT_NAME (mcp does not require audit at runtime; new require-dev edge for the pin test). McpEndpoint Class section also updated to the real post-M3 two-required-dep signature. Independent of #1635/#1636. Refs #1645. -->
 <!-- Spec reviewed 2026-05-25 - per-record-ai-access-flagship-01KSEFT5 WP02: McpEntityFieldFilter wired into McpController and EntityTools.getEntity(). Forbidden fields are now replaced by the canonical redaction marker {accessRestricted: true, reason: "field_forbidden_for_account"} rather than omitted. JSON:API omits; MCP redacts — both compliant with open-by-default; MCP redacts to preserve audit lineage. FR-005, FR-006, FR-007 satisfied. McpJsonApiFieldParityTest guards this contract. -->
 <!-- Spec reviewed 2026-06-04 - PR #1614 incidental (clearing #1593 drift): the read-only admin surface gained `Waaseyaa\Mcp\Admin\RecentInvocationsQueryInterface` (M5C WP01 T003) — a narrow optional port (`recentForTool(string $toolName, int $limit): list<RecentInvocation>`) implemented by an ai-observability adapter when installed; `ToolRegistryReadModel` degrades to an empty recentInvocations list when absent, so packages/mcp keeps no hard compile-time dependency on waaseyaa/ai-observability. #1592/#1593 also Nuxt-prefixed the admin table component names so the tool tables render. No change to the /mcp JSON-RPC endpoint contract. -->
 <!-- Spec reviewed 2026-05-25 - mcp-endpoint-admin-m5c-01KSEFTB: read-only admin surface (tool registry, per-tool detail, server config) -->
@@ -59,11 +60,14 @@ This means MCP route ownership no longer depends on foundation fallback registra
 
 ## McpEndpoint Class
 
-`McpEndpoint` is the main HTTP handler. It is a `final readonly class` that receives three dependencies via constructor injection:
+`McpEndpoint` is the main HTTP handler. It is a `final readonly class` that receives two required and two optional dependencies via constructor injection (the required pair per M3 `bimaaji-mcp-bridge-01KS5VS8` WP03; the optional pair per mission `revision-audit-provenance-01KTWY5V`):
 
 - `McpAuthInterface $auth` -- authenticates the request.
-- `ToolRegistryInterface $registry` -- provides tool definitions.
-- `ToolExecutorInterface $executor` -- executes tool calls.
+- `Waaseyaa\AI\Tools\ToolRegistryInterface $agentRegistry` -- the framework-wide agent tool registry, wrapped per-request by `AgentToolRegistryBridge` with the auth-resolved account.
+- `?EventDispatcherInterface $dispatcher = null` (Symfony contracts) -- optional; fires the `waaseyaa.mcp.dispatch` event (see "Dispatch event seam" below). When absent, the event is silently not fired (best-effort audit semantics).
+- `?AccountContextInterface $accountContext = null` -- optional acting-account holder (`Waaseyaa\Access\Context\`); when absent, no context scoping happens (behavior identical to before the context existed).
+
+`McpServiceProvider` binds `McpEndpoint` explicitly so `AppControllerRouter`'s controller resolution injects the kernel-services event dispatcher and acting-account context; both degrade to null when the kernel bus cannot supply them.
 
 ### handle() Method
 
@@ -81,13 +85,50 @@ This follows the typed `AppControllerRouter` contract (see **`docs/specs/app-con
 The internal dispatch method processes requests in this order:
 
 1. **Authenticate** -- calls `$this->auth->authenticate($authorizationHeader)`. If null is returned, responds with HTTP 401 and a JSON-RPC error (code `-32001`, message "Unauthorized").
-2. **Parse JSON-RPC** -- decodes the body with `json_decode()`. On `JsonException`, returns parse error (code `-32700`). On missing `method` field, returns invalid request (code `-32600`).
-3. **Dispatch** -- matches the JSON-RPC method to an internal handler:
+2. **Scope the acting-account context** -- immediately after successful auth (before body parsing), the endpoint captures the prior `AccountContextInterface` value and sets the bearer-auth-resolved account. The prior value is restored in `finally` — including when a routed handler throws — because the MCP account deliberately differs from any session account. No-op when no context was injected.
+3. **Parse JSON-RPC** -- decodes the body with `json_decode()`. On `JsonException`, returns parse error (code `-32700`). On missing `method` field, returns invalid request (code `-32600`).
+4. **Fire the dispatch event** -- see "Dispatch event seam" below. Fires exactly once per authenticated, well-formed request, immediately before method routing.
+5. **Dispatch** -- matches the JSON-RPC method to an internal handler:
    - `initialize` -- returns protocol version (`2025-03-26`), capabilities, and server info.
    - `ping` -- returns an empty result.
-   - `tools/list` -- iterates `$registry->getTools()` and returns tool definitions.
-   - `tools/call` -- validates `params.name`, looks up the tool, and delegates to `$executor->execute()`.
+   - `tools/list` -- returns tool definitions via the per-request bridge.
+   - `tools/call` -- validates `params.name`, looks up the tool, and executes it via the per-request bridge.
    - Any other method returns a "Method not found" error (code `-32601`).
+
+### Dispatch event seam (`waaseyaa.mcp.dispatch`)
+
+Added by mission `revision-audit-provenance-01KTWY5V` (FR-007, #1645). The
+audit package's `McpDispatchAuditListener` had subscribed to the
+`waaseyaa.mcp.dispatch` event name since the OCAP substrate landed, but
+nothing fired it. `McpEndpoint::dispatch()` now does.
+
+**Event:** `Waaseyaa\Mcp\Event\McpDispatchEvent`, dispatched under
+`McpDispatchEvent::NAME = 'waaseyaa.mcp.dispatch'`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `method` | string | JSON-RPC method (`tools/call`, `tools/list`, `initialize`, `ping`, …) |
+| `params` | array | **Raw** JSON-RPC params — the audit listener stores only a SHA-256 hash; the privacy property lives in the listener, and the dispatch site must NOT pre-hash |
+| `accountUid` | `?int` | The bearer-auth-resolved account id |
+
+**Firing contract:**
+
+- Fires **exactly once per authenticated, well-formed JSON-RPC request** —
+  after `authenticate()` succeeds and the envelope parses with a `method`
+  key, **before** method routing. Every JSON-RPC method invocation is
+  covered (the listener's documented contract), including `tools/call`.
+- Unauthenticated (401) requests and parse-error / invalid-request bodies
+  fire **nothing**.
+- **Best-effort**: the dispatch is wrapped in try/catch — an audit or
+  dispatcher failure never alters the JSON-RPC response. An absent
+  dispatcher means the event is simply not fired.
+- **Name pinning**: `McpDispatchEvent::NAME ===
+  McpDispatchAuditListener::EVENT_NAME` is pinned by a cross-package test.
+  The string literal is intentionally duplicated — mcp must not require
+  audit at runtime (audit is a `require-dev` edge for the pin test only).
+- **Independence**: the seam fires as the endpoint exists today; it does not
+  depend on (nor fix) the #1635/#1636 transport bugs or #1640 OAuth — those
+  remain separate work.
 
 ### McpResponse
 
