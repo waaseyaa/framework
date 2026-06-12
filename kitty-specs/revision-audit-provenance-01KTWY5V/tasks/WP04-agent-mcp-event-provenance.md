@@ -215,3 +215,4 @@ Context assertions ride the same fixtures: set to the bearer account during rout
 
 - 2026-06-12T03:32:00Z – spec-kitty.tasks – created
 - 2026-06-12T05:01:44Z – claude:fable-5:implementer:implementer – shell_pid=26240 – Started implementation via action command
+- 2026-06-12T05:17:30Z – claude:fable-5:implementer:implementer – shell_pid=26240 – Ready for review: AgentRunToolCallObserved accountId threaded at both dispatch sites, executor+endpoint context set/restore in finally, McpDispatchEvent fired post-auth/post-parse pre-match, name pinned to audit listener constant; 352 tests green, all gates clean
