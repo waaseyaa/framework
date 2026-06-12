@@ -251,3 +251,4 @@ bin/check-dead-code
 
 - 2026-06-12T03:32:00Z – spec-kitty.tasks – created
 - 2026-06-12T04:35:10Z – claude:fable-5:implementer:implementer – shell_pid=10660 – Started implementation via action command
+- 2026-06-12T04:55:24Z – claude:fable-5:implementer:implementer – shell_pid=10660 – Ready for review: revision_author on both revision tables (new specs + additive sync arm), actor threaded to all 7 writeRevision callsites, setAccountContext receiver activates WP01 seam, RevisionMetadata hydration + docblock fix, RevisionPointerMovedEvent on publish/revert. Gates green; NFR-001 measured 1.004x (bound 1.05x).
