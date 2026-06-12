@@ -18,8 +18,8 @@ subtasks:
 - T012
 - T013
 - T014
-agent: "claude:fable-5:implementer:implementer"
-shell_pid: "20852"
+agent: "claude:fable-5:reviewer:reviewer"
+shell_pid: "14752"
 history:
 - date: '2026-06-12T01:48:54Z'
   event: created
@@ -129,3 +129,4 @@ One end-to-end case through the real tool dispatch surface (the same path the in
 
 - 2026-06-12T02:40:50Z – claude:fable-5:implementer:implementer – shell_pid=20852 – Started implementation via action command
 - 2026-06-12T02:53:57Z – claude:fable-5:implementer:implementer – shell_pid=20852 – Ready for review
+- 2026-06-12T02:54:49Z – claude:fable-5:reviewer:reviewer – shell_pid=14752 – Started review via action command
