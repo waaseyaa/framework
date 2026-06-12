@@ -7,5 +7,7 @@
   "mission_type": "software-dev",
   "slug": "optimistic-locking-01KTXCHY",
   "source_description": "Framework issue #1647: saves are silent last-write-wins; agent tools cannot express an expected revision. Sprint Mission 4; target v0.1.0-alpha.207.",
-  "target_branch": "main"
+  "target_branch": "main",
+  "vcs": "git",
+  "vcs_locked_at": "2026-06-12T08:10:35.045487+00:00"
 }

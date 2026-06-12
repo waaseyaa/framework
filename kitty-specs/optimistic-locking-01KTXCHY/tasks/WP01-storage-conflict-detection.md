@@ -16,7 +16,9 @@ requirement_refs:
 planning_base_branch: main
 merge_target_branch: main
 branch_strategy: Planning artifacts for this feature were generated on main. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into main unless the human explicitly redirects the landing branch.
-created_at: '2026-06-12T00:00:00+00:00'
+base_branch: kitty/mission-optimistic-locking-01KTXCHY
+base_commit: c4d61b3e7b05c67dfb991572ac1702de70fe0dc4
+created_at: '2026-06-12T08:10:38.311993+00:00'
 subtasks:
 - T001
 - T002
@@ -24,6 +26,7 @@ subtasks:
 - T004
 - T005
 - T006
+shell_pid: '20768'
 history:
 - date: '2026-06-12T00:00:00Z'
   event: created
