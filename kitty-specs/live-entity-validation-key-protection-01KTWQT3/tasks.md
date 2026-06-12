@@ -17,11 +17,11 @@
 | T007 | Integration tests: booted-kernel enforcement, opt-outs, saveMany | WP02 | | [D] |
 | T008 | Full-suite triage: fix framework saves that newly fail | WP02 | | [D] |
 | T009 | Perf smoke for NFR-001 (≤10% median overhead) | WP02 | | [D] |
-| T010 | EntityKeyGuard: refusal-set resolution + unit tests | WP03 | [P] |
-| T011 | EntityCreateTool: refusal + structured validation errors | WP03 | |
-| T012 | EntityUpdateTool: refusal + structured validation errors | WP03 | |
-| T013 | Tool unit tests: short-circuit, shapes, determinism | WP03 | |
-| T014 | Dispatch-path integration test (agent dispatch refusal) | WP03 | |
+| T010 | EntityKeyGuard: refusal-set resolution + unit tests | WP03 | [D] |
+| T011 | EntityCreateTool: refusal + structured validation errors | WP03 | | [D] |
+| T012 | EntityUpdateTool: refusal + structured validation errors | WP03 | | [D] |
+| T013 | Tool unit tests: short-circuit, shapes, determinism | WP03 | | [D] |
+| T014 | Dispatch-path integration test (agent dispatch refusal) | WP03 | | [D] |
 | T015 | CHANGELOG [Unreleased] BREAKING entry + upgrade note | WP04 | [P] |
 | T016 | Spec docs + CLAUDE.md environment entry | WP04 | [P] |
 | T017 | SqlStorageDriver id-exclusion comment + pinning test | WP04 | [P] |
@@ -63,11 +63,11 @@
 **Independent test**: `./vendor/bin/phpunit packages/ai-tools/tests/` green; refusal short-circuit proven (storage never touched).
 **Dependencies**: WP01 (validation-error mapping consumes live constraint derivation in tests; runs in its own parallel lane)
 
-- [ ] T010 EntityKeyGuard: refusal set per research D4 + unit tests incl. renamed keys, label/bundle not refused (WP03)
-- [ ] T011 EntityCreateTool: guard before construction (id refused per D3), EntityValidationException mapping, dry-run refusal (WP03)
-- [ ] T012 EntityUpdateTool: guard before mutation, same error mapping, dry-run refusal (WP03)
-- [ ] T013 Tool unit tests: short-circuit, error shapes, sorted determinism, revision_log still writable (WP03)
-- [ ] T014 Dispatch-path integration test: refusal over the agent dispatch surface (WP03)
+- [x] T010 EntityKeyGuard: refusal set per research D4 + unit tests incl. renamed keys, label/bundle not refused (WP03)
+- [x] T011 EntityCreateTool: guard before construction (id refused per D3), EntityValidationException mapping, dry-run refusal (WP03)
+- [x] T012 EntityUpdateTool: guard before mutation, same error mapping, dry-run refusal (WP03)
+- [x] T013 Tool unit tests: short-circuit, error shapes, sorted determinism, revision_log still writable (WP03)
+- [x] T014 Dispatch-path integration test: refusal over the agent dispatch surface (WP03)
 
 **Implementation sketch**: contracts/tool-refusal.md is the authoritative behavior spec; check order is capability → args → type existence → access → refusal → save. Risk: `AgentToolResult::error()` may not support content payloads — verify and fall back to message-only (D6 allows it).
 
