@@ -14,11 +14,11 @@
 | T004 | NFR-002 byte-identity pin test (denied vs missing: bodies byte-equal, status equal, entity never serialized) | WP01 | | [D] |
 | T005 | Deliberate test updates: access-control 403→404 assertions, discovery unit/router tests, Phase7 integration account-aware | WP01 | | [D] |
 | T006 | WP01 gates: full api/entity suites, phpstan, cs, layers, dead-code | WP01 | | [D] |
-| T007 | BearerTokenAuth constant-time full-scan hash_equals comparison (string-cast keys, no early exit) | WP02 | |
-| T008 | Blocked-account duck-typed isActive() fail-closed rejection + auth unit tests (existing matrix unchanged) | WP02 | |
-| T009 | DatabaseBootstrapper: project-root absolutization (Windows-aware) + optional logger + docroot warning; AbstractKernel passes logger | WP02 | |
-| T010 | CLI parity: DbInitHandler resolution rules; HealthReport/About display resolved path; handler tests | WP02 | |
-| T011 | Tests: DatabaseBootstrapper resolution/warning matrix + tests/Integration/DbPath HTTP-vs-CLI agreement under docroot CWD | WP02 | |
+| T007 | BearerTokenAuth constant-time full-scan hash_equals comparison (string-cast keys, no early exit) | WP02 | | [D] |
+| T008 | Blocked-account duck-typed isActive() fail-closed rejection + auth unit tests (existing matrix unchanged) | WP02 | | [D] |
+| T009 | DatabaseBootstrapper: project-root absolutization (Windows-aware) + optional logger + docroot warning; AbstractKernel passes logger | WP02 | | [D] |
+| T010 | CLI parity: DbInitHandler resolution rules; HealthReport/About display resolved path; handler tests | WP02 | | [D] |
+| T011 | Tests: DatabaseBootstrapper resolution/warning matrix + tests/Integration/DbPath HTTP-vs-CLI agreement under docroot CWD | WP02 | | [D] |
 | T012 | CHANGELOG [Unreleased]: 403→404 break (C-001, prominent), discovery default + flag, bearer hardening, path fix + warning | WP03 | |
 | T013 | Spec docs: api-layer.md, mcp-endpoint.md, infrastructure.md updated from the contracts | WP03 | |
 | T014 | Drift detector run; resolve flags for the three touched specs | WP03 | |
@@ -47,11 +47,11 @@
 **Independent test**: `./vendor/bin/phpunit packages/mcp/tests/Unit/Auth/ packages/foundation/tests/Unit/Kernel/Bootstrap/ packages/cli/tests/Unit/Handler/ tests/Integration/DbPath/` green, including the existing 7-test bearer matrix unchanged.
 **Dependencies**: none (parallel-safe with WP01; disjoint files)
 
-- [ ] T007 BearerTokenAuth: full-scan `hash_equals((string) $candidate, $token)` with no early exit, single return; numeric-string-key cast pinned; `getTokens()` untouched (WP02)
-- [ ] T008 Blocked check: matched account with `method_exists('isActive')` and `isActive() === false` → null (fail closed, indistinguishable from unknown token); NEW `BearerTokenAuthHardeningTest` (blocked/active/no-method/numeric-token/match-position cases); existing `BearerTokenAuthTest` green unchanged (NFR-003: zero queries) (WP02)
-- [ ] T009 DatabaseBootstrapper: absolutize relative env/config paths against `$projectRoot` (`:memory:`, `/`, drive-letter, UNC pass through; `./` stripped; `../` climbs from project root); optional `?LoggerInterface $logger = null`; lexical docroot containment check → `warning`; AbstractKernel:197 passes `$this->logger` (WP02)
-- [ ] T010 CLI parity: DbInitHandler `resolveDatabasePath()`/`absolutize()` adopt identical rules (config values absolutized — verbatim today; Windows absolutes recognized — `/`-only today); HealthReportHandler:115 + AboutHandler:44 display the resolved path; handler unit tests (WP02)
-- [ ] T011 Tests: DatabaseBootstrapperTest resolution + docroot-warning matrix (spy logger; no-logger silence; `:memory:` never warns); NEW `tests/Integration/DbPath/DbPathResolutionTest.php` — HTTP-shaped vs CLI-shaped resolution agree under a docroot CWD, write-through-one/read-through-other, nothing materializes under the docroot (SC-004) (WP02)
+- [x] T007 BearerTokenAuth: full-scan `hash_equals((string) $candidate, $token)` with no early exit, single return; numeric-string-key cast pinned; `getTokens()` untouched (WP02)
+- [x] T008 Blocked check: matched account with `method_exists('isActive')` and `isActive() === false` → null (fail closed, indistinguishable from unknown token); NEW `BearerTokenAuthHardeningTest` (blocked/active/no-method/numeric-token/match-position cases); existing `BearerTokenAuthTest` green unchanged (NFR-003: zero queries) (WP02)
+- [x] T009 DatabaseBootstrapper: absolutize relative env/config paths against `$projectRoot` (`:memory:`, `/`, drive-letter, UNC pass through; `./` stripped; `../` climbs from project root); optional `?LoggerInterface $logger = null`; lexical docroot containment check → `warning`; AbstractKernel:197 passes `$this->logger` (WP02)
+- [x] T010 CLI parity: DbInitHandler `resolveDatabasePath()`/`absolutize()` adopt identical rules (config values absolutized — verbatim today; Windows absolutes recognized — `/`-only today); HealthReportHandler:115 + AboutHandler:44 display the resolved path; handler unit tests (WP02)
+- [x] T011 Tests: DatabaseBootstrapperTest resolution + docroot-warning matrix (spy logger; no-logger silence; `:memory:` never warns); NEW `tests/Integration/DbPath/DbPathResolutionTest.php` — HTTP-shaped vs CLI-shaped resolution agree under a docroot CWD, write-through-one/read-through-other, nothing materializes under the docroot (SC-004) (WP02)
 
 **Implementation sketch**: research D4–D6, contracts/bearer-and-dbpath.md authoritative. The path fix is one method (`resolvePath()`) because every runtime funnels through `AbstractKernel:197` — verified in research; the CLI's divergent `db:init` resolution and the two display surfaces are the parity tail. The integration test manipulates CWD — restore it in `finally` and use per-test temp project dirs (scratch-hygiene rule).
 
