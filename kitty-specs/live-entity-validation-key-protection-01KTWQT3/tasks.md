@@ -22,10 +22,10 @@
 | T012 | EntityUpdateTool: refusal + structured validation errors | WP03 | | [D] |
 | T013 | Tool unit tests: short-circuit, shapes, determinism | WP03 | | [D] |
 | T014 | Dispatch-path integration test (agent dispatch refusal) | WP03 | | [D] |
-| T015 | CHANGELOG [Unreleased] BREAKING entry + upgrade note | WP04 | [P] |
-| T016 | Spec docs + CLAUDE.md environment entry | WP04 | [P] |
-| T017 | SqlStorageDriver id-exclusion comment + pinning test | WP04 | [P] |
-| T018 | Drift check + quickstart walkthrough validation | WP04 | |
+| T015 | CHANGELOG [Unreleased] BREAKING entry + upgrade note | WP04 | [D] |
+| T016 | Spec docs + CLAUDE.md environment entry | WP04 | [D] |
+| T017 | SqlStorageDriver id-exclusion comment + pinning test | WP04 | [D] |
+| T018 | Drift check + quickstart walkthrough validation | WP04 | | [D] |
 
 ## WP01 — Constraint Derivation & Default Validator (entity package)
 
@@ -78,10 +78,10 @@
 **Independent test**: quickstart.md walkthrough passes end-to-end; `composer verify` green.
 **Dependencies**: WP01, WP02, WP03
 
-- [ ] T015 CHANGELOG [Unreleased]: BREAKING entry — newly-failing saves (incl. the Type-constraint case), both opt-outs, create-tool id refusal (WP04)
-- [ ] T016 docs/specs/entity-system.md + docs/specs/ai-integration.md updates; CLAUDE.md Environment entry for WAASEYAA_ENTITY_VALIDATION (WP04)
-- [ ] T017 SqlStorageDriver: explaining comment at the id-exclusion + pinning test (WP04)
-- [ ] T018 Run tools/drift-detector.sh; execute quickstart.md steps 1–6 as final validation (WP04)
+- [x] T015 CHANGELOG [Unreleased]: BREAKING entry — newly-failing saves (incl. the Type-constraint case), both opt-outs, create-tool id refusal (WP04)
+- [x] T016 docs/specs/entity-system.md + docs/specs/ai-integration.md updates; CLAUDE.md Environment entry for WAASEYAA_ENTITY_VALIDATION (WP04)
+- [x] T017 SqlStorageDriver: explaining comment at the id-exclusion + pinning test (WP04)
+- [x] T018 Run tools/drift-detector.sh; execute quickstart.md steps 1–6 as final validation (WP04)
 
 **Implementation sketch**: write docs from the contracts, not from memory of the diff. T017 is the only code touch (comment + test). Risk: none; gate is `composer verify`.
 
