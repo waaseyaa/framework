@@ -18,12 +18,12 @@
 | T008 | SqlSchemaHandler revision_author in both revision-table specs + additive ADD-COLUMN arm | WP02 | | [D] |
 | T009 | RevisionMetadata hydration on revision loads + docblock fix (D7) | WP02 | | [D] |
 | T010 | Integration tests: record/readback, revert authorship, pre-existing-table migration, NFR-001 perf | WP02 | | [D] |
-| T011 | AuditEventSchemaHandler actor_uid (CREATE + guarded ALTER + index); descriptor ?int; writer dual-column; AuditEvent::getActorUid() | WP03 | |
-| T012 | Listener actor sources: lifecycle from context, agent-tool event→context→null, MCP null-preserving | WP03 | |
-| T013 | PublishPointerAuditListener + 2 additive AuditEventKind cases + provider wiring + composer access edge | WP03 | |
-| T014 | AppendOnlyAuditDatabase::query() literal-stripping token guard (D6) | WP03 | |
-| T015 | Unit tests: listener actor matrices, guard matrix, writer/descriptor/read model | WP03 | |
-| T016 | Integration tests: AuditAttributionTest (4 surfaces, NFR-002) + AuditImmutabilityTest raw-SQL + suite green (NFR-003) | WP03 | |
+| T011 | AuditEventSchemaHandler actor_uid (CREATE + guarded ALTER + index); descriptor ?int; writer dual-column; AuditEvent::getActorUid() | WP03 | | [D] |
+| T012 | Listener actor sources: lifecycle from context, agent-tool event→context→null, MCP null-preserving | WP03 | | [D] |
+| T013 | PublishPointerAuditListener + 2 additive AuditEventKind cases + provider wiring + composer access edge | WP03 | | [D] |
+| T014 | AppendOnlyAuditDatabase::query() literal-stripping token guard (D6) | WP03 | | [D] |
+| T015 | Unit tests: listener actor matrices, guard matrix, writer/descriptor/read model | WP03 | | [D] |
+| T016 | Integration tests: AuditAttributionTest (4 surfaces, NFR-002) + AuditImmutabilityTest raw-SQL + suite green (NFR-003) | WP03 | | [D] |
 | T017 | AgentRunToolCallObserved additive `?int $accountId` + AgentExecutor (both dispatch sites, context set/restore) | WP04 | [D] |
 | T018 | McpDispatchEvent + McpEndpoint optional dispatcher, fire post-auth/post-parse, context set/restore | WP04 | [D] |
 | T019 | Unit tests: ai-agent/ai-observability + McpEndpointDispatchEventTest + event-name pin | WP04 | [D] |
@@ -69,12 +69,12 @@
 **Independent test**: `./vendor/bin/phpunit packages/audit/tests/` green including the unchanged immutability/chaos suite; `bin/check-package-layers` + `composer check-composer-policy` green with the new audit → access edge.
 **Dependencies**: WP01, WP02, WP04
 
-- [ ] T011 AuditEventSchemaHandler: actor_uid in CREATE TABLE + idempotent guarded ALTER for existing installs + index; AuditEventDescriptor::$accountUid int→?int; AuditEventWriter actor_uid verbatim + account_uid = actor ?? 0; AuditEvent::getActorUid(): ?int (WP03)
-- [ ] T012 EntityLifecycleAuditListener actor from AccountContext (drop entity-uid resolution); AgentToolAuditListener event accountId → context → null; McpDispatchAuditListener null-preserving (WP03)
-- [ ] T013 PublishPointerAuditListener (RevisionPointerMovedEvent → revision.publish / revision.revert additive kinds); AuditServiceProvider wiring; composer.json same-layer access edge `^0.1.0-alpha.203` per CP-NEW (re-verify tag at implementation time) (WP03)
-- [ ] T014 AppendOnlyAuditDatabase::query() literal-stripping token guard sharing assertMutable()'s message factory (D6) (WP03)
-- [ ] T015 Unit tests: per-listener actor matrices (N/0/null, entity-uid never consulted), publish listener kinds + payload, guard matrix (verbs × tables × literals × comments), descriptor/writer/read model (WP03)
-- [ ] T016 Integration tests: AuditAttributionTest — all four surfaces record correct actor_uid (NFR-002 100%); AuditImmutabilityTest extended with raw UPDATE/DELETE/DROP/ALTER via query() throwing (SC-003); existing immutability + chaos + prune suite green unchanged (NFR-003) (WP03)
+- [x] T011 AuditEventSchemaHandler: actor_uid in CREATE TABLE + idempotent guarded ALTER for existing installs + index; AuditEventDescriptor::$accountUid int→?int; AuditEventWriter actor_uid verbatim + account_uid = actor ?? 0; AuditEvent::getActorUid(): ?int (WP03)
+- [x] T012 EntityLifecycleAuditListener actor from AccountContext (drop entity-uid resolution); AgentToolAuditListener event accountId → context → null; McpDispatchAuditListener null-preserving (WP03)
+- [x] T013 PublishPointerAuditListener (RevisionPointerMovedEvent → revision.publish / revision.revert additive kinds); AuditServiceProvider wiring; composer.json same-layer access edge `^0.1.0-alpha.203` per CP-NEW (re-verify tag at implementation time) (WP03)
+- [x] T014 AppendOnlyAuditDatabase::query() literal-stripping token guard sharing assertMutable()'s message factory (D6) (WP03)
+- [x] T015 Unit tests: per-listener actor matrices (N/0/null, entity-uid never consulted), publish listener kinds + payload, guard matrix (verbs × tables × literals × comments), descriptor/writer/read model (WP03)
+- [x] T016 Integration tests: AuditAttributionTest — all four surfaces record correct actor_uid (NFR-002 100%); AuditImmutabilityTest extended with raw UPDATE/DELETE/DROP/ALTER via query() throwing (SC-003); existing immutability + chaos + prune suite green unchanged (NFR-003) (WP03)
 
 **Implementation sketch**: research D3/D4/D6, contracts/audit-attribution.md authoritative. Expect to UPDATE existing attribution assertions that encode the #1645 bug (entity-uid actors) — deliberately and visibly; the immutability/prune/chaos tests must pass UNCHANGED.
 
