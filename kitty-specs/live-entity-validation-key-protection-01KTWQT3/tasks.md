@@ -13,10 +13,10 @@
 | T003 | EntityValidator::createDefault() factory | WP01 | [D] |
 | T004 | Unit tests: Range arm | WP01 | | [D] |
 | T005 | Unit tests: declared-constraint merge + precedence | WP01 | | [D] |
-| T006 | Kernel wiring with WAASEYAA_ENTITY_VALIDATION opt-out | WP02 | |
-| T007 | Integration tests: booted-kernel enforcement, opt-outs, saveMany | WP02 | |
-| T008 | Full-suite triage: fix framework saves that newly fail | WP02 | |
-| T009 | Perf smoke for NFR-001 (≤10% median overhead) | WP02 | |
+| T006 | Kernel wiring with WAASEYAA_ENTITY_VALIDATION opt-out | WP02 | | [D] |
+| T007 | Integration tests: booted-kernel enforcement, opt-outs, saveMany | WP02 | | [D] |
+| T008 | Full-suite triage: fix framework saves that newly fail | WP02 | | [D] |
+| T009 | Perf smoke for NFR-001 (≤10% median overhead) | WP02 | | [D] |
 | T010 | EntityKeyGuard: refusal-set resolution + unit tests | WP03 | [P] |
 | T011 | EntityCreateTool: refusal + structured validation errors | WP03 | |
 | T012 | EntityUpdateTool: refusal + structured validation errors | WP03 | |
@@ -49,10 +49,10 @@
 **Independent test**: `tests/Integration/Validation/KernelValidationWiringTest.php` green in a booted kernel; full `./vendor/bin/phpunit` green.
 **Dependencies**: WP01
 
-- [ ] T006 Wire shared EntityValidator in AbstractKernel repository factory + WAASEYAA_ENTITY_VALIDATION opt-out (WP02)
-- [ ] T007 Integration tests: rejection pre-persistence, valid saves, env opt-out, validate:false, saveMany rollback (WP02)
-- [ ] T008 Full-suite triage: fix newly-failing framework saves (definitions/data or visible validate:false — never weaken the seam) (WP02)
-- [ ] T009 Perf smoke: 200-save comparison, assert ≤10% median overhead (WP02)
+- [x] T006 Wire shared EntityValidator in AbstractKernel repository factory + WAASEYAA_ENTITY_VALIDATION opt-out (WP02)
+- [x] T007 Integration tests: rejection pre-persistence, valid saves, env opt-out, validate:false, saveMany rollback (WP02)
+- [x] T008 Full-suite triage: fix newly-failing framework saves (definitions/data or visible validate:false — never weaken the seam) (WP02)
+- [x] T009 Perf smoke: 200-save comparison, assert ≤10% median overhead (WP02)
 
 **Implementation sketch**: research D1/D2. Biggest risk is T008 unknowns — system entities violating their own declared constraints; budget most review attention there. If a fix is required in files outside this WP's ownership, record it in the WP review notes for orchestrator action instead of editing silently.
 
