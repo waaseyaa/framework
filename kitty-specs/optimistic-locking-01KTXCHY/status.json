@@ -1,16 +1,16 @@
 {
-  "event_count": 31,
-  "last_event_id": "01KTXJZ0V9WAS8BRBN0BMWA3VY",
-  "materialized_at": "2026-06-12T09:35:13.769581+00:00",
+  "event_count": 32,
+  "last_event_id": "01KTXJZ4JAP923X1PCRJ6CKM51",
+  "materialized_at": "2026-06-12T09:35:17.578742+00:00",
   "mission_number": "9",
   "mission_slug": "optimistic-locking-01KTXCHY",
   "mission_type": "software-dev",
   "summary": {
-    "approved": 1,
+    "approved": 0,
     "blocked": 0,
     "canceled": 0,
     "claimed": 0,
-    "done": 2,
+    "done": 3,
     "for_review": 0,
     "in_progress": 0,
     "in_review": 0,
@@ -33,10 +33,10 @@
     },
     "WP03": {
       "actor": "user",
-      "force_count": 2,
-      "lane": "approved",
-      "last_event_id": "01KTXJVCJ5XJBKB8H5K33P3PXP",
-      "last_transition_at": "2026-06-12T09:33:14.693818+00:00"
+      "force_count": 3,
+      "lane": "done",
+      "last_event_id": "01KTXJZ4JAP923X1PCRJ6CKM51",
+      "last_transition_at": "2026-06-12T09:35:17.578742+00:00"
     }
   }
 }
