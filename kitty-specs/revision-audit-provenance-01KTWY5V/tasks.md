@@ -24,9 +24,9 @@
 | T014 | AppendOnlyAuditDatabase::query() literal-stripping token guard (D6) | WP03 | |
 | T015 | Unit tests: listener actor matrices, guard matrix, writer/descriptor/read model | WP03 | |
 | T016 | Integration tests: AuditAttributionTest (4 surfaces, NFR-002) + AuditImmutabilityTest raw-SQL + suite green (NFR-003) | WP03 | |
-| T017 | AgentRunToolCallObserved additive `?int $accountId` + AgentExecutor (both dispatch sites, context set/restore) | WP04 | [P] |
-| T018 | McpDispatchEvent + McpEndpoint optional dispatcher, fire post-auth/post-parse, context set/restore | WP04 | [P] |
-| T019 | Unit tests: ai-agent/ai-observability + McpEndpointDispatchEventTest + event-name pin | WP04 | [P] |
+| T017 | AgentRunToolCallObserved additive `?int $accountId` + AgentExecutor (both dispatch sites, context set/restore) | WP04 | [D] |
+| T018 | McpDispatchEvent + McpEndpoint optional dispatcher, fire post-auth/post-parse, context set/restore | WP04 | [D] |
+| T019 | Unit tests: ai-agent/ai-observability + McpEndpointDispatchEventTest + event-name pin | WP04 | [D] |
 | T020 | CHANGELOG [Unreleased] entries (column, actor semantics, kinds/events, guard) | WP05 | |
 | T021 | Spec docs: revision-system-unified (FR-009 retirement), ocap-audit-log, mcp-endpoint, access-control | WP05 | |
 | T022 | Drift detector run for touched specs | WP05 | |
@@ -85,9 +85,9 @@
 **Independent test**: `./vendor/bin/phpunit packages/ai-agent/tests/ packages/ai-observability/tests/ packages/mcp/tests/` green; event name pinned to the audit listener's constant by test.
 **Dependencies**: WP01
 
-- [ ] T017 AgentRunToolCallObserved: additive `?int $accountId = null`; AgentExecutor passes initiator at both dispatch sites (:337, :367) + set/restore AccountContext around executeRun() in finally (WP04)
-- [ ] T018 NEW McpDispatchEvent (NAME 'waaseyaa.mcp.dispatch'); McpEndpoint optional `?EventDispatcherInterface`, fire post-auth/post-parse pre-match, best-effort try/catch; AccountContext set/restore to bearer-auth account in finally (WP04)
-- [ ] T019 Unit tests: event accountId carried on success + threw paths; context restored after run (incl. throw); endpoint fires exactly once, 401/parse-error fire nothing, RPC response unchanged on dispatcher failure; `McpDispatchEvent::NAME === McpDispatchAuditListener::EVENT_NAME` pin (WP04)
+- [x] T017 AgentRunToolCallObserved: additive `?int $accountId = null`; AgentExecutor passes initiator at both dispatch sites (:337, :367) + set/restore AccountContext around executeRun() in finally (WP04)
+- [x] T018 NEW McpDispatchEvent (NAME 'waaseyaa.mcp.dispatch'); McpEndpoint optional `?EventDispatcherInterface`, fire post-auth/post-parse pre-match, best-effort try/catch; AccountContext set/restore to bearer-auth account in finally (WP04)
+- [x] T019 Unit tests: event accountId carried on success + threw paths; context restored after run (incl. throw); endpoint fires exactly once, 401/parse-error fire nothing, RPC response unchanged on dispatcher failure; `McpDispatchEvent::NAME === McpDispatchAuditListener::EVENT_NAME` pin (WP04)
 
 **Implementation sketch**: research D1 (setters 2–3), D5. The event-name pin test lives in packages/mcp/tests with a require-dev `waaseyaa/audit` edge (L6→L1 downward, legal). Runs lane-parallel after its dependency completes.
 
