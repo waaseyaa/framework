@@ -26,8 +26,8 @@ subtasks:
 - T004
 - T005
 - T006
-shell_pid: "20768"
-agent: "claude:fable-5:implementer:implementer"
+shell_pid: "11732"
+agent: "claude:fable-5:reviewer:reviewer"
 history:
 - date: '2026-06-12T00:00:00Z'
   event: created
@@ -238,3 +238,4 @@ Integration (`#[CoversNothing]`, integration suite conventions):
 - 2026-06-12T00:00:00Z – spec-kitty.tasks – created
 - 2026-06-12T08:10:40Z – claude:fable-5:implementer:implementer – shell_pid=20768 – Assigned agent via action command
 - 2026-06-12T08:30:34Z – claude:fable-5:implementer:implementer – shell_pid=20768 – Ready for review
+- 2026-06-12T08:31:50Z – claude:fable-5:reviewer:reviewer – shell_pid=11732 – Started review via action command
