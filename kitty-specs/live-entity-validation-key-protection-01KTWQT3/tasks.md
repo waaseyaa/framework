@@ -8,11 +8,11 @@
 
 | ID | Description | WP | Parallel |
 |----|-------------|----|----------|
-| T001 | Range derivation arm in FieldDefinitionConstraintBuilder | WP01 | |
-| T002 | Per-field getConstraints() merge (append, fail-loud) | WP01 | |
-| T003 | EntityValidator::createDefault() factory | WP01 | [P] |
-| T004 | Unit tests: Range arm | WP01 | |
-| T005 | Unit tests: declared-constraint merge + precedence | WP01 | |
+| T001 | Range derivation arm in FieldDefinitionConstraintBuilder | WP01 | | [D] |
+| T002 | Per-field getConstraints() merge (append, fail-loud) | WP01 | | [D] |
+| T003 | EntityValidator::createDefault() factory | WP01 | [D] |
+| T004 | Unit tests: Range arm | WP01 | | [D] |
+| T005 | Unit tests: declared-constraint merge + precedence | WP01 | | [D] |
 | T006 | Kernel wiring with WAASEYAA_ENTITY_VALIDATION opt-out | WP02 | |
 | T007 | Integration tests: booted-kernel enforcement, opt-outs, saveMany | WP02 | |
 | T008 | Full-suite triage: fix framework saves that newly fail | WP02 | |
@@ -34,11 +34,11 @@
 **Independent test**: `./vendor/bin/phpunit packages/entity/tests/` green; new builder cases prove Range + merge semantics with zero kernel involvement.
 **Dependencies**: none (lane root)
 
-- [ ] T001 Range derivation arm in FieldDefinitionConstraintBuilder (WP01)
-- [ ] T002 Per-field getConstraints() merge — append, fail-loud on non-Constraint (WP01)
-- [ ] T003 EntityValidator::createDefault() factory (WP01)
-- [ ] T004 Unit tests: Range arm — min/max/both/neither/non-numeric (WP01)
-- [ ] T005 Unit tests: merge + type-level precedence preserved (WP01)
+- [x] T001 Range derivation arm in FieldDefinitionConstraintBuilder (WP01)
+- [x] T002 Per-field getConstraints() merge — append, fail-loud on non-Constraint (WP01)
+- [x] T003 EntityValidator::createDefault() factory (WP01)
+- [x] T004 Unit tests: Range arm — min/max/both/neither/non-numeric (WP01)
+- [x] T005 Unit tests: merge + type-level precedence preserved (WP01)
 
 **Implementation sketch**: extend `constraintsForField()` with the Range arm mirroring `lengthConstraint()`'s shape; append `$def->getConstraints()` with instanceof guard; add stateless `createDefault()` wrapping `Validation::createValidator()` (research D1, D5). Risks: none structural — pure additive package-local change.
 
