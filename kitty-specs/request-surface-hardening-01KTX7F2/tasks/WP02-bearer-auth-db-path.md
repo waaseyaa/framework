@@ -19,8 +19,8 @@ subtasks:
 - T009
 - T010
 - T011
-agent: "claude:fable-5:implementer:implementer"
-shell_pid: "23912"
+agent: "claude:fable-5:reviewer:reviewer"
+shell_pid: "26804"
 history:
 - date: '2026-06-12T00:00:00Z'
   event: created
@@ -215,3 +215,4 @@ bin/check-dead-code
 - 2026-06-12T00:00:00Z – spec-kitty.tasks – created
 - 2026-06-12T06:58:41Z – claude:fable-5:implementer:implementer – shell_pid=23912 – Started implementation via action command
 - 2026-06-12T07:17:57Z – claude:fable-5:implementer:implementer – shell_pid=23912 – Ready for review
+- 2026-06-12T07:18:56Z – claude:fable-5:reviewer:reviewer – shell_pid=26804 – Started review via action command
