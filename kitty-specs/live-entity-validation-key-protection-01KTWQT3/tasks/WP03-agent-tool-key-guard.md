@@ -132,3 +132,4 @@ One end-to-end case through the real tool dispatch surface (the same path the in
 - 2026-06-12T02:54:49Z – claude:fable-5:reviewer:reviewer – shell_pid=14752 – Started review via action command
 - 2026-06-12T02:59:26Z – claude:fable-5:reviewer:reviewer – shell_pid=14752 – Moved to planned
 - 2026-06-12T03:00:01Z – claude:fable-5:implementer:implementer – shell_pid=14224 – Started implementation via action command
+- 2026-06-12T03:02:31Z – claude:fable-5:implementer:implementer – shell_pid=14224 – Cycle 2: check-order pinning tests added
