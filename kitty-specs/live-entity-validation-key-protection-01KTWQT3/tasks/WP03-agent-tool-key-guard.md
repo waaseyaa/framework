@@ -18,6 +18,8 @@ subtasks:
 - T012
 - T013
 - T014
+agent: "claude:fable-5:implementer:implementer"
+shell_pid: "20852"
 history:
 - date: '2026-06-12T01:48:54Z'
   event: created
@@ -122,3 +124,7 @@ One end-to-end case through the real tool dispatch surface (the same path the in
 - Confirm the guard reads the *registered* key columns (renamed-id case), not just literals.
 - Determinism: violation sorting must be by field name with a stable tiebreak; reject `usort` without one.
 - Watch for scope creep into #1638 (per-type/per-field write scoping) — this WP protects identity keys only.
+
+## Activity Log
+
+- 2026-06-12T02:40:50Z – claude:fable-5:implementer:implementer – shell_pid=20852 – Started implementation via action command
