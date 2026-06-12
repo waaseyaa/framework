@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.207] - 2026-06-12
+
 ### Added
 
 - **Opt-in optimistic locking: expected-revision conflict detection (`entity-storage`, `ai-tools`, `api`).** A caller that read revision N can now state that expectation on the save and have a competing write refused instead of silently overwritten (#1647, mission optimistic-locking-01KTXCHY):
