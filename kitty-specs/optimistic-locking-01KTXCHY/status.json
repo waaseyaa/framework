@@ -1,7 +1,7 @@
 {
-  "event_count": 15,
-  "last_event_id": "01KTXG5SQA64ZEKEN4DRC2H097",
-  "materialized_at": "2026-06-12T08:46:30.122525+00:00",
+  "event_count": 17,
+  "last_event_id": "01KTXG6MYY0SNBS9J559X3X2C7",
+  "materialized_at": "2026-06-12T08:46:58.014628+00:00",
   "mission_number": "",
   "mission_slug": "optimistic-locking-01KTXCHY",
   "mission_type": "software-dev",
@@ -12,9 +12,9 @@
     "claimed": 0,
     "done": 0,
     "for_review": 0,
-    "in_progress": 0,
+    "in_progress": 1,
     "in_review": 0,
-    "planned": 2
+    "planned": 1
   },
   "work_packages": {
     "WP01": {
@@ -25,11 +25,11 @@
       "last_transition_at": "2026-06-12T08:46:30.122525+00:00"
     },
     "WP02": {
-      "actor": "finalize-tasks",
+      "actor": "claude:fable-5:implementer:implementer",
       "force_count": 1,
-      "lane": "planned",
-      "last_event_id": "01KTXE3X9D7FS42VJ515M0FR7M",
-      "last_transition_at": "2026-06-12T08:10:31.085611+00:00"
+      "lane": "in_progress",
+      "last_event_id": "01KTXG6MYY0SNBS9J559X3X2C7",
+      "last_transition_at": "2026-06-12T08:46:58.014628+00:00"
     },
     "WP03": {
       "actor": "finalize-tasks",

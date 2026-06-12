@@ -21,6 +21,8 @@ subtasks:
 - T010
 - T011
 - T012
+agent: "claude:fable-5:implementer:implementer"
+shell_pid: "27620"
 history:
 - date: '2026-06-12T00:00:00Z'
   event: created
@@ -217,3 +219,4 @@ After this WP: `entity.update` accepts `expected_revision_id` and turns a moved 
 ## Activity Log
 
 - 2026-06-12T00:00:00Z – spec-kitty.tasks – created
+- 2026-06-12T08:46:58Z – claude:fable-5:implementer:implementer – shell_pid=27620 – Started implementation via action command
