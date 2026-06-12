@@ -17,7 +17,7 @@ history:
 - date: '2026-06-12T03:32:00Z'
   event: created
   by: spec-kitty.tasks
-authoritative_surface: packages/mcp/src/
+authoritative_surface: packages/mcp/
 execution_mode: code_change
 owned_files:
 - packages/ai-agent/**

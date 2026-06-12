@@ -28,7 +28,7 @@ history:
 - date: '2026-06-12T03:32:00Z'
   event: created
   by: spec-kitty.tasks
-authoritative_surface: packages/audit/src/
+authoritative_surface: packages/audit/
 execution_mode: code_change
 owned_files:
 - packages/audit/**
