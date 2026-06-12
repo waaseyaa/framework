@@ -18,6 +18,8 @@ subtasks:
 - T013
 - T014
 - T015
+agent: "claude:fable-5:implementer:implementer"
+shell_pid: "21672"
 history:
 - date: '2026-06-12T00:00:00Z'
   event: created
@@ -135,3 +137,4 @@ Execute `quickstart.md` steps 1–6 end-to-end against merged WP01+WP02 and reco
 ## Activity Log
 
 - 2026-06-12T00:00:00Z – spec-kitty.tasks – created
+- 2026-06-12T07:23:48Z – claude:fable-5:implementer:implementer – shell_pid=21672 – Started implementation via action command
