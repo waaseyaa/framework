@@ -1,16 +1,16 @@
 {
-  "event_count": 25,
-  "last_event_id": "01KTXCB7HHDG5FC7X4670DA9S4",
-  "materialized_at": "2026-06-12T07:39:33.809692+00:00",
+  "event_count": 26,
+  "last_event_id": "01KTXCBB8PEWS8JYTM78WHMZ41",
+  "materialized_at": "2026-06-12T07:39:37.622736+00:00",
   "mission_number": "8",
   "mission_slug": "request-surface-hardening-01KTX7F2",
   "mission_type": "software-dev",
   "summary": {
-    "approved": 2,
+    "approved": 1,
     "blocked": 0,
     "canceled": 0,
     "claimed": 0,
-    "done": 1,
+    "done": 2,
     "for_review": 0,
     "in_progress": 0,
     "in_review": 0,
@@ -26,10 +26,10 @@
     },
     "WP02": {
       "actor": "user",
-      "force_count": 2,
-      "lane": "approved",
-      "last_event_id": "01KTXBCYT26T90ZYFQCFK433Y2",
-      "last_transition_at": "2026-06-12T07:23:01.826501+00:00"
+      "force_count": 3,
+      "lane": "done",
+      "last_event_id": "01KTXCBB8PEWS8JYTM78WHMZ41",
+      "last_transition_at": "2026-06-12T07:39:37.622736+00:00"
     },
     "WP03": {
       "actor": "user",
