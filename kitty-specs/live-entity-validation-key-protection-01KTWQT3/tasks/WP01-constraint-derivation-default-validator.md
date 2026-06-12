@@ -18,7 +18,8 @@ subtasks:
 - T003
 - T004
 - T005
-shell_pid: '18748'
+shell_pid: "18748"
+agent: "claude:fable-5:implementer:implementer"
 history:
 - date: '2026-06-12T01:48:54Z'
   event: created
@@ -143,3 +144,7 @@ Cases (use array-shaped definitions like the existing tests, plus at least one `
 - The precedence pin (T005 case 4) is the highest-value assertion — it proves we didn't silently change `EntityTypeValidationConstraints` semantics.
 - Check the Range arm guards `is_numeric` before casting; a string `'50'` in settings is valid input (settings come from arrays/config).
 - `createDefault()` must NOT cache statically — kernel shares the instance; the factory stays dumb.
+
+## Activity Log
+
+- 2026-06-12T01:54:48Z – claude:fable-5:implementer:implementer – shell_pid=18748 – Assigned agent via action command
