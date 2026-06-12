@@ -13,6 +13,8 @@ subtasks:
 - T017
 - T018
 - T019
+agent: "claude:fable-5:implementer:implementer"
+shell_pid: "26240"
 history:
 - date: '2026-06-12T03:32:00Z'
   event: created
@@ -212,3 +214,4 @@ Context assertions ride the same fixtures: set to the bearer account during rout
 ## Activity Log
 
 - 2026-06-12T03:32:00Z – spec-kitty.tasks – created
+- 2026-06-12T05:01:44Z – claude:fable-5:implementer:implementer – shell_pid=26240 – Started implementation via action command
