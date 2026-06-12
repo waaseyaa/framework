@@ -223,3 +223,4 @@ No new manifest edges; no PHPStan baseline additions; `isDiscoverable()` is wire
 
 - 2026-06-12T00:00:00Z – spec-kitty.tasks – created
 - 2026-06-12T06:42:09Z – claude:fable-5:implementer:implementer – shell_pid=27092 – Assigned agent via action command
+- 2026-06-12T06:53:56Z – claude:fable-5:implementer:implementer – shell_pid=27092 – Ready for review: discovery filtering + denied-as-404; all gates green; one deviation: JsonApiAccessIntegrationTest (Phase7) denied-show assertions updated 403->404 (encoded the #1649 oracle, not in owned_files)
