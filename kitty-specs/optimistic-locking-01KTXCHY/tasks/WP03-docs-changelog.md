@@ -17,8 +17,8 @@ subtasks:
 - T014
 - T015
 - T016
-agent: "claude:fable-5:implementer:implementer"
-shell_pid: "18580"
+agent: "claude:fable-5:reviewer:reviewer"
+shell_pid: "27188"
 history:
 - date: '2026-06-12T00:00:00Z'
   event: created
@@ -130,3 +130,4 @@ bin/check-package-layers
   - §6 gates: `composer phpstan` → OK no errors; `composer cs-check` → 0 violations; `bin/check-dead-code` → OK no new findings; `composer check-composer-policy` → OK; `bin/check-package-layers` → OK (the two new downward edges pass). Targeted suites: entity-storage package → OK 744 tests/2034 assertions (2 pre-existing deprecations); ai-tools + api packages → OK 564/1753; Integration/Locking + Integration/AgentRun → OK 7/53. (`composer verify` full-suite run delegated to CI per the orchestrator's targeted-gate instruction.)
 - 2026-06-12 – claude:fable-5:implementer – Deviation log: (1) commit-time spec-kitty guard emitted "out of scope" WARNINGs naming WP01's owned_files list for all five WP03-owned files — stale guard scope, non-blocking, files match this WP's `owned_files` frontmatter exactly. (2) CHANGELOG now contains a second `### Changed` heading inside `[Unreleased]` — the inevitable shape of the prescribed insert-directly-after-the-heading merge-anchor pattern; the release-cut consolidation can merge them.
 - 2026-06-12T09:28:13Z – claude:fable-5:implementer:implementer – shell_pid=18580 – Ready for review
+- 2026-06-12T09:28:54Z – claude:fable-5:reviewer:reviewer – shell_pid=27188 – Started review via action command
