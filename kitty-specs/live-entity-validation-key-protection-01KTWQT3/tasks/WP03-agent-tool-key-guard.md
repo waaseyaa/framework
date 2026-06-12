@@ -135,3 +135,4 @@ One end-to-end case through the real tool dispatch surface (the same path the in
 - 2026-06-12T03:02:31Z – claude:fable-5:implementer:implementer – shell_pid=14224 – Cycle 2: check-order pinning tests added
 - 2026-06-12T03:03:04Z – claude:fable-5:reviewer:reviewer – shell_pid=15928 – Started review via action command
 - 2026-06-12T03:04:47Z – claude:fable-5:reviewer:reviewer – shell_pid=15928 – Review passed cycle 2: check-order pinned
+- 2026-06-12T03:25:59Z – claude:fable-5:reviewer:reviewer – shell_pid=15928 – Done override: Mission squash-merged to main as 051766833
