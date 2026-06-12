@@ -237,3 +237,4 @@ Integration (`#[CoversNothing]`, integration suite conventions):
 
 - 2026-06-12T00:00:00Z – spec-kitty.tasks – created
 - 2026-06-12T08:10:40Z – claude:fable-5:implementer:implementer – shell_pid=20768 – Assigned agent via action command
+- 2026-06-12T08:30:34Z – claude:fable-5:implementer:implementer – shell_pid=20768 – Ready for review
