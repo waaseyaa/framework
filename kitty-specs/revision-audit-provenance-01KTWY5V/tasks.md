@@ -12,12 +12,12 @@
 | T002 | SessionMiddleware sets the context alongside `_account` (+ HttpKernel pass) | WP01 | | [D] |
 | T003 | AbstractKernel shared instance, repository-factory seam, services-bus exposure | WP01 | | [D] |
 | T004 | Unit tests: holder (set/current/clear/null default) + middleware test | WP01 | | [D] |
-| T005 | SaveContext::withActorUid(?int) + actorOverridden flag + unit tests | WP02 | |
-| T006 | EntityRepository actor resolution → all 7 writeRevision sites + RevisionPointerMovedEvent | WP02 | |
-| T007 | RevisionableStorageDriver trailing `?int $author` + column write on both paths | WP02 | |
-| T008 | SqlSchemaHandler revision_author in both revision-table specs + additive ADD-COLUMN arm | WP02 | |
-| T009 | RevisionMetadata hydration on revision loads + docblock fix (D7) | WP02 | |
-| T010 | Integration tests: record/readback, revert authorship, pre-existing-table migration, NFR-001 perf | WP02 | |
+| T005 | SaveContext::withActorUid(?int) + actorOverridden flag + unit tests | WP02 | | [D] |
+| T006 | EntityRepository actor resolution → all 7 writeRevision sites + RevisionPointerMovedEvent | WP02 | | [D] |
+| T007 | RevisionableStorageDriver trailing `?int $author` + column write on both paths | WP02 | | [D] |
+| T008 | SqlSchemaHandler revision_author in both revision-table specs + additive ADD-COLUMN arm | WP02 | | [D] |
+| T009 | RevisionMetadata hydration on revision loads + docblock fix (D7) | WP02 | | [D] |
+| T010 | Integration tests: record/readback, revert authorship, pre-existing-table migration, NFR-001 perf | WP02 | | [D] |
 | T011 | AuditEventSchemaHandler actor_uid (CREATE + guarded ALTER + index); descriptor ?int; writer dual-column; AuditEvent::getActorUid() | WP03 | |
 | T012 | Listener actor sources: lifecycle from context, agent-tool event→context→null, MCP null-preserving | WP03 | |
 | T013 | PublishPointerAuditListener + 2 additive AuditEventKind cases + provider wiring + composer access edge | WP03 | |
@@ -53,12 +53,12 @@
 **Independent test**: `./vendor/bin/phpunit packages/entity-storage/tests/ tests/Integration/Provenance/` green, including the pre-existing-table migration case and the NFR-001 perf smoke.
 **Dependencies**: WP01
 
-- [ ] T005 SaveContext: `withActorUid(?int)` + `actorOverridden` flag threaded through every existing `with*()` builder + unit tests incl. explicit-null override (WP02)
-- [ ] T006 EntityRepository: `setAccountContext()` receiver, actor resolution once per operation, threaded to all 7 writeRevision callsites; RevisionPointerMovedEvent (publish|revert, from→to) dispatched from setPublishedRevision()/setCurrentRevision() alongside legacy REVISION_REVERTED (WP02)
-- [ ] T007 RevisionableStorageDriver: trailing `?int $author = null` on writeRevision(); `revision_author` written on both private row-assembly paths; updateRevision() exclusion (WP02)
-- [ ] T008 SqlSchemaHandler: revision_author in buildRevisionTableSpec() + buildTranslationRevisionTableSpec(); additive fieldExists→addField arm in ensureRevisionTable()/ensureTranslationRevisionTable() (research falsification #1 — both early-return today; mirror ensureBundleSubtable) (WP02)
-- [ ] T009 RevisionMetadata hydration in loadRevision() + translation-revision loads; RevisionMetadata docblock corrected to the live dialect (D7) (WP02)
-- [ ] T010 Integration tests: record/readback matrix (N/0/null), revert authorship, override precedence, pre-existing-table additive migration + null-author readback, physical-column pin, kernel-booted SC-001 + NFR-001 ≤5% perf smoke (WP02)
+- [x] T005 SaveContext: `withActorUid(?int)` + `actorOverridden` flag threaded through every existing `with*()` builder + unit tests incl. explicit-null override (WP02)
+- [x] T006 EntityRepository: `setAccountContext()` receiver, actor resolution once per operation, threaded to all 7 writeRevision callsites; RevisionPointerMovedEvent (publish|revert, from→to) dispatched from setPublishedRevision()/setCurrentRevision() alongside legacy REVISION_REVERTED (WP02)
+- [x] T007 RevisionableStorageDriver: trailing `?int $author = null` on writeRevision(); `revision_author` written on both private row-assembly paths; updateRevision() exclusion (WP02)
+- [x] T008 SqlSchemaHandler: revision_author in buildRevisionTableSpec() + buildTranslationRevisionTableSpec(); additive fieldExists→addField arm in ensureRevisionTable()/ensureTranslationRevisionTable() (research falsification #1 — both early-return today; mirror ensureBundleSubtable) (WP02)
+- [x] T009 RevisionMetadata hydration in loadRevision() + translation-revision loads; RevisionMetadata docblock corrected to the live dialect (D7) (WP02)
+- [x] T010 Integration tests: record/readback matrix (N/0/null), revert authorship, override precedence, pre-existing-table additive migration + null-author readback, physical-column pin, kernel-booted SC-001 + NFR-001 ≤5% perf smoke (WP02)
 
 **Implementation sketch**: research D2/D4, contracts/revision-author.md is the authoritative behavior spec. Biggest risk: the additive sync arm (the spec's original assumption that sync machinery existed for revision tables was falsified — research "Verified ground truth"). The kernel-booted test exercises WP01's forward seam end-to-end.
 
