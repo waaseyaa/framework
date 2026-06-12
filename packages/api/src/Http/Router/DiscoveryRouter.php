@@ -38,7 +38,7 @@ final class DiscoveryRouter implements DomainRouterInterface
         $params = $request->attributes->all();
 
         if (str_contains($controller, 'ApiDiscoveryController')) {
-            $discoveryController = new ApiDiscoveryController($this->entityTypeManager);
+            $discoveryController = new ApiDiscoveryController($this->entityTypeManager, account: $ctx->account);
             $result = $discoveryController->discover();
 
             return $this->jsonApiResponse(200, ['jsonapi' => ['version' => '1.1'], ...$result]);

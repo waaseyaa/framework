@@ -1,5 +1,6 @@
 # MCP Endpoint
 
+<!-- Spec reviewed 2026-06-12 - mission request-surface-hardening-01KTX7F2 WP03 (#1652): BearerTokenAuth::authenticate() hardened. (1) Constant-time comparison — the array lookup is replaced by a full hash_equals() scan over EVERY token-map entry with no early exit (whole-call timing independent of which entry matches); map keys are (string)-cast before comparison because PHP coerces purely numeric token strings to int array keys. (2) Blocked-account fail-closed check — a matched account exposing isActive() (duck-typed method_exists; AccountInterface has no status member, no mcp→user manifest edge) that returns false is rejected with null, byte-indistinguishable from an unknown token (same 401 JSON-RPC envelope; no blocked-vs-invalid oracle). Zero added queries (NFR-003): kernels and token maps are per-request, so the in-memory isActive() read reflects persisted state as of this request's boot. Accounts without isActive() authenticate as before — custom McpAuthInterface implementations own their account objects' liveness semantics. Prefix handling and getTokens() (admin fingerprinting) unchanged. Pinned by BearerTokenAuthHardeningTest; the pre-existing 7-test BearerTokenAuthTest matrix passes unchanged. -->
 <!-- Spec reviewed 2026-06-12 - mission revision-audit-provenance-01KTWY5V WP05: McpEndpoint gains two optional ctor params (?EventDispatcherInterface, ?AccountContextInterface, container-injected via McpServiceProvider's explicit binding); dispatch() scopes the acting-account context to the bearer-auth account post-auth/pre-parse with finally-restore, and fires Waaseyaa\Mcp\Event\McpDispatchEvent ('waaseyaa.mcp.dispatch': method, raw params, ?accountUid) exactly once per authenticated well-formed JSON-RPC request, post-parse pre-routing, best-effort; 401/parse-error fire nothing; event name pinned cross-package to McpDispatchAuditListener::EVENT_NAME (mcp does not require audit at runtime; new require-dev edge for the pin test). McpEndpoint Class section also updated to the real post-M3 two-required-dep signature. Independent of #1635/#1636. Refs #1645. -->
 <!-- Spec reviewed 2026-05-25 - per-record-ai-access-flagship-01KSEFT5 WP02: McpEntityFieldFilter wired into McpController and EntityTools.getEntity(). Forbidden fields are now replaced by the canonical redaction marker {accessRestricted: true, reason: "field_forbidden_for_account"} rather than omitted. JSON:API omits; MCP redacts — both compliant with open-by-default; MCP redacts to preserve audit lineage. FR-005, FR-006, FR-007 satisfied. McpJsonApiFieldParityTest guards this contract. -->
 <!-- Spec reviewed 2026-06-04 - PR #1614 incidental (clearing #1593 drift): the read-only admin surface gained `Waaseyaa\Mcp\Admin\RecentInvocationsQueryInterface` (M5C WP01 T003) — a narrow optional port (`recentForTool(string $toolName, int $limit): list<RecentInvocation>`) implemented by an ai-observability adapter when installed; `ToolRegistryReadModel` degrades to an empty recentInvocations list when absent, so packages/mcp keeps no hard compile-time dependency on waaseyaa/ai-observability. #1592/#1593 also Nuxt-prefixed the admin table component names so the tool tables render. No change to the /mcp JSON-RPC endpoint contract. -->
@@ -40,7 +41,7 @@ Kernel-level failures before MCP dispatch are governed by the JSON-first HTTP er
 | `src/McpRouteProvider.php` | Registers `/mcp` and `/.well-known/mcp.json` routes |
 | `src/McpServerCard.php` | Generates the `/.well-known/mcp.json` server card |
 | `src/Auth/McpAuthInterface.php` | Pluggable authentication contract |
-| `src/Auth/BearerTokenAuth.php` | MVP auth: opaque bearer token to account mapping |
+| `src/Auth/BearerTokenAuth.php` | MVP auth: opaque bearer token to account mapping — constant-time full-scan comparison + blocked-account fail-closed check (#1652) |
 | `src/Bridge/ToolRegistryInterface.php` | Interface for accessing MCP tool definitions |
 | `src/Bridge/ToolExecutorInterface.php` | Interface for executing MCP tool calls |
 | `src/Cache/ReadCache.php` | Read-path cache: TTL, key generation, tag building, invalidation support |
@@ -84,7 +85,7 @@ This follows the typed `AppControllerRouter` contract (see **`docs/specs/app-con
 
 The internal dispatch method processes requests in this order:
 
-1. **Authenticate** -- calls `$this->auth->authenticate($authorizationHeader)`. If null is returned, responds with HTTP 401 and a JSON-RPC error (code `-32001`, message "Unauthorized").
+1. **Authenticate** -- calls `$this->auth->authenticate($authorizationHeader)`. If null is returned, responds with HTTP 401 and a JSON-RPC error (code `-32001`, message "Unauthorized"). The 401 envelope is identical for every `null` cause — missing/malformed header, unknown token, or a token whose account is blocked (#1652) — so callers cannot distinguish a blocked token from an invalid one.
 2. **Scope the acting-account context** -- immediately after successful auth (before body parsing), the endpoint captures the prior `AccountContextInterface` value and sets the bearer-auth-resolved account. The prior value is restored in `finally` — including when a routed handler throws — because the MCP account deliberately differs from any session account. No-op when no context was injected.
 3. **Parse JSON-RPC** -- decodes the body with `json_decode()`. On `JsonException`, returns parse error (code `-32700`). On missing `method` field, returns invalid request (code `-32600`).
 4. **Fire the dispatch event** -- see "Dispatch event seam" below. Fires exactly once per authenticated, well-formed request, immediately before method routing.
@@ -292,21 +293,24 @@ Takes the raw `Authorization` header value. Returns the authenticated `AccountIn
 
 ### BearerTokenAuth
 
-MVP implementation that maps opaque bearer tokens to user accounts:
+MVP implementation that maps opaque bearer tokens to user accounts, hardened by mission request-surface-hardening-01KTX7F2 (#1652, FR-005/FR-006):
 
 ```php
 final readonly class BearerTokenAuth implements McpAuthInterface
 {
-    /** @param array<string, AccountInterface> $tokens */
+    /** @param array<string|int, AccountInterface> $tokens */
     public function __construct(private array $tokens) {}
 }
 ```
 
-Behavior:
+Behavior (`authenticate()` decision order):
 - Returns `null` if the header is missing or empty.
-- Returns `null` if the header does not start with `Bearer ` (case-insensitive check).
-- Extracts the token (characters after `Bearer `) and looks it up in the `$tokens` map.
+- Returns `null` if the header does not start with `Bearer ` (case-insensitive check). These prefix checks run before any comparison, exactly as before #1652.
+- **Constant-time full scan (FR-005):** the token (characters after `Bearer `) is compared against **every** entry of the token map with `hash_equals()` — no early exit on match, one return after the loop. Per-comparison timing is `hash_equals`' constant-time guarantee; whole-call timing does not depend on *which* entry matches. Each map key is `(string)`-cast before comparison — PHP coerces purely numeric token strings to `int` array keys, and `hash_equals()` requires strings; a numeric token authenticates correctly (pinned by test).
+- **Blocked-account rejection, fail closed (FR-006):** when the matched account exposes `isActive()` (duck-typed `method_exists`) and it returns `false`, `authenticate()` returns `null`. The caller-visible outcome is identical to an unknown token — `McpEndpoint` emits the same 401 JSON-RPC envelope, so there is no blocked-vs-invalid oracle. `AccountInterface` has no status member and is deliberately not widened; the framework's `User` entity exposes `isActive(): bool` (the same liveness accessor the session login query's `status = 1` condition mirrors), and no `mcp → user` manifest edge is added (research D4). **An account object without an `isActive()` method authenticates as before** — custom `McpAuthInterface`/account implementations own the liveness semantics of their own account objects.
+- **Zero added queries (NFR-003):** the status read is an in-memory method call on the already-resolved account object. Kernels — and therefore token maps and their account objects — are constructed per request in every runtime, so the read reflects persisted state as of the current request's boot. No re-load, no cache, no new I/O.
 - Each token maps to a specific user account, so MCP tool calls respect entity access control.
+- `getTokens()` (the admin-fingerprinting accessor, `ServerConfigReadModel` contract) keeps returning the raw token→account map, unchanged.
 - No token expiry in MVP. OAuth 2.1 adapter replaces this later.
 
 ### Authentication Roadmap

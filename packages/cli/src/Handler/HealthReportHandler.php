@@ -8,6 +8,8 @@ use Waaseyaa\CLI\CliIO;
 use Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface;
 use Waaseyaa\Foundation\Diagnostic\HealthCheckResult;
 use Waaseyaa\Foundation\Ingestion\IngestionLogger;
+use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
+use Waaseyaa\Foundation\Kernel\ConfigLoader;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
@@ -112,7 +114,13 @@ final class HealthReportHandler
             'PHP Version' => PHP_VERSION,
             'OS' => PHP_OS,
             'SAPI' => PHP_SAPI,
-            'Database' => getenv('WAASEYAA_DB') !== false ? getenv('WAASEYAA_DB') : './storage/waaseyaa.sqlite',
+            // Resolved through the kernel's canonical resolver (#1650 /
+            // FR-007) so operators see the path the kernel actually opens,
+            // not the raw env value.
+            'Database' => DatabaseBootstrapper::resolveDatabasePath(
+                $this->projectRoot,
+                ConfigLoader::load($this->projectRoot . '/config/waaseyaa.php'),
+            ),
             'Config Dir' => getenv('WAASEYAA_CONFIG_DIR') !== false ? getenv('WAASEYAA_CONFIG_DIR') : './config/sync',
             'Project Root' => $this->projectRoot,
             'Generated At' => new \DateTimeImmutable()->format(\DateTimeInterface::ATOM),

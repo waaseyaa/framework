@@ -1,5 +1,6 @@
 # Infrastructure
 
+<!-- Spec reviewed 2026-06-12 - mission request-surface-hardening-01KTX7F2 WP03 (#1650): database path resolution made CWD-independent. DatabaseBootstrapper gains a public static resolveDatabasePath(string $projectRoot, array $config) — the canonical resolver: precedence unchanged (config['database'] → WAASEYAA_DB env → {projectRoot}/storage/waaseyaa.sqlite), but a relative value from EITHER source now absolutizes against the project root (leading ./ stripped); :memory:, leading /, Windows drive-letter (X: + separator), and UNC (\\) values pass through byte-identical; climbing ../ relatives concatenate onto the project root. boot() gains a trailing ?LoggerInterface $logger = null (NullLogger default; AbstractKernel:197 passes $this->logger) and warns once per boot — never refuses — when the lexically normalized resolved path (separator unification + ./.. segment resolution, deliberately no realpath()) is contained in {projectRoot}/public (FR-008 docroot warning; :memory: never warns). CLI parity: DbInitHandler::resolveDatabasePath() now delegates to the same static (its divergent verbatim-config/POSIX-only absolutize() is gone), and HealthReportHandler/AboutHandler display the resolved path instead of the raw env value. Invariant: the resolved path is a pure function of (configured value, projectRoot); HTTP under a docroot CWD and the CLI open the same file (SC-004). Production missing-db guard and non-production @mkdir semantics unchanged on the resolved path. -->
 <!-- Spec reviewed 2026-06-04 - PR #1614: kernel + foundation changes. New Foundation capability interface `AcceptsMigrationProvidersInterface` (Tier 3, documented in the ServiceProvider extension-hooks table below) gates `AbstractKernel::injectMigrationProviders()`, so the kernel hands the discovered migration providers to the migration ServiceProvider via a named interface instead of a concrete-FQCN `instanceof` (keeps the contract test's "kernel call sites resolve to an interface" invariant). `HttpKernel` gained `shouldUseDevFallbackAccount()` (development APP_ENV + `auth.dev_fallback_account` opt-in) for the local dev admin account. `PackageManifestCompiler` broadened its provider-scan `catch (\ReflectionException)` to `catch (\Throwable)` so a package shipping a class under `src/` that extends a dev-only symbol cannot crash a consumer's kernel boot. -->
 <!-- Spec reviewed 2026-06-09 - alpha.201 #1630: backfilled real READMEs for the add-on packages (inertia, groups, notification, mercure, workflows). Documentation only — no change to any infrastructure contract, service-provider wiring, or runtime behaviour. -->
 <!-- Spec reviewed 2026-05-28 - M5C WP01 (mcp-endpoint-admin-01KSEFTL) BuiltinRouteRegistrar gains three `_role: admin` routes for the MCP-admin REST surface — GET /api/mcp/tools, GET /api/mcp/tools/{name}, GET /api/mcp/server-config — all registered via string FQCN ('Waaseyaa\\Api\\Controller\\McpAdminController'), same L0-safe pattern that CodifiedContextController / WorkflowGuardsController / QueueController already use. Controller-side contract (DomainRouterInterface dispatch via McpAdminApiRouter, DTOs, NFR-003 no-plaintext-token guarantee) is owned by docs/specs/api-layer.md; this entry records only the route-registrar surface change. Pre-existing built-in routes unchanged. Also notes: McpServiceProvider (Layer 6) now binds ToolRegistryReadModelInterface + ServerConfigReadModelInterface via `$this->resolve(...)` / `$this->resolveOptional(...)` (the previous `$this->make(...)` form was retired — that method does not exist on the L0 ServiceProvider base and crashed kernel boot on installs exercising the MCP-admin surface). -->
@@ -1634,7 +1635,7 @@ These variables and config keys are the primary **bootstrap surface** for operat
 |------|------|
 | `APP_ENV` | Canonical environment name; falls back to config `environment`, then `'production'`. Drives `isDevelopmentMode()` and the production SQLite existence guard. |
 | `APP_DEBUG` | Boolean debug flag; falls back to config `debug`. **Must not be true** when the resolved environment is non-development (see boot guard above). |
-| `WAASEYAA_DB` | Optional override for the SQLite database file path when `config['database']` is not set (see `DatabaseBootstrapper`). |
+| `WAASEYAA_DB` | Optional override for the SQLite database file path when `config['database']` is not set (see `DatabaseBootstrapper`). Relative values resolve against the kernel **project root**, never the process CWD (#1650 / FR-007); absolute values (POSIX, Windows drive-letter, UNC) and `:memory:` pass through untouched. |
 | `WAASEYAA_CONFIG_DIR` | Optional override for the sync config directory (used by `ConsoleKernel` alongside `config['config_dir']`). |
 | `.env` (file) | Loaded first from `$projectRoot/.env` via `EnvLoader::load()` before `config/waaseyaa.php`. `EnvLoader` writes to `putenv()`, `$_ENV`, and `$_SERVER` without overwriting keys already present in any of those stores (see source listing under Kernel Bootstrap file index). |
 
@@ -1646,10 +1647,32 @@ File: `packages/foundation/src/Kernel/Bootstrap/DatabaseBootstrapper.php`
 Class: `final class DatabaseBootstrapper`
 
 ```php
-public function boot(string $projectRoot, array $config): DatabaseInterface
+public function boot(string $projectRoot, array $config, ?LoggerInterface $logger = null): DatabaseInterface
+
+public static function resolveDatabasePath(string $projectRoot, array $config): string
+public static function absolutize(string $path, string $projectRoot): string
 ```
 
-Creates `DBALDatabase::createSqlite()` using path resolution: `$config['database']` → `WAASEYAA_DB` env → `$projectRoot/storage/waaseyaa.sqlite`. In non-production environments, ensures the parent directory exists via `@mkdir()` (warning-suppressed — failure is expected in tests with inaccessible paths; SQLite will throw a proper exception downstream).
+Creates `DBALDatabase::createSqlite()` using the canonical path resolution (`resolveDatabasePath()`): precedence `$config['database']` → `WAASEYAA_DB` env → `$projectRoot/storage/waaseyaa.sqlite` (unchanged), then **project-root absolutization** of the selected value (#1650 / FR-007, mission request-surface-hardening-01KTX7F2). In non-production environments, ensures the parent directory exists via `@mkdir()` (warning-suppressed — failure is expected in tests with inaccessible paths; SQLite will throw a proper exception downstream). The optional trailing `?LoggerInterface $logger = null` (Waaseyaa logger, `NullLogger` default — the framework's standard pattern) feeds the docroot warning below; `AbstractKernel::bootDatabase()` passes the kernel logger.
+
+**Resolution matrix** (applied after precedence; `absolutize()` is the rule, mirrored verbatim by the CLI — see parity below):
+
+| Selected value | Classified | Resolved to |
+|---|---|---|
+| *(unset — default)* | absolute | `{projectRoot}/storage/waaseyaa.sqlite` (byte-identical to before #1650) |
+| `:memory:` | sentinel | `:memory:` (untouched; never warns) |
+| `/var/db/app.sqlite` | absolute (leading `/`) | untouched |
+| `C:\data\app.sqlite`, `C:/data/app.sqlite` | absolute (drive letter + separator) | untouched |
+| `\\server\share\app.sqlite` | absolute (UNC) | untouched |
+| `./storage/waaseyaa.sqlite` | relative (leading `./` stripped) | `{projectRoot}/storage/waaseyaa.sqlite` |
+| `storage/waaseyaa.sqlite` | relative | `{projectRoot}/storage/waaseyaa.sqlite` |
+| `../shared/db.sqlite` | relative (climbing) | `{projectRoot}/../shared/db.sqlite` |
+
+**Invariant:** the resolved path is a pure function of (configured value, projectRoot) — **process CWD never participates**. `resolveDatabasePath()`'s sole production kernel callsite is `AbstractKernel::bootDatabase()`, which every runtime funnels through: HttpKernel (dev server / FPM / FrankenPHP; projectRoot = `dirname(public/)` from the front controller), ConsoleKernel (CLI; projectRoot = `getcwd()` validated against `composer.json`), and queue workers (CLI commands). With identical configuration, HTTP under a docroot CWD and the CLI under the project root open the **same file**; no stray database appears under the docroot (SC-004 — the #1650 two-databases dev trap). Deployments that relied on CWD-relative resolution change behavior deliberately (CHANGELOG `[Unreleased]`, #1650).
+
+**CLI parity:** `DbInitHandler::resolveDatabasePath()` delegates to the same static — its former divergent resolution (relative `config['database']` passed through verbatim; only `/`-prefixed strings recognized as absolute) is gone, so `db:init`'s reported and initialized path equals the kernel's resolved path for any configuration. The display surfaces `health:report` (`HealthReportHandler`) and `about` (`AboutHandler`) show the *resolved* path rather than the raw env value, so operators debugging #1650-class issues see what the kernel actually opens.
+
+**Docroot warning (FR-008):** after resolution, `boot()` warns ⇔ resolved path ≠ `:memory:` ∧ the lexically normalized resolved path (separator unification + `.`/`..` segment resolution — deliberately **no** `realpath()`, the file may not exist yet at first boot) is contained in the normalized `{projectRoot}/public` (the framework's only docroot notion — the front controller location). Emitted once per boot at `warning` level, naming the resolved path and the docroot and advising a `WAASEYAA_DB`/`config['database']` correction — the SQLite file inside the docroot is one static-config mistake away from being a downloadable URL. **Boot always proceeds** — the warning never throws or aborts, and a kernel constructed without a logger boots silently. Best-effort advisory, not a security boundary (a symlinked docroot may evade the lexical check).
 
 Production safety contract:
 - environment resolution matches the kernel contract: config `'environment'` key → `APP_ENV` env var → `'production'`

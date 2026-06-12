@@ -8,6 +8,7 @@ use Waaseyaa\CLI\CliIO;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\EntityStorage\EntitySchemaSyncRunner;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
+use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
 use Waaseyaa\Foundation\Kernel\ConsoleKernel;
 use Waaseyaa\Foundation\Kernel\EnvLoader;
 use Waaseyaa\Foundation\Migration\MigrationLoader;
@@ -155,29 +156,16 @@ final class DbInitHandler
     }
 
     /**
+     * Resolve the database path through the kernel's canonical resolver so
+     * db:init can never disagree with what a booted kernel opens — relative
+     * config AND env values absolutize against the project root, and Windows
+     * drive-letter / UNC absolutes pass through untouched (#1650 / FR-007).
+     *
      * @param array<string, mixed> $config
      */
     private function resolveDatabasePath(array $config): string
     {
-        $configured = $config['database'] ?? null;
-        if (is_string($configured) && $configured !== '') {
-            return $configured;
-        }
-
-        $env = getenv('WAASEYAA_DB');
-        if (is_string($env) && $env !== '') {
-            return $this->absolutize($env);
-        }
-
-        return $this->projectRoot . '/storage/waaseyaa.sqlite';
-    }
-
-    private function absolutize(string $path): string
-    {
-        if ($path === ':memory:' || str_starts_with($path, '/')) {
-            return $path;
-        }
-        return rtrim($this->projectRoot, '/') . '/' . ltrim($path, './');
+        return DatabaseBootstrapper::resolveDatabasePath($this->projectRoot, $config);
     }
 
     private function reportDryRun(string $dbPath, CliIO $io): int

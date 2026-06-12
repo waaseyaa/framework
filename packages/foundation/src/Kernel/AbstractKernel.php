@@ -194,7 +194,7 @@ abstract class AbstractKernel
 
     protected function bootDatabase(): void
     {
-        $this->database = new DatabaseBootstrapper()->boot($this->projectRoot, $this->config);
+        $this->database = new DatabaseBootstrapper()->boot($this->projectRoot, $this->config, $this->logger);
     }
 
     protected function bootEntityTypeManager(): void

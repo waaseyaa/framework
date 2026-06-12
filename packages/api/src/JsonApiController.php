@@ -139,18 +139,15 @@ final class JsonApiController
         $entity = $this->loadByIdOrUuid($entityTypeId, $id);
 
         if ($entity === null) {
-            return $this->errorDocument(
-                JsonApiError::notFound("Entity of type '{$entityTypeId}' with ID '{$id}' not found."),
-            );
+            return $this->notFoundDocument($entityTypeId, $id);
         }
 
-        // Check view access.
+        // Check view access. A denied view returns the same not-found document
+        // as a missing entity so the response cannot act as an existence oracle.
         if ($this->accessHandler !== null && $this->account !== null) {
             $access = $this->accessHandler->check($entity, 'view', $this->account);
             if (!$access->isAllowed()) {
-                return $this->errorDocument(
-                    JsonApiError::forbidden("Access denied for viewing entity '{$id}'."),
-                );
+                return $this->notFoundDocument($entityTypeId, $id);
             }
         }
 
@@ -482,6 +479,18 @@ final class JsonApiController
     private function errorDocument(JsonApiError $error): JsonApiDocument
     {
         return JsonApiDocument::fromErrors([$error], statusCode: (int) $error->status);
+    }
+
+    /**
+     * Canonical single-read 404. Used for BOTH a nonexistent id and a
+     * view-denied entity — byte-identical on purpose (FR-003 / NFR-002,
+     * mission request-surface-hardening-01KTX7F2). Do not fork the message.
+     */
+    private function notFoundDocument(string $entityTypeId, int|string $id): JsonApiDocument
+    {
+        return $this->errorDocument(
+            JsonApiError::notFound("Entity of type '{$entityTypeId}' with ID '{$id}' not found."),
+        );
     }
 
     /**

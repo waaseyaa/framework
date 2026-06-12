@@ -1,5 +1,6 @@
 # API Layer
 
+<!-- Spec reviewed 2026-06-12 - mission request-surface-hardening-01KTX7F2 WP03 (#1649): two consumer-visible hardening changes. (1) Discovery filtering — `ApiDiscoveryController` gains an optional `?AccountInterface $account = null` ctor param (passed by `DiscoveryRouter::handle()` from `WaaseyaaContext::fromRequest($request)->account`, the `_account` attribute); per-type links are emitted only when `$account?->isAuthenticated() === true` (anonymous/absent account → envelope only, zero type links), and definitions whose duck-typed `isDiscoverable()` returns false are absent for EVERY caller (the new `EntityType` `discoverable: bool = true` flag; `EntityTypeInterface` deliberately not widened). Route stays `_public`/allowAll. No categorical per-type view check exists in the access API — authenticated-only is the documented fallback (research D1), NOT per-account type filtering. (2) Denied-as-404 — `JsonApiController::show()` returns the canonical not-found document for a view-denied entity, byte-identical to the missing-id response for the same probe (single private `notFoundDocument()` factory, no `code` member, no debug variant; NFR-002 pinned by `JsonApiControllerDeniedNotFoundTest`). Mutations keep genuine 403s (FR-004). Known boundary: `/api/entity-types`, `/api/openapi.json`, `/api/schema/{entity_type}` still enumerate anonymously — see "Adjacent enumeration surfaces". -->
 <!-- Spec reviewed 2026-06-04 - PR #1614 (real content types): schema + serialization become bundle-aware. `SchemaController::show(string $entityTypeId, ?string $bundle = null)` scopes the emitted JSON Schema to a content type's bundle via `EntityTypeManagerInterface::resolveFieldDefinitions`, building the prototype entity with the bundle key, so a bundled entity (e.g. a node of bundle `page`) exposes its per-bundle fields (`body`, `blocks`) and not just the shared core fields; `SchemaRouter` threads an optional `?bundle` query param. `ResourceSerializer` filters/casts attributes through the same bundle-aware `resolveFieldDefinitions($entityTypeId, $entity->bundle())`. The admin AdminSurface schema action (`GenericAdminSurfaceHost::handleSchema`) resolves the bundle from the payload `bundle` or from the entity named by `id` and calls the same controller, so the admin edit form, JSON:API, and GraphQL all read through one bundle-aware path. -->
 <!-- Spec reviewed 2026-06-09 - alpha.201 #1603: BroadcastStorageScheduleEntries downgraded its "BroadcastStorage not bound" log from warning to debug (unbound is the normal state for apps that do not opt into SSE broadcasting). Log-level only — no change to the API/broadcasting contract, routes, or schedule-registration behaviour. -->
 <!-- Spec reviewed 2026-05-28 - M5C WP01 (mcp-endpoint-admin-01KSEFTL) MCP-admin REST surface: BuiltinRouteRegistrar gains three `_role: admin` routes — GET /api/mcp/tools, GET /api/mcp/tools/{name}, GET /api/mcp/server-config — all dispatched by `McpAdminApiRouter` (supports() matches `_controller` containing `McpAdminController::`) to `McpAdminController` actions `tools`, `tool`, `serverConfig`. Controller deps `ToolRegistryReadModelInterface` and `ServerConfigReadModelInterface` (both `packages/api/src/McpAdmin/`) are nullable: when the bindings are absent the controller returns empty-shape JSON (`{data:{rows:[]}}` / `{data:{tool:null}}` / `{data:{config:null}}`) rather than crashing. The bindings are registered in `packages/mcp/src/McpServiceProvider.php` (Layer 6) via `$this->resolve(...)` / `$this->resolveOptional(...)` — the previous `$this->make(...)` form was retired (no such method on the L0 ServiceProvider base; it crashed boot on installs that exercised the MCP-admin surface). Concrete implementations live in `packages/mcp/src/Admin/{ToolRegistryReadModel,ServerConfigReadModel}.php`. Per-tool detail uses `ToolDetail` (name, summary, description, category, requiredCapabilities, inputSchema JSON Schema 2020-12, recentInvocations list); registry-index rows use `ToolRegistryRow` (name, summary, category, requiredCapabilities). Server-config snapshot uses `ServerConfigSnapshot` (transport `streamable-http|sse`, protocolVersion, registeredClients, serverCapabilities) and per-client `RegisteredClient` (clientId, addedAt, lastSeenAt, tokenFingerprint). `RecentInvocation` carries traceUuid, invokedAt, account, outcome `ok|error`, errorMessage, latencyMs and may be redacted to `_redacted:true` when an `EntityAccessHandler` + `AccountInterface` are wired and the account lacks `ai_observability.view_traces`. NFR-003: no plaintext bearer token ever appears in any response — `tokenFingerprint` is the 16-char lowercase-hex SHA-256 prefix. -->
@@ -274,9 +275,9 @@ The `$accessHandler` and `$account` follow the **paired nullable** pattern: both
 
 **`show(string $entityTypeId, int|string $id, array $query = []): JsonApiDocument`**
 
-1. Loads entity by ID or UUID via `loadByIdOrUuid()`.
-2. Checks view access. Returns 403 if denied.
-3. Serializes via `$serializer->serialize()`.
+1. Loads entity by ID or UUID via `loadByIdOrUuid()`. A missing entity returns the canonical not-found document.
+2. Checks view access (`EntityAccessHandler::check($entity, 'view', $account)` — the check still runs; the result's reason is never surfaced). **A denied view returns the same canonical not-found document as a missing id** — byte-identical body for the same `(entityTypeId, id)` probe: status `'404'`, title `'Not Found'`, detail `"Entity of type '<type>' with ID '<id>' not found."`, **no `code` member** (the old `403` + `code: FORBIDDEN` shape is gone — #1649). Both branches call one private `notFoundDocument(string $entityTypeId, int|string $id)` factory, so the bytes cannot drift apart; the pin test `JsonApiControllerDeniedNotFoundTest` asserts `json_encode` equality of the two documents plus equal status codes (NFR-002). The denied entity is **never serialized**. There is no debug/development variant — the 404 is uniform in all environments (mission request-surface-hardening research D3). Headers are identical by construction: both documents exit through the single `jsonApiResponse()` emitter in `JsonApiRouter`.
+3. Serializes via `$serializer->serialize()` (allowed entities unchanged).
 4. Applies sparse fieldsets if `fields[type]` is in the query (`SparseFieldsetApplicator`, same as `index()`).
 5. Returns `JsonApiDocument::fromResource()`.
 
@@ -301,6 +302,20 @@ The `$accessHandler` and `$account` follow the **paired nullable** pattern: both
 1. Loads entity, checks delete access.
 2. Deletes via `$storage->delete([$entity])`.
 3. Returns `JsonApiDocument::empty(meta: ['deleted' => true], statusCode: 204)`.
+
+### Denial responses per operation (#1649, FR-003/FR-004)
+
+| Operation | Denied check | Response |
+|---|---|---|
+| GET single (`show`) | `view` not allowed | **404 not-found shape (changed — C-001)** |
+| GET single, id does not exist | — | 404 not-found shape (unchanged; byte-identical to the denied case) |
+| GET collection (`index`) | row-level filter | 200 with filtered `data[]` (unchanged; #1605 out of scope) |
+| POST (`store`) | `createAccess` not allowed | 403 forbidden (unchanged) |
+| PATCH (`update`) | `update` not allowed | 403 forbidden (unchanged) |
+| DELETE (`destroy`) | `delete` not allowed | 403 forbidden (unchanged) |
+| Field edit (store/update paths) | field forbidden | 403 forbidden (unchanged) |
+
+FR-003's scope is deliberately the single read only — there is no blanket 404-ing of the API. Residual, accepted: a mutation (PATCH/DELETE) against a view-denied-but-existing entity still 403s, signalling existence to *authenticated* callers only (all mutation routes carry `requireAuthentication()`). An unknown entity type on any operation keeps its pre-existing distinct 404 (`"Unknown entity type: <type>."`) — it reveals only that a *type* is unregistered, which the discovery surface governs.
 
 ### ID Resolution
 
@@ -784,6 +799,7 @@ final class ApiDiscoveryController
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly string $basePath = '/api',
+        private readonly ?AccountInterface $account = null,
     ) {}
 
     /**
@@ -793,22 +809,41 @@ final class ApiDiscoveryController
 }
 ```
 
-Returns a JSON:API-style discovery document listing every registered entity type's collection endpoint. The response contract is:
+Returns a JSON:API-style discovery document. Since mission request-surface-hardening-01KTX7F2 (#1649) the per-type links are **account-dependent**; the envelope is caller-independent. The response contract is:
 
 | Key | Shape | Notes |
 |-----|-------|-------|
-| `meta.api` | `'waaseyaa'` (string) | Constant identifier for the API surface. |
-| `meta.version` | `'1.0'` (string) | Discovery contract version, not the framework version. |
-| `links.self` | `string` | The configured `$basePath` (defaults to `/api`). |
-| `links.{entity_type_id}` | `array{href: string, meta: array{type: string}}` | One entry per `EntityTypeManagerInterface::getDefinitions()` entry. `href` is `{basePath}/{entity_type_id}`; `meta.type` echoes the entity type id for client convenience. |
+| `meta.api` | `'waaseyaa'` (string) | Constant identifier for the API surface. Present for every caller. |
+| `meta.version` | `'1.0'` (string) | Discovery contract version, not the framework version. Present for every caller. |
+| `links.self` | `string` | The configured `$basePath` (defaults to `/api`). Present for every caller. |
+| `links.{entity_type_id}` | `array{href: string, meta: array{type: string}}` | **Authenticated callers only.** One entry per *discoverable* `EntityTypeManagerInterface::getDefinitions()` entry. `href` is `{basePath}/{entity_type_id}`; `meta.type` echoes the entity type id for client convenience. |
 
-Invariants enforced by the integration test:
-- `links.self` is always present.
+Visibility decision per type:
+
+```
+listed(type, account) = isDiscoverableDuckTyped(type)   // false → hidden from EVERYONE, admin included
+                      ∧ account !== null
+                      ∧ account->isAuthenticated()      // anonymous/absent → zero type links (fail closed)
+```
+
+- **Authenticated-only default (research D1):** no categorical per-type view check exists in the access API (`AccessPolicyInterface::access()` requires a concrete entity; `createAccess()` is create-only), so per-account/per-type granularity is **not implementable today** — this is the spec's documented fallback, not per-account type filtering. Any authenticated account sees every discoverable type, gated types included. An anonymous account (`AnonymousUser`, id 0), a null account, or a controller constructed without an account yields zero type links; no type id appears anywhere in the response body (SC-001).
+- **`discoverable` flag (FR-002):** `EntityType` carries an additive `discoverable: bool = true` ctor param + `isDiscoverable(): bool` accessor (+ `fromClass()` passthrough). The controller reads it duck-typed (`method_exists($definition, 'isDiscoverable') && !$definition->isDiscoverable()` → skip) — `EntityTypeInterface` is deliberately **not** widened (seven anonymous-class test implementors outside the mission surface; research D2); definitions without the method are discoverable. The flag is **visibility, not authorization**: CRUD routes for non-discoverable types keep registering and keep enforcing entity access unchanged.
+- **Cost bound (NFR-001):** one `isAuthenticated()` call per request, at most one accessor read per registered type — no access-policy invocation, no row loading, no queries.
+- **Route access unchanged:** `api.discovery` stays `allowAll()` (`_public`) — the endpoint answers all callers; only the per-type links vary.
+
+Invariants enforced by the integration test (`tests/Integration/Phase7/ApiDiscoveryIntegrationTest.php`):
+- `links.self` is always present, for every caller.
 - `links.{type}.href` always equals the collection path served by `api.{type}.index`.
-- The entry set in `links` (excluding `self`) is exactly the set of registered entity type ids — no more, no less.
-- When zero entity types are registered, `links` collapses to `['self' => $basePath]`.
+- For an **authenticated** caller, the entry set in `links` (excluding `self`) is exactly the set of registered *discoverable* entity type ids — no more, no less.
+- For an **anonymous** caller, `links` collapses to `['self' => $basePath]` regardless of registered types.
+- When zero entity types are registered, `links` collapses to `['self' => $basePath]` for every caller.
+- The route shape (`_public`, path, methods) is unchanged.
 
-The route is dispatched by `JsonApiRouteProvider`'s `api.discovery` registration. At runtime, `DiscoveryRouter` (the `HttpDomainRouter` registered through `ApiServiceProvider::httpDomainRouters()`) recognises the controller string `Waaseyaa\Api\ApiDiscoveryController::discover` via `str_contains($controller, 'ApiDiscoveryController')`, instantiates the controller with the booted `EntityTypeManager`, and wraps the discover payload in a `jsonapi.version` envelope before returning a JSON:API response.
+The route is dispatched by `JsonApiRouteProvider`'s `api.discovery` registration. At runtime, `DiscoveryRouter` (the `HttpDomainRouter` registered through `ApiServiceProvider::httpDomainRouters()`) recognises the controller string `Waaseyaa\Api\ApiDiscoveryController::discover` via `str_contains($controller, 'ApiDiscoveryController')`, instantiates the controller with the booted `EntityTypeManager` **and the request account** — `WaaseyaaContext::fromRequest($request)->account`, i.e. the `_account` attribute set by `SessionMiddleware`; no other account source is consulted — and wraps the discover payload in a `jsonapi.version` envelope before returning a JSON:API response.
+
+#### Adjacent enumeration surfaces (known boundary, out of #1649's scope)
+
+`/api/entity-types`, `/api/openapi.json`, and `/api/schema/{entity_type}` (registered option-less by foundation's `BuiltinRouteRegistrar`; `AccessChecker` returns neutral for option-less routes) remain anonymous-reachable and still enumerate entity type ids. The #1649 hardening covers the `GET /api` discovery index only — these adjacent surfaces are the documented residual boundary on SC-001, flagged in the mission plan's risks for a follow-up issue. Do not assume anonymous type-id secrecy until that follow-up lands.
 
 ## Translation Sub-Resource
 

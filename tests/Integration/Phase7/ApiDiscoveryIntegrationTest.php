@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Routing\RequestContext;
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Api\ApiDiscoveryController;
 use Waaseyaa\Api\JsonApiRouteProvider;
 use Waaseyaa\Entity\EntityType;
@@ -95,9 +96,12 @@ final class ApiDiscoveryIntegrationTest extends TestCase
     }
 
     #[Test]
-    public function discoverEnumeratesEveryRegisteredEntityType(): void
+    public function discoverEnumeratesEveryRegisteredEntityTypeForAuthenticatedAccounts(): void
     {
-        $controller = new ApiDiscoveryController($this->entityTypeManager);
+        $controller = new ApiDiscoveryController(
+            $this->entityTypeManager,
+            account: $this->authenticatedAccount(),
+        );
 
         $document = $controller->discover();
         $links = $document['links'];
@@ -114,9 +118,32 @@ final class ApiDiscoveryIntegrationTest extends TestCase
     }
 
     #[Test]
+    public function discoverListsZeroEntityTypesForAnonymousCallers(): void
+    {
+        // FR-001 (#1649): the route stays public, but anonymous callers get the
+        // envelope only — no registered type id appears anywhere in the body.
+        $anonymous = new ApiDiscoveryController($this->entityTypeManager, account: $this->anonymousAccount());
+        $accountless = new ApiDiscoveryController($this->entityTypeManager);
+
+        foreach ([$anonymous, $accountless] as $controller) {
+            $document = $controller->discover();
+
+            self::assertSame(['self' => '/api'], $document['links']);
+            self::assertSame('waaseyaa', $document['meta']['api']);
+
+            $encoded = json_encode($document, JSON_THROW_ON_ERROR);
+            self::assertStringNotContainsString('article', $encoded);
+            self::assertStringNotContainsString('tag', $encoded);
+        }
+    }
+
+    #[Test]
     public function discoveryHrefAlignsWithJsonApiIndexRoute(): void
     {
-        $controller = new ApiDiscoveryController($this->entityTypeManager);
+        $controller = new ApiDiscoveryController(
+            $this->entityTypeManager,
+            account: $this->authenticatedAccount(),
+        );
 
         $document = $controller->discover();
 
@@ -137,7 +164,7 @@ final class ApiDiscoveryIntegrationTest extends TestCase
     public function discoverWithEmptyManagerReturnsOnlySelfLink(): void
     {
         $emptyManager = new EntityTypeManager(new EventDispatcher());
-        $controller = new ApiDiscoveryController($emptyManager);
+        $controller = new ApiDiscoveryController($emptyManager, account: $this->authenticatedAccount());
 
         $document = $controller->discover();
 
@@ -147,12 +174,68 @@ final class ApiDiscoveryIntegrationTest extends TestCase
     #[Test]
     public function discoverHonoursCustomBasePath(): void
     {
-        $controller = new ApiDiscoveryController($this->entityTypeManager, '/jsonapi');
+        $controller = new ApiDiscoveryController(
+            $this->entityTypeManager,
+            '/jsonapi',
+            $this->authenticatedAccount(),
+        );
 
         $document = $controller->discover();
 
         self::assertSame('/jsonapi', $document['links']['self']);
         self::assertSame('/jsonapi/article', $document['links']['article']['href']);
         self::assertSame('/jsonapi/tag', $document['links']['tag']['href']);
+    }
+
+    // --- Helpers ---
+
+    private function authenticatedAccount(): AccountInterface
+    {
+        return new class implements AccountInterface {
+            public function id(): int|string
+            {
+                return 1;
+            }
+
+            public function hasPermission(string $permission): bool
+            {
+                return false;
+            }
+
+            public function getRoles(): array
+            {
+                return ['authenticated'];
+            }
+
+            public function isAuthenticated(): bool
+            {
+                return true;
+            }
+        };
+    }
+
+    private function anonymousAccount(): AccountInterface
+    {
+        return new class implements AccountInterface {
+            public function id(): int|string
+            {
+                return 0;
+            }
+
+            public function hasPermission(string $permission): bool
+            {
+                return false;
+            }
+
+            public function getRoles(): array
+            {
+                return ['anonymous'];
+            }
+
+            public function isAuthenticated(): bool
+            {
+                return false;
+            }
+        };
     }
 }

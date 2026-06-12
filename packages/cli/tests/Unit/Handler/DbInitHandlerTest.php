@@ -157,6 +157,65 @@ final class DbInitHandlerTest extends TestCase
         }
     }
 
+    // ----- Mission request-surface-hardening (#1650) WP02: path parity -----
+    // db:init must resolve through the kernel's canonical resolver: relative
+    // config values absolutize against the project root (verbatim before),
+    // and Windows absolutes pass through (only `/`-prefixed before).
+
+    #[Test]
+    public function dryRunResolvesRelativeConfigValueAgainstProjectRoot(): void
+    {
+        file_put_contents(
+            $this->projectRoot . '/config/waaseyaa.php',
+            "<?php return ['environment' => 'production', 'database' => './storage/rel.sqlite'];\n",
+        );
+
+        $tester = $this->createTester();
+        $tester->executeMap(['--dry-run' => true]);
+
+        $this->assertSame(0, $tester->getExitCode());
+        $this->assertStringContainsString(
+            'Database path: ' . $this->projectRoot . '/storage/rel.sqlite',
+            $tester->getStdout(),
+        );
+    }
+
+    #[Test]
+    public function dryRunLeavesWindowsDriveLetterConfigValueUntouched(): void
+    {
+        file_put_contents(
+            $this->projectRoot . '/config/waaseyaa.php',
+            "<?php return ['environment' => 'production', 'database' => 'C:\\\\data\\\\win.sqlite'];\n",
+        );
+
+        $tester = $this->createTester();
+        $tester->executeMap(['--dry-run' => true]);
+
+        $this->assertStringContainsString('Database path: C:\\data\\win.sqlite', $tester->getStdout());
+    }
+
+    #[Test]
+    public function dryRunResolvesClimbingEnvValueAgainstProjectRoot(): void
+    {
+        file_put_contents(
+            $this->projectRoot . '/config/waaseyaa.php',
+            "<?php return ['environment' => 'production'];\n",
+        );
+        putenv('WAASEYAA_DB=../escape.sqlite');
+
+        try {
+            $tester = $this->createTester();
+            $tester->executeMap(['--dry-run' => true]);
+
+            $this->assertStringContainsString(
+                'Database path: ' . $this->projectRoot . '/../escape.sqlite',
+                $tester->getStdout(),
+            );
+        } finally {
+            putenv('WAASEYAA_DB');
+        }
+    }
+
     private function createTester(): CliTester
     {
         $handler = new DbInitHandler(projectRoot: $this->projectRoot);

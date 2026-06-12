@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING(-ish): denied single reads return the not-found response, not 403 (`api`).** `GET /api/{type}/{id}` on an entity the caller is denied `view` on now returns the *same not-found response* as a nonexistent id — status 404, byte-identical body for the same probe (title `Not Found`, same detail string, **no `FORBIDDEN` code member**), closing the existence oracle a diffable 403 created. **Clients keying on 403 for denied single reads must adapt.** Same-probe indistinguishability is pinned by test (SC-002), and there is no debug-mode variant — the 404 is uniform in every environment. Mutating operations (POST/PATCH/DELETE) and field-edit denials keep their genuine 403 `FORBIDDEN` responses unchanged. (#1649)
+- **Anonymous API discovery lists no entity types (`api`).** `GET /api` keeps its envelope (`meta {api, version}` + `links.self`) for every caller — the route stays `_public` — but per-type links are emitted only for authenticated accounts, and types registered `discoverable: false` (see Added) are absent for every caller, admin included. No categorical per-type view check exists in the access API, so the authenticated-only default is the documented fallback: any authenticated account sees every discoverable type. Anonymous clients that enumerated `links.*` to find endpoints must use concrete endpoints directly. Known boundary: the adjacent `/api/entity-types`, `/api/openapi.json`, and `/api/schema/{entity_type}` routes still enumerate type ids anonymously — out of this change's scope; follow-up issue recommended. (#1649)
+- **Relative database paths resolve against the project root (`foundation`, `cli`).** A relative `WAASEYAA_DB` (and a relative `config['database']`) now resolves against the kernel project root in every runtime — HTTP, dev server, CLI, queue — instead of the process CWD, so the dev server can no longer silently create a second database under the docroot (the two-databases dev trap). Absolute paths (POSIX, Windows drive-letter, UNC), `:memory:`, and the unset default are byte-identical to before; climbing `../` relatives resolve against the project root. Deployments that deliberately relied on CWD-relative resolution change behavior — deliberately. `db:init`, `health:report`, and `about` now report the same resolved path the kernel opens. (#1650)
+
+### Added
+
+- **`EntityType` `discoverable: bool = true` constructor flag + `isDiscoverable()` accessor (`entity`, `api`).** Per-type opt-out from the `GET /api` discovery index — a `discoverable: false` type is absent from the index for every caller. Visibility only: CRUD routes keep registering and access enforcement is unchanged. `fromClass()` gains a matching passthrough param; `EntityTypeInterface` is deliberately not widened (the discovery controller reads the flag duck-typed via `method_exists`). (#1649)
+- **Boot-time warning when the resolved database path lands inside the public docroot (`foundation`).** When the resolved SQLite path is lexically contained in `{projectRoot}/public`, the kernel logs a `warning` naming the resolved path and the docroot and advising a `WAASEYAA_DB`/`config['database']` correction — the file would be one static-config mistake away from being a downloadable URL. Best-effort advisory: boot always proceeds; `:memory:` never warns. (#1650)
+
+### Security
+
+- **MCP bearer-token hardening (`mcp`).** `BearerTokenAuth::authenticate()` now compares the presented token against **every** configured token with `hash_equals()` — a full scan with no early exit, so whole-call timing does not depend on which entry matches — and a matched token whose account is blocked/inactive (duck-typed `isActive()`, the framework's canonical liveness accessor) is rejected at request time, fail closed, indistinguishable from an unknown token (same 401 envelope). Zero added queries: the status read is an in-memory call on the per-request account object. Accounts not exposing `isActive()` authenticate as before — custom `McpAuthInterface` implementations own their accounts' liveness semantics. `getTokens()` (admin fingerprinting) is unchanged. (#1652)
+
 ## [0.1.0-alpha.205] - 2026-06-12
 
 ### Added
