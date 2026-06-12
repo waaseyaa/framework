@@ -22,8 +22,8 @@ subtasks:
 - T004
 - T005
 - T006
-shell_pid: "27092"
-agent: "claude:fable-5:implementer:implementer"
+shell_pid: "25272"
+agent: "claude:fable-5:reviewer:reviewer"
 history:
 - date: '2026-06-12T00:00:00Z'
   event: created
@@ -224,3 +224,4 @@ No new manifest edges; no PHPStan baseline additions; `isDiscoverable()` is wire
 - 2026-06-12T00:00:00Z – spec-kitty.tasks – created
 - 2026-06-12T06:42:09Z – claude:fable-5:implementer:implementer – shell_pid=27092 – Assigned agent via action command
 - 2026-06-12T06:53:56Z – claude:fable-5:implementer:implementer – shell_pid=27092 – Ready for review: discovery filtering + denied-as-404; all gates green; one deviation: JsonApiAccessIntegrationTest (Phase7) denied-show assertions updated 403->404 (encoded the #1649 oracle, not in owned_files)
+- 2026-06-12T06:55:08Z – claude:fable-5:reviewer:reviewer – shell_pid=25272 – Started review via action command
