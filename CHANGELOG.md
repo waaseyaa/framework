@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`entity-storage`: revision_author additive arm no longer breaks on databases containing FTS/search tables (#1653, alpha.205 regression).** `SqlSchemaHandler::ensureRevisionAuthorColumn()` used `DBALSchema::addField()`, whose whole-schema introspection throws on SQLite databases containing FTS5 virtual tables (typeless shadow-table columns break DBAL 4.4's column parser) — every repository resolution for a revisionable type failed on such databases. The arm now issues a targeted guarded `ALTER TABLE … ADD COLUMN revision_author INTEGER` (same pattern as the audit package's `actor_uid` arm); both the single-axis and translation-revision callsites are covered.
+- **`entity-storage`: optimistic-locking pre-check now reads the head revision from plain `ContentEntityBase` subclasses (#1654).** The expected-revision pre-check instanceof-gated on the legacy `RevisionableInterface`, which `ContentEntityBase` does not declare (entities get revision behavior via `RevisionableEntityInterface` + `RevisionableEntityTrait`), so a stated expectation on the most common entity shape always read the head as `null` and threw `RevisionConflictException` with `current: null`. The gate now also accepts `RevisionableEntityInterface` entities exposing `getRevisionId()` (the trait always provides it), so optimistic locking works out of the box without declaring the legacy interface.
+
 ## [0.1.0-alpha.207] - 2026-06-12
 
 ### Added

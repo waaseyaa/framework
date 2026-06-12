@@ -528,9 +528,24 @@ final class EntityRepository implements EntityRepositoryInterface
                     // Row vanished behind the caller's back.
                     throw new RevisionConflictException($entityTypeId, $id, $expectedRevisionId, null);
                 }
-                $currentRevisionId = ($originalEntity instanceof RevisionableInterface)
-                    ? $originalEntity->getRevisionId()
-                    : null;
+                // #1654: ContentEntityBase subclasses carry revision
+                // capability via RevisionableEntityInterface +
+                // RevisionableEntityTrait without declaring the legacy
+                // RevisionableInterface, so an instanceof gate on the legacy
+                // interface alone read the head as null and every stated
+                // expectation conflicted. The trait provides getRevisionId();
+                // duck-check it (same method_exists pattern as the set*
+                // hydration sites in this class) so the real head pointer
+                // is read.
+                $currentRevisionId = null;
+                if ($originalEntity instanceof RevisionableInterface) {
+                    $currentRevisionId = $originalEntity->getRevisionId();
+                } elseif ($originalEntity instanceof RevisionableEntityInterface
+                    && method_exists($originalEntity, 'getRevisionId')
+                ) {
+                    $rid = $originalEntity->getRevisionId();
+                    $currentRevisionId = \is_int($rid) ? $rid : null;
+                }
                 if ($currentRevisionId !== $expectedRevisionId) {
                     // $currentRevisionId === null here = persisted row with no
                     // revision pointer (pre-backfill) — unhonorable, surfaced

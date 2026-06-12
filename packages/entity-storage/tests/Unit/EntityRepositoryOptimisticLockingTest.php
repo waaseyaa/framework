@@ -22,6 +22,7 @@ use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\EntityStorage\SaveContext;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
+use Waaseyaa\EntityStorage\Tests\Fixtures\PlainContentRevisionableEntity;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestTranslatableEntity;
@@ -413,6 +414,97 @@ final class EntityRepositoryOptimisticLockingTest extends TestCase
 
         $this->expectException(EntityValidationException::class);
         $repo->save($entity, context: SaveContext::default()->withExpectedRevisionId(99));
+    }
+
+    // -----------------------------------------------------------------------
+    // ContentEntityBase without explicit RevisionableInterface (#1654)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Repository for a revisionable type whose entity class is a plain
+     * ContentEntityBase subclass that does NOT declare the legacy
+     * RevisionableInterface (the common consumer shape, #1654).
+     */
+    private function plainContentRepo(): EntityRepository
+    {
+        $plainRevisionableType = new EntityType(
+            id: 'test_plain_revisionable',
+            label: 'Plain Revisionable',
+            class: PlainContentRevisionableEntity::class,
+            keys: self::KEYS,
+            revisionable: true,
+            revisionDefault: true,
+        );
+
+        $handler = new SqlSchemaHandler($plainRevisionableType, $this->db);
+        $handler->ensureTable();
+        $handler->ensureRevisionTable();
+
+        $resolver = new SingleConnectionResolver($this->db);
+
+        return new EntityRepository(
+            $plainRevisionableType,
+            new SqlStorageDriver($resolver),
+            $this->spyDispatcher(),
+            new RevisionableStorageDriver($resolver, $plainRevisionableType),
+            $this->db,
+        );
+    }
+
+    #[Test]
+    public function plainContentEntityBaseSubclassSavesWithCorrectExpectation(): void
+    {
+        $repo = $this->plainContentRepo();
+
+        $entity = new PlainContentRevisionableEntity(values: ['title' => 'v1', 'id' => '1', 'uuid' => 'a']);
+        $entity->enforceIsNew();
+        $repo->save($entity);
+
+        $loaded = $repo->find('1');
+        \assert($loaded instanceof PlainContentRevisionableEntity);
+        $loaded->set('title', 'v2');
+
+        // Before #1654 this threw RevisionConflictException with current: null —
+        // the pre-check gated on the legacy RevisionableInterface, which
+        // ContentEntityBase subclasses do not declare, and read the head as null.
+        $result = $repo->save($loaded, context: SaveContext::default()->withExpectedRevisionId(1));
+
+        $this->assertSame(EntityConstants::SAVED_UPDATED, $result);
+        $reloaded = $repo->find('1');
+        $this->assertInstanceOf(PlainContentRevisionableEntity::class, $reloaded);
+        $this->assertSame(2, $reloaded->getRevisionId());
+        $this->assertSame('v2', $reloaded->label());
+    }
+
+    #[Test]
+    public function plainContentEntityBaseSubclassConflictsOnStaleExpectation(): void
+    {
+        $repo = $this->plainContentRepo();
+
+        $entity = new PlainContentRevisionableEntity(values: ['title' => 'v1', 'id' => '1', 'uuid' => 'a']);
+        $entity->enforceIsNew();
+        $repo->save($entity);
+
+        $stale = $repo->find('1'); // loaded at revision 1
+        \assert($stale instanceof PlainContentRevisionableEntity);
+
+        // A competing writer moves the head to revision 2.
+        $winner = $repo->find('1');
+        $winner->set('title', 'v2-winner');
+        $repo->save($winner);
+
+        $stale->set('title', 'v2-loser');
+        $caught = null;
+        try {
+            $repo->save($stale, context: SaveContext::default()->withExpectedRevisionId(1));
+        } catch (RevisionConflictException $e) {
+            $caught = $e;
+        }
+
+        $this->assertNotNull($caught, 'Expected RevisionConflictException');
+        $this->assertSame(1, $caught->expectedRevisionId);
+        // The real head (2) must be reported — not null (#1654).
+        $this->assertSame(2, $caught->currentRevisionId);
     }
 
     #[Test]
