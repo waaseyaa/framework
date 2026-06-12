@@ -42,13 +42,16 @@ final class ValidationOverheadTest extends TestCase
     private const int WARMUP_SAVES = 20;
 
     /**
-     * NFR-001 bound: median validated save <= 1.10x median unvalidated save.
-     * Measured locally at ~1.05-1.07x across repeated runs (recorded in the
-     * WP02 Triage Log). If this ever proves flaky in CI, the sanctioned
-     * fallback is 1.25 with a comment linking NFR-001 — do NOT delete the
-     * test.
+     * NFR-001 target: median validated save <= 1.10x median unvalidated save.
+     * Measured ~1.05-1.07x locally (WP02 Triage Log) but 1.1100x on the
+     * shared Linux CI runner (run 27392637242, 2026-06-12) — marginal
+     * scheduler jitter past the target. Asserting at the sanctioned 1.25x
+     * fallback bound so the smoke catches real regressions (a validation
+     * pass that doubles save cost) without flaking on runner noise. Do NOT
+     * delete the test; a measured ratio approaching 1.25x is a genuine
+     * NFR-001 regression.
      */
-    private const float MAX_MEDIAN_RATIO = 1.10;
+    private const float MAX_MEDIAN_RATIO = 1.25;
 
     protected function tearDown(): void
     {
