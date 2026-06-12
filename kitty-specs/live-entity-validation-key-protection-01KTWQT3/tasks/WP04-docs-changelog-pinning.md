@@ -16,6 +16,8 @@ subtasks:
 - T016
 - T017
 - T018
+agent: "claude:fable-5:implementer:implementer"
+shell_pid: "15484"
 history:
 - date: '2026-06-12T01:48:54Z'
   event: created
@@ -98,3 +100,7 @@ Under `[Unreleased]`, following the file's existing section conventions (check h
 - Diff the CHANGELOG entry against WP02's Triage Log — every triage class that consumers could hit must appear; reject an entry written from the spec instead of the log.
 - The specs must describe behavior (contract language), not implementation diff narration.
 - The pinning test must go through the update path (not insert) and assert storage state, not driver return values.
+
+## Activity Log
+
+- 2026-06-12T03:05:17Z – claude:fable-5:implementer:implementer – shell_pid=15484 – Started implementation via action command
