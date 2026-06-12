@@ -5,11 +5,11 @@
     "license": "GPL-2.0-or-later",
     "require": {
         "php": ">=8.5",
-        "waaseyaa/config": "^0.1.0-alpha.204",
-        "waaseyaa/entity": "^0.1.0-alpha.204",
-        "waaseyaa/foundation": "^0.1.0-alpha.204",
-        "waaseyaa/http-client": "^0.1.0-alpha.204",
-        "waaseyaa/search": "^0.1.0-alpha.204"
+        "waaseyaa/config": "^0.1.0-alpha.205",
+        "waaseyaa/entity": "^0.1.0-alpha.205",
+        "waaseyaa/foundation": "^0.1.0-alpha.205",
+        "waaseyaa/http-client": "^0.1.0-alpha.205",
+        "waaseyaa/search": "^0.1.0-alpha.205"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"

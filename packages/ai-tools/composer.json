@@ -5,13 +5,13 @@
     "license": "GPL-2.0-or-later",
     "require": {
         "php": ">=8.5",
-        "waaseyaa/access": "^0.1.0-alpha.204",
-        "waaseyaa/entity": "^0.1.0-alpha.204",
-        "waaseyaa/foundation": "^0.1.0-alpha.204"
+        "waaseyaa/access": "^0.1.0-alpha.205",
+        "waaseyaa/entity": "^0.1.0-alpha.205",
+        "waaseyaa/foundation": "^0.1.0-alpha.205"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
-        "waaseyaa/testing": "^0.1.0-alpha.204"
+        "waaseyaa/testing": "^0.1.0-alpha.205"
     },
     "autoload": {
         "psr-4": {
