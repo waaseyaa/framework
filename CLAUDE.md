@@ -359,6 +359,7 @@ Cross-cutting rules that affect work anywhere in the framework. Subsystem-specif
 - `LOG_LEVEL` — Minimum log level for default handler: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency` (default: `warning`)
 - `WAASEYAA_DB` — SQLite database path (default: `./storage/waaseyaa.sqlite`)
 - `WAASEYAA_CONFIG_DIR` — config sync directory (default: `./config/sync`)
+- `WAASEYAA_ENTITY_VALIDATION` — save-time entity validation toggle (default: enabled). Values `0`/`false`/`off` (case-insensitive) disable kernel-wired validation; read once at boot.
 
 ## Architectural Boundaries
 

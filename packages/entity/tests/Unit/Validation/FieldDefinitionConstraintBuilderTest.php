@@ -7,7 +7,12 @@ namespace Waaseyaa\Entity\Tests\Unit\Validation;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Validator\Constraints\GreaterThan;
+use Symfony\Component\Validator\Constraints\NotNull;
+use Symfony\Component\Validator\Constraints\Range;
+use Symfony\Component\Validator\Constraints\Type;
 use Symfony\Component\Validator\Validation;
+use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Entity\Tests\Unit\Cast\Fixture\SampleIntEnum;
 use Waaseyaa\Entity\Tests\Unit\Cast\Fixture\SampleStringEnum;
 use Waaseyaa\Entity\Tests\Unit\Validation\Fixture\FieldableEntityDouble;
@@ -213,6 +218,184 @@ final class FieldDefinitionConstraintBuilderTest extends TestCase
 
         self::assertGreaterThan(0, $violations->count());
         self::assertSame('active', $violations->get(0)->getPropertyPath());
+    }
+
+    #[Test]
+    public function integerWithMinAndMaxDerivesRange(): void
+    {
+        $constraints = FieldDefinitionConstraintBuilder::build([
+            'count' => ['type' => 'integer', 'settings' => ['min' => 0, 'max' => 100]],
+        ]);
+
+        $range = $this->soleRange($constraints['count']);
+        self::assertSame(0, $range->min);
+        self::assertSame(100, $range->max);
+    }
+
+    #[Test]
+    public function integerWithMinOnlyDerivesMinOnlyRange(): void
+    {
+        $constraints = FieldDefinitionConstraintBuilder::build([
+            'count' => ['type' => 'integer', 'settings' => ['min' => 5]],
+        ]);
+
+        $range = $this->soleRange($constraints['count']);
+        self::assertSame(5, $range->min);
+        self::assertNull($range->max);
+    }
+
+    #[Test]
+    public function integerWithMaxOnlyDerivesMaxOnlyRange(): void
+    {
+        $constraints = FieldDefinitionConstraintBuilder::build([
+            'count' => ['type' => 'integer', 'settings' => ['max' => 10]],
+        ]);
+
+        $range = $this->soleRange($constraints['count']);
+        self::assertNull($range->min);
+        self::assertSame(10, $range->max);
+    }
+
+    #[Test]
+    public function integerWithoutMinMaxSettingsDerivesNoRange(): void
+    {
+        $constraints = FieldDefinitionConstraintBuilder::build([
+            'count' => ['type' => 'integer'],
+        ]);
+
+        self::assertSame([], $this->rangesIn($constraints['count']));
+    }
+
+    #[Test]
+    public function nonNumericMinMaxSettingsAreIgnored(): void
+    {
+        $constraints = FieldDefinitionConstraintBuilder::build([
+            'count' => ['type' => 'integer', 'settings' => ['min' => 'abc', 'max' => []]],
+        ]);
+
+        self::assertSame([], $this->rangesIn($constraints['count']));
+    }
+
+    #[Test]
+    public function nonNumericTypeWithMinMaxSettingsDerivesNoRange(): void
+    {
+        $constraints = FieldDefinitionConstraintBuilder::build([
+            'title' => ['type' => 'string', 'settings' => ['min' => 1, 'max' => 10]],
+        ]);
+
+        self::assertSame([], $this->rangesIn($constraints['title']));
+    }
+
+    #[Test]
+    public function floatTypeDerivesFloatCastBounds(): void
+    {
+        $constraints = FieldDefinitionConstraintBuilder::build([
+            'price' => ['type' => 'float', 'settings' => ['min' => '0.5', 'max' => 99]],
+        ]);
+
+        $range = $this->soleRange($constraints['price']);
+        self::assertSame(0.5, $range->min);
+        self::assertSame(99.0, $range->max);
+    }
+
+    #[Test]
+    public function requiredIntegerWithRangeComposesNotNullAndRange(): void
+    {
+        $constraints = FieldDefinitionConstraintBuilder::build([
+            'count' => ['type' => 'integer', 'required' => true, 'settings' => ['min' => 0, 'max' => 100]],
+        ]);
+
+        self::assertCount(1, array_filter($constraints['count'], static fn ($c): bool => $c instanceof NotNull));
+        self::assertCount(1, $this->rangesIn($constraints['count']));
+    }
+
+    #[Test]
+    public function rangeDerivesFromFieldDefinitionInstance(): void
+    {
+        $constraints = FieldDefinitionConstraintBuilder::build([
+            'count' => new FieldDefinition(
+                name: 'count',
+                type: 'integer',
+                settings: ['min' => 1, 'max' => 9],
+            ),
+        ]);
+
+        $range = $this->soleRange($constraints['count']);
+        self::assertSame(1, $range->min);
+        self::assertSame(9, $range->max);
+    }
+
+    #[Test]
+    public function declaredConstraintsAppendAfterDerived(): void
+    {
+        $declared = new GreaterThan(0);
+        $constraints = FieldDefinitionConstraintBuilder::build([
+            'count' => ['type' => 'integer', 'required' => true, 'constraints' => [$declared]],
+        ]);
+
+        $list = $constraints['count'];
+        self::assertInstanceOf(NotNull::class, $list[0]);
+        self::assertInstanceOf(Type::class, $list[1]);
+        self::assertSame($declared, $list[array_key_last($list)]);
+    }
+
+    #[Test]
+    public function declaredConstraintsAloneSurfaceFieldInOutput(): void
+    {
+        // 'entity_reference', not required: no derivable constraints at all.
+        $declared = new GreaterThan(0);
+        $constraints = FieldDefinitionConstraintBuilder::build([
+            'ref' => ['type' => 'entity_reference', 'constraints' => [$declared]],
+        ]);
+
+        self::assertSame([$declared], $constraints['ref']);
+    }
+
+    #[Test]
+    public function nonConstraintDeclaredEntryThrowsNamingTheField(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('"amount"');
+
+        FieldDefinitionConstraintBuilder::build([
+            'amount' => ['type' => 'integer', 'constraints' => ['not-a-constraint']],
+        ]);
+    }
+
+    #[Test]
+    public function declaredConstraintsMergeFromFieldDefinitionInstance(): void
+    {
+        $declared = new GreaterThan(0);
+        $constraints = FieldDefinitionConstraintBuilder::build([
+            'count' => new FieldDefinition(
+                name: 'count',
+                type: 'integer',
+                constraints: [$declared],
+            ),
+        ]);
+
+        self::assertSame($declared, $constraints['count'][array_key_last($constraints['count'])]);
+    }
+
+    /**
+     * @param list<\Symfony\Component\Validator\Constraint> $constraints
+     */
+    private function soleRange(array $constraints): Range
+    {
+        $ranges = $this->rangesIn($constraints);
+        self::assertCount(1, $ranges);
+
+        return $ranges[0];
+    }
+
+    /**
+     * @param list<\Symfony\Component\Validator\Constraint> $constraints
+     *
+     * @return list<Range>
+     */
+    private function rangesIn(array $constraints): array
+    {
+        return array_values(array_filter($constraints, static fn ($c): bool => $c instanceof Range));
     }
 
     /**

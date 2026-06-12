@@ -9,6 +9,7 @@ use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Validation\EntityValidationException;
 
 /**
  * Load + mutate + save an existing entity.
@@ -79,6 +80,15 @@ final class EntityUpdateTool extends AbstractAgentTool
             if ($forbidden !== null) {
                 return $forbidden;
             }
+            // Identity-key refusal runs AFTER the access check (no identity
+            // probing for unauthorized callers) and BEFORE the mutation loop
+            // — whole-write rejection, zero set() calls on a refused payload.
+            // Only the values payload is guarded; the `id` locator argument
+            // is never refused.
+            $refused = EntityKeyGuard::refusedKeys($this->entityTypeManager->getDefinition($entityType), $values);
+            if ($refused !== []) {
+                return EntityKeyGuard::refusalError('entity.update', $refused);
+            }
             foreach ($values as $field => $value) {
                 if (!is_string($field)) {
                     continue;
@@ -90,6 +100,8 @@ final class EntityUpdateTool extends AbstractAgentTool
                 $entity->setRevisionLog($revisionLog);
             }
             $result = $repository->save($entity);
+        } catch (EntityValidationException $e) {
+            return EntityKeyGuard::validationError('entity.update', $e);
         } catch (\Throwable $e) {
             return AgentToolResult::error(sprintf('entity.update: %s', $e->getMessage()));
         }
@@ -105,6 +117,17 @@ final class EntityUpdateTool extends AbstractAgentTool
         $denied = $this->requireCapability('tool.entity.update', $account);
         if ($denied !== null) {
             return $denied;
+        }
+
+        // Contract clause 5: a dry run of an invalid call must not claim
+        // it would succeed — report the refusal identically.
+        $entityType = $arguments['entity_type'] ?? null;
+        $values = $arguments['values'] ?? null;
+        if (is_string($entityType) && $this->entityTypeManager->hasDefinition($entityType) && is_array($values)) {
+            $refused = EntityKeyGuard::refusedKeys($this->entityTypeManager->getDefinition($entityType), $values);
+            if ($refused !== []) {
+                return EntityKeyGuard::refusalError('entity.update', $refused);
+            }
         }
 
         return AgentToolResult::success(

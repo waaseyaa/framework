@@ -1,5 +1,6 @@
 # AI Integration
 
+<!-- Spec reviewed 2026-06-12 - mission live-entity-validation-key-protection-01KTWQT3 (#1646, alpha.204): new "Identity-Key Write Protection" section — the stock entity agent tools (entity.create / entity.update in packages/ai-tools) refuse identity-key writes whole-write via EntityKeyGuard, and surface save-time EntityValidationException as the structured validation_failed error. label/bundle never refused; revision_log stays writable via its dedicated argument; #1638 scoped writes noted as the separate broader mechanism. -->
 <!-- Spec reviewed 2026-04-09k - `EmbeddingPipeline`, `McpToolExecutor`, and `SearchController` read entity fields through `EntityValues::toCastAwareMap()` / `WorkflowVisibility::isNodePublicForEntity()` (#1181 ST-8) -->
 <!-- Spec reviewed 2026-04-09 ST-9 - embedding text extraction vs EntityEmbedder; MCP cast-aware payloads (#1181) -->
 <!-- Spec reviewed 2026-04-09 ST-10 - EntityEmbedder / EntityEmbeddingListener / SemanticIndexWarmer use EntityValues + WorkflowVisibility::isNodePublicForEntity (#1181) -->
@@ -805,6 +806,52 @@ MCP tool execution has the following safety properties:
 4. **Dry-run support:** All agents must implement `dryRun()` to preview changes without mutations.
 5. **Query access bypass:** `McpToolExecutor` sets `accessCheck(false)` on entity queries. Access control for MCP tool calls is expected to be enforced at the agent/endpoint level, not the individual query level.
 6. **FieldableInterface check:** Updates verify the entity implements `FieldableInterface` before calling `set()`.
+
+## Identity-Key Write Protection (stock entity tools, #1646)
+
+Applies to the stock tools `entity.create` and `entity.update` (`packages/ai-tools/src/Entity/`, see `docs/specs/agent-executor.md` for the tool registry), over every transport that dispatches them (in-app agent, MCP). Guard implementation: `Waaseyaa\AI\Tools\Entity\EntityKeyGuard`. Canonical contract: `kitty-specs/live-entity-validation-key-protection-01KTWQT3/contracts/tool-refusal.md`.
+
+### Refusal set
+
+Per entity type: the registered entity-key column names for the kinds `id`, `uuid`, `revision`, `langcode`, `default_langcode` (so renamed columns like `id => nid` are refused under their real name), unioned with the literal names `uuid`, `langcode`, `default_langcode` (the floor catches translatable schema columns on types that never registered the kind). The `label` and `bundle` kinds are NEVER refused — label is ordinary content (e.g. `title`), bundle is create-time structure.
+
+### Whole-write rejection
+
+If the `values` payload contains ANY refused key, the tool returns an error result: no entity is constructed (create) and no field is set (update). Partial application is forbidden. On create this includes a model-supplied `id` — agent-created entities get system-assigned identity (research D3); the `enforceIsNew()` pre-set-id path remains available to non-tool callers, and consumers needing agent-driven pre-set ids ship a custom tool.
+
+### Check order
+
+capability → argument shape → entity-type existence → access → **identity-key refusal** → mutation/validation. The refusal must not leak entity existence to callers lacking access.
+
+### Error shapes
+
+Identity-key refusal (keys sorted alphabetically):
+
+```
+message: "entity.<op>: refused identity keys: <k1>, <k2> — identity fields cannot be written through this tool"
+content: [ {"type": "text", "text": <message>},
+           {"type": "json", "data": {"error": "identity_keys_refused", "refused_keys": ["<k1>", "<k2>"]}} ]
+```
+
+Save-time validation failure (`EntityValidationException` is caught distinctly, before the generic `\Throwable` arm; violations sorted by field name, insertion order as the stable tiebreak — NFR-003 determinism):
+
+```
+message: "entity.<op>: validation failed: <field>: <message>[; <field>: <message>...]"
+content: [ {"type": "text", "text": <message>},
+           {"type": "json", "data": {"error": "validation_failed",
+             "violations": [ {"field": "...", "message": "...", "invalid_value_type": "..."} ]}} ]
+```
+
+Other throwables keep the generic error mapping. The tools add no private validation fork and no `validate: false` — tool writes reach `EntityRepository::save()` with default validation ON (single seam; see `docs/specs/entity-system.md` § Entity Validation).
+
+### Dry-run and revision_log
+
+- **dry-run** reports an identity-key refusal identically to execute — a dry run of an invalid call must not claim it would succeed.
+- **`revision_log` stays writable** via its dedicated tool argument; it is content, not identity.
+
+### Relation to scoped writes (#1638)
+
+This guard is a fixed, non-configurable floor: identity is never agent-writable through the stock tools. Per-type/per-field configurable write scoping (allowlists for what an agent may write) is #1638's separate, broader mechanism and is out of scope here.
 
 ## Dual-State Bug Pattern
 

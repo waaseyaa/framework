@@ -10,6 +10,7 @@ use Symfony\Component\Validator\Constraints\Email;
 use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
 use Symfony\Component\Validator\Constraints\NotNull;
+use Symfony\Component\Validator\Constraints\Range;
 use Symfony\Component\Validator\Constraints\Type;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionInterface;
@@ -60,6 +61,11 @@ final class FieldDefinitionConstraintBuilder
             $constraints[] = $length;
         }
 
+        $range = self::rangeConstraint($def, $type);
+        if ($range !== null) {
+            $constraints[] = $range;
+        }
+
         if ($type === 'email') {
             $constraints[] = new Email();
         }
@@ -85,7 +91,32 @@ final class FieldDefinitionConstraintBuilder
             $constraints[] = $typeConstraint;
         }
 
+        // Per-field declared constraints append after derived ones: declared
+        // tightens, never replaces. Type-level replace semantics live in
+        // EntityTypeValidationConstraints (research D5).
+        foreach ($def->getConstraints() as $declared) {
+            $constraints[] = self::assertConstraint($fieldName, $declared);
+        }
+
         return $constraints;
+    }
+
+    /**
+     * Fail loud on non-Constraint entries: the getConstraints() PHPDoc type is
+     * unenforced — array-shaped definitions pass `constraints:` through raw.
+     */
+    private static function assertConstraint(string $fieldName, mixed $declared): Constraint
+    {
+        if (!$declared instanceof Constraint) {
+            throw new \InvalidArgumentException(sprintf(
+                'FieldDefinition::getConstraints() for field "%s" must contain only %s instances, got %s.',
+                $fieldName,
+                Constraint::class,
+                get_debug_type($declared),
+            ));
+        }
+
+        return $declared;
     }
 
     /**
@@ -154,6 +185,34 @@ final class FieldDefinitionConstraintBuilder
         }
 
         return new Length(min: $min);
+    }
+
+    private static function rangeConstraint(FieldDefinitionInterface $def, string $type): ?Range
+    {
+        $isInt = in_array($type, ['integer', 'int'], true);
+        $isFloat = in_array($type, ['float', 'double'], true);
+        if (!$isInt && !$isFloat) {
+            return null;
+        }
+
+        $minRaw = $def->getSetting('min');
+        $maxRaw = $def->getSetting('max');
+        $min = is_numeric($minRaw) ? ($isInt ? (int) $minRaw : (float) $minRaw) : null;
+        $max = is_numeric($maxRaw) ? ($isInt ? (int) $maxRaw : (float) $maxRaw) : null;
+
+        if ($min === null && $max === null) {
+            return null;
+        }
+
+        if ($min !== null && $max !== null) {
+            return new Range(min: $min, max: $max);
+        }
+
+        if ($min !== null) {
+            return new Range(min: $min);
+        }
+
+        return new Range(max: $max);
     }
 
     private static function requiredConstraintForType(string $type): NotBlank|NotNull

@@ -9,6 +9,7 @@ use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Validation\EntityValidationException;
 
 /**
  * Create a new entity via {@see EntityRepositoryInterface::save()}.
@@ -72,8 +73,18 @@ final class EntityCreateTool extends AbstractAgentTool
             return $forbidden;
         }
 
+        $definition = $this->entityTypeManager->getDefinition($entityType);
+        // Identity-key refusal runs AFTER the access checks (no identity
+        // probing for unauthorized callers) and BEFORE construction —
+        // whole-write rejection, nothing is instantiated (research D3:
+        // `id` is refused on create; agent-created entities get
+        // system-assigned identity).
+        $refused = EntityKeyGuard::refusedKeys($definition, $values);
+        if ($refused !== []) {
+            return EntityKeyGuard::refusalError('entity.create', $refused);
+        }
+
         try {
-            $definition = $this->entityTypeManager->getDefinition($entityType);
             /** @var class-string $class */
             $class = $definition->getClass();
             if (!class_exists($class)) {
@@ -91,6 +102,8 @@ final class EntityCreateTool extends AbstractAgentTool
             }
             $repository = $this->entityTypeManager->getRepository($entityType);
             $result = $repository->save($entity);
+        } catch (EntityValidationException $e) {
+            return EntityKeyGuard::validationError('entity.create', $e);
         } catch (\Throwable $e) {
             return AgentToolResult::error(sprintf('entity.create: %s', $e->getMessage()));
         }
@@ -116,6 +129,13 @@ final class EntityCreateTool extends AbstractAgentTool
         }
         if (!$this->entityTypeManager->hasDefinition($entityType)) {
             return AgentToolResult::error(sprintf('entity.create: unknown entity type "%s"', $entityType));
+        }
+
+        // Contract clause 5: a dry run of an invalid call must not claim
+        // it would succeed — report the refusal identically.
+        $refused = EntityKeyGuard::refusedKeys($this->entityTypeManager->getDefinition($entityType), $values);
+        if ($refused !== []) {
+            return EntityKeyGuard::refusalError('entity.create', $refused);
         }
 
         return AgentToolResult::success(

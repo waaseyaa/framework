@@ -119,13 +119,22 @@ final class EntityToolAccessTest extends TestCase
         $tool = new EntityUpdateTool($this->etm);
         $tool->setAccessHandler($this->handler);
 
+        // WP03 check-order pin (contract clause 4): the payload deliberately
+        // carries the refused identity key `langcode`. A caller without
+        // access must get the access denial, never the identity-key refusal
+        // — refusal must not leak entity existence to unauthorized callers.
         $result = $tool->execute(
-            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'New']],
+            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['langcode' => 'xx', 'title' => 'New']],
             $this->account(['tool.entity.update']), // capability, but no 'may write'
         );
 
         $this->assertTrue($result->isError);
-        $this->assertSame('forbidden', $result->summary);
+        $this->assertSame('forbidden', $result->summary, 'access denial wins over identity-key refusal');
+        $this->assertStringNotContainsString(
+            'refused identity keys',
+            $result->content[0]['text'] ?? '',
+            'the identity-key refusal must never fire before the access check',
+        );
         $this->assertSame([], $this->repo->saved, 'nothing was written');
     }
 
@@ -183,15 +192,27 @@ final class EntityToolAccessTest extends TestCase
         $tool = new EntityCreateTool($this->etm);
         $tool->setAccessHandler($this->handler);
 
+        // WP03 check-order pin (contract clause 4): the DENIED payload
+        // deliberately carries the refused identity key `id` — an
+        // unauthorized caller must get the access denial, never the
+        // identity-key refusal (no identity probing without access).
         $denied = $tool->execute(
             ['entity_type' => 'tool_test', 'values' => ['id' => '2', 'title' => 'Made']],
             $this->account(['tool.entity.create']),
         );
         $this->assertTrue($denied->isError);
-        $this->assertSame('forbidden', $denied->summary);
+        $this->assertSame('forbidden', $denied->summary, 'access denial wins over identity-key refusal');
+        $this->assertStringNotContainsString(
+            'refused identity keys',
+            $denied->content[0]['text'] ?? '',
+            'the identity-key refusal must never fire before the access check',
+        );
 
+        // WP03 (research D3): pre-set `id` values are refused on create, so
+        // the SUCCESS payload carries content only — identity is
+        // system-assigned.
         $ok = $tool->execute(
-            ['entity_type' => 'tool_test', 'values' => ['id' => '2', 'title' => 'Made'], 'revision_log' => 'created by agent'],
+            ['entity_type' => 'tool_test', 'values' => ['title' => 'Made'], 'revision_log' => 'created by agent'],
             $this->account(['tool.entity.create', 'may write']),
         );
         $this->assertFalse($ok->isError);

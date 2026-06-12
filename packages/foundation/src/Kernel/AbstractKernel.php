@@ -15,6 +15,7 @@ use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeLifecycleManager;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\EntityStorage\Backend\BackendRegistrarFactory;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\BackendResolver;
@@ -192,6 +193,18 @@ abstract class AbstractKernel
         $this->fieldRegistry = $fieldRegistry;
         ContentEntityBase::setFieldRegistry($fieldRegistry);
 
+        // Issue #1643: save-time entity validation is ON by default for every
+        // kernel-built repository. One shared stateless EntityValidator is
+        // captured by the repository factory closure below. The boot-time env
+        // switch WAASEYAA_ENTITY_VALIDATION (0/false/off, case-insensitive)
+        // disables the wiring globally; the per-save `validate: false` flag
+        // remains the surgical escape hatch. Read once here — not per save,
+        // not per repository.
+        $raw = getenv('WAASEYAA_ENTITY_VALIDATION');
+        $validationEnabled = !\is_string($raw)
+            || !\in_array(strtolower($raw), ['0', 'false', 'off'], true);
+        $validator = $validationEnabled ? EntityValidator::createDefault() : null;
+
         $this->entityTypeManager = new EntityTypeManager(
             $dispatcher,
             function (EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry): SqlEntityStorage {
@@ -199,7 +212,7 @@ abstract class AbstractKernel
                 $schemaHandler->ensureTable();
                 return new SqlEntityStorage($definition, $database, $dispatcher, $fieldRegistry);
             },
-            function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry): EntityRepositoryInterface {
+            function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $validator): EntityRepositoryInterface {
                 $schemaHandler = new SqlSchemaHandler($definition, $database, $fieldRegistry, null, $this->logger);
                 $schemaHandler->ensureTable();
                 if ($definition->isRevisionable()) {
@@ -242,6 +255,11 @@ abstract class AbstractKernel
                     $dispatcher,
                     $revisionDriver,
                     $database,
+                    // Issue #1643: shared default validator (null when the
+                    // WAASEYAA_ENTITY_VALIDATION env switch opts out — passing
+                    // null matches the constructor default, so disabled boots
+                    // construct repositories exactly as before this mission).
+                    validator: $validator,
                     fieldRegistry: $fieldRegistry,
                     logger: $this->logger,
                 );
