@@ -227,10 +227,14 @@ final class FieldDefinitionConstraintBuilder
         };
     }
 
-    private static function scalarTypeConstraint(string $type): ?Type
+    private static function scalarTypeConstraint(string $type): ?Constraint
     {
         return match ($type) {
-            'boolean', 'bool' => new Type('bool'),
+            // #1655: the framework's boolean convention keeps 0/1 through
+            // get()/validate() with no cast (see User.php "status stays 0/1"
+            // comment), so accept bool true/false AND int 0/1 — Choice is
+            // strict, so '0'/'1', other ints, and floats still reject.
+            'boolean', 'bool' => new Choice(choices: [true, false, 0, 1]),
             'integer', 'int' => new Type('int'),
             'float', 'double' => new Type('float'),
             'string', 'email', 'text', 'slug' => new Type('string'),

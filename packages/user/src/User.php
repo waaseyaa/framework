@@ -39,7 +39,12 @@ final class User extends ContentEntityBase implements AccountInterface, Hydratab
     #[Field(type: 'email', label: 'Email address', description: 'The email address of the user.', settings: ['weight' => 5])]
     public ?string $mail = null;
 
-    #[Field(label: 'Email verified', description: 'Whether the user has verified their email address.', settings: ['weight' => 6])]
+    // required: false (#1655): consumers never supply this at creation (the PHP
+    // property default is not consulted by get()/validate()), and legacy rows
+    // may hold NULL — a derived NotNull rejected the framework's own
+    // smoke-shaped save. The flag was inert before save-time validation went
+    // live in alpha.204.
+    #[Field(required: false, label: 'Email verified', description: 'Whether the user has verified their email address.', settings: ['weight' => 6])]
     public bool $email_verified = false;
 
     #[Field(type: 'boolean', label: 'Active', description: 'Whether the user account is active.', settings: ['weight' => 10])]
