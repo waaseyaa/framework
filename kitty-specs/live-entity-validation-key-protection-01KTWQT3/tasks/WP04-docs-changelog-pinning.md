@@ -104,3 +104,4 @@ Under `[Unreleased]`, following the file's existing section conventions (check h
 ## Activity Log
 
 - 2026-06-12T03:05:17Z – claude:fable-5:implementer:implementer – shell_pid=15484 – Started implementation via action command
+- 2026-06-12T03:16:51Z – claude:fable-5:implementer:implementer – shell_pid=15484 – Ready for review: CHANGELOG breaks (#1643, #1646) + upgrade guidance from WP02 triage log; entity-system.md three-layer constraint table + kernel default-on + pre-persistence/saveMany rollback; ai-integration.md identity-key refusal contract; CLAUDE.md env line; SqlStorageDriver id-exclusion comment + pinning test green; drift detector OK for both touched specs (infrastructure.md flag is WP02's AbstractKernel, out of scope); quickstart steps 1-6 recorded, gates clean (phpstan/cs/policy/dead-code/layers)
