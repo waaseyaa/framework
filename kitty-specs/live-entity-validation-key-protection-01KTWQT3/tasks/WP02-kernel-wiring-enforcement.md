@@ -16,6 +16,8 @@ subtasks:
 - T007
 - T008
 - T009
+agent: "claude:fable-5:implementer:implementer"
+shell_pid: "8928"
 history:
 - date: '2026-06-12T01:48:54Z'
   event: created
@@ -111,3 +113,7 @@ Run `./vendor/bin/phpunit` (full suite) with the wiring live. For every newly-fa
 - Check the env flag is read at boot, once — not per save (perf) and not per repository (consistency).
 - Scrutinize every `validate: false` introduced in triage: each needs a justification comment; reject bare flags.
 - The Triage Log is a deliverable, not a scratchpad — WP04 consumes it verbatim.
+
+## Activity Log
+
+- 2026-06-12T02:07:12Z – claude:fable-5:implementer:implementer – shell_pid=8928 – Started implementation via action command
