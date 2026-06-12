@@ -15,7 +15,8 @@ subtasks:
 - T002
 - T003
 - T004
-shell_pid: '25592'
+shell_pid: "25592"
+agent: "claude:fable-5:implementer:implementer"
 history:
 - date: '2026-06-12T03:32:00Z'
   event: created
@@ -246,3 +247,4 @@ bin/check-package-layers
 ## Activity Log
 
 - 2026-06-12T03:32:00Z – spec-kitty.tasks – created
+- 2026-06-12T04:20:15Z – claude:fable-5:implementer:implementer – shell_pid=25592 – Assigned agent via action command
