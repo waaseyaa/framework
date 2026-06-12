@@ -8,12 +8,12 @@
 
 | ID | Description | WP | Parallel |
 |----|-------------|----|----------|
-| T001 | EntityType `discoverable` flag (ctor param + accessor + fromClass passthrough) + unit tests | WP01 | |
-| T002 | Discovery filtering: account into ApiDiscoveryController via DiscoveryRouter; authenticated-only default + duck-typed flag skip | WP01 | |
-| T003 | JsonApiController::show(): denied-view returns the shared not-found document (single private factory) | WP01 | |
-| T004 | NFR-002 byte-identity pin test (denied vs missing: bodies byte-equal, status equal, entity never serialized) | WP01 | |
-| T005 | Deliberate test updates: access-control 403→404 assertions, discovery unit/router tests, Phase7 integration account-aware | WP01 | |
-| T006 | WP01 gates: full api/entity suites, phpstan, cs, layers, dead-code | WP01 | |
+| T001 | EntityType `discoverable` flag (ctor param + accessor + fromClass passthrough) + unit tests | WP01 | | [D] |
+| T002 | Discovery filtering: account into ApiDiscoveryController via DiscoveryRouter; authenticated-only default + duck-typed flag skip | WP01 | | [D] |
+| T003 | JsonApiController::show(): denied-view returns the shared not-found document (single private factory) | WP01 | | [D] |
+| T004 | NFR-002 byte-identity pin test (denied vs missing: bodies byte-equal, status equal, entity never serialized) | WP01 | | [D] |
+| T005 | Deliberate test updates: access-control 403→404 assertions, discovery unit/router tests, Phase7 integration account-aware | WP01 | | [D] |
+| T006 | WP01 gates: full api/entity suites, phpstan, cs, layers, dead-code | WP01 | | [D] |
 | T007 | BearerTokenAuth constant-time full-scan hash_equals comparison (string-cast keys, no early exit) | WP02 | |
 | T008 | Blocked-account duck-typed isActive() fail-closed rejection + auth unit tests (existing matrix unchanged) | WP02 | |
 | T009 | DatabaseBootstrapper: project-root absolutization (Windows-aware) + optional logger + docroot warning; AbstractKernel passes logger | WP02 | |
@@ -31,12 +31,12 @@
 **Independent test**: `./vendor/bin/phpunit packages/api/tests/ packages/entity/tests/ tests/Integration/Phase7/` green, including the new byte-identity pin and the account-aware discovery matrix.
 **Dependencies**: none (lane root)
 
-- [ ] T001 EntityType: additive `discoverable: bool = true` ctor param + `isDiscoverable(): bool` + `fromClass()` passthrough; `EntityTypeInterface` untouched (research D2 — seven external test fixtures); new `EntityTypeDiscoverableTest` (WP01)
-- [ ] T002 DiscoveryRouter passes `$ctx->account` into the inline construction (:41); ApiDiscoveryController gains optional `?AccountInterface $account = null`; discover() lists type links only for `isAuthenticated()` accounts and skips duck-typed `isDiscoverable() === false` types for every caller; envelope (meta + self) constant (WP01)
-- [ ] T003 JsonApiController::show(): extract single private `notFoundDocument($entityTypeId, $id)`; missing branch and denied-view branch both return it (identical detail string, no `code` member); access check still runs, entity never serialized; store/update/destroy/field paths untouched (WP01)
-- [ ] T004 NEW `JsonApiControllerDeniedNotFoundTest`: denying policy vs nonexistent id through the same controller → `json_encode(toArray())` byte-equality + equal statusCode (NFR-002 / SC-002); guard that allowed entities still serialize (WP01)
-- [ ] T005 Deliberate updates: `JsonApiControllerAccessControlTest` denied-show 403→404 (mutation 403 assertions unchanged); `ApiDiscoveryControllerTest` + `DiscoveryRouterTest` matrix; `tests/Integration/Phase7/ApiDiscoveryIntegrationTest.php` route-shape assertions unchanged (`_public` stays), listing assertions split anonymous/authenticated (WP01)
-- [ ] T006 Gates: `./vendor/bin/phpunit packages/api/tests/ packages/entity/tests/ tests/Integration/Phase7/`; `composer phpstan`; `composer cs-check`; `bin/check-package-layers`; `bin/check-dead-code` (WP01)
+- [x] T001 EntityType: additive `discoverable: bool = true` ctor param + `isDiscoverable(): bool` + `fromClass()` passthrough; `EntityTypeInterface` untouched (research D2 — seven external test fixtures); new `EntityTypeDiscoverableTest` (WP01)
+- [x] T002 DiscoveryRouter passes `$ctx->account` into the inline construction (:41); ApiDiscoveryController gains optional `?AccountInterface $account = null`; discover() lists type links only for `isAuthenticated()` accounts and skips duck-typed `isDiscoverable() === false` types for every caller; envelope (meta + self) constant (WP01)
+- [x] T003 JsonApiController::show(): extract single private `notFoundDocument($entityTypeId, $id)`; missing branch and denied-view branch both return it (identical detail string, no `code` member); access check still runs, entity never serialized; store/update/destroy/field paths untouched (WP01)
+- [x] T004 NEW `JsonApiControllerDeniedNotFoundTest`: denying policy vs nonexistent id through the same controller → `json_encode(toArray())` byte-equality + equal statusCode (NFR-002 / SC-002); guard that allowed entities still serialize (WP01)
+- [x] T005 Deliberate updates: `JsonApiControllerAccessControlTest` denied-show 403→404 (mutation 403 assertions unchanged); `ApiDiscoveryControllerTest` + `DiscoveryRouterTest` matrix; `tests/Integration/Phase7/ApiDiscoveryIntegrationTest.php` route-shape assertions unchanged (`_public` stays), listing assertions split anonymous/authenticated (WP01)
+- [x] T006 Gates: `./vendor/bin/phpunit packages/api/tests/ packages/entity/tests/ tests/Integration/Phase7/`; `composer phpstan`; `composer cs-check`; `bin/check-package-layers`; `bin/check-dead-code` (WP01)
 
 **Implementation sketch**: research D1–D3, contracts/discovery-and-404.md is the authoritative behavior spec. The whole change is account-plumbing inside packages/api plus one additive value-object param in packages/entity; zero new classes, zero manifest edges. Biggest review risk: the 404 detail string must be the *moved* literal, not a retyped one — the pin test is the guard.
 
