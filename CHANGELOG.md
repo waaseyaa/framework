@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.208] - 2026-06-12
+
 ### Fixed
 
 - **`entity`: boolean field validation now accepts the framework's own 0/1 convention (#1655, alpha.204 regression).** `FieldDefinitionConstraintBuilder::scalarTypeConstraint()` derived `Type('bool')` for `type: 'boolean'` fields, rejecting int 0/1 — but the framework's documented boolean convention (User.php: "status stays 0/1 in storage and in get()/validate()") keeps booleans as 0/1 with no cast, and `User::setActive()` itself writes `$active ? 1 : 0`. Validation contradicted the framework's own accessor output: the skeleton smoke (`'status' => 1`) died with `EntityValidationException`, and any consumer save after `setActive()` threw. The boolean arm now derives a strict `Choice([true, false, 0, 1])` — bool true/false and int 0/1 accept; `'0'`/`'1'`, other ints, and floats (`1.0 !== 1` under strict comparison) still reject; null remains the required-arm's business. Companion fix in `user`: `User::$email_verified` is now declared `required: false` — its inferred `required` (non-nullable property) derived a `NotNull` that also rejected the smoke-shaped save, because `get()` never consults the PHP property default and consumers never supply the field at creation; the flag was inert before save-time validation went live in alpha.204.

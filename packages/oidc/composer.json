@@ -22,9 +22,9 @@
         "ext-sodium": "*",
         "lcobucci/jwt": "^5.3",
         "league/oauth2-server": "^9.0",
-        "waaseyaa/access": "^0.1.0-alpha.207",
-        "waaseyaa/foundation": "^0.1.0-alpha.207",
-        "waaseyaa/user": "^0.1.0-alpha.207"
+        "waaseyaa/access": "^0.1.0-alpha.208",
+        "waaseyaa/foundation": "^0.1.0-alpha.208",
+        "waaseyaa/user": "^0.1.0-alpha.208"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
