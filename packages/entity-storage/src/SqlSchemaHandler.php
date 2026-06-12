@@ -246,8 +246,9 @@ final class SqlSchemaHandler
      * Primary key is composite (entity_id, revision_id).
      *
      * When the table already exists, revision-metadata columns added since it
-     * was created are synced additively (`fieldExists` → `addField`, mirroring
-     * {@see ensureBundleSubtable()}) — currently `revision_author` (mission
+     * was created are synced additively (`fieldExists` → targeted raw
+     * `ALTER TABLE … ADD COLUMN`, see {@see ensureRevisionAuthorColumn()}
+     * re #1653) — currently `revision_author` (mission
      * revision-audit-provenance-01KTWY5V FR-003). Idempotent; no other column
      * is touched and no row is rewritten (C-001). Runs at kernel boot /
      * db:init, never per save.
@@ -282,12 +283,29 @@ final class SqlSchemaHandler
     {
         $schema = $this->database->schema();
 
-        if (!$schema->fieldExists($tableName, 'revision_author')) {
-            $schema->addField($tableName, 'revision_author', [
-                'type' => 'int',
-                'not null' => false,
-            ]);
+        if ($schema->fieldExists($tableName, 'revision_author')) {
+            return;
         }
+
+        // Targeted ALTER, not DBALSchema::addField() (#1653, alpha.205
+        // regression): addField() runs whole-schema introspection
+        // (AbstractSchemaManager::introspectSchema()), which throws on
+        // databases containing FTS5 virtual tables — their shadow tables
+        // have typeless columns that DBAL 4.4's SQLite column parser cannot
+        // handle. fieldExists() above introspects only the named table, so
+        // the guard is safe; the ADD COLUMN itself needs no introspection.
+        // Same pattern as the audit package's actor_uid arm
+        // (AuditEventSchemaHandler): metadata-only DDL, nullable, no
+        // default, no FK — portable across SQLite/MySQL/PostgreSQL.
+        $quote = $this->database instanceof DBALDatabase
+            ? fn(string $id): string => $this->database->quoteIdentifier($id)
+            : static fn(string $id): string => '"' . str_replace('"', '""', $id) . '"';
+
+        $this->database->query(\sprintf(
+            'ALTER TABLE %s ADD COLUMN %s INTEGER',
+            $quote($tableName),
+            $quote('revision_author'),
+        ));
     }
 
     /**

@@ -463,6 +463,35 @@ final class SqlSchemaHandlerTest extends TestCase
         $this->assertTrue($db->schema()->fieldExists('node__translation__revision', 'revision_author'));
     }
 
+    public function testAdditiveAuthorArmSucceedsOnDatabaseContainingFts5Tables(): void
+    {
+        // #1653 regression (alpha.205): the additive arm used
+        // DBALSchema::addField(), whose whole-schema introspection throws on
+        // databases containing FTS5 virtual tables — their shadow tables
+        // (_idx/_content/_data/...) have typeless columns that DBAL 4.4's
+        // SQLite column parser rejects (TypeError: strtolower(null)). The
+        // arm must use a targeted ALTER that never lists other tables.
+        $db = DBALDatabase::createSqlite();
+        $db->query('CREATE VIRTUAL TABLE search_index USING fts5(title, body)');
+
+        // Pre-existing revision table without revision_author → the additive
+        // arm runs (not the createTable path).
+        $db->schema()->createTable('node_revision', $this->preMissionRevisionTableSpec());
+        $this->assertFalse($db->schema()->fieldExists('node_revision', 'revision_author'));
+
+        $handler = new SqlSchemaHandler($this->revisionableType(), $db);
+        $handler->ensureRevisionTable();
+
+        $this->assertTrue(
+            $db->schema()->fieldExists('node_revision', 'revision_author'),
+            'The additive arm must add revision_author without tripping over FTS5 shadow tables.',
+        );
+
+        // Idempotent on the same FTS5-bearing database.
+        $handler->ensureRevisionTable();
+        $this->assertTrue($db->schema()->fieldExists('node_revision', 'revision_author'));
+    }
+
     public function testAdditiveAuthorArmTouchesNoOtherColumnAndNoRow(): void
     {
         $db = DBALDatabase::createSqlite();
