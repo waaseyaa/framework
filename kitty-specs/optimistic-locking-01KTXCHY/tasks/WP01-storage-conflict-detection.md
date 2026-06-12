@@ -26,7 +26,8 @@ subtasks:
 - T004
 - T005
 - T006
-shell_pid: '20768'
+shell_pid: "20768"
+agent: "claude:fable-5:implementer:implementer"
 history:
 - date: '2026-06-12T00:00:00Z'
   event: created
@@ -235,3 +236,4 @@ Integration (`#[CoversNothing]`, integration suite conventions):
 ## Activity Log
 
 - 2026-06-12T00:00:00Z – spec-kitty.tasks – created
+- 2026-06-12T08:10:40Z – claude:fable-5:implementer:implementer – shell_pid=20768 – Assigned agent via action command
