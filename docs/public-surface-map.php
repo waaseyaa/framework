@@ -241,6 +241,9 @@ return [
     'Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy' => 'public',
     'Waaseyaa\Access\Policy\RevisionPolicyComposition' => 'public',
     'Waaseyaa\Access\AccountInterface' => 'public',
+    // Acting-account context (mission #1644/#1645): request-scoped holder read
+    // by entity-storage (revision author) and audit (actor attribution).
+    'Waaseyaa\Access\Context\AccountContextInterface' => 'public',
     'Waaseyaa\Access\AccessPolicyInterface' => 'public',
     'Waaseyaa\Access\ContextAwareAccessPolicyInterface' => 'public',
     'Waaseyaa\Access\FieldAccessPolicyInterface' => 'public',
