@@ -151,3 +151,4 @@ Cases (use array-shaped definitions like the existing tests, plus at least one `
 - 2026-06-12T02:03:04Z – claude:fable-5:implementer:implementer – shell_pid=18748 – Ready for review
 - 2026-06-12T02:03:39Z – claude:fable-5:reviewer:reviewer – shell_pid=3660 – Started review via action command
 - 2026-06-12T02:06:14Z – claude:fable-5:reviewer:reviewer – shell_pid=3660 – Review passed: Range arm, declared-constraint merge, createDefault() all correct; precedence pin proves type-level replace; gates green (513 entity tests, phpstan 0 errors, cs-check clean); diff is pure additions within owned files
+- 2026-06-12T03:25:51Z – claude:fable-5:reviewer:reviewer – shell_pid=3660 – Done override: Mission squash-merged to main as 051766833
