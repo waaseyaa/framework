@@ -1,7 +1,8 @@
 ---
 work_package_id: WP02
 title: Bearer Hardening & DB Path Resolution
-dependencies: []
+dependencies:
+- WP01
 requirement_refs:
 - FR-005
 - FR-006
