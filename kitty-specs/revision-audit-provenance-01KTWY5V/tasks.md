@@ -8,10 +8,10 @@
 
 | ID | Description | WP | Parallel |
 |----|-------------|----|----------|
-| T001 | AccountContextInterface + RequestAccountContext in packages/access | WP01 | |
-| T002 | SessionMiddleware sets the context alongside `_account` (+ HttpKernel pass) | WP01 | |
-| T003 | AbstractKernel shared instance, repository-factory seam, services-bus exposure | WP01 | |
-| T004 | Unit tests: holder (set/current/clear/null default) + middleware test | WP01 | |
+| T001 | AccountContextInterface + RequestAccountContext in packages/access | WP01 | | [D] |
+| T002 | SessionMiddleware sets the context alongside `_account` (+ HttpKernel pass) | WP01 | | [D] |
+| T003 | AbstractKernel shared instance, repository-factory seam, services-bus exposure | WP01 | | [D] |
+| T004 | Unit tests: holder (set/current/clear/null default) + middleware test | WP01 | | [D] |
 | T005 | SaveContext::withActorUid(?int) + actorOverridden flag + unit tests | WP02 | |
 | T006 | EntityRepository actor resolution → all 7 writeRevision sites + RevisionPointerMovedEvent | WP02 | |
 | T007 | RevisionableStorageDriver trailing `?int $author` + column write on both paths | WP02 | |
@@ -39,10 +39,10 @@
 **Independent test**: `./vendor/bin/phpunit packages/access/tests/ packages/user/tests/` green; `bin/check-package-layers` green (no new manifest edges in this WP).
 **Dependencies**: none (lane root)
 
-- [ ] T001 AccountContextInterface + RequestAccountContext in `packages/access/src/Context/` (WP01)
-- [ ] T002 SessionMiddleware optional ctor param; context set alongside `_account` on both branches; HttpKernel passes the kernel instance (WP01)
-- [ ] T003 AbstractKernel: one shared RequestAccountContext, `attachAccountContext()` forward seam in the repository factory, services-bus + handler-container exposure (WP01)
-- [ ] T004 Unit tests: holder semantics (null default, set/current/clear, overwrite) + middleware sets context for authenticated/anonymous/pre-set `_account` (WP01)
+- [x] T001 AccountContextInterface + RequestAccountContext in `packages/access/src/Context/` (WP01)
+- [x] T002 SessionMiddleware optional ctor param; context set alongside `_account` on both branches; HttpKernel passes the kernel instance (WP01)
+- [x] T003 AbstractKernel: one shared RequestAccountContext, `attachAccountContext()` forward seam in the repository factory, services-bus + handler-container exposure (WP01)
+- [x] T004 Unit tests: holder semantics (null default, set/current/clear, overwrite) + middleware sets context for authenticated/anonymous/pre-set `_account` (WP01)
 
 **Implementation sketch**: research D1. The repository-factory pass to `EntityRepository` cannot be a named constructor arg in this WP (the receiving parameter is WP02's file) — WP01 ships a `method_exists`-guarded `setAccountContext()` forward seam in the factory closure (no-op until WP02 merges; precedent: the `method_exists` hydration at `EntityRepository:620-627`). Compile-green standalone.
 
