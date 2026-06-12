@@ -114,6 +114,45 @@ Run `./vendor/bin/phpunit` (full suite) with the wiring live. For every newly-fa
 - Scrutinize every `validate: false` introduced in triage: each needs a justification comment; reject bare flags.
 - The Triage Log is a deliverable, not a scratchpad — WP04 consumes it verbatim.
 
+## Triage Log (T008 + T009)
+
+**Run**: 2026-06-11, full `./vendor/bin/phpunit` on the WP02 worktree at commit b436bbce0 (Windows 11, PHP 8.5.5, PHPUnit 10.5.63, `php -d memory_limit=2G` — the local default 128M exhausts mid-suite; CI's Linux config is unaffected).
+
+**Headline: no newly-failing tests.** Turning validation ON framework-wide broke nothing in the framework's own suite. No entity definition fixes, no fixture fixes, and **zero new `validate: false` call sites** were needed. The seam was not weakened in any way (no exclusion lists, no builder relaxation, no default flip). No out-of-bounds fixes are proposed — there is nothing for the orchestrator to apply or re-route.
+
+### Method
+
+Two full-suite runs, identical code, differing only in the boot-time env switch:
+
+| Run | `WAASEYAA_ENTITY_VALIDATION` | Tests | Assertions | Errors | Failures |
+|---|---|---|---|---|---|
+| Enabled (default-on wiring live) | unset | 9759 | 224751 | 1 | 145 |
+| Disabled (pre-mission wiring; `validator: null` matches the constructor default, byte-identical repository construction) | `0` | 9759 | 224740 | 1 | 148 |
+
+Failure-name set diff between the two runs:
+
+- **Failures present only with validation ENABLED: none.** This is the triage population defined by T008, and it is empty.
+- Failures present only with validation DISABLED: 3 — all of them this WP's own `KernelValidationWiringTest` cases (`invalidSaveIsRejectedBeforeAnyStorageWrite`, `violationListIsCompleteAcrossAllFieldsAndFieldPrefixed`, `saveManyRollsBackEarlierEntitiesWhenALaterOneFailsValidation`), which assert default-on behavior and are correctly defeated when the whole suite is booted under the opt-out env var. Expected and self-confirming, not a defect.
+
+### Pre-existing failures (classification: none caused by this mission)
+
+The 145 failures + 1 error shared by both runs are pre-existing local-Windows environment failures, NOT validation triage items. Verified by re-running samples on the clean `main` checkout (no WP01/WP02 code): `packages/oidc/tests/ + tests/Integration/Oidc/` fails 38/187 on main exactly as in the worktree; `AboutSnapshotTest|CpNewCheckTest` fails 5/5 on main. Families: OIDC PEM/JWKS key-file handling (~38), CLI snapshot tests (~60, path/EOL-sensitive), Windows temp-dir `rmdir` races (`CpNewCheckTest`, `CheckComposerPolicyTest`), SSR/Inertia Phase13 kernel tests, migration lock tests, and 1 "No code coverage driver available" error. None reference entity validation; none changed between enabled/disabled runs. The release gate is green Linux CI at the exact tag commit — these Windows-local failures are outside this WP's scope and are recorded here only to document the diff methodology.
+
+### T007 wiring tests
+
+All 6 `KernelValidationWiringTest` cases green in the enabled run (rejection pre-persistence with direct storage query, violation completeness with field-prefixed propertyPaths, valid save → SAVED_NEW, per-save `validate: false` opt-out, saveMany rollback with direct storage query, boot-time env opt-out via putenv with restore-in-tearDown).
+
+### T009 perf smoke (NFR-001)
+
+`ValidationOverheadTest`: 20-field entity type (10 required strings w/ max_length + 10 integers w/ min/max), 200 validated vs 200 unvalidated saves through a kernel-built repository, median-over-median ratio with a retry-once jitter guard.
+
+- **Measured median ratio: 1.054x** (instrumented run, 2026-06-11; repeated runs land ~1.05–1.07x).
+- **Asserted bound: ≤ 1.10x** — green on the first measurement, no retry needed. The sanctioned flaky-CI fallback (1.25x) was NOT used.
+
+### For WP04's CHANGELOG note
+
+Default-on save-time validation is a consumer-breaking change, but the framework's own suite required **zero accommodations**: no system entity definition was wrong, no framework-internal write needed a validation bypass, no fixture was invalid. Consumers whose entities already satisfy their declared field definitions should see no behavior change other than the ≤1.10x (measured ~1.05x) save-path overhead; `WAASEYAA_ENTITY_VALIDATION=0|false|off` is the boot-time global opt-out and `save($entity, validate: false)` the per-call escape hatch.
+
 ## Activity Log
 
 - 2026-06-12T02:07:12Z – claude:fable-5:implementer:implementer – shell_pid=8928 – Started implementation via action command
