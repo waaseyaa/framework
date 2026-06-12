@@ -243,3 +243,4 @@ Integration (`#[CoversNothing]`, integration suite conventions):
 - 2026-06-12T08:41:02Z – claude:fable-5:implementer:implementer – shell_pid=27188 – Started implementation via action command
 - 2026-06-12T08:43:40Z – claude:fable-5:implementer:implementer – shell_pid=27188 – Cycle 2: driverless-revisionable rejection clause added
 - 2026-06-12T08:44:08Z – claude:fable-5:reviewer:reviewer – shell_pid=8928 – Started review via action command
+- 2026-06-12T08:46:30Z – claude:fable-5:reviewer:reviewer – shell_pid=8928 – Review passed cycle 2: driverless downgrade closed
