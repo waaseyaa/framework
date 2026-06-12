@@ -27,10 +27,10 @@
 | T017 | AgentRunToolCallObserved additive `?int $accountId` + AgentExecutor (both dispatch sites, context set/restore) | WP04 | [D] |
 | T018 | McpDispatchEvent + McpEndpoint optional dispatcher, fire post-auth/post-parse, context set/restore | WP04 | [D] |
 | T019 | Unit tests: ai-agent/ai-observability + McpEndpointDispatchEventTest + event-name pin | WP04 | [D] |
-| T020 | CHANGELOG [Unreleased] entries (column, actor semantics, kinds/events, guard) | WP05 | |
-| T021 | Spec docs: revision-system-unified (FR-009 retirement), ocap-audit-log, mcp-endpoint, access-control | WP05 | |
-| T022 | Drift detector run for touched specs | WP05 | |
-| T023 | Quickstart walkthrough + gates | WP05 | |
+| T020 | CHANGELOG [Unreleased] entries (column, actor semantics, kinds/events, guard) | WP05 | | [D] |
+| T021 | Spec docs: revision-system-unified (FR-009 retirement), ocap-audit-log, mcp-endpoint, access-control | WP05 | | [D] |
+| T022 | Drift detector run for touched specs | WP05 | | [D] |
+| T023 | Quickstart walkthrough + gates | WP05 | | [D] |
 
 ## WP01 — Acting-Account Context (access + wiring)
 
@@ -98,10 +98,10 @@
 **Independent test**: quickstart.md steps 1–7 pass end-to-end; `composer verify` components green.
 **Dependencies**: WP01, WP02, WP03, WP04
 
-- [ ] T020 CHANGELOG [Unreleased]: revision_author column + additive sync; actor_uid + null-vs-0 semantics + account_uid legacy; AuditEventDescriptor int→?int widening; revision.publish/revision.revert kinds + RevisionPointerMovedEvent; McpDispatchEvent; query() raw-SQL guard — NOT under a version heading (WP05)
-- [ ] T021 docs/specs updates: revision-system-unified.md (author column on live dialect + explicit dormant-dialect retirement, FR-009), ocap-audit-log.md (actor_uid, kinds, listener catalogue, guard), mcp-endpoint.md (dispatch-event seam), access-control.md (AccountContext service contract) (WP05)
-- [ ] T022 tools/drift-detector.sh run; resolve flags for the four touched specs (WP05)
-- [ ] T023 Execute quickstart.md steps 1–7 as final validation; record per-step results in the WP file (WP05)
+- [x] T020 CHANGELOG [Unreleased]: revision_author column + additive sync; actor_uid + null-vs-0 semantics + account_uid legacy; AuditEventDescriptor int→?int widening; revision.publish/revision.revert kinds + RevisionPointerMovedEvent; McpDispatchEvent; query() raw-SQL guard — NOT under a version heading (WP05)
+- [x] T021 docs/specs updates: revision-system-unified.md (author column on live dialect + explicit dormant-dialect retirement, FR-009), ocap-audit-log.md (actor_uid, kinds, listener catalogue, guard), mcp-endpoint.md (dispatch-event seam), access-control.md (AccountContext service contract) (WP05)
+- [x] T022 tools/drift-detector.sh run; resolve flags for the four touched specs (WP05)
+- [x] T023 Execute quickstart.md steps 1–7 as final validation; record per-step results in the WP file (WP05)
 
 **Implementation sketch**: write docs from the two contracts and data-model.md, not from memory of the diff. CHANGELOG-under-[Unreleased] is the alpha.202 lesson; the release-cut workflow stamps the heading.
 
