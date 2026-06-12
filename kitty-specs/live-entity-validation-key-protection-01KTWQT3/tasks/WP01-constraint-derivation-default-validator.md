@@ -18,8 +18,8 @@ subtasks:
 - T003
 - T004
 - T005
-shell_pid: "18748"
-agent: "claude:fable-5:implementer:implementer"
+shell_pid: "3660"
+agent: "claude:fable-5:reviewer:reviewer"
 history:
 - date: '2026-06-12T01:48:54Z'
   event: created
@@ -149,3 +149,4 @@ Cases (use array-shaped definitions like the existing tests, plus at least one `
 
 - 2026-06-12T01:54:48Z – claude:fable-5:implementer:implementer – shell_pid=18748 – Assigned agent via action command
 - 2026-06-12T02:03:04Z – claude:fable-5:implementer:implementer – shell_pid=18748 – Ready for review
+- 2026-06-12T02:03:39Z – claude:fable-5:reviewer:reviewer – shell_pid=3660 – Started review via action command
