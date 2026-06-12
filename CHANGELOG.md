@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.206] - 2026-06-12
+
 ### Changed
 
 - **BREAKING(-ish): denied single reads return the not-found response, not 403 (`api`).** `GET /api/{type}/{id}` on an entity the caller is denied `view` on now returns the *same not-found response* as a nonexistent id — status 404, byte-identical body for the same probe (title `Not Found`, same detail string, **no `FORBIDDEN` code member**), closing the existence oracle a diffable 403 created. **Clients keying on 403 for denied single reads must adapt.** Same-probe indistinguishability is pinned by test (SC-002), and there is no debug-mode variant — the 404 is uniform in every environment. Mutating operations (POST/PATCH/DELETE) and field-edit denials keep their genuine 403 `FORBIDDEN` responses unchanged. (#1649)

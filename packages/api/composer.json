@@ -71,21 +71,21 @@
     ],
     "require": {
         "php": ">=8.5",
-        "waaseyaa/access": "^0.1.0-alpha.205",
-        "waaseyaa/entity": "^0.1.0-alpha.205",
-        "waaseyaa/foundation": "^0.1.0-alpha.205",
-        "waaseyaa/notification": "^0.1.0-alpha.205",
-        "waaseyaa/queue": "^0.1.0-alpha.205",
-        "waaseyaa/routing": "^0.1.0-alpha.205",
-        "waaseyaa/scheduler": "^0.1.0-alpha.205",
-        "waaseyaa/workflows": "^0.1.0-alpha.205"
+        "waaseyaa/access": "^0.1.0-alpha.206",
+        "waaseyaa/entity": "^0.1.0-alpha.206",
+        "waaseyaa/foundation": "^0.1.0-alpha.206",
+        "waaseyaa/notification": "^0.1.0-alpha.206",
+        "waaseyaa/queue": "^0.1.0-alpha.206",
+        "waaseyaa/routing": "^0.1.0-alpha.206",
+        "waaseyaa/scheduler": "^0.1.0-alpha.206",
+        "waaseyaa/workflows": "^0.1.0-alpha.206"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
-        "waaseyaa/audit": "^0.1.0-alpha.205",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.205",
-        "waaseyaa/media": "^0.1.0-alpha.205",
-        "waaseyaa/telescope": "^0.1.0-alpha.205"
+        "waaseyaa/audit": "^0.1.0-alpha.206",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.206",
+        "waaseyaa/media": "^0.1.0-alpha.206",
+        "waaseyaa/telescope": "^0.1.0-alpha.206"
     },
     "autoload": {
         "psr-4": {
