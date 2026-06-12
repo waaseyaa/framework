@@ -138,3 +138,42 @@ Execute `quickstart.md` steps 1–6 end-to-end against merged WP01+WP02 and reco
 
 - 2026-06-12T00:00:00Z – spec-kitty.tasks – created
 - 2026-06-12T07:23:48Z – claude:fable-5:implementer:implementer – shell_pid=21672 – Started implementation via action command
+
+## Completion notes — T015 quickstart walkthrough + gates (2026-06-12, lane commit ca44e1b2f)
+
+Executed in the lane worktree against merged WP01+WP02 (`79562e180` + `b8bdfee16`) with the WP03 docs commit on top. All PHPUnit runs via `php -d memory_limit=2G`; the only PHPUnit "warning" in every run is the benign no-code-coverage-driver notice.
+
+| Quickstart step | Command(s) | Result |
+|---|---|---|
+| 1 — anonymous discovery reveals no type ids (SC-001) | `ApiDiscoveryControllerTest` (6 tests, 18 assertions) + `tests/Integration/Phase7/ApiDiscoveryIntegrationTest` (8 tests, 36 assertions) | **PASS** — anonymous→zero type links, authenticated→all discoverable types, `discoverable: false` absent for both, envelope constant, route shape `_public` unchanged |
+| 2 — denied single read byte-identical to missing (SC-002, NFR-002) | `JsonApiControllerDeniedNotFoundTest` (3 tests, 14 assertions) | **PASS** — `json_encode` byte-equality of denied vs missing documents, equal 404 status, denied entity never serialized |
+| 3 — bearer hardening (SC-003) | `packages/mcp/tests/Unit/Auth/` (13 tests, 16 assertions: 7-test pre-existing `BearerTokenAuthTest` matrix unchanged + `BearerTokenAuthHardeningTest`) | **PASS** — hash_equals full scan (match-first/match-last/numeric token), blocked `isActive(): false` → null indistinguishable from unknown token (the blocked-token 401 path), account without `isActive()` passes |
+| 4 — relative WAASEYAA_DB resolves against project root (SC-004) | `DatabaseBootstrapperTest` (25 tests, 44 assertions) + `tests/Integration/DbPath/DbPathResolutionTest` (2 tests, 8 assertions) | **PASS** — HTTP-shaped boot (docroot CWD) and CLI-shaped boot resolve the same file, write-through-one-read-through-other, **no stray file materializes under the docroot** (the no-stray-database evidence); docroot-warning emission/non-emission via spy logger |
+| 5 — unchanged-behavior pins | step-4 matrix (absolute/drive-letter/UNC/`:memory:`/default byte-identical, climbing `../` → project root) + `DbInitHandlerTest`/`HealthReportHandlerTest`/`AboutHandlerTest` (16 tests, 50 assertions) | **PASS** — `db:init` parity with kernel resolution; `health:report`/`about` display the resolved path |
+| 6 — gates | see below | **PASS** (all) |
+
+Targeted suites beyond the quickstart commands: `packages/api/tests/` 498 tests / 1501 assertions PASS; `packages/entity/tests/` 517 / 1112 PASS; `packages/mcp/tests/` 128 / 388 PASS; `packages/foundation/tests/Unit/Kernel/Bootstrap/` 38 / 66 PASS; `packages/validation/tests/` 52 / 100 PASS; `tests/Integration/Phase7/` 92 / 428 PASS.
+
+Gates (step 6, run individually in place of the monolithic `composer verify` per Windows-advisory practice — Linux CI remains the authority):
+
+- `composer phpstan` — OK, no errors
+- `composer cs-check` — OK, 0 offending files
+- `bin/check-dead-code` — OK, no new unused members beyond baseline
+- `composer check-composer-policy` — OK
+- `bin/check-package-layers` — OK, no new manifest edges (mission constraint held)
+
+### T014 — drift detector record
+
+`tools/drift-detector.sh` after the WP03 docs commit:
+
+- **OK**: `docs/specs/api-layer.md`, `docs/specs/infrastructure.md`, `docs/specs/mcp-endpoint.md` — all three owned specs cleared.
+- **STALE (remaining, not owned by WP03)**: `docs/specs/entity-system.md`, triggered solely by WP01's additive `packages/entity/src/EntityType.php` change (the `discoverable` ctor param + `isDiscoverable()`). Rationale for not editing it here: the flag's semantics are API-layer discovery behavior, fully documented in `api-layer.md` (visibility decision, duck-typed read, interface-not-widened note) and the CHANGELOG; `entity-system.md` is outside WP03's `owned_files`. The detector is timestamp-based, so a one-line cross-reference in `entity-system.md` ("EntityType `discoverable` flag — semantics owned by docs/specs/api-layer.md, #1649") committed on the lane or at merge would clear it; recommended as a reviewer/merge follow-up.
+
+### Deviations
+
+- CHANGELOG sectioning follows this WP file's six-entry layout (Changed ×3 / Added ×2 / Security ×1) — the db-path change is under **Changed** (it deliberately changes behavior for CWD-reliant deployments) and the bearer hardening under **Security**, not under "Fixed".
+- New entries were inserted immediately after the `## [Unreleased]` heading, above the still-uncut alpha.205 provenance block, which was left byte-untouched (merge-cleanliness anchoring; the release-cut workflow owns heading manipulation). This yields temporarily duplicated Keep-a-Changelog section names under `[Unreleased]` until the next cut stamps them.
+- `infrastructure.md` did not receive a Mission-2 `AbstractKernel::accountContext()` one-liner: the drift detector is timestamp-based and cleared without it; adding Mission-2 content was outside this mission's touch-only-what-you-own rule.
+- Step 1–5 "by hand" dev-server probes were satisfied by the equivalent unit/integration pins named in the quickstart itself (each step's listed test commands), not by a live `php -S` session.
+
+- 2026-06-12 – claude:fable-5:implementer:implementer – T012–T015 complete; lane commit ca44e1b2f; ready for review
