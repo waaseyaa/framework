@@ -16,8 +16,8 @@ subtasks:
 - T007
 - T008
 - T009
-agent: "claude:fable-5:implementer:implementer"
-shell_pid: "8928"
+agent: "claude:fable-5:reviewer:reviewer"
+shell_pid: "6868"
 history:
 - date: '2026-06-12T01:48:54Z'
   event: created
@@ -157,3 +157,4 @@ Default-on save-time validation is a consumer-breaking change, but the framework
 
 - 2026-06-12T02:07:12Z – claude:fable-5:implementer:implementer – shell_pid=8928 – Started implementation via action command
 - 2026-06-12T02:34:49Z – claude:fable-5:implementer:implementer – shell_pid=8928 – WP02 complete: kernel wiring live (default-on, WAASEYAA_ENTITY_VALIDATION boot-time opt-out), 6 wiring integration tests + perf smoke green (ratio 1.054x <= 1.10x NFR-001), full-suite triage clean (zero newly-failing tests, Triage Log appended on main e0ee5cd2e), phpstan/cs-check/getquery gates clean. Code commit b436bbce0.
+- 2026-06-12T02:35:56Z – claude:fable-5:reviewer:reviewer – shell_pid=6868 – Started review via action command
