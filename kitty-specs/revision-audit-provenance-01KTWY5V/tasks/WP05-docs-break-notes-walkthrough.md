@@ -188,29 +188,52 @@ Per-spec must-cover checklist (tick each before review):
 
 Record the actual run here, Mission 1 WP04 shape (environment line + per-step table + per-gate results):
 
+**Environment:** Windows 11, PHP 8.5.5, lane worktree `.worktrees/revision-audit-provenance-01KTWY5V-lane-a` at `e0602ddc0` (docs commit on top of WP01–WP04), 2026-06-12. All phpunit runs via `php -d memory_limit=2G ./vendor/bin/phpunit … --no-progress`. The only PHPUnit "warning" in every run is the absent code-coverage driver (Windows-local, pre-existing).
+
 | Step | Acceptance scenario(s) | Command / check | Result |
 |---|---|---|---|
-| 1. Revision author recorded + readable | 1–2 | `./vendor/bin/phpunit tests/Integration/Provenance/ --no-progress` + `packages/entity-storage/tests/Integration/RevisionAuthor/` | |
-| 2. Audit actor = session account, not entity uid | 3–4 | `./vendor/bin/phpunit packages/audit/tests/ --no-progress` | |
-| 3. Publish-pointer moves audited | 5 | publish/revert kinds asserted (AuditAttributionTest S3) | |
-| 4. MCP dispatch event fires | 6 | `./vendor/bin/phpunit packages/mcp/tests/ --no-progress` | |
-| 5. Raw-SQL append-only guard | 7 | `./vendor/bin/phpunit packages/audit/tests/Integration/AuditImmutabilityTest.php --no-progress` | |
-| 6. Pre-existing-table upgrade path | 8 | migration-shaped cases in RevisionAuthorTest + AuditAttributionTest | |
-| 7. Gates + CHANGELOG check | SC-005 | individual gate commands (see T023) + `[Unreleased]` checklist | |
+| 1. Revision author recorded + readable | 1–2 | `./vendor/bin/phpunit tests/Integration/Provenance/ --no-progress` + `packages/entity-storage/tests/Integration/RevisionAuthor/` | **PASS** — Provenance: 3 tests / 8 assertions OK; RevisionAuthor: 15 tests / 53 assertions OK |
+| 2. Audit actor = session account, not entity uid | 3–4 | `./vendor/bin/phpunit packages/audit/tests/ --no-progress` | **PASS** — 101 tests / 230 assertions OK (incl. AuditAttributionTest: 8 tests / 34 assertions, all four #1645 surfaces) |
+| 3. Publish-pointer moves audited | 5 | publish/revert kinds asserted (AuditAttributionTest S3) | **PASS** — within AuditAttributionTest run (8/34 OK); `revision.publish` / `revision.revert` rows with actor + `{entity_id, operation, from_revision_id, to_revision_id}` asserted |
+| 4. MCP dispatch event fires | 6 | `./vendor/bin/phpunit packages/mcp/tests/ --no-progress` | **PASS** — 122 tests / 379 assertions OK (incl. McpEndpointDispatchEventTest: fired once, account carried, 401/parse-error fire nothing, name pin) |
+| 5. Raw-SQL append-only guard | 7 | `./vendor/bin/phpunit packages/audit/tests/Integration/AuditImmutabilityTest.php --no-progress` | **PASS** — 6 tests / 26 assertions OK (raw UPDATE/DELETE/DROP/ALTER via `query()` throw; SELECT-with-literal passes; prune path untouched) |
+| 6. Pre-existing-table upgrade path | 8 | migration-shaped cases in RevisionAuthorTest + AuditAttributionTest | **PASS** — RevisionAuthor migration-shaped filter: 1 test / 10 assertions OK (column added additively, old rows null, new revisions authored); audit ALTER-migration case green within step-2 run |
+| 7. Gates + CHANGELOG check | SC-005 | individual gate commands (see below) + `[Unreleased]` checklist | **PASS** (with one pre-existing-on-clean-main Windows failure, below) |
+
+Additional suites run per WP05 instructions (all green): `packages/access/tests/` 234 tests / 453 assertions; `packages/ai-agent/tests/` 149 / 410; `packages/entity-storage/tests/` (full) 723 / 1977 (2 pre-existing deprecations); `tests/Integration/Validation/` 7 / 22; `packages/validation/tests/` 52 / 100.
+
+Per-gate results (step 7):
+
+| Gate | Result |
+|---|---|
+| `composer phpstan` | **PASS** — `[OK] No errors`, exit 0 |
+| `composer cs-check` | **PASS** — 0 files flagged, exit 0 |
+| `bin/check-dead-code` | **PASS** — no new findings beyond baseline, exit 0 |
+| `composer check-composer-policy` | **PASS** — `OK: Composer policy checks passed`, exit 0 |
+| `bin/check-package-layers` | **PASS** — `OK — package layer constraints (composer.json + PHP file-level) satisfied`, exit 0 (the new `audit → access` L1→L1 edge accepted) |
+| `bin/check-getquery-bindings` | **FAIL, pre-existing on clean main** — 2 "new unbound" findings in `packages/northcloud/src\Sync\NcSyncService.php` (mixed `\`/`/` separators: Windows path-normalization artifact in the gate vs the baseline file). Reproduced byte-identically on clean main at `98c9f1944` (`MAIN_GETQUERY_EXIT=1`). No PHP touched by WP05; northcloud untouched by the whole mission. Release gate is green Linux CI. |
+
+CHANGELOG self-check (quickstart §7): `[Unreleased]` covers the `revision_author` column ✔, `actor_uid` + null-vs-0 semantics ✔, `AuditEventDescriptor` `int → ?int` widening ✔, the two new kinds + `RevisionPointerMovedEvent` ✔, the MCP dispatch event ✔, the raw-SQL guard ✔, plus the `audit → access` manifest edge and the entity-lifecycle attribution behavior change. `git diff HEAD~1 -- CHANGELOG.md | grep -c "alpha.205"` → 0 matches.
 
 Pre-existing Windows-local failures (OIDC PEM, CLI snapshots, temp-dir races — see Mission 1 WP02's Triage Log) are documented against clean main, not re-litigated here; the release gate is green Linux CI at the tag commit.
 
 ## Drift Check (T022 — fill during implementation)
 
-- Detector output for the four owned specs: ___
-- Other flagged specs traceable to this mission (orchestrator action items): ___
+`tools/drift-detector.sh 9` after the docs commit (`e0602ddc0`):
 
-## Completion notes template (fill in before requesting review)
+- **Four owned specs:** `access-control.md` OK, `mcp-endpoint.md` OK (both flagged STALE before the docs commit, cleared by it). `revision-system-unified.md` and `ocap-audit-log.md` are not in the detector's source→spec mapping for the changed files (no `packages/audit/*` or revision-path mapping fired) — both were updated and committed regardless, so they are current by construction.
+- **Other flagged specs traceable to this mission (orchestrator action items, out of WP05 owned files):**
+  - `docs/specs/entity-system.md` — STALE via `RevisionableStorageDriver`, `EntityRepository`, `RevisionPointerMovedEvent`, `SaveContext`, `SqlSchemaHandler`, `RevisionMetadata`. Materiality: low-moderate — the revision contract now lives in `revision-system-unified.md` §2a/§4a, but entity-system.md's storage/gotcha sections may reference revision metadata.
+  - `docs/specs/infrastructure.md` — STALE via the kernel changes (`AbstractKernel::accountContext()`, `ProviderRegistry`/`ProviderRegistryKernelServices` accountContext param, `HttpKernel` middleware wiring). Materiality: moderate — the kernel-services bus gained a resolvable service; same flag pattern as Mission 1.
+  - `docs/specs/ai-integration.md`, `docs/specs/middleware-pipeline.md`, `docs/specs/package-discovery.md` — reported OK by the detector (recent-enough commit timestamps), not re-reviewed here.
 
-- CHANGELOG diff location: under `[Unreleased]` only — confirm no version heading in the diff (`git diff CHANGELOG.md | rg -n "alpha.205"` empty).
-- FR-009 retirement sentence: paste the exact added line(s) from revision-system-unified.md §6.
-- The four must-cover checklists (T021 table): all ticked / exceptions noted.
-- Defects found during the walkthrough referred for orchestrator action: ___
+## Completion notes (filled before requesting review)
+
+- CHANGELOG diff location: under `[Unreleased]` only, inserted immediately after the heading line, ahead of the untouched Mission 1 (#1643/#1646) entries — `git diff HEAD~1 -- CHANGELOG.md | grep alpha.205` empty.
+- FR-009 retirement (revision-system-unified.md, new §6a): "**`RevisionTableBuilder`'s `<entity>__revision` (double-underscore) vid emission dialect is non-live and superseded** — including its `revision_created_at` / `revision_author` / `revision_log` metadata block and its surrogate `vid` primary key. […] **The single authoritative author definition is the live dialect's `revision_author` column** on `<entity>_revision` / `<entity>__translation__revision` (§2a)". Deletion stays conditioned on §6's staged plan.
+- The four must-cover checklists (T021 table): all ticked. revision-system-unified.md — column definition §2a, additive sync arm §2a, hydration/resolution/null-vs-0 §4a, revert authorship §4a, RevisionPointerMovedEvent §4a (documented with the landed `actorUid` payload field, additive beyond the contract minimum), §6a retirement naming `RevisionTableBuilder` / `<entity>__revision` / `revision_created_at`. ocap-audit-log.md — actor_uid authoritative vs `account_uid` legacy `actor ?? 0`, migration behavior, both kinds in the taxonomy (17→19), per-listener actor-source table, PublishPointerAuditListener, `query()` guard incl. fail-closed residuals + structural NFR-003 argument. mcp-endpoint.md — event name/payload, fires once post-auth/post-parse pre-routing, best-effort, raw-params/hash privacy split, both optional ctor params, #1635/#1636 independence; also corrected the stale pre-M3 three-dep constructor description and documented that the landed endpoint scopes the account context **before** JSON parse (restored in `finally`). access-control.md — contract, three-state model, writer table, single kernel-shared instance + four resolution paths, `SaveContext::withActorUid()` relationship.
+- Docs describe the LANDED behavior where it differs from planning artifacts: `RevisionPointerMovedEvent` carries `actorUid` and the publish listener prefers it over the context (WP03); `McpEndpoint` sets the account context post-auth/pre-parse (WP04); `McpDispatchEvent.accountUid` is `(int) $authenticated->id()` at the only dispatch site.
+- Defects found during the walkthrough referred for orchestrator action: none in mission code. Two items recorded: (1) `bin/check-getquery-bindings` Windows path-separator false positive (pre-existing on clean main, packages/northcloud); (2) lane commit guard's owned-files list still reflects WP01 (warned "out of scope" on all five WP05-owned files; WP05 frontmatter owns exactly those files — guard staleness, commit succeeded).
 
 ## Activity Log
 
