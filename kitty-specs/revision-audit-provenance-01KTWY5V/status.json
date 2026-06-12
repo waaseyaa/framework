@@ -1,7 +1,7 @@
 {
-  "event_count": 26,
-  "last_event_id": "01KTX4F2PVTQ6C5Z22JVYYDBJJ",
-  "materialized_at": "2026-06-12T05:21:51.323872+00:00",
+  "event_count": 28,
+  "last_event_id": "01KTX4GAC85W1YBZVCV70Z7608",
+  "materialized_at": "2026-06-12T05:22:31.944391+00:00",
   "mission_number": "",
   "mission_slug": "revision-audit-provenance-01KTWY5V",
   "mission_type": "software-dev",
@@ -12,9 +12,9 @@
     "claimed": 0,
     "done": 0,
     "for_review": 0,
-    "in_progress": 0,
+    "in_progress": 1,
     "in_review": 0,
-    "planned": 2
+    "planned": 1
   },
   "work_packages": {
     "WP01": {
@@ -32,11 +32,11 @@
       "last_transition_at": "2026-06-12T05:00:42.430805+00:00"
     },
     "WP03": {
-      "actor": "finalize-tasks",
+      "actor": "claude:fable-5:implementer:implementer",
       "force_count": 1,
-      "lane": "planned",
-      "last_event_id": "01KTX0XECA5486BXK72FK8TGKF",
-      "last_transition_at": "2026-06-12T04:19:47.722811+00:00"
+      "lane": "in_progress",
+      "last_event_id": "01KTX4GAC85W1YBZVCV70Z7608",
+      "last_transition_at": "2026-06-12T05:22:31.944391+00:00"
     },
     "WP04": {
       "actor": "user",
