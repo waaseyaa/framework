@@ -18,8 +18,8 @@ subtasks:
 - T012
 - T013
 - T014
-agent: "claude:fable-5:implementer:implementer"
-shell_pid: "14224"
+agent: "claude:fable-5:reviewer:reviewer"
+shell_pid: "15928"
 history:
 - date: '2026-06-12T01:48:54Z'
   event: created
@@ -133,3 +133,4 @@ One end-to-end case through the real tool dispatch surface (the same path the in
 - 2026-06-12T02:59:26Z – claude:fable-5:reviewer:reviewer – shell_pid=14752 – Moved to planned
 - 2026-06-12T03:00:01Z – claude:fable-5:implementer:implementer – shell_pid=14224 – Started implementation via action command
 - 2026-06-12T03:02:31Z – claude:fable-5:implementer:implementer – shell_pid=14224 – Cycle 2: check-order pinning tests added
+- 2026-06-12T03:03:04Z – claude:fable-5:reviewer:reviewer – shell_pid=15928 – Started review via action command
