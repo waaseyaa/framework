@@ -49,6 +49,12 @@ final class SaveContext
      *     this chain. Distinguishes "no override" (defer to the ambient
      *     {@see \Waaseyaa\Access\Context\AccountContextInterface}) from an
      *     explicit `withActorUid(null)` (force a NULL author).
+     * @param ?int $expectedRevisionId Optimistic-locking expectation
+     *     (mission optimistic-locking-01KTXCHY, FR-001): the revision id the
+     *     caller believes is current. Null = no expectation stated. Unlike
+     *     the actor pair, no boolean pin is needed: a null expectation has no
+     *     third meaning (there is no "I expect no revision" head state on a
+     *     persisted revisionable row).
      */
     private function __construct(
         public readonly bool $withoutNewRevision = false,
@@ -57,6 +63,7 @@ final class SaveContext
         public readonly ?array $translations = null,
         private readonly ?int $actorUid = null,
         private readonly bool $actorOverridden = false,
+        private readonly ?int $expectedRevisionId = null,
     ) {}
 
     /**
@@ -89,7 +96,49 @@ final class SaveContext
             translations: $this->translations,
             actorUid: $uid,
             actorOverridden: true,
+            expectedRevisionId: $this->expectedRevisionId,
         );
+    }
+
+    /**
+     * Return a new instance stating an optimistic-locking expectation
+     * (mission optimistic-locking-01KTXCHY, FR-001): the save is refused with
+     * {@see \Waaseyaa\EntityStorage\Exception\RevisionConflictException} when
+     * the entity's current revision differs from $revisionId at write time.
+     * `null` is the explicit no-expectation pass-through (callers may thread
+     * an optional value without branching). Honored only on revision-creating
+     * saves of single-axis revisionable types — see contracts/conflict-detection.md §2.
+     *
+     * @throws \InvalidArgumentException When $revisionId < 1.
+     * @api
+     */
+    public function withExpectedRevisionId(?int $revisionId): self
+    {
+        if ($revisionId !== null && $revisionId < 1) {
+            throw new \InvalidArgumentException(
+                'SaveContext::withExpectedRevisionId requires a positive revision id or null.',
+            );
+        }
+
+        return new self(
+            withoutNewRevision: $this->withoutNewRevision,
+            langcode: $this->langcode,
+            isImport: $this->isImport,
+            translations: $this->translations,
+            actorUid: $this->actorUid,
+            actorOverridden: $this->actorOverridden,
+            expectedRevisionId: $revisionId,
+        );
+    }
+
+    /**
+     * The stated optimistic-locking expectation. Null = no expectation.
+     *
+     * @api
+     */
+    public function expectedRevisionId(): ?int
+    {
+        return $this->expectedRevisionId;
     }
 
     /**
@@ -128,6 +177,7 @@ final class SaveContext
             translations: $this->translations,
             actorUid: $this->actorUid,
             actorOverridden: $this->actorOverridden,
+            expectedRevisionId: $this->expectedRevisionId,
         );
     }
 
@@ -151,6 +201,7 @@ final class SaveContext
             translations: $this->translations,
             actorUid: $this->actorUid,
             actorOverridden: $this->actorOverridden,
+            expectedRevisionId: $this->expectedRevisionId,
         );
     }
 
@@ -172,6 +223,7 @@ final class SaveContext
             translations: $this->translations,
             actorUid: $this->actorUid,
             actorOverridden: $this->actorOverridden,
+            expectedRevisionId: $this->expectedRevisionId,
         );
     }
 
@@ -235,6 +287,7 @@ final class SaveContext
             translations: $normalised,
             actorUid: $this->actorUid,
             actorOverridden: $this->actorOverridden,
+            expectedRevisionId: $this->expectedRevisionId,
         );
     }
 }

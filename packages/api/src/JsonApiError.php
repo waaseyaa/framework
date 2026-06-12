@@ -18,6 +18,10 @@ final readonly class JsonApiError
      * @param string      $detail Detailed explanation specific to this occurrence.
      * @param string      $code   Machine-readable error code (e.g. 'FORBIDDEN', 'NOT_FOUND').
      * @param array<string, string> $source An object containing references to the primary source of the error.
+     * @param array<string, mixed> $meta Non-standard meta-information about the error
+     *     (JSON:API error-object `meta` member). Emitted only when non-empty, so every
+     *     pre-existing error response is byte-identical (optimistic-locking-01KTXCHY,
+     *     contract conflict-surfaces.md §13).
      */
     public function __construct(
         public string $status,
@@ -25,6 +29,7 @@ final readonly class JsonApiError
         public string $detail = '',
         public string $code = '',
         public array $source = [],
+        public array $meta = [],
     ) {}
 
     /**
@@ -49,6 +54,10 @@ final readonly class JsonApiError
 
         if ($this->source !== []) {
             $error['source'] = $this->source;
+        }
+
+        if ($this->meta !== []) {
+            $error['meta'] = $this->meta;
         }
 
         return $error;
@@ -106,13 +115,21 @@ final readonly class JsonApiError
 
     /**
      * Create a 409 Conflict error.
+     *
+     * The defaults keep the pre-existing codeless 409 shape (the `data.id`-vs-uuid
+     * mismatch) byte-identical; a revision conflict passes `code: 'REVISION_CONFLICT'`
+     * plus meta as the machine-readable discriminator between the two 409s.
+     *
+     * @param array<string, mixed> $meta
      */
-    public static function conflict(string $detail = ''): self
+    public static function conflict(string $detail = '', string $code = '', array $meta = []): self
     {
         return new self(
             status: '409',
             title: 'Conflict',
             detail: $detail,
+            code: $code,
+            meta: $meta,
         );
     }
 

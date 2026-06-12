@@ -31,6 +31,7 @@ use Waaseyaa\EntityStorage\Event\AbortOperationException;
 use Waaseyaa\EntityStorage\Event\AfterSaveEvent;
 use Waaseyaa\EntityStorage\Event\BeforeSaveEvent;
 use Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent;
+use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy;
 use Waaseyaa\I18n\LanguageManagerInterface;
 
@@ -444,6 +445,53 @@ final class EntityRepository implements EntityRepositoryInterface
         $isNew = $entity->isNew();
         $entityTypeId = $this->entityType->id();
         $resolvedContext = $saveContext ?? SaveContext::default();
+        // Optimistic-locking expectation (mission optimistic-locking-01KTXCHY).
+        // Null = no expectation: every conflict-detection branch below is
+        // skipped and the save is byte-identical to the legacy path (FR-003,
+        // NFR-001 — this read is the single null check the mission adds).
+        $expectedRevisionId = $resolvedContext->expectedRevisionId();
+        if ($expectedRevisionId !== null) {
+            // Rejection matrix (FR-007, research D6): a stated expectation
+            // that cannot be honored throws \LogicException — never silently
+            // ignored, never downgraded to last-write-wins. Distinct,
+            // greppable messages; surfaces (tool/API) translate them.
+            if ($isNew) {
+                throw new \LogicException(
+                    'Cannot state a revision expectation for a new (unsaved) entity: '
+                    . 'no current revision exists to compare against.',
+                );
+            }
+            if (!$this->entityType->isRevisionable()) {
+                throw new \LogicException(
+                    "Cannot state a revision expectation: entity type '{$entityTypeId}' is not revisionable; "
+                    . 'revision expectations require revision tracking.',
+                );
+            }
+            if ($this->entityType->isTranslatable()) {
+                throw new \LogicException(
+                    "Cannot state a revision expectation: entity type '{$entityTypeId}' is translatable "
+                    . '(two-axis revisionable + translatable). Per-language revision tips are a separate '
+                    . 'concurrency domain — use the saveTranslation* workflow for per-language writes.',
+                );
+            }
+            if ($this->database === null) {
+                throw new \LogicException(
+                    'Stating a revision expectation requires a database connection for the guarded '
+                    . 'pointer claim and transaction support.',
+                );
+            }
+            if ($this->revisionDriver === null) {
+                // Without a revision driver no revision is ever written and
+                // the guarded pointer-claim branch is unreachable — the
+                // expectation would degrade to the TOCTOU-unsafe fail-fast
+                // pre-check alone (FR-004/FR-007 silent downgrade). Reject.
+                throw new \LogicException(
+                    "Revision driver not configured for entity type '{$entityTypeId}': cannot state "
+                    . 'a revision expectation — no revision can be written and no guarded pointer '
+                    . 'claim exists.',
+                );
+            }
+        }
         // Revision author — resolved ONCE per save operation (override →
         // ambient context → null) and passed to BOTH the immediate and the
         // deferred-id revision writes below (FR-001, clause 2).
@@ -466,6 +514,30 @@ final class EntityRepository implements EntityRepositoryInterface
         if (!$isNew) {
             $id = (string) $entity->id();
             $originalEntity = $this->find($id);
+
+            if ($expectedRevisionId !== null) {
+                // Fail-fast pre-check (FR-001, contract §4): compare the
+                // expectation against the already-loaded head — zero added
+                // queries. Runs AFTER validation (contract §3: an invalid +
+                // conflicted save reports the validation failure) and BEFORE
+                // preSave()/PRE_SAVE/BeforeSaveEvent — a refused save
+                // dispatches NOTHING and mutates nothing (contract §6). The
+                // authoritative race closure is the guarded pointer claim
+                // inside the transaction below.
+                if ($originalEntity === null) {
+                    // Row vanished behind the caller's back.
+                    throw new RevisionConflictException($entityTypeId, $id, $expectedRevisionId, null);
+                }
+                $currentRevisionId = ($originalEntity instanceof RevisionableInterface)
+                    ? $originalEntity->getRevisionId()
+                    : null;
+                if ($currentRevisionId !== $expectedRevisionId) {
+                    // $currentRevisionId === null here = persisted row with no
+                    // revision pointer (pre-backfill) — unhonorable, surfaced
+                    // as a conflict with a null current head (exception docblock).
+                    throw new RevisionConflictException($entityTypeId, $id, $expectedRevisionId, $currentRevisionId);
+                }
+            }
         }
 
         if ($entity instanceof EntityBase) {
@@ -479,6 +551,25 @@ final class EntityRepository implements EntityRepositoryInterface
         );
 
         $createRevision = $this->shouldCreateRevision($entity, $isNew);
+
+        if ($expectedRevisionId !== null && (!$createRevision || $resolvedContext->withoutNewRevision)) {
+            // Rejection matrix (FR-007): a non-revision-creating save never
+            // moves the head pointer, so no unambiguous guarded claim exists
+            // (a no-change UPDATE counts 0 affected rows on MySQL). This is a
+            // \LogicException caller error, not a conflict, so running after
+            // preSave()/PRE_SAVE is acceptable (contract §4 binds conflicts to
+            // pre-event refusal; §11 binds rejections to "explicit" only).
+            // SaveContext::withoutNewRevision is checked here too: this path
+            // ignores the flag for revision suppression (the coordinator
+            // honors it), but a caller pairing it with an expectation has
+            // declared a non-revision-creating intent — reject, don't guess.
+            throw new \LogicException(
+                'Cannot state a revision expectation for a non-revision-creating save '
+                . '(SaveContext::withoutNewRevision(), entity setNewRevision(false), or entity type '
+                . 'revisionDefault: false): the head pointer would not move, so no unambiguous claim '
+                . 'exists. Force a revision with setNewRevision(true) to get a checkable save.',
+            );
+        }
 
         // GitHub #1449: Coordinator-level lifecycle event. The repository is
         // now the single dispatch site for BeforeSaveEvent / AfterSaveEvent;
@@ -524,6 +615,56 @@ final class EntityRepository implements EntityRepositoryInterface
             if ($createRevision && $this->revisionDriver !== null && !$deferRevision) {
                 $log = ($entity instanceof RevisionableInterface) ? $entity->getRevisionLog() : null;
                 $revisionId = $this->revisionDriver->writeRevision($id, $values, $log, author: $actor);
+
+                if ($expectedRevisionId !== null) {
+                    // Authoritative guarded pointer claim (FR-004, contract
+                    // §7–9): inside the SAME transaction as the revision write
+                    // above and the full base write below — separating them
+                    // would reopen the race. The SET always changes the value
+                    // ($revisionId is freshly allocated, never equal to the
+                    // expectation), so 0 affected rows means "predicate did
+                    // not match" on every backend. The community scope
+                    // condition is deliberately omitted: the claim is keyed on
+                    // id + pointer, and the pre-loaded original entity already
+                    // passed scope. (The deferred-revision branch is
+                    // unreachable here: new entities were rejected above, and
+                    // non-new entities always carry an id.)
+                    // $this->database is non-null on every claim path — the
+                    // no-database rejection at the top of doSave() guarantees
+                    // it (PHPStan narrows the readonly property through that
+                    // gate, so no re-check is needed here).
+                    $revisionKey = $this->entityType->getKeys()['revision'] ?? 'revision_id';
+                    $idKeyName = $this->entityType->getKeys()['id'] ?? 'id';
+                    $claimed = $this->database->update($entityTypeId)
+                        ->fields([$revisionKey => $revisionId])
+                        ->condition($idKeyName, $id)
+                        ->condition($revisionKey, $expectedRevisionId)
+                        ->execute();
+                    if ($claimed !== 1) {
+                        // A competing writer moved the head between the
+                        // pre-check and the claim. Roll back the whole
+                        // transaction (the freshly written revision row
+                        // included — no orphan revisions), re-read the
+                        // now-current head, and throw the conflict carrying
+                        // it. $transaction is nulled FIRST so the generic
+                        // catch below cannot double-rollback (DBALTransaction
+                        // throws on a second rollBack()); every other
+                        // throwable keeps the existing catch semantics
+                        // byte-identical.
+                        $claimTransaction = $transaction;
+                        $transaction = null;
+                        $claimTransaction?->rollBack();
+
+                        $currentRow = $this->driver->read($entityTypeId, $id);
+                        $currentHead = null;
+                        if ($currentRow !== null && (int) ($currentRow[$revisionKey] ?? 0) > 0) {
+                            $currentHead = (int) $currentRow[$revisionKey];
+                        }
+
+                        throw new RevisionConflictException($entityTypeId, $id, $expectedRevisionId, $currentHead);
+                    }
+                }
+
                 $values['revision_id'] = $revisionId;
                 if ($entity instanceof ContentEntityInterface) {
                     $revisionKey = $this->entityType->getKeys()['revision'] ?? 'revision_id';

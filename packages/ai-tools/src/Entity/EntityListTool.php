@@ -77,11 +77,25 @@ final class EntityListTool extends AbstractAgentTool
             return AgentToolResult::error(sprintf('entity.list: %s', $e->getMessage()));
         }
 
-        $items = array_map(fn(EntityInterface $e): array => [
-            'entity_type' => $e->getEntityTypeId(),
-            'id' => $e->id(),
-            'label' => $e->label(),
-        ], $entities);
+        $items = array_map(static function (EntityInterface $e): array {
+            $item = [
+                'entity_type' => $e->getEntityTypeId(),
+                'id' => $e->id(),
+                'label' => $e->label(),
+            ];
+            // FR-008 (optimistic-locking-01KTXCHY): per-item current head so
+            // a caller can form an expectation without a per-entity re-read
+            // (entities are already loaded — zero added queries). Omitted when
+            // no revision id exists.
+            if (method_exists($e, 'getRevisionId')) {
+                $revisionId = $e->getRevisionId();
+                if ($revisionId !== null) {
+                    $item['revision_id'] = $revisionId;
+                }
+            }
+
+            return $item;
+        }, $entities);
 
         return AgentToolResult::success(
             content: [['type' => 'json', 'data' => ['items' => $items, 'count' => count($items)]]],

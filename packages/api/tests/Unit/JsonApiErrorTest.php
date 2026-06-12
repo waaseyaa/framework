@@ -131,4 +131,87 @@ final class JsonApiErrorTest extends TestCase
         $this->assertTrue($reflection->isReadOnly());
         $this->assertTrue($reflection->isFinal());
     }
+
+    // -----------------------------------------------------------------------
+    // meta member (optimistic-locking-01KTXCHY, contract conflict-surfaces.md §13)
+    // -----------------------------------------------------------------------
+
+    #[Test]
+    public function metaDefaultsToEmptyAndIsOmittedFromToArray(): void
+    {
+        $error = new JsonApiError(
+            status: '422',
+            title: 'Unprocessable Entity',
+            detail: 'Field validation failed.',
+            source: ['pointer' => '/data/attributes/name'],
+        );
+
+        $this->assertSame([], $error->meta);
+        // Every pre-existing error response stays byte-identical: no meta key.
+        $this->assertSame(
+            [
+                'status' => '422',
+                'title' => 'Unprocessable Entity',
+                'detail' => 'Field validation failed.',
+                'source' => ['pointer' => '/data/attributes/name'],
+            ],
+            $error->toArray(),
+        );
+    }
+
+    #[Test]
+    public function toArrayEmitsMetaWhenNonEmptyAndPreservesNullValues(): void
+    {
+        $error = new JsonApiError(
+            status: '409',
+            title: 'Conflict',
+            meta: ['expected_revision_id' => 5, 'current_revision_id' => null],
+        );
+
+        $array = $error->toArray();
+        $this->assertSame(['expected_revision_id' => 5, 'current_revision_id' => null], $array['meta']);
+        // current_revision_id: null (vanished row) must serialize as JSON null,
+        // not be dropped.
+        $this->assertSame(
+            '{"expected_revision_id":5,"current_revision_id":null}',
+            json_encode($array['meta'], JSON_THROW_ON_ERROR),
+        );
+    }
+
+    #[Test]
+    public function conflictFactoryDefaultShapeIsUnchanged(): void
+    {
+        $error = JsonApiError::conflict('Resource id mismatch.');
+
+        $this->assertSame('409', $error->status);
+        $this->assertSame('Conflict', $error->title);
+        $this->assertSame('', $error->code);
+        $this->assertSame([], $error->meta);
+        // The pre-existing data.id-vs-uuid 409 keeps its codeless shape.
+        $this->assertSame(
+            ['status' => '409', 'title' => 'Conflict', 'detail' => 'Resource id mismatch.'],
+            $error->toArray(),
+        );
+    }
+
+    #[Test]
+    public function conflictFactoryPassesThroughCodeAndMeta(): void
+    {
+        $error = JsonApiError::conflict(
+            'Entity was modified.',
+            code: 'REVISION_CONFLICT',
+            meta: ['expected_revision_id' => 1, 'current_revision_id' => 2],
+        );
+
+        $this->assertSame(
+            [
+                'status' => '409',
+                'title' => 'Conflict',
+                'code' => 'REVISION_CONFLICT',
+                'detail' => 'Entity was modified.',
+                'meta' => ['expected_revision_id' => 1, 'current_revision_id' => 2],
+            ],
+            $error->toArray(),
+        );
+    }
 }

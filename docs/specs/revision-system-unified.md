@@ -94,6 +94,104 @@ Driver support already exists (`RevisionableStorageDriver::writeRevision(..., ?s
 → `writePerLangcodeRevision`); Phase 1 makes the schema, the repository wiring,
 and the load side real and tested rather than dormant.
 
+### 3b. Optimistic locking — expected-revision conflict detection (#1647)
+
+Mission `optimistic-locking-01KTXCHY`. Canonical contract:
+`kitty-specs/optimistic-locking-01KTXCHY/contracts/conflict-detection.md`. The
+existing `revision_id` pointer IS the version column — no schema change, no
+migration (C-001).
+
+**Stating an expectation.** `SaveContext::default()->withExpectedRevisionId(int $n)`
+states "I am updating the entity as of revision `n`". Immutable builder
+(`withActorUid` shape): returns a new instance, re-threads every other field;
+`n < 1` throws `InvalidArgumentException`; `withExpectedRevisionId(null)` is the
+explicit no-expectation pass-through. Accessor: `expectedRevisionId(): ?int`.
+With no expectation stated, **every conflict branch is skipped and the save is
+byte-identical to the legacy path** — same write sequence, same events, zero
+added queries (pinned by `tests/Integration/Locking/NoExpectationInvarianceTest.php`
+with a counting `DatabaseInterface` decorator). Disjoint-field merge is
+preserved on both the no-expectation path and the winner of an
+expectation-stated race.
+
+**Two-stage check** (active only when `expectedRevisionId() !== null`, on
+revision-creating saves of single-axis revisionable types):
+
+1. **Fail-fast pre-check** — immediately after the original-entity load that
+   `doSave()` already performs (zero added queries), the expectation is
+   compared against the loaded head. Mismatch, or no readable head → throw
+   `RevisionConflictException` **before any write, before `preSave()`, before
+   any lifecycle event** (`PRE_SAVE`/`BeforeSaveEvent` are not dispatched;
+   the entity object is not mutated). Ordering: Mission 1 save-time validation
+   runs FIRST — a save that is both invalid and conflicted reports
+   `EntityValidationException`, not the conflict.
+2. **Authoritative guarded pointer claim** (the race closure) — inside the
+   write transaction, after `writeRevision()` allocates the new revision id and
+   before the full base write:
+
+   ```sql
+   UPDATE <base> SET <revisionKey> = :newRevisionId
+   WHERE <idKey> = :id AND <revisionKey> = :expected
+   ```
+
+   Affected rows `1` → the claim holds; the full base write proceeds in the
+   **same transaction** (separating claim and write would reopen the race) and
+   the save commits. `0` → a competing writer moved the head between pre-check
+   and claim: the whole transaction rolls back (the freshly written revision
+   row included — no orphan revisions), the current head is re-read, and
+   `RevisionConflictException` is thrown carrying it. The affected-rows signal
+   is **unambiguous on every backend** (SQLite, MySQL/InnoDB, Postgres):
+   the SET always changes the value — the new revision id is freshly allocated
+   and can never equal the expectation — so `0` always means "predicate did
+   not match", never MySQL's "matched but unchanged". Of any set of concurrent
+   saves stating the same expectation, **exactly one commits** (pinned by
+   `tests/Integration/Locking/ConcurrentSaveConflictTest.php` via a
+   deterministic event-subscriber interleave — no threads, no sleeps).
+
+**`RevisionConflictException`** (`Waaseyaa\EntityStorage\Exception\`,
+`final extends \RuntimeException`, PartialSaveException house shape): promoted
+readonly `entityTypeId` (string), `entityId` (string — the REAL id, not a
+request locator), `expectedRevisionId` (int), `currentRevisionId` (?int),
+`errorCode === 'REVISION_CONFLICT'` (canonical `$errorCode`, not `$code`).
+Deterministic content — the two revision ids plus static identity, no
+timestamps. **Null-current semantics:** `currentRevisionId === null` means *no
+readable head exists* — the base row vanished (concurrent delete) **or** it is
+a pre-backfill row carrying no revision pointer. A null head can never match a
+valid expectation (≥ 1), so it always conflicts.
+
+**Rejection matrix.** A stated expectation that cannot be honored throws
+`\LogicException` with a distinct, greppable message — **never silently
+ignored, never downgraded to last-write-wins**. `\LogicException` = caller
+programming error (wrong path for the feature); `RevisionConflictException` =
+data race (right path, lost the race). Callers may rely on the type
+distinction.
+
+| Path + stated expectation | Why rejected |
+|---|---|
+| New (unsaved) entity | no current revision exists to compare against |
+| Non-revisionable type | no framework change marker exists (base tables carry no `changed` column; `_data` keys are not schema-guaranteed or atomically comparable) — a fake check would be a TOCTOU lie |
+| Two-axis type (revisionable + translatable) | per-language tips are a separate concurrency domain; the id-keyed pointer claim is unsound across langcode peer rows |
+| Non-revision-creating save (`withoutNewRevision()`, `setNewRevision(false)`, `revisionDefault: false`) | the head pointer would not move — no unambiguous claim exists (a no-change UPDATE counts 0 on MySQL); force a revision with `setNewRevision(true)` to get a checkable save |
+| No `DatabaseInterface` wired | no transaction, no guard |
+| Revision driver not configured (revisionable type, driver-less repository wiring) | no revision is ever written and the claim branch is unreachable — the expectation would silently degrade to the TOCTOU-unsafe pre-check alone |
+
+`rollback()`, `setCurrentRevision()`, `setPublishedRevision()`,
+`saveTranslation()`/`saveTranslationRevision(s)()`, and `saveMany()` accept no
+`SaveContext` — an expectation is **unstatable** through them, so the
+"silently ignored" failure mode is unreachable by construction. Any future
+`SaveContext` threading through these signatures (e.g. coordinator fan-out)
+MUST adopt this rejection matrix first.
+
+**Two-axis lift path** (beside §3a): the carve-out is liftable later with a
+**langcode-scoped guard** — a claim keyed on `(entity_id, langcode)` against
+the per-language tip in the `saveTranslation*` paths. Until that exists,
+two-axis types reject.
+
+**Surfaces** translate, never re-implement, this contract: the `entity.update`
+tool maps the conflict to a structured `revision_conflict` error and the
+rejections to `revision_expectation_unsupported`
+(`docs/specs/ai-integration.md`); JSON:API maps the conflict to 409
+`REVISION_CONFLICT` and the rejections to 422 (`docs/specs/api-layer.md`).
+
 ### 3a. Unified two-axis write (`saveTranslation`)
 
 Phase 1 records per-language *revisions*; it does not by itself move the peer
@@ -267,5 +365,6 @@ the M-004 leftovers created:
   revision 4, oj at revision 3).
 - FNPI full suite + page-parity green after the framework pin bump.
 
+<!-- Spec reviewed 2026-06-12 - mission optimistic-locking-01KTXCHY WP03 (#1647): added §3b optimistic locking — SaveContext::withExpectedRevisionId() expectation seam, two-stage check (fail-fast pre-check before any write/event + guarded pointer-claim UPDATE inside the save transaction, affected-rows unambiguous because the pointer always moves), RevisionConflictException payload with null-current = "no readable head (row vanished or pre-backfill pointer-less row)", the six-row LogicException rejection matrix (new / non-revisionable / two-axis / non-revision-creating / no-DB / no-revision-driver), context-less paths unstatable by construction, two-axis langcode-scoped-guard lift path beside §3a. No-expectation saves byte-identical (zero added queries, pinned). -->
 <!-- Spec reviewed 2026-06-12 - mission revision-audit-provenance-01KTWY5V WP05: added §2a (revision_author column + additive sync on both live revision tables), §4a (authorship recording/resolution order/null-vs-0/revert authorship, RevisionMetadata hydration on loads, RevisionPointerMovedEvent), §6a (explicit FR-009 retirement of the dormant RevisionTableBuilder `<entity>__revision` vid dialect incl. its revision_created_at metadata block; live revision_author is the single authoritative author definition). Refs #1644, #1645. -->
 

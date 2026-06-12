@@ -1,5 +1,6 @@
 # Entity System
 
+<!-- Spec reviewed 2026-06-12 - mission optimistic-locking-01KTXCHY WP03 (#1647): repository save-contract addendum — SaveContext::withExpectedRevisionId() optimistic-locking expectation on the save pipeline (conflict check after validation, before preSave/events; RevisionConflictException vs the LogicException rejection family; no-expectation saves byte-identical), RevisionConflictException added to the entity-storage exception inventory, full mechanics delegated to revision-system-unified.md §3b. ALSO clears the standing Mission 3 drift flag: EntityType `discoverable: bool = true` flag cross-referenced (one-liner under EntityTypeInterface; api-layer.md stays canonical for discovery, mission request-surface-hardening-01KTX7F2 #1649). -->
 <!-- Spec reviewed 2026-06-12 - mission live-entity-validation-key-protection-01KTWQT3 (#1643, alpha.204): save-time validation is now kernel-wired and ON by default for every kernel-built repository (shared EntityValidator::createDefault()); boot-time opt-out via WAASEYAA_ENTITY_VALIDATION=0|false|off, per-call opt-out via save(..., validate: false). FieldDefinitionConstraintBuilder gains the Range arm (numeric min/max settings on integer/float fields) and now appends per-field declared FieldDefinition::getConstraints() after the derived list. The previous "validates only when an EntityValidator is injected" caveat is resolved — injection is the default. See "Field definitions -> constraints" below for the three-layer constraint source table and the pre-persistence/saveMany-rollback guarantees. -->
 <!-- Spec reviewed 2026-06-04 - PR #1614 (page-builder + real content types): per-bundle typed fields land. `EntityTypeManagerInterface` gains `resolveFieldDefinitions(entityTypeId, ?bundle)` as the single bundle-aware field-resolution path (class `#[Field]` attributes + registry core fields + registry bundle fields), plus `addBundleFields()` which auto-materializes a per-bundle subtable (e.g. `node__page`) with real typed columns. New `Waaseyaa\EntityStorage\Bundle\BundleSubtableGateway` is the single bundle-persistence implementation used by BOTH `EntityRepository` (the migration/canonical write path) and `SqlEntityStorage` (the `getStorage()` admin/API path); `SqlEntityStorage`'s inline partition/upsert/read was removed so the two paths cannot drift. `SqlSchemaHandler` column derivation covers entity_reference (varchar UUID) / json / datetime / date / email. Core entity contracts (entity keys, `_data` blob, save/load lifecycle) are unchanged. -->
 <!-- Spec reviewed 2026-05-19 - mission sql-entity-query-access-checking-01KRYP15 (#1495): `EntityQueryInterface` gains `setAccount(?AccountInterface): static`. `SqlEntityQuery::execute()` now runs per-row access filtering via `EntityAccessHandler::check($entity, 'view', $account)` and drops `forbidden` rows; `accessCheck(true)` is the default (the v0.1.0 stub was a no-op). Missing-account + check-enabled throws the new `Waaseyaa\EntityStorage\Exception\MissingQueryAccountException` — fail-closed. `accessCheck(false)` remains as the audited system-context bypass; `SqlEntityStorage::loadByKey()` uses it as a system-context identity primitive. `SqlEntityStorage::getQuery()` wires `withAccessHandler($accessHandler)` (optional 8th constructor param, nullable) and `withEntityLoader(loadMultiple)` so the filter is live end-to-end. Full enforcement-layer description lives in `docs/specs/access-control.md`; entity-system contracts (entity keys, `_data` blob, save/load lifecycle) are unchanged. -->
@@ -373,6 +374,8 @@ interface EntityTypeInterface
 }
 ```
 
+`EntityType` additionally carries `discoverable: bool = true` (+ `isDiscoverable()` accessor; `EntityTypeInterface` deliberately not widened — read duck-typed) — visibility in the `GET /api` discovery index only (see api-layer.md, mission request-surface-hardening-01KTX7F2, #1649); not an access control.
+
 ### EntityTypeManagerInterface
 
 File: `packages/entity/src/EntityTypeManagerInterface.php`
@@ -687,6 +690,24 @@ The `EntityRepository::save()` pipeline (used for all high-level persistence):
 7. Dispatches `EntityEvents::POST_SAVE` event
 8. Calls `$entity->postSave($isNew)` lifecycle hook (if entity extends `EntityBase`)
 9. Returns `EntityConstants::SAVED_NEW` (1) or `SAVED_UPDATED` (2)
+
+**Optimistic locking (#1647, mission optimistic-locking-01KTXCHY).** The save
+accepts an optional expectation via `SaveContext::withExpectedRevisionId(int $n)`
+("I am updating the entity as of revision `n`"). When stated, a conflict check
+runs between step 1 (validation — which still wins: an invalid + conflicted
+save reports `EntityValidationException`) and step 2: a head mismatch throws
+`RevisionConflictException` **before any write, hook, or lifecycle event**, and
+a guarded pointer-claim UPDATE inside the write transaction closes the race —
+exactly one of any set of concurrent saves stating the same expectation
+commits. Honored only on revision-creating saves of single-axis revisionable
+types; a stated expectation anywhere else (new entity, non-revisionable type,
+two-axis type, non-revision-creating save, no `DatabaseInterface`, no revision
+driver) throws `\LogicException` — a caller programming error, distinct by type
+from the `RevisionConflictException` data race; callers may rely on the
+distinction. **No expectation = byte-identical legacy behavior** (every
+conflict branch skipped, zero added queries). Full mechanics, the rejection
+matrix, and null-current semantics: `docs/specs/revision-system-unified.md`
+§3b.
 
 ### Save (via SqlEntityStorage — low-level)
 
@@ -1614,6 +1635,7 @@ final class FieldType extends WaaseyaaPlugin
 - `SqlSchemaHandler.php` -- base-table creation, per-bundle subtable creation (`ensureBundleSubtable()`), FK+CASCADE wiring, schema management
 - `Exception/BundleAmbiguousFieldException.php` -- thrown when a query references a field shared across multiple bundles without a bundle filter
 - `Exception/UnknownFieldException.php` -- thrown when a field resolves against neither core nor any registered bundle
+- `Exception/RevisionConflictException.php` -- thrown when a save stating a revision expectation (`SaveContext::withExpectedRevisionId()`) finds the head moved; carries entityTypeId/entityId/expectedRevisionId/currentRevisionId + `errorCode: 'REVISION_CONFLICT'` (#1647 — see revision-system-unified.md §3b)
 - `EntitySchemaSync.php` -- batch wrapper that calls `SqlSchemaHandler::ensureTable()` for a list of entity types
 - `EntityStorageFactory.php` -- factory that creates/caches SqlEntityStorage
 - `EntityRepository.php` -- high-level repository with language fallback

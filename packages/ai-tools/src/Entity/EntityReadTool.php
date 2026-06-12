@@ -105,6 +105,15 @@ final class EntityReadTool extends AbstractAgentTool
             'entity_type' => $entity->getEntityTypeId(),
             'id' => $entity->id(),
         ];
+        // FR-008 (optimistic-locking-01KTXCHY): expose the current head so a
+        // caller can form an expectation for entity.update. Omitted when the
+        // entity carries no revision id (absence = "no expectation formable").
+        if (method_exists($entity, 'getRevisionId')) {
+            $revisionId = $entity->getRevisionId();
+            if ($revisionId !== null) {
+                $data['revision_id'] = $revisionId;
+            }
+        }
         // Prefer a curated getValues() when an entity provides one; otherwise use
         // the EntityInterface-guaranteed toArray(), so field values are exposed
         // for every entity, not only those that happen to define getValues().

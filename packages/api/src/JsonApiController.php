@@ -9,8 +9,13 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Query\PaginationLinks;
 use Waaseyaa\Api\Query\QueryApplier;
 use Waaseyaa\Api\Query\QueryParser;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\FieldableInterface;
+use Waaseyaa\Entity\Validation\EntityValidationException;
+use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
+use Waaseyaa\EntityStorage\SaveContext;
 
 /**
  * Handles JSON:API CRUD operations.
@@ -354,6 +359,32 @@ final class JsonApiController
             );
         }
 
+        // optimistic-locking-01KTXCHY FR-006: the PATCH body's resource-object
+        // meta is the expectation seam (headers do not reach this controller —
+        // research D4; If-Match is explicitly NOT this contract).
+        $expectedRevisionId = null;
+        $meta = $data['data']['meta'] ?? null;
+        if (is_array($meta) && array_key_exists('expected_revision_id', $meta)) {
+            $candidate = $meta['expected_revision_id'];
+            if (!is_int($candidate) || $candidate < 1) {
+                return $this->errorDocument(
+                    JsonApiError::badRequest('data.meta.expected_revision_id must be a positive integer.'),
+                );
+            }
+            // Friendly screen for types the storage layer would reject anyway
+            // (single-axis revisionable only); the storage \LogicException
+            // remains the invariant backstop in saveWithExpectation().
+            $definition = $this->entityTypeManager->getDefinition($entityTypeId);
+            if (!$definition->isRevisionable() || $definition->isTranslatable()) {
+                return $this->errorDocument(
+                    JsonApiError::unprocessable(
+                        "Entity type '{$entityTypeId}' does not support revision expectations.",
+                    ),
+                );
+            }
+            $expectedRevisionId = $candidate;
+        }
+
         // Check update access.
         if ($this->accessHandler !== null && $this->account !== null) {
             $access = $this->accessHandler->check($entity, 'update', $this->account);
@@ -392,7 +423,14 @@ final class JsonApiController
             $entity->set($field, $value);
         }
 
-        $storage->save($entity);
+        if ($expectedRevisionId !== null) {
+            $failure = $this->saveWithExpectation($entityTypeId, $entity, $expectedRevisionId);
+            if ($failure !== null) {
+                return $failure;
+            }
+        } else {
+            $storage->save($entity);
+        }
 
         $resource = $this->serializer->serialize($entity, $this->accessHandler, $this->account);
 
@@ -400,6 +438,62 @@ final class JsonApiController
             $resource,
             links: ['self' => "/api/{$entityTypeId}/{$resource->id}"],
         );
+    }
+
+    /**
+     * Persist an expectation-stated PATCH through the revision-aware
+     * repository pipeline (optimistic-locking-01KTXCHY, contract
+     * conflict-surfaces.md §11 — a revision is cut and the repository
+     * lifecycle events fire; the no-expectation path is untouched).
+     *
+     * Conflict payloads name the REAL entity id ({@see RevisionConflictException::$entityId}),
+     * not the request locator, so uuid-routed PATCHes stay honest (contract §15).
+     *
+     * @return ?JsonApiDocument An error document on conflict / validation /
+     *                          unsupported expectation; null when the save succeeded.
+     */
+    private function saveWithExpectation(
+        string $entityTypeId,
+        EntityInterface $entity,
+        int $expectedRevisionId,
+    ): ?JsonApiDocument {
+        $repository = $this->entityTypeManager->getRepository($entityTypeId);
+        if (!$repository instanceof EntityRepository) {
+            // Only the concrete EntityRepository carries a SaveContext: a
+            // stated expectation against any other implementation is refused,
+            // never silently saved plain (FR-007 at the surface).
+            return $this->errorDocument(
+                JsonApiError::unprocessable(
+                    "Entity type '{$entityTypeId}' does not support revision expectations.",
+                ),
+            );
+        }
+
+        try {
+            $repository->save($entity, context: SaveContext::default()->withExpectedRevisionId($expectedRevisionId));
+        } catch (RevisionConflictException $e) {
+            return $this->errorDocument(JsonApiError::conflict(
+                "Entity of type '{$entityTypeId}' with ID '{$e->entityId}' was modified: "
+                    . "expected revision {$e->expectedRevisionId}, current revision is "
+                    . ($e->currentRevisionId === null ? 'none' : (string) $e->currentRevisionId) . '.',
+                code: 'REVISION_CONFLICT',
+                meta: [
+                    'expected_revision_id' => $e->expectedRevisionId,
+                    'current_revision_id' => $e->currentRevisionId,
+                ],
+            ));
+        } catch (EntityValidationException $e) {
+            return $this->errorDocument(JsonApiError::unprocessable(
+                "Validation failed for entity of type '{$entityTypeId}': {$e->getMessage()}",
+            ));
+        } catch (\LogicException $e) {
+            // The storage rejection matrix is the invariant backstop: a stated
+            // expectation the pipeline cannot honor is a 4xx caller error,
+            // never a 500 (contract §10).
+            return $this->errorDocument(JsonApiError::unprocessable($e->getMessage()));
+        }
+
+        return null;
     }
 
     /**
