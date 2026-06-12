@@ -26,8 +26,8 @@ subtasks:
 - T004
 - T005
 - T006
-shell_pid: "11732"
-agent: "claude:fable-5:reviewer:reviewer"
+shell_pid: "27188"
+agent: "claude:fable-5:implementer:implementer"
 history:
 - date: '2026-06-12T00:00:00Z'
   event: created
@@ -240,3 +240,4 @@ Integration (`#[CoversNothing]`, integration suite conventions):
 - 2026-06-12T08:30:34Z – claude:fable-5:implementer:implementer – shell_pid=20768 – Ready for review
 - 2026-06-12T08:31:50Z – claude:fable-5:reviewer:reviewer – shell_pid=11732 – Started review via action command
 - 2026-06-12T08:40:27Z – claude:fable-5:reviewer:reviewer – shell_pid=11732 – Moved to planned
+- 2026-06-12T08:41:02Z – claude:fable-5:implementer:implementer – shell_pid=27188 – Started implementation via action command
