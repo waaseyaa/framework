@@ -7,5 +7,7 @@
   "mission_type": "software-dev",
   "slug": "request-surface-hardening-01KTX7F2",
   "source_description": "Framework issues #1649 (API discovery enumeration + existence oracle), #1650 (relative WAASEYAA_DB resolves against CWD), #1652 (BearerTokenAuth constant-time + blocked flag). Sprint Mission 3; target v0.1.0-alpha.206. #1651 stays pinned.",
-  "target_branch": "main"
+  "target_branch": "main",
+  "vcs": "git",
+  "vcs_locked_at": "2026-06-12T06:42:03.974863+00:00"
 }
