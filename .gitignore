@@ -150,3 +150,9 @@ phpstan-tests/
 # No app/site fixtures inside framework packages (tests must use synthetic data).
 packages/**/Fixtures/sfn-*
 packages/**/tests/**/sfn-*
+
+# Spec Kitty runtime event logs — append-only machine event streams. The durable
+# mission record is spec.md/plan.md/tasks/status.json; these .jsonl drove ~45% of
+# repo commit churn. Tracked copies are removed; future runs stay local.
+kitty-specs/**/status.events.jsonl
+kitty-specs/**/mission-events.jsonl
