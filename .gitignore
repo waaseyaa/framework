@@ -23,8 +23,10 @@ packages/*/.phpunit.cache/
 # PHPStan + dead-code cache + any other transient scratch
 /tmp/
 
-# Layer 0 / local audit bundles (regenerate via scripts/layer0_audit/)
+# Layer 0 / local audit bundles (regenerate via scripts/layer0_audit/ and
+# tools/audit/GenerateLayerAudit.php)
 artifacts/
+/build/
 
 # Claude Code local scheduler lock (machine-specific)
 .claude/scheduled_tasks.lock
