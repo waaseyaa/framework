@@ -3,7 +3,7 @@
 **Mission:** `bimaaji-wakeup-01KS5VEY`
 **Target branch:** `main`
 **Plan date:** 2026-05-21
-**Design doc:** `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md` (M1 of 5)
+**Design doc:** `docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md` (M1 of 5)
 
 ---
 

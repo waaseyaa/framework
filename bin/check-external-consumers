@@ -72,8 +72,8 @@ $registry = [
             'kitty-specs/archive/',
             // Doctrine + spec docs that legitimately name the symbols.
             'docs/specs/',
-            'docs/superpowers/',
-            'docs/plans/',
+            'docs/history/superpowers/',
+            'docs/history/plans/',
             'docs/audits/',
             'docs/public-surface-map.php',
             // Files marked for migration in WP02..WP08 (see plan.md).

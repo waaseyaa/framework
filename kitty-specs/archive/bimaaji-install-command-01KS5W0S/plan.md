@@ -3,7 +3,7 @@
 **Mission:** `bimaaji-install-command-01KS5W0S`
 **Status:** Plan
 **Spec:** [spec.md](spec.md)
-**Design doc:** `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md` §M5
+**Design doc:** `docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md` §M5
 **Depends on:** M1 `bimaaji-wakeup-01KS5VEY` (CLI command lives in bimaaji's command tree)
 **Soft-related to:** M3 `bimaaji-mcp-bridge-01KS5VS8` (an agent with both installed guidelines AND the bimaaji MCP server is the canonical "Boost-equivalent" experience)
 

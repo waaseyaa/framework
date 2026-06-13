@@ -191,7 +191,7 @@ Install the CLI: `pip install spec-kitty-cli` or `uv tool install spec-kitty-cli
 
 **Workflow precedence:** **Spec Kitty** owns mission/work-package execution and structured review. **GitHub** owns merge mechanics, CI, releases, and optional issues. **`docs/specs/`** owns subsystem contracts — read from disk, update when behaviour changes.
 
-Design docs in `docs/plans/` are session artifacts (implementation history). Specs in `docs/specs/` are enduring architectural knowledge (kept current). When refactoring a subsystem, update its spec — run `tools/drift-detector.sh` to find stale specs.
+Design docs in `docs/history/plans/` are session artifacts (implementation history). Specs in `docs/specs/` are enduring architectural knowledge (kept current). When refactoring a subsystem, update its spec — run `tools/drift-detector.sh` to find stale specs.
 
 ## Commands
 

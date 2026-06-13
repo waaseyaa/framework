@@ -3,7 +3,7 @@
 **Mission:** `bimaaji-mcp-bridge-01KS5VS8`
 **Status:** Spec
 **Target branch:** `main`
-**Cross-references:** Design doc `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md` (M3 of 5). Depends on: M1 `bimaaji-wakeup-01KS5VEY`, soft-depends on M2 `ai-agent-bimaaji-tools-01KS5VKR` (this mission reuses the tool surface validated by M2). Supersedes the 2026-05-20 M-G mission (`bimaaji-mcp-strategic-direction-01KS3SZB`) decision that bimaaji ships PHP-only. Closes / supersedes [#1463](https://github.com/waaseyaa/framework/issues/1463).
+**Cross-references:** Design doc `docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md` (M3 of 5). Depends on: M1 `bimaaji-wakeup-01KS5VEY`, soft-depends on M2 `ai-agent-bimaaji-tools-01KS5VKR` (this mission reuses the tool surface validated by M2). Supersedes the 2026-05-20 M-G mission (`bimaaji-mcp-strategic-direction-01KS3SZB`) decision that bimaaji ships PHP-only. Closes / supersedes [#1463](https://github.com/waaseyaa/framework/issues/1463).
 
 ## Why this mission exists
 
@@ -144,7 +144,7 @@ The planner is free to revise. Indicative shape:
 
 - 2026-05-20 M-G mission: `archive/bimaaji-mcp-strategic-direction-01KS3SZB/` (if archived) — the deferral this mission supersedes.
 - `docs/specs/mcp-endpoint.md` §"Bimaaji MCP positioning (2026-05-20)".
-- Laravel Boost research summary: `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md` §"Context" — comparison source.
+- Laravel Boost research summary: `docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md` §"Context" — comparison source.
 - `packages/bimaaji/src/Spec/SpecIndexProvider.php` — basis for `bimaaji_search_specs`.
 - M1 `bimaaji-wakeup-01KS5VEY` — provides container-resolvable bimaaji surface.
 - M2 `ai-agent-bimaaji-tools-01KS5VKR` — validates the tool API shape M3 wraps.

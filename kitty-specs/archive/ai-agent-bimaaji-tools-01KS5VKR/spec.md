@@ -3,7 +3,7 @@
 **Mission:** `ai-agent-bimaaji-tools-01KS5VKR`
 **Status:** Spec
 **Target branch:** `main`
-**Cross-references:** Design doc `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md` (M2 of 5). Depends on: M1 `bimaaji-wakeup-01KS5VEY`. Blocks: M3 `bimaaji-mcp-bridge` (M3 reuses the tool-API shape validated here). Independent of M4 `agent-output-package` and M5 `bimaaji-install-command`.
+**Cross-references:** Design doc `docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md` (M2 of 5). Depends on: M1 `bimaaji-wakeup-01KS5VEY`. Blocks: M3 `bimaaji-mcp-bridge` (M3 reuses the tool-API shape validated here). Independent of M4 `agent-output-package` and M5 `bimaaji-install-command`.
 
 ## Why this mission exists
 
@@ -147,5 +147,5 @@ The planner is free to revise. Indicative shape:
 - `packages/ai-agent/src/Access/AgentRunAccessPolicy.php` — capability gating.
 - M1 `bimaaji-wakeup-01KS5VEY` — provides the container-resolvable bimaaji surface.
 - M3 `bimaaji-mcp-bridge` — consumes the tool-API shape this mission validates.
-- Design doc: `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md` §M2.
+- Design doc: `docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md` §M2.
 - Memory: `feedback_modern_php_rules` — contract tests for every extension point.

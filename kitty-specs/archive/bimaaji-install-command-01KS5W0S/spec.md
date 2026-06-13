@@ -3,7 +3,7 @@
 **Mission:** `bimaaji-install-command-01KS5W0S`
 **Status:** Spec
 **Target branch:** `main`
-**Cross-references:** Design doc `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md` (M5 of 5). Depends on: M1 `bimaaji-wakeup-01KS5VEY` (CLI command lives in bimaaji's command tree). Soft-related to M3 `bimaaji-mcp-bridge` (a session that has the bimaaji MCP server *and* installed guidelines is the canonical Boost-equivalent agent experience).
+**Cross-references:** Design doc `docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md` (M5 of 5). Depends on: M1 `bimaaji-wakeup-01KS5VEY` (CLI command lives in bimaaji's command tree). Soft-related to M3 `bimaaji-mcp-bridge` (a session that has the bimaaji MCP server *and* installed guidelines is the canonical Boost-equivalent agent experience).
 
 ## Why this mission exists
 
@@ -137,7 +137,7 @@ The planner is free to revise. Indicative shape:
 
 ## References
 
-- Laravel Boost research summary: `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md` §"Context". External reference: https://laravel.com/ai/boost.
+- Laravel Boost research summary: `docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md` §"Context". External reference: https://laravel.com/ai/boost.
 - `skills/waaseyaa/*/SKILL.md` — source content for the install.
 - CLAUDE.md "Orchestration" — the skill-routing table that informs which skills are framework-canonical.
 - M1 `bimaaji-wakeup-01KS5VEY` — provides the CLI command tree this mission extends.

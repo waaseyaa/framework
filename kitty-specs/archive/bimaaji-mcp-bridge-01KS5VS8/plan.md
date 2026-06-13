@@ -3,7 +3,7 @@
 **Mission:** `bimaaji-mcp-bridge-01KS5VS8`
 **Status:** Plan (re-scoped after WP01 audit, 2026-05-22)
 **Spec:** [spec.md](spec.md)
-**Design doc:** `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md` §M3
+**Design doc:** `docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md` §M3
 **Depends on:** M1 `bimaaji-wakeup-01KS5VEY` (merged). M2 `ai-agent-bimaaji-tools-01KS5VKR` (merged, SC-004 anchor).
 **Supersedes:** 2026-05-20 M-G `bimaaji-mcp-strategic-direction-01KS3SZB` "PHP-only" deferral.
 **Closes:** GitHub #1463 via merge-commit footer.

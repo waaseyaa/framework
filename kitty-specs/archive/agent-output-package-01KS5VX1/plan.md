@@ -3,7 +3,7 @@
 **Mission:** `agent-output-package-01KS5VX1`
 **Status:** Plan
 **Spec:** [spec.md](spec.md)
-**Design doc:** `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md` §M4
+**Design doc:** `docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md` §M4
 **Depends on:** none (independent of M1/M2/M3/M5)
 **Blocks:** none
 **External reference:** Laravel PAO (https://github.com/laravel/pao, 2026-05 release)

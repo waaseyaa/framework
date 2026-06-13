@@ -3,7 +3,7 @@
 **Mission:** `bimaaji-wakeup-01KS5VEY`
 **Status:** Spec
 **Target branch:** `main`
-**Cross-references:** Design doc `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md` (M1 of 5). Blocks: M2 `ai-agent-bimaaji-tools`, M3 `bimaaji-mcp-bridge`, M5 `bimaaji-install-command`. Reverses the no-wiring posture of the 2026-05-20 M-G (`bimaaji-mcp-strategic-direction-01KS3SZB`) decision insofar as that decision deferred *external* exposure; this mission wires *internal* surfaces. Independent of M4 `agent-output-package`.
+**Cross-references:** Design doc `docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md` (M1 of 5). Blocks: M2 `ai-agent-bimaaji-tools`, M3 `bimaaji-mcp-bridge`, M5 `bimaaji-install-command`. Reverses the no-wiring posture of the 2026-05-20 M-G (`bimaaji-mcp-strategic-direction-01KS3SZB`) decision insofar as that decision deferred *external* exposure; this mission wires *internal* surfaces. Independent of M4 `agent-output-package`.
 
 ## Why this mission exists
 
@@ -145,7 +145,7 @@ The planner is free to revise. Indicative shape:
 
 ## References
 
-- Source: `packages/bimaaji/src/*` — 25 PHP classes, see investigation in `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md`.
+- Source: `packages/bimaaji/src/*` — 25 PHP classes, see investigation in `docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md`.
 - Comparison: Laravel Boost research summary in the same design doc.
 - Architectural orchestration: CLAUDE.md "Orchestration" section — bimaaji rows linking to `docs/specs/bimaaji.md`.
 - Layer architecture: CLAUDE.md "Layer Architecture" — bimaaji at L4 (per the extension-compatibility-matrix) / L5 (per docs/specs/bimaaji.md and the AI ecosystem framing). Mission preserves whichever placement is canonical; plan reconciles.

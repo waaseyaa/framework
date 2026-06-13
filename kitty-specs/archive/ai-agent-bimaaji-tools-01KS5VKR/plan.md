@@ -3,7 +3,7 @@
 **Mission:** `ai-agent-bimaaji-tools-01KS5VKR`
 **Status:** Plan
 **Spec:** [spec.md](spec.md)
-**Design doc:** `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md` §M2
+**Design doc:** `docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md` §M2
 **Depends on:** M1 `bimaaji-wakeup-01KS5VEY` (merged)
 **Blocks:** M3 `bimaaji-mcp-bridge-01KS5VS8` (reuses this mission's tool-API shape via SC-004)
 

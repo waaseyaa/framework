@@ -3,7 +3,7 @@
 **Mission:** `agent-output-package-01KS5VX1`
 **Status:** Spec
 **Target branch:** `main`
-**Cross-references:** Design doc `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md` (M4 of 5). Independent of M1/M2/M3/M5. PAO-equivalent: pattern lifted from `laravel/pao` (2026-05 release) but framework-internal and tailored to Waaseyaa's CI gates and test stack.
+**Cross-references:** Design doc `docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md` (M4 of 5). Independent of M1/M2/M3/M5. PAO-equivalent: pattern lifted from `laravel/pao` (2026-05 release) but framework-internal and tailored to Waaseyaa's CI gates and test stack.
 
 ## Why this mission exists
 
@@ -150,7 +150,7 @@ The planner is free to revise. Indicative shape:
 
 ## References
 
-- Laravel PAO research summary: `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md` §"Context". External reference: https://github.com/laravel/pao.
+- Laravel PAO research summary: `docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md` §"Context". External reference: https://github.com/laravel/pao.
 - Memory: `feedback_new_package_release_checklist` — the three-step split.yml + GitHub repo + Packagist registration pattern.
 - Memory: `feedback_release_split_pre_flight_gap` — `bin/check-release-tag-parity` is post-tag; missing split.yml entries half-ship a release.
 - Memory: `feedback_release_cut_sync_commit_bug` — pre-alpha.179 release-cut.yml bugs; ensure this mission's first release runs on a post-fix release-cut.

@@ -3,7 +3,7 @@ set -euo pipefail
 
 WAASEYAA_ROOT="${WAASEYAA_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 MINOO_ROOT="${MINOO_ROOT:-/home/jones/dev/minoo}"
-ARTIFACT_PATH="${ARTIFACT_PATH:-$WAASEYAA_ROOT/docs/plans/artifacts/v1.3-cross-repo-harness.md}"
+ARTIFACT_PATH="${ARTIFACT_PATH:-$WAASEYAA_ROOT/docs/history/plans/artifacts/v1.3-cross-repo-harness.md}"
 
 mkdir -p "$(dirname "$ARTIFACT_PATH")"
 

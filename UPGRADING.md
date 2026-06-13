@@ -169,7 +169,7 @@ Remove the duplicate `entityType()` registration from your consumer provider ins
 
 If your app still has shadow classes or imports that assume consumer-owned group types, use the reconciliation ADR as the migration path:
 
-- [`docs/superpowers/specs/2026-04-19-groups-reconciliation-adr.md`](docs/superpowers/specs/2026-04-19-groups-reconciliation-adr.md)
+- [`docs/history/superpowers/specs/2026-04-19-groups-reconciliation-adr.md`](docs/history/superpowers/specs/2026-04-19-groups-reconciliation-adr.md)
 
 That ADR is the concrete path for the Minoo-shaped cleanup. Minoo `main` no longer carries live duplicate `group` / `group_type` registration in `AppServiceProvider`; the remaining migration case is shadow-class residue and call sites that still import those shadows. Later arc phases handle the `HasCommunityInterface` and `GroupType` key reconciliation that make those shadows removable.
 

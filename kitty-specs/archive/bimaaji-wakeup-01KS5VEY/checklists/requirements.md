@@ -35,6 +35,6 @@
 
 ## Notes
 
-- Discovery was completed during the 2026-05-21 brainstorming session captured in `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md`. All scope, constraint, and sequencing decisions are documented there.
+- Discovery was completed during the 2026-05-21 brainstorming session captured in `docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md`. All scope, constraint, and sequencing decisions are documented there.
 - Cross-mission dependencies (this mission blocks M2/M3/M5) are reflected in C-004 and SC-005.
 - The decision to keep `BimaajiServiceProvider` in `packages/bimaaji/` and `GraphDumpCommand` in either `packages/bimaaji/src/Command/` or `packages/cli/src/Command/Bimaaji/` (C-002) is deliberately deferred to plan time — both are acceptable architecturally.
