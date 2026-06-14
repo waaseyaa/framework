@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Repository hygiene sweep (no shipped-package behaviour change).** Removed dead root files (`example.gitignore` Drupal boilerplate, a leaked `bootstrap-tests.php`, the abandoned `.githooks/` superseded by lefthook, the orphaned `ci/packagist/validate-composer.yml` that lived outside `.github/workflows/`); stopped tracking regenerable `build/` layer-audit artifacts and Spec Kitty runtime `*.events.jsonl` event logs (both gitignored, files left on disk); archived 26 completed Spec Kitty missions into `kitty-specs/archive/`; relocated the frozen `docs/plans/` and `docs/superpowers/` trees under `docs/history/` (all inbound links rewritten) and added `docs/README.md` + `docs/history/README.md`; removed 29 obsolete `.gitkeep` placeholders in now-populated `src/`/`tests/` dirs. The `drift-detector` now ignores `.gitkeep` (placeholder churn has no spec impact).
+- **`database-legacy` README rewritten to match the real Doctrine DBAL API.** It documented removed `PdoDatabase` classes; it now describes `DBALDatabase` and the deliberate directory-name vs `Waaseyaa\Database` namespace split (ADR 007), and records that "legacy" is not removable (sole live DB layer; retirement reverted 2026-05-26).
+
 ## [0.1.0-alpha.208] - 2026-06-12
 
 ### Fixed

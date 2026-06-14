@@ -87,7 +87,7 @@ fi
 # not architectural changes. Genuinely spec-affecting composer.json
 # edits (new packages, autoload changes) surface via the source files
 # they bring in.
-CHANGED_FILES=$(echo "$CHANGED_FILES" | grep -vE '(_test|Test)\.php$|\.claude/|composer\.lock$|composer\.json$|package-lock\.json$|CLAUDE\.md$|/vendor/|\.layers$|phpunit\.xml|phpstan\.neon' || true)
+CHANGED_FILES=$(echo "$CHANGED_FILES" | grep -vE '(_test|Test)\.php$|\.claude/|composer\.lock$|composer\.json$|package-lock\.json$|CLAUDE\.md$|/vendor/|\.layers$|phpunit\.xml|phpstan\.neon|(^|/)\.gitkeep$' || true)
 
 # package.json is not blanket-excluded — structural edits (new scripts,
 # workspaces, exports, entry points) genuinely do affect specs. But
