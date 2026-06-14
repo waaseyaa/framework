@@ -1,0 +1,19 @@
+Description:
+  Assign a registered role to a user and stamp its permissions onto the account
+
+Usage:
+  user:assign-role [options] [--] <user_id> <role>
+
+Arguments:
+  user_id               The user ID
+  role                  The registered role id to assign or remove
+
+Options:
+      --remove          Remove the role and recompute permissions instead of assigning it
+  -h, --help            Display help for the given command. When no command is given display help for the list command
+      --silent          Do not output any message
+  -q, --quiet           Only errors are displayed. All other output is suppressed
+  -V, --version         Display this application version
+      --ansi|--no-ansi  Force (or disable --no-ansi) ANSI output
+  -n, --no-interaction  Do not ask any interactive question
+  -v|vv|vvv, --verbose  Increase the verbosity of messages: 1 for normal output, 2 for more verbose output and 3 for debug

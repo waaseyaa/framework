@@ -18,7 +18,7 @@ use Waaseyaa\CLI\Provider\UserPermissionServiceProvider;
 /**
  * Snapshot tests: verify user/permission --help output matches the WP01 fixtures byte-for-byte.
  *
- * Covers: user:create, user:role, permission:list
+ * Covers: user:create, user:role, user:assign-role, permission:list
  */
 #[CoversNothing]
 final class UserPermissionSnapshotTest extends TestCase
@@ -40,9 +40,10 @@ final class UserPermissionSnapshotTest extends TestCase
     public static function helpFixtures(): array
     {
         return [
-            'user:create'      => ['user:create',      'user__create.help.stdout'],
-            'user:role'        => ['user:role',         'user__role.help.stdout'],
-            'permission:list'  => ['permission:list',   'permission__list.help.stdout'],
+            'user:create'       => ['user:create',       'user__create.help.stdout'],
+            'user:role'         => ['user:role',          'user__role.help.stdout'],
+            'user:assign-role'  => ['user:assign-role',   'user__assign-role.help.stdout'],
+            'permission:list'   => ['permission:list',    'permission__list.help.stdout'],
         ];
     }
 
