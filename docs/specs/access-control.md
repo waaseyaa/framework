@@ -429,6 +429,18 @@ Permissions are declared in `composer.json` under `extra.waaseyaa.permissions` a
 }
 ```
 
+## Roles
+
+**Files:** `packages/user/src/Role.php`, `packages/user/src/RoleRepository.php`
+**Namespace:** `Waaseyaa\User`
+
+A role groups a set of permissions under a single machine name. `Role` is a `final readonly` value object with four fields: `id` (machine name), `label` (human-readable), `permissions` (string[], the permissions the role grants), and `weight` (ordering). Roles are contributed by service providers implementing `Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface` and collected into `RoleRepository`, an id-keyed registry built via `RoleRepository::fromProviders($providers)` (later providers win on duplicate ids). See `docs/specs/package-discovery.md` for the discovery contract.
+
+Two CLI commands attach roles to a user, and they differ in what they write:
+
+- `user:role <user_id> <role>` only appends the role string to the user's `roles` array. Because `User::hasPermission()` reads the flat `permissions` array (and only the `administrator` role is special-cased), a non-administrator role added this way grants **no** permissions.
+- `user:assign-role <user_id> <role> [--remove]` resolves the role from `RoleRepository` and recomputes the user's flat `permissions` as the **union** of the permissions of every registry-known role the user holds after the change, so multiple roles compose. Roles not present in the registry keep their string membership but contribute no permissions. `--remove` drops the role and recomputes the union without it.
+
 ## Enforcement Layers
 
 Access enforcement runs at four distinct layers. Each layer is independent — the request must pass every applicable check.

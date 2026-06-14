@@ -1476,6 +1476,10 @@ Both `AbstractKernel` and `ConsoleKernel` expose the `FieldDefinitionRegistry` t
 
 Authoritative contracts: `docs/specs/bundle-scoped-storage.md §Drift diagnostic` and `docs/specs/operator-diagnostics.md` define the codes and their operator-facing semantics; this section describes how `HealthChecker` surfaces them.
 
+### Role registry composition
+
+`AbstractKernel::buildHandlerContainer()` composes the CLI handler container from the booted provider list. Among its kernel-owned bindings it registers `Waaseyaa\User\RoleRepository` via `RoleRepository::fromProviders($this->providers)`, which scans every provider implementing `Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface` and flattens their `Role` contributions into an id-keyed registry. This is a kernel-owned service mirroring the `HealthChecker` composition pattern above: a type no single provider binds, assembled once by the kernel and made injectable into class-based command handlers. It lets role-aware handlers such as the `user:assign-role` handler (`Waaseyaa\CLI\Handler\UserAssignRoleHandler`) resolve a role to its registered permissions and stamp the union onto a user. See `docs/specs/access-control.md §Roles` for the role-to-permission model.
+
 ## Internal Interfaces
 
 These foundation interfaces are `@internal` and not part of the public consumer API. They are listed here for completeness and to prevent accidental exposure.

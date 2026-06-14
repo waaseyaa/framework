@@ -201,6 +201,21 @@ Returns `list<class-string<ServiceProviderInterface>>`.
 
 **Runtime orchestration**: At boot time, `AbstractKernel` delegates provider instantiation and registration to `ProviderRegistry` (`packages/foundation/src/Kernel/Bootstrap/ProviderRegistry.php`), which reads provider class names from the compiled `PackageManifest` and calls `register()` on each. See the Kernel Bootstrap section of the infrastructure spec for details.
 
+### Provider capability interfaces
+
+Beyond `register()` / `boot()`, a provider opts into kernel-invoked hooks by implementing a named capability interface under `Waaseyaa\Foundation\ServiceProvider\Capability`. The call site checks `instanceof` and queries the implementors once at kernel boot. Current capabilities include:
+
+| Interface | Method | Collected at boot into |
+|-----------|--------|------------------------|
+| `HasNativeCommandsInterface` | `nativeCommands(): iterable` (yields `CommandDefinition`) | `CliKernel` command table |
+| `HasMiddlewareInterface` | `middleware(EntityTypeManager): list` | HTTP middleware pipeline |
+| `HasHttpDomainRoutersInterface` | `httpDomainRouters(HttpKernel): iterable` | Domain router chain |
+| `HasRenderCacheListenersInterface` | `registerRenderCacheListeners(...)` | Render cache listeners |
+| `AcceptsMigrationProvidersInterface` | `withMigrationProviders(list)` | Migration registry |
+| `ProvidesRolesInterface` | `roles(): iterable` (yields `Waaseyaa\User\Role`) | `RoleRepository` |
+
+`ProvidesRolesInterface::roles()` returns an untyped `iterable` rather than a typed return, exactly as `HasNativeCommandsInterface::nativeCommands()` yields Layer-6 `CommandDefinition`s without importing them. Keeping the return untyped lets the Foundation (Layer 0) interface yield `Waaseyaa\User\Role` (Layer 1) without Foundation importing the User package; the concrete element type is resolved by the Layer-1 collector (`RoleRepository::fromProviders()`) at runtime. The full kernel-call-site table lives in `docs/specs/infrastructure.md`.
+
 ## PackageManifest
 
 ### PackageManifest DTO
