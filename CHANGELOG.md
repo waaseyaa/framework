@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`search`: per-column bm25 title weighting and a non-entity file/document corpus source.** `Fts5SearchProvider` now accepts optional `titleWeight`/`bodyWeight` constructor arguments (both default `1.0`); with the defaults the relevance order is byte-identical to before (it still sorts by the built-in FTS5 `rank`), so every existing consumer is unchanged. When a caller passes non-default weights, the provider sorts by `bm25(search_index, 0.0, titleWeight, bodyWeight)` so a match in the `title` column can outrank a body-only match (the weights are formatted as locale-independent decimal literals because FTS5 auxiliary-function arguments cannot be bound parameters; the UNINDEXED `document_id` column is pinned to `0.0`). Two new value objects let an app index files rather than entities through the same `SearchIndexerInterface`: `Waaseyaa\Search\Document\SearchDocument` (a plain `SearchIndexableInterface` with `entity_type` defaulting to `document`) and `Waaseyaa\Search\Document\MarkdownDirectorySource` (scans a directory of `*.md`, deriving each document's title from the first H1 and falling back to the file name). This unblocks title-weighted relevance ranking for a file-backed docs corpus (waaseyaa.org), where body-frequency ranking previously surfaced the wrong spec.
+
 ## [0.1.0-alpha.209] - 2026-06-14
 
 ### Added
