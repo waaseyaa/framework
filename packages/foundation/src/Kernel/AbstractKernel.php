@@ -840,6 +840,12 @@ abstract class AbstractKernel
             \Waaseyaa\Entity\EntityTypeManagerInterface::class =>
                 static fn(\Psr\Container\ContainerInterface $c) => $c->get(\Waaseyaa\Entity\EntityTypeManager::class),
 
+            // Role registry composed from every provider implementing
+            // ProvidesRolesInterface, so role-aware handlers (e.g.
+            // UserAssignRoleHandler) can stamp role permissions onto a user.
+            \Waaseyaa\User\RoleRepository::class =>
+                static fn(\Psr\Container\ContainerInterface $c) => \Waaseyaa\User\RoleRepository::fromProviders($providers),
+
             // Kernel-owned services not bound by any provider.
             \Waaseyaa\Access\Context\AccountContextInterface::class =>
                 static fn(\Psr\Container\ContainerInterface $c) => $kernel->accountContext(),

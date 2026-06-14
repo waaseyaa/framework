@@ -41,6 +41,7 @@ return [
     'Waaseyaa\Foundation\Kernel\Bootstrap\PolicyDependencyResolverInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface' => 'public',
+    'Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\HasGraphqlMutationOverridesInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface' => 'public',

@@ -8,6 +8,7 @@ use Waaseyaa\CLI\ArgumentDefinition;
 use Waaseyaa\CLI\ArgumentMode;
 use Waaseyaa\CLI\CommandDefinition;
 use Waaseyaa\CLI\Handler\PermissionListHandler;
+use Waaseyaa\CLI\Handler\UserAssignRoleHandler;
 use Waaseyaa\CLI\Handler\UserCreateHandler;
 use Waaseyaa\CLI\Handler\UserRoleHandler;
 use Waaseyaa\CLI\OptionDefinition;
@@ -74,6 +75,31 @@ final class UserPermissionServiceProvider extends ServiceProvider implements Has
                 ),
             ],
             handler: [UserRoleHandler::class, 'execute'],
+        );
+
+        yield new CommandDefinition(
+            name: 'user:assign-role',
+            description: 'Assign a registered role to a user and stamp its permissions onto the account',
+            arguments: [
+                new ArgumentDefinition(
+                    name: 'user_id',
+                    mode: ArgumentMode::Required,
+                    description: 'The user ID',
+                ),
+                new ArgumentDefinition(
+                    name: 'role',
+                    mode: ArgumentMode::Required,
+                    description: 'The registered role id to assign or remove',
+                ),
+            ],
+            options: [
+                new OptionDefinition(
+                    name: 'remove',
+                    mode: OptionMode::None,
+                    description: 'Remove the role and recompute permissions instead of assigning it',
+                ),
+            ],
+            handler: [UserAssignRoleHandler::class, 'execute'],
         );
 
         yield new CommandDefinition(
