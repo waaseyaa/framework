@@ -25,6 +25,8 @@ final class Fts5SearchProvider implements SearchProviderInterface
         private readonly DatabaseInterface $database,
         private readonly SearchIndexerInterface $indexer,
         ?LoggerInterface $logger = null,
+        private readonly float $titleWeight = 1.0,
+        private readonly float $bodyWeight = 1.0,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -66,15 +68,17 @@ final class Fts5SearchProvider implements SearchProviderInterface
         $totalPages = (int) ceil($totalHits / $request->pageSize);
         $offset = ($request->page - 1) * $request->pageSize;
 
-        // Sort
-        $orderBy = 'si.rank';
+        // Sort. Relevance uses the FTS5 bm25 rank, optionally re-weighted so a
+        // title-column match outranks a body-only match (see rankExpression()).
+        $rankExpr = $this->rankExpression();
+        $orderBy = $rankExpr;
         if ($request->filters->sortField !== 'relevance' && in_array($request->filters->sortField, self::ALLOWED_SORT_COLUMNS, true)) {
             $direction = strtoupper($request->filters->sortOrder) === 'ASC' ? 'ASC' : 'DESC';
             $orderBy = "m.{$request->filters->sortField} $direction";
         }
 
         // Fetch page
-        $sql = "SELECT m.*, si.title, snippet(search_index, 2, '<b>', '</b>', '…', 32) as highlight, si.rank FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE $whereSQL ORDER BY $orderBy LIMIT :limit OFFSET :offset";
+        $sql = "SELECT m.*, si.title, snippet(search_index, 2, '<b>', '</b>', '…', 32) as highlight, $rankExpr as rank FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE $whereSQL ORDER BY $orderBy LIMIT :limit OFFSET :offset";
         $params['limit'] = $request->pageSize;
         $params['offset'] = $offset;
 
@@ -140,6 +144,42 @@ final class Fts5SearchProvider implements SearchProviderInterface
         $quoted = array_map(fn(string $term): string => '"' . str_replace('"', '""', $term) . '"', $terms);
 
         return implode(' ', $quoted);
+    }
+
+    /**
+     * The relevance ORDER BY / score expression. With the default per-column
+     * weights (1.0/1.0) this is FTS5's built-in `rank` (bm25 with equal column
+     * weights) — byte-identical to prior behaviour, so existing consumers are
+     * unaffected. When a caller passes non-default weights, the bm25()
+     * auxiliary function applies them per column so a title-column match
+     * outranks a body-only match. The FTS5 search_index table has three
+     * columns in declaration order (document_id UNINDEXED, title, body), and
+     * bm25() takes one weight per column, so the UNINDEXED document_id is
+     * pinned to 0.0 (it never contributes a match anyway).
+     */
+    private function rankExpression(): string
+    {
+        if ($this->titleWeight === 1.0 && $this->bodyWeight === 1.0) {
+            return 'si.rank';
+        }
+
+        return sprintf(
+            'bm25(search_index, 0.0, %s, %s)',
+            $this->weightLiteral($this->titleWeight),
+            $this->weightLiteral($this->bodyWeight),
+        );
+    }
+
+    /**
+     * A locale-independent fixed-point literal for inlining into the bm25()
+     * call. The weights are floats from the constructor (never user input), and
+     * FTS5 auxiliary-function arguments cannot be bound parameters, so they are
+     * formatted as a plain decimal — no exponent form, no locale separators
+     * that SQLite would reject.
+     */
+    private function weightLiteral(float $weight): string
+    {
+        return number_format($weight, 6, '.', '');
     }
 
     private function applyFilters(SearchFilters $filters, array &$whereClauses, array &$params): void
