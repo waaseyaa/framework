@@ -1,8 +1,0 @@
-Layer 0 hygiene scan (this layer src/ trees only)
-generated_at: 2026-04-30T17:02:15+00:00
-
-/home/jones/dev/waaseyaa/packages/cache/src/Backend/DatabaseBackend.php:229:            data: unserialize($row['data']),
-/home/jones/dev/waaseyaa/packages/state/src/SqlState.php:35:            $value = unserialize($row['value']);
-/home/jones/dev/waaseyaa/packages/state/src/SqlState.php:66:                $value = unserialize($row['value']);
-/home/jones/dev/waaseyaa/packages/queue/src/Worker/Worker.php:93:            $message = @unserialize($raw['payload']);
-

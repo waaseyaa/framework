@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Repository hygiene sweep (no shipped-package behaviour change).** Removed dead root files (`example.gitignore` Drupal boilerplate, a leaked `bootstrap-tests.php`, the abandoned `.githooks/` superseded by lefthook, the orphaned `ci/packagist/validate-composer.yml` that lived outside `.github/workflows/`); stopped tracking regenerable `build/` layer-audit artifacts and Spec Kitty runtime `*.events.jsonl` event logs (both gitignored, files left on disk); archived 26 completed Spec Kitty missions into `kitty-specs/archive/`; relocated the frozen `docs/plans/` and `docs/superpowers/` trees under `docs/history/` (all inbound links rewritten) and added `docs/README.md` + `docs/history/README.md`; removed 29 obsolete `.gitkeep` placeholders in now-populated `src/`/`tests/` dirs.
+- **`spec-drift` detector rewritten from a git-timestamp heuristic to docs-as-code diff coupling.** The old `tools/drift-detector.sh` flagged a spec "stale" whenever its mapped package had a newer commit than the spec — so a comment, a `.gitkeep` deletion, a README edit, or even an unrelated base-branch commit (via the `HEAD~N` window on a PR merge ref) produced false positives, and a spec could be "freshened" by any one-character edit (trivially gamed). It now diffs the change set against its base (`origin/main` by default), flags a spec only when **contract-bearing source** (`packages/*/{src,app}`, `src/`, `public/`; excludes tests, fixtures, `.md`, `.gitkeep`, manifests) changed **without** the mapped `docs/specs/*.md` being touched in the same diff, and supports a `spec-reviewed: <spec> — <reason>` override trailer (mirroring `no-changelog:`). The CI job is now pull-request-only (coupling is a PR concern, like `changelog-discipline`), so it no longer runs on push-to-`main`.
+- **`database-legacy` README rewritten to match the real Doctrine DBAL API.** It documented removed `PdoDatabase` classes; it now describes `DBALDatabase` and the deliberate directory-name vs `Waaseyaa\Database` namespace split (ADR 007), and records that "legacy" is not removable (sole live DB layer; retirement reverted 2026-05-26).
+
 ## [0.1.0-alpha.208] - 2026-06-12
 
 ### Fixed

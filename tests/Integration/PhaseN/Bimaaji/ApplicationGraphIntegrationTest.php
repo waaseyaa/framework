@@ -98,7 +98,7 @@ final class ApplicationGraphIntegrationTest extends TestCase
      * with only a `composer install` against the framework — no additional service-provider
      * edits inside `packages/bimaaji/`. This test is the CI proof of that contract: a
      * regression here means M2 cannot start without further M1 surgery and the dependency
-     * graph documented in `docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md` is
+     * graph documented in `docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md` is
      * already broken.
      *
      * Marked `#[CoversNothing]` because this is a contract/gate test, not coverage for the

@@ -11,7 +11,7 @@ pre-push:
     composer-policy:
       run: bash bin/check-composer-policy
     spec-drift:
-      run: tools/drift-detector.sh 5
+      run: bash tools/drift-detector.sh origin/main
     phpstan:
       glob: "*.php"
       run: composer phpstan

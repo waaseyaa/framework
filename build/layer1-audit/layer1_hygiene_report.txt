@@ -1,8 +1,0 @@
-Layer 1 hygiene scan (this layer src/ trees only)
-generated_at: 2026-04-30T17:02:18+00:00
-
-/home/jones/dev/waaseyaa/packages/entity/src/Cast/ValueCaster.php:27: * types; there is no smaller surface API for the same checks (audit hygiene flags `new Reflection` generically).
-/home/jones/dev/waaseyaa/packages/entity/src/Cast/ValueCaster.php:169:        $reflection = new ReflectionEnum($token);
-/home/jones/dev/waaseyaa/packages/entity/src/Cast/ValueCaster.php:432:        $backingType = (new ReflectionEnum($enumClass))->getBackingType();
-/home/jones/dev/waaseyaa/packages/entity/src/Cast/ValueCaster.php:488:        $backingType = (new ReflectionEnum($enumClass))->getBackingType();
-

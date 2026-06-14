@@ -34,7 +34,7 @@ The `RateLimiter` uses a `private array $attempts = []` stored in PHP process me
 
 ### 2. Design doc and plan deleted from branch
 
-The `git diff --stat` shows -2066 lines from `docs/superpowers/specs/2026-03-29-auth-system-design.md` and `docs/superpowers/plans/2026-03-29-auth-system-phase1.md`. These files were deleted in this branch. Design docs should be preserved -- they serve as architectural decision records. If they should live elsewhere, move them rather than deleting.
+The `git diff --stat` shows -2066 lines from `docs/history/superpowers/specs/2026-03-29-auth-system-design.md` and `docs/history/superpowers/plans/2026-03-29-auth-system-phase1.md`. These files were deleted in this branch. Design docs should be preserved -- they serve as architectural decision records. If they should live elsewhere, move them rather than deleting.
 
 **Recommendation:** Restore both files. They are referenced in the PR description and are valuable for future contributors.
 

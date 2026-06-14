@@ -55,6 +55,10 @@ jobs:
 
   spec-drift:
     name: spec-drift
+    # Doc-code coupling is a pull-request concern (like changelog-discipline):
+    # it asks "did this PR update the spec alongside the source?". There is no
+    # such question to ask on a post-merge push to main, so skip it there.
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -62,7 +66,7 @@ jobs:
           fetch-depth: 0
 
       - name: Check for stale specs
-        run: bash tools/drift-detector.sh 5
+        run: bash tools/drift-detector.sh "origin/${{ github.base_ref }}"
 
   ci-lint:
     name: ci/lint

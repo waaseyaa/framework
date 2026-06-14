@@ -437,5 +437,5 @@ $result = $db->select('users')->condition('name', 'admin')->execute();
 
 - `docs/specs/infrastructure.md` -- full infrastructure specification (domain events, cache, database, migrations)
 - `docs/specs/package-discovery.md` -- full package discovery specification (service providers, manifest compilation, attribute scanning, plugin system)
-- `docs/plans/2026-03-01-laravel-integration-layer-design.md` -- design document for package auto-discovery, middleware pipelines, config caching
-- `docs/plans/2026-02-28-aurora-architecture-v2-design.md` -- full architecture v2 design with all 17 pillars
+- `docs/history/plans/2026-03-01-laravel-integration-layer-design.md` -- design document for package auto-discovery, middleware pipelines, config caching
+- `docs/history/plans/2026-02-28-aurora-architecture-v2-design.md` -- full architecture v2 design with all 17 pillars

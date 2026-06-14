@@ -1,4 +1,0 @@
-Layer 3 hygiene scan (this layer src/ trees only)
-generated_at: 2026-04-30T17:02:24+00:00
-
-No pattern matches in rg, or no output.

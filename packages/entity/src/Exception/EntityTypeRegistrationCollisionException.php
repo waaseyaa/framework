@@ -36,7 +36,7 @@ final class EntityTypeRegistrationCollisionException extends \InvalidArgumentExc
             '[ENTITY_TYPE_SHADOW_COLLISION] Entity type "%s" is already registered by %s using canonical class %s. '
             . 'Conflicting registration attempted by %s using %s. '
             . 'If this was a consumer shadow, drop the registration and migrate callers to the canonical type; '
-            . 'see docs/superpowers/specs/2026-04-19-groups-reconciliation-adr.md.',
+            . 'see docs/history/superpowers/specs/2026-04-19-groups-reconciliation-adr.md.',
             $entityTypeId,
             self::registrantLabel($existingRegistrant),
             $existingEntityClass,

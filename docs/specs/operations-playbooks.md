@@ -90,7 +90,7 @@ CI must invoke `composer verify` rather than re-implement these checks individua
 2. Run semantic baseline suite:
    - `./vendor/bin/phpunit --configuration phpunit.xml.dist --filter SemanticWarmBaselineIntegrationTest`
 3. If intended baseline updates are required, refresh snapshots in a dedicated commit using the existing update workflow.
-4. Record snapshot hash changes in milestone report under `docs/plans/`.
+4. Record snapshot hash changes in milestone report under `docs/history/plans/`.
 
 ### Playbook C: Performance Baseline Refresh and Drift Checks
 
@@ -121,7 +121,7 @@ CI must invoke `composer verify` rather than re-implement these checks individua
 1. Execute harness:
    - `tools/integration/run-v1.3-cross-repo-harness.sh`
 2. Review artifact:
-   - `docs/plans/artifacts/v1.3-cross-repo-harness.md`
+   - `docs/history/plans/artifacts/v1.3-cross-repo-harness.md`
 3. Treat non-zero harness exit as a cross-repo regression gate failure.
 
 ### Playbook F: Structured/Unstructured Ingestion Pipeline (v1.4)
@@ -304,7 +304,7 @@ php bin/waaseyaa search:reindex --batch-size=200
    - `perf:baseline`, `perf:compare`
 4. Keep every implementation issue paired with:
    - focused tests,
-   - a `docs/plans/` report,
+   - a `docs/history/plans/` report,
    - GitHub issue closure evidence.
 5. For external module work, follow:
    - `docs/specs/extension-author-onboarding.md`
@@ -312,11 +312,11 @@ php bin/waaseyaa search:reindex --batch-size=200
 ## Audit Trail
 
 - Extension release runbook: `docs/specs/extension-release-playbook.md`
-- v1.0 verification: `docs/plans/v1.0-verification-report.md`
-- v1.1 verification readiness: `docs/plans/v1.1-verification-gate-readiness-report.md`
+- v1.0 verification: `docs/history/plans/v1.0-verification-report.md`
+- v1.1 verification readiness: `docs/history/plans/v1.1-verification-gate-readiness-report.md`
 - v1.2 tooling reports:
-  - `docs/plans/v1.2-cli-scaffolding-report.md`
-  - `docs/plans/v1.2-fixture-generator-report.md`
-  - `docs/plans/v1.2-debug-context-panel-report.md`
-  - `docs/plans/v1.2-performance-cli-tooling-report.md`
-  - `docs/plans/v1.2-mcp-introspection-diagnostics-report.md`
+  - `docs/history/plans/v1.2-cli-scaffolding-report.md`
+  - `docs/history/plans/v1.2-fixture-generator-report.md`
+  - `docs/history/plans/v1.2-debug-context-panel-report.md`
+  - `docs/history/plans/v1.2-performance-cli-tooling-report.md`
+  - `docs/history/plans/v1.2-mcp-introspection-diagnostics-report.md`
