@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.209] - 2026-06-14
+
 ### Added
 
 - **`cli`: first-class `user:assign-role` command that stamps a role's permissions, not just the role string (`foundation`, `user`, `cli`).** `user:role` only appends a role id to the user's `roles` array, which is not enough for non-administrator roles: `User::hasPermission()` reads the flat `permissions` array (only `administrator` is special-cased), so a role assigned by `user:role` grants no permissions and `_permission`-gated routes stay closed. The new `user:assign-role <user_id> <role> [--remove]` resolves the role from a registry of `Waaseyaa\User\Role` definitions and stamps the union of permissions across every registry role the user holds onto the account, replacing the per-app `assignRole` / `app:assign-role` hacks (for example intersnipe's `DashboardAccess::apply()`). Roles are contributed by service providers implementing the new `Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface` (an untyped `roles(): iterable` capability mirroring `HasNativeCommandsInterface`, so Foundation does not import the User layer), collected into `Waaseyaa\User\RoleRepository` at kernel boot. Assigning a role replaces sibling registry roles while keeping any non-registry roles; `--remove` strips the role and recomputes the permission union. Ships with 7 unit tests and a help-output snapshot.

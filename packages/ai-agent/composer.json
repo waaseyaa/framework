@@ -73,17 +73,17 @@
         "php": ">=8.5",
         "symfony/messenger": "^7.0",
         "symfony/uid": "^7.0",
-        "waaseyaa/access": "^0.1.0-alpha.208",
-        "waaseyaa/ai-observability": "^0.1.0-alpha.208",
-        "waaseyaa/ai-schema": "^0.1.0-alpha.208",
-        "waaseyaa/ai-tools": "^0.1.0-alpha.208",
-        "waaseyaa/api": "^0.1.0-alpha.208",
-        "waaseyaa/bimaaji": "^0.1.0-alpha.208",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.208",
-        "waaseyaa/entity": "^0.1.0-alpha.208",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.208",
-        "waaseyaa/foundation": "^0.1.0-alpha.208",
-        "waaseyaa/http-client": "^0.1.0-alpha.208"
+        "waaseyaa/access": "^0.1.0-alpha.209",
+        "waaseyaa/ai-observability": "^0.1.0-alpha.209",
+        "waaseyaa/ai-schema": "^0.1.0-alpha.209",
+        "waaseyaa/ai-tools": "^0.1.0-alpha.209",
+        "waaseyaa/api": "^0.1.0-alpha.209",
+        "waaseyaa/bimaaji": "^0.1.0-alpha.209",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.209",
+        "waaseyaa/entity": "^0.1.0-alpha.209",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.209",
+        "waaseyaa/foundation": "^0.1.0-alpha.209",
+        "waaseyaa/http-client": "^0.1.0-alpha.209"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
