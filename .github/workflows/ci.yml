@@ -299,10 +299,17 @@ jobs:
 
   verify-gates:
     name: ci/verify-gates
-    # The five "verify-only" boundary gates that `composer verify` runs but CI historically
-    # did NOT, so they could not gate PRs (audit C-17 — CI was a strict subset of verify).
-    # Wired here after driving each green at HEAD. Run via the `composer <script>` aliases so
-    # this job stays byte-identical to what `composer verify` enforces locally.
+    # The four permanent "verify-only" boundary gates that `composer verify` runs but CI
+    # historically did NOT, so they could not gate PRs (audit C-17 — CI was a strict subset
+    # of verify). Wired here after confirming each green at HEAD. Run via the `composer
+    # <script>` aliases so this job stays byte-identical to what `composer verify` enforces.
+    #
+    # check-external-consumers is intentionally NOT here: it is a mission-scoped pre-deletion
+    # tripwire (WP01 ai-tools migration, key 'ai-agent-orphans'), not a permanent invariant —
+    # its accessCheck(false) scan flags legitimate system-context usage framework-wide
+    # (northcloud/seo/path/user/groups/field) because its excludes snapshot went stale. It was
+    # reclassified out of `composer verify` so verify == this CI gate set; run it on demand via
+    # `composer check-external-consumers`. See roadmap triage for the retire/narrow follow-up.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -329,7 +336,7 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist
 
-      - name: Run the five verify-only boundary gates
+      - name: Run the four permanent verify-only boundary gates
         run: |
           set -uo pipefail
           fail=0
@@ -345,7 +352,6 @@ jobs:
           }
           run_gate check-symfony-imports
           run_gate check-getquery-bindings
-          run_gate check-external-consumers
           run_gate check-admin-coercion-patterns
           run_gate check-openapi
           exit "$fail"
