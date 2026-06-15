@@ -13,6 +13,11 @@ namespace Waaseyaa\Migration\ContentModel;
  * field definitions, so that downstream content imports write into declared
  * fields rather than an opaque blob.
  *
+ * UNWIRED / EXPERIMENTAL (audit C-5): part of the unwired ContentModel
+ * scaffolding; no production path constructs or consumes it. @api retained only
+ * for the dead-code gate.
+ *
+ * @internal Unsupported scaffolding pending wiring. See docs/specs/migration-platform.md.
  * @api
  */
 final readonly class ContentModel

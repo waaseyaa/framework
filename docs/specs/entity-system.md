@@ -398,6 +398,19 @@ interface EntityTypeManagerInterface
 
 `getRepository()` returns `EntityRepositoryInterface` (the driver-backed repository with hydration, validation hooks, and transactional batch APIs). The kernel registers a repository factory alongside the storage factory so consumers can wrap `EntityTypeManager::getRepository($entityTypeId)` in thin domain repositories without manually assembling `SqlStorageDriver`, `RevisionableStorageDriver`, and `EntityRepository` dependencies.
 
+#### Two save engines (intentional; canonical = EntityRepository)
+
+The framework exposes **two entry points that both persist entities in production**, at different abstraction levels over a *shared* substrate — this duplication is intentional and tracked, not accidental:
+
+| Accessor | Class | Adds | Production write callers |
+|----------|-------|------|--------------------------|
+| `getRepository()` | `EntityRepository` | revisions, optimistic locking (`SaveContext`), save-time validation, two-axis translation, language fallback, `saveMany()`/`UnitOfWork` | `ai-*`, `media`, `attachment`, the optimistic-locking branch of `JsonApiController` |
+| `getStorage()` | `SqlEntityStorage` | lower-level `EntityStorageInterface`; **also owns `getQuery()`** (the `EntityQuery` surface) | `auth`, `api` (`JsonApiController`, `OidcClientController`, `TranslationController`, `FieldAutoSaveController`), `graphql`, `mcp` |
+
+**They do not drift on the persistence-critical seam.** Bundle-field partitioning routes through the single shared `BundleSubtableGateway` in both engines (each carries the comment *"Shared implementation with EntityRepository, so the two persistence paths cannot drift"* — `SqlEntityStorage::save()` and `EntityRepository::doSave()`), and the `_data`/column split is shared by construction. The engines diverge only in the *additive* higher-level features above, which `getStorage()` callers do not invoke.
+
+**Canonical path for new code: `EntityRepository` (`getRepository()`)** — it is the pipeline mandated by `.claude/rules/entity-storage-invariant.md` and the only path that carries events + revisions + validation + locking. Use `getStorage()` only when you need the lower-level `EntityStorageInterface` or `getQuery()`. There is **no** `StorageRepositoryAdapter` — earlier rule files named one, but convergence onto a single engine (making `SqlEntityStorage` a thin facade over `EntityRepository`, or extracting a shared core) is a **deferred future item**, intentionally not attempted while both accessors back the live production write path.
+
 `registerEntityType()` and `registerCoreEntityType()` accept an optional registrant class so the registry can emit provenance-aware collision errors. When an entity type id is registered twice with the same class, the manager throws `EntityTypeRegistrationCollisionException` with the duplicate-registration message contract. When the same id is registered with a different class, the manager throws the shadow-collision variant naming the canonical and conflicting classes.
 
 **Reserved-namespace contract (mission #824 WP04 surface A).** The `core.` prefix is reserved for built-in platform entity types. The two registration methods enforce this asymmetrically:
@@ -1562,6 +1575,8 @@ File: `packages/field/src/FieldItemList.php`
 Class: `class FieldItemList implements FieldItemListInterface, \IteratorAggregate, \Countable`
 
 Contains `FieldItemInterface[]` items. Supports `__get($name)` to access first item's property value (e.g., `$list->value`).
+
+**Not wired into the entity value path:** entity field values flow through `EntityBase::get()`/`set()` over the `$values` bag (plus optional `ValueCaster`), **not** through `FieldItemList`. The object layer (`FieldItemList`, `FieldItemBase` and subclasses) is `@api` forward-scaffolding; only the **static** facet of `FieldItemBase` (`defaultSettings()`/`schema()`/`schemaFor()`/`jsonSchemaFor()`) is live, consumed by `FieldTypeManager` for storage + JSON-Schema generation. No production code constructs a `FieldItemList`/`FieldItemBase` instance; object-layer integration into the value path is future work.
 
 ### FieldTypeManager
 

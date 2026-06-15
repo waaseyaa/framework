@@ -29,6 +29,12 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * skipped, and the subtable materialization is create-if-missing / add-missing-
  * columns, so the zero-and-re-migrate loop rebuilds cleanly every run.
  *
+ * UNWIRED / EXPERIMENTAL (audit C-5): no service provider binds this class and
+ * nothing calls {@see register()}; it is forthcoming scaffolding, not supported
+ * framework surface. @api is retained only to keep the dead-code gate green.
+ *
+ * @internal Unsupported scaffolding pending wiring. See
+ *           docs/specs/migration-platform.md "Unwired scaffolding".
  * @api
  */
 final readonly class ContentModelRegistrar

@@ -100,6 +100,8 @@ interface AccountInterface
 
 **Critical:** `AccountInterface` lives in the `access` package, not `user`. The `User` entity and `AnonymousUser` live in `packages/user/`. Access must never depend on User to avoid circular package dependencies. Middleware needing an account should type-hint `AccountInterface`, not concrete `AnonymousUser`.
 
+**Accepted same-layer cycle (`access` ↔ `entity`):** `access` depends on `entity` for the core contracts it authorizes over (`EntityInterface` and siblings — 8 files / 11 imports). `entity` depends back on `access` for exactly **one** reverse symbol: `Waaseyaa\Access\AccountInterface`, imported only by `EntityQueryInterface::setAccount(?AccountInterface)` so a query can carry the requesting account for access-aware filtering. This 2-cycle is **accepted and deliberately not broken**: extracting `AccountInterface` to a Layer-0 package would be the textbook fix, but `AccountInterface` is public surface (`docs/public-surface-map.php`), so a namespace move is semver-breaking across ~250 callsites — net-negative against a one-symbol, query-time binding. The package-layer gate fails only on *upward* edges; this same-layer edge (and the framework's two other accepted same-layer 2-cycles, `foundation` ↔ `queue` and `ai-agent` ↔ `ai-observability`) is surfaced as a warn-only **`WARN [PL006]`** by `bin/check-package-layers` so a *new* reverse edge becomes visible rather than growing silently.
+
 ## Access Result Semantics
 
 **File:** `packages/access/src/AccessResult.php`

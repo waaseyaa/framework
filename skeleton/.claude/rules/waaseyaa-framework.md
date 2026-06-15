@@ -34,7 +34,8 @@ Waaseyaa is a **Symfony 7-based, entity-first PHP framework**. PHP 8.4+, full de
 | Need | Use | Full Namespace |
 |------|-----|----------------|
 | Transactions, raw queries | `DatabaseInterface` | `Waaseyaa\Database\DatabaseInterface` |
-| Entity persistence | `SqlEntityStorage` + `StorageRepositoryAdapter` | `Waaseyaa\EntityStorage\Sql\SqlEntityStorage` |
+| Entity persistence (canonical) | `EntityRepository` (events, revisions, validation, language fallback) | `Waaseyaa\EntityStorage\EntityRepository` |
+| Entity persistence (low-level) | `SqlEntityStorage` (also owns `getQuery()`) | `Waaseyaa\EntityStorage\SqlEntityStorage` |
 | Entity data access | `EntityRepositoryInterface` | `Waaseyaa\Entity\Repository\EntityRepositoryInterface` |
 | Entity registration | `EntityTypeManager` | `Waaseyaa\Entity\EntityTypeManager` |
 | Authorization | `AccessPolicyInterface` + `FieldAccessPolicyInterface` | `Waaseyaa\Access\AccessPolicyInterface`, `Waaseyaa\Access\FieldAccessPolicyInterface` |
