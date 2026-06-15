@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Field;
 
-use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -20,6 +19,7 @@ use Waaseyaa\Field\Classification\ParentResolver\NodeParentResolver;
 use Waaseyaa\Field\Classification\RoleBasedClearanceChecker;
 use Waaseyaa\Field\Entity\ClassificationLabelDefinition;
 use Waaseyaa\Field\Entity\RetentionPolicy;
+use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 

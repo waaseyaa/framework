@@ -297,6 +297,59 @@ jobs:
           cp "$GITHUB_WORKSPACE/tests/CoreOnlyBoot/boot.php" "$work/boot.php"
           php "$work/boot.php"
 
+  verify-gates:
+    name: ci/verify-gates
+    # The five "verify-only" boundary gates that `composer verify` runs but CI historically
+    # did NOT, so they could not gate PRs (audit C-17 — CI was a strict subset of verify).
+    # Wired here after driving each green at HEAD. Run via the `composer <script>` aliases so
+    # this job stays byte-identical to what `composer verify` enforces locally.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml
+          coverage: none
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v5
+        with:
+          path: vendor
+          key: composer-v2-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-v2-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run the five verify-only boundary gates
+        run: |
+          set -uo pipefail
+          fail=0
+          run_gate() {
+            echo "::group::composer $1"
+            if composer "$1"; then
+              echo "PASS: $1"
+            else
+              echo "::error::verify gate failed: composer $1"
+              fail=1
+            fi
+            echo "::endgroup::"
+          }
+          run_gate check-symfony-imports
+          run_gate check-getquery-bindings
+          run_gate check-external-consumers
+          run_gate check-admin-coercion-patterns
+          run_gate check-openapi
+          exit "$fail"
+
   ci-playwright-smoke:
     name: ci/playwright-smoke
     runs-on: ubuntu-latest
