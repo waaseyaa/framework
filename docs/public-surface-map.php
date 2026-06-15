@@ -3,6 +3,12 @@
 // Authoritative disposition map for all public API elements.
 // Format: 'Fully\Qualified\ClassName' => 'public|internal|extract|remove'
 // This file is verified by PublicSurfaceVerificationTest.
+//
+// Scope (audit C-16): tracks contract shapes only — interfaces, abstract classes,
+// traits, enums (the public extension surface). Concrete final/plain classes are
+// implementations, not extension points, and are intentionally NOT listed. The
+// vocabulary is binary public|internal, not the charter's aborted 3-tier model
+// (audit C-15). See docs/specs/stability-charter.md §2.
 
 declare(strict_types=1);
 

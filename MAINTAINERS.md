@@ -41,7 +41,7 @@ The following codified gates are the framework's **procurement-legible trust sub
 - [`bin/check-getquery-bindings`](bin/check-getquery-bindings) — Fails on new `getQuery()->...->execute()` callsites that have neither `->setAccount()` nor `->accessCheck(false)` in the chain. Prevents unguarded auth bypass via `tools/getquery-bindings-baseline.txt` exemption list (every exemption carries an inline reason).
 - [`bin/check-ingestion-defaults`](bin/check-ingestion-defaults) — Validates ingestion-defaults fixture-pack contract; prevents drift in the `defaults/ingestion.*` envelope shape consumers depend on.
 - [`bin/check-no-secrets`](bin/check-no-secrets) — Scans the repo for secret patterns; fails on any match outside the documented allow-list.
-- [`bin/check-openapi`](bin/check-openapi) — Schema compliance gate for the JSON:API surface; prevents undocumented endpoint shape changes.
+- [`bin/check-openapi`](bin/check-openapi) — Spectral-lints the hand-maintained agent-run sub-spec `packages/api/openapi.yaml` (3 SSE endpoints + the `pending_approval` payload shape) for YAML/OpenAPI structural validity. It is a syntax/shape lint of that one document — it does NOT introspect the route table, diff against live routes, or enforce route/schema parity across the full HTTP API surface.
 - [`bin/check-admin-coercion-patterns`](bin/check-admin-coercion-patterns) — Detects unsafe type coercions in admin code paths.
 - [`bin/check-monorepo-release-shape`](bin/check-monorepo-release-shape) — Validates the metapackage release shape across `core`, `cms`, `full`.
 - [`bin/check-phpstan`](bin/check-phpstan) — Runs PHPStan analysis at level 5 against the committed baseline; new violations fail CI.

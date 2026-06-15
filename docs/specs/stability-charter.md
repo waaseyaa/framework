@@ -50,7 +50,9 @@ This charter exists because the 2026-05-11 framework/app audit found that recent
 
 ## 2. Surface classification
 
-The framework public surface is classified into three tiers. Every exported symbol (class, interface, method, function, constant, config key, log channel, event name, CLI command, env var) lives in exactly one tier.
+The framework public surface uses a **binary** classification: every tracked element is either **public** or **internal** (audit C-15). An earlier three-tier `stable | provisional | internal` model and a `mission_status` axis — described in §2.1–§2.3 and §2.6 below, and in §11 Q1 — were aspirational and **never shipped**; the public-surface-map, the surface-parity gate (`tools/check-surface-parity.php`), and `PublicSurfaceVerificationTest` all implement the binary model. §2.1–§2.3 are retained only for historical context.
+
+The tracked surface is the **contract shapes** — interfaces, abstract classes, traits, and enums declared under `packages/*/src` — together with the config keys, log channels (§4.4), event names, CLI commands, and env vars enumerated in this charter. Concrete `final`/plain classes are implementations, not extension points, and are intentionally **not** tracked by the parity gate (audit C-16): there are ~1378 of them versus ~426 mapped contract elements, and listing them would not strengthen the stability guarantee — consumers depend on the interface, not the implementation (e.g. `EntityTypeManagerInterface` is mapped `public` while the concrete `EntityTypeManager` is not). The single source of truth for an element's disposition is the public-surface-map (§2.5).
 
 ### 2.1 Stable
 

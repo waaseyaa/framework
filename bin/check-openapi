@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# check-openapi — Validate packages/api/openapi.yaml against OpenAPI 3.1.0 spec.
+# check-openapi — Spectral-lint packages/api/openapi.yaml (the hand-maintained
+#   agent-run sub-spec: a few SSE endpoints + the pending_approval shape) for OpenAPI
+#   3.1 structural validity. This is a SYNTAX/shape lint of that one file only; it does
+#   NOT verify route parity against the live route table (audit C-18).
 #
 # Used as a hard gate in `composer verify` (NFR-004 / WP02).
 # Requires Node.js + npx for the @stoplight/spectral-cli linter.
