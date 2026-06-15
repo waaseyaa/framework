@@ -259,6 +259,38 @@ jobs:
         working-directory: tests/PackagedForm/skeleton
         run: ./vendor/bin/phpunit --configuration phpunit.xml.dist
 
+  core-only-boot:
+    # Boots the kernel from a consumer that requires ONLY waaseyaa/core, installed via a path
+    # repository so it tests the SOURCE core metapackage (no release lag). Guards the class of
+    # bug where core omits a fail-closed kernel boot dependency (e.g. waaseyaa/scheduler, fixed
+    # in this train) — the gap that source-tree co-resolution masks. See tests/CoreOnlyBoot/boot.php.
+    name: ci/core-only-boot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml
+          coverage: none
+
+      - name: Install waaseyaa/core alone and boot the kernel
+        run: |
+          set -euo pipefail
+          work=$(mktemp -d)
+          cleanup() { rm -rf "$work"; }
+          trap cleanup EXIT
+          printf '{"name":"waaseyaa/core-only-boot-fixture","type":"project","require":{"waaseyaa/core":"*"},"repositories":[{"type":"path","url":"%s/packages/*","options":{"symlink":false}}],"minimum-stability":"dev","prefer-stable":true}\n' "$GITHUB_WORKSPACE" > "$work/composer.json"
+          composer install --working-dir "$work" --no-interaction
+          test -d "$work/vendor/waaseyaa/scheduler" || { echo "::error::core-only install did not pull waaseyaa/scheduler (core metapackage is missing a fail-closed kernel boot dependency)"; exit 1; }
+          mkdir -p "$work/config" "$work/config/sync" "$work/storage" "$work/storage/files"
+          cp "$GITHUB_WORKSPACE/skeleton/config/waaseyaa.php" "$work/config/waaseyaa.php"
+          printf 'APP_ENV=local\nAPP_DEBUG=false\n' > "$work/.env"
+          cp "$GITHUB_WORKSPACE/tests/CoreOnlyBoot/boot.php" "$work/boot.php"
+          php "$work/boot.php"
+
   ci-playwright-smoke:
     name: ci/playwright-smoke
     runs-on: ubuntu-latest
