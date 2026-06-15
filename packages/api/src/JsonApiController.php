@@ -103,14 +103,22 @@ final class JsonApiController
         $ids = $entityQuery->execute();
         $entities = $ids !== [] ? $storage->loadMultiple($ids) : [];
 
-        // Filter by view access if an access handler is available.
+        // Filter the current page by view access if an access handler is
+        // available. Entity-level access is deny-by-default (isAllowed): a
+        // Neutral row is not visible. This mirrors show() (single read).
         if ($this->accessHandler !== null && $this->account !== null) {
             $entities = array_filter(
                 $entities,
                 fn($entity) => $this->accessHandler->check($entity, 'view', $this->account)->isAllowed(),
             );
-            // Recount after access filtering so meta.total matches the visible set.
-            $total = count($entities);
+            // meta.total must reflect the access-filtered total ACROSS all
+            // pages, not the size of the current page. The storage COUNT alone
+            // is the wrong source here: the query layer drops only Forbidden
+            // rows (open-by-default), whereas the collection contract is
+            // deny-by-default (isAllowed), so Neutral rows would inflate it.
+            // Recompute the true total by re-running the filter set without
+            // pagination and counting rows this account may actually view.
+            $total = $this->accessFilteredTotal($storage, $parsedQuery);
         }
 
         $resources = $this->serializer->serializeCollection($entities, $this->accessHandler, $this->account);
@@ -144,6 +152,49 @@ final class JsonApiController
             links: $links,
             meta: $meta,
         );
+    }
+
+    /**
+     * Count, across all pages, the rows matching the query's filters that the
+     * current account may view under deny-by-default entity-level semantics.
+     *
+     * This applies the SAME `isAllowed()` predicate as the per-page filter in
+     * {@see index()} (and as {@see show()}), so meta.total is consistent with
+     * the data the consumer receives over successive pages — never the page
+     * size, never the open-by-default storage COUNT. Filters only: sorts and
+     * pagination are intentionally omitted.
+     *
+     * Only invoked when both an access handler and an account are bound; the
+     * system / no-account path keeps the storage COUNT computed in index().
+     *
+     * @param \Waaseyaa\Entity\Storage\EntityStorageInterface $storage
+     */
+    private function accessFilteredTotal(
+        \Waaseyaa\Entity\Storage\EntityStorageInterface $storage,
+        ParsedQuery $parsedQuery,
+    ): int {
+        \assert($this->accessHandler !== null && $this->account !== null);
+
+        $idQuery = $storage->getQuery();
+        $idQuery->setAccount($this->account);
+        // Filters only — no sort, no range — so we span the whole match set.
+        foreach ($parsedQuery->filters as $filter) {
+            $idQuery->condition($filter->field, $filter->value, $filter->operator);
+        }
+
+        $ids = $idQuery->execute();
+        if ($ids === []) {
+            return 0;
+        }
+
+        $total = 0;
+        foreach ($storage->loadMultiple($ids) as $entity) {
+            if ($this->accessHandler->check($entity, 'view', $this->account)->isAllowed()) {
+                $total++;
+            }
+        }
+
+        return $total;
     }
 
     /**
