@@ -17,7 +17,7 @@ namespace Waaseyaa\Access\Gate;
  * For example, allows('update', $node) calls $policy->update($user, $node).
  * If the method does not exist on the policy, the ability is denied.
  */
-final class Gate implements GateInterface
+final class Gate implements GateInterface, ListingFastPathProbeInterface
 {
     /**
      * Resolved policy instances keyed by entity type.
@@ -60,6 +60,22 @@ final class Gate implements GateInterface
         if ($this->denies($ability, $subject, $user)) {
             throw new AccessDeniedException(ability: $ability, subject: $subject);
         }
+    }
+
+    public function policyAllowsListingFastPath(string $entityTypeId): bool
+    {
+        $policy = $this->resolvedPolicies[$entityTypeId] ?? null;
+        if ($policy === null) {
+            return false;
+        }
+
+        $constName = ListingFastPathProbeInterface::FAST_PATH_CONST;
+        if (!\defined($policy::class . '::' . $constName)) {
+            return false;
+        }
+
+        // Strict true only — any non-boolean / false value is "not opted in".
+        return \constant($policy::class . '::' . $constName) === true;
     }
 
     /**

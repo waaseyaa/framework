@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Waaseyaa\Search\Fts5;
 
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Search\BatchSearchIndexerInterface;
 use Waaseyaa\Search\SearchIndexableInterface;
 use Waaseyaa\Search\SearchIndexerInterface;
 
-final class Fts5SearchIndexer implements SearchIndexerInterface
+final class Fts5SearchIndexer implements SearchIndexerInterface, BatchSearchIndexerInterface
 {
     private const SCHEMA_VERSION = '1';
 
@@ -84,6 +85,52 @@ final class Fts5SearchIndexer implements SearchIndexerInterface
             $tx->rollBack();
             throw $e;
         }
+    }
+
+    public function reindexBatch(iterable $items): int
+    {
+        $tx = $this->database->transaction();
+        $count = 0;
+
+        try {
+            foreach ($items as $item) {
+                $documentId = $item->getSearchDocumentId();
+                $document = $item->toSearchDocument();
+                $metadata = $item->toSearchMetadata();
+
+                // No deleteDocument(): search:reindex clears the index up front,
+                // so every document in a reindex batch is a fresh insert and one
+                // transaction wraps the whole chunk, not one per document.
+                $this->database->query(
+                    'INSERT INTO search_index (document_id, title, body) VALUES (?, ?, ?)',
+                    [$documentId, $document['title'] ?? '', $document['body'] ?? ''],
+                );
+
+                $this->database->insert('search_metadata')
+                    ->values([
+                        'document_id' => $documentId,
+                        'entity_type' => $metadata['entity_type'] ?? '',
+                        'content_type' => $metadata['content_type'] ?? '',
+                        'source_name' => $metadata['source_name'] ?? '',
+                        'quality_score' => $metadata['quality_score'] ?? 0,
+                        'topics' => json_encode($metadata['topics'] ?? [], JSON_THROW_ON_ERROR),
+                        'url' => $metadata['url'] ?? '',
+                        'og_image' => $metadata['og_image'] ?? '',
+                        'created_at' => $metadata['created_at'] ?? date('c'),
+                        'schema_version' => self::SCHEMA_VERSION,
+                    ])
+                    ->execute();
+
+                $count++;
+            }
+
+            $tx->commit();
+        } catch (\Throwable $e) {
+            $tx->rollBack();
+            throw $e;
+        }
+
+        return $count;
     }
 
     public function remove(string $documentId): void

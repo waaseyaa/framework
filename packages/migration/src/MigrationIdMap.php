@@ -42,6 +42,17 @@ use Waaseyaa\Migration\Plugin\WriteResult;
  * sub-second timestamp — without it, rollback ordering would be
  * non-deterministic.
  *
+ * This is **reverse last-imported order**, NOT creation order: `upsert()`
+ * refreshes `last_imported_at` (and `last_run_id`) on every re-import, and
+ * the stable-surface schema carries no immutable creation/sequence column.
+ * A row created first but re-imported later therefore walks first. This is
+ * the honest, deterministic contract FR-043 mandates for best-effort
+ * rollback (FR-044) — rollback deletes by `destination_uuid`, so *what* is
+ * removed is order-independent; the ordering is only an FK/dependency
+ * heuristic. The method names retain the historical `…ReverseCreation…`
+ * spelling for stable-surface compatibility; the ordering they document is
+ * last-imported, not creation.
+ *
  * @api
  *
  * @spec FR-025 — backed by the stable `migration_id_map` table
@@ -325,13 +336,19 @@ final class MigrationIdMap
     }
 
     /**
-     * Yield {@see WriteResult}s for one migration in reverse creation
+     * Yield {@see WriteResult}s for one migration in reverse last-imported
      * order (`last_imported_at DESC, last_run_id DESC`).
      *
      * Used by the rollback path (WP08) to delete destination entities in
-     * the inverse of the order they were written. The secondary
-     * `last_run_id` sort breaks ties when two rows share a sub-second
-     * timestamp (R2 mitigation, data-model §8).
+     * the inverse of the order they were most recently written. The
+     * secondary `last_run_id` sort breaks ties when two rows share a
+     * sub-second timestamp (R2 mitigation, data-model §8).
+     *
+     * NOTE: last-imported, not creation order. `upsert()` refreshes
+     * `last_imported_at` on every re-import, and the stable-surface table
+     * has no immutable creation column — so a re-imported row resorts to
+     * the front. See FR-043 / the class docblock. The method name keeps
+     * the historical `ReverseCreation` spelling for @api compatibility.
      *
      * **Lazy.** Implemented as a generator so a 100k-row id-map can be
      * walked without loading every row into memory.
@@ -371,7 +388,9 @@ final class MigrationIdMap
 
     /**
      * Yield `[source_id_hash, WriteResult]` tuples for one migration in
-     * reverse creation order.
+     * reverse last-imported order (`last_imported_at DESC, last_run_id
+     * DESC`) — see {@see walkReverseCreation()} for why this is
+     * last-imported and not creation order.
      *
      * Sibling of {@see walkReverseCreation()} for the rollback walker
      * (WP08): the walker needs both the {@see WriteResult} (to hand to
@@ -385,7 +404,7 @@ final class MigrationIdMap
      *
      * @return \Generator<int, array{0: string, 1: WriteResult}>
      *
-     * @spec FR-043 — reverse-creation walk order with deletion key
+     * @spec FR-043 — reverse last-imported walk order with deletion key
      */
     public function walkReverseCreationWithKeys(string $migrationId): \Generator
     {
