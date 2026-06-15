@@ -17,6 +17,7 @@
         "waaseyaa/plugin": "^0.1.0-alpha.211",
         "waaseyaa/queue": "^0.1.0-alpha.211",
         "waaseyaa/routing": "^0.1.0-alpha.211",
+        "waaseyaa/scheduler": "^0.1.0-alpha.211",
         "waaseyaa/state": "^0.1.0-alpha.211",
         "waaseyaa/typed-data": "^0.1.0-alpha.211",
         "waaseyaa/user": "^0.1.0-alpha.211",
