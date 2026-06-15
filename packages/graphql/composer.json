@@ -56,12 +56,12 @@
     "require": {
         "php": ">=8.5",
         "webonyx/graphql-php": "^15.31.5",
-        "waaseyaa/entity": "^0.1.0-alpha.212",
-        "waaseyaa/field": "^0.1.0-alpha.212",
-        "waaseyaa/access": "^0.1.0-alpha.212",
-        "waaseyaa/foundation": "^0.1.0-alpha.212",
-        "waaseyaa/routing": "^0.1.0-alpha.212",
-        "waaseyaa/api": "^0.1.0-alpha.212"
+        "waaseyaa/entity": "^0.1.0-alpha.213",
+        "waaseyaa/field": "^0.1.0-alpha.213",
+        "waaseyaa/access": "^0.1.0-alpha.213",
+        "waaseyaa/foundation": "^0.1.0-alpha.213",
+        "waaseyaa/routing": "^0.1.0-alpha.213",
+        "waaseyaa/api": "^0.1.0-alpha.213"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"

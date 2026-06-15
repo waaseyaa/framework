@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.213] - 2026-06-15
+
 ### Fixed
 
 - **`api`: translation write endpoints now enforce per-field edit access (audit B-6 — same class as B-1).** `TranslationController::store()` and `update()` set every submitted attribute with no field-level gate, so a caller with entity-level create/update access could mutate a `FieldAccessPolicy`-forbidden field (e.g. a privileged field) via `POST`/`PATCH .../translations/{langcode}`. Both paths now run the same `checkFieldAccess(..., 'edit', ...)` → `403` gate as `JsonApiController` before mutating. Regression test pins both write paths.
