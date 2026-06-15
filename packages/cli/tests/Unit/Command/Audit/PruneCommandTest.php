@@ -240,7 +240,7 @@ final class PruneCommandTest extends TestCase
     public function realRunRecordsSelfAuditAndPrints(): void
     {
         $writer = $this->makeNullWriter();
-        $io = $this->makeIo(['older-than' => 'PT1H']);
+        $io = $this->makeIo(['older-than' => 'PT1H', 'confirm' => true]);
         $command = new PruneCommand($this->makeNullQuery(6), $writer, $this->makeNullDb());
 
         $exitCode = $command->execute($io);
@@ -250,6 +250,160 @@ final class PruneCommandTest extends TestCase
         self::assertSame(AuditEventKind::AuditRetentionPruned, $writer->recorded[0]->kind);
         self::assertSame(6, $writer->recorded[0]->attributes['deleted_count']);
         self::assertStringContainsString('6', $io->outputLines()[0]);
+    }
+
+    #[Test]
+    public function realRunWithoutConfirmDeletesNothingAndWarns(): void
+    {
+        // C-31 regression: a non-dry-run invocation WITHOUT --confirm must not
+        // delete or record a self-audit event, and must echo the cutoff + count.
+        $writer = $this->makeNullWriter();
+        $delete = new class implements DeleteInterface {
+            public int $executeCalls = 0;
+
+            public function condition(string $field, mixed $value, string $operator = '='): static
+            {
+                return $this;
+            }
+
+            public function execute(): int
+            {
+                $this->executeCalls++;
+
+                return 0;
+            }
+        };
+        $db = new class ($delete) implements DatabaseInterface {
+            public function __construct(private readonly DeleteInterface $del) {}
+
+            public function delete(string $table): DeleteInterface
+            {
+                return $this->del;
+            }
+
+            public function select(string $table, string $alias = ''): SelectInterface
+            {
+                throw new \LogicException('Not needed in this test.');
+            }
+
+            public function insert(string $table): InsertInterface
+            {
+                throw new \LogicException('Not needed in this test.');
+            }
+
+            public function update(string $table): UpdateInterface
+            {
+                throw new \LogicException('Not needed in this test.');
+            }
+
+            public function schema(): SchemaInterface
+            {
+                throw new \LogicException('Not needed in this test.');
+            }
+
+            public function transaction(string $name = ''): TransactionInterface
+            {
+                throw new \LogicException('Not needed in this test.');
+            }
+
+            public function query(string $sql, array $args = []): \Traversable
+            {
+                throw new \LogicException('Not needed in this test.');
+            }
+
+            public function quoteIdentifier(string $identifier): string
+            {
+                return '"' . $identifier . '"';
+            }
+        };
+
+        // older-than P30D, no dry-run, no confirm.
+        $io = $this->makeIo(['older-than' => 'P30D', 'kind' => '*']);
+        $command = new PruneCommand($this->makeNullQuery(9), $writer, $db);
+
+        $exitCode = $command->execute($io);
+
+        self::assertSame(0, $exitCode, 'refusal path exits 0 (operator-driven op)');
+        self::assertSame(0, $delete->executeCalls, 'no DELETE may run without --confirm');
+        self::assertEmpty($writer->recorded, 'no self-audit event without --confirm');
+        $output = implode("\n", $io->outputLines());
+        self::assertStringContainsString('--confirm', $output, 'must instruct operator to re-run with --confirm');
+        self::assertStringContainsString('9', $output, 'must echo the row count it would delete');
+    }
+
+    #[Test]
+    public function realRunWithConfirmDeletesAndRecordsSelfAudit(): void
+    {
+        // C-31 regression (positive case): --confirm proceeds with deletion.
+        $writer = $this->makeNullWriter();
+        $delete = new class implements DeleteInterface {
+            public int $executeCalls = 0;
+
+            public function condition(string $field, mixed $value, string $operator = '='): static
+            {
+                return $this;
+            }
+
+            public function execute(): int
+            {
+                $this->executeCalls++;
+
+                return 0;
+            }
+        };
+        $db = new class ($delete) implements DatabaseInterface {
+            public function __construct(private readonly DeleteInterface $del) {}
+
+            public function delete(string $table): DeleteInterface
+            {
+                return $this->del;
+            }
+
+            public function select(string $table, string $alias = ''): SelectInterface
+            {
+                throw new \LogicException('Not needed in this test.');
+            }
+
+            public function insert(string $table): InsertInterface
+            {
+                throw new \LogicException('Not needed in this test.');
+            }
+
+            public function update(string $table): UpdateInterface
+            {
+                throw new \LogicException('Not needed in this test.');
+            }
+
+            public function schema(): SchemaInterface
+            {
+                throw new \LogicException('Not needed in this test.');
+            }
+
+            public function transaction(string $name = ''): TransactionInterface
+            {
+                throw new \LogicException('Not needed in this test.');
+            }
+
+            public function query(string $sql, array $args = []): \Traversable
+            {
+                throw new \LogicException('Not needed in this test.');
+            }
+
+            public function quoteIdentifier(string $identifier): string
+            {
+                return '"' . $identifier . '"';
+            }
+        };
+
+        $io = $this->makeIo(['older-than' => 'P30D', 'kind' => '*', 'confirm' => true]);
+        $command = new PruneCommand($this->makeNullQuery(9), $writer, $db);
+
+        $exitCode = $command->execute($io);
+
+        self::assertSame(0, $exitCode);
+        self::assertSame(1, $delete->executeCalls, '--confirm must trigger exactly one DELETE');
+        self::assertCount(1, $writer->recorded, '--confirm must record the self-audit event');
+        self::assertSame(AuditEventKind::AuditRetentionPruned, $writer->recorded[0]->kind);
     }
 
     #[Test]

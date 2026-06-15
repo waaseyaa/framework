@@ -510,6 +510,8 @@ Behavior:
 
 **Trusted proxy guard:** Both `NativeSession::isSecureConnection()` and `SessionMiddleware::isHttpsRequest()` only trust `X-Forwarded-Proto` when `REMOTE_ADDR` matches a configured trusted proxy IP. The header comparison is case-insensitive (`HTTPS`, `Https`, `https` all match). Both methods return `false` early when `REMOTE_ADDR` is empty or missing, preventing accidental matches against empty-string entries in the trusted list. Without trusted proxies configured, the header is ignored. Only exact IP addresses are supported (no CIDR notation). Configure via `'trusted_proxies' => ['127.0.0.1']` in `config/waaseyaa.php`.
 
+**Secure-by-default session cookies (audit C-8):** `SessionMiddleware::applySessionCookieIni()` applies hardened defaults on **every** request — `httponly=true`, `samesite='Lax'`, `use_strict_mode=true` (session-fixation protection), and `secure='auto'` (the Secure flag is set when the request is HTTPS-detected via the trusted-proxy guard above) — even with no `config['session']['cookie']` block configured. Any key supplied under `config['session']['cookie']` overrides the matching default (explicit config always wins). This closes the previous insecure-by-default gap where a stock install ran with PHP's bare cookie ini (no HttpOnly/SameSite/strict-mode).
+
 Does not handle login/logout. Only resolves "who is making this request."
 
 Lives in the `user` package because it depends on `User`, `AnonymousUser`, and entity storage.

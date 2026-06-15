@@ -15,11 +15,17 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
 /**
- * `bin/waaseyaa audit:prune --older-than=<duration> [--kind=<glob>] [--dry-run]`
+ * `bin/waaseyaa audit:prune --older-than=<duration> [--kind=<glob>] [--dry-run] [--confirm]`
  *
  * Deletes audit_event rows older than the given ISO-8601 duration
  * (e.g. `PT1H`, `P30D`, `P1Y`). Emits one self-audit event of kind
  * `audit.retention_pruned` after each real execution (FR-012).
+ *
+ * Destructive operation: real deletion requires `--confirm`. Without it (and
+ * without `--dry-run`) the command echoes the resolved cutoff timestamp and the
+ * exact row count it would delete, then refuses and exits 0 — nothing is
+ * deleted and no self-audit event is recorded. This guards against typo-prone
+ * `--older-than` durations silently destroying the append-only audit log.
  *
  * Options:
  *   --older-than  ISO-8601 duration string (required). Events created before
@@ -29,6 +35,8 @@ use Waaseyaa\Foundation\Log\NullLogger;
  *                   `entity.*`  → all entity.* cases
  *                   literal     → single exact kind
  *   --dry-run     Print the count that would be pruned; do not delete.
+ *   --confirm     Required for real deletion. Without it, the command refuses
+ *                 to delete and prints the cutoff + row count it would remove.
  *
  * @api
  */
@@ -99,6 +107,26 @@ final class PruneCommand
                 $olderThanRaw,
                 $cutoff->format(\DateTimeInterface::ATOM),
             ));
+
+            return 0;
+        }
+
+        // Destructive-op guard (C-31): real deletion requires an explicit
+        // --confirm. Without it, echo the resolved cutoff + the exact row count
+        // that WOULD be deleted, then refuse — record no self-audit event and
+        // delete no rows. This refusal is unconditional (interactive or not),
+        // matching the import:reset / import:rollback idiom.
+        $isConfirmed = (bool) $io->option('confirm');
+
+        if (!$isConfirmed) {
+            $io->writeln(sprintf(
+                'Refusing to prune %d audit events without --confirm (kind: %s, older than: %s, cutoff: %s).',
+                $count,
+                $kindPattern,
+                $olderThanRaw,
+                $cutoff->format(\DateTimeInterface::ATOM),
+            ));
+            $io->writeln('Re-run with --confirm to delete, or --dry-run to preview.');
 
             return 0;
         }

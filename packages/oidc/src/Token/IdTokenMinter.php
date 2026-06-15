@@ -72,7 +72,13 @@ final class IdTokenMinter
     /**
      * Verify a JWT signature and decode its claims using the active key set.
      *
+     * This is JWT (ID-token) verification. Do NOT use it on opaque OIDC access
+     * tokens — those are validated by lookup (see AccessTokenIssuer / the
+     * /userinfo flow), not by signature (audit C-9).
+     *
      * @return array<string, mixed>|null Claims array, or null if invalid/expired.
+     *
+     * @api
      */
     public function verifyAndDecode(string $jwt, string $expectedIssuer, string $expectedAudience): ?array
     {

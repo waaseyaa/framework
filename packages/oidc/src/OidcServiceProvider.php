@@ -252,12 +252,10 @@ final class OidcServiceProvider extends ServiceProvider
         $this->singleton(
             UserinfoController::class,
             fn(): UserinfoController => new UserinfoController(
-                idTokenMinter: $this->resolve(IdTokenMinter::class),
                 accessTokenIssuer: $this->resolve(AccessTokenIssuer::class),
                 entityTypeManager: $this->resolve(EntityTypeManager::class),
                 entityAccessHandler: $this->resolve(EntityAccessHandler::class),
                 claimResolver: $this->resolve(UserinfoClaimResolver::class),
-                issuer: $this->resolveIssuer(),
             ),
         );
     }

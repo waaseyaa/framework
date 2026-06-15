@@ -87,6 +87,12 @@ final class EntitySearchTool extends AbstractAgentTool
             if (count($matches) >= $limit) {
                 break;
             }
+            // Per-entity access gate: never surface an entity the initiating
+            // account may not view (no enumeration / substring-match oracle).
+            // No-op in capability-only mode (no access handler attached).
+            if (!$this->canViewEntity($entity, $account)) {
+                continue;
+            }
             if ($this->matches($entity, $needle)) {
                 $matches[] = ['entity_type' => $entity->getEntityTypeId(), 'id' => $entity->id()];
             }

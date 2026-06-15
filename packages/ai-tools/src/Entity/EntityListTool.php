@@ -77,6 +77,14 @@ final class EntityListTool extends AbstractAgentTool
             return AgentToolResult::error(sprintf('entity.list: %s', $e->getMessage()));
         }
 
+        // Per-entity access gate: drop entities the initiating account may not
+        // view before they are serialized. No-op in capability-only mode (no
+        // access handler attached). Result stays bounded by $limit.
+        $entities = array_values(array_filter(
+            $entities,
+            fn(EntityInterface $e): bool => $this->canViewEntity($e, $account),
+        ));
+
         $items = array_map(static function (EntityInterface $e): array {
             $item = [
                 'entity_type' => $e->getEntityTypeId(),

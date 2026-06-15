@@ -25,7 +25,10 @@ final class SessionMiddleware implements HttpMiddlewareInterface
     /**
      * @param EntityStorageInterface $userStorage Storage for loading user entities.
      * @param AccountInterface|null $devFallback Account returned when no session UID exists. Intended for dev environments only.
-     * @param array<string, mixed>|null $sessionCookieOptions Optional session ini overrides before session_start().
+     * @param array<string, mixed>|null $sessionCookieOptions Optional session ini overrides applied before session_start().
+     *        Secure-by-default: when null (or when a key is omitted) the hardened defaults
+     *        httponly=true, samesite='Lax', use_strict_mode=true, secure='auto' are applied.
+     *        Any key supplied here overrides the matching default.
      *        Keys: httponly (bool), secure (bool|'auto' — auto uses HTTPS detection), samesite (string), use_strict_mode (bool).
      * @param list<string> $trustedProxies IP addresses allowed to set X-Forwarded-Proto.
      * @param AccountContextInterface|null $accountContext Request-scoped acting-account holder,
@@ -74,35 +77,45 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         return $next->handle($request);
     }
 
+    /**
+     * Secure-by-default session cookie ini.
+     *
+     * Hardened defaults are always applied (closing the insecure-by-default
+     * session cookie gap); any key in $sessionCookieOptions overrides the
+     * matching default. `secure => 'auto'` only sets the Secure flag when the
+     * request is detected as HTTPS, so plain-HTTP dev sessions keep working.
+     *
+     * @var array<string, bool|string>
+     */
+    private const array SECURE_COOKIE_DEFAULTS = [
+        'httponly' => true,
+        'secure' => 'auto',
+        'samesite' => 'Lax',
+        'use_strict_mode' => true,
+    ];
+
     private function applySessionCookieIni(): void
     {
-        if ($this->sessionCookieOptions === null) {
-            return;
+        // Explicit config (left operand) wins; hardened defaults fill the rest,
+        // so every key below is guaranteed present (no array_key_exists guard).
+        $opts = ($this->sessionCookieOptions ?? []) + self::SECURE_COOKIE_DEFAULTS;
+
+        ini_set('session.cookie_httponly', filter_var($opts['httponly'], FILTER_VALIDATE_BOOLEAN) ? '1' : '0');
+
+        $secure = $opts['secure'];
+        if ($secure === 'auto') {
+            $secure = $this->isHttpsRequest();
+        } else {
+            $secure = filter_var($secure, FILTER_VALIDATE_BOOLEAN);
         }
+        ini_set('session.cookie_secure', $secure ? '1' : '0');
 
-        $opts = $this->sessionCookieOptions;
-
-        if (array_key_exists('httponly', $opts)) {
-            ini_set('session.cookie_httponly', filter_var($opts['httponly'], FILTER_VALIDATE_BOOLEAN) ? '1' : '0');
-        }
-
-        if (array_key_exists('secure', $opts)) {
-            $secure = $opts['secure'];
-            if ($secure === 'auto') {
-                $secure = $this->isHttpsRequest();
-            } else {
-                $secure = filter_var($secure, FILTER_VALIDATE_BOOLEAN);
-            }
-            ini_set('session.cookie_secure', $secure ? '1' : '0');
-        }
-
-        if (array_key_exists('samesite', $opts) && is_string($opts['samesite']) && $opts['samesite'] !== '') {
+        // An explicit override may set samesite to '' to opt out; the default never does.
+        if (is_string($opts['samesite']) && $opts['samesite'] !== '') {
             ini_set('session.cookie_samesite', $opts['samesite']);
         }
 
-        if (array_key_exists('use_strict_mode', $opts)) {
-            ini_set('session.use_strict_mode', filter_var($opts['use_strict_mode'], FILTER_VALIDATE_BOOLEAN) ? '1' : '0');
-        }
+        ini_set('session.use_strict_mode', filter_var($opts['use_strict_mode'], FILTER_VALIDATE_BOOLEAN) ? '1' : '0');
     }
 
     private function isHttpsRequest(): bool
