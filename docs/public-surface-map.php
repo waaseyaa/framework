@@ -250,6 +250,7 @@ return [
     'Waaseyaa\Access\FieldAccessPolicyInterface' => 'public',
     'Waaseyaa\Access\PermissionHandlerInterface' => 'public',
     'Waaseyaa\Access\Gate\GateInterface' => 'public',
+    'Waaseyaa\Access\Gate\ListingFastPathProbeInterface' => 'public',
     'Waaseyaa\Access\AccessStatus' => 'public',
     'Waaseyaa\Auth\Config\MailMissingPolicy' => 'public',
     'Waaseyaa\Config\ConfigInterface' => 'public',
@@ -335,6 +336,7 @@ return [
     // Layer 3: Services — public
     'Waaseyaa\Search\SearchProviderInterface' => 'public',
     'Waaseyaa\Search\SearchIndexerInterface' => 'public',
+    'Waaseyaa\Search\BatchSearchIndexerInterface' => 'public',
     'Waaseyaa\Search\SearchIndexableInterface' => 'public',
     'Waaseyaa\Notification\NotificationInterface' => 'public',
     'Waaseyaa\Notification\NotifiableInterface' => 'public',

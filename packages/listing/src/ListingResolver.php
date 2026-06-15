@@ -6,6 +6,7 @@ namespace Waaseyaa\Listing;
 
 use Throwable;
 use Waaseyaa\Access\Gate\GateInterface;
+use Waaseyaa\Access\Gate\ListingFastPathProbeInterface;
 use Waaseyaa\Cache\ContextNames;
 use Waaseyaa\Cache\ContextResolver;
 use Waaseyaa\Cache\TaggedCacheInterface;
@@ -65,6 +66,12 @@ final class ListingResolver
      */
     private const STORAGE_NATIVE_OPS = [Operator::EQ];
 
+    /**
+     * The default access-op set (FR-001 / FR-004). The access fast-path
+     * (FR-032) only applies to listings carrying exactly this set.
+     */
+    private const DEFAULT_VIEW_ACCESS_OPS = ['view'];
+
     private readonly LoggerInterface $logger;
 
     public function __construct(
@@ -109,8 +116,33 @@ final class ListingResolver
             }
         }
 
-        // §7.1 step 6-7 — query construction + execution
-        $allRows = $this->executeQuery($def, $exposed, $entityType);
+        // §7.1 step 6 — translate filters into driver criteria + in-PHP refinement.
+        [$criteria, $orderBy, $remaining] = $this->buildQueryPlan($def, $exposed, $entityType);
+
+        // §7.1 step 6-9 fast path (FR-031/FR-032 perf): when no per-row access
+        // decision filters rows AND no in-PHP refinement runs post-fetch, the
+        // access-filtered count equals the raw SQL count and the page can be
+        // fetched with a driver-side LIMIT — only one page hydrates instead of
+        // the whole result set. Gated narrowly so every path that actually
+        // filters rows (access ops present, non-EQ operators refined in-PHP,
+        // approximateTotal escape hatch, unpaged listings) keeps the exact
+        // hydrate-everything-then-filter semantics required for correctness.
+        if ($this->canPushPagination($def, $remaining)) {
+            return $this->resolvePushedPage(
+                $def,
+                $entityType,
+                $criteria,
+                $orderBy,
+                $cacheContexts,
+                $cachingEnabled,
+                $cacheKey,
+                $contextValues,
+            );
+        }
+
+        // §7.1 step 7 — execute query (full criteria-narrowed set; pagination
+        // applied post-access because the paths below filter rows).
+        $allRows = $this->executeQuery($criteria, $orderBy, $remaining, $def);
 
         // §7.1 step 8 — access policy filter per row (FR-029 + FR-032 fast-path)
         $accessRows = $this->applyAccessPolicy($allRows, $def);
@@ -297,13 +329,14 @@ final class ListingResolver
     // ----------------------------------------------------------------------
 
     /**
-     * Build effective filter list (declared filters with exposed-param
-     * overrides applied) + implicit langcode filter for translatable
-     * entity types, then execute against the repository.
+     * Translate a definition (+ exposed overrides) into a driver query plan:
+     * the storage-native EQ criteria, the order-by map (with the FR-014 stable
+     * id tie-break appended), and the list of non-native filters that must be
+     * refined in-PHP post-fetch.
      *
-     * @return list<EntityInterface>
+     * @return array{0: array<string, scalar>, 1: array<string, string>, 2: list<FilterDefinition>}
      */
-    private function executeQuery(
+    private function buildQueryPlan(
         ListingDefinition $def,
         ExposedFilterValues $exposed,
         \Waaseyaa\Entity\EntityTypeInterface $entityType,
@@ -340,10 +373,29 @@ final class ListingResolver
             $orderBy[$idKey] = 'ASC';
         }
 
+        return [$criteria, $orderBy, $remaining];
+    }
+
+    /**
+     * Execute the (full, criteria-narrowed) query and refine non-native
+     * operators in-PHP. Used by the access/refinement paths that must see the
+     * complete result set before paginating.
+     *
+     * @param  array<string, scalar>   $criteria
+     * @param  array<string, string>   $orderBy
+     * @param  list<FilterDefinition>  $remaining
+     * @return list<EntityInterface>
+     */
+    private function executeQuery(
+        array $criteria,
+        array $orderBy,
+        array $remaining,
+        ListingDefinition $def,
+    ): array {
         $repository = $this->repositories->for($def->entityType);
         // Fetch the full (criteria-narrowed) result set; pagination is applied
         // post-access. FR-031 requires totalRows to reflect the access-filtered
-        // count, so we cannot push limit to the driver here.
+        // count, so we cannot push limit to the driver on this path.
         /** @var list<EntityInterface> $rows */
         $rows = $repository->findBy($criteria, $orderBy);
 
@@ -356,6 +408,100 @@ final class ListingResolver
         }
 
         return $rows;
+    }
+
+    /**
+     * Whether the page can be fetched with a driver-side LIMIT instead of
+     * hydrating the entire result set (FR-031/FR-032 perf fast path).
+     *
+     * Safe ONLY when nothing filters rows between the raw query and the page:
+     * - the access fast-path applies (no per-row gate decision drops rows), so
+     *   the access-filtered count equals the raw SQL count (FR-031 invariant);
+     * - no non-native operators remain (no in-PHP `matchesAll` refinement that
+     *   would shrink the result post-fetch — a pushed LIMIT would over-count);
+     * - exact totals are wanted (`approximateTotal === false`); the approximate
+     *   escape hatch already slices without a real total;
+     * - the listing is paged (`pageSize !== null`); a null page size means
+     *   "all rows in one page", so there is nothing to bound.
+     *
+     * @param list<FilterDefinition> $remaining
+     */
+    private function canPushPagination(ListingDefinition $def, array $remaining): bool
+    {
+        return $this->canUseAccessFastPath($def)
+            && $remaining === []
+            && $def->approximateTotal === false
+            && $def->pageSize !== null;
+    }
+
+    /**
+     * Resolve a single page via a SQL `count()` + driver-side LIMIT, hydrating
+     * only the requested window rather than the full result set.
+     *
+     * `findBy()` carries no OFFSET, so we fetch `offset + pageSize` rows and
+     * slice the page in PHP — bounded hydration (one page on page 1; N pages on
+     * page N) versus the whole table on every load. The SQL `count()` supplies
+     * `totalRows`; because this path only runs when the access fast-path holds
+     * and no in-PHP refinement applies, that count IS the access-filtered count
+     * (FR-031 invariant preserved).
+     *
+     * @param array<string, scalar>  $criteria
+     * @param array<string, string>  $orderBy
+     * @param list<non-empty-string> $cacheContexts
+     * @param array<string, string>  $contextValues
+     */
+    private function resolvePushedPage(
+        ListingDefinition $def,
+        \Waaseyaa\Entity\EntityTypeInterface $entityType,
+        array $criteria,
+        array $orderBy,
+        array $cacheContexts,
+        bool $cachingEnabled,
+        ?string $cacheKey,
+        array $contextValues,
+    ): ListingResult {
+        $repository = $this->repositories->for($def->entityType);
+
+        $pageSize = $def->pageSize;
+        \assert($pageSize !== null); // canPushPagination() guarantees a paged listing.
+
+        $totalAccessibleRows = $repository->count($criteria);
+        $totalPages = $totalAccessibleRows === 0 ? 1 : (int) ceil($totalAccessibleRows / $pageSize);
+
+        // FR-026/FR-027: parse + clamp the requested page against the real total.
+        $pageParam = $this->requestContext->getQueryParams()['page'] ?? null;
+        $requestedPage = is_string($pageParam) && $pageParam !== '' ? (int) $pageParam : 1;
+        $page = $requestedPage;
+        if ($page < 1) {
+            $page = 1;
+        }
+        if ($page > $totalPages) {
+            $page = $totalPages;
+        }
+
+        $offset = ($page - 1) * $pageSize;
+        // No OFFSET on findBy(): fetch the window up to the page end, then slice.
+        /** @var list<EntityInterface> $window */
+        $window = $repository->findBy($criteria, $orderBy, $offset + $pageSize);
+        $pagedRows = array_slice($window, $offset, $pageSize);
+
+        $pagination = new Pagination(
+            page: $page,
+            pageSize: $pageSize,
+            totalRows: $totalAccessibleRows,
+            totalPages: $totalPages,
+            hasPrev: $page > 1,
+            hasNext: $page < $totalPages,
+        );
+
+        $cacheTags = $this->computeCacheTags($def, $pagedRows, $entityType);
+        $result = new ListingResult($pagedRows, $pagination, $cacheTags, $cacheContexts);
+
+        if ($cachingEnabled && $cacheKey !== null && !$this->hasUnknownContexts($contextValues, $cacheContexts)) {
+            $this->safeCacheStore($cacheKey, $result, $cacheTags, $def->cacheTtl);
+        }
+
+        return $result;
     }
 
     /**
@@ -521,13 +667,33 @@ final class ListingResolver
     }
 
     /**
-     * Currently a no-op stub: FR-032 fast-path detection is a forward-looking
-     * optimisation. Returning false here is always safe — the per-row loop
-     * still produces correct results.
+     * FR-032 access fast-path detection.
+     *
+     * The per-row gate loop may be skipped — treating the raw query result as
+     * the access-filtered result — ONLY when the listing's access ops are the
+     * default {'view'} AND the policy bound to this entity type has explicitly
+     * opted in via `public const bool SUPPORTS_LISTING_FAST_PATH = true`
+     * (default `false`, so no existing policy changes behaviour).
+     *
+     * The opt-in is probed through the optional
+     * {@see ListingFastPathProbeInterface} capability on the gate. When the gate
+     * does not implement the probe (or the policy did not opt in), this returns
+     * `false` and the per-row loop runs — the always-correct, never-leaks
+     * default. The empty-accessOps short-circuit is retained for completeness
+     * but is unreachable in practice (FR-004 forbids empty access ops).
      */
     private function canUseAccessFastPath(ListingDefinition $def): bool
     {
-        return $def->accessOps === [];
+        if ($def->accessOps === []) {
+            return true;
+        }
+
+        if ($def->accessOps !== self::DEFAULT_VIEW_ACCESS_OPS) {
+            return false;
+        }
+
+        return $this->gate instanceof ListingFastPathProbeInterface
+            && $this->gate->policyAllowsListingFastPath($def->entityType);
     }
 
     // ----------------------------------------------------------------------
