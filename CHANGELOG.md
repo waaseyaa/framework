@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Stability charter: removed the solo-developer governance ceremony from the beta bar.** Waaseyaa is a single-developer project, so the §3.2 beta-entry criteria that required a third-party / non-Waaseyaa-org consumer, an owner-approval artifact (`release-approvals/beta.approved`), and production-consumer demonstrations of listing/revisions are **deleted** — along with the §12 ratification vote (the charter is now simply "in force"). The beta bar now depends only on **code health and enforced CI**: surface labeling complete, two clean alpha trains (enforced by the surface-parity gate), deprecation budget under threshold, `composer verify` green in CI, and no unresolved critical mission gaps. The §3.4 alpha→beta transition is a code-health check, not a sign-off PR. The bug-catching gates (dead-code, phpstan, verify-gates, surface-parity) are untouched, and no branch protection or new human-approval gate was added. The one-time v1.0 owner sign-off (`VERSIONING.md` §6, `release-gate.yml` `v1.0*` quarantine) is retained as a deliberate anti-accident gate for the eventual stable milestone.
+
 ## [0.1.0-alpha.212] - 2026-06-15
 
 ### Fixed
