@@ -519,13 +519,20 @@ written directly to stdout as the run proceeds and no SSE consumer is spawned.
 
 ## OpenAPI document
 
-`packages/api/openapi.yaml` is the canonical OpenAPI 3.1.0 document for the
-Waaseyaa Framework API. It was bootstrapped in mission `agent-executor-v1-1-audit-followups`
-(WP02/T018) and includes the `pending_approval` shape for the agent approval endpoint.
+`packages/api/openapi.yaml` is a hand-maintained OpenAPI 3.1.0 **sub-spec** scoped to
+the agent-run SSE surface: the `/api/agent-run/{id}/{events,approve,deny}` endpoints and
+the `pending_approval` payload shape. It was bootstrapped in mission
+`agent-executor-v1-1-audit-followups` (WP02/T018). It is **not** a full description of the
+Waaseyaa Framework API — the framework's broader JSON:API entity surface is modelled at
+runtime by `Waaseyaa\Api\OpenApi\OpenApiGenerator` (see `docs/specs/api-layer.md`
+§"OpenAPI Generation"), which is a separate artifact not covered by this file.
 
-`bin/check-openapi` runs Spectral lint against this document and is included in
-`composer verify`. All additions to the HTTP API surface should include corresponding
-OpenAPI schema entries.
+`bin/check-openapi` runs Spectral lint against this one document and is included in
+`composer verify`. The gate validates YAML/OpenAPI structural validity (syntax + shape)
+of the hand-maintained sub-spec only; it does **not** introspect the route table, diff
+against live routes, or enforce route/schema parity. Treat the agent-run entries here as
+documentation that must be updated by hand when the agent-run SSE contract changes — the
+gate will not catch drift between this file and the actual routes.
 
 ## Provider error handling
 
