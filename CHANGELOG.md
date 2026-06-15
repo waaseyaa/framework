@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.211] - 2026-06-15
+
 ### Fixed
 
 - **`access` / `user`: editing a user's privileged fields now requires the `administer users` permission.** `UserAccessPolicy` implements `FieldAccessPolicyInterface`; `roles`, `permissions`, `status`, and `email_verified` are forbidden on `edit` without `administer users` (even on one's own account), and `pass` / `two_factor_secret` / `two_factor_recovery_codes_hash` are not reachable through the generic field surface. This closes a JSON:API write path where an authenticated user could set their own privileged fields.
