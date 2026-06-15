@@ -457,6 +457,11 @@ abstract class AbstractKernel
             $this->database,
             $this->dispatcher,
             $this->accountContext(),
+            // C-12: lazy access-handler accessor exposed to providers (e.g.
+            // AiToolsServiceProvider's tool registry). Lazy + isset-guarded
+            // because $this->accessHandler is populated later by
+            // discoverAccessPolicies(); it is read only at tool dispatch.
+            fn(): ?EntityAccessHandler => $this->accessHandler ?? null,
         );
     }
 
