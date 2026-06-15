@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.212] - 2026-06-15
+
 ### Fixed
 
 - **`core`: the metapackage now requires `waaseyaa/scheduler`, so a `core`-only consumer install can boot.** `AbstractKernel::bootScheduleEntries()` does an unguarded `new Schedule()` and is **fail-closed** by design (kernel docblock + `infrastructure.md` §M-D: scheduling is mandatory, an unresolvable entry aborts boot), but `core` omitted `waaseyaa/scheduler` — so a kernel boot from a `core`-only install died with `Class "Waaseyaa\Scheduler\Schedule" not found`. `foundation` cannot require `scheduler` (scheduler → foundation would be a cycle), so the dependency belongs in the bootable metapackage. A `class_exists` guard was deliberately **not** used: that would silently downgrade a mandatory contract to optional. This was surfaced by the alpha.211 packaged-form fixture fix (C-21) and is the kind of consumer-install gap that source-tree co-resolution masks. A new `ci/core-only-boot` CI job now guards the class: it installs `waaseyaa/core` alone via a path repository (source, no release lag) and boots the kernel boot sequence, so the next missing-kernel-dependency is caught in CI rather than by a stale lock (`tests/CoreOnlyBoot/boot.php`).
