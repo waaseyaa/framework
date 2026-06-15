@@ -4,15 +4,15 @@
     "type": "metapackage",
     "license": "GPL-2.0-or-later",
     "require": {
-        "waaseyaa/core": "^0.1.0-alpha.213",
-        "waaseyaa/node": "^0.1.0-alpha.213",
-        "waaseyaa/taxonomy": "^0.1.0-alpha.213",
-        "waaseyaa/media": "^0.1.0-alpha.213",
-        "waaseyaa/path": "^0.1.0-alpha.213",
-        "waaseyaa/menu": "^0.1.0-alpha.213",
-        "waaseyaa/workflows": "^0.1.0-alpha.213",
-        "waaseyaa/api": "^0.1.0-alpha.213",
-        "waaseyaa/cli": "^0.1.0-alpha.213"
+        "waaseyaa/core": "^0.1.0-alpha.214",
+        "waaseyaa/node": "^0.1.0-alpha.214",
+        "waaseyaa/taxonomy": "^0.1.0-alpha.214",
+        "waaseyaa/media": "^0.1.0-alpha.214",
+        "waaseyaa/path": "^0.1.0-alpha.214",
+        "waaseyaa/menu": "^0.1.0-alpha.214",
+        "waaseyaa/workflows": "^0.1.0-alpha.214",
+        "waaseyaa/api": "^0.1.0-alpha.214",
+        "waaseyaa/cli": "^0.1.0-alpha.214"
     },
     "minimum-stability": "stable",
     "extra": {
