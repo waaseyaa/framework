@@ -159,26 +159,31 @@ KERNEL_EXEMPT_FILES = {
     "foundation/src/Diagnostic/BootDiagnosticReport.php":
         "kernel-adjacent diagnostic; companion to HealthChecker",
 
-    # foundation — kernel-adjacent HTTP route registrars wired only from HttpKernel.
-    # Long-term home is L4 (waaseyaa/routing); kept here until relocation lands.
+    # foundation — built-in HTTP domain routers, the kernel's JSON:API/SSE substrate.
+    # They read WaaseyaaContext (L0) + JsonApiResponseTrait (L0) and are instantiated
+    # ONLY by new HttpRouter\... inside HttpKernel::dispatch(); no package imports them
+    # (DomainRouterInterface is the public L0 contract; these concretes are internal).
+    # They are NOT relocatable to L4: the kernel constructs them eagerly so the chain
+    # exists on a core-only install with no api ServiceProvider. Same standing as the
+    # cache/src/Listener/* exemptions below — kernel-coupled by design, not pending move.
     "foundation/src/Http/Router/BroadcastRouter.php":
-        "kernel-adjacent route registrar wired from HttpKernel",
+        "built-in HTTP domain router; kernel JSON:API/SSE substrate, instantiated only by HttpKernel",
     "foundation/src/Http/Router/CodifiedContextApiRouter.php":
-        "kernel-adjacent route registrar wired from HttpKernel",
+        "built-in HTTP domain router; kernel JSON:API/SSE substrate, instantiated only by HttpKernel",
     "foundation/src/Http/Router/EntityTypeLifecycleRouter.php":
-        "kernel-adjacent route registrar wired from HttpKernel",
+        "built-in HTTP domain router; kernel JSON:API/SSE substrate, instantiated only by HttpKernel",
     "foundation/src/Http/Router/JsonApiRouter.php":
-        "kernel-adjacent route registrar wired from HttpKernel",
+        "built-in HTTP domain router; kernel JSON:API/SSE substrate, instantiated only by HttpKernel",
     "foundation/src/Http/Router/SchemaRouter.php":
-        "kernel-adjacent route registrar wired from HttpKernel",
+        "built-in HTTP domain router; kernel JSON:API/SSE substrate, instantiated only by HttpKernel",
     "foundation/src/Http/Router/SearchRouter.php":
-        "kernel-adjacent route registrar wired from HttpKernel",
+        "built-in HTTP domain router; kernel JSON:API/SSE substrate, instantiated only by HttpKernel",
     "foundation/src/Http/Router/TranslationRouter.php":
-        "kernel-adjacent route registrar wired from HttpKernel",
+        "built-in HTTP domain router; kernel JSON:API/SSE substrate, instantiated only by HttpKernel",
     "foundation/src/Http/Router/WorkflowDefinitionsApiRouter.php":
-        "kernel-adjacent route registrar wired from HttpKernel",
+        "built-in HTTP domain router; kernel JSON:API/SSE substrate, instantiated only by HttpKernel",
     "foundation/src/Http/Router/WaaseyaaContext.php":
-        "kernel-adjacent route registrar wired from HttpKernel",
+        "typed Request-context DTO read by the built-in routers; built once by HttpKernel, stored as _waaseyaa_context; not a registrar",
 
     # foundation — M5D Mercure broadcast monitor read-model adapters (mission
     # mercure-broadcast-monitor-m5d-01KSEFTD WP01). These implement api-layer
@@ -382,6 +387,15 @@ def emit_err(line: str) -> None:
 errors = 0
 packages_scanned = 0
 violations: list[dict[str, str]] = []
+# PL006 (warn-only): same-layer require edges between waaseyaa/* packages,
+# keyed (short -> set of same-layer deps). After the scan we report any mutual
+# pair (A requires B and B requires A within one layer) as an accepted cycle.
+# This does NOT increment `errors` — the layer gate's hard rule is upward-only
+# (layer_dep > layer_self); same-layer cycles are visible-but-allowed so the
+# known accepted edges (e.g. entity<->access AccountInterface) cannot silently
+# grow a new reverse edge. See CLAUDE.md "Avoid circular package deps" and
+# docs/specs/access-control.md.
+same_layer_edges: dict[str, set[str]] = {}
 packages_dir = root / "packages"
 
 if not packages_dir.is_dir():
@@ -441,6 +455,8 @@ for pkg_dir in sorted(packages_dir.iterdir()):
                 violations.append({"source": short, "target": dep_short, "edge": sec})
                 continue
             layer_dep = LAYER_BY_SHORT[dep_short]
+            if layer_dep == layer_self:
+                same_layer_edges.setdefault(short, set()).add(dep_short)
             if layer_dep > layer_self:
                 errors += 1
                 emit(
@@ -460,6 +476,28 @@ for pkg_dir in sorted(packages_dir.iterdir()):
             f"entry to KERNEL_EXEMPT_FILES in bin/check-package-layers with a one-line rationale."
         )
         violations.append({"source": short, "target": dep_short, "edge": "use"})
+
+# ----- PL006 same-layer cycle detection (WARN ONLY — does not affect exit status) -----
+# A same-layer 2-cycle is two packages in one layer that require each other. These are
+# accepted-but-bounded tradeoffs (see docs/specs/access-control.md). The current set:
+#   - foundation <-> queue (L0)
+#   - access <-> entity (L1, the AccountInterface edge — the C-1 instance)
+#   - ai-agent <-> ai-observability (L5)
+# Reported here so a NEW same-layer reverse edge becomes visible without breaking the
+# build (the layer gate only FAILs on upward edges).
+_reported_cycles: set[tuple[str, str]] = set()
+for a, deps in sorted(same_layer_edges.items()):
+    for b in sorted(deps):
+        if a in same_layer_edges.get(b, set()):
+            pair = tuple(sorted((a, b)))
+            if pair in _reported_cycles:
+                continue
+            _reported_cycles.add(pair)
+            emit(
+                f"WARN [PL006] same-layer dependency cycle: {pair[0]} <-> {pair[1]} "
+                f"(layer {LAYER_BY_SHORT[pair[0]]}). Accepted-but-visible; the layer gate "
+                f"only fails on upward edges. See CLAUDE.md 'Avoid circular package deps'."
+            )
 
 # Write the structured findings to FINDINGS_FILE for the bash wrapper's PHP shim,
 # regardless of mode (the wrapper only reads it in JSON mode).
