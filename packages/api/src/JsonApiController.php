@@ -7,6 +7,7 @@ namespace Waaseyaa\Api;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Query\PaginationLinks;
+use Waaseyaa\Api\Query\ParsedQuery;
 use Waaseyaa\Api\Query\QueryApplier;
 use Waaseyaa\Api\Query\QueryParser;
 use Waaseyaa\Entity\EntityInterface;
@@ -25,6 +26,14 @@ use Waaseyaa\EntityStorage\SaveContext;
  */
 final class JsonApiController
 {
+    /**
+     * Credential keys that must never be queryable, even when stored as a raw `_data` key
+     * with no FieldDefinition. Mirrors {@see ResourceSerializer::ALWAYS_INTERNAL_FIELDS}.
+     *
+     * @var list<string>
+     */
+    private const ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
+
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly ResourceSerializer $serializer,
@@ -51,6 +60,17 @@ final class JsonApiController
         // Parse query parameters.
         $parser = new QueryParser();
         $parsedQuery = $parser->parse($query);
+
+        // Reject filtering/sorting on internal/credential fields. Without this, an anonymous
+        // collection request can filter on a secret field (pass, two_factor_secret, etc.) and
+        // use match/no-match as a value-enumeration oracle even though the field is never
+        // serialised. We mirror the serializer's internal-field policy rather than impose a
+        // full field allowlist, because entities legitimately filter on undeclared _data fields.
+        $internalFieldError = $this->rejectInternalQueryFields($parsedQuery, $entityTypeId);
+        if ($internalFieldError !== null) {
+            return $internalFieldError;
+        }
+
         $applier = new QueryApplier();
 
         // Count total matching entities (before pagination). Bind the request's
@@ -565,6 +585,42 @@ final class JsonApiController
         }
 
         return $storage->load($id);
+    }
+
+    /**
+     * Reject a collection query that filters or sorts on an internal/credential field.
+     *
+     * A field is rejected when it is in {@see self::ALWAYS_INTERNAL_FIELDS} (credential keys,
+     * caught even when stored as an undeclared `_data` key) or its FieldDefinition sets
+     * `settings['internal'] => true`. Returns an error document to short-circuit `index()`,
+     * or null when every filter/sort field is permitted.
+     */
+    private function rejectInternalQueryFields(ParsedQuery $parsedQuery, string $entityTypeId): ?JsonApiDocument
+    {
+        $fieldDefinitions = $this->entityTypeManager->resolveFieldDefinitions($entityTypeId);
+
+        $isInternal = static function (string $field) use ($fieldDefinitions): bool {
+            if (in_array($field, self::ALWAYS_INTERNAL_FIELDS, true)) {
+                return true;
+            }
+            $definition = $fieldDefinitions[$field] ?? null;
+
+            return $definition !== null && $definition->getSetting('internal') === true;
+        };
+
+        foreach ($parsedQuery->filters as $filter) {
+            if ($isInternal($filter->field)) {
+                return $this->errorDocument(JsonApiError::badRequest("Cannot filter by field '{$filter->field}'."));
+            }
+        }
+
+        foreach ($parsedQuery->sorts as $sort) {
+            if ($isInternal($sort->field)) {
+                return $this->errorDocument(JsonApiError::badRequest("Cannot sort by field '{$sort->field}'."));
+            }
+        }
+
+        return null;
     }
 
     /**
