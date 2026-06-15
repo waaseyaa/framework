@@ -474,6 +474,7 @@
             "PHP_CLI_SERVER_WORKERS=4 bin/waaseyaa serve"
         ],
         "phpstan": "phpstan analyse --memory-limit=512M",
+        "check-phpstan-paths": "bash bin/check-phpstan-paths",
         "check-admin-coercion-patterns": "bash bin/check-admin-coercion-patterns",
         "check-dead-code": "bash bin/check-dead-code",
         "check-getquery-bindings": "php bin/check-getquery-bindings",
@@ -481,6 +482,7 @@
         "verify": [
             "@cs-check",
             "@phpstan",
+            "@check-phpstan-paths",
             "@check-composer-policy",
             "@check-package-layers",
             "@check-no-secrets",

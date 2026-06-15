@@ -299,10 +299,11 @@ jobs:
 
   verify-gates:
     name: ci/verify-gates
-    # The four permanent "verify-only" boundary gates that `composer verify` runs but CI
+    # The permanent "verify-only" boundary gates that `composer verify` runs but CI
     # historically did NOT, so they could not gate PRs (audit C-17 — CI was a strict subset
     # of verify). Wired here after confirming each green at HEAD. Run via the `composer
     # <script>` aliases so this job stays byte-identical to what `composer verify` enforces.
+    # (check-phpstan-paths — the PHPStan coverage invariant — was added for audit C-19.)
     #
     # check-external-consumers is intentionally NOT here: it is a mission-scoped pre-deletion
     # tripwire (WP01 ai-tools migration, key 'ai-agent-orphans'), not a permanent invariant —
@@ -336,7 +337,7 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist
 
-      - name: Run the four permanent verify-only boundary gates
+      - name: Run the permanent verify-only boundary gates
         run: |
           set -uo pipefail
           fail=0
@@ -350,6 +351,7 @@ jobs:
             fi
             echo "::endgroup::"
           }
+          run_gate check-phpstan-paths
           run_gate check-symfony-imports
           run_gate check-getquery-bindings
           run_gate check-admin-coercion-patterns
