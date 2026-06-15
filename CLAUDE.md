@@ -221,7 +221,7 @@ Design docs in `docs/history/plans/` are session artifacts (implementation histo
 - Namespace pattern: `Waaseyaa\PackageName\` (e.g., `Waaseyaa\Entity\`, `Waaseyaa\AI\Schema\`)
 - Test namespace: `Waaseyaa\PackageName\Tests\Unit\` or `Waaseyaa\Tests\Integration\PhaseN\`
 - PHPUnit 10.5 attributes: `#[Test]`, `#[CoversClass(...)]`, `#[CoversNothing]` for integration tests
-- Symfony 7.x components (Console, EventDispatcher, Routing, Validator, Uid, Yaml, Messenger)
+- Symfony 7.x components (EventDispatcher, Routing, Validator, Uid, Yaml, Messenger). NOTE: the CLI is a hand-rolled native kernel (`packages/cli/src`: `CliApplication`, `CliKernel`, `CommandRegistry`) — it does NOT use Symfony Console.
 - Named constructor parameters: `new EntityType(id: 'node', label: 'Content', ...)`
 - `final class` by default for concrete implementations
 - Admin SPA: Nuxt 3 + Vue 3 + TypeScript. Composables in `packages/admin/app/composables/`, i18n in `packages/admin/app/i18n/en.json`
@@ -344,7 +344,7 @@ Cross-cutting rules that affect work anywhere in the framework. Subsystem-specif
 - Integration tests in `tests/Integration/PhaseN/` — one directory per implementation phase
 - GraphQL integration tests in `tests/Integration/GraphQL/` — full-stack tests with real SQLite via `DBALDatabase::createSqlite()`
 - Unit tests in `packages/*/tests/Unit/`
-- Use `CommandTester` from Symfony Console for CLI command tests
+- Use `CliTester` (`Waaseyaa\CLI\Testing\CliTester`) for native CLI command tests — `CliTester::for($definition, $container)->execute([...])`, then assert `getExitCode()` / `getStdout()`. The CLI is not built on Symfony Console, so `CommandTester` does not apply.
 - Use `ArrayLoader` for Twig tests (no filesystem needed)
 - All storage can be in-memory: MemoryStorage (config), MemoryBackend (cache), InMemoryEntityStorage (entities), DBALDatabase::createSqlite() (SQL with :memory:)
 - Test cache file handling with corrupt files (`<?php throw new \RuntimeException("corrupt");`) and wrong return types (`<?php return "not an array";`) to verify recovery paths

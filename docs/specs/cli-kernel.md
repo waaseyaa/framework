@@ -103,7 +103,7 @@ Options:
 |---|---|
 | `0` | Success |
 | `1` | Handler-reported failure — handler returned `1`, threw a domain exception caught by the kernel, or otherwise signalled failure |
-| `2` | Parse error — unknown command, unknown option, missing required argument, type-coercion failure (e.g. `--limit=abc` for an integer option) |
+| `2` | Parse error — unknown command, unknown option, missing required argument, missing required option value |
 | `64`–`78` | Reserved (sysexits.h range); kernel never emits today |
 | `130` | SIGINT — process interrupted via Ctrl-C; kernel registers a PHP signal handler via `pcntl_signal()` if `pcntl` is available |
 

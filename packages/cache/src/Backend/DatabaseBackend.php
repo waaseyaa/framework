@@ -225,6 +225,11 @@ final class DatabaseBackend implements TagAwareCacheInterface
 
         $tags = $row['tags'] !== '' ? explode(',', $row['tags']) : [];
 
+        // Trust boundary (D-12): `data` is this application's own serialized cache
+        // payload from a server-controlled table; cache values are `mixed` and
+        // routinely hold objects, so `allowed_classes => false` would corrupt them.
+        // Deferred hardening (HMAC integrity signing) is tracked in
+        // docs/specs/infrastructure.md "Stored-payload unserialize() trust boundary (D-12)".
         return new CacheItem(
             cid: $row['cid'],
             data: unserialize($row['data']),

@@ -16,6 +16,13 @@ use Waaseyaa\Oidc\Keys\SigningKey;
  * Older keys are pruned atomically on each rotate() call.
  * Auto-bootstraps a first key on empty table so cold-start auth requests succeed.
  *
+ * Secrets at rest: the RSA private key PEM is stored unencrypted in
+ * `private_key_pem` and must remain plaintext at signing time (IdTokenMinter),
+ * so confidentiality relies on the database trust boundary. KMS/app-key
+ * encryption is tracked hardening (audit D-13) deferred because it requires
+ * encryption-key bootstrap and rotation; see packages/oidc/README.md
+ * "Secrets at rest".
+ *
  * @api
  */
 final class SigningKeyRepository

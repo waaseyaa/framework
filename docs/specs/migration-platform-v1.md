@@ -1,6 +1,13 @@
+<!-- Spec reviewed 2026-06-15 - convention-spec-gate D-10: this v1 mission spec shipped as M-002 and was superseded by the canonical doctrine spec migration-platform.md. Added a SUPERSEDED banner and corrected the stale Draft status so it no longer reads as a live spec. -->
 # Migration Platform v1 — Substrate in Core
 
-**Status:** Draft mission spec (2026-05-11)
+> **⚠️ SUPERSEDED.** This is the original M-002 mission spec, retained for
+> historical/audit context only. The mission **shipped 2026-05-13**; the live,
+> canonical doctrine spec is **[`migration-platform.md`](migration-platform.md)** —
+> read that for the current Migration Platform surface. Do not build against the
+> draft requirements below.
+
+**Status:** Superseded by [`migration-platform.md`](migration-platform.md) — shipped as M-002 (mission `migration-platform-v1-01KRCDE9`, 2026-05-13); retained for historical/audit context.
 **Audience:** framework maintainers; input for Spec Kitty `specify` → `plan` → `tasks` flow
 **Mission ID:** TBD (to be assigned by `@jonesrussell` on mission creation)
 **Origin:** [ADR 012a](../adr/012a-migration-substrate-in-core.md) (Accepted 2026-05-11).

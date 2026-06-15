@@ -1,6 +1,15 @@
+<!-- Spec reviewed 2026-06-15 - convention-spec-gate D-10: M-006 shipped 2026-05-13/14; this file is the LIVE canonical single-axis translation surface (referenced as "Full canonical surface" by entity-system.md, access-control.md, api-layer.md, listing-pipeline-v1.md, entity-storage-translatable-revisions.md). It is NOT superseded — only the Draft status line was stale. Corrected the status to SHIPPED; banner matches the ✅ idiom in entity-storage-translatable-revisions.md. -->
 # Entity Storage — Single-Axis Translations v1
 
-**Status:** Draft mission spec (2026-05-12), ratification target: stability charter §5.3 update at mission close
+> **✅ SHIPPED — M-006 closed 2026-05-13/14.** This spec remains the **live,
+> canonical** surface for single-axis (per-field) entity translations and is
+> referenced as such by entity-system.md, access-control.md, api-layer.md,
+> listing-pipeline-v1.md, and entity-storage-translatable-revisions.md. It is
+> **not** superseded — build against it. (Two-axis translatable×revisionable
+> storage is a separate concern; see
+> [`revision-system-unified.md`](revision-system-unified.md).)
+
+**Status:** Shipped (M-006, mission `entity-storage-translations-v1-01KRF0FQ`, 2026-05-13/14); canonical single-axis translation surface. Satisfies stability charter §3.2 beta-entry criterion 9; §5.3 surface ratified.
 **Audience:** framework maintainers; input for Spec Kitty `specify` → `plan` → `tasks` flow
 **Mission ID:** M-006 (display) / `01KRF0FQ0AA42F434JNAA56WFB` (Spec Kitty)
 **Mission slug:** `entity-storage-translations-v1-01KRF0FQ`

@@ -15,7 +15,6 @@ Machine-readable source: `docs/public-surface-map.php`.
 | Element | Type | Purpose |
 |---------|------|---------|
 | `AssetManagerInterface` | interface | Resolves source asset paths to versioned/hashed production URLs via build manifests |
-| `BroadcasterInterface` | interface | Broadcasts messages to subscribed channels (SSE, WebSockets, Redis Pub/Sub, etc.) |
 | `HealthCheckerInterface` | interface | Runs boot, runtime, and ingestion health checks across subsystems |
 | `LoggerInterface` | interface | Structured logger with PSR-3-style severity levels (framework-internal, not psr/log) |
 | `HandlerInterface` | interface | Log handler that receives and writes formatted log records |
@@ -382,7 +381,6 @@ Charter §5.6 — listing-pipeline-v1 (M-007). Namespace `Waaseyaa\Listing\`.
 
 | Element | Type | Purpose |
 |---------|------|---------|
-| `JsonResponseTrait` | trait | Parses incoming JSON request bodies and builds JSON error responses |
 | `MutableTranslatableInterface` | interface | Extends `TranslatableInterface` with `addTranslation()` for explicit translation creation |
 | `CodifiedContextSessionStoreInterface` | interface | Read-only port for codified-context session rows consumed by `CodifiedContextController`; Telescope implements via adapter |
 
@@ -400,7 +398,6 @@ Charter §5.6 — listing-pipeline-v1 (M-007). Namespace `Waaseyaa\Listing\`.
 
 | Element | Type | Purpose |
 |---------|------|---------|
-| `AgentInterface` | interface | AI agent that executes CMS actions within the permission model with dry-run support |
 | `ToolRegistryInterface` | interface | Provides the set of tools available to an AI agent |
 | `ProviderInterface` | interface | AI model provider: sends messages and returns a structured response |
 | `StreamingProviderInterface` | interface | Provider variant that streams partial response chunks as they arrive |

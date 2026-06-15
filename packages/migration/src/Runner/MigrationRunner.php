@@ -156,6 +156,16 @@ final class MigrationRunner
      * `$overrideRunId`: when non-null, suppresses the per-invocation UUIDv7
      * mint and reuses the prior run's id (FR-037 — single logical run across
      * physical invocations).
+     *
+     * @todo D-26 (tech-debt): this method is large (~170 LOC). The per-record
+     *   body ({@see processOne()}) and the best-effort state writes
+     *   ({@see safeHeartbeat()}, {@see safeRecordError()}, {@see safeSourceCount()})
+     *   are already extracted. The remaining bulk is the FR-046/FR-047/FR-048
+     *   error-handling dichotomy plus the two inline {@see RunReport}
+     *   constructions in the catch arms. A future pass could lift the iteration
+     *   loop and report assembly into a dedicated run-executor collaborator;
+     *   deferred deliberately because it rewrites the runner's safety-critical
+     *   halt/continue control flow for no behavioral change.
      */
     private function runInternal(
         string $migrationId,

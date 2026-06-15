@@ -164,6 +164,15 @@ final class AgentExecutor
      * Run-loop body for {@see executeRun()} — executed inside the
      * acting-account context scope.
      *
+     * TECH-DEBT (audit D-22): ~285 LOC with 7 structurally-similar
+     * `AgentResult::failure(...)` early-returns, each re-threading the
+     * `$tokenIn`/`$tokenOut`/`$costCents` accumulators. The blocks are not
+     * identical (each carries a distinct `data` shape and some run after a
+     * sibling helper has already persisted the terminal status), so the
+     * intended decomposition — a `failResult()` helper for the accumulator
+     * threading plus extraction of the tool-dispatch `foreach` — is deferred
+     * as a tracked refactor rather than attempted in a remediation pass.
+     *
      * @param array<int, array<string, mixed>> $messages Initial messages.
      * @param array<int, array<string, mixed>> $tools     Tool descriptors to advertise to the provider.
      */

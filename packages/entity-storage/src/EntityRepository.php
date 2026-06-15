@@ -436,6 +436,20 @@ final class EntityRepository implements EntityRepositoryInterface
         return $fields;
     }
 
+    /**
+     * Coordinates a single entity save: optimistic-locking preconditions,
+     * validation, the in-transaction guarded pointer claim, base + bundle +
+     * revision writes, and the lifecycle event sequence.
+     *
+     * TECH-DEBT (audit D-20): this method is ~348 LOC mixing 5+ concerns.
+     * Intended decomposition, deferred because every block is
+     * byte-identity-sensitive (entity-storage-v2 spec §7/§12.4, FR-008) and
+     * concurrency-critical (the guarded claim closes the TOCTOU race of
+     * #1654/#1449): extract assertExpectationPreconditions(),
+     * performGuardedPointerClaim(), writeDeferredInitialRevision(), and
+     * allocateTranslatableBaseId() once a behavior-identity test harness pins
+     * the save sequence. Tracked as tech-debt, not a remediation-pass change.
+     */
     private function doSave(
         EntityInterface $entity,
         ?UnitOfWork $unitOfWork = null,

@@ -128,6 +128,16 @@ abstract class FieldItemBase extends PluginBase implements FieldItemInterface, F
         return $this->fieldDefinition;
     }
 
+    /**
+     * Inert by design: part of the ported Drupal TypedData/ComplexData
+     * contract (TypedDataInterface mandates validate()), but NOT the
+     * framework's validation path. Field validation runs through
+     * EntityValidator via EntityTypeValidationConstraints::forEntityType()
+     * (wired into EntityRepository pre-save since alpha.204); constraint-aware
+     * TypedData validation lives in the typed-data package primitives
+     * (e.g. Waaseyaa\TypedData\Type\StringData::validate()). Subclasses may
+     * override, but the per-item surface is intentionally a no-op here.
+     */
     public function validate(): ConstraintViolationListInterface
     {
         return new ConstraintViolationList();

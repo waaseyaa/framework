@@ -1,11 +1,14 @@
 # Entity Storage v2 — Multi-Backend Storage with Revisions
 
-> **Two-axis cross-reference (M-004, shipped 2026-05-17).** Revisionable + translatable
+> **Two-axis cross-reference.** Revisionable + translatable
 > entities (e.g. Minoo `teaching`) compose this spec's revision model with the
 > per-field translation model from M-006. Canonical doctrine for the two-axis
 > interaction — schema shapes, atomic multi-language save, listing integration —
-> lives in [`entity-storage-two-axis.md`](entity-storage-two-axis.md). The operator
+> lives in [`revision-system-unified.md`](revision-system-unified.md). The operator
 > cookbook is [`../cookbook/translatable-revisionable-entities.md`](../cookbook/translatable-revisionable-entities.md).
+> (The earlier M-004 `vid`-based stack described in
+> [`entity-storage-two-axis.md`](entity-storage-two-axis.md) was retired in
+> alpha.196 and is superseded historical context only.)
 
 **Status:** Draft mission spec (target: ratify with the stability charter and ADRs 010–016)
 **Audience:** framework maintainers; input for Spec Kitty `specify` → `plan` → `tasks` flow

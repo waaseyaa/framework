@@ -922,6 +922,8 @@ The route is dispatched by `JsonApiRouteProvider`'s `api.discovery` registration
 
 `/api/entity-types`, `/api/openapi.json`, and `/api/schema/{entity_type}` (registered option-less by foundation's `BuiltinRouteRegistrar`; `AccessChecker` returns neutral for option-less routes) remain anonymous-reachable and still enumerate entity type ids. The #1649 hardening covers the `GET /api` discovery index only — these adjacent surfaces are the documented residual boundary on SC-001, flagged in the mission plan's risks for a follow-up issue. Do not assume anonymous type-id secrecy until that follow-up lands.
 
+**Schema field-access caveat (D-16).** `GET /api/schema/{entity_type}` filters field visibility (`x-access-restricted`, view-denied removal) by running `SchemaPresenter::present()` against a *prototype* entity — `SchemaController::show()` constructs a bare `new $class([...])` carrying only the requested bundle key, with no field values. The rendered field set therefore reflects only **static, type/bundle-level** `FieldAccessPolicy` decisions; instance-level gates (owner-only fields, row-state/workflow gates) cannot be evaluated and are not represented. Consumers (admin SPA, agents) must treat the schema's field visibility as a static contract, not a per-record access oracle — actual per-record field access is enforced separately at the JSON:API serializer boundary.
+
 ## Translation Sub-Resource
 
 ```php

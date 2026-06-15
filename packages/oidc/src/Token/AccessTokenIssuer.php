@@ -14,6 +14,12 @@ use Waaseyaa\Database\DatabaseInterface;
  * verify them and detect revocation without round-tripping to the IdP JWK set.
  * The token value itself is a 32-byte URL-safe random string (opaque to clients).
  *
+ * Secrets at rest: the opaque token is stored unencrypted in the `token` column
+ * (lookup is by exact value, see findByOpaqueToken), so confidentiality relies on
+ * the database trust boundary. Hashing tokens at rest is tracked hardening
+ * (audit D-13) deferred because it must be applied consistently across the
+ * access- and refresh-token stores; see packages/oidc/README.md "Secrets at rest".
+ *
  * @api
  */
 final class AccessTokenIssuer
