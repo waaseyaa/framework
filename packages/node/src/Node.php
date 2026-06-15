@@ -18,6 +18,13 @@ use Waaseyaa\Entity\Hydration\HydrationContext;
  * Nodes are the primary content entity in Waaseyaa. Each node belongs
  * to a node type (bundle) and has properties like title, author, status,
  * and timestamps.
+ *
+ * The `promote` and `sticky` boolean fields are app-extensible listing
+ * defaults ported from Drupal's content model. The framework persists,
+ * serializes (ResourceSerializer / SchemaPresenter) and surfaces them in
+ * the admin form, but ships no built-in frontpage/Views feature that reads
+ * them — consuming applications opt in by querying these fields in their
+ * own listings. They are intentional surface, not dead code (audit D-39).
  */
 #[ContentEntityType(id: 'node', label: 'Content', description: 'Published content items')]
 #[ContentEntityKeys(id: 'nid', uuid: 'uuid', label: 'title', bundle: 'type')]

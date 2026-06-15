@@ -1093,12 +1093,6 @@ parameters:
 			path: packages/foundation/src/Result/DomainError.php
 
 		-
-			message: '#^Call to an undefined method Waaseyaa\\Foundation\\ServiceProvider\\ServiceProviderInterface\:\:getTags\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: packages/foundation/src/ServiceProvider/ContainerCompiler.php
-
-		-
 			message: '#^Call to function is_array\(\) with array\<string, string\> will always evaluate to true\.$#'
 			identifier: function.alreadyNarrowedType
 			count: 1

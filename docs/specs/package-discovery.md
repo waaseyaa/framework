@@ -49,7 +49,7 @@ abstract class ServiceProvider implements ServiceProviderInterface
     protected function bind(string $abstract, string|callable $concrete): void;
     protected function tag(string $abstract, string $tag): void;
 
-    // Introspection (used by ContainerCompiler)
+    // Introspection (binding/tag reflection)
     public function getBindings(): array;   // ['abstract' => ['concrete' => ..., 'shared' => bool]]
     public function getTags(): array;       // ['tag' => ['service1', 'service2']]
 }
@@ -87,38 +87,6 @@ public function provides(): array
     return [AiEmbedderInterface::class, AiCompletionInterface::class];
 }
 ```
-
-### ContainerCompiler
-
-File: `packages/foundation/src/ServiceProvider/ContainerCompiler.php`
-
-Orchestrates the two-phase lifecycle and wires bindings into Symfony's `ContainerBuilder`:
-
-```php
-final class ContainerCompiler
-{
-    public function compile(array $providers, ContainerBuilder $container): void
-    {
-        // Phase 1: register all bindings
-        foreach ($providers as $provider) {
-            $provider->register();
-            // Map getBindings() -> ContainerBuilder definitions
-            // Map getTags() -> ContainerBuilder tags
-        }
-
-        // Phase 2: boot all providers
-        foreach ($providers as $provider) {
-            $provider->boot();
-        }
-    }
-}
-```
-
-Binding properties:
-- `shared: true` (from `singleton()`) -> `Definition::setShared(true)`
-- `shared: false` (from `bind()`) -> `Definition::setShared(false)`
-- Callable concrete values -> `Definition::setFactory($concrete)`
-- All definitions are set to `public: true`
 
 ## Composer Manifest
 
@@ -562,7 +530,6 @@ Plugin classes extend `PluginBase` and receive their ID, definition, and configu
 ServiceProviderInterface.php    -- register/boot/provides/isDeferred contract
 ServiceProvider.php             -- abstract base with singleton/bind/tag + getBindings/getTags
 ProviderDiscovery.php           -- reads extra.waaseyaa.providers from installed.json
-ContainerCompiler.php           -- two-phase compile into Symfony ContainerBuilder
 ```
 
 ### packages/foundation/src/Discovery/
