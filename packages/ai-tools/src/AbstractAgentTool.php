@@ -129,6 +129,25 @@ abstract class AbstractAgentTool implements AgentToolInterface
     }
 
     /**
+     * Predicate form of the per-entity 'view' gate, for filtering result sets.
+     *
+     * Returns true when no access handler has been attached (capability-only
+     * mode — preserves prior behavior), otherwise consults the entity
+     * AccessPolicy for ('view', $account). List/search tools MUST filter each
+     * candidate through this so a forbidden entity never leaks via enumeration
+     * (id/label/existence) or substring match — the same per-entity gate
+     * {@see EntityReadTool} applies to single reads.
+     */
+    protected function canViewEntity(EntityInterface $entity, AccountInterface $account): bool
+    {
+        if ($this->accessHandler === null) {
+            return true;
+        }
+
+        return $this->accessHandler->check($entity, 'view', $account)->isAllowed();
+    }
+
+    /**
      * Enforce the per-entity AccessPolicy for creating an entity of a type.
      * No-op when no access handler has been attached.
      */

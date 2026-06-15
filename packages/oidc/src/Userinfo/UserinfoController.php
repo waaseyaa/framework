@@ -12,14 +12,14 @@ use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\Oidc\Token\AccessTokenIssuer;
-use Waaseyaa\Oidc\Token\IdTokenMinter;
 use Waaseyaa\User\User;
 
 /**
  * GET/POST /oidc/userinfo — OIDC Core §5.3.
  *
- * Authenticates the bearer access token (JWT), loads the subject User entity,
- * and builds the claim set. Each claim is gated through FieldAccessPolicyInterface
+ * Authenticates the bearer access token (opaque — looked up in the persisted
+ * oidc_access_token row, with revocation and expiry enforced), loads the subject
+ * User entity, and builds the claim set. Each claim is gated through FieldAccessPolicyInterface
  * (DIR-004): claims backed by a Forbidden field are omitted entirely — never
  * serialised as null or "".
  *
@@ -30,12 +30,10 @@ use Waaseyaa\User\User;
 final readonly class UserinfoController
 {
     public function __construct(
-        private IdTokenMinter $idTokenMinter,
         private AccessTokenIssuer $accessTokenIssuer,
         private EntityTypeManager $entityTypeManager,
         private EntityAccessHandler $entityAccessHandler,
         private UserinfoClaimResolver $claimResolver,
-        private string $issuer,
     ) {}
 
     public function __invoke(Request $request): Response
@@ -50,29 +48,31 @@ final readonly class UserinfoController
             return $this->error(401, 'Bearer realm="oidc"', 'invalid_token', 'Missing or malformed Authorization header.');
         }
 
-        $jwt = substr($authHeader, 7);
-        if ($jwt === '') {
+        $bearer = substr($authHeader, 7);
+        if ($bearer === '') {
             return $this->error(401, 'Bearer realm="oidc"', 'invalid_token', 'Empty bearer token.');
         }
 
-        // Verify JWT signature + standard claims
-        $claims = $this->idTokenMinter->verifyAndDecode($jwt, $this->issuer, $this->issuer);
-        if ($claims === null) {
-            return $this->error(401, 'Bearer realm="oidc", error="invalid_token"', 'invalid_token', 'Token validation failed.');
+        // Access tokens are opaque (not JWTs): authenticate by looking up the
+        // persisted oidc_access_token row, then enforce revocation and expiry.
+        $token = $this->accessTokenIssuer->findByOpaqueToken($bearer);
+        if ($token === null) {
+            return $this->error(401, 'Bearer realm="oidc", error="invalid_token"', 'invalid_token', 'Unknown access token.');
         }
 
-        // Check oidc_access_token revocation
-        $jti = isset($claims['jti']) && is_string($claims['jti']) ? $claims['jti'] : null;
-        if ($jti !== null) {
-            $storedToken = $this->accessTokenIssuer->findByJti($jti);
-            if ($storedToken === null || ($storedToken['revoked_at'] ?? null) !== null) {
-                return $this->error(401, 'Bearer realm="oidc", error="invalid_token"', 'invalid_token', 'Token has been revoked.');
-            }
+        if (($token['revoked_at'] ?? null) !== null) {
+            return $this->error(401, 'Bearer realm="oidc", error="invalid_token"', 'invalid_token', 'Token has been revoked.');
         }
 
-        $accountId = isset($claims['sub']) && is_string($claims['sub']) ? $claims['sub'] : null;
-        if ($accountId === null) {
-            return $this->error(401, 'Bearer realm="oidc", error="invalid_token"', 'invalid_token', 'Missing sub claim.');
+        if (!isset($token['expires_at']) || (int) $token['expires_at'] < time()) {
+            return $this->error(401, 'Bearer realm="oidc", error="invalid_token"', 'invalid_token', 'Token has expired.');
+        }
+
+        $accountId = isset($token['account_id']) && is_scalar($token['account_id'])
+            ? (string) $token['account_id']
+            : null;
+        if ($accountId === null || $accountId === '') {
+            return $this->error(401, 'Bearer realm="oidc", error="invalid_token"', 'invalid_token', 'Token has no subject.');
         }
 
         // Load the User entity
@@ -86,8 +86,8 @@ final readonly class UserinfoController
             return $this->error(401, 'Bearer realm="oidc", error="invalid_token"', 'invalid_token', 'Subject not found.');
         }
 
-        // Resolve scopes from JWT
-        $scope = isset($claims['scope']) && is_string($claims['scope']) ? $claims['scope'] : 'openid';
+        // Resolve scopes from the persisted token row
+        $scope = isset($token['scope']) && is_string($token['scope']) && $token['scope'] !== '' ? $token['scope'] : 'openid';
         $scopes = array_filter(explode(' ', $scope), static fn(string $s): bool => $s !== '');
         $candidateClaims = $this->claimResolver->claimsFor(array_values($scopes));
 

@@ -52,7 +52,10 @@ task('waaseyaa:clear-manifest', function (): void {
 
 desc('Reload PHP-FPM to pick up new release');
 task('waaseyaa:php-fpm-reload', function (): void {
-    run('sudo systemctl reload php8.4-fpm');
+    // Defaults to the framework's minimum supported runtime (PHP >=8.5).
+    // Override per host with set('php_fpm_version', '8.6') in your deploy.php.
+    $phpFpmVersion = get('php_fpm_version', '8.5');
+    run("sudo systemctl reload php{$phpFpmVersion}-fpm");
 });
 
 desc('Ensure shared runtime directories exist');

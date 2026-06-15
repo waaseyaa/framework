@@ -448,6 +448,7 @@
             "Waaseyaa\\OAuthProvider\\Tests\\": "packages/oauth-provider/tests/",
             "Waaseyaa\\Oidc\\Tests\\": "packages/oidc/tests/",
             "Waaseyaa\\Engagement\\Tests\\": "packages/engagement/tests/",
+            "Waaseyaa\\Deployer\\Tests\\": "packages/deployer/tests/",
             "Waaseyaa\\Tests\\": "tests/"
         }
     },

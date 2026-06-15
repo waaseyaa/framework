@@ -64,6 +64,11 @@ final class AuditServiceProvider extends ServiceProvider implements HasNativeCom
                     mode: OptionMode::None,
                     description: 'Print the count that would be pruned without deleting.',
                 ),
+                new OptionDefinition(
+                    name: 'confirm',
+                    mode: OptionMode::None,
+                    description: 'Required for real deletion. Without it the command refuses and prints the cutoff + row count it would delete.',
+                ),
             ],
             handler: [PruneCommand::class, 'execute'],
         );

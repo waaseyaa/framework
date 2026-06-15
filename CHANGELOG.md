@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`user`: session cookies are secure-by-default (audit C-8).** A stock install ran `session_start()` with PHP's bare cookie ini — no `HttpOnly` (XSS-exfiltratable), no `SameSite` (CSRF surface), no `use_strict_mode` (session-fixation). `SessionMiddleware::applySessionCookieIni()` now applies hardened defaults on every request (`httponly=true`, `samesite=Lax`, `use_strict_mode=true`, `secure='auto'` — Secure only under HTTPS via the trusted-proxy guard). Any `config['session']['cookie']` key still overrides the matching default. Regression tests pin the unconfigured-default and the override paths.
+- **`oidc`: `/userinfo` validates the opaque access token by lookup, not as a JWT (audit C-9).** The endpoint fed the bearer to `IdTokenMinter::verifyAndDecode()`, but OIDC access tokens are opaque — so it was broken and the revocation check was dead. It now authenticates via `AccessTokenIssuer::findByOpaqueToken()`, rejecting unknown/revoked/expired tokens with `401`, and derives the subject from the persisted row. (`verifyAndDecode` is retained, now `@api`, for genuine ID-token verification.) New integration test covers valid/revoked/expired/garbage.
+- **`entity-storage`: the query result cache key now includes the access dimension (audit C-10).** The fingerprint omitted the account and the `accessCheck` flag, so an access-filtered list for one account could be served from a cache entry populated by another account or by an unfiltered `accessCheck(false)` run — a cross-account row leak. The key now discriminates on `accessCheckEnabled` + account; same-account caching is unchanged. Regression test pins both leaks closed and the same-account hit.
+- **`ai-tools`: `EntityListTool`/`EntitySearchTool` filter results through a per-entity view check (audit C-13).** Both emitted one item per `findBy()` candidate with no access gate — an information-disclosure oracle for agents. They now drop entities the initiating account may not view (matching the sibling read/revisions tools), capping output to the requested limit. Regression test asserts a forbidden entity is excluded.
+- **`cli`: `audit:prune` requires `--confirm` for real deletion (audit C-31).** It deleted `audit_event` rows guarded only by `--dry-run`. It now refuses to delete without `--confirm` (and refuses non-interactively without it), and echoes the resolved cutoff + row count before deleting. CommandTester tests pin both paths.
+- **`deployer`: the recipe reloads the correct FPM version (audit C-25).** The recipe hard-coded `systemctl reload php8.4-fpm` while the framework requires PHP ≥ 8.5, so deploy finalize failed. It now uses `php{{php_fpm_version}}-fpm` defaulting to `8.5` (overridable per host). Test pins the version.
+
 ## [0.1.0-alpha.213] - 2026-06-15
 
 ### Fixed

@@ -87,7 +87,7 @@ final class AuditRetentionPruneTest extends TestCase
 
         // Build and run the prune command.
         $command = new PruneCommand($this->query, $this->writer, $this->database);
-        $io = $this->makeIo(['older-than' => 'PT1H']);
+        $io = $this->makeIo(['older-than' => 'PT1H', 'confirm' => true]);
 
         $exitCode = $command->execute($io);
 

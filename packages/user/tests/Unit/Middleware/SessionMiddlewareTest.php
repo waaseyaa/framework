@@ -563,4 +563,88 @@ final class SessionMiddlewareTest extends TestCase
             unset($_SERVER['HTTP_X_FORWARDED_PROTO'], $_SERVER['REMOTE_ADDR']);
         }
     }
+
+    #[Test]
+    #[RunInSeparateProcess]
+    public function applies_secure_session_cookie_defaults_when_unconfigured(): void
+    {
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $keys = [
+            'session.cookie_httponly',
+            'session.cookie_samesite',
+            'session.use_strict_mode',
+        ];
+        $saved = [];
+        foreach ($keys as $key) {
+            $saved[$key] = ini_get($key);
+        }
+
+        try {
+            // Prove the starting state is insecure so the assertions are meaningful.
+            ini_set('session.cookie_httponly', '0');
+            ini_set('session.cookie_samesite', '');
+            ini_set('session.use_strict_mode', '0');
+
+            // No fourth arg => $sessionCookieOptions is null (default config).
+            $middleware = new SessionMiddleware($storage);
+            $method = new \ReflectionMethod(SessionMiddleware::class, 'applySessionCookieIni');
+            $method->invoke($middleware);
+
+            $this->assertSame('1', ini_get('session.cookie_httponly'), 'HttpOnly must be on by default');
+            $this->assertSame('Lax', ini_get('session.cookie_samesite'), 'SameSite must default to Lax');
+            $this->assertSame('1', ini_get('session.use_strict_mode'), 'Strict session-id mode must be on by default');
+        } finally {
+            foreach ($saved as $key => $value) {
+                if ($value !== false && $value !== '') {
+                    ini_set($key, $value);
+                } else {
+                    ini_restore($key);
+                }
+            }
+        }
+    }
+
+    /**
+     * Overridability: explicit config wins over the hardened defaults, while
+     * un-overridden keys still receive their secure default.
+     */
+    #[Test]
+    #[RunInSeparateProcess]
+    public function explicit_session_cookie_options_override_secure_defaults(): void
+    {
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $keys = [
+            'session.cookie_httponly',
+            'session.cookie_samesite',
+            'session.use_strict_mode',
+        ];
+        $saved = [];
+        foreach ($keys as $key) {
+            $saved[$key] = ini_get($key);
+        }
+
+        try {
+            ini_set('session.use_strict_mode', '0');
+
+            $middleware = new SessionMiddleware($storage, null, null, [
+                'httponly' => false,
+                'samesite' => 'Strict',
+                // use_strict_mode intentionally omitted -> default (true) applies.
+            ]);
+            $method = new \ReflectionMethod(SessionMiddleware::class, 'applySessionCookieIni');
+            $method->invoke($middleware);
+
+            $this->assertSame('0', ini_get('session.cookie_httponly'), 'explicit httponly=false must override the default');
+            $this->assertSame('Strict', ini_get('session.cookie_samesite'), 'explicit samesite must override the Lax default');
+            $this->assertSame('1', ini_get('session.use_strict_mode'), 'omitted key must still receive its secure default');
+        } finally {
+            foreach ($saved as $key => $value) {
+                if ($value !== false && $value !== '') {
+                    ini_set($key, $value);
+                } else {
+                    ini_restore($key);
+                }
+            }
+        }
+    }
 }
