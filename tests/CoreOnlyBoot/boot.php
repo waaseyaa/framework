@@ -22,7 +22,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/vendor/autoload.php';
 
-$kernel = new class(__DIR__) extends \Waaseyaa\Foundation\Kernel\AbstractKernel {
+$kernel = new class (__DIR__) extends \Waaseyaa\Foundation\Kernel\AbstractKernel {
     public function bootProbe(): void
     {
         $this->boot();

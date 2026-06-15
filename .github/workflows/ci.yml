@@ -282,6 +282,12 @@ jobs:
           work=$(mktemp -d)
           cleanup() { rm -rf "$work"; }
           trap cleanup EXIT
+          # CI checks out a detached merge ref, so the packages/* path repos are version-guessed
+          # as a bare dev-<sha> pseudo-version that matches no numeric constraint. Put HEAD on a
+          # local `main` so they resolve via the existing dev-main -> 0.1.x-dev branch-alias and
+          # satisfy the internal ^<tag> sibling constraints (the canonical path repo otherwise
+          # blocks Packagist fallback). Tree is unchanged — same commit, so the checkout is clean.
+          git -C "$GITHUB_WORKSPACE" checkout -B main
           printf '{"name":"waaseyaa/core-only-boot-fixture","type":"project","require":{"waaseyaa/core":"*"},"repositories":[{"type":"path","url":"%s/packages/*","options":{"symlink":false}}],"minimum-stability":"dev","prefer-stable":true}\n' "$GITHUB_WORKSPACE" > "$work/composer.json"
           composer install --working-dir "$work" --no-interaction
           test -d "$work/vendor/waaseyaa/scheduler" || { echo "::error::core-only install did not pull waaseyaa/scheduler (core metapackage is missing a fail-closed kernel boot dependency)"; exit 1; }
