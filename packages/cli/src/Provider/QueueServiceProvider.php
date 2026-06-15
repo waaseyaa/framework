@@ -96,6 +96,14 @@ final class QueueServiceProvider extends ServiceProvider implements HasNativeCom
         yield new CommandDefinition(
             name: 'queue:flush',
             description: 'Remove all failed queue jobs',
+            options: [
+                new OptionDefinition(
+                    name: 'yes',
+                    shortcut: 'y',
+                    mode: OptionMode::None,
+                    description: 'Skip the confirmation prompt (required to flush in non-interactive mode).',
+                ),
+            ],
             handler: [QueueFlushHandler::class, 'execute'],
         );
     }

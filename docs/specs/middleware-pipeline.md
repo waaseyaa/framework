@@ -10,7 +10,8 @@ Waaseyaa implements typed middleware pipelines for two execution contexts: HTTP 
 | Package | Role | Key files |
 |---------|------|-----------|
 | `packages/foundation/` | Interfaces, pipeline classes, `AsMiddleware` attribute, `PackageManifestCompiler` | `src/Middleware/`, `src/Attribute/AsMiddleware.php`, `src/Discovery/` |
-| `packages/routing/` | `AccessChecker`, `RouteBuilder` (route option helpers) | `src/AccessChecker.php`, `src/RouteBuilder.php` |
+| `packages/routing/` | `RouteBuilder` (route option helpers) | `src/RouteBuilder.php` |
+| `packages/access/` | `AccessChecker` (reads route access options) | `src/AccessChecker.php` |
 | `packages/user/` | `SessionMiddleware` (resolves `_account` from PHP session) | `src/Middleware/SessionMiddleware.php` |
 | `packages/access/` | `AuthorizationMiddleware` (enforces route-level access) | `src/Middleware/AuthorizationMiddleware.php` |
 
@@ -277,6 +278,8 @@ Routes declare access requirements via Symfony Route options. `AccessChecker` re
 | Option | Type | Meaning |
 |--------|------|---------|
 | `_public` | `bool` | If `true`, skip all access checks. Anyone can access. |
+| `_authenticated` | `bool` | If `true`, require a non-anonymous account; otherwise `AccessChecker` denies (401-class) before other checks. |
+| `_session` | `bool` \| `list<string>` | Require an active session; a list restricts to the named session scopes. |
 | `_permission` | `string` | Require `$account->hasPermission($permission)` to return `true`. |
 | `_role` | `string` | Comma-separated role list. Account must have at least one. |
 | `_gate` | `array{ability: string, subject?: mixed}` | Delegates to `GateInterface::allows()`. |
@@ -290,6 +293,8 @@ Routes declare access requirements via Symfony Route options. `AccessChecker` re
 ```php
 // File: packages/routing/src/RouteBuilder.php
 RouteBuilder::create('/api/nodes')
+    ->requireAuthentication()              // sets _authenticated = true
+    ->requireSession()                     // sets _session option
     ->requirePermission('access content')  // sets _permission option
     ->requireRole('editor')                // sets _role option
     ->allowAll()                           // sets _public = true
@@ -322,8 +327,9 @@ All HTTP middleware implement `HttpMiddlewareInterface` and use `#[AsMiddleware(
 | 60 | `RequestLoggingMiddleware` | foundation | Logs method, URI, status, duration. Constructor: `(?Closure $logger = null)` |
 | 50 | `ETagMiddleware` | foundation | ETag generation + 304 Not Modified for GET/HEAD |
 | 40 | `BearerAuthMiddleware` | user | JWT and API key auth via Bearer header. Constructor: `(EntityStorageInterface, string $jwtSecret, array $apiKeys, ?LoggerInterface)` |
-| — | `SessionMiddleware` | user | Resolves `AccountInterface` from session |
-| — | `AuthorizationMiddleware` | access | Route-level access enforcement via `AccessChecker` |
+| 30 | `SessionMiddleware` | user | Resolves `AccountInterface` from session |
+| 20 | `CsrfMiddleware` | user | Double-submit / header CSRF validation for state-changing non-JSON requests |
+| 10 | `AuthorizationMiddleware` | access | Route-level access enforcement via `AccessChecker` |
 
 ## File Reference
 
@@ -358,12 +364,12 @@ All HTTP middleware implement `HttpMiddlewareInterface` and use `#[AsMiddleware(
 | `packages/user/src/Middleware/SessionMiddleware.php` | `SessionMiddleware` | HTTP |
 | `packages/access/src/Middleware/AuthorizationMiddleware.php` | `AuthorizationMiddleware` | HTTP |
 
-### Access checking (packages/routing/)
+### Access checking
 
 | File | Class |
 |------|-------|
-| `src/AccessChecker.php` | `AccessChecker` -- reads `_public`, `_permission`, `_role`, `_gate` from Route options |
-| `src/RouteBuilder.php` | `RouteBuilder` -- fluent API with `requirePermission()`, `requireRole()`, `allowAll()` |
+| `packages/access/src/AccessChecker.php` | `AccessChecker` -- reads `_public`, `_authenticated`, `_session`, `_permission`, `_role`, `_gate` from Route options |
+| `packages/routing/src/RouteBuilder.php` | `RouteBuilder` -- fluent API with `requirePermission()`, `requireRole()`, `requireAuthentication()`, `requireSession()`, `allowAll()` |
 
 ### Front controller
 

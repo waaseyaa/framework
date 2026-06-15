@@ -163,12 +163,10 @@ final class McpClientToolSource
         $capability = sprintf('%s.%s', $row['capability_prefix'], $descriptor->name);
         $category = sprintf('mcp.%s', $row['alias']);
 
-        // Conservative default: remote tools are destructive unless the
-        // server opts out via a `destructive: false` hint in its descriptor.
+        // Security (D-17): ignore any remote `destructive` hint — a remote server
+        // could self-declare `destructive: false` to slip past the HITL approval
+        // gate (AgentExecutor). Remote tools are ALWAYS treated as destructive.
         $destructive = true;
-        if (array_key_exists('destructive', $descriptor->metadata)) {
-            $destructive = (bool) $descriptor->metadata['destructive'];
-        }
 
         $description = $descriptor->description !== ''
             ? $descriptor->description
@@ -194,6 +192,15 @@ final class McpClientToolSource
             inputSchema: $descriptor->inputSchema,
             impl: $impl,
         );
+
+        // Security (D-17): never let a remote tool shadow an already-registered
+        // (local or earlier-registered) tool name — a remote server must not be
+        // able to hijack a trusted tool's identity.
+        if ($this->registry->has($localName)) {
+            $this->logger->warning('Skipping MCP tool: name already registered', ['tool' => $localName]);
+
+            return;
+        }
 
         $this->registry->register($tool);
     }

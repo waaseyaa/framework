@@ -56,7 +56,7 @@ final class QueueFlushHandlerTest extends TestCase
         $repo->record('default', 'payload-2', new \RuntimeException('Error 2'));
 
         $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($repo));
-        $tester->executeMap([]);
+        $tester->execute(['--yes']);
 
         self::assertSame(0, $tester->getExitCode());
         self::assertStringContainsString('Flushed 2 failed jobs', $tester->getStdout());
@@ -64,11 +64,26 @@ final class QueueFlushHandlerTest extends TestCase
     }
 
     #[Test]
+    public function refusesToFlushWithoutYesInNonInteractiveMode(): void
+    {
+        // D-34: a non-interactive run without --yes must refuse and leave jobs intact.
+        $repo = new InMemoryFailedJobRepository();
+        $repo->record('default', 'payload-1', new \RuntimeException('Error 1'));
+
+        $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($repo));
+        $tester->execute([]);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('Refusing to flush', $tester->getStderr());
+        self::assertCount(1, $repo->all(), 'jobs must be untouched when the flush is refused');
+    }
+
+    #[Test]
     public function handlesEmptyRepository(): void
     {
         $repo = new InMemoryFailedJobRepository();
         $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($repo));
-        $tester->executeMap([]);
+        $tester->execute([]);
 
         self::assertSame(0, $tester->getExitCode());
         self::assertStringContainsString('No failed jobs to flush', $tester->getStdout());

@@ -12,6 +12,8 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Agent\Mcp\McpClientToolSource;
 use Waaseyaa\AI\Agent\Mcp\StreamableHttpMcpClient;
 use Waaseyaa\AI\Tools\AgentTool;
+use Waaseyaa\AI\Tools\AgentToolInterface;
+use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Catalogue\AttributeToolRegistry;
 use Waaseyaa\Config\Schema\Ai\McpServersConfig;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
@@ -178,6 +180,83 @@ final class McpClientToolSourceTest extends TestCase
         $source->bootstrap();
 
         self::assertFalse($registry->has('stub.echo'));
+    }
+
+    #[Test]
+    public function remoteToolCannotShadowAPreRegisteredLocalTool(): void
+    {
+        // D-17: a remote MCP server advertising a tool whose synthesised name
+        // collides with an already-registered (trusted, local) tool must NOT
+        // overwrite it — the local tool keeps its identity, the remote is skipped.
+        $http = new StubMcpServerHttpClient();
+        $http->registerTool('echo', 'Remote echo', ['type' => 'object'], static fn(): array => ['isError' => false, 'content' => []]);
+        $http->registerTool('add', 'Remote add', ['type' => 'object'], static fn(): array => ['isError' => false, 'content' => []]);
+
+        $configStorage = new InMemoryConfigStorage();
+        $configStorage->write(McpServersConfig::CONFIG_NAME, [
+            McpServersConfig::ITEMS_KEY => [
+                [
+                    'alias' => 'stub',
+                    'url' => 'https://stub.invalid/mcp',
+                    'auth_header_env_var' => '',
+                    'enabled' => true,
+                    'capability_prefix' => 'tool.mcp.stub',
+                ],
+            ],
+        ]);
+
+        $registry = $this->makeRegistry();
+
+        // A trusted local tool already owns the name 'stub.echo'.
+        $localImpl = new class implements AgentToolInterface {
+            public function execute(array $arguments, AccountInterface $account): AgentToolResult
+            {
+                return AgentToolResult::error(message: 'local', summary: 'local');
+            }
+
+            public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
+            {
+                return AgentToolResult::error(message: 'local', summary: 'local');
+            }
+
+            public function argumentsForAudit(array $arguments): array
+            {
+                return $arguments;
+            }
+
+            public function inputSchema(): array
+            {
+                return ['type' => 'object'];
+            }
+
+            public function description(): string
+            {
+                return 'Local trusted echo';
+            }
+        };
+        $registry->register(new AgentTool(
+            name: 'stub.echo',
+            capability: 'local.trusted.echo',
+            destructive: false,
+            dryRunSupported: false,
+            category: 'local',
+            inputSchema: ['type' => 'object'],
+            impl: $localImpl,
+        ));
+
+        $source = new McpClientToolSource(new StreamableHttpMcpClient($http), $registry, $configStorage);
+        $source->bootstrap();
+
+        // The local tool survives; the remote one was skipped (not overwritten).
+        self::assertSame(
+            'local.trusted.echo',
+            $registry->get('stub.echo')->capability,
+            'a remote MCP tool must not shadow a pre-registered local tool',
+        );
+        self::assertFalse($registry->get('stub.echo')->destructive, 'the surviving tool is the local one');
+        // A non-colliding remote tool still registers normally.
+        self::assertTrue($registry->has('stub.add'));
+        self::assertSame('tool.mcp.stub.add', $registry->get('stub.add')->capability);
     }
 
     private function makeRegistry(): AttributeToolRegistry
