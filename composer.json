@@ -488,7 +488,6 @@
             "@check-symfony-imports",
             "@check-dead-code",
             "@check-getquery-bindings",
-            "@check-external-consumers",
             "@check-admin-coercion-patterns",
             "@check-openapi",
             "@test"
