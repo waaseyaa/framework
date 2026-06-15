@@ -805,8 +805,9 @@ MCP tool execution has the following safety properties:
 2. **Audit trail:** Every agent execution, dry-run, and tool call is recorded in `AgentAuditLog` with the agent ID, account ID, action type, success status, message, and timestamp.
 3. **User context:** Agents always execute as a specific `AccountInterface`. The account ID is logged in every audit entry.
 4. **Dry-run support:** All agents must implement `dryRun()` to preview changes without mutations.
-5. **Query access bypass:** `McpToolExecutor` sets `accessCheck(false)` on entity queries. Access control for MCP tool calls is expected to be enforced at the agent/endpoint level, not the individual query level.
+5. **Query access bypass (legacy `McpToolExecutor` path only):** `McpToolExecutor` (`packages/ai-schema/`) sets `accessCheck(false)` on entity queries; access control on *that* path is enforced at the agent/endpoint level, not the individual query level. This bypass does **not** apply to the stock `ai-tools` entity tools (`entity.read/list/search/create/update/delete`), which enforce the per-entity AccessPolicy directly — see property 7.
 6. **FieldableInterface check:** Updates verify the entity implements `FieldableInterface` before calling `set()`.
+7. **Per-entity access on the stock entity tools (mandatory, fail-closed — C-12):** The stock `ai-tools` entity tools enforce the framework's per-entity `AccessPolicy` (the same `view`/`update`/`delete`/`create` gate the REST/GraphQL surfaces use), not just the coarse `tool.entity.*` capability. `AiToolsServiceProvider` injects the kernel `EntityAccessHandler` into the `AttributeToolRegistry`, which stamps every tool it hydrates so the gate is **always** active in production — it is not opt-in. Enforcement is **fail-closed**: if the handler is ever unavailable in a context that requires enforcement, the per-entity guards **deny** (single reads/writes return a `forbidden` error; `entity.list`/`entity.search` drop every candidate) rather than silently allowing — a wiring gap can never degrade to allow-all. The only place the guards no-op (allow) is bare/unit construction that never wires a handler and never stamps enforcement (capability-only mode), preserving the historical contract for hosts with no entity-access policy.
 
 ## Identity-Key Write Protection (stock entity tools, #1646)
 
@@ -822,7 +823,7 @@ If the `values` payload contains ANY refused key, the tool returns an error resu
 
 ### Check order
 
-capability → argument shape → entity-type existence → access → **identity-key refusal** → mutation/validation. The refusal must not leak entity existence to callers lacking access.
+capability → argument shape → entity-type existence → access → **identity-key refusal** → mutation/validation. The refusal must not leak entity existence to callers lacking access. The `access` step is the mandatory, fail-closed per-entity `AccessPolicy` gate (Tool Safety property 7, C-12): in production it is always wired and authoritative; it denies (never silently passes) when the access handler is unavailable, so a wiring gap cannot let identity-key probing or mutation proceed.
 
 ### Error shapes
 

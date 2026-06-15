@@ -6,6 +6,7 @@ namespace Waaseyaa\Foundation\Kernel\Bootstrap;
 
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -29,10 +30,24 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
     private \Closure $providersAccessor;
 
     /**
+     * Lazy accessor for the kernel's per-entity access handler. Resolved at
+     * call time (not construction) because the handler is built by
+     * {@see \Waaseyaa\Foundation\Kernel\AbstractKernel::discoverAccessPolicies()}
+     * AFTER providers register and obtain this bus. Null when no kernel context
+     * exposes a handler (e.g. unit construction sites).
+     *
+     * @var (\Closure(): ?EntityAccessHandler)|null
+     */
+    private readonly ?\Closure $accessHandlerAccessor;
+
+    /**
      * @param \Closure(): list<ServiceProvider> $providersAccessor
      * @param AccountContextInterface|null $accountContext The kernel's shared acting-account
      *        context (mission revision-audit-provenance-01KTWY5V FR-002); null when the
      *        construction site has no kernel context.
+     * @param (\Closure(): ?EntityAccessHandler)|null $accessHandlerAccessor Lazy
+     *        accessor for the kernel access handler (C-12). Null leaves
+     *        {@see EntityAccessHandler::class} unresolvable through this bus.
      */
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
@@ -41,8 +56,10 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
         private readonly LoggerInterface $logger,
         \Closure $providersAccessor,
         private readonly ?AccountContextInterface $accountContext = null,
+        ?\Closure $accessHandlerAccessor = null,
     ) {
         $this->providersAccessor = $providersAccessor;
+        $this->accessHandlerAccessor = $accessHandlerAccessor;
     }
 
     public function get(string $abstract): ?object
@@ -61,6 +78,11 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
         }
         if ($abstract === AccountContextInterface::class) {
             return $this->accountContext;
+        }
+        if ($abstract === EntityAccessHandler::class) {
+            return $this->accessHandlerAccessor !== null
+                ? ($this->accessHandlerAccessor)()
+                : null;
         }
         if ($abstract === \PDO::class) {
             assert($this->database instanceof DBALDatabase);
