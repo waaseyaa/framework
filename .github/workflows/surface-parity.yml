@@ -15,19 +15,22 @@ on:
     branches: [main]
     paths:
       - 'packages/**/src/**'
+      - 'packages/**/testing/**'
       - 'src/**'
       - 'docs/public-surface-map.php'
       - 'docs/public-surface-map.md'
       - 'CHANGELOG.md'
+      - 'tools/check-surface-parity.php'
+      - '.github/workflows/surface-parity.yml'
 
 jobs:
   surface-parity:
     runs-on: ubuntu-latest
-    # WARN-ONLY: tools/check-surface-parity.php is a SKELETON stub that emits
-    # false positives (real symbols reported as "removed from source"). Marked
-    # warn-only until the real AST scanner lands. Tracked in #1465.
-    name: Public-surface-map parity check (warn-only)
-    continue-on-error: true
+    # BLOCKING since audit C-14: tools/check-surface-parity.php is now a real
+    # php-parser AST scanner (interface/abstract/trait/enum across packages/*/src
+    # and packages/*/testing), enforcing both parity directions. The prior
+    # warn-only skeleton emitted false positives and could not gate.
+    name: Public-surface-map parity check
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -45,7 +48,7 @@ jobs:
         run: composer install --prefer-dist --no-progress --no-interaction
 
       - name: Run surface parity check
-        run: php tools/check-surface-parity.php --base "origin/${{ github.base_ref }}"
+        run: php tools/check-surface-parity.php
 
       - name: Annotate PR on failure
         if: failure()
