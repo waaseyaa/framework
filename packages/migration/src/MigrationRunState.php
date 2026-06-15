@@ -40,9 +40,10 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * ### Idempotency
  *
  * The PRIMARY KEY is `(migration_id, source_id_hash)`; the `recordX()`
- * helpers all use `INSERT ... ON CONFLICT DO UPDATE`, so re-running a
- * migration overwrites the prior per-record outcome. The table tracks the
- * LATEST outcome per record, not a history.
+ * helpers all do a portable lookup-then-update-or-insert (same strategy as
+ * {@see MigrationIdMap::upsert()}), so re-running a migration overwrites the
+ * prior per-record outcome. The table tracks the LATEST outcome per record,
+ * not a history.
  *
  * ### Clock-tie determinism (R-something from WP04)
  *
@@ -399,15 +400,17 @@ final class MigrationRunState
     }
 
     /**
-     * Emit the `INSERT ... ON CONFLICT DO UPDATE` for one row.
+     * Upsert one row via a portable lookup-then-update-or-insert, matching
+     * {@see MigrationIdMap::upsert()}.
      *
-     * SQLite + Postgres both support `ON CONFLICT (a, b) DO UPDATE` natively;
-     * MySQL would need a driver-specific rewrite. Today the runner stack
-     * targets SQLite for tests and Postgres/SQLite for production — when
-     * MySQL support lands, switch on `getDatabasePlatform()->getName()`.
-     *
-     * The single-statement upsert is fast enough for the per-record
-     * heartbeat (one round-trip per processed record) and trivially atomic.
+     * The previous implementation emitted `INSERT ... ON CONFLICT (a, b) DO
+     * UPDATE`, which is SQLite/Postgres-only syntax. That contradicted the
+     * schema layer's portability contract ({@see Schema\MigrationRunStateSchema}
+     * advertises DDL that "works on SQLite, MySQL, Postgres without driver
+     * branching"): the table is MySQL-portable but the write was not. The
+     * query-builder path below works on every driver the schema targets with
+     * no dialect branching. Callers wrap the per-record heartbeat in their own
+     * transaction, so the two-statement existence check is consistent.
      */
     private function upsert(
         string $migrationId,
@@ -452,35 +455,46 @@ final class MigrationRunState
             'position' => $position,
         ]);
 
-        $sql = \sprintf(
-            'INSERT INTO %s ('
-            . 'migration_id, source_id_hash, run_id, item_status, '
-            . 'error_code, error_message, position, updated_at'
-            . ') VALUES (?, ?, ?, ?, ?, ?, ?, ?) '
-            . 'ON CONFLICT (migration_id, source_id_hash) DO UPDATE SET '
-            . 'run_id = excluded.run_id, '
-            . 'item_status = excluded.item_status, '
-            . 'error_code = excluded.error_code, '
-            . 'error_message = excluded.error_message, '
-            . 'position = excluded.position, '
-            . 'updated_at = excluded.updated_at',
-            self::TABLE,
-        );
+        $exists = $this->lookupItem($migrationId, $sourceIdHash) !== null;
 
-        // `query()` consumes the result iterable for SELECTs but is the
-        // canonical raw-SQL escape hatch on `DatabaseInterface`. The DDL
-        // does not return rows; we discard the iterable by iterating it.
-        foreach ($this->database->query($sql, [
-            $migrationId,
-            $sourceIdHash,
-            $runId,
-            $itemStatus,
-            $errorCode,
-            $errorMessage,
-            $position,
-            $updatedAt,
-        ]) as $_) {
-            // drain — INSERTs do not yield rows on SQLite/Postgres.
+        if ($exists) {
+            $this->database->update(self::TABLE)
+                ->fields([
+                    'run_id' => $runId,
+                    'item_status' => $itemStatus,
+                    'error_code' => $errorCode,
+                    'error_message' => $errorMessage,
+                    'position' => $position,
+                    'updated_at' => $updatedAt,
+                ])
+                ->condition('migration_id', $migrationId)
+                ->condition('source_id_hash', $sourceIdHash)
+                ->execute();
+
+            return;
         }
+
+        $this->database->insert(self::TABLE)
+            ->fields([
+                'migration_id',
+                'source_id_hash',
+                'run_id',
+                'item_status',
+                'error_code',
+                'error_message',
+                'position',
+                'updated_at',
+            ])
+            ->values([
+                'migration_id' => $migrationId,
+                'source_id_hash' => $sourceIdHash,
+                'run_id' => $runId,
+                'item_status' => $itemStatus,
+                'error_code' => $errorCode,
+                'error_message' => $errorMessage,
+                'position' => $position,
+                'updated_at' => $updatedAt,
+            ])
+            ->execute();
     }
 }

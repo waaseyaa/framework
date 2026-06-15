@@ -21,6 +21,16 @@ final class Fts5SearchProvider implements SearchProviderInterface
     private const ALLOWED_SORT_COLUMNS = ['created_at', 'quality_score', 'entity_type', 'content_type'];
     private readonly LoggerInterface $logger;
 
+    /**
+     * Cached positive result of the FTS5 schema-existence probe. Since
+     * {@see Fts5SearchIndexer::ensureSchema()} is now lazy (created on first
+     * write, not at boot — audit D-35), a read on a never-written index must
+     * not hit "no such table". We cache only the `true` result (the schema
+     * never disappears once created) and re-probe while absent so a write that
+     * lands later in the same process is picked up.
+     */
+    private bool $schemaReady = false;
+
     public function __construct(
         private readonly DatabaseInterface $database,
         private readonly SearchIndexerInterface $indexer,
@@ -31,12 +41,35 @@ final class Fts5SearchProvider implements SearchProviderInterface
         $this->logger = $logger ?? new NullLogger();
     }
 
+    /**
+     * Cheap existence probe for the FTS5 schema, so a read on a never-written
+     * (lazily-initialised) index degrades to empty instead of erroring.
+     */
+    private function schemaExists(): bool
+    {
+        if ($this->schemaReady) {
+            return true;
+        }
+        $rows = iterator_to_array($this->database->query(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'search_index'",
+        ));
+
+        return $this->schemaReady = $rows !== [];
+    }
+
     public function search(SearchRequest $request): SearchResult
     {
         $startTime = hrtime(true);
 
         $query = $this->escapeQuery($request->query);
         if ($query === '') {
+            return SearchResult::empty();
+        }
+
+        // D-35: schema is created lazily on first write. A search against an
+        // index that has never been written returns empty rather than throwing
+        // "no such table: search_index".
+        if (!$this->schemaExists()) {
             return SearchResult::empty();
         }
 

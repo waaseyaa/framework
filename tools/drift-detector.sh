@@ -155,16 +155,36 @@ declare -A PATTERN_TO_SPEC=(
 
 declare -A AFFECTED_SPECS=()
 declare -A SPEC_CHANGES=()
+declare -A UNMAPPED_PKGS=()
+__DD_MATCHED=0
 
 record_spec() {
   local spec="$1" file="$2"
   AFFECTED_SPECS["$spec"]=1
   SPEC_CHANGES["$spec"]="${SPEC_CHANGES[$spec]:-}  $file"$'\n'
+  __DD_MATCHED=1
+}
+
+# Emit (to stderr, advisory-only — never changes the exit code) a notice that
+# contract-bearing source changed in package(s) absent from PATTERN_TO_SPEC and
+# the secondary case map. Without this, an unmapped package's source change
+# produces a silent pass — the coupling gate has a blind spot, not coverage.
+warn_unmapped() {
+  [ "${#UNMAPPED_PKGS[@]}" -eq 0 ] && return 0
+  {
+    echo "WARNING: contract-bearing source changed in package(s) not mapped to any spec:"
+    for pkg in $(printf '%s\n' "${!UNMAPPED_PKGS[@]}" | sort); do
+      echo "  - ${pkg} (no entry in PATTERN_TO_SPEC or the secondary case map)"
+    done
+    echo "  These changes were NOT coupling-checked. If the package has a spec,"
+    echo "  add it to PATTERN_TO_SPEC in tools/drift-detector.sh so drift is caught."
+  } >&2
 }
 
 while IFS= read -r file; do
   [ -z "$file" ] && continue
 
+  __DD_MATCHED=0
   for pattern in "${!PATTERN_TO_SPEC[@]}"; do
     if [[ "$file" == "$pattern"* ]]; then
       record_spec "${PATTERN_TO_SPEC[$pattern]}" "$file"
@@ -182,10 +202,19 @@ while IFS= read -r file; do
     packages/*/src/Middleware/*)
       record_spec "docs/specs/middleware-pipeline.md" "$file" ;;
   esac
+
+  # Track package source that matched no mapping at all, so the
+  # "no specs mapped" outcome is reported instead of silently passing.
+  if [ "$__DD_MATCHED" -eq 0 ] && [[ "$file" == packages/*/* ]]; then
+    pkg_dir="${file%%/src/*}"
+    pkg_dir="${pkg_dir%%/app/*}"
+    UNMAPPED_PKGS["${pkg_dir}/"]=1
+  fi
 done <<< "$SOURCE_FILES"
 
 if [ "${#AFFECTED_SPECS[@]}" -eq 0 ]; then
   echo "No specs mapped to the changed source."
+  warn_unmapped
   exit 0
 fi
 
@@ -235,6 +264,8 @@ for spec in $(printf '%s\n' "${!AFFECTED_SPECS[@]}" | sort); do
   echo "    Changed source:"
   echo -n "${SPEC_CHANGES[$spec]}" | sort -u | grep -v '^[[:space:]]*$' | head -10 | sed 's/^/    /'
 done
+
+warn_unmapped
 
 echo ""
 if [ $STALE_COUNT -gt 0 ]; then

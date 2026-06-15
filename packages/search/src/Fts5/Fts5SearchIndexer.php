@@ -13,12 +13,27 @@ final class Fts5SearchIndexer implements SearchIndexerInterface, BatchSearchInde
 {
     private const SCHEMA_VERSION = '1';
 
+    private bool $schemaEnsured = false;
+
     public function __construct(
         private readonly DatabaseInterface $database,
     ) {}
 
+    /**
+     * Create the FTS5 + metadata tables if they do not yet exist.
+     *
+     * Lazy and idempotent: the DDL runs once per process (a private marker
+     * guards re-entry) and only when a write actually needs the schema, never
+     * eagerly at kernel boot. Every write entry point calls this first, so the
+     * tables always exist before any row is inserted; the read path only ever
+     * returns rows a prior write created, so it needs no eager schema. (D-35)
+     */
     public function ensureSchema(): void
     {
+        if ($this->schemaEnsured) {
+            return;
+        }
+
         $this->database->query(<<<'SQL'
                 CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
                     document_id UNINDEXED,
@@ -46,10 +61,14 @@ final class Fts5SearchIndexer implements SearchIndexerInterface, BatchSearchInde
         $this->database->query('CREATE INDEX IF NOT EXISTS idx_search_meta_entity_type ON search_metadata(entity_type)');
         $this->database->query('CREATE INDEX IF NOT EXISTS idx_search_meta_content_type ON search_metadata(content_type)');
         $this->database->query('CREATE INDEX IF NOT EXISTS idx_search_meta_source ON search_metadata(source_name)');
+
+        $this->schemaEnsured = true;
     }
 
     public function index(SearchIndexableInterface $item): void
     {
+        $this->ensureSchema();
+
         $documentId = $item->getSearchDocumentId();
         $document = $item->toSearchDocument();
         $metadata = $item->toSearchMetadata();
@@ -89,6 +108,8 @@ final class Fts5SearchIndexer implements SearchIndexerInterface, BatchSearchInde
 
     public function reindexBatch(iterable $items): int
     {
+        $this->ensureSchema();
+
         $tx = $this->database->transaction();
         $count = 0;
 
@@ -135,6 +156,8 @@ final class Fts5SearchIndexer implements SearchIndexerInterface, BatchSearchInde
 
     public function remove(string $documentId): void
     {
+        $this->ensureSchema();
+
         $tx = $this->database->transaction();
 
         try {
@@ -148,6 +171,8 @@ final class Fts5SearchIndexer implements SearchIndexerInterface, BatchSearchInde
 
     public function removeAll(): void
     {
+        $this->ensureSchema();
+
         $tx = $this->database->transaction();
 
         try {

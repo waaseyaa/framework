@@ -227,6 +227,12 @@ final class RelationshipTraversalService
             return (int) $a->id() <=> (int) $b->id();
         });
 
+        // The limit is applied here in PHP, not as a SQL LIMIT, on purpose:
+        // it must run AFTER the temporal `at` filter (isActiveAt() coerces
+        // string dates via strtotime(), which has no portable SQL equivalent)
+        // and AFTER the (status, weight, start_date, rid) re-sort above, which
+        // differs from the query's `ORDER BY rid ASC`. Pushing LIMIT into the
+        // SQL would slice by rid order before those steps and return wrong rows.
         if ($limit !== null) {
             return array_slice($result, 0, $limit);
         }

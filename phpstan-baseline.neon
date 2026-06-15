@@ -37,12 +37,6 @@ parameters:
 			path: packages/ai-agent/src/Provider/AnthropicProvider.php
 
 		-
-			message: '#^Default value of the parameter \#3 \$usage \(array\{\}\) of method Waaseyaa\\AI\\Agent\\Provider\\MessageResponse\:\:__construct\(\) is incompatible with type array\{input_tokens\: int, output_tokens\: int, cache_creation_input_tokens\?\: int, cache_read_input_tokens\?\: int\}\.$#'
-			identifier: parameter.defaultValue
-			count: 1
-			path: packages/ai-agent/src/Provider/MessageResponse.php
-
-		-
 			message: '#^Short ternary operator is not allowed\. Use null coalesce operator if applicable or consider using long ternary\.$#'
 			identifier: ternary.shortNotAllowed
 			count: 1
@@ -1045,18 +1039,6 @@ parameters:
 			path: packages/foundation/src/Kernel/Bootstrap/KnowledgeExtensionBootstrapper.php
 
 		-
-			message: '#^Call to an undefined method Symfony\\Contracts\\EventDispatcher\\EventDispatcherInterface\:\:addListener\(\)\.$#'
-			identifier: method.notFound
-			count: 8
-			path: packages/foundation/src/Kernel/EventListenerRegistrar.php
-
-		-
-			message: '#^Short ternary operator is not allowed\. Use null coalesce operator if applicable or consider using long ternary\.$#'
-			identifier: ternary.shortNotAllowed
-			count: 2
-			path: packages/foundation/src/Kernel/EventListenerRegistrar.php
-
-		-
 			message: '#^Construct empty\(\) is not allowed\. Use more strict comparison\.$#'
 			identifier: empty.notAllowed
 			count: 1
@@ -1655,3 +1637,9 @@ parameters:
 			identifier: property.onlyWritten
 			count: 1
 			path: packages/workflows/src/EditorialVisibilityResolver.php
+
+		-
+			message: '#^Short ternary operator is not allowed\. Use null coalesce operator if applicable or consider using long ternary\.$#'
+			identifier: ternary.shortNotAllowed
+			count: 2
+			path: packages/foundation/src/Kernel/EventListenerRegistrar.php

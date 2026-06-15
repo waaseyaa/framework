@@ -24,6 +24,7 @@ use Waaseyaa\SSR\LanguageResolver;
 use Waaseyaa\SSR\SsrPageHandler;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Kernel\BuiltinRouteRegistrar;
+use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Kernel\EventListenerRegistrar;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\I18n\Language;
@@ -581,7 +582,7 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function discovery_cache_listener_uses_tag_invalidation_when_available(): void
     {
-        $dispatcher = new EventDispatcher();
+        $dispatcher = new SymfonyEventDispatcherAdapter();
         $registrar = new EventListenerRegistrar($dispatcher);
 
         $cache = new TestTagAwareCacheBackend();
@@ -602,7 +603,7 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function discovery_cache_listener_falls_back_to_delete_all_for_non_tag_backend(): void
     {
-        $dispatcher = new EventDispatcher();
+        $dispatcher = new SymfonyEventDispatcherAdapter();
         $registrar = new EventListenerRegistrar($dispatcher);
 
         $cache = new TestNonTagCacheBackend();
@@ -619,7 +620,7 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function mcp_read_cache_listener_uses_tag_invalidation_when_available(): void
     {
-        $dispatcher = new EventDispatcher();
+        $dispatcher = new SymfonyEventDispatcherAdapter();
         $registrar = new EventListenerRegistrar($dispatcher);
 
         $cache = new TestTagAwareCacheBackend();
@@ -639,7 +640,7 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function mcp_read_cache_listener_falls_back_to_delete_all_for_non_tag_backend(): void
     {
-        $dispatcher = new EventDispatcher();
+        $dispatcher = new SymfonyEventDispatcherAdapter();
         $registrar = new EventListenerRegistrar($dispatcher);
 
         $cache = new TestNonTagCacheBackend();

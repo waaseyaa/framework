@@ -18,7 +18,7 @@ final readonly class MessageResponse
     public function __construct(
         public array $content,
         public string $stopReason,
-        public array $usage = [],
+        public array $usage = ['input_tokens' => 0, 'output_tokens' => 0],
     ) {}
 
     /**
