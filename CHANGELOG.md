@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **CI: the `packaged-form` consumer fixture now resolves the current alpha instead of a frozen alpha.177 lock.** `tests/PackagedForm/skeleton/composer.json` pinned `waaseyaa/core` / `waaseyaa/groups` at `^v0.1.0-alpha.177` (33 trains stale, and the stray `v` inside the `^…` constraint is non-idiomatic), and the committed `composer.lock` froze the whole graph at alpha.177 — so the `composer install` in `ci.yml`'s `packaged-form` job exercised a 33-versions-old metapackage require-graph and gave the current `core`/`cms`/`full` resolution zero coverage. The constraints are corrected to `^0.1.0-alpha.210` and the lock is regenerated against the current published graph (all internal pins now alpha.210). Regenerating against alpha.210 surfaced that booting the kernel requires `waaseyaa/scheduler` — `AbstractKernel::bootScheduleEntries()` instantiates `Waaseyaa\Scheduler\Schedule` unconditionally (fail-closed) — which the fixture's `core` + `groups` set did not pull, so `waaseyaa/scheduler` is added to the fixture's `require`. The deeper gap that this exposed (the `core` metapackage itself omits `scheduler`, so a `core`-only consumer cannot boot a kernel) is a newly-discovered issue tracked in the roadmap triage, not fixed in this cut. The fixture lock also re-stales at each train until a CI step regenerates it automatically; that follow-up is likewise tracked in triage.
+
 ## [0.1.0-alpha.210] - 2026-06-14
 
 ### Added
