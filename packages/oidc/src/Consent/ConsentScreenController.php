@@ -11,6 +11,7 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Oidc\Authorize\AuthorizeController;
 use Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface;
 use Waaseyaa\Oidc\Userinfo\UserinfoClaimResolver;
+use Waaseyaa\User\Middleware\CsrfMiddleware;
 
 /**
  * GET/POST /oidc/consent — consent screen for OIDC authorization.
@@ -63,6 +64,19 @@ final readonly class ConsentScreenController
      */
     private function handleSubmit(Request $request, AccountInterface $account, array $pending): Response
     {
+        // Defense-in-depth CSRF check on the consent decision. The global CsrfMiddleware
+        // also enforces a valid `_csrf_token` for the /oidc/consent route (it is not
+        // csrf-exempt), but the consent decision is sensitive enough — an approve issues
+        // an authorization code — that the controller guards it itself, so the protection
+        // survives even if the route is ever marked csrf-exempt.
+        $submittedToken = $request->request->get('_csrf_token');
+        if (!is_string($submittedToken) || !hash_equals(CsrfMiddleware::token(), $submittedToken)) {
+            return $this->renderError(
+                'Your session could not be verified. Please return to the application and try again.',
+                403,
+            );
+        }
+
         $action = $request->request->get('action');
         $redirectUri = (string) ($pending['redirect_uri'] ?? '');
         $state = isset($pending['state']) && is_string($pending['state']) ? $pending['state'] : null;
@@ -110,6 +124,7 @@ final readonly class ConsentScreenController
     private function renderConsentScreen(array $pending): Response
     {
         $clientId = htmlspecialchars((string) ($pending['client_id'] ?? ''), \ENT_QUOTES);
+        $csrfToken = htmlspecialchars(CsrfMiddleware::token(), \ENT_QUOTES);
         $scopes = is_array($pending['scopes']) ? $pending['scopes'] : [];
 
         $scopeItems = '';
@@ -129,6 +144,7 @@ final readonly class ConsentScreenController
             <p>This application is requesting access to:</p>
             <ul>{$scopeItems}</ul>
             <form method="POST" action="/oidc/consent">
+                <input type="hidden" name="_csrf_token" value="{$csrfToken}">
                 <button type="submit" name="action" value="approve">Approve</button>
                 <button type="submit" name="action" value="deny">Deny</button>
             </form>
@@ -139,7 +155,7 @@ final readonly class ConsentScreenController
         return new Response($body, 200, ['Content-Type' => 'text/html; charset=utf-8']);
     }
 
-    private function renderError(string $message): Response
+    private function renderError(string $message, int $status = 400): Response
     {
         $escaped = htmlspecialchars($message, \ENT_QUOTES);
         $body = <<<HTML
@@ -150,7 +166,7 @@ final readonly class ConsentScreenController
             </html>
             HTML;
 
-        return new Response($body, 400, ['Content-Type' => 'text/html; charset=utf-8']);
+        return new Response($body, $status, ['Content-Type' => 'text/html; charset=utf-8']);
     }
 
     /**
