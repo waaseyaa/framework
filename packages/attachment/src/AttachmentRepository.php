@@ -14,6 +14,8 @@ use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
  * The only exception is {@see setActive()}, which issues two UPDATE statements
  * in a single transaction to atomically enforce the at-most-one-active
  * invariant (see data-model.md § 1 and research.md Q6).
+ *
+ * @api
  */
 final class AttachmentRepository
 {
