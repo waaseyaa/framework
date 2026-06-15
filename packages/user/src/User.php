@@ -60,6 +60,9 @@ final class User extends ContentEntityBase implements AccountInterface, Hydratab
     #[Field(label: 'Two-factor recovery code hashes', description: 'Argon2id-hashed recovery codes; null when 2FA is disabled.', settings: ['weight' => 51, 'internal' => true])]
     public ?array $two_factor_recovery_codes_hash = null;
 
+    #[Field(type: 'integer', label: 'Two-factor last-used step', description: 'Last consumed TOTP time step; blocks replay of a code within its validity window. null until the first successful TOTP verification.', settings: ['weight' => 52, 'internal' => true])]
+    public ?int $two_factor_last_used_step = null;
+
     /**
      * @param array<string, mixed> $values Initial entity values.
      * @param array<string, string> $entityKeys Explicit keys when reconstructing via {@see ContentEntityBase::duplicateInstance()}.
@@ -282,6 +285,22 @@ final class User extends ContentEntityBase implements AccountInterface, Hydratab
     public function setTwoFactorRecoveryCodesHash(?array $hashes): static
     {
         return $this->set('two_factor_recovery_codes_hash', $hashes);
+    }
+
+    /**
+     * The last TOTP time step consumed by a successful verification, or null
+     * if none yet. Used to reject replay of a code within its validity window.
+     */
+    public function getTwoFactorLastUsedStep(): ?int
+    {
+        $value = $this->get('two_factor_last_used_step');
+
+        return is_numeric($value) ? (int) $value : null;
+    }
+
+    public function setTwoFactorLastUsedStep(?int $step): static
+    {
+        return $this->set('two_factor_last_used_step', $step);
     }
 
     // -----------------------------------------------------------------

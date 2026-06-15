@@ -112,8 +112,11 @@ final class Fts5SearchProvider implements SearchProviderInterface
             $this->logger->warning('Search index contains stale documents. Run search:reindex to rebuild.');
         }
 
-        // Facets — run on the full filtered result set (not just the page)
-        $facets = $this->buildFacets($whereSQL, $params);
+        // Facets — run on the full filtered result set (not just the page).
+        // Gated behind SearchRequest::$includeFacets (default true) so callers
+        // that never render facets skip three unbounded GROUP BY scans, one of
+        // which is a json_each(m.topics) cross-join (audit D-36).
+        $facets = $request->includeFacets ? $this->buildFacets($whereSQL, $params) : [];
 
         $tookMs = (int) ((hrtime(true) - $startTime) / 1_000_000);
 

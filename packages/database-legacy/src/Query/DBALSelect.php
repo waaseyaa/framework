@@ -89,6 +89,13 @@ final class DBALSelect implements SelectInterface
             $p2 = $this->qb->createNamedParameter($value[1], self::inferType($value[1]));
             $this->qb->andWhere($field . ' BETWEEN ' . $p1 . ' AND ' . $p2);
         } elseif ($operator === 'LIKE' || $operator === 'NOT LIKE') {
+            // $value is treated as a complete LIKE pattern (caller owns wildcards).
+            // Bind it verbatim and declare backslash as the escape character so a
+            // caller's str_replace(['%','_'],['\\%','\\_'],$input) actually escapes
+            // literal wildcards. We deliberately do NOT escape $value here: doing so
+            // would forbid wildcards entirely and double-escape callers that already
+            // escape (e.g. SqlColumnQueryTranslator CONTAINS/STARTS_WITH). See
+            // SelectInterface::condition() for the contract.
             $placeholder = $this->qb->createNamedParameter($value);
             $this->qb->andWhere($field . ' ' . $operator . ' ' . $placeholder . " ESCAPE '\\'");
         } else {

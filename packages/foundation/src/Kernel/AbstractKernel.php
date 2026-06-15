@@ -900,7 +900,17 @@ abstract class AbstractKernel
                         $this->cache[$id] = $instance;
 
                         return $instance;
-                    } catch (\Throwable) {
+                    } catch (\RuntimeException $e) {
+                        // Only a genuinely *unbound* id falls through to the next
+                        // provider / reflection auto-wiring. resolve() signals that
+                        // case with the canonical "No binding registered for …"
+                        // message (ServiceProvider::resolve()). Any other failure is
+                        // a real construction error (e.g. a factory dependency that
+                        // could not be built) — re-throw it so the true cause is not
+                        // masked as a misleading "No binding" NotFoundException.
+                        if (!str_starts_with($e->getMessage(), 'No binding registered for ')) {
+                            throw $e;
+                        }
                         // try next
                     }
                 }

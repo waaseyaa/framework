@@ -99,6 +99,36 @@ final class PublicSurfaceVerificationTest extends TestCase
         );
     }
 
+    #[Test]
+    public function surface_map_has_no_duplicate_keys(): void
+    {
+        // The map is loaded elsewhere via `require`, which silently collapses
+        // duplicate array keys (last value wins). To catch a hand-edit that
+        // re-lists an FQCN, parse the file SOURCE and assert key uniqueness.
+        $source = file_get_contents(self::SURFACE_MAP_PATH);
+        self::assertNotFalse($source, 'Could not read surface map source.');
+
+        preg_match_all("/^\\s*'([^']+)'\\s*=>/m", $source, $matches);
+        $keys = $matches[1];
+
+        $duplicates = [];
+        foreach (array_count_values($keys) as $fqn => $count) {
+            if ($count > 1) {
+                $duplicates[] = sprintf('%s (x%d)', $fqn, $count);
+            }
+        }
+
+        self::assertSame(
+            [],
+            $duplicates,
+            sprintf(
+                "%d duplicate key(s) in surface map (silently deduped by require):\n%s",
+                count($duplicates),
+                implode("\n", $duplicates),
+            ),
+        );
+    }
+
     /**
      * @return list<class-string>
      */

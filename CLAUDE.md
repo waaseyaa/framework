@@ -311,7 +311,7 @@ Cross-cutting rules that affect work anywhere in the framework. Subsystem-specif
 
 **Database / DBAL:**
 - **`DatabaseInterface` vs `DBALDatabase`**: `DatabaseInterface` does NOT have `getConnection()`. If the DBAL `Connection` is needed, type-hint `DBALDatabase` directly. Prefer the query builder (`select()`, `insert()`, `delete()`) over raw DBAL when possible.
-- **DBAL quirks**: `fetchAssociative()` returns associative arrays (equivalent to `FETCH_ASSOC`); empty `IN`/`NOT IN` (`condition('id', [], 'IN')`) silently returns no results — guard with empty check; LIKE/NOT LIKE patterns must escape `%` and `_` in user input with `str_replace(['%', '_'], ['\\%', '\\_'], $value)` (`DBALSelect` appends `ESCAPE '\'`).
+- **DBAL quirks**: `fetchAssociative()` returns associative arrays (equivalent to `FETCH_ASSOC`); empty `IN`/`NOT IN` (`condition('id', [], 'IN')`) silently returns no results — guard with empty check; for LIKE/NOT LIKE the caller passes a complete pattern and owns wildcards — escape literal `%`/`_` in untrusted input with `str_replace(['%', '_'], ['\\%', '\\_'], $value)`. This is by design, not a footgun: `DBALSelect::condition()` binds the value as a parameter and appends `ESCAPE '\'` precisely so that backslash-escaping works; it intentionally does NOT auto-escape `$value` (that would forbid wildcards and double-escape callers like `SqlColumnQueryTranslator` CONTAINS/STARTS_WITH).
 - **`database-legacy` namespace is `Waaseyaa\Database`**: Despite the directory being `packages/database-legacy/`, the PHP namespace is `Waaseyaa\Database`, NOT `Waaseyaa\DatabaseLegacy`. Check `composer.json` autoload for the canonical namespace. See `docs/adr/007-database-legacy-package-naming.md`.
 
 **Layers, packages, namespaces:**

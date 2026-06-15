@@ -477,6 +477,7 @@
         "phpstan": "phpstan analyse --memory-limit=512M",
         "check-phpstan-paths": "bash bin/check-phpstan-paths",
         "check-admin-coercion-patterns": "bash bin/check-admin-coercion-patterns",
+        "check-admin-coercion-self-test": "bash bin/check-admin-coercion-patterns --self-test",
         "check-dead-code": "bash bin/check-dead-code",
         "check-getquery-bindings": "php bin/check-getquery-bindings",
         "test": "phpunit --no-coverage",
@@ -492,12 +493,14 @@
             "@check-dead-code",
             "@check-getquery-bindings",
             "@check-admin-coercion-patterns",
+            "@check-admin-coercion-self-test",
             "@check-openapi",
             "@test"
         ]
     },
     "scripts-descriptions": {
         "check-admin-coercion-patterns": "Prevent regression of the useAdminConfig() migration (mission M-F). Fails when raw string-compare coercion patterns (=== '1', === '0') appear in packages/admin/app/**/*.{ts,vue} outside of configCoercion.ts, test files, or lines marked with // allow-coercion: <reason>.",
+        "check-admin-coercion-self-test": "Meta-test for the admin coercion gate (audit D-5). Runs bin/check-admin-coercion-patterns --self-test: plants a synthetic violator and asserts the scanner exits non-zero, proving the gate is not a silent no-op. Wired into verify and the ci/verify-gates job so the self-test actually runs in CI.",
         "check-dead-code": "Fail-on-new dead-code gate (Phase 4 of the dead-code cleanup audit). Runs phpstan-dead-code.neon with shipmonk's detector; pre-existing baseline entries are suppressed, only NEW findings fail. See docs/audits/2026-05-17-dead-code-baseline-audit.md and bin/check-dead-code header for how to handle a new finding.",
         "check-getquery-bindings": "Fail-on-new gate for unbound getQuery()->execute() callsites. Baseline at tools/getquery-bindings-baseline.txt. New callsites fail CI; add to baseline with mandatory exemption comment if legitimately exempt. See CLAUDE.md \u00a7 CI gates.",
         "check-openapi": "Spectral-lint the hand-maintained agent-run sub-spec packages/api/openapi.yaml (3 SSE endpoints + pending_approval shape) for YAML/OpenAPI structural validity. Syntax/shape lint of that one file only — does NOT check route parity against live routes. Requires Node.js + npx; exits 0 with SKIP notice when npx is unavailable (CI-safe). Wired as a hard gate in verify per NFR-004 (WP02, mission agent-executor-v1-1-audit-followups-01KS3S5M).",

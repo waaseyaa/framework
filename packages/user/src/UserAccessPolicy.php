@@ -43,7 +43,7 @@ final class UserAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
      *
      * @var list<string>
      */
-    private const array CREDENTIAL_FIELDS = ['pass', 'two_factor_secret', 'two_factor_recovery_codes_hash'];
+    private const array CREDENTIAL_FIELDS = ['pass', 'two_factor_secret', 'two_factor_recovery_codes_hash', 'two_factor_last_used_step'];
 
     public function appliesTo(string $entityTypeId): bool
     {

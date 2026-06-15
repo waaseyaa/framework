@@ -34,7 +34,12 @@ final class MarkdownDirectorySource
             return;
         }
 
-        $pattern = rtrim($this->directory, '/\\') . DIRECTORY_SEPARATOR . '*.md';
+        $root = realpath($this->directory);
+        if ($root === false) {
+            return;
+        }
+
+        $pattern = $root . DIRECTORY_SEPARATOR . '*.md';
         $files = glob($pattern);
         if ($files === false) {
             return;
@@ -42,7 +47,16 @@ final class MarkdownDirectorySource
         sort($files);
 
         foreach ($files as $file) {
-            $contents = file_get_contents($file);
+            // Containment guard: a globbed *.md may be a symlink pointing outside
+            // the configured root. realpath-resolve it and require it to live
+            // under $root before reading, so the indexer never follows a symlink
+            // out of the corpus root.
+            $resolved = realpath($file);
+            if ($resolved === false || !str_starts_with($resolved, $root . DIRECTORY_SEPARATOR)) {
+                continue;
+            }
+
+            $contents = file_get_contents($resolved);
             if ($contents === false) {
                 continue;
             }

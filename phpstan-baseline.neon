@@ -1093,30 +1093,6 @@ parameters:
 			path: packages/foundation/src/Result/DomainError.php
 
 		-
-			message: '#^Method Waaseyaa\\Foundation\\Result\\Result\:\:map\(\) has invalid return type Waaseyaa\\Foundation\\Result\\U\.$#'
-			identifier: class.notFound
-			count: 1
-			path: packages/foundation/src/Result/Result.php
-
-		-
-			message: '#^Method Waaseyaa\\Foundation\\Result\\Result\:\:map\(\) should return Waaseyaa\\Foundation\\Result\\Result\<Waaseyaa\\Foundation\\Result\\U, E\> but returns Waaseyaa\\Foundation\\Result\\Result\<T, never\>\.$#'
-			identifier: return.type
-			count: 1
-			path: packages/foundation/src/Result/Result.php
-
-		-
-			message: '#^Method Waaseyaa\\Foundation\\Result\\Result\:\:mapError\(\) has invalid return type Waaseyaa\\Foundation\\Result\\F\.$#'
-			identifier: class.notFound
-			count: 1
-			path: packages/foundation/src/Result/Result.php
-
-		-
-			message: '#^Method Waaseyaa\\Foundation\\Result\\Result\:\:mapError\(\) should return Waaseyaa\\Foundation\\Result\\Result\<T, Waaseyaa\\Foundation\\Result\\F\> but returns Waaseyaa\\Foundation\\Result\\Result\<never, E\>\.$#'
-			identifier: return.type
-			count: 1
-			path: packages/foundation/src/Result/Result.php
-
-		-
 			message: '#^Call to an undefined method Waaseyaa\\Foundation\\ServiceProvider\\ServiceProviderInterface\:\:getTags\(\)\.$#'
 			identifier: method.notFound
 			count: 1

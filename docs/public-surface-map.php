@@ -210,8 +210,8 @@ return [
     // WP06 — definition validator
     'Waaseyaa\EntityStorage\Query\DefinitionValidator' => 'public',
     // WP07 — revisionable entities (entity package)
+    // ('Waaseyaa\Entity\RevisionableEntityTrait' is listed once in the Layer-1 public block above.)
     'Waaseyaa\Entity\RevisionableEntityInterface' => 'public',
-    'Waaseyaa\Entity\RevisionableEntityTrait' => 'public',
     'Waaseyaa\Entity\RevisionMetadata' => 'public',
     'Waaseyaa\EntityStorage\Schema\RevisionTableBuilder' => 'public',
     // WP08 — revisionable storage
@@ -477,7 +477,7 @@ return [
     'Waaseyaa\AdminSurface\Action\SurfaceActionHandlerInterface' => 'public',
     'Waaseyaa\AdminSurface\Query\SurfaceFilterOperator' => 'public',
     'Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost' => 'public',
-    'Waaseyaa\Bimaaji\Graph\GraphSectionProviderInterface' => 'public',
+    // ('Waaseyaa\Bimaaji\Graph\GraphSectionProviderInterface' is listed once in the Layer-5 public block above.)
     'Waaseyaa\Mcp\Bridge\ToolExecutorInterface' => 'public',
     'Waaseyaa\Mcp\Bridge\ToolRegistryInterface' => 'public',
     'Waaseyaa\Mcp\Auth\McpAuthInterface' => 'public',

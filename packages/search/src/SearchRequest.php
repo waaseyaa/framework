@@ -11,6 +11,7 @@ final readonly class SearchRequest
         public SearchFilters $filters = new SearchFilters(),
         public int $page = 1,
         public int $pageSize = 20,
+        public bool $includeFacets = true,
     ) {}
 
     public function cacheKey(): string
@@ -20,6 +21,7 @@ final readonly class SearchRequest
             $this->filters,
             $this->page,
             $this->pageSize,
+            $this->includeFacets,
         ]));
     }
 }

@@ -50,20 +50,32 @@ final class TwoFactorManager
      */
     public function verifyCode(string $secret, string $code): bool
     {
+        return $this->verifyCodeStep($secret, $code) !== null;
+    }
+
+    /**
+     * Verify a TOTP code and return the absolute time step it matched, or
+     * null on no match. The returned step is monotonic and lets callers
+     * enforce single-use within the validity window (replay protection):
+     * reject any code whose matched step is <= the last step already used.
+     */
+    public function verifyCodeStep(string $secret, string $code): ?int
+    {
         if ($code === '' || strlen($code) !== self::CODE_LENGTH) {
-            return false;
+            return null;
         }
 
         $timeStep = $this->currentTimeStep();
 
         for ($i = -self::WINDOW; $i <= self::WINDOW; $i++) {
-            $expectedCode = $this->generateCode($secret, $timeStep + $i);
+            $candidate = $timeStep + $i;
+            $expectedCode = $this->generateCode($secret, $candidate);
             if (hash_equals($expectedCode, $code)) {
-                return true;
+                return $candidate;
             }
         }
 
-        return false;
+        return null;
     }
 
     /**
