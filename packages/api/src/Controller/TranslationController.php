@@ -159,6 +159,20 @@ final class TranslationController
 
         $translation = $entity->addTranslation($langcode);
         if ($translation instanceof FieldableInterface) {
+            // Field-level edit gate (B-6): reject any submitted field the actor
+            // may not edit BEFORE mutating, mirroring JsonApiController. Without
+            // it, a caller with create access could set a FieldAccessPolicy-
+            // forbidden field (e.g. a privileged field) via the translation path.
+            $account = $request->attributes->get('_account');
+            if ($account instanceof AccountInterface) {
+                foreach (array_keys($attributes) as $field) {
+                    if ($this->accessHandler->checkFieldAccess($entity, (string) $field, 'edit', $account)->isForbidden()) {
+                        return $this->errorDocument(
+                            JsonApiError::forbidden("No edit access to field '{$field}'."),
+                        );
+                    }
+                }
+            }
             foreach ($attributes as $field => $value) {
                 $translation->set($field, $value);
             }
@@ -214,6 +228,20 @@ final class TranslationController
 
         $translation = $entity->getTranslation($langcode);
         if ($translation instanceof FieldableInterface) {
+            // Field-level edit gate (B-6): reject any submitted field the actor
+            // may not edit BEFORE mutating, mirroring JsonApiController. Without
+            // it, a caller with update access could set a FieldAccessPolicy-
+            // forbidden field (e.g. a privileged field) via the translation path.
+            $account = $request->attributes->get('_account');
+            if ($account instanceof AccountInterface) {
+                foreach (array_keys($attributes) as $field) {
+                    if ($this->accessHandler->checkFieldAccess($entity, (string) $field, 'edit', $account)->isForbidden()) {
+                        return $this->errorDocument(
+                            JsonApiError::forbidden("No edit access to field '{$field}'."),
+                        );
+                    }
+                }
+            }
             foreach ($attributes as $field => $value) {
                 $translation->set($field, $value);
             }

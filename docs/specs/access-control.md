@@ -466,6 +466,8 @@ Layer 2 uses **deny-by-default** semantics (`$result->isAllowed()`); layer 4 use
 
 The `view`-operation symmetry between layers 2 and 3 is deliberate: a row's visibility in a list and its visibility on a detail page are governed by the same policy code, so consumers cannot construct a query that returns rows they could not otherwise load individually.
 
+- **Regression-pinned (audit C-6):** the intentional `Neutral`-admits-row invariant at this layer is locked by `packages/entity-storage/tests/Unit/SqlEntityQueryNeutralAdmitsRowTest.php`. Audit C-6 originally recommended flipping the survivor test to `isAllowed()` (deny-by-default); that was **reclassified as a regression** — it would not improve security (every serializing consumer re-filters via `isAllowed()`) but *would* hide legitimately-visible `Neutral` rows from consumers that read query results directly without a re-filter (e.g. the genealogy pedigree/family services). A future change of the survivor test fails that pinning test, forcing a spec change here first.
+
 ## Authorization Pipeline
 
 **Entry point:** `public/index.php`
