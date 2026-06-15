@@ -7,11 +7,11 @@ namespace Waaseyaa\Tests\Integration\PhaseBroadcasting;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
+use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Kernel\EventListenerRegistrar;
 use Waaseyaa\User\User;
 
@@ -29,13 +29,13 @@ final class BroadcastingE2ETest extends TestCase
 {
     private DBALDatabase $database;
     private BroadcastStorage $storage;
-    private EventDispatcher $dispatcher;
+    private SymfonyEventDispatcherAdapter $dispatcher;
 
     protected function setUp(): void
     {
         $this->database = DBALDatabase::createSqlite();
         $this->storage = new BroadcastStorage($this->database);
-        $this->dispatcher = new EventDispatcher();
+        $this->dispatcher = new SymfonyEventDispatcherAdapter();
         $registrar = new EventListenerRegistrar($this->dispatcher);
         $registrar->registerBroadcastListeners($this->storage);
     }
