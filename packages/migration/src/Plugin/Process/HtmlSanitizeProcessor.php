@@ -24,7 +24,10 @@ use Waaseyaa\Migration\Plugin\ReservedPluginIds;
  *   - Otherwise fall back to a DOMDocument-based allowlist filter. This path
  *     is correct for well-formed inputs and tolerant of malformed ones
  *     (libxml errors are suppressed; the loader continues on the best-effort
- *     parse).
+ *     parse). Allowed URL attributes (`href`, `src`, …) are scheme-checked:
+ *     only `http`/`https`/`mailto`/`tel`/`ftp` and scheme-less (relative) URLs
+ *     survive — `javascript:`, `data:`, `vbscript:`, etc. are stripped, so the
+ *     allowlist cannot pass a dangerous URI value through under a safe name.
  *
  * Both paths preserve `<a href="…">` and `<img src="…">` round-trips when the
  * default allowlists are in effect.
@@ -55,6 +58,24 @@ final readonly class HtmlSanitizeProcessor implements ProcessPluginInterface
         'a' => ['href', 'title'],
         'img' => ['src', 'alt', 'title'],
     ];
+
+    /**
+     * Attribute names whose value is a URL and must be scheme-checked. An allowed attribute
+     * here is stripped when its value resolves to a non-safe scheme — the name allowlist alone
+     * does not catch `<a href="javascript:…">` / `<img src="data:text/html,…">` (B-4).
+     *
+     * @var list<string>
+     */
+    private const URL_ATTRIBUTES = ['href', 'src', 'poster', 'cite', 'action', 'formaction', 'background', 'longdesc', 'data'];
+
+    /**
+     * URL schemes permitted on URL-bearing attributes. Anything else (`javascript`, `data`,
+     * `vbscript`, `file`, …) is rejected; scheme-less URLs (relative, fragment, protocol-relative)
+     * are permitted.
+     *
+     * @var list<string>
+     */
+    private const SAFE_URL_SCHEMES = ['http', 'https', 'mailto', 'tel', 'ftp'];
 
     /**
      * @param string $sourceField Source-record field whose HTML payload is sanitized. Non-empty.
@@ -249,8 +270,37 @@ final readonly class HtmlSanitizeProcessor implements ProcessPluginInterface
         foreach ($names as $name) {
             if (!in_array($name, $allowed, true)) {
                 $element->removeAttribute($name);
+                continue;
+            }
+
+            // The attribute is allowed, but an allowed URL attribute can still carry a
+            // dangerous value: `<a href="javascript:…">` / `<img src="data:text/html,…">`
+            // both keep the attribute name. Strip the attribute when its URL scheme is not
+            // on the safe list (B-4 — stored XSS in migrated content).
+            if (in_array(strtolower($name), self::URL_ATTRIBUTES, true)
+                && $this->hasUnsafeUrlScheme($element->getAttribute($name))) {
+                $element->removeAttribute($name);
             }
         }
+    }
+
+    /**
+     * Whether a URL attribute value carries a scheme that is not on the safe allowlist.
+     *
+     * Whitespace and control characters are stripped before the scheme is read because
+     * browsers ignore them when resolving it (e.g. "java\tscript:" still runs as javascript),
+     * and the comparison is case-insensitive. Scheme-less values (relative paths, fragments,
+     * "//host") have no scheme and are treated as safe.
+     */
+    private function hasUnsafeUrlScheme(string $value): bool
+    {
+        $normalized = strtolower((string) preg_replace('/[\s\x00-\x1F\x7F]+/', '', $value));
+
+        if (preg_match('/^([a-z][a-z0-9+.\-]*):/', $normalized, $matches) !== 1) {
+            return false;
+        }
+
+        return !in_array($matches[1], self::SAFE_URL_SCHEMES, true);
     }
 
     private function replaceWithTextContent(\DOMElement $element): void
