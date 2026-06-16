@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.216] - 2026-06-16
+
 ### Changed
 
 - **`genealogy` is no longer bundled into the `waaseyaa/framework` install (charter DIR-004).** `waaseyaa/genealogy` is a distribution extension — opt-in by name, not framework substrate — but root `composer.json` listed it in `require` (`self.version`), so every `waaseyaa/framework` consumer (and the dev skeleton) transitively bundled it, making it a de-facto primitive (the manifestation of audit C-4 for this package). It moves to root `require-dev` (still developed and tested in the monorepo, still split-mirrored to Packagist) and is now marked `extra.waaseyaa.distributionExtension: true`. Consumers that want it add `composer require waaseyaa/genealogy` explicitly; the `core`/`cms`/`full` metapackages already excluded it. Verified none of the live consumer sites (waaseyaa.org, oiatc.ca, fnprocure.ca) use genealogy at runtime — they only carried it transitively.
