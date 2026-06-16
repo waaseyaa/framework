@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **CLI snapshot tests pass on Windows — `*.stdout` / `*.stderr` / `*.exit` fixtures pinned to `eol=lf` (audit "Linux-only test suite").** With `core.autocrlf=true` the CLI snapshot fixtures (byte-for-byte captures of command stdout/stderr/exit) were checked out CRLF on Windows while the captured output is LF, so ~72 `CliTester` snapshot assertions failed on line endings alone (the index already stored them as LF). `.gitattributes` now forces `text eol=lf -whitespace` on those extensions; with the fixtures re-normalized, all 72 `tests/Integration/Snapshot` tests pass on Windows.
+
+### Documentation
+
+- **CLAUDE.md: documented the Linux-first test contract.** Run the split `--testsuite Unit` / `--testsuite Integration` suites — a bare `phpunit` OOMs at PHP's default 128 MB `memory_limit` as a single process (CI runs them as separate Linux jobs). The remaining Windows test failures are POSIX-only by design (release-tooling tests assume `bash` / `proc_open` / POSIX file locks / symlinks; bin-script and OIDC-RSA tests assume a POSIX toolchain) and should be confirmed against a clean Linux run before being treated as a regression.
+
 ## [0.1.0-alpha.217] - 2026-06-16
 
 ### Documentation

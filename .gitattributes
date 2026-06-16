@@ -45,6 +45,15 @@
 # PHPStan's baseline uses tabs instead of spaces.
 core/.phpstan-baseline.php text eol=lf whitespace=blank-at-eol,-blank-at-eof,-space-before-tab,tabwidth=2 diff=php linguist-language=php
 
+# CLI snapshot fixtures: exact byte-for-byte captures of command stdout / stderr /
+# exit code. Force LF on checkout so core.autocrlf=true on a Windows contributor box
+# cannot rewrite them to CRLF (which made ~72 CliTester snapshot assertions fail —
+# the captured output is LF but the fixture on disk was CRLF). `-whitespace` disables
+# whitespace munging so legitimate trailing whitespace in captured output is preserved.
+*.stdout  text eol=lf -whitespace
+*.stderr  text eol=lf -whitespace
+*.exit    text eol=lf -whitespace
+
 # Define binary file attributes.
 # - Do not treat them as text.
 # - Include binary diff in patches instead of "binary files differ."
