@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.217] - 2026-06-16
+
 ### Documentation
 
 - **`access-control.md`: Layer-3 (entity-query) access semantics corrected to the production reality (audit C-6, reclassified).** The spec described the query layer as an active deny-by-default-ish filter and pinned a "flipping to `isAllowed()` would hide genealogy `Neutral` rows" rationale — both inaccurate. In production `SqlEntityStorage` is constructed **without** the composed access handler (`EntityStorageFactory` and `AbstractKernel` pass `accessHandler: null`; the WP03 wiring was deferred), so `SqlEntityQuery` runs against an empty handler and every row is `Neutral` — the query layer is an **unfiltered candidate window**. Deny-by-default is enforced at Layer-2 / the serializers (which *are* wired with the composed handler), for both items and totals (`JsonApiController::accessFilteredTotal`, `GraphQlAccessGuard`, ai-vector, admin-surface, ai-tools), so the pass-through leaks nothing. C-6's recommended one-line flip is therefore both **unsafe** (it would empty every access-checked query, since the handler is unwired) and **unnecessary** (no leak through any consumer); the genealogy rationale was wrong (authenticated edges resolve to `Allowed` via `orIf`). A genuine query-layer deny-by-default requires completing the deferred WP03 wiring plus allowing policies for the six `Neutral`-reliant entity types — tracked, not a one-liner. The production pass-through is now pinned by `SqlEntityQueryNeutralAdmitsRowTest::productionStorageWithoutHandlerIsPassThrough`, and the test docblock + spec carry the corrected rationale.
