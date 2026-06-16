@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.218] - 2026-06-16
+
 ### Fixed
 
 - **CLI snapshot tests pass on Windows — `*.stdout` / `*.stderr` / `*.exit` fixtures pinned to `eol=lf` (audit "Linux-only test suite").** With `core.autocrlf=true` the CLI snapshot fixtures (byte-for-byte captures of command stdout/stderr/exit) were checked out CRLF on Windows while the captured output is LF, so ~72 `CliTester` snapshot assertions failed on line endings alone (the index already stored them as LF). `.gitattributes` now forces `text eol=lf -whitespace` on those extensions; with the fixtures re-normalized, all 72 `tests/Integration/Snapshot` tests pass on Windows.
