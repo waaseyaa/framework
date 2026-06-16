@@ -51,6 +51,7 @@
     },
     "extra": {
         "waaseyaa": {
+            "distributionExtension": true,
             "providers": [
                 "Waaseyaa\\Genealogy\\GenealogyServiceProvider"
             ]

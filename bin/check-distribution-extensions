@@ -1,0 +1,71 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * check-distribution-extensions — enforce the framework-vs-distribution boundary (charter DIR-004).
+ *
+ * A "distribution extension" is a package that opts in via
+ *
+ *     "extra": { "waaseyaa": { "distributionExtension": true } }
+ *
+ * in its own packages/<name>/composer.json. Such packages split-mirror to Packagist and are
+ * installed by consumers BY NAME (`composer require waaseyaa/<ext>`). They must NEVER be a hard
+ * runtime dependency of the framework bundle: a distribution extension must NOT appear in the
+ * ROOT composer.json `require` section. It MAY live in root `require-dev` so the monorepo still
+ * develops and tests it, and it stays a path repository — those do not ship to consumers.
+ *
+ * Why this gate exists: the root composer.json is published verbatim to Packagist as
+ * `waaseyaa/framework`, and the dev skeleton requires `waaseyaa/framework`. So a single
+ * `"waaseyaa/<ext>": "self.version"` line in root `require` silently bundles that extension into
+ * EVERY framework consumer (and the skeleton), making it a de-facto primitive — exactly the
+ * regression this gate prevents (genealogy was bundled this way until alpha.216).
+ *
+ * Exit 0 = clean. Exit 1 = a distribution extension leaked into the framework bundle's `require`.
+ */
+
+$root = dirname(__DIR__);
+
+$rootManifest = json_decode((string) file_get_contents($root . '/composer.json'), true, 512, JSON_THROW_ON_ERROR);
+$rootRequire = (array) ($rootManifest['require'] ?? []);
+
+$extensions = [];
+$violations = [];
+
+foreach (glob($root . '/packages/*/composer.json') ?: [] as $manifestPath) {
+    $manifest = json_decode((string) file_get_contents($manifestPath), true, 512, JSON_THROW_ON_ERROR);
+
+    $isExtension = ($manifest['extra']['waaseyaa']['distributionExtension'] ?? false) === true;
+    if (!$isExtension) {
+        continue;
+    }
+
+    $name = (string) ($manifest['name'] ?? basename(dirname($manifestPath)));
+    $extensions[] = $name;
+
+    if (array_key_exists($name, $rootRequire)) {
+        $violations[] = $name;
+    }
+}
+
+if ($extensions === []) {
+    fwrite(STDOUT, "check-distribution-extensions: no packages flagged extra.waaseyaa.distributionExtension — nothing to enforce.\n");
+    exit(0);
+}
+
+if ($violations !== []) {
+    fwrite(STDERR, "check-distribution-extensions: FAIL — distribution extension(s) in root composer.json `require`:\n");
+    foreach ($violations as $name) {
+        fwrite(STDERR, "  - {$name}  →  move to root `require-dev`; consumers opt in via `composer require {$name}`\n");
+    }
+    fwrite(STDERR, "\nDistribution extensions (charter DIR-004) must not be hard runtime dependencies of waaseyaa/framework.\n");
+    exit(1);
+}
+
+fwrite(STDOUT, sprintf(
+    "check-distribution-extensions: OK — %d distribution extension(s) [%s] correctly absent from root `require`.\n",
+    count($extensions),
+    implode(', ', $extensions),
+));
+exit(0);

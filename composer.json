@@ -325,7 +325,6 @@
         "waaseyaa/error-handler": "self.version",
         "waaseyaa/field": "self.version",
         "waaseyaa/foundation": "self.version",
-        "waaseyaa/genealogy": "self.version",
         "waaseyaa/geo": "self.version",
         "waaseyaa/github": "self.version",
         "waaseyaa/graphql": "self.version",
@@ -375,6 +374,7 @@
         "sendgrid/sendgrid": "^8.1",
         "shipmonk/composer-dependency-analyser": "^1.8",
         "shipmonk/dead-code-detector": "^1.1",
+        "waaseyaa/genealogy": "self.version",
         "waaseyaa/testing": "self.version"
     },
     "autoload-dev": {
@@ -454,6 +454,7 @@
     },
     "scripts": {
         "check-composer-policy": "bash bin/check-composer-policy",
+        "check-distribution-extensions": "php bin/check-distribution-extensions",
         "check-openapi": "bash bin/check-openapi",
         "check-external-consumers": "php bin/check-external-consumers ai-agent-orphans",
         "check-ingestion-defaults": "bash bin/check-ingestion-defaults",
@@ -487,6 +488,7 @@
             "@check-phpstan-paths",
             "@check-composer-policy",
             "@check-package-layers",
+            "@check-distribution-extensions",
             "@check-no-secrets",
             "@check-ingestion-defaults",
             "@check-symfony-imports",

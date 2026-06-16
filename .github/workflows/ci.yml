@@ -352,6 +352,7 @@ jobs:
             echo "::endgroup::"
           }
           run_gate check-phpstan-paths
+          run_gate check-distribution-extensions
           run_gate check-symfony-imports
           run_gate check-getquery-bindings
           run_gate check-admin-coercion-patterns
