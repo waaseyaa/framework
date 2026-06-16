@@ -38,11 +38,18 @@ use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
  * load individually).
  *
  * Audit finding C-6 recommended flipping this survivor test to isAllowed()
- * (deny-by-default). That flip is UNSAFE: it would contradict the spec and would
- * HIDE legitimately-visible Neutral rows for consumers that read query results
- * directly without an isAllowed() re-filter (e.g. the genealogy pedigree/family
- * services). The pre-existing SqlEntityQueryAccessCheckTest only exercises
- * Allowed-vs-Forbidden, so the Neutral-admits-row branch was previously UNPINNED.
+ * (deny-by-default). That flip is UNSAFE and was reclassified (see
+ * docs/specs/access-control.md "Layer 3 contract details"): production storage is
+ * constructed WITHOUT an access handler (EntityStorageFactory and AbstractKernel
+ * pass accessHandler: null — the WP03 wiring was deferred), so getQuery() falls back
+ * to an empty handler and every row resolves to Neutral. Flipping to isAllowed()
+ * would therefore DROP every row — every access-checked list/count would return
+ * empty. It is also unnecessary: deny-by-default is already enforced at the
+ * Layer-2/serializer consumers for both items and totals, so this candidate-window
+ * pass-through leaks nothing. (The earlier "would hide legitimately-visible Neutral
+ * rows for the genealogy pedigree/family services" rationale was incorrect:
+ * genealogy's authenticated edges resolve to Allowed via orIf, and a flip would
+ * empty the query, not hide Neutral rows.)
  * If anyone flips the survivor test to isAllowed(), these assertions fail loudly
  * and force a spec change (access-control.md) BEFORE the semantics can change.
  */
@@ -141,6 +148,36 @@ final class SqlEntityQueryNeutralAdmitsRowTest extends TestCase
             ->execute();
 
         $this->assertCount(2, $ids, 'An empty (no-policy) handler returns Neutral and must admit every row.');
+    }
+
+    #[Test]
+    public function productionStorageWithoutHandlerIsPassThrough(): void
+    {
+        // Pins the PRODUCTION reality: EntityStorageFactory and AbstractKernel both
+        // construct SqlEntityStorage with accessHandler: null (the WP03 wiring was
+        // deferred), so getQuery() falls back to an empty handler. An access-checked
+        // query bound to an unprivileged account therefore admits EVERY candidate —
+        // the query layer is a candidate window, and deny-by-default is the consumer's
+        // re-filter (Layer 2 / serializers), not the query's. If production storage
+        // ever wires a handler, this fails — update access-control.md Layer 3 first.
+        //
+        // NOTE: this uses the real getQuery() path (no manual withAccessHandler), unlike
+        // the methods above which inject a handler explicitly.
+        $unprivileged = $this->makeAccount(42);
+        $this->seedRows([
+            ['title' => 'p1', 'owner_id' => 1],
+            ['title' => 'p2', 'owner_id' => 2],
+        ]);
+
+        $query = $this->storage->getQuery();
+        $query->setAccount($unprivileged);
+        $ids = $query->execute();
+
+        self::assertCount(
+            2,
+            $ids,
+            'Production storage (no wired handler) must pass through all candidates; deny-by-default is enforced by consumers, not the query layer.',
+        );
     }
 
     private function newQuery(): SqlEntityQuery
