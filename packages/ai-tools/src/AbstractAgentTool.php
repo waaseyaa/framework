@@ -196,6 +196,28 @@ abstract class AbstractAgentTool implements AgentToolInterface
     }
 
     /**
+     * Drop fields the account may not view, so a tool's serialized output never
+     * leaks a `FieldAccessPolicyInterface`-forbidden field. Open-by-default:
+     * fields with no field policy stay (only explicit Forbidden is dropped),
+     * mirroring the JSON:API serializer. When no handler is present (capability-
+     * only mode), values pass through unchanged — entity-level access has
+     * already been enforced by the caller.
+     *
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    protected function applyFieldAccessFilter(EntityInterface $entity, array $values, AccountInterface $account): array
+    {
+        if ($this->accessHandler === null || $values === []) {
+            return $values;
+        }
+
+        $allowed = $this->accessHandler->filterFields($entity, array_keys($values), 'view', $account);
+
+        return array_intersect_key($values, array_flip($allowed));
+    }
+
+    /**
      * Enforce the per-entity AccessPolicy for creating an entity of a type.
      *
      * No-op only in capability-only mode (no handler AND enforcement not

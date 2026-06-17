@@ -8,6 +8,7 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface as SymfonyContrac
 use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\Policy\PublishedContentAccessPolicy;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\Audit\EntityAuditLogger;
@@ -551,6 +552,11 @@ abstract class AbstractKernel
         );
         $resolver = new KernelPolicyDependencyResolver($kernelServices);
         $this->accessHandler = new AccessPolicyRegistry($this->logger, $resolver)->discover($this->manifest);
+
+        // Framework default: published content (entity types in the `content`
+        // group) is anonymously viewable with no hand-written per-type policy.
+        // Additive only (never Forbidden), so a specific policy's denial wins.
+        $this->accessHandler->addPolicy(new PublishedContentAccessPolicy($this->entityTypeManager));
     }
 
     /**

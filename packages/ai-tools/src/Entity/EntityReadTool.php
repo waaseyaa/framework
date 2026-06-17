@@ -25,6 +25,12 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 )]
 final class EntityReadTool extends AbstractAgentTool
 {
+    /**
+     * Field names never returned, even without a FieldDefinition — defense in
+     * depth for raw `_data` credential keys (mirrors ResourceSerializer).
+     */
+    private const array ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
+
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
     ) {}
@@ -85,7 +91,7 @@ final class EntityReadTool extends AbstractAgentTool
         }
 
         return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => $this->serialize($entity)]],
+            content: [['type' => 'json', 'data' => $this->serialize($entity, $account)]],
             summary: sprintf('Loaded %s/%s', $entityType, $id),
         );
     }
@@ -99,7 +105,7 @@ final class EntityReadTool extends AbstractAgentTool
     /**
      * @return array<string, mixed>
      */
-    private function serialize(EntityInterface $entity): array
+    private function serialize(EntityInterface $entity, AccountInterface $account): array
     {
         $data = [
             'entity_type' => $entity->getEntityTypeId(),
@@ -125,10 +131,44 @@ final class EntityReadTool extends AbstractAgentTool
         if ($values === []) {
             $values = $entity->toArray();
         }
+
+        $values = $this->filterReadableValues($entity, $values, $account);
         if ($values !== []) {
             $data['values'] = $values;
         }
 
         return $data;
+    }
+
+    /**
+     * Expose the entity's actual stored fields while never leaking
+     * internal/credential or field-access-forbidden fields — same boundary the
+     * JSON:API serializer enforces. Internal-field and credential drops run
+     * BEFORE the per-account field-access filter so credentials never reach it.
+     *
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    private function filterReadableValues(EntityInterface $entity, array $values, AccountInterface $account): array
+    {
+        if ($values === []) {
+            return $values;
+        }
+
+        foreach (self::ALWAYS_INTERNAL_FIELDS as $credentialKey) {
+            unset($values[$credentialKey]);
+        }
+
+        $fieldDefinitions = $this->entityTypeManager->resolveFieldDefinitions(
+            $entity->getEntityTypeId(),
+            $entity->bundle(),
+        );
+        foreach (array_keys($values) as $name) {
+            if (isset($fieldDefinitions[$name]) && $fieldDefinitions[$name]->getSetting('internal') === true) {
+                unset($values[$name]);
+            }
+        }
+
+        return $this->applyFieldAccessFilter($entity, $values, $account);
     }
 }
