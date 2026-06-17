@@ -430,7 +430,14 @@ abstract class AbstractKernel
 
     protected function compileManifest(): void
     {
-        $this->manifest = new ManifestBootstrapper()->boot($this->projectRoot);
+        // Dev mode compiles the manifest fresh each boot so newly added app
+        // entity types and access policies are discovered without
+        // `composer dump-autoload -o` or `optimize:manifest`. Production uses the
+        // compiled cache.
+        $this->manifest = new ManifestBootstrapper()->boot(
+            $this->projectRoot,
+            freshCompile: $this->isDevelopmentMode(),
+        );
     }
 
     protected function bootMigrations(): void
