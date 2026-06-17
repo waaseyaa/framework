@@ -26,6 +26,10 @@
         },
         {
             "type": "path",
+            "url": "../user"
+        },
+        {
+            "type": "path",
             "url": "../entity"
         },
         {
@@ -84,6 +88,7 @@
         "waaseyaa/cache": "^0.1.0-alpha.220",
         "waaseyaa/entity": "^0.1.0-alpha.220",
         "waaseyaa/routing": "^0.1.0-alpha.220",
+        "waaseyaa/user": "^0.1.0-alpha.220",
         "waaseyaa/workflows": "^0.1.0-alpha.220"
     },
     "require-dev": {

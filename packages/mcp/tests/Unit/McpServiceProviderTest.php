@@ -9,8 +9,8 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\Mcp\Auth\BearerTokenAuth;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
+use Waaseyaa\Mcp\Auth\PublicAnonymousAuth;
 use Waaseyaa\Mcp\McpServiceProvider;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
@@ -31,16 +31,19 @@ final class McpServiceProviderTest extends TestCase
     }
 
     #[Test]
-    public function registers_default_mcp_auth_binding(): void
+    public function registers_public_read_only_auth_binding_by_default(): void
     {
         $provider = new McpServiceProvider();
         $provider->register();
 
         $auth = $provider->resolve(McpAuthInterface::class);
-        self::assertInstanceOf(BearerTokenAuth::class, $auth);
-        // Default token map is empty: any Authorization header authenticates
-        // to no account. Production overrides via the kernel-services bus
-        // or by re-binding McpAuthInterface in an application provider.
-        self::assertNull($auth->authenticate('Bearer anything'));
+        self::assertInstanceOf(PublicAnonymousAuth::class, $auth);
+        // Public read-only default: every request resolves to an anonymous
+        // account holding only read capabilities — never null, never a write cap.
+        $account = $auth->authenticate('Bearer anything');
+        self::assertNotNull($account);
+        self::assertFalse($account->isAuthenticated());
+        self::assertTrue($account->hasPermission('tool.entity.read'));
+        self::assertFalse($account->hasPermission('tool.entity.create'));
     }
 }

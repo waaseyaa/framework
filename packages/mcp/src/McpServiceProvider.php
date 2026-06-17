@@ -14,8 +14,8 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Mcp\Admin\RecentInvocationsQueryInterface;
 use Waaseyaa\Mcp\Admin\ServerConfigReadModel;
 use Waaseyaa\Mcp\Admin\ToolRegistryReadModel;
-use Waaseyaa\Mcp\Auth\BearerTokenAuth;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
+use Waaseyaa\Mcp\Auth\PublicAnonymousAuth;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
 /**
@@ -38,12 +38,19 @@ final class McpServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        // McpAuthInterface default: empty-token BearerTokenAuth. Production
-        // deployments override either by binding McpAuthInterface on the
-        // kernel-services bus or by re-binding the abstract here.
+        // McpAuthInterface default: public read-only. Every request resolves to
+        // an anonymous account holding ONLY the read capabilities (capability
+        // layer of the read-only boundary). A deployment wanting an
+        // authenticated write surface re-binds this with a delegate auth.
         $this->singleton(
             McpAuthInterface::class,
-            fn(): McpAuthInterface => new BearerTokenAuth(tokens: []),
+            static fn(): McpAuthInterface => new PublicAnonymousAuth(),
+        );
+
+        // Configurable server card (identity + declared auth + registry fields).
+        $this->singleton(
+            McpServerCard::class,
+            fn(): McpServerCard => new McpServerCard($this->serverCardConfig()),
         );
 
         // McpEndpoint: bound explicitly so AppControllerRouter's controller
@@ -58,9 +65,18 @@ final class McpServiceProvider extends ServiceProvider
                 $dispatcher = $this->resolveOptional(EventDispatcherInterface::class);
                 $accountContext = $this->resolveOptional(AccountContextInterface::class);
 
+                // Structural layer of the read-only boundary: the endpoint only
+                // ever sees non-destructive tools on the read-capability
+                // allowlist, so write tools are absent from tools/list and
+                // rejected by tools/call regardless of the resolved account.
+                $readOnlyRegistry = new ReadOnlyToolRegistry(
+                    $this->resolve(AgentToolRegistryInterface::class),
+                    PublicAnonymousAuth::DEFAULT_READ_CAPABILITIES,
+                );
+
                 return new McpEndpoint(
                     auth: $this->resolve(McpAuthInterface::class),
-                    agentRegistry: $this->resolve(AgentToolRegistryInterface::class),
+                    agentRegistry: $readOnlyRegistry,
                     dispatcher: $dispatcher instanceof EventDispatcherInterface ? $dispatcher : null,
                     accountContext: $accountContext instanceof AccountContextInterface ? $accountContext : null,
                 );
@@ -99,5 +115,17 @@ final class McpServiceProvider extends ServiceProvider
     public function routes(WaaseyaaRouter $router, EntityTypeManagerInterface $entityTypeManager): void
     {
         new McpRouteProvider()->registerRoutes($router);
+    }
+
+    /**
+     * Resolve the server-card config from `mcp.server_card` config, defaulting
+     * to the public read-only card.
+     */
+    private function serverCardConfig(): McpServerCardConfig
+    {
+        $mcp = $this->config['mcp'] ?? null;
+        $card = \is_array($mcp) && \is_array($mcp['server_card'] ?? null) ? $mcp['server_card'] : [];
+
+        return McpServerCardConfig::fromArray($card);
     }
 }
