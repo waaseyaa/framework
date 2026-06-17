@@ -191,14 +191,18 @@ Violations throw `InvalidCommandDefinitionException`:
 
 | argv | Kernel behaviour |
 |---|---|
-| `[]` or `['--help']` | Emit command listing to stdout, exit `0` |
+| `[]` (bare invocation) | Emit a brief usage hint pointing at `list` to stdout, exit `0` |
+| `['--help']` or `['-h']` | Emit command listing to stdout, exit `0` (help for the implicit `list` command) |
+| `['list']` or `['help']` | Emit command listing to stdout, exit `0`; `help` is an alias for `list` |
 | `['--version']` | Emit framework version to stdout, exit `0` |
-| `['unknown-name']` | `Unknown command: unknown-name` to stderr, exit `2` |
+| `['unknown-name']` | `Unknown command: unknown-name` + a `Run "waaseyaa list" …` pointer to stderr, exit `2` |
 | `['cmd', '--help']` | Emit help block for `cmd` to stdout, exit `0`; handler NOT invoked |
 | `['cmd', ...]` | Parse argv, build `CliIO`, resolve handler, invoke, return its `int` |
 | Parse error during dispatch | Single-line error to stderr, exit `2` |
 | Uncaught exception in handler | `<class>: <message>` to stderr, exit `1`; full trace with `--verbose` |
 | SIGINT | Return `130` |
+
+`list` and `help` are **kernel built-ins**, not `CommandRegistry` entries — like `--help`/`--version`, they resolve in `CliKernel::run()` before the registry lookup and therefore work regardless of provider state (and do not appear as rows in their own listing). A bare invocation deliberately prints a short pointer rather than the full command dump; the full listing is reached via `list`, `help`, or `--help`.
 
 ### Constructor
 

@@ -18,6 +18,10 @@ use Waaseyaa\CLI\Io\EmptyStdinSource;
 use Waaseyaa\CLI\OptionDefinition;
 use Waaseyaa\CLI\OptionMode;
 use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Provider\CliKernelServiceProvider;
+use Waaseyaa\CLI\Provider\MiscBServiceProvider;
+use Waaseyaa\Bimaaji\BimaajiServiceProvider;
+use Waaseyaa\Foundation\Discovery\PackageManifest;
 
 /**
  * Integration tests for CliKernel::run().
@@ -93,17 +97,77 @@ final class CliKernelDispatchTest extends TestCase
     }
 
     // -------------------------------------------------------------------------
-    // Empty argv → listing
+    // Bare invocation → usage hint pointing at `list`
     // -------------------------------------------------------------------------
 
     #[Test]
-    public function emptyArgvRendersListing(): void
+    public function emptyArgvRendersUsageHintPointingAtList(): void
     {
         $registry = new CommandRegistry();
         $registry->register($this->greetCommand());
 
         [$kernel, $stdout] = $this->makeKernel($registry);
         $exitCode = $kernel->run([]);
+
+        self::assertSame(0, $exitCode);
+        self::assertStringContainsString('waaseyaa list', $stdout->getContents());
+        // The bare invocation must NOT dump the full listing.
+        self::assertStringNotContainsString('Available commands:', $stdout->getContents());
+    }
+
+    // -------------------------------------------------------------------------
+    // `list` / `help` command + top-level --help → listing
+    // -------------------------------------------------------------------------
+
+    #[Test]
+    public function listCommandRendersListing(): void
+    {
+        $registry = new CommandRegistry();
+        $registry->register($this->greetCommand());
+
+        [$kernel, $stdout] = $this->makeKernel($registry);
+        $exitCode = $kernel->run(['list']);
+
+        self::assertSame(0, $exitCode);
+        self::assertStringContainsString('Available commands:', $stdout->getContents());
+        self::assertStringContainsString('greet', $stdout->getContents());
+    }
+
+    #[Test]
+    public function listShowsCommandsFromRealProviders(): void
+    {
+        // Build a registry from the actual providers that ship `serve`
+        // (MiscBServiceProvider) and `bimaaji:install` (BimaajiServiceProvider),
+        // exactly as the kernel does at boot, then assert `list` surfaces both.
+        $serveProvider = new MiscBServiceProvider();
+        $serveProvider->setKernelContext((string) getcwd(), [], []);
+        $bimaajiProvider = new BimaajiServiceProvider();
+        $bimaajiProvider->setKernelContext((string) getcwd(), [], []);
+
+        $registry = CliKernelServiceProvider::buildRegistry(
+            manifest: new PackageManifest(),
+            container: $this->makeContainer([]),
+            providerInstances: [$serveProvider, $bimaajiProvider],
+        );
+
+        [$kernel, $stdout] = $this->makeKernel($registry);
+        $exitCode = $kernel->run(['list']);
+
+        self::assertSame(0, $exitCode);
+        $out = $stdout->getContents();
+        self::assertStringContainsString('Available commands:', $out);
+        self::assertStringContainsString('serve', $out);
+        self::assertStringContainsString('bimaaji:install', $out);
+    }
+
+    #[Test]
+    public function helpCommandIsAliasForList(): void
+    {
+        $registry = new CommandRegistry();
+        $registry->register($this->greetCommand());
+
+        [$kernel, $stdout] = $this->makeKernel($registry);
+        $exitCode = $kernel->run(['help']);
 
         self::assertSame(0, $exitCode);
         self::assertStringContainsString('Available commands:', $stdout->getContents());
@@ -128,7 +192,7 @@ final class CliKernelDispatchTest extends TestCase
     {
         $registry = new CommandRegistry();
         [$kernel, $stdout] = $this->makeKernel($registry);
-        $exitCode = $kernel->run([]);
+        $exitCode = $kernel->run(['list']);
 
         self::assertSame(0, $exitCode);
         self::assertStringContainsString('No commands registered', $stdout->getContents());
@@ -162,6 +226,7 @@ final class CliKernelDispatchTest extends TestCase
 
         self::assertSame(2, $exitCode);
         self::assertStringContainsString('Unknown command: no-such-command', $stderr->getContents());
+        self::assertStringContainsString('waaseyaa list', $stderr->getContents());
     }
 
     // -------------------------------------------------------------------------
@@ -332,7 +397,7 @@ final class CliKernelDispatchTest extends TestCase
         ));
 
         [$kernel, $stdout] = $this->makeKernel($registry);
-        $kernel->run([]);
+        $kernel->run(['list']);
         $out = $stdout->getContents();
 
         $posApple = strpos($out, 'apple');

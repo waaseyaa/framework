@@ -54,19 +54,34 @@ final class CliKernel
             return 0;
         }
 
-        // 2. Empty argv or top-level --help → listing
-        if ($argv === [] || $argv === ['--help'] || $argv === ['-h']) {
+        // 2. Top-level --help → command listing (help for the implicit `list` command).
+        if ($argv === ['--help'] || $argv === ['-h']) {
             $this->renderListing();
             return 0;
         }
 
-        // 3. Pop command name
+        // 3. Bare invocation → point the user at `list` instead of dumping everything.
+        if ($argv === []) {
+            $this->renderUsageHint();
+            return 0;
+        }
+
+        // 4. Pop command name
         $commandName = array_shift($argv);
+
+        // `list` (and its `help` alias) render the full command listing. These are
+        // kernel built-ins — like --help and --version — so they are not held in the
+        // CommandRegistry and always resolve here regardless of provider state.
+        if ($commandName === 'list' || $commandName === 'help') {
+            $this->renderListing();
+            return 0;
+        }
 
         $command = $this->registry->get($commandName);
 
         if ($command === null) {
             $this->stderr->writeln(sprintf('Unknown command: %s', $commandName));
+            $this->stderr->writeln('Run "waaseyaa list" to see the available commands.');
             return 2;
         }
 
@@ -155,6 +170,20 @@ final class CliKernel
         $instance = $this->container->get($fqn);
 
         return static fn(CliIO $io): int => $instance->{$method}($io);
+    }
+
+    /**
+     * Render a brief usage hint pointing the user at the `list` command.
+     *
+     * Shown for a bare invocation (no argv) so the default output is a short
+     * pointer rather than the full command dump.
+     */
+    private function renderUsageHint(): void
+    {
+        $this->stdout->writeln('Waaseyaa CLI');
+        $this->stdout->writeln('');
+        $this->stdout->writeln('Run "waaseyaa list" to see all available commands.');
+        $this->stdout->writeln('Run "waaseyaa <command> --help" for help on a specific command.');
     }
 
     /**

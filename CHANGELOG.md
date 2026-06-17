@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`cli`: native `list` command (with `help` as an alias) that prints every registered command and its description.** The native kernel never reimplemented Symfony Console's built-in `list`/`help` commands, so `waaseyaa list` returned `Unknown command: list`. `CliKernel::run()` now resolves `list` and `help` as kernel built-ins (like `--help`/`--version`, ahead of the `CommandRegistry` lookup so they work regardless of provider state) and renders the full command listing via the existing `renderListing()`. A bare `waaseyaa` invocation now prints a short usage hint pointing at `list` instead of dumping every command, and an unknown command appends a `Run "waaseyaa list" …` pointer to its error. `--help`/`-h` with no command still render the listing. Covered by `CliKernelDispatchTest` (incl. a real-provider test asserting `serve` and `bimaaji:install` surface through `list`); dispatch table documented in `docs/specs/cli-kernel.md`.
+
 ## [0.1.0-alpha.218] - 2026-06-16
 
 ### Fixed
