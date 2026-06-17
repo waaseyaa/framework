@@ -1,3 +1,13 @@
+{% extends "layouts/base.html.twig" %}
+
+{% block title %}{{ entity.label }}{% endblock %}
+
+{% block meta %}
+  {# schema.org JSON-LD for agents/crawlers (FR-014); built by EntitySchemaOrgMapper. #}
+  {% if schema_org_jsonld is defined and schema_org_jsonld %}{{ schema_org_jsonld|raw }}{% endif %}
+{% endblock %}
+
+{% block body %}
 <article class="entity entity-{{ entity_type }} entity-view-{{ view_mode }}">
   {% for field_name, field in fields %}
     <div class="field field-{{ field_name }}">
@@ -11,3 +21,4 @@
     <a href="?raw=1" rel="alternate" type="text/markdown" data-agent-readable="markdown">View as Markdown</a>
   </footer>
 </article>
+{% endblock %}

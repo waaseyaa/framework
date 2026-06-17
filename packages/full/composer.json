@@ -12,7 +12,8 @@
         "waaseyaa/attachment": "^0.1.0-alpha.220",
         "waaseyaa/cms": "^0.1.0-alpha.220",
         "waaseyaa/mcp": "^0.1.0-alpha.220",
-        "waaseyaa/ssr": "^0.1.0-alpha.220",
+        "waaseyaa/relationship": "^0.1.0-alpha.220",
+        "waaseyaa/search": "^0.1.0-alpha.220",
         "waaseyaa/structured-import": "^0.1.0-alpha.220"
     },
     "suggest": {

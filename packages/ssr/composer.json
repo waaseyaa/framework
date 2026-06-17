@@ -42,6 +42,10 @@
         },
         {
             "type": "path",
+            "url": "../seo"
+        },
+        {
+            "type": "path",
             "url": "../foundation"
         }
     ],
@@ -56,6 +60,7 @@
         "waaseyaa/field": "^0.1.0-alpha.220",
         "waaseyaa/foundation": "^0.1.0-alpha.220",
         "waaseyaa/routing": "^0.1.0-alpha.220",
+        "waaseyaa/seo": "^0.1.0-alpha.220",
         "twig/twig": "^3.0"
     },
     "require-dev": {

@@ -12,6 +12,8 @@
         "waaseyaa/menu": "^0.1.0-alpha.220",
         "waaseyaa/workflows": "^0.1.0-alpha.220",
         "waaseyaa/api": "^0.1.0-alpha.220",
+        "waaseyaa/seo": "^0.1.0-alpha.220",
+        "waaseyaa/ssr": "^0.1.0-alpha.220",
         "waaseyaa/cli": "^0.1.0-alpha.220"
     },
     "minimum-stability": "stable",

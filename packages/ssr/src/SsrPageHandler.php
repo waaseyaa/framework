@@ -26,6 +26,7 @@ use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Path\PathAliasResolver;
 use Waaseyaa\Relationship\RelationshipDiscoveryService;
 use Waaseyaa\Relationship\RelationshipTraversalService;
+use Waaseyaa\Seo\SchemaOrg\EntitySchemaOrgMapper;
 use Waaseyaa\SSR\Http\AppController\AppControllerArgumentResolver;
 use Waaseyaa\SSR\Http\AppController\AppControllerMethodInvoker;
 use Waaseyaa\SSR\Http\AppController\AppInvocationContext;
@@ -229,6 +230,9 @@ final class SsrPageHandler
 
             $twigEntityContext = $renderContext;
             $twigEntityContext['account'] = $account;
+            // schema.org JSON-LD for the HTML <head> (FR-014); ignored by the
+            // Markdown branch.
+            $twigEntityContext['schema_org_jsonld'] = $this->buildSchemaOrgScript($entity, $normalizedPath);
 
             $response = $mediaType === MediaTypeAcceptNegotiator::MARKDOWN
                 ? $this->renderEntityMarkdown($entity, $viewMode, $viewModeConfig, $normalizedPath)
@@ -677,6 +681,16 @@ final class SsrPageHandler
             $supported,
             MediaTypeAcceptNegotiator::HTML,
         );
+    }
+
+    /**
+     * Build the schema.org JSON-LD `<script>` block for an entity's HTML `<head>`.
+     */
+    private function buildSchemaOrgScript(EntityInterface $entity, string $canonicalUrl): string
+    {
+        $mapper = new EntitySchemaOrgMapper();
+
+        return $mapper->toScriptTag($mapper->map($entity, $canonicalUrl));
     }
 
     /**
