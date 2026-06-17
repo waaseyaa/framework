@@ -10,11 +10,14 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Component\Routing\Route;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
+use Waaseyaa\Api\Markdown\EntityMarkdownPresenter;
+use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Cache\CacheConfigResolver;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityValues;
+use Waaseyaa\Foundation\Http\ContentNegotiation\MediaTypeAcceptNegotiator;
 use Waaseyaa\Foundation\Http\HttpServiceResolverInterface;
 use Waaseyaa\Foundation\Http\Inertia\InertiaFullPageRendererInterface;
 use Waaseyaa\Foundation\Http\Inertia\InertiaPageResultInterface;
@@ -173,6 +176,11 @@ final class SsrPageHandler
             $entityRenderer = new EntityRenderer($this->entityTypeManager, $formatterRegistry, $viewModeConfig);
             $safeViewMode = preg_replace('/[^a-z0-9_]+/i', '', strtolower($requestedViewMode)) ?: 'full';
             $viewMode = new ViewMode($safeViewMode);
+            // Content negotiation on the SAME URL: text/markdown for agents (or the
+            // ?raw / ?format=md toggle), text/html otherwise. The media type is woven
+            // into the cache variant below so the two representations never share a
+            // cache entry.
+            $mediaType = $this->negotiateMediaType($httpRequest);
             $relationshipContext = $this->buildRelationshipRenderContext($entity);
             $renderContext = $relationshipContext;
             $renderContext['workflow_visibility'] = $visibilityResolver->buildRenderContext($entity, $previewRequested);
@@ -181,6 +189,7 @@ final class SsrPageHandler
                 $viewMode->name,
                 $previewRequested,
                 $renderContext,
+                $mediaType,
             );
             $surrogateHeaders = (
                 !$account->isAuthenticated()
@@ -194,6 +203,7 @@ final class SsrPageHandler
                     $contentLangcode,
                     $cacheVariantLangcode,
                     $renderContext,
+                    $mediaType,
                 )
                 : [];
 
@@ -212,6 +222,7 @@ final class SsrPageHandler
                 if ($cached !== null) {
                     $headers = array_merge($this->extractHeaders($cached), $surrogateHeaders);
                     $headers['Cache-Control'] = $cacheControlHeader;
+                    $headers['Vary'] = 'Accept';
                     return $this->htmlResult($cached->getStatusCode(), (string) $cached->getContent(), $headers);
                 }
             }
@@ -219,7 +230,9 @@ final class SsrPageHandler
             $twigEntityContext = $renderContext;
             $twigEntityContext['account'] = $account;
 
-            $response = new RenderController($twig, $entityRenderer)->renderEntity($entity, $viewMode, $twigEntityContext);
+            $response = $mediaType === MediaTypeAcceptNegotiator::MARKDOWN
+                ? $this->renderEntityMarkdown($entity, $viewMode, $viewModeConfig, $normalizedPath)
+                : new RenderController($twig, $entityRenderer)->renderEntity($entity, $viewMode, $twigEntityContext);
             if (
                 !$account->isAuthenticated()
                 && !$previewRequested
@@ -239,6 +252,7 @@ final class SsrPageHandler
 
             $headers = array_merge($this->extractHeaders($response), $surrogateHeaders);
             $headers['Cache-Control'] = $cacheControlHeader;
+            $headers['Vary'] = 'Accept';
             return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
         } catch (\Throwable $e) {
             $this->logger->error(sprintf('Render pipeline failed: %s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine()));
@@ -590,6 +604,7 @@ final class SsrPageHandler
         string $viewMode,
         bool $previewRequested,
         array $renderContext,
+        string $mediaType = MediaTypeAcceptNegotiator::HTML,
     ): string {
         $workflowState = 'unknown';
         if (is_array($renderContext['workflow_visibility'] ?? null)) {
@@ -608,6 +623,7 @@ final class SsrPageHandler
             }
         }
 
+        $mediaToken = $this->mediaCacheToken($mediaType);
         $variantPayload = [
             'contract_version' => self::DISCOVERY_CONTRACT_VERSION,
             'langcode' => strtolower(trim($langcode)),
@@ -615,17 +631,76 @@ final class SsrPageHandler
             'preview' => $previewRequested ? 1 : 0,
             'workflow_state' => $workflowState,
             'graph_hash' => $graphHash,
+            'media_type' => $mediaToken,
         ];
         $serializedVariantPayload = json_encode($this->discoveryHandler->normalizeForCacheKey($variantPayload), JSON_THROW_ON_ERROR);
         $variantHash = substr(sha1((string) $serializedVariantPayload), 0, 16);
 
+        // The media token is appended (not inserted) so the historical
+        // `v2:lang:view:preview:workflow:` prefix is preserved, while HTML and
+        // Markdown still resolve to distinct cache entries (FR-004 / NFR-001).
         return sprintf(
-            'v2:%s:%s:%s:%s:%s',
+            'v2:%s:%s:%s:%s:%s:%s',
             $this->sanitizeCacheToken($langcode, 'unknown'),
             $this->sanitizeCacheToken($viewMode, 'full'),
             $previewRequested ? 'preview' : 'public',
             $this->sanitizeCacheToken($workflowState, 'unknown'),
             $variantHash,
+            $mediaToken,
+        );
+    }
+
+    /**
+     * Short, stable cache token for a negotiated media type.
+     */
+    private function mediaCacheToken(string $mediaType): string
+    {
+        return $mediaType === MediaTypeAcceptNegotiator::MARKDOWN ? 'md' : 'html';
+    }
+
+    /**
+     * Negotiate the response media type from the `?raw`/`?format` override or the
+     * `Accept` header, restricted to the representations SSR can serve.
+     */
+    public function negotiateMediaType(HttpRequest $httpRequest): string
+    {
+        $negotiator = new MediaTypeAcceptNegotiator();
+        $supported = [MediaTypeAcceptNegotiator::HTML, MediaTypeAcceptNegotiator::MARKDOWN];
+
+        $override = $negotiator->resolveQueryOverride($httpRequest->query->all(), $supported);
+        if ($override !== null) {
+            return $override;
+        }
+
+        return $negotiator->negotiate(
+            (string) $httpRequest->headers->get('Accept', ''),
+            $supported,
+            MediaTypeAcceptNegotiator::HTML,
+        );
+    }
+
+    /**
+     * Render an entity as a Markdown HTTP response via the shared
+     * {@see EntityMarkdownPresenter} — the same bytes the `?raw` toggle returns.
+     */
+    private function renderEntityMarkdown(
+        EntityInterface $entity,
+        ViewMode $viewMode,
+        ArrayViewModeConfig $viewModeConfig,
+        string $canonicalUrl,
+    ): HttpResponse {
+        $presenter = new EntityMarkdownPresenter(
+            new ResourceSerializer($this->entityTypeManager),
+            $this->entityTypeManager,
+            $viewModeConfig,
+        );
+
+        $markdown = $presenter->present($entity, $viewMode->name, null, null, $canonicalUrl);
+
+        return new HttpResponse(
+            $markdown,
+            200,
+            ['Content-Type' => 'text/markdown; charset=UTF-8'],
         );
     }
 
@@ -649,6 +724,7 @@ final class SsrPageHandler
         string $langcode,
         string $variant,
         array $renderContext,
+        string $mediaType = MediaTypeAcceptNegotiator::HTML,
     ): array {
         $workflowState = 'unknown';
         if (is_array($renderContext['workflow_visibility'] ?? null)) {
@@ -675,6 +751,7 @@ final class SsrPageHandler
             'waaseyaa:ssr:view:' . $this->sanitizeCacheToken($viewMode, 'full'),
             'waaseyaa:ssr:lang:' . $this->sanitizeCacheToken($langcode, 'unknown'),
             'waaseyaa:ssr:graph:' . $this->sanitizeCacheToken($graphHash, 'none'),
+            'waaseyaa:ssr:media:' . $this->mediaCacheToken($mediaType),
         ]));
 
         return [
