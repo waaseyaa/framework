@@ -20,10 +20,10 @@ jobs:
           fetch-tags: true  # fetch-tags: required for CP-NEW (composer-internal-version-sweep WP03)
 
       - name: Enforce composer policy
-        run: bash bin/check-composer-policy
+        run: php bin/check-composer-policy
 
       - name: Enforce package layer graph
-        run: bash bin/check-package-layers
+        run: php bin/check-package-layers
 
       - name: Audit require-dev layer graph (warn-only)
         run: bash bin/audit-require-dev-layers
@@ -157,7 +157,7 @@ jobs:
             phpstan-dead-code-cache-${{ hashFiles('tools/phpstan/WaaseyaaEntrypointProvider.php', 'phpstan-dead-code.neon', 'phpstan-dead-code-baseline.neon', 'phpstan.neon') }}-
 
       - name: Run dead-code check (fails on new findings)
-        run: bash bin/check-dead-code
+        run: php bin/check-dead-code
 
       - name: Save dead-code PHPStan result cache
         uses: actions/cache/save@v5

@@ -109,6 +109,7 @@
     "packages/ssr/src/Http/AppController/AppParameterBindingBuilder.php",
     "packages/ssr/src/Http/Router/AppControllerRouter.php",
     "packages/ssr/src/Http/Router/SsrRouter.php",
+    "packages/ssr/src/Http/SeoPublicController.php",
     "packages/ssr/src/LanguageResolver.php",
     "packages/ssr/src/RenderCache.php",
     "packages/ssr/src/RenderController.php",
