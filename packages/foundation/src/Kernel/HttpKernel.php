@@ -193,6 +193,7 @@ final class HttpKernel extends AbstractKernel
                 dispatcher: $this->dispatcher,
                 logger: $this->logger,
                 providersAccessor: fn(): array => $this->providers,
+                manifest: $this->manifest,
             ),
             logger: $this->logger,
         );

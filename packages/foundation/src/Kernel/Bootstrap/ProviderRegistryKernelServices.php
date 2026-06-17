@@ -11,6 +11,7 @@ use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -57,6 +58,7 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
         \Closure $providersAccessor,
         private readonly ?AccountContextInterface $accountContext = null,
         ?\Closure $accessHandlerAccessor = null,
+        private readonly ?PackageManifest $manifest = null,
     ) {
         $this->providersAccessor = $providersAccessor;
         $this->accessHandlerAccessor = $accessHandlerAccessor;
@@ -78,6 +80,9 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
         }
         if ($abstract === AccountContextInterface::class) {
             return $this->accountContext;
+        }
+        if ($abstract === PackageManifest::class) {
+            return $this->manifest;
         }
         if ($abstract === EntityAccessHandler::class) {
             return $this->accessHandlerAccessor !== null

@@ -15,7 +15,7 @@ record for the six criteria.
 | 1 | Markdown via Accept on the same URL | ✅ PASS (live) |
 | 2 | `?raw` toggle = exact negotiated Markdown | ✅ PASS (byte-identical, live) |
 | 3 | `llms.txt` per-topic index | ✅ PASS (live) |
-| 4 | Public read-only MCP (search/read/graph) | ⚠️ PARTIAL — endpoint live + anonymous + read-only boundary unit-proven; `tools/list` empty in this instance due to a pre-existing manifest-hydration gap (see below) |
+| 4 | Public read-only MCP (search/read/graph) | ✅ PASS (live) — anonymous `tools/list` returns the 5 read tools, write tools absent + rejected, all 3 enforcement layers proven live (see below) |
 | 5 | `.well-known/mcp.json` + registry-ready card | ✅ PASS (live) |
 | 6 | isitagentready checklist (JS-free, schema.org, sitemap) | ✅ PASS (live) |
 
@@ -102,18 +102,24 @@ none).
 - **Read-only boundary**: unit-proven (`ReadOnlyBoundaryTest`) — a destructive
   tool is absent from `tools/list` AND rejected by `tools/call` anonymously, and
   the anonymous account grants only the four read capabilities.
-- **Gap (pre-existing, documented):** live `tools/list` returns `[]` in this
-  instance. The compiled manifest (`storage/framework/packages.php`) *does*
-  contain the read tools (`entity.read`, `entity.search`,
-  `relationship.traverse`, `bimaaji.read`, all `destructive:false`), but the
-  runtime `AttributeToolRegistry` resolves empty because
-  `AiToolsServiceProvider::resolveManifest()` gets the empty-fallback
-  `PackageManifest` over the kernel-services bus (`$this->kernelServices?->get(PackageManifest::class)`
-  returns null in HTTP boot). This is **orthogonal to the agent-readability
-  boundary** (the read-only filter is correct and tested) and was previously
-  masked by the 500. **Follow-up:** expose the booted `PackageManifest` on the
-  kernel-services bus so `AttributeToolRegistry` hydrates over HTTP — affects all
-  agent-tool HTTP consumers (MCP + admin tool browser), not just this mission.
+- **`tools/list` (anonymous)** → the 5 read tools only:
+  `entity.list_revisions`, `entity.read`, `entity.search`,
+  `relationship.traverse`, `bimaaji_search_specs`. **No write tool present.**
+- **Three layers proven live:**
+  - Layer 1 (allowlist): `tools/call entity.create` → `error -32602 "Unknown
+    tool: entity.create"`; write tools absent from `tools/list`.
+  - Layer 2 (capability): `entity.read` is reachable (anon holds the read cap).
+  - Layer 3 (accessCheck): `tools/call entity.read {node,1}` ran as account 0
+    and the per-entity policy denied it → `isError`, `"Account 0 is not
+    permitted to view node/1"` — proving the read tool executes under the
+    anonymous account with per-record access enforcement.
+- **Two-layer fix applied** (was a pre-existing gap masked by the 500): (L1)
+  expose the booted `PackageManifest` on the kernel-services bus
+  (`ProviderRegistryKernelServices`) so `AttributeToolRegistry` hydrates over
+  HTTP; (L2) `AutowiringToolContainer` lets the registry instantiate
+  `#[AsAgentTool]` classes by autowiring constructor deps from the bus (they are
+  not container-bound). Fixes all agent-tool HTTP consumers (MCP + admin tool
+  browser), not just this mission.
 
 ## Toolchain notes
 

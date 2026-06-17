@@ -56,6 +56,7 @@ final class ProviderRegistry
             providersAccessor: fn(): array => $this->providers,
             accountContext: $accountContext,
             accessHandlerAccessor: $accessHandlerAccessor,
+            manifest: $manifest,
         );
 
         foreach ($manifest->providers as $providerClass) {

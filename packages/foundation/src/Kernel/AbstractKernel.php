@@ -540,6 +540,7 @@ abstract class AbstractKernel
             $this->logger,
             static fn() => $providers,
             $this->accountContext(),
+            manifest: $this->manifest,
         );
         $resolver = new KernelPolicyDependencyResolver($kernelServices);
         $this->accessHandler = new AccessPolicyRegistry($this->logger, $resolver)->discover($this->manifest);
@@ -568,6 +569,7 @@ abstract class AbstractKernel
             $this->logger,
             static fn() => $providers,
             $this->accountContext(),
+            manifest: $this->manifest,
         );
         $resolver = new KernelPolicyDependencyResolver($kernelServices);
         new ScheduleEntryRegistry($this->logger, $resolver)
