@@ -9,6 +9,7 @@ use Waaseyaa\CLI\Command\HandlerArgumentMode;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
+use Waaseyaa\CLI\Handler\MakeContentTypeHandler;
 use Waaseyaa\CLI\Handler\MakeEntityTypeHandler;
 use Waaseyaa\CLI\Handler\MakePluginHandler;
 use Waaseyaa\CLI\Handler\MakeProviderHandler;
@@ -23,6 +24,34 @@ final class MakeServiceProviderB extends ServiceProvider implements ProvidesCons
 
     public function consoleCommands(): iterable
     {
+        $projectRoot = $this->projectRoot !== '' ? $this->projectRoot : (string) getcwd();
+
+        yield new HandlerCommand(
+            name: 'make:content-type',
+            description: 'Scaffold a usable content type (entity + provider + registration) in one command',
+            arguments: [
+                new HandlerArgument(
+                    name: 'name',
+                    mode: HandlerArgumentMode::Required,
+                    description: 'The content type name (e.g. "story")',
+                ),
+            ],
+            options: [
+                new HandlerOption(
+                    name: 'fields',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Comma-separated fields: name:type[,...] (types: string,text,integer,float,boolean,datetime,entity_reference; reference: author:entity_reference:user)',
+                    default: 'title:string,body:text',
+                ),
+                new HandlerOption(
+                    name: 'force',
+                    mode: HandlerOptionMode::None,
+                    description: 'Overwrite existing generated files',
+                ),
+            ],
+            handler: \Closure::fromCallable([new MakeContentTypeHandler(projectRoot: $projectRoot), 'execute']),
+        );
+
         yield new HandlerCommand(
             name: 'make:provider',
             description: 'Generate a service provider class',
