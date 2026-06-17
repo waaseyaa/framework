@@ -156,3 +156,4 @@ packages/**/tests/**/sfn-*
 # repo commit churn. Tracked copies are removed; future runs stay local.
 kitty-specs/**/status.events.jsonl
 kitty-specs/**/mission-events.jsonl
+.kittify/sync-state.json
