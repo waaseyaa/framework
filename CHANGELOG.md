@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.221] - 2026-06-17
+
 ### Added
 
 - **Agent-readable apps, on by default (criteria 1–6).** A stock app now serves clean Markdown via HTTP `Accept` content negotiation on the *same* URL as the HTML page, plus a `?raw`/`?format=md` toggle returning byte-identical Markdown:
