@@ -131,12 +131,27 @@ final class SsrPageHandler
                 return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
             }
 
-            $resolved = null;
+            $entityTypeId = null;
+            $entityId = null;
             if (class_exists(PathAliasResolver::class) && $this->entityTypeManager->hasDefinition('path_alias')) {
                 $aliasResolver = new PathAliasResolver($this->entityTypeManager->getStorage('path_alias'));
                 $resolved = $aliasResolver->resolve($aliasLookupPath, $contentLangcode);
+                if ($resolved !== null) {
+                    $entityTypeId = $resolved->entityTypeId;
+                    $entityId = $resolved->entityId;
+                }
             }
-            if ($resolved === null) {
+            // Canonical system path fallback: a published content entity is
+            // reachable at /{entityTypeId}/{id} with no hand-created alias
+            // (author-path FR-006). Scoped to the `content` group so non-content
+            // types (user, taxonomy, …) are never served by guessing an id.
+            if ($entityTypeId === null) {
+                $canonical = $this->resolveCanonicalContentPath($aliasLookupPath);
+                if ($canonical !== null) {
+                    [$entityTypeId, $entityId] = $canonical;
+                }
+            }
+            if ($entityTypeId === null || $entityId === null) {
                 $renderController = new RenderController($twig);
                 $pathResponse = $renderController->tryRenderPathTemplate($aliasLookupPath, $account);
                 if ($pathResponse !== null) {
@@ -150,8 +165,8 @@ final class SsrPageHandler
                 return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
             }
 
-            $targetStorage = $this->entityTypeManager->getStorage($resolved->entityTypeId);
-            $entity = $targetStorage->load($resolved->entityId);
+            $targetStorage = $this->entityTypeManager->getStorage($entityTypeId);
+            $entity = $targetStorage->load($entityId);
             if ($entity === null) {
                 $response = new RenderController($twig)->renderNotFound($aliasLookupPath, $account);
                 $headers = $this->extractHeaders($response);
@@ -198,7 +213,7 @@ final class SsrPageHandler
                 && $entity->id() !== null
             )
                 ? $this->buildRenderSurrogateHeaders(
-                    $resolved->entityTypeId,
+                    $entityTypeId,
                     (string) $entity->id(),
                     $viewMode->name,
                     $contentLangcode,
@@ -215,7 +230,7 @@ final class SsrPageHandler
                 && $entity->id() !== null
             ) {
                 $cached = $this->renderCache->get(
-                    $resolved->entityTypeId,
+                    $entityTypeId,
                     $entity->id(),
                     $viewMode->name,
                     $cacheVariantLangcode,
@@ -245,7 +260,7 @@ final class SsrPageHandler
                 && $response->getStatusCode() === 200
             ) {
                 $this->renderCache->set(
-                    $resolved->entityTypeId,
+                    $entityTypeId,
                     $entity->id(),
                     $viewMode->name,
                     $cacheVariantLangcode,
@@ -681,6 +696,35 @@ final class SsrPageHandler
             $supported,
             MediaTypeAcceptNegotiator::HTML,
         );
+    }
+
+    /**
+     * Resolve a `/{entityTypeId}/{id}` system path to a content-entity reference
+     * so a published content item is reachable without a hand-created path alias
+     * (FR-006). Scoped to the `content` group — non-content types (user,
+     * taxonomy, …) are never served by guessing an id. Published-gating happens
+     * downstream via {@see EditorialVisibilityResolver}.
+     *
+     * @return array{0: string, 1: string}|null [entityTypeId, id], or null.
+     */
+    private function resolveCanonicalContentPath(string $path): ?array
+    {
+        $trimmed = trim($path, '/');
+        if ($trimmed === '' || substr_count($trimmed, '/') !== 1) {
+            return null;
+        }
+
+        [$type, $rawId] = explode('/', $trimmed, 2);
+        $id = rawurldecode($rawId);
+        if ($type === '' || $id === '' || !$this->entityTypeManager->hasDefinition($type)) {
+            return null;
+        }
+
+        if ($this->entityTypeManager->getDefinition($type)->getGroup() !== 'content') {
+            return null;
+        }
+
+        return [$type, $id];
     }
 
     /**

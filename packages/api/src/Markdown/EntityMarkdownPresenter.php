@@ -122,9 +122,14 @@ final class EntityMarkdownPresenter
     }
 
     /**
-     * Resolve the ordered display map for a view mode, falling back to a default
-     * built from the access-filtered attribute set (so the fallback never widens
-     * the field set beyond what the viewer may see).
+     * Resolve the ordered display map for a view mode, UNIONED with every
+     * access-safe stored field.
+     *
+     * A view-mode display config must not silently drop the entity's actual
+     * stored content (the body-drop bug): configured fields keep their
+     * weight/settings, and any access-safe stored field the display omits is
+     * appended after them. The union never widens beyond `$safe` — which is
+     * already internal-field- and access-filtered — so nothing restricted leaks.
      *
      * @param array<string, mixed> $safe
      * @return array<string, array{formatter?: string, settings?: array<string, mixed>, weight?: int}>
@@ -133,13 +138,16 @@ final class EntityMarkdownPresenter
     {
         $display = $this->viewModeConfig->getDisplay($entityTypeId, $mode);
 
-        if ($display === []) {
-            $weight = 0;
-            foreach (array_keys($safe) as $name) {
-                $display[$name] = ['settings' => [], 'weight' => $weight++];
+        // Append any stored field not already in the display, after the highest
+        // configured weight, so e.g. `body` is never dropped.
+        $nextWeight = 0;
+        foreach ($display as $item) {
+            $nextWeight = max($nextWeight, ($item['weight'] ?? 0) + 1);
+        }
+        foreach (array_keys($safe) as $name) {
+            if (!isset($display[$name])) {
+                $display[$name] = ['settings' => [], 'weight' => $nextWeight++];
             }
-
-            return $display;
         }
 
         uasort($display, static fn(array $a, array $b): int => ($a['weight'] ?? 0) <=> ($b['weight'] ?? 0));

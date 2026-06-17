@@ -131,8 +131,27 @@ final class EntityMarkdownPresenterTest extends TestCase
         $md = $this->presenter($display)->present($this->sampleEntity());
 
         self::assertStringContainsString('[Related thing](/node/42)', $md);
-        // Only the configured field appears as a section.
-        self::assertStringNotContainsString('## Body', $md);
+    }
+
+    #[Test]
+    public function view_mode_display_is_unioned_with_all_stored_fields_so_body_is_not_dropped(): void
+    {
+        // A display config that lists ONLY `related` must NOT drop the stored
+        // `body` field — every access-safe stored field is unioned in (FR-005).
+        $display = new class implements ViewModeConfigInterface {
+            public function getDisplay(string $entityTypeId, string $viewMode): array
+            {
+                return ['related' => ['settings' => ['label' => 'Rel', 'url_pattern' => '/n/{id}'], 'weight' => 0]];
+            }
+        };
+
+        $md = $this->presenter($display)->present($this->sampleEntity());
+
+        // Configured field keeps its settings...
+        self::assertStringContainsString('[Rel](/n/42)', $md);
+        // ...and the stored body still renders (was dropped before the union fix).
+        self::assertStringContainsString('## Body', $md);
+        self::assertStringContainsString('Hello world.', $md);
     }
 
     #[Test]
