@@ -111,5 +111,25 @@ recovery command.
 
 ---
 
+## BUG-7 — `doctor mission-state --fix` writes status.json with empty `mission_slug`, breaking `next` resolution
+
+**Severity:** high (mission becomes undriveable via `next` despite appearing in `mission list`).
+
+After `spec-kitty doctor mission-state --fix` (run to fix BUG-4), the charter mission's
+`kitty-specs/charter-truth-up-2026-06-01KVB6MW/status.json` was materialized with
+`"mission_slug": ""` and `"mission_number": ""` (both blank), even though `meta.json` has the
+correct `mission_slug`/`mission_id`. Consequence: `spec-kitty mission list` shows the mission
+(reads meta.json) but `spec-kitty next --mission charter-truth-up-2026-06-01KVB6MW --result
+success` returns `Error: Mission not found` (resolves via status.json's blank slug). The repair
+should copy `mission_slug`/`mission_number` from `meta.json` into the status.json it writes.
+
+**Net effect of BUG-3..7:** the 3.1.8→3.2.0 upgrade left the Spec Kitty runtime unusable on this
+Windows checkout without a chain of manual recovery steps, and the documented recovery
+(`doctor mission-state --fix`) itself introduced BUG-7. The in-flight mission
+(`agent-readable-app-full-bar`) is separately blocked on BUG-6 (template-changed-during-run).
+
+---
+
 <!-- Append further bugs below as encountered. -->
+
 
