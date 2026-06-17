@@ -55,6 +55,9 @@ final class MigrationLock
     /** Open file handle once the lock is held, or null when released. */
     private mixed $handle = null;
 
+    /** PID written by this instance while it actively holds the lock. */
+    private ?int $heldPid = null;
+
     /** Absolute path to the lock file derived from `$lockDir` + `$migrationId`. */
     private readonly string $lockPath;
 
@@ -115,6 +118,10 @@ final class MigrationLock
      */
     public function pid(): ?int
     {
+        if ($this->handle !== null) {
+            return $this->heldPid;
+        }
+
         if (!\is_file($this->lockPath)) {
             return null;
         }
@@ -195,10 +202,12 @@ final class MigrationLock
         // flock on process death, but the file body persists).
         \ftruncate($handle, 0);
         \rewind($handle);
-        \fwrite($handle, \getmypid() . "\n");
+        $pid = \getmypid();
+        \fwrite($handle, $pid . "\n");
         \fflush($handle);
 
         $this->handle = $handle;
+        $this->heldPid = $pid;
         $this->installHandlers();
 
         $this->logger?->debug('MigrationLock: acquired', [
@@ -231,6 +240,7 @@ final class MigrationLock
 
         $handle = $this->handle;
         $this->handle = null;
+        $this->heldPid = null;
 
         \flock($handle, \LOCK_UN);
         \fclose($handle);

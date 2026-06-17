@@ -17,10 +17,10 @@ use Waaseyaa\Queue\Tests\Unit\Fixtures\SuccessfulJob;
 #[CoversClass(QueueRetryHandler::class)]
 final class QueueRetryHandlerTest extends TestCase
 {
-    private function makeDefinition(): \Waaseyaa\CLI\CommandDefinition
+    private function makeDefinition(): \Waaseyaa\CLI\Command\HandlerCommand
     {
         $provider = new QueueServiceProvider();
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'queue:retry') {
                 return $cmd;
             }

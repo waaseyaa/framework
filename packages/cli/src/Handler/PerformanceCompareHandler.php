@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 
 /**
  * @api
  */
 final class PerformanceCompareHandler
 {
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $baselinePath = trim((string) ($io->option('baseline') ?? ''));
         $currentPath = trim((string) ($io->option('current') ?? ''));

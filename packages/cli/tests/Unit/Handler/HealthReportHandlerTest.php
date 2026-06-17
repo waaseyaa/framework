@@ -7,10 +7,10 @@ namespace Waaseyaa\CLI\Tests\Unit\Handler;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\HealthReportHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface;
 use Waaseyaa\Foundation\Diagnostic\HealthCheckResult;
@@ -106,12 +106,12 @@ final class HealthReportHandlerTest extends TestCase
     private function createTester(HealthCheckerInterface $checker): CliTester
     {
         $handler = new HealthReportHandler($checker, $this->projectRoot);
-        $definition = new CommandDefinition(
+        $definition = new HandlerCommand(
             name: 'health:report',
             description: 'Generate a full diagnostic report for operator review',
             options: [
-                new OptionDefinition(name: 'json', mode: OptionMode::None, description: 'Output as JSON'),
-                new OptionDefinition(name: 'output', shortcut: 'o', mode: OptionMode::Required, description: 'Write report to file'),
+                new HandlerOption(name: 'json', mode: HandlerOptionMode::None, description: 'Output as JSON'),
+                new HandlerOption(name: 'output', shortcut: 'o', mode: HandlerOptionMode::Required, description: 'Write report to file'),
             ],
             handler: \Closure::fromCallable([$handler, 'execute']),
         );

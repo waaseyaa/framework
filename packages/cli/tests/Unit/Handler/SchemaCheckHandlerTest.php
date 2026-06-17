@@ -7,10 +7,10 @@ namespace Waaseyaa\CLI\Tests\Unit\Handler;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\SchemaCheckHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Foundation\Diagnostic\DiagnosticCode;
 use Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface;
@@ -74,11 +74,11 @@ final class SchemaCheckHandlerTest extends TestCase
     private function createTester(HealthCheckerInterface $checker): CliTester
     {
         $handler = new SchemaCheckHandler($checker);
-        $definition = new CommandDefinition(
+        $definition = new HandlerCommand(
             name: 'schema:check',
             description: 'Detect schema drift between entity type definitions and database tables',
             options: [
-                new OptionDefinition(name: 'json', mode: OptionMode::None, description: 'Output results as JSON'),
+                new HandlerOption(name: 'json', mode: HandlerOptionMode::None, description: 'Output results as JSON'),
             ],
             handler: \Closure::fromCallable([$handler, 'execute']),
         );

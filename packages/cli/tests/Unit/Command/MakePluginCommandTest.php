@@ -34,7 +34,7 @@ final class MakePluginCommandTest extends TestCase
     {
         $provider = new MakeServiceProviderB();
         $definition = null;
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'make:plugin') {
                 $definition = $cmd;
                 break;

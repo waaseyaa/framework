@@ -7,10 +7,10 @@ namespace Waaseyaa\CLI\Tests\Unit\Handler;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\SyncRulesHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 
 #[CoversClass(SyncRulesHandler::class)]
@@ -33,14 +33,14 @@ final class SyncRulesHandlerTest extends TestCase
         $this->removeDir($this->targetDir);
     }
 
-    private function makeDefinition(SyncRulesHandler $handler): CommandDefinition
+    private function makeDefinition(SyncRulesHandler $handler): HandlerCommand
     {
-        return new CommandDefinition(
+        return new HandlerCommand(
             name: 'sync-rules',
             description: 'Sync framework rules from Waaseyaa to this app',
             options: [
-                new OptionDefinition(name: 'force', shortcut: 'f', mode: OptionMode::None, description: 'Overwrite changed files without confirmation'),
-                new OptionDefinition(name: 'dry-run', mode: OptionMode::None, description: 'Show what would change without writing'),
+                new HandlerOption(name: 'force', shortcut: 'f', mode: HandlerOptionMode::None, description: 'Overwrite changed files without confirmation'),
+                new HandlerOption(name: 'dry-run', mode: HandlerOptionMode::None, description: 'Show what would change without writing'),
             ],
             handler: \Closure::fromCallable([$handler, 'execute']),
         );

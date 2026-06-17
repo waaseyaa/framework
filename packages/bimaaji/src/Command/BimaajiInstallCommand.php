@@ -9,10 +9,10 @@ use Waaseyaa\Bimaaji\Install\ParsedSkill;
 use Waaseyaa\Bimaaji\Install\SkillSetParser;
 use Waaseyaa\Bimaaji\Install\TargetFile;
 
-// Note: `\Waaseyaa\CLI\CliIO` is referenced inline (not via `use`) because cli is L6
+// Note: `\Waaseyaa\CLI\Command\SymfonyCommandIO` is referenced inline (not via `use`) because cli is L6
 // and bimaaji is L4. `bin/check-package-layers` scans `use` imports only, so inline
 // FQCNs are the canonical way to type-hint across the L4→L6 boundary. The
-// CommandDefinition reference in BimaajiServiceProvider::nativeCommands() uses the
+// Symfony command metadata reference in BimaajiServiceProvider::consoleCommands() uses the
 // same pattern (mirrors GraphDumpHandler).
 
 /**
@@ -63,7 +63,7 @@ final class BimaajiInstallCommand
         $this->transformersByClientId = $map;
     }
 
-    public function execute(\Waaseyaa\CLI\CliIO $io): int
+    public function execute(\Waaseyaa\CLI\Command\SymfonyCommandIO $io): int
     {
         $clients = $this->resolveClients($io);
         if ($clients === null) {
@@ -122,7 +122,7 @@ final class BimaajiInstallCommand
     /**
      * @return list<string>|null
      */
-    private function resolveClients(\Waaseyaa\CLI\CliIO $io): ?array
+    private function resolveClients(\Waaseyaa\CLI\Command\SymfonyCommandIO $io): ?array
     {
         $rawClients = $io->option('client');
         $clients = [];
@@ -154,7 +154,7 @@ final class BimaajiInstallCommand
         return $this->normaliseClientList($this->splitCsv($answer));
     }
 
-    private function resolveTransformer(\Waaseyaa\CLI\CliIO $io, string $clientId): ?ClientTransformerInterface
+    private function resolveTransformer(\Waaseyaa\CLI\Command\SymfonyCommandIO $io, string $clientId): ?ClientTransformerInterface
     {
         if (isset($this->transformersByClientId[$clientId])) {
             return $this->transformersByClientId[$clientId];
@@ -177,7 +177,7 @@ final class BimaajiInstallCommand
      * @return array{written: int, unchanged: int, skipped: int, errors: int}
      */
     private function installForClient(
-        \Waaseyaa\CLI\CliIO $io,
+        \Waaseyaa\CLI\Command\SymfonyCommandIO $io,
         ClientTransformerInterface $transformer,
         array $skills,
         string $projectRoot,
@@ -242,9 +242,9 @@ final class BimaajiInstallCommand
         return ['written' => $written, 'unchanged' => $unchanged, 'skipped' => $skipped, 'errors' => $errors];
     }
 
-    private function resolveAndAssertInSandbox(\Waaseyaa\CLI\CliIO $io, TargetFile $file, string $projectRoot): ?string
+    private function resolveAndAssertInSandbox(\Waaseyaa\CLI\Command\SymfonyCommandIO $io, TargetFile $file, string $projectRoot): ?string
     {
-        if ($file->path === '' || str_starts_with($file->path, '/') || str_contains($file->path, '..')) {
+        if ($file->path === '' || $this->isAbsolutePath($file->path) || str_contains($file->path, '..')) {
             $io->error(sprintf(
                 'bimaaji:install: rejected suspicious target path %s (absolute or contains ..).',
                 $file->path,
@@ -276,6 +276,13 @@ final class BimaajiInstallCommand
         return $intended;
     }
 
+    private function isAbsolutePath(string $path): bool
+    {
+        return str_starts_with($path, '/')
+            || preg_match('#^[A-Za-z]:[\\\\/]#', $path) === 1
+            || str_starts_with($path, '\\\\');
+    }
+
     private function findNearestExistingAncestor(string $path): ?string
     {
         while ($path !== '' && $path !== DIRECTORY_SEPARATOR && $path !== '.') {
@@ -292,7 +299,7 @@ final class BimaajiInstallCommand
         return null;
     }
 
-    private function writeFile(string $absolutePath, string $contents, \Waaseyaa\CLI\CliIO $io): bool
+    private function writeFile(string $absolutePath, string $contents, \Waaseyaa\CLI\Command\SymfonyCommandIO $io): bool
     {
         $directory = dirname($absolutePath);
         if (!is_dir($directory) && !@mkdir($directory, 0o755, true) && !is_dir($directory)) {

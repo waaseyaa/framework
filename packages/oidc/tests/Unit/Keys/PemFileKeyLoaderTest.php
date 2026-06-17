@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Waaseyaa\Oidc\Keys\OpenSslKeyFactory;
 use Waaseyaa\Oidc\Keys\PemFileKeyLoader;
 use Waaseyaa\Oidc\Keys\SigningKey;
 
@@ -160,22 +161,13 @@ final class PemFileKeyLoaderTest extends TestCase
      */
     private function writeRsaKeypair(string $kid): array
     {
-        $resource = openssl_pkey_new([
-            'private_key_bits' => 2048,
-            'private_key_type' => OPENSSL_KEYTYPE_RSA,
-        ]);
-        self::assertNotFalse($resource, 'Failed to generate RSA key.');
-
-        $details = openssl_pkey_get_details($resource);
-        self::assertIsArray($details);
-
-        openssl_pkey_export($resource, $privatePem);
+        $keyPair = new OpenSslKeyFactory()->generateRsaKeyPair();
 
         $publicPath = $this->tmpDir . '/' . $kid . '.pub.pem';
         $privatePath = $this->tmpDir . '/' . $kid . '.key.pem';
 
-        file_put_contents($publicPath, $details['key']);
-        file_put_contents($privatePath, $privatePem);
+        file_put_contents($publicPath, $keyPair['public']);
+        file_put_contents($privatePath, $keyPair['private']);
 
         return [$publicPath, $privatePath];
     }

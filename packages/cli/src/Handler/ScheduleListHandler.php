@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Scheduler\ScheduledTask;
 use Waaseyaa\Scheduler\ScheduleEntriesInterface;
@@ -22,7 +22,7 @@ final class ScheduleListHandler
         private readonly array $config = [],
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         // When manifest is available, show grouped output by owning class (FR-008).
         if ($this->manifest !== null && $this->manifest->scheduleEntries !== []) {
@@ -33,7 +33,7 @@ final class ScheduleListHandler
         return $this->executeFlat($io);
     }
 
-    private function executeGrouped(CliIO $io): int
+    private function executeGrouped(SymfonyCommandIO $io): int
     {
         assert($this->manifest !== null);
 
@@ -200,7 +200,7 @@ final class ScheduleListHandler
         return [];
     }
 
-    private function executeFlat(CliIO $io): int
+    private function executeFlat(SymfonyCommandIO $io): int
     {
         $tasks = $this->schedule->tasks();
 

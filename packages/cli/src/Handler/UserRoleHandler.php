@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 
 /**
@@ -16,7 +16,7 @@ final class UserRoleHandler
         private readonly EntityTypeManagerInterface $entityTypeManager,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         /** @var string $userId */
         $userId = $io->argument('user_id');

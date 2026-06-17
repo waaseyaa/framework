@@ -4,39 +4,39 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Provider;
 
-use Waaseyaa\CLI\ArgumentDefinition;
-use Waaseyaa\CLI\ArgumentMode;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerArgument;
+use Waaseyaa\CLI\Command\HandlerArgumentMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\EntityCreateHandler;
 use Waaseyaa\CLI\Handler\EntityListHandler;
 use Waaseyaa\CLI\Handler\EntityTypeListHandler;
 use Waaseyaa\CLI\Handler\TypeDisableHandler;
 use Waaseyaa\CLI\Handler\TypeEnableHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
-use Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
-final class EntityTypeServiceProvider extends ServiceProvider implements HasNativeCommandsInterface
+final class EntityTypeServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
 {
     public function register(): void {}
 
-    public function nativeCommands(): iterable
+    public function consoleCommands(): iterable
     {
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'entity:create',
             description: 'Create a new entity of a given type',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'entity_type',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'The entity type ID',
                 ),
             ],
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'values',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'JSON string of entity values',
                     default: '{}',
                 ),
@@ -44,21 +44,21 @@ final class EntityTypeServiceProvider extends ServiceProvider implements HasNati
             handler: [EntityCreateHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'entity:list',
             description: 'List entities of a given type',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'entity_type',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'The entity type ID',
                 ),
             ],
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'limit',
                     shortcut: 'l',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Maximum number of entities to list',
                     default: '25',
                 ),
@@ -66,32 +66,32 @@ final class EntityTypeServiceProvider extends ServiceProvider implements HasNati
             handler: [EntityListHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'entity-type:list',
             description: 'List all registered entity types',
             handler: [EntityTypeListHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'type:enable',
             description: 'Re-enable a previously disabled content type',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'type',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'The entity type ID to enable (e.g. note)',
                 ),
             ],
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'actor',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Actor ID for the audit log',
                     default: 'cli',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'tenant',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Tenant ID (optional, for per-tenant enable)',
                     default: '',
                 ),
@@ -99,38 +99,38 @@ final class EntityTypeServiceProvider extends ServiceProvider implements HasNati
             handler: [TypeEnableHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'type:disable',
             description: 'Disable a registered content type (does not delete it)',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'type',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'The entity type ID to disable (e.g. note)',
                 ),
             ],
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'actor',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Actor ID for the audit log',
                     default: 'cli',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'tenant',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Tenant ID (optional, for per-tenant disable)',
                     default: '',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'force',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Allow disabling the last enabled type for the tenant',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'yes',
                     shortcut: 'y',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Skip confirmation prompt',
                 ),
             ],

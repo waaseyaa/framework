@@ -8,7 +8,7 @@ use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\MigrateRollbackHandler;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Foundation\Migration\Migration;
@@ -70,7 +70,7 @@ final class MigrateRollbackHandlerTest extends TestCase
     private function createTester(Migrator $migrator, \Closure $migrationsProvider): CliTester
     {
         $handler = new MigrateRollbackHandler($migrator, $migrationsProvider);
-        $definition = new CommandDefinition(
+        $definition = new HandlerCommand(
             name: 'migrate:rollback',
             description: 'Roll back the last batch of migrations',
             handler: \Closure::fromCallable([$handler, 'execute']),

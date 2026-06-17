@@ -4,69 +4,69 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Provider;
 
-use Waaseyaa\CLI\ArgumentDefinition;
-use Waaseyaa\CLI\ArgumentMode;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerArgument;
+use Waaseyaa\CLI\Command\HandlerArgumentMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\QueueFailedHandler;
 use Waaseyaa\CLI\Handler\QueueFlushHandler;
 use Waaseyaa\CLI\Handler\QueueRetryHandler;
 use Waaseyaa\CLI\Handler\QueueWorkHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
-use Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
-final class QueueServiceProvider extends ServiceProvider implements HasNativeCommandsInterface
+final class QueueServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
 {
     public function register(): void {}
 
-    public function nativeCommands(): iterable
+    public function consoleCommands(): iterable
     {
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'queue:work',
             description: 'Process jobs from the queue',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'queue',
-                    mode: ArgumentMode::Optional,
+                    mode: HandlerArgumentMode::Optional,
                     description: 'The queue to process',
                     default: 'default',
                 ),
             ],
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'sleep',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Seconds to sleep when no jobs available',
                     default: '3',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'tries',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Max attempts before failing a job',
                     default: '3',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'timeout',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Seconds a job may run',
                     default: '60',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'max-jobs',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Process N jobs then exit (0 = unlimited)',
                     default: '0',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'max-time',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Run for N seconds then exit (0 = unlimited)',
                     default: '0',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'memory',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Memory limit in MB',
                     default: '128',
                 ),
@@ -74,33 +74,33 @@ final class QueueServiceProvider extends ServiceProvider implements HasNativeCom
             handler: [QueueWorkHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'queue:failed',
             description: 'List all failed queue jobs',
             handler: [QueueFailedHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'queue:retry',
             description: 'Retry a failed queue job',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'id',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'The failed job ID, or "all" to retry everything',
                 ),
             ],
             handler: [QueueRetryHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'queue:flush',
             description: 'Remove all failed queue jobs',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'yes',
                     shortcut: 'y',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Skip the confirmation prompt (required to flush in non-interactive mode).',
                 ),
             ],

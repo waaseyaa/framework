@@ -753,9 +753,10 @@ abstract class AbstractKernel
      *
      * Exposes the protected boot() for callers that need a fully-booted kernel
      * (providers, entity type manager, database, dispatcher) without dispatching
-     * a command — specifically CliApplication's provider-boot path.
+     * a command. The Symfony Console application factory uses this path before
+     * registering provider commands.
      *
-     * @internal Called by CliApplication to obtain booted providers and the handler container.
+     * @internal Called by ConsoleApplicationFactory to obtain booted providers and the handler container.
      */
     public function bootForCli(): void
     {
@@ -827,8 +828,9 @@ abstract class AbstractKernel
      *   2. Reflection-based auto-wiring — instantiates concrete handler classes
      *      whose constructor parameters are resolvable from the same container.
      *
-     * Used by CliApplication to resolve class-based command handlers at dispatch
-     * time. Must be called after bootForCli() / boot().
+     * Used by ConsoleApplicationFactory and handler-backed Symfony commands to
+     * resolve class-based handlers at dispatch time. Must be called after
+     * bootForCli() / boot().
      */
     public function buildHandlerContainer(): \Psr\Container\ContainerInterface
     {

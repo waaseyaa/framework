@@ -43,7 +43,7 @@ final class MakeJobCommandTest extends TestCase
     {
         $provider = new MakeServiceProviderA();
         $definition = null;
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'make:job') {
                 $definition = $cmd;
                 break;

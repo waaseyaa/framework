@@ -8,10 +8,10 @@ use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\MigrateHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Foundation\Migration\Executor\V2PlanExecutor;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
@@ -187,13 +187,13 @@ final class MigrateHandlerDryRunVerifyTest extends TestCase
 
     private static function buildTesterFromHandler(MigrateHandler $handler): CliTester
     {
-        $definition = new CommandDefinition(
+        $definition = new HandlerCommand(
             name: 'migrate',
             description: 'Run pending database migrations (use --dry-run to preview, --verify to audit)',
             options: [
-                new OptionDefinition(name: 'dry-run', mode: OptionMode::None, description: 'Preview pending migrations without applying any SQL or writing to the ledger.'),
-                new OptionDefinition(name: 'verify', mode: OptionMode::None, description: 'Compare ledger checksums against the live source. Read-only.'),
-                new OptionDefinition(name: 'json', mode: OptionMode::None, description: 'Emit machine-readable JSON instead of human-readable text.'),
+                new HandlerOption(name: 'dry-run', mode: HandlerOptionMode::None, description: 'Preview pending migrations without applying any SQL or writing to the ledger.'),
+                new HandlerOption(name: 'verify', mode: HandlerOptionMode::None, description: 'Compare ledger checksums against the live source. Read-only.'),
+                new HandlerOption(name: 'json', mode: HandlerOptionMode::None, description: 'Emit machine-readable JSON instead of human-readable text.'),
             ],
             handler: \Closure::fromCallable([$handler, 'execute']),
         );

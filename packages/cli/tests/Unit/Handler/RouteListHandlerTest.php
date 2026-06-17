@@ -8,23 +8,23 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Routing\Route;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\RouteListHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
 #[CoversClass(RouteListHandler::class)]
 final class RouteListHandlerTest extends TestCase
 {
-    private function makeDefinition(RouteListHandler $handler): CommandDefinition
+    private function makeDefinition(RouteListHandler $handler): HandlerCommand
     {
-        return new CommandDefinition(
+        return new HandlerCommand(
             name: 'route:list',
             description: 'List all registered routes',
             options: [
-                new OptionDefinition(name: 'path', mode: OptionMode::Required, description: 'Filter routes by path pattern'),
+                new HandlerOption(name: 'path', mode: HandlerOptionMode::Required, description: 'Filter routes by path pattern'),
             ],
             handler: \Closure::fromCallable([$handler, 'execute']),
         );

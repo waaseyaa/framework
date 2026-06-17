@@ -10,10 +10,10 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Foundation\Kernel\ConsoleKernel;
 
 /**
- * ConsoleKernel::handle() is a thin wrapper that delegates to CliApplication::run().
+ * ConsoleKernel::handle() is a thin wrapper that delegates to the Symfony Console application.
  *
  * The full CLI behaviour (command dispatch, exit codes) is covered by the
- * CliApplication integration tests. These tests verify only that the kernel
+ * Symfony Console integration tests. These tests verify only that the kernel
  * correctly forwards argv and projectRoot, and that the known exit-code
  * semantics hold end-to-end against the real project.
  */
@@ -52,7 +52,7 @@ final class ConsoleKernelTest extends TestCase
     public function handle_returns_zero_when_no_command_given(): void
     {
         $projectRoot = dirname(__DIR__, 6); // repo root in the worktree
-        // Native CliKernel shows the command listing when no command is supplied.
+        // Symfony runtime shows the short no-command hint when no command is supplied.
         $_SERVER['argv'] = ['waaseyaa'];
 
         $kernel = new ConsoleKernel($projectRoot);

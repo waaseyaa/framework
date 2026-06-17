@@ -13,7 +13,7 @@ declare(strict_types=1);
  * We drive `AbstractKernel::boot()` directly via an anonymous subclass rather than a concrete
  * kernel because the concrete kernels sit on layers ABOVE core: `HttpKernel::finalizeBoot()`
  * references `Waaseyaa\Api\Http\DiscoveryApiHandler` (the `api` HTTP layer) and
- * `ConsoleKernel::handle()` calls `Waaseyaa\CLI\CliApplication` (the `cli` layer) — neither of
+ * `ConsoleKernel::handle()` builds the Symfony CLI application (the `cli` layer) — neither of
  * which belongs in the minimal engine. This probe asserts the engine itself boots on core.
  *
  * Exit 0 = booted; exit 1 = a core boot dependency is missing from the `core` metapackage

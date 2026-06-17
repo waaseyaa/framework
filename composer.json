@@ -297,6 +297,7 @@
         "php": ">=8.5",
         "ext-sodium": "*",
         "dragonmantank/cron-expression": "^3.0",
+        "symfony/console": "^8.0",
         "symfony/dotenv": "^8.0",
         "symfony/html-sanitizer": "^8.0",
         "waaseyaa/access": "self.version",
@@ -380,6 +381,8 @@
     "autoload-dev": {
         "psr-4": {
             "Waaseyaa\\Tools\\PHPStan\\": "tools/phpstan/",
+            "Waaseyaa\\CLI\\Io\\": "packages/cli/tests/Io/",
+            "Waaseyaa\\CLI\\Testing\\": "packages/cli/tests/Testing/",
             "Waaseyaa\\Cache\\Tests\\": "packages/cache/tests/",
             "Waaseyaa\\CLI\\Tests\\": "packages/cli/tests/",
             "Waaseyaa\\Config\\Tests\\": "packages/config/tests/",
@@ -453,14 +456,14 @@
         }
     },
     "scripts": {
-        "check-composer-policy": "bash bin/check-composer-policy",
+        "check-composer-policy": "php bin/check-composer-policy",
         "check-distribution-extensions": "php bin/check-distribution-extensions",
         "check-openapi": "bash bin/check-openapi",
         "check-external-consumers": "php bin/check-external-consumers ai-agent-orphans",
         "check-ingestion-defaults": "bash bin/check-ingestion-defaults",
         "check-no-secrets": "bash bin/check-no-secrets",
-        "check-package-layers": "bash bin/check-package-layers",
-        "check-symfony-imports": "bash bin/check-symfony-imports",
+        "check-package-layers": "php bin/check-package-layers",
+        "check-symfony-imports": "php bin/check-symfony-imports",
         "cs-check": "php-cs-fixer fix --dry-run --diff",
         "cs-fix": "php-cs-fixer fix",
         "dev": [
@@ -479,9 +482,9 @@
         "check-phpstan-paths": "bash bin/check-phpstan-paths",
         "check-admin-coercion-patterns": "bash bin/check-admin-coercion-patterns",
         "check-admin-coercion-self-test": "bash bin/check-admin-coercion-patterns --self-test",
-        "check-dead-code": "bash bin/check-dead-code",
+        "check-dead-code": "php bin/check-dead-code",
         "check-getquery-bindings": "php bin/check-getquery-bindings",
-        "test": "phpunit --no-coverage",
+        "test": "php -d memory_limit=512M vendor/bin/phpunit --no-coverage",
         "verify": [
             "@cs-check",
             "@phpstan",

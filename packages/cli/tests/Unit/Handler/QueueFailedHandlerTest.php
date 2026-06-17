@@ -15,10 +15,10 @@ use Waaseyaa\Queue\Storage\InMemoryFailedJobRepository;
 #[CoversClass(QueueFailedHandler::class)]
 final class QueueFailedHandlerTest extends TestCase
 {
-    private function makeDefinition(): \Waaseyaa\CLI\CommandDefinition
+    private function makeDefinition(): \Waaseyaa\CLI\Command\HandlerCommand
     {
         $provider = new QueueServiceProvider();
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'queue:failed') {
                 return $cmd;
             }

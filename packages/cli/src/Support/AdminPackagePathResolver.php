@@ -61,11 +61,18 @@ final class AdminPackagePathResolver
             return $this->projectRoot;
         }
 
-        if (str_starts_with($path, '/')) {
+        if ($this->isAbsolutePath($path)) {
             return $path;
         }
 
         return $this->projectRoot . '/' . $path;
+    }
+
+    private function isAbsolutePath(string $path): bool
+    {
+        return str_starts_with($path, '/')
+            || str_starts_with($path, '\\\\')
+            || preg_match('/^[A-Za-z]:[\\\\\/]/', $path) === 1;
     }
 
     /**

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface;
 use Waaseyaa\Foundation\Diagnostic\HealthCheckResult;
 use Waaseyaa\Foundation\Ingestion\IngestionLogger;
@@ -28,7 +28,7 @@ final class HealthReportHandler
         $this->logger = $logger ?? new NullLogger();
     }
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $systemInfo = $this->gatherSystemInfo();
         $healthResults = $this->checker->runAll();

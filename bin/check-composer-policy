@@ -1,380 +1,292 @@
-#!/usr/bin/env bash
-# Composer policy gate. See CLAUDE.md § "CI Gates".
-#
-# Output modes (M4 WP04B of mission `agent-output-package-01KS5VX1`):
-#
-#   --output=json    NDJSON envelope on stdout via Waaseyaa\AgentOutput\Formatter\ComposerPolicyFormatter
-#   WAASEYAA_OUTPUT=json    same effect via env var
-#
-# Default behaviour (no flag, no env var) is unchanged: human pass/fail text,
-# exit 0/1.
-set -uo pipefail
+#!/usr/bin/env php
+<?php
 
-ROOT_DIR="${ROOT_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
-export ROOT_DIR
+declare(strict_types=1);
 
-OUTPUT_MODE="human"
-for arg in "$@"; do
-    case "$arg" in
-        --output=json) OUTPUT_MODE="json" ;;
-    esac
-done
-if [[ "${WAASEYAA_OUTPUT:-}" == "json" ]]; then
-    OUTPUT_MODE="json"
-fi
-export OUTPUT_MODE
+// Composer policy gate. See CLAUDE.md "CI Gates".
 
-FINDINGS_FILE="$(mktemp -t waaseyaa-check-composer-policy-XXXXXX.json)"
-export FINDINGS_FILE
-trap 'rm -f "$FINDINGS_FILE"' EXIT
+$repoRoot = dirname(__DIR__);
+$root = getenv('ROOT_DIR');
+$rootDir = is_string($root) && $root !== '' ? $root : $repoRoot;
+$rootDir = str_replace('\\', '/', rtrim($rootDir, "\\/"));
 
-set +e
-python3 - <<'PY'
-import json
-import os
-import pathlib
-import re
-import sys
-
-root = pathlib.Path(os.environ["ROOT_DIR"])
-output_mode = os.environ.get("OUTPUT_MODE", "human")
-findings_file = os.environ.get("FINDINGS_FILE", "")
-
-policy_id = {
-    "sort_packages": "CP001",
-    "dev_scope": "CP002",
-    "no_wildcard_internal": "CP003",
-    "core_runtime_surface": "CP004",
-    "tight_internal_floor": "CP005",
-    "self_version_scope": "CP006",
-    "version_sync": "CP-NEW",
+$outputMode = getenv('WAASEYAA_OUTPUT') === 'json' ? 'json' : 'human';
+foreach (array_slice($argv, 1) as $arg) {
+    if ($arg === '--output=json') {
+        $outputMode = 'json';
+    }
 }
 
-# ---------------------------------------------------------------------------
-# CP-NEW: Cross-file internal constraint consistency.
-# Every waaseyaa/* constraint in packages/*/composer.json must equal
-# ^<current-git-tag> (the most recent vX.Y.Z tag on the repo).
-#
-# This depends on bin/lib/internal-version-sync.php (produced by WP01).
-# If the lib file is absent, CP-NEW is skipped with a clear error so merge
-# problems are loud, not silent.
-# ---------------------------------------------------------------------------
+$policyId = [
+    'sort_packages' => 'CP001',
+    'dev_scope' => 'CP002',
+    'no_wildcard_internal' => 'CP003',
+    'core_runtime_surface' => 'CP004',
+    'tight_internal_floor' => 'CP005',
+    'self_version_scope' => 'CP006',
+];
 
-import subprocess
-import sys as _sys
+$failures = [];
+$errors = 0;
+$tightFloorPattern = '/-(alpha|beta|rc|dev)\./';
 
-_CP_NEW_LIB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib", "internal-version-sync.php")
-_CP_NEW_EXPECTED_VERSION = None   # str | None — None means skip
-_CP_NEW_WARNING = None            # str | None — set when skipping with a reason
+$emit = static function (string $line = '') use ($outputMode): void {
+    if ($outputMode === 'human') {
+        echo $line . PHP_EOL;
+    }
+};
 
+$emitErr = static function (string $line) use ($outputMode): void {
+    if ($outputMode === 'human') {
+        fwrite(STDERR, $line . PHP_EOL);
+    }
+};
 
-def emit(line: str = "") -> None:
-    """Print human-readable text; suppressed in JSON mode."""
-    if output_mode == "human":
-        print(line)
+$fail = static function (
+    string $ruleKey,
+    string $relPath,
+    string $current,
+    string $expected,
+) use (&$failures, &$errors, $policyId, $emit): void {
+    $ruleCode = $policyId[$ruleKey];
+    $failures[] = [
+        'file' => $relPath,
+        'rule_code' => $ruleCode,
+        'explanation' => sprintf('current=%s; expected=%s', $current, $expected),
+    ];
+    $errors++;
+    $emit(sprintf('FAIL [%s] %s', $ruleCode, $relPath));
+    $emit(sprintf('  current: %s', $current));
+    $emit(sprintf('  expected: %s', $expected));
+};
 
+$failCpNew = static function (
+    string $relPath,
+    string $pkg,
+    string $actual,
+    string $expected,
+) use (&$failures, &$errors, $emit): void {
+    $failures[] = [
+        'file' => $relPath,
+        'rule_code' => 'CP-NEW',
+        'explanation' => sprintf('%s: actual=%s, expected=%s', $pkg, $actual, $expected),
+    ];
+    $errors++;
+    $emit(sprintf('FAIL [CP-NEW] %s', $relPath));
+    $emit(sprintf('  package:  %s', $pkg));
+    $emit(sprintf('  actual:   %s', $actual));
+    $emit(sprintf('  expected: %s', $expected));
+    $emit('  fix:      run bin/sync-internal-versions after tagging, or run WP04 backfill');
+};
 
-def emit_err(line: str) -> None:
-    if output_mode == "human":
-        print(line, file=sys.stderr)
+$expectedVersion = null;
+$cpNewWarning = null;
+$versionLib = __DIR__ . '/lib/internal-version-sync.php';
+if (is_file($versionLib)) {
+    require_once $versionLib;
+    try {
+        $expectedVersion = resolveCurrentVersion($rootDir);
+    } catch (RuntimeException $e) {
+        $cpNewWarning = sprintf(
+            'CP-NEW skipped: git tag resolution failed (%s). Run in a repo with at least one vX.Y.Z tag to enable this check.',
+            $e->getMessage(),
+        );
+    }
+} else {
+    $cpNewWarning = 'CP-NEW skipped: bin/lib/internal-version-sync.php is missing.';
+}
 
+$manifestPaths = [];
+$rootIterator = new RecursiveIteratorIterator(
+    new RecursiveDirectoryIterator($rootDir, FilesystemIterator::SKIP_DOTS),
+);
 
-def _resolve_cp_new_expected() -> None:
-    global _CP_NEW_EXPECTED_VERSION, _CP_NEW_WARNING
+foreach ($rootIterator as $file) {
+    if (!$file instanceof SplFileInfo || $file->getFilename() !== 'composer.json') {
+        continue;
+    }
 
-    # Strategy A: delegate to the shared PHP lib when it exists.
-    if os.path.isfile(_CP_NEW_LIB):
-        php_code = (
-            "<?php "
-            f"require '{_CP_NEW_LIB}'; "
-            "try { echo resolveCurrentVersion(); } "
-            "catch (\\RuntimeException $e) { fwrite(STDERR, $e->getMessage()); exit(2); }"
-        )
-        try:
-            result = subprocess.run(
-                ["php", "-r", php_code],
-                capture_output=True, text=True, timeout=10
-            )
-            if result.returncode == 2:
-                # resolveCurrentVersion() threw — no tags found
-                _CP_NEW_WARNING = (
-                    "CP-NEW skipped: git tag resolution failed "
-                    f"({result.stderr.strip() or 'no tags found'}). "
-                    "Run in a repo with at least one vX.Y.Z tag to enable this check."
-                )
-                return
-            if result.returncode != 0:
-                _CP_NEW_WARNING = (
-                    f"CP-NEW skipped: bin/lib/internal-version-sync.php exited {result.returncode}: "
-                    f"{result.stderr.strip()}"
-                )
-                return
-            version = result.stdout.strip()
-            if not version:
-                _CP_NEW_WARNING = "CP-NEW skipped: resolveCurrentVersion() returned empty string."
-                return
-            _CP_NEW_EXPECTED_VERSION = version
-        except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
-            _CP_NEW_WARNING = f"CP-NEW skipped: could not invoke php ({exc})."
-        return
+    $path = str_replace('\\', '/', $file->getPathname());
+    $rel = relativePath($rootDir, $path);
+    if (isExcluded($rel)) {
+        continue;
+    }
 
-    # Strategy B (fallback): resolve git tag directly in Python.
-    # This path is active before WP01 merges, or if the lib is unavailable.
-    try:
-        result = subprocess.run(
-            ["git", "describe", "--tags", "--abbrev=0", "--match=v*.*.*"],
-            capture_output=True, text=True, timeout=10,
-            cwd=str(root)
-        )
-        if result.returncode != 0:
-            _CP_NEW_WARNING = (
-                "CP-NEW skipped: no git tags found matching v*.*.* — "
-                "this is expected in shallow CI clones without fetch-tags: true "
-                "and in local clones before the first release tag. "
-                "Add 'fetch-tags: true' to the composer-policy CI job checkout step."
-            )
-            return
-        raw = result.stdout.strip()
-        version = raw.lstrip("v")
-        if not version:
-            _CP_NEW_WARNING = "CP-NEW skipped: git tag produced empty version string."
-            return
-        _CP_NEW_EXPECTED_VERSION = version
-    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
-        _CP_NEW_WARNING = f"CP-NEW skipped: could not run git ({exc})."
-
-_resolve_cp_new_expected()
-
-
-failures_list: list[dict[str, str]] = []
-
-
-def fail_cp_new(rel_path: str, pkg: str, actual: str, expected: str) -> None:
-    failures_list.append({
-        "file": rel_path,
-        "rule_code": "CP-NEW",
-        "explanation": f"{pkg}: actual={actual}, expected={expected}",
-    })
-    emit(f"FAIL [CP-NEW] {rel_path}")
-    emit(f"  package:  {pkg}")
-    emit(f"  actual:   {actual}")
-    emit(f"  expected: {expected}")
-    emit(f"  fix:      run bin/sync-internal-versions after tagging, or run WP04 backfill")
-
-# Cross-package constraints in publishable manifests must include an explicit
-# pre-release floor (alpha/beta/rc/dev), otherwise Composer can resolve a
-# stale sibling that lacks methods the current code calls. Discovered after
-# alpha.150 entity-storage shipped a `quoteIdentifier()` call against a
-# `^0.1` database-legacy constraint that resolved to alpha.145 in consumers.
-# Bare `^0.X` floors are forbidden; `^0.1.0-alpha.N` is the required shape.
-TIGHT_FLOOR_PATTERN = re.compile(r"-(alpha|beta|rc|dev)\.")
-
-def fail(rule_key: str, rel_path: str, current: str, expected: str) -> None:
-    rid = policy_id[rule_key]
-    failures_list.append({
-        "file": rel_path,
-        "rule_code": rid,
-        "explanation": f"current={current}; expected={expected}",
-    })
-    emit(f"FAIL [{rid}] {rel_path}")
-    emit(f"  current: {current}")
-    emit(f"  expected: {expected}")
-
-def _excluded(rel: str) -> bool:
-    parts = set(rel.split("/"))
-    return "vendor" in parts or "node_modules" in parts or rel.startswith(".worktrees/")
-
-
-manifest_paths = sorted(
-    [
-        p for p in root.rglob("composer.json")
-        if not _excluded(p.relative_to(root).as_posix())
-    ]
-)
-
-in_scope = []
-for path in manifest_paths:
-    rel = path.relative_to(root).as_posix()
     if (
-        rel == "composer.json"
-        or rel.startswith("packages/")
-        or rel.startswith("examples/")
-        or rel.startswith("docs/examples/")
-        or rel == "skeleton/composer.json"
-    ):
-        in_scope.append(path)
+        $rel === 'composer.json'
+        || str_starts_with($rel, 'packages/')
+        || str_starts_with($rel, 'examples/')
+        || str_starts_with($rel, 'docs/examples/')
+        || $rel === 'skeleton/composer.json'
+    ) {
+        $manifestPaths[] = $path;
+    }
+}
 
-errors = 0
+sort($manifestPaths);
 
-for path in in_scope:
-    rel = path.relative_to(root).as_posix()
-    data = json.loads(path.read_text())
+foreach ($manifestPaths as $path) {
+    $rel = relativePath($rootDir, $path);
+    $data = readComposerJson($path);
 
-    config = data.get("config", {})
-    sort_packages = config.get("sort-packages")
-    if sort_packages is not True:
-        errors += 1
-        fail(
-            "sort_packages",
-            rel,
-            f"config.sort-packages={sort_packages!r}",
-            "config.sort-packages=true",
-        )
+    $config = is_array($data['config'] ?? null) ? $data['config'] : [];
+    $sortPackages = $config['sort-packages'] ?? null;
+    if ($sortPackages !== true) {
+        $fail(
+            'sort_packages',
+            $rel,
+            'config.sort-packages=' . var_export($sortPackages, true),
+            'config.sort-packages=true',
+        );
+    }
 
-    package_sections = []
-    for sec in ("require", "require-dev"):
-        section = data.get(sec, {})
-        if isinstance(section, dict):
-            package_sections.append(section)
+    foreach (['require', 'require-dev'] as $sectionName) {
+        $section = is_array($data[$sectionName] ?? null) ? $data[$sectionName] : [];
+        foreach ($section as $pkg => $version) {
+            if (!is_string($pkg) || !is_string($version) || !str_starts_with($pkg, 'waaseyaa/')) {
+                continue;
+            }
 
-    for section in package_sections:
-        for pkg, version in section.items():
-            if not isinstance(version, str):
-                continue
+            if ($version === '@dev' && ($rel === 'composer.json' || str_starts_with($rel, 'packages/'))) {
+                $fail(
+                    'dev_scope',
+                    $rel,
+                    sprintf('%s=%s', $pkg, $version),
+                    '@dev forbidden - root must use self.version, packages/* must use an explicit semver range',
+                );
+            }
 
-            if pkg.startswith("waaseyaa/"):
-                # @dev policy: forbidden in published artifacts.
-                # Root composer.json ships to Packagist as
-                # `waaseyaa/framework` and consumers cannot resolve `@dev`.
-                # Packages/* are split-published per package. Use
-                # `self.version` in root for sibling metapackage
-                # constraints; explicit semver ranges in packages/*.
-                # examples/ and docs/examples/ are consumer demos that
-                # track local path repos at dev-main — `@dev` is allowed.
-                if version == "@dev" and (
-                    rel == "composer.json" or rel.startswith("packages/")
-                ):
-                    errors += 1
-                    fail(
-                        "dev_scope",
-                        rel,
-                        f'{pkg}={version}',
-                        '@dev forbidden — root must use self.version, '
-                        'packages/* must use an explicit semver range',
-                    )
+            if ($version === 'self.version' && $rel !== 'composer.json') {
+                $fail(
+                    'self_version_scope',
+                    $rel,
+                    sprintf('%s=%s', $pkg, $version),
+                    'self.version is only valid in the root composer.json (waaseyaa/framework metapackage); use an explicit semver range here',
+                );
+            }
 
-                # self.version policy: only valid in root composer.json,
-                # where it acts as a sibling-metapackage constraint that
-                # resolves to the published tag. Outside root it has no
-                # parent version to bind against in publishable artifacts.
-                if version == "self.version" and rel != "composer.json":
-                    errors += 1
-                    fail(
-                        "self_version_scope",
-                        rel,
-                        f'{pkg}={version}',
-                        'self.version is only valid in the root '
-                        'composer.json (waaseyaa/framework metapackage); '
-                        'use an explicit semver range here',
-                    )
+            if (str_contains($version, '*')) {
+                $fail(
+                    'no_wildcard_internal',
+                    $rel,
+                    sprintf('%s=%s', $pkg, $version),
+                    'use an explicit pre-release-anchored range (for example ^0.1.0-alpha.150)',
+                );
+            }
 
-                # Wildcard internal constraints forbidden everywhere.
-                if "*" in version:
-                    errors += 1
-                    fail(
-                        "no_wildcard_internal",
-                        rel,
-                        f'{pkg}={version}',
-                        "use an explicit pre-release-anchored range "
-                        "(for example ^0.1.0-alpha.150)",
-                    )
+            if (
+                $rel !== 'composer.json'
+                && $version !== '@dev'
+                && $version !== 'self.version'
+                && !str_contains($version, '*')
+                && preg_match($tightFloorPattern, $version) !== 1
+            ) {
+                $fail(
+                    'tight_internal_floor',
+                    $rel,
+                    sprintf('%s=%s', $pkg, $version),
+                    'anchor to a pre-release floor (for example ^0.1.0-alpha.150) so Composer cannot resolve a stale sibling missing required methods',
+                );
+            }
+        }
+    }
 
-                # Tight-floor policy: publishable manifests must anchor
-                # cross-package constraints to a pre-release tag so Composer
-                # cannot silently resolve a stale sibling. Root composer.json
-                # uses self.version (exact match — strictly tighter than any
-                # range). require-dev in skeleton/packages is also enforced —
-                # test deps shipped to consumers.
+    if ($rel === 'packages/core/composer.json') {
+        $require = is_array($data['require'] ?? null) ? $data['require'] : [];
+        foreach (['waaseyaa/debug', 'waaseyaa/telescope', 'waaseyaa/testing'] as $forbiddenPkg) {
+            if (array_key_exists($forbiddenPkg, $require)) {
+                $fail(
+                    'core_runtime_surface',
+                    $rel,
+                    sprintf('%s in require', $forbiddenPkg),
+                    sprintf('move %s to suggest (core runtime must remain install-safe)', $forbiddenPkg),
+                );
+            }
+        }
+    }
+}
+
+if ($cpNewWarning !== null) {
+    $emitErr('WARNING [CP-NEW] ' . $cpNewWarning);
+} elseif ($expectedVersion !== null) {
+    $expectedConstraint = '^' . $expectedVersion;
+    foreach ($manifestPaths as $path) {
+        $rel = relativePath($rootDir, $path);
+        if (!str_starts_with($rel, 'packages/')) {
+            continue;
+        }
+
+        $data = readComposerJson($path);
+        foreach (['require', 'require-dev'] as $sectionName) {
+            $section = is_array($data[$sectionName] ?? null) ? $data[$sectionName] : [];
+            foreach ($section as $pkg => $version) {
                 if (
-                    rel != "composer.json"
-                    and version != "@dev"
-                    and version != "self.version"
-                    and "*" not in version
-                    and not TIGHT_FLOOR_PATTERN.search(version)
-                ):
-                    errors += 1
-                    fail(
-                        "tight_internal_floor",
-                        rel,
-                        f'{pkg}={version}',
-                        "anchor to a pre-release floor "
-                        "(for example ^0.1.0-alpha.150) so Composer cannot "
-                        "resolve a stale sibling missing required methods",
-                    )
+                    is_string($pkg)
+                    && is_string($version)
+                    && str_starts_with($pkg, 'waaseyaa/')
+                    && $version !== $expectedConstraint
+                    && preg_match($tightFloorPattern, $version) === 1
+                ) {
+                    $failCpNew($rel, $pkg, $version, $expectedConstraint);
+                }
+            }
+        }
+    }
+}
 
-    if rel == "packages/core/composer.json":
-        require_section = data.get("require", {})
-        if isinstance(require_section, dict):
-            for forbidden_pkg in ("waaseyaa/debug", "waaseyaa/telescope", "waaseyaa/testing"):
-                if forbidden_pkg in require_section:
-                    errors += 1
-                    fail(
-                        "core_runtime_surface",
-                        rel,
-                        f'{forbidden_pkg} in require',
-                        f"move {forbidden_pkg} to suggest (core runtime must remain install-safe)",
-                    )
+if ($outputMode === 'human') {
+    if ($errors === 0) {
+        echo 'OK: Composer policy checks passed' . PHP_EOL;
+        exit(0);
+    }
 
-# ---------------------------------------------------------------------------
-# CP-NEW run: compare every packages/*/composer.json waaseyaa/* constraint
-# against the expected ^<current-version> literal.
-# ---------------------------------------------------------------------------
+    echo sprintf('Composer policy check failed with %d violation(s)', $errors) . PHP_EOL;
+    exit(1);
+}
 
-if _CP_NEW_WARNING:
-    emit_err(f"WARNING [CP-NEW] {_CP_NEW_WARNING}")
-elif _CP_NEW_EXPECTED_VERSION is not None:
-    expected_constraint = f"^{_CP_NEW_EXPECTED_VERSION}"
-    for path in in_scope:
-        rel = path.relative_to(root).as_posix()
-        # CP-NEW only applies to per-package manifests, not root.
-        if not rel.startswith("packages/"):
-            continue
-        data = json.loads(path.read_text())
-        for sec in ("require", "require-dev"):
-            section = data.get(sec, {})
-            if not isinstance(section, dict):
-                continue
-            for pkg, version in section.items():
-                if not isinstance(version, str):
-                    continue
-                if pkg.startswith("waaseyaa/") and version != expected_constraint:
-                    # Only flag constraints that pass the tight-floor shape
-                    # (i.e. have a pre-release anchor). Non-anchored literals
-                    # are already caught by CP005; flagging them twice adds noise.
-                    if TIGHT_FLOOR_PATTERN.search(version):
-                        errors += 1
-                        fail_cp_new(rel, pkg, version, expected_constraint)
+require_once $repoRoot . '/vendor/autoload.php';
+echo (new Waaseyaa\AgentOutput\Formatter\ComposerPolicyFormatter())->format([
+    'files_scanned' => count($manifestPaths),
+    'failures' => $failures,
+]);
 
-# Persist structured findings for the bash wrapper's PHP shim.
-if findings_file:
-    try:
-        pathlib.Path(findings_file).write_text(json.dumps({
-            "files_scanned": len(in_scope),
-            "failures": failures_list,
-        }))
-    except OSError:
-        pass
+exit($errors === 0 ? 0 : 1);
 
-if output_mode == "human":
-    if errors == 0:
-        print("OK: Composer policy checks passed")
-        sys.exit(0)
-    print(f"Composer policy check failed with {errors} violation(s)")
-    sys.exit(1)
+function relativePath(string $rootDir, string $path): string
+{
+    $root = rtrim(str_replace('\\', '/', $rootDir), '/') . '/';
+    $normalized = str_replace('\\', '/', $path);
 
-# JSON mode: stay silent on stdout/stderr — the bash wrapper emits the envelope.
-sys.exit(0 if errors == 0 else 1)
-PY
-PYTHON_EXIT=$?
-set -e
+    if (str_starts_with($normalized, $root)) {
+        return substr($normalized, strlen($root));
+    }
 
-if [[ "$OUTPUT_MODE" == "json" ]]; then
-    php -d display_errors=stderr -r '
-require getenv("ROOT_DIR") . "/vendor/autoload.php";
-$raw = @file_get_contents(getenv("FINDINGS_FILE"));
-$findings = is_string($raw) && $raw !== "" ? json_decode($raw, true, 512, JSON_THROW_ON_ERROR) : ["files_scanned" => 0, "failures" => []];
-echo (new Waaseyaa\AgentOutput\Formatter\ComposerPolicyFormatter())->format($findings);
-'
-fi
+    return $normalized;
+}
 
-exit "$PYTHON_EXIT"
+function isExcluded(string $rel): bool
+{
+    $parts = explode('/', $rel);
+
+    return in_array('vendor', $parts, true)
+        || in_array('node_modules', $parts, true)
+        || str_starts_with($rel, '.worktrees/');
+}
+
+/**
+ * @return array<string, mixed>
+ */
+function readComposerJson(string $path): array
+{
+    $raw = file_get_contents($path);
+    if ($raw === false) {
+        throw new RuntimeException(sprintf('Unable to read %s', $path));
+    }
+
+    $data = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+    if (!is_array($data)) {
+        throw new RuntimeException(sprintf('%s must decode to a JSON object', $path));
+    }
+
+    return $data;
+}

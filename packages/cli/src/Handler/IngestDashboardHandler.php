@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 
 /**
  * @api
  */
 final class IngestDashboardHandler
 {
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $paths = $this->collectInputPaths($io);
         if ($paths === []) {
@@ -55,7 +55,7 @@ final class IngestDashboardHandler
     /**
      * @return list<string>
      */
-    private function collectInputPaths(CliIO $io): array
+    private function collectInputPaths(SymfonyCommandIO $io): array
     {
         $paths = [];
         $option = $io->option('input');
@@ -360,7 +360,7 @@ final class IngestDashboardHandler
         return implode(PHP_EOL, $lines) . PHP_EOL;
     }
 
-    private function writeFile(string $path, string $contents, CliIO $io): bool
+    private function writeFile(string $path, string $contents, SymfonyCommandIO $io): bool
     {
         $dir = dirname($path);
         if (!is_dir($dir) && !mkdir($dir, 0o755, true) && !is_dir($dir)) {

@@ -4,92 +4,92 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Provider;
 
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\MigrateDefaultsHandler;
 use Waaseyaa\CLI\Handler\MigrateHandler;
 use Waaseyaa\CLI\Handler\MigrateRollbackHandler;
 use Waaseyaa\CLI\Handler\MigrateStatusHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
-use Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
-final class MigrateServiceProvider extends ServiceProvider implements HasNativeCommandsInterface
+final class MigrateServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
 {
     public function register(): void {}
 
-    public function nativeCommands(): iterable
+    public function consoleCommands(): iterable
     {
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'migrate',
             description: 'Run pending database migrations (use --dry-run to preview, --verify to audit)',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'dry-run',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Preview pending migrations without applying any SQL or writing to the ledger.',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'verify',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Compare ledger checksums against the live source. Read-only.',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'json',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Emit machine-readable JSON instead of human-readable text.',
                 ),
             ],
             handler: [MigrateHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'migrate:rollback',
             description: 'Roll back the last batch of migrations',
             handler: [MigrateRollbackHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'migrate:status',
             description: 'Show the status of each migration',
             handler: [MigrateStatusHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'migrate:defaults',
             description: 'Migrate default content type enablement for tenants',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'tenant',
-                    mode: OptionMode::Array_,
+                    mode: HandlerOptionMode::Array_,
                     description: 'Tenant IDs to migrate (repeatable)',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'enable',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Type ID to enable for all tenants (e.g. note)',
                     default: '',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'actor',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Actor ID for audit log entries',
                     default: 'cli',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'yes',
                     shortcut: 'y',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Skip confirmation prompts',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'dry-run',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Report actions without making changes',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'rollback',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Rollback previous migrate:defaults actions',
                 ),
             ],

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
 use Waaseyaa\CLI\Command\Make\AbstractMakeHandler;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 
 /**
  * @api
@@ -14,7 +14,7 @@ final class MakePublicHandler extends AbstractMakeHandler
 {
     public function __construct(private readonly string $projectRoot) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $force = (bool) $io->option('force');
 

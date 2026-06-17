@@ -19,7 +19,7 @@ use Waaseyaa\Bimaaji\Introspection\Routing\RoutingIntrospectionProvider;
 use Waaseyaa\Bimaaji\Introspection\Sovereignty\SovereigntyIntrospectionProvider;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Foundation\Sovereignty\SovereigntyConfigInterface;
 use Waaseyaa\Foundation\Sovereignty\SovereigntyProfile;
@@ -213,31 +213,31 @@ final class BimaajiServiceProviderTest extends TestCase
     }
 
     #[Test]
-    public function implements_has_native_commands_interface_and_yields_graph_dump(): void
+    public function implements_console_commands_interface_and_yields_graph_dump(): void
     {
         $provider = new BimaajiServiceProvider();
-        self::assertInstanceOf(HasNativeCommandsInterface::class, $provider);
+        self::assertInstanceOf(ProvidesConsoleCommandsInterface::class, $provider);
 
         $commands = iterator_to_array((function () use ($provider): \Generator {
-            yield from $provider->nativeCommands();
+            yield from $provider->consoleCommands();
         })());
 
         // Two commands: graph:dump (M1 WP02) + bimaaji:install (M5 WP03).
         self::assertCount(2, $commands);
         $byName = [];
         foreach ($commands as $command) {
-            self::assertInstanceOf(\Waaseyaa\CLI\CommandDefinition::class, $command);
-            $byName[$command->name] = $command;
+            self::assertInstanceOf(\Waaseyaa\CLI\Command\HandlerCommand::class, $command);
+            $byName[$command->getName()] = $command;
         }
 
         self::assertArrayHasKey('graph:dump', $byName);
         // Three flags: --section (required value), --format (required value), --strict (none/boolean).
-        $graphOptions = array_map(static fn(\Waaseyaa\CLI\OptionDefinition $opt): string => $opt->name, $byName['graph:dump']->options);
+        $graphOptions = array_map(static fn(\Waaseyaa\CLI\Command\HandlerOption $opt): string => $opt->name, $byName['graph:dump']->handlerOptions());
         self::assertSame(['section', 'format', 'strict'], $graphOptions);
 
         self::assertArrayHasKey('bimaaji:install', $byName);
         // Four flags: --client (array), --features (required+default), --dry-run (none), --force (none).
-        $installOptions = array_map(static fn(\Waaseyaa\CLI\OptionDefinition $opt): string => $opt->name, $byName['bimaaji:install']->options);
+        $installOptions = array_map(static fn(\Waaseyaa\CLI\Command\HandlerOption $opt): string => $opt->name, $byName['bimaaji:install']->handlerOptions());
         self::assertSame(['client', 'features', 'dry-run', 'force'], $installOptions);
     }
 

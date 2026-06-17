@@ -7,7 +7,7 @@ namespace Waaseyaa\CLI\Tests\Unit\Handler;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\OptimizeHandler;
 use Waaseyaa\CLI\Testing\CliTester;
 
@@ -30,11 +30,11 @@ final class OptimizeHandlerTest extends TestCase
     public function runs_registered_sub_commands(): void
     {
         $handler = new OptimizeHandler(subHandlers: [
-            'optimize:manifest' => static function (\Waaseyaa\CLI\CliIO $io): int {
+            'optimize:manifest' => static function (\Waaseyaa\CLI\Command\SymfonyCommandIO $io): int {
                 $io->writeln('Manifest compiled.');
                 return 0;
             },
-            'optimize:config' => static function (\Waaseyaa\CLI\CliIO $io): int {
+            'optimize:config' => static function (\Waaseyaa\CLI\Command\SymfonyCommandIO $io): int {
                 $io->writeln('Config compiled.');
                 return 0;
             },
@@ -53,10 +53,10 @@ final class OptimizeHandlerTest extends TestCase
     public function stops_on_sub_command_failure(): void
     {
         $handler = new OptimizeHandler(subHandlers: [
-            'optimize:manifest' => static function (\Waaseyaa\CLI\CliIO $io): int {
+            'optimize:manifest' => static function (\Waaseyaa\CLI\Command\SymfonyCommandIO $io): int {
                 return 1;
             },
-            'optimize:config' => static function (\Waaseyaa\CLI\CliIO $io): int {
+            'optimize:config' => static function (\Waaseyaa\CLI\Command\SymfonyCommandIO $io): int {
                 $io->writeln('Config compiled.');
                 return 0;
             },
@@ -82,7 +82,7 @@ final class OptimizeHandlerTest extends TestCase
 
     private function createTester(OptimizeHandler $handler): CliTester
     {
-        $definition = new CommandDefinition(
+        $definition = new HandlerCommand(
             name: 'optimize',
             description: 'Run all optimization compilers',
             handler: \Closure::fromCallable([$handler, 'execute']),

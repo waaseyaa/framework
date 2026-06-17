@@ -268,12 +268,15 @@ final class InertiaMultipartCsrfIntegrationTest extends TestCase
         $desc['session_path']  = $this->sessionPath;
         $desc['provider_file'] = $this->providerFile;
 
-        $json    = json_encode($desc, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        $json = json_encode($desc, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        $jsonFile = $this->projectRoot . '/storage/csrf-request-' . bin2hex(random_bytes(6)) . '.json';
+        file_put_contents($jsonFile, $json);
+
         $command = sprintf(
-            '%s %s --json %s 2>&1',
+            '%s %s --json-file %s 2>&1',
             escapeshellarg(PHP_BINARY),
             escapeshellarg($this->runner),
-            escapeshellarg($json),
+            escapeshellarg($jsonFile),
         );
 
         $output = shell_exec($command);

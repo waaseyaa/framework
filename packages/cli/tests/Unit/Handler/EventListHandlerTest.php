@@ -9,16 +9,16 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Symfony\Component\EventDispatcher\EventDispatcher;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\EventListHandler;
 use Waaseyaa\CLI\Testing\CliTester;
 
 #[CoversClass(EventListHandler::class)]
 final class EventListHandlerTest extends TestCase
 {
-    private function makeDefinition(): CommandDefinition
+    private function makeDefinition(): HandlerCommand
     {
-        return new CommandDefinition(
+        return new HandlerCommand(
             name: 'event:list',
             description: 'List all registered events and listeners',
             handler: [EventListHandler::class, 'execute'],

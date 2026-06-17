@@ -8,12 +8,12 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
-use Waaseyaa\CLI\ArgumentDefinition;
-use Waaseyaa\CLI\ArgumentMode;
+use Waaseyaa\CLI\Command\HandlerArgument;
+use Waaseyaa\CLI\Command\HandlerArgumentMode;
 use Waaseyaa\CLI\Command\Import\ImportRunCommand;
-use Waaseyaa\CLI\CommandDefinition;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Migration\Discovery\HasMigrationsInterface;
@@ -202,19 +202,19 @@ final class ImportRunCommandTest extends TestCase
         return CliTester::for($definitionCli, $container);
     }
 
-    private function commandDefinition(ImportRunCommand $handler): CommandDefinition
+    private function commandDefinition(ImportRunCommand $handler): HandlerCommand
     {
-        return new CommandDefinition(
+        return new HandlerCommand(
             name: 'import:run',
             description: 'Run a single migration end-to-end (FR-032).',
             arguments: [
-                new ArgumentDefinition(name: 'migration_id', mode: ArgumentMode::Required),
+                new HandlerArgument(name: 'migration_id', mode: HandlerArgumentMode::Required),
             ],
             options: [
-                new OptionDefinition(name: 'dry-run', mode: OptionMode::None),
-                new OptionDefinition(name: 'halt-on-error', mode: OptionMode::None),
-                new OptionDefinition(name: 'limit', mode: OptionMode::Required),
-                new OptionDefinition(name: 'run-id', mode: OptionMode::Required),
+                new HandlerOption(name: 'dry-run', mode: HandlerOptionMode::None),
+                new HandlerOption(name: 'halt-on-error', mode: HandlerOptionMode::None),
+                new HandlerOption(name: 'limit', mode: HandlerOptionMode::Required),
+                new HandlerOption(name: 'run-id', mode: HandlerOptionMode::Required),
             ],
             handler: [ImportRunCommand::class, 'execute'],
         );

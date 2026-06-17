@@ -7,11 +7,11 @@ namespace Waaseyaa\CLI\Provider;
 use Waaseyaa\Audit\Contract\AuditQueryInterface;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\CLI\Command\Audit\PruneCommand;
-use Waaseyaa\CLI\CommandDefinition;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\Database\DatabaseInterface;
-use Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 /**
@@ -22,7 +22,7 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
  *
  * @api
  */
-final class AuditServiceProvider extends ServiceProvider implements HasNativeCommandsInterface
+final class AuditServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
 {
     public function register(): void
     {
@@ -41,32 +41,32 @@ final class AuditServiceProvider extends ServiceProvider implements HasNativeCom
         );
     }
 
-    public function nativeCommands(): iterable
+    public function consoleCommands(): iterable
     {
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'audit:prune',
             description: 'Delete audit events older than a given ISO-8601 duration (FR-013, FR-014). Emits a self-audit event on each real execution (FR-012).',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'older-than',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'ISO-8601 duration (e.g. P30D, PT1H, P1Y). Events created before now()-duration are deleted.',
                     default: '',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'kind',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Glob pattern for event kinds: * (all), entity.* (prefix), or a literal kind value.',
                     default: '*',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'dry-run',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Print the count that would be pruned without deleting.',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'confirm',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Required for real deletion. Without it the command refuses and prints the cutoff + row count it would delete.',
                 ),
             ],

@@ -17,10 +17,10 @@ use Waaseyaa\Config\Exception\ConfigCommandCollisionException;
  *    six fully-qualified reserved verbs published in
  *    `contracts/cli-namespace.md`.
  *
- * 2. **Collision-detection hook (FR-048).** `CliKernel`'s boot-time
- *    command-registration hook invokes {@see assertNoCollision()} once per
- *    command. App or extension code registering a command whose name equals a
- *    reserved verb AND whose class is not part of the framework's
+ * 2. **Collision-detection hook (FR-048).** The Symfony Console application
+ *    factory invokes {@see assertNoCollision()} once per command. App or
+ *    extension code registering a command whose name equals a reserved verb
+ *    AND whose class is not part of the framework's
  *    reserved-FQCN allowlist ({@see RESERVED_FQCNS}) causes the kernel to
  *    throw {@see ConfigCommandCollisionException} and refuse to boot.
  *
@@ -151,7 +151,7 @@ abstract class ConfigCommand
     /**
      * Assert no collision between `$verb` and the reserved verb set.
      *
-     * Called by `CliKernel`'s command-registration hook for every command
+     * Called by the Symfony Console application factory for every command
      * registered at boot. Behaviour:
      *
      *  - `$verb` not reserved (e.g. `cache:clear`, `config:audit-export`,

@@ -14,10 +14,8 @@ namespace Waaseyaa\Foundation\ServiceProvider\Capability;
  * implementing this interface into a single id-keyed registry.
  *
  * Layer placement: Foundation (L0). The return type is the untyped `iterable`
- * by design, exactly as {@see HasNativeCommandsInterface::nativeCommands()}
- * yields L6 CommandDefinitions without importing them. This keeps Foundation
- * from importing the User package (L1). The concrete element type is resolved
- * by the L1 collector at runtime.
+ * by design to keep Foundation from importing the User package (L1). The
+ * concrete element type is resolved by the L1 collector at runtime.
  *
  * @api
  */

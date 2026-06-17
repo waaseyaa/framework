@@ -12,7 +12,7 @@ use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface;
  * Roles are discovered by iterating every service provider implementing
  * {@see ProvidesRolesInterface} and flattening their {@see Role} contributions
  * into a single map keyed by role id. This mirrors the discovery pattern used
- * by {@code CliKernelServiceProvider} / {@code ListingDiscoverer} for other
+ * by provider-capability discovery / {@code ListingDiscoverer} for other
  * provider capabilities: filter by {@code instanceof}, then flatten.
  *
  * The repository is the canonical source the user:assign-role command consults

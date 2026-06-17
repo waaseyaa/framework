@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Command\Config;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Config\Sync\ConfigStatusReporter;
 use Waaseyaa\Config\Sync\StatusEntry;
 use Waaseyaa\Config\Sync\StatusReport;
@@ -37,7 +37,7 @@ final class ConfigStatusCommand
         private readonly ConfigStatusReporter $reporter,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $formatOption = $io->option('format');
         $format = \is_string($formatOption) && $formatOption !== '' ? $formatOption : self::FORMAT_PLAIN;
@@ -61,7 +61,7 @@ final class ConfigStatusCommand
         return 0;
     }
 
-    private function renderPlain(CliIO $io, StatusReport $report): void
+    private function renderPlain(SymfonyCommandIO $io, StatusReport $report): void
     {
         $counts = $report->counts();
         $io->writeln(sprintf(

@@ -17,6 +17,7 @@ use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Oidc\ClientRegistry\OidcClientLookup;
 use Waaseyaa\Oidc\Entity\OidcClient;
+use Waaseyaa\Oidc\Keys\OpenSslKeyFactory;
 use Waaseyaa\Oidc\Keys\SigningKey;
 use Waaseyaa\Oidc\Repository\AuthorizationCode;
 use Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface;
@@ -43,19 +44,10 @@ final class TokenControllerTest extends TestCase
 
     protected function setUp(): void
     {
-        $resource = openssl_pkey_new([
-            'private_key_bits' => 2048,
-            'private_key_type' => OPENSSL_KEYTYPE_RSA,
-        ]);
-        self::assertNotFalse($resource);
+        $keyPair = new OpenSslKeyFactory()->generateRsaKeyPair();
 
-        $private = '';
-        openssl_pkey_export($resource, $private);
-        $details = openssl_pkey_get_details($resource);
-        self::assertIsArray($details);
-
-        $this->privateKeyPem = $private;
-        $this->publicKeyPem = $details['key'];
+        $this->privateKeyPem = $keyPair['private'];
+        $this->publicKeyPem = $keyPair['public'];
 
         $database = DBALDatabase::createSqlite();
 

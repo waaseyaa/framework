@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Command\Config;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Config\Sync\ConfigSyncValidator;
 use Waaseyaa\Config\Sync\ConfigValidateEntry;
 
@@ -45,7 +45,7 @@ final class ConfigValidateCommand
         private readonly ConfigSyncValidator $validator,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $result = $this->validator->validate();
 
@@ -62,7 +62,7 @@ final class ConfigValidateCommand
         return $result->isValid() ? 0 : 1;
     }
 
-    private function renderEntry(CliIO $io, ConfigValidateEntry $entry): void
+    private function renderEntry(SymfonyCommandIO $io, ConfigValidateEntry $entry): void
     {
         if ($entry->isValid()) {
             $io->writeln(sprintf('%s: OK', $entry->ref));

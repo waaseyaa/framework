@@ -15,10 +15,10 @@ use Waaseyaa\CLI\Testing\CliTester;
 #[CoversClass(AboutHandler::class)]
 final class AboutHandlerTest extends TestCase
 {
-    private function makeDefinition(): \Waaseyaa\CLI\CommandDefinition
+    private function makeDefinition(): \Waaseyaa\CLI\Command\HandlerCommand
     {
         $provider = new MiscAServiceProvider();
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'about') {
                 return $cmd;
             }
@@ -66,7 +66,7 @@ final class AboutHandlerTest extends TestCase
 
         try {
             $handler = new AboutHandler(projectRoot: $projectRoot);
-            $definition = new \Waaseyaa\CLI\CommandDefinition(
+            $definition = new \Waaseyaa\CLI\Command\HandlerCommand(
                 name: 'about',
                 description: 'Display system information',
                 handler: \Closure::fromCallable([$handler, 'execute']),

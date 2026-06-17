@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Search\BatchSearchIndexerInterface;
 use Waaseyaa\Search\SearchIndexableInterface;
@@ -22,7 +22,7 @@ final class SearchReindexHandler
         private readonly EntityTypeManagerInterface $entityTypeManager,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $batchSize = (int) ($io->option('batch-size') ?? self::BATCH_SIZE);
         if ($batchSize < 1) {

@@ -8,10 +8,10 @@ use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\DbInitHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 
 #[CoversClass(DbInitHandler::class)]
@@ -219,13 +219,13 @@ final class DbInitHandlerTest extends TestCase
     private function createTester(): CliTester
     {
         $handler = new DbInitHandler(projectRoot: $this->projectRoot);
-        $definition = new CommandDefinition(
+        $definition = new HandlerCommand(
             name: 'db:init',
             description: 'Initialize the database on first deploy and apply pending migrations.',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'dry-run',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Show what would happen without creating files or running migrations.',
                 ),
             ],

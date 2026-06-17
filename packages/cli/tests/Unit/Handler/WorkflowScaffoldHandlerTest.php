@@ -14,10 +14,10 @@ use Waaseyaa\CLI\Testing\CliTester;
 #[CoversClass(WorkflowScaffoldHandler::class)]
 final class WorkflowScaffoldHandlerTest extends TestCase
 {
-    private function makeDefinition(): \Waaseyaa\CLI\CommandDefinition
+    private function makeDefinition(): \Waaseyaa\CLI\Command\HandlerCommand
     {
         $provider = new OtherScaffoldsServiceProvider();
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'scaffold:workflow') {
                 return $cmd;
             }

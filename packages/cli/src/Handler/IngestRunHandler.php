@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\CLI\Ingestion\AuthoringAssistBuilder;
 use Waaseyaa\CLI\Ingestion\IngestionEnvelopeNormalizer;
 use Waaseyaa\CLI\Ingestion\RelationshipInferenceEngine;
@@ -32,7 +32,7 @@ final class IngestRunHandler
 {
     private const array VALID_STATES = ['draft', 'review', 'published', 'archived'];
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $inputPath = trim($this->stringify($io->option('input')));
         if ($inputPath === '') {
@@ -759,7 +759,7 @@ final class IngestRunHandler
         return $value;
     }
 
-    private function writeFile(string $path, string $contents, CliIO $io): bool
+    private function writeFile(string $path, string $contents, SymfonyCommandIO $io): bool
     {
         $dir = dirname($path);
         if (!is_dir($dir) && !mkdir($dir, 0o755, true) && !is_dir($dir)) {

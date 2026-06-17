@@ -4,60 +4,60 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Provider;
 
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\NcSyncHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
-use Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\NorthCloud\Sync\NcSyncService;
 
-final class NorthCloudServiceProvider extends ServiceProvider implements HasNativeCommandsInterface
+final class NorthCloudServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
 {
     public function register(): void {}
 
-    public function nativeCommands(): iterable
+    public function consoleCommands(): iterable
     {
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'northcloud:sync',
             description: 'Pull content from the NorthCloud Search API and persist entities via registered mappers',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'limit',
                     shortcut: 'l',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Maximum hits to fetch',
                     default: '20',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'since',
                     shortcut: 's',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Fetch content from this date (YYYY-MM-DD)',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'dry-run',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Report what would be created without persisting',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'explain',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Show skip reason breakdown and sampled hit diagnostics',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'sample',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Capture up to N created/skipped samples in output',
                     default: '10',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'report-json',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Write sync report JSON to this path',
                 ),
             ],
-            handler: function (\Waaseyaa\CLI\CliIO $io): int {
+            handler: function (\Waaseyaa\CLI\Command\SymfonyCommandIO $io): int {
                 $northcloudConfig = $this->config['northcloud'] ?? [];
                 $northcloudConfig = is_array($northcloudConfig) ? $northcloudConfig : [];
                 $statusPath = $northcloudConfig['sync']['status_path'] ?? null;

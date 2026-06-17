@@ -14,10 +14,10 @@ use Waaseyaa\CLI\Testing\CliTester;
 #[CoversClass(FixtureGenerateHandler::class)]
 final class FixtureGenerateHandlerTest extends TestCase
 {
-    private function makeDefinition(): \Waaseyaa\CLI\CommandDefinition
+    private function makeDefinition(): \Waaseyaa\CLI\Command\HandlerCommand
     {
         $provider = new BundleFixtureServiceProvider();
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'fixture:generate') {
                 return $cmd;
             }

@@ -49,7 +49,8 @@ final class SkeletonLayoutTest extends TestCase
         self::assertContains('Composer\\Config::disableProcessTimeout', $dev);
         self::assertContains('bash bin/dev.sh', $dev);
 
-        exec(sprintf('bash -n %s 2>&1', escapeshellarg($devScript)), $output, $exitCode);
+        $command = sprintf('bash -n %s 2>&1', escapeshellarg('bin/dev.sh'));
+        exec('cd ' . escapeshellarg($repoRoot . '/skeleton') . ' && ' . $command, $output, $exitCode);
         self::assertSame(0, $exitCode, implode("\n", $output));
     }
 

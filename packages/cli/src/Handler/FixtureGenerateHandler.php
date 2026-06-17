@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 
 /**
  * @api
  */
 final class FixtureGenerateHandler
 {
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $template = strtolower(trim((string) ($io->option('template') ?? '')));
         $count = max(2, (int) ($io->option('count') ?? 8));

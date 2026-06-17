@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 
 final class OptimizeHandler
 {
@@ -19,13 +19,13 @@ final class OptimizeHandler
     ];
 
     /**
-     * @param array<string, \Closure(CliIO): int> $subHandlers  Keyed by command name.
+     * @param array<string, \Closure(SymfonyCommandIO): int> $subHandlers  Keyed by command name.
      */
     public function __construct(
         private readonly array $subHandlers,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $ranAny = false;
 

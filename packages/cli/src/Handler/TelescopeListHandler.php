@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 
 /**
  * @api
@@ -18,7 +18,7 @@ final class TelescopeListHandler
         private readonly ?object $store = null,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         if ($this->store === null) {
             $io->writeln('Telescope is not enabled. Set telescope.enabled: true in configuration.');

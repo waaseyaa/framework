@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 
 final class ServeHandler
 {
@@ -32,7 +32,7 @@ final class ServeHandler
         return $env;
     }
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $host = $io->option('host') ?? (getenv('APP_HOST') !== false ? getenv('APP_HOST') : '0.0.0.0');
         $port = $io->option('port') ?? (getenv('APP_PORT') !== false ? getenv('APP_PORT') : '8080');

@@ -9,7 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Symfony\Component\EventDispatcher\EventDispatcher;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\TypeDisableHandler;
 use Waaseyaa\CLI\Handler\TypeEnableHandler;
 use Waaseyaa\CLI\Provider\EntityTypeServiceProvider;
@@ -250,10 +250,10 @@ final class TypeLifecycleHandlerTest extends TestCase
         };
     }
 
-    private function findDefinition(string $name): CommandDefinition
+    private function findDefinition(string $name): HandlerCommand
     {
         $provider = new EntityTypeServiceProvider();
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === $name) {
                 return $cmd;
             }

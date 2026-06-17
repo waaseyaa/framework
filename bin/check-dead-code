@@ -1,130 +1,145 @@
-#!/usr/bin/env bash
-# Hard-gate dead-code check (Phase 4). Exits non-zero on any finding not already
-# in phpstan-dead-code-baseline.neon. Pre-existing entries are suppressed by the
-# baseline — only NEW dead-code introduced by the current change set fails CI.
-#
-# Detection: PHPStan + shipmonk/dead-code-detector with phpstan-dead-code.neon,
-# which layers on the project's standard phpstan.neon and registers the
-# WaaseyaaEntrypointProvider for our discovery patterns (policy attribute,
-# middleware attribute, extra.waaseyaa.providers, Ingestion/EntityMapper/*,
-# RouteProviderInterface implementors, EntityBase/ContentEntityBase subclasses
-# and their traits, and class-level @api PHPDoc).
-#
-# Output modes (M4 WP04B of mission `agent-output-package-01KS5VX1`):
-#
-#   --output=json    NDJSON envelope on stdout via Waaseyaa\AgentOutput\Formatter\DeadCodeFormatter
-#   WAASEYAA_OUTPUT=json    same effect via env var
-#
-# Default behaviour (no flag, no env var) is unchanged: human pass/fail text,
-# exit 0/1.
-#
-# Run locally:  bin/check-dead-code
-# Auto-remove:  bin/check-dead-code -- --error-format=removeDeadCode
-# Regen baseline (only when intentionally accepting a new finding):
-#   vendor/bin/phpstan analyse -c phpstan-dead-code.neon \
-#     --generate-baseline=phpstan-dead-code-baseline.neon --allow-empty-baseline
-#
-# History: was bin/audit-dead-code (warn-only) through PR #1503. Phase 4 of the
-# dead-code cleanup audit (docs/audits/2026-05-17-dead-code-baseline-audit.md)
-# flipped this to a hard gate after the baseline dropped from 1,341 → 66 entries.
-set -uo pipefail
+#!/usr/bin/env php
+<?php
 
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-export ROOT_DIR
-cd "$ROOT_DIR"
+declare(strict_types=1);
 
-OUTPUT_MODE="human"
-# Filter agent-output flags out of the args forwarded to phpstan.
-PHPSTAN_ARGS=()
-for arg in "$@"; do
-    case "$arg" in
-        --output=json) OUTPUT_MODE="json" ;;
-        *) PHPSTAN_ARGS+=("$arg") ;;
-    esac
-done
-if [[ "${WAASEYAA_OUTPUT:-}" == "json" ]]; then
-    OUTPUT_MODE="json"
-fi
+/*
+ * Hard-gate dead-code check. Exits non-zero on any finding not already in
+ * phpstan-dead-code-baseline.neon.
+ *
+ * Output modes:
+ *   --output=json
+ *   WAASEYAA_OUTPUT=json
+ */
 
-if [[ ! -x vendor/bin/phpstan ]]; then
-    if [[ "$OUTPUT_MODE" == "json" ]]; then
-        printf '{"tool":"check-dead-code","result":"pass","baseline_count":0,"new_count":0,"findings":[],"skipped":"vendor-missing"}\n'
-        exit 0
-    fi
-    echo "WARN: vendor/bin/phpstan not found; run 'composer install' before check-dead-code." >&2
-    exit 0
-fi
+$root = dirname(__DIR__);
+$outputMode = getenv('WAASEYAA_OUTPUT') === 'json' ? 'json' : 'human';
+$phpstanArgs = [];
 
-mkdir -p tmp/phpstan-dead-code
-
-if [[ "$OUTPUT_MODE" == "json" ]]; then
-    # JSON mode: ask phpstan for machine-readable output, then translate via
-    # the DeadCodeFormatter contract.
-    set +e
-    PHPSTAN_JSON="$(vendor/bin/phpstan analyse --configuration=phpstan-dead-code.neon --no-progress --memory-limit=2G --error-format=json "${PHPSTAN_ARGS[@]}" 2>/dev/null)"
-    PHPSTAN_EXIT=$?
-    set -e
-    export PHPSTAN_JSON PHPSTAN_EXIT
-    php -d display_errors=stderr -r '
-require getenv("ROOT_DIR") . "/vendor/autoload.php";
-$raw = getenv("PHPSTAN_JSON");
-$findings = [];
-$newCount = 0;
-if (is_string($raw) && $raw !== "") {
-    try {
-        $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-        if (is_array($decoded) && isset($decoded["files"]) && is_array($decoded["files"])) {
-            foreach ($decoded["files"] as $file => $entry) {
-                $messages = $entry["messages"] ?? [];
-                if (!is_array($messages)) continue;
-                foreach ($messages as $msg) {
-                    $line = isset($msg["line"]) && is_int($msg["line"]) ? $msg["line"] : 0;
-                    $message = isset($msg["message"]) ? (string) $msg["message"] : "";
-                    $findings[] = [
-                        "file" => (string) $file,
-                        "line" => $line,
-                        "kind" => $msg["identifier"] ?? "unused",
-                        "message" => $message,
-                    ];
-                }
-            }
-            $newCount = isset($decoded["totals"]["file_errors"]) && is_int($decoded["totals"]["file_errors"])
-                ? $decoded["totals"]["file_errors"]
-                : count($findings);
-        }
-    } catch (\JsonException $e) {
-        // Fall through with empty findings — exit code is still the source of truth.
+foreach (array_slice($argv, 1) as $arg) {
+    if ($arg === '--output=json') {
+        $outputMode = 'json';
+        continue;
     }
+
+    $phpstanArgs[] = $arg;
 }
-echo (new Waaseyaa\AgentOutput\Formatter\DeadCodeFormatter())->format([
-    "baseline_count" => 0,
-    "new_count" => $newCount,
-    "findings" => $findings,
-]);
-'
-    exit "$PHPSTAN_EXIT"
-fi
 
-# Human mode (unchanged from pre-WP04B).
-echo "Running dead-code check via phpstan-dead-code.neon..."
-echo
+$phpstan = $root . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'phpstan';
+if (!is_file($phpstan)) {
+    if ($outputMode === 'json') {
+        echo json_encode([
+            'tool' => 'check-dead-code',
+            'result' => 'pass',
+            'baseline_count' => 0,
+            'new_count' => 0,
+            'findings' => [],
+            'skipped' => 'vendor-missing',
+        ], JSON_THROW_ON_ERROR) . PHP_EOL;
+        exit(0);
+    }
 
-set +e
-vendor/bin/phpstan analyse --configuration=phpstan-dead-code.neon --no-progress --memory-limit=2G "${PHPSTAN_ARGS[@]}"
-exit_status=$?
-set -e
+    fwrite(STDERR, "WARN: vendor/bin/phpstan not found; run 'composer install' before check-dead-code.\n");
+    exit(0);
+}
 
-echo
-if [[ "$exit_status" -eq 0 ]]; then
-    echo "OK — dead-code check found no new unused members beyond the baseline."
-else
-    echo "Dead-code check FAILED (exit=$exit_status)."
-    echo
-    echo "If this finding is intentional (e.g. a forthcoming extension point), add"
-    echo "a class-level '@api' PHPDoc tag. If you must accept it as known-dead,"
-    echo "regenerate the baseline:"
-    echo "  vendor/bin/phpstan analyse -c phpstan-dead-code.neon \\"
-    echo "    --generate-baseline=phpstan-dead-code-baseline.neon --allow-empty-baseline"
-    echo "and explain in the PR description why."
-fi
-exit "$exit_status"
+@mkdir($root . DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'phpstan-dead-code', 0777, true);
+
+$baseArgs = [
+    PHP_BINARY,
+    $phpstan,
+    'analyse',
+    '--configuration=phpstan-dead-code.neon',
+    '--no-progress',
+    '--memory-limit=2G',
+];
+
+if ($outputMode === 'json') {
+    $command = array_merge($baseArgs, ['--error-format=json'], $phpstanArgs);
+    [$exitCode, $stdout] = runCommand($command, $root, capture: true);
+    $decoded = json_decode($stdout, true);
+    $findings = [];
+    $newCount = 0;
+
+    if (is_array($decoded) && isset($decoded['files']) && is_array($decoded['files'])) {
+        foreach ($decoded['files'] as $file => $entry) {
+            $messages = is_array($entry) ? ($entry['messages'] ?? []) : [];
+            if (!is_array($messages)) {
+                continue;
+            }
+
+            foreach ($messages as $message) {
+                if (!is_array($message)) {
+                    continue;
+                }
+
+                $findings[] = [
+                    'file' => (string) $file,
+                    'line' => isset($message['line']) && is_int($message['line']) ? $message['line'] : 0,
+                    'kind' => (string) ($message['identifier'] ?? 'unused'),
+                    'message' => (string) ($message['message'] ?? ''),
+                ];
+            }
+        }
+
+        $newCount = isset($decoded['totals']['file_errors']) && is_int($decoded['totals']['file_errors'])
+            ? $decoded['totals']['file_errors']
+            : count($findings);
+    }
+
+    echo json_encode([
+        'baseline_count' => 0,
+        'new_count' => $newCount,
+        'findings' => $findings,
+    ], JSON_THROW_ON_ERROR) . PHP_EOL;
+    exit($exitCode);
+}
+
+echo "Running dead-code check via phpstan-dead-code.neon...\n\n";
+[$exitCode] = runCommand(array_merge($baseArgs, $phpstanArgs), $root, capture: false);
+
+echo "\n";
+if ($exitCode === 0) {
+    echo "OK - dead-code check found no new unused members beyond the baseline.\n";
+} else {
+    echo "Dead-code check FAILED (exit={$exitCode}).\n\n";
+    echo "If this finding is intentional (e.g. a forthcoming extension point), add\n";
+    echo "a class-level '@api' PHPDoc tag. If you must accept it as known-dead,\n";
+    echo "regenerate the baseline:\n";
+    echo "  vendor/bin/phpstan analyse -c phpstan-dead-code.neon \\\n";
+    echo "    --generate-baseline=phpstan-dead-code-baseline.neon --allow-empty-baseline\n";
+    echo "and explain in the PR description why.\n";
+}
+
+exit($exitCode);
+
+/**
+ * @param list<string> $command
+ *
+ * @return array{0:int,1:string}
+ */
+function runCommand(array $command, string $cwd, bool $capture): array
+{
+    $descriptorSpec = [
+        0 => ['file', 'php://stdin', 'r'],
+        1 => $capture ? ['pipe', 'w'] : ['file', 'php://stdout', 'w'],
+        2 => ['file', 'php://stderr', 'w'],
+    ];
+
+    $process = proc_open($command, $descriptorSpec, $pipes, $cwd);
+    if (!is_resource($process)) {
+        fwrite(STDERR, "ERROR: failed to start phpstan.\n");
+
+        return [127, ''];
+    }
+
+    $stdout = '';
+    if ($capture && isset($pipes[1]) && is_resource($pipes[1])) {
+        $stdout = stream_get_contents($pipes[1]) ?: '';
+        fclose($pipes[1]);
+    }
+
+    $exitCode = proc_close($process);
+
+    return [is_int($exitCode) ? $exitCode : 1, $stdout];
+}

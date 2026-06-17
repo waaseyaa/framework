@@ -113,20 +113,15 @@ final class CpNewCheckTest extends TestCase
      */
     private function runGate(): array
     {
-        $cmd = 'ROOT_DIR=' . escapeshellarg($this->tempDir)
-            . ' python3 ' . escapeshellarg($this->scriptPath . '.py_inline')
-            . ' 2>&1';
-
-        // The script is a bash wrapper that embeds Python. Run it directly.
         $descriptors = [
             0 => ['pipe', 'r'],
             1 => ['pipe', 'w'],
             2 => ['pipe', 'w'],
         ];
-        $env = array_merge($_ENV, ['ROOT_DIR' => $this->tempDir]);
+        $env = array_merge(getenv(), ['ROOT_DIR' => $this->tempDir]);
 
         $proc = proc_open(
-            'bash ' . escapeshellarg($this->scriptPath),
+            [PHP_BINARY, $this->scriptPath],
             $descriptors,
             $pipes,
             $this->tempDir,
@@ -154,7 +149,13 @@ final class CpNewCheckTest extends TestCase
                 continue;
             }
             $full = $dir . '/' . $entry;
-            is_dir($full) ? $this->rmdirRecursive($full) : unlink($full);
+            if (is_dir($full)) {
+                $this->rmdirRecursive($full);
+                continue;
+            }
+
+            chmod($full, 0o666);
+            unlink($full);
         }
         rmdir($dir);
     }

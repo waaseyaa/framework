@@ -9,9 +9,9 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Waaseyaa\CLI\Command\Import\ImportRunAllCommand;
-use Waaseyaa\CLI\CommandDefinition;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Migration\Discovery\HasMigrationsInterface;
@@ -153,15 +153,15 @@ final class ImportRunAllCommandTest extends TestCase
         return CliTester::for($this->commandDefinition(), $this->makeContainer($command));
     }
 
-    private function commandDefinition(): CommandDefinition
+    private function commandDefinition(): HandlerCommand
     {
-        return new CommandDefinition(
+        return new HandlerCommand(
             name: 'import:run-all',
             description: 'Run every registered migration in dependency order (FR-033).',
             options: [
-                new OptionDefinition(name: 'dry-run', mode: OptionMode::None),
-                new OptionDefinition(name: 'halt-on-error', mode: OptionMode::None),
-                new OptionDefinition(name: 'limit', mode: OptionMode::Required),
+                new HandlerOption(name: 'dry-run', mode: HandlerOptionMode::None),
+                new HandlerOption(name: 'halt-on-error', mode: HandlerOptionMode::None),
+                new HandlerOption(name: 'limit', mode: HandlerOptionMode::Required),
             ],
             handler: [ImportRunAllCommand::class, 'execute'],
         );

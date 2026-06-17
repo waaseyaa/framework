@@ -8,12 +8,12 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
-use Waaseyaa\CLI\ArgumentDefinition;
-use Waaseyaa\CLI\ArgumentMode;
+use Waaseyaa\CLI\Command\HandlerArgument;
+use Waaseyaa\CLI\Command\HandlerArgumentMode;
 use Waaseyaa\CLI\Command\Import\ImportResetCommand;
-use Waaseyaa\CLI\CommandDefinition;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Migration\Discovery\HasMigrationsInterface;
@@ -148,16 +148,16 @@ final class ImportResetCommandTest extends TestCase
         );
     }
 
-    private function commandDefinition(): CommandDefinition
+    private function commandDefinition(): HandlerCommand
     {
-        return new CommandDefinition(
+        return new HandlerCommand(
             name: 'import:reset',
             description: 'Clear id-map + run-state without touching destination entities (FR-036).',
             arguments: [
-                new ArgumentDefinition(name: 'migration_id', mode: ArgumentMode::Required),
+                new HandlerArgument(name: 'migration_id', mode: HandlerArgumentMode::Required),
             ],
             options: [
-                new OptionDefinition(name: 'confirm', mode: OptionMode::None),
+                new HandlerOption(name: 'confirm', mode: HandlerOptionMode::None),
             ],
             handler: [ImportResetCommand::class, 'execute'],
         );

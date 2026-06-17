@@ -15,10 +15,10 @@ use Waaseyaa\CLI\Testing\CliTester;
 #[CoversClass(DebugContextHandler::class)]
 final class DebugContextHandlerTest extends TestCase
 {
-    private function makeDefinition(): \Waaseyaa\CLI\CommandDefinition
+    private function makeDefinition(): \Waaseyaa\CLI\Command\HandlerCommand
     {
         $provider = new MiscAServiceProvider();
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'debug:context') {
                 return $cmd;
             }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\CLI\Provenance\ComposerProvenanceReporter;
 
 final class WaaseyaaVersionHandler
@@ -13,14 +13,14 @@ final class WaaseyaaVersionHandler
         private readonly string $projectRoot,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $report = new ComposerProvenanceReporter($this->projectRoot)->analyze();
 
         if ($io->option('json')) {
             $io->writeln(json_encode($report->toArray(), JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT));
         } else {
-            ComposerProvenanceReporter::printHuman($report, $io);
+            ComposerProvenanceReporter::printHuman($report, $io->writeln(...));
         }
 
         if ($io->option('report-only')) {

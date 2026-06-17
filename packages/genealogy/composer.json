@@ -33,21 +33,21 @@
     },
     "require": {
         "php": ">=8.5",
-        "waaseyaa/access": "^0.1.0-alpha.219",
-        "waaseyaa/entity": "^0.1.0-alpha.219",
-        "waaseyaa/field": "^0.1.0-alpha.219",
-        "waaseyaa/foundation": "^0.1.0-alpha.219",
-        "waaseyaa/relationship": "^0.1.0-alpha.219",
-        "waaseyaa/routing": "^0.1.0-alpha.219",
-        "waaseyaa/ssr": "^0.1.0-alpha.219",
-        "waaseyaa/user": "^0.1.0-alpha.219",
-        "waaseyaa/workflows": "^0.1.0-alpha.219"
+        "waaseyaa/access": "^0.1.0-alpha.220",
+        "waaseyaa/entity": "^0.1.0-alpha.220",
+        "waaseyaa/field": "^0.1.0-alpha.220",
+        "waaseyaa/foundation": "^0.1.0-alpha.220",
+        "waaseyaa/relationship": "^0.1.0-alpha.220",
+        "waaseyaa/routing": "^0.1.0-alpha.220",
+        "waaseyaa/ssr": "^0.1.0-alpha.220",
+        "waaseyaa/user": "^0.1.0-alpha.220",
+        "waaseyaa/workflows": "^0.1.0-alpha.220"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
-        "waaseyaa/api": "^0.1.0-alpha.219",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.219",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.219"
+        "waaseyaa/api": "^0.1.0-alpha.220",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.220",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.220"
     },
     "extra": {
         "waaseyaa": {

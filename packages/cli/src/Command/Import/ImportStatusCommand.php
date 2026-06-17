@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Command\Import;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Migration\Discovery\MigrationRegistry;
 use Waaseyaa\Migration\MigrationDefinition;
 use Waaseyaa\Migration\MigrationIdMap;
@@ -43,7 +43,7 @@ final class ImportStatusCommand
         private readonly MigrationRunState $runState,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $filter = $io->argument('migration_id');
         $filter = \is_string($filter) && $filter !== '' ? $filter : null;

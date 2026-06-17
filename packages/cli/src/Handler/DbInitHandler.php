@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\EntityStorage\EntitySchemaSyncRunner;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
@@ -33,7 +33,7 @@ final class DbInitHandler
         private readonly string $projectRoot,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $dryRun = (bool) $io->option('dry-run');
 
@@ -117,7 +117,7 @@ final class DbInitHandler
      * `schema:sync` command: one `db:init --sync-schema` brings a fresh
      * database fully up — migrations plus every registered entity's schema.
      */
-    private function syncSchema(CliIO $io): void
+    private function syncSchema(SymfonyCommandIO $io): void
     {
         $kernel = new ConsoleKernel($this->projectRoot);
         $kernel->bootForCli();
@@ -168,7 +168,7 @@ final class DbInitHandler
         return DatabaseBootstrapper::resolveDatabasePath($this->projectRoot, $config);
     }
 
-    private function reportDryRun(string $dbPath, CliIO $io): int
+    private function reportDryRun(string $dbPath, SymfonyCommandIO $io): int
     {
         $io->writeln('--dry-run: no changes will be made.');
         $io->writeln(sprintf('Database path: %s', $dbPath));
@@ -231,7 +231,7 @@ final class DbInitHandler
         return 0;
     }
 
-    private function ensureParentDirectory(string $dbPath, CliIO $io): bool
+    private function ensureParentDirectory(string $dbPath, SymfonyCommandIO $io): bool
     {
         if ($dbPath === ':memory:') {
             return true;
@@ -255,7 +255,7 @@ final class DbInitHandler
         return true;
     }
 
-    private function createDatabaseFile(string $dbPath, CliIO $io): bool
+    private function createDatabaseFile(string $dbPath, SymfonyCommandIO $io): bool
     {
         if ($dbPath === ':memory:') {
             return true;
@@ -282,7 +282,7 @@ final class DbInitHandler
     /**
      * @return resource|null
      */
-    private function acquireLock(string $dbPath, CliIO $io)
+    private function acquireLock(string $dbPath, SymfonyCommandIO $io)
     {
         if ($dbPath === ':memory:') {
             $memoryHandle = fopen('php://memory', 'r+');

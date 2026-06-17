@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
 use Waaseyaa\CLI\Command\Migrate\DryRunFormatter;
 use Waaseyaa\CLI\Command\Migrate\DryRunPlanner;
 use Waaseyaa\CLI\Command\Migrate\OutputSanitizer;
 use Waaseyaa\CLI\Command\Migrate\VerifyFormatter;
 use Waaseyaa\CLI\Command\Migrate\VerifyRunner;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Foundation\Diagnostic\DiagnosticCode;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
@@ -43,7 +43,7 @@ final class MigrateHandler
         $this->v2MigrationsProvider = $v2MigrationsProvider ?? static fn(): array => [];
     }
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $dryRun = (bool) $io->option('dry-run');
         $verify = (bool) $io->option('verify');
@@ -67,7 +67,7 @@ final class MigrateHandler
         return $this->handleApply($io);
     }
 
-    private function handleApply(CliIO $io): int
+    private function handleApply(SymfonyCommandIO $io): int
     {
         $migrations = ($this->migrationsProvider)();
         $v2 = ($this->v2MigrationsProvider)();
@@ -88,7 +88,7 @@ final class MigrateHandler
         return 0;
     }
 
-    private function handleDryRun(CliIO $io, bool $json): int
+    private function handleDryRun(SymfonyCommandIO $io, bool $json): int
     {
         if ($this->repository === null || $this->compiler === null) {
             $io->error('--dry-run requires a MigrationRepository and SqliteCompiler to be wired into MigrateHandler. See packages/foundation/src/Kernel/ConsoleKernel.php.');
@@ -106,7 +106,7 @@ final class MigrateHandler
         return 0;
     }
 
-    private function handleVerify(CliIO $io, bool $json): int
+    private function handleVerify(SymfonyCommandIO $io, bool $json): int
     {
         if ($this->repository === null) {
             $io->error('--verify requires a MigrationRepository to be wired into MigrateHandler. See packages/foundation/src/Kernel/ConsoleKernel.php.');

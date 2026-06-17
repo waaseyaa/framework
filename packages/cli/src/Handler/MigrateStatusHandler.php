@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Foundation\Migration\Migrator;
 
 /**
@@ -25,7 +25,7 @@ final class MigrateStatusHandler
         $this->migrationsProvider = $migrationsProvider;
     }
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $migrations = ($this->migrationsProvider)();
         $migrationStatus = $this->migrator->status($migrations);

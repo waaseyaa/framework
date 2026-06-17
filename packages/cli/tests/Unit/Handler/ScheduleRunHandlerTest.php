@@ -19,10 +19,10 @@ use Waaseyaa\Scheduler\ScheduleRunner;
 #[CoversClass(ScheduleRunHandler::class)]
 final class ScheduleRunHandlerTest extends TestCase
 {
-    private function makeDefinition(): \Waaseyaa\CLI\CommandDefinition
+    private function makeDefinition(): \Waaseyaa\CLI\Command\HandlerCommand
     {
         $provider = new SchedulePerfServiceProvider();
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'schedule:run') {
                 return $cmd;
             }

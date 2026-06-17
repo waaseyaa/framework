@@ -8,7 +8,7 @@ use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\MigrateStatusHandler;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Foundation\Migration\Migration;
@@ -56,7 +56,7 @@ final class MigrateStatusHandlerTest extends TestCase
     private function createTester(Migrator $migrator, \Closure $migrationsProvider): CliTester
     {
         $handler = new MigrateStatusHandler($migrator, $migrationsProvider);
-        $definition = new CommandDefinition(
+        $definition = new HandlerCommand(
             name: 'migrate:status',
             description: 'Show the status of each migration',
             handler: \Closure::fromCallable([$handler, 'execute']),

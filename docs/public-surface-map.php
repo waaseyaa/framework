@@ -46,7 +46,7 @@ return [
     // constructor-parameter resolution for policies that need kernel services.
     'Waaseyaa\Foundation\Kernel\Bootstrap\PolicyDependencyResolverInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface' => 'public',
-    'Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface' => 'public',
+    'Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\HasGraphqlMutationOverridesInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface' => 'public',
@@ -471,9 +471,6 @@ return [
 
     // Layer 6: Interfaces — public
     'Waaseyaa\CLI\Ingestion\SourceConnectorInterface' => 'public',
-    // WP04: native CLI kernel
-    'Waaseyaa\CLI\CliKernel' => 'public',
-    'Waaseyaa\CLI\Provider\CliKernelServiceProvider' => 'public',
     'Waaseyaa\AdminSurface\Action\SurfaceActionHandlerInterface' => 'public',
     'Waaseyaa\AdminSurface\Query\SurfaceFilterOperator' => 'public',
     'Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost' => 'public',
@@ -498,15 +495,6 @@ return [
     // Layer 3: Services — public (single-entity-work-surface-01KQ7M1P)
     'Waaseyaa\StructuredImport\StructuredImporterInterface' => 'public',
 
-    // Layer 6: CLI native kernel — WP02 (native-cli-kernel-01KR2NR7)
-    'Waaseyaa\CLI\ArgumentMode' => 'public',
-    'Waaseyaa\CLI\CliIO' => 'public',
-    'Waaseyaa\CLI\OptionMode' => 'public',
-    'Waaseyaa\CLI\Parser\ParseErrorKind' => 'public',
-
-    // Layer 6: CLI native kernel — WP03 (native-cli-kernel-01KR2NR7)
-    'Waaseyaa\CLI\Io\CliInput' => 'public',
-    'Waaseyaa\CLI\Io\CliOutput' => 'public',
     'Waaseyaa\CLI\Io\StdinSource' => 'public',
 
     // Layer 6: Interfaces — internal
@@ -515,6 +503,8 @@ return [
     'Waaseyaa\Telescope\CodifiedContext\Storage\CodifiedContextStoreInterface' => 'internal',
     'Waaseyaa\CLI\Command\Make\AbstractMakeCommand' => 'internal',
     'Waaseyaa\CLI\Command\Make\AbstractMakeHandler' => 'internal',
+    'Waaseyaa\CLI\Command\HandlerArgumentMode' => 'public',
+    'Waaseyaa\CLI\Command\HandlerOptionMode' => 'public',
     'Waaseyaa\Mcp\Tools\McpTool' => 'internal',
     'Waaseyaa\SSR\Http\AppController\AppControllerArgumentResolver' => 'public',
     'Waaseyaa\SSR\Http\AppController\AppParameterKind' => 'public',

@@ -7,9 +7,7 @@ namespace Waaseyaa\Tests\Integration\Phase13;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Foundation\Kernel\AbstractKernel;
-use Waaseyaa\Foundation\Kernel\HttpKernel;
-use Waaseyaa\Tests\Support\WorkflowFixturePack;
+use Waaseyaa\Tests\Support\ComposerProjectFixture;
 
 #[CoversNothing]
 final class SsrHttpKernelIntegrationTest extends TestCase
@@ -28,7 +26,7 @@ final class SsrHttpKernelIntegrationTest extends TestCase
         mkdir($this->projectRoot . '/packages/demo/templates', 0o755, true);
         mkdir($this->projectRoot . '/packages/ssr/templates', 0o755, true);
 
-        $this->assertTrue(symlink($this->repoRoot . '/vendor', $this->projectRoot . '/vendor'));
+        ComposerProjectFixture::installMetadata($this->repoRoot, $this->projectRoot);
 
         file_put_contents($this->projectRoot . '/config/entity-types.php', "<?php\n\nreturn [];\n");
         file_put_contents($this->projectRoot . '/config/waaseyaa.php', $this->buildConfigFile());
@@ -76,20 +74,8 @@ final class SsrHttpKernelIntegrationTest extends TestCase
             return;
         }
 
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->projectRoot, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
-
-        foreach ($items as $item) {
-            if ($item->isLink() || $item->isFile()) {
-                unlink($item->getPathname());
-                continue;
-            }
-
-            rmdir($item->getPathname());
-        }
-        rmdir($this->projectRoot);
+        $this->checkpointSqliteDatabase($this->projectRoot . '/storage/waaseyaa.sqlite');
+        $this->removeDirectory($this->projectRoot);
     }
 
     #[Test]
@@ -135,7 +121,7 @@ final class SsrHttpKernelIntegrationTest extends TestCase
         $response = $this->request('/does-not-exist');
 
         $this->assertSame(404, $response['status']);
-        $this->assertStringContainsString('<h1>Page Not Found</h1>', $response['body']);
+        $this->assertStringContainsString('<h1>Not Found</h1>', $response['body']);
         $this->assertStringNotContainsString('"jsonapi"', $response['body']);
     }
 
@@ -171,12 +157,7 @@ final class SsrHttpKernelIntegrationTest extends TestCase
         $this->assertSame(200, $first['status']);
         $this->assertStringContainsString('Water Is Life', $first['body']);
 
-        $kernel = $this->bootKernel();
-        $storage = $kernel->getEntityTypeManager()->getStorage('node');
-        $node = $storage->load(1);
-        self::assertNotNull($node);
-        $node->set('title', 'CHANGED TITLE');
-        $storage->save($node);
+        $this->runEntityFixtureAction('update-node-title', 'CHANGED TITLE');
 
         $second = $this->request('/node/1');
         $this->assertSame(200, $second['status']);
@@ -191,12 +172,7 @@ final class SsrHttpKernelIntegrationTest extends TestCase
         $this->assertSame(200, $previewFirst['status']);
         $this->assertStringContainsString('Water Is Life', $previewFirst['body']);
 
-        $kernel = $this->bootKernel();
-        $storage = $kernel->getEntityTypeManager()->getStorage('node');
-        $node = $storage->load(1);
-        self::assertNotNull($node);
-        $node->set('title', 'PREVIEW CHANGED TITLE');
-        $storage->save($node);
+        $this->runEntityFixtureAction('update-node-title', 'PREVIEW CHANGED TITLE');
 
         $previewSecond = $this->request('/node/1?preview=1');
         $this->assertSame(200, $previewSecond['status']);
@@ -205,19 +181,7 @@ final class SsrHttpKernelIntegrationTest extends TestCase
 
     private function seedEntities(): void
     {
-        $kernel = $this->bootKernel();
-
-        $nodeStorage = $kernel->getEntityTypeManager()->getStorage('node');
-        foreach (WorkflowFixturePack::editorialNodesForSsr() as $fixture) {
-            $node = $nodeStorage->create($fixture);
-            $nodeStorage->save($node);
-        }
-
-        $pathAliasStorage = $kernel->getEntityTypeManager()->getStorage('path_alias');
-        foreach (WorkflowFixturePack::pathAliasesForSsr() as $aliasFixture) {
-            $alias = $pathAliasStorage->create($aliasFixture);
-            $pathAliasStorage->save($alias);
-        }
+        $this->runEntityFixtureAction('seed');
     }
 
     /**
@@ -288,12 +252,103 @@ final class SsrHttpKernelIntegrationTest extends TestCase
             PHP;
     }
 
-    private function bootKernel(): HttpKernel
+    private function removeDirectory(string $path): void
     {
-        $kernel = new HttpKernel($this->projectRoot);
-        $boot = new \ReflectionMethod(AbstractKernel::class, 'boot');
-        $boot->invoke($kernel);
+        if (!is_dir($path)) {
+            return;
+        }
 
-        return $kernel;
+        $items = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($path, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST,
+        );
+
+        foreach ($items as $item) {
+            $itemPath = $item->getPathname();
+            if ($item->isLink() || $item->isFile()) {
+                $this->removeFile($itemPath);
+                continue;
+            }
+
+            $this->removeEmptyDirectory($itemPath);
+        }
+
+        $this->removeEmptyDirectory($path);
+    }
+
+    private function checkpointSqliteDatabase(string $path): void
+    {
+        if (!is_file($path)) {
+            return;
+        }
+
+        try {
+            $pdo = new \PDO('sqlite:' . $path);
+            $pdo->exec('PRAGMA wal_checkpoint(TRUNCATE)');
+            $pdo->exec('PRAGMA journal_mode = DELETE');
+            $pdo = null;
+        } catch (\Throwable) {
+            // Teardown still performs a strict delete below; any persistent lock
+            // will surface there with the original filesystem error.
+        }
+    }
+
+    private function removeFile(string $path): void
+    {
+        for ($attempt = 0; $attempt < 10; $attempt++) {
+            if (!is_file($path) && !is_link($path)) {
+                return;
+            }
+            if (@unlink($path)) {
+                return;
+            }
+            usleep(50_000);
+            clearstatcache(true, $path);
+        }
+
+        unlink($path);
+    }
+
+    private function removeEmptyDirectory(string $path): void
+    {
+        for ($attempt = 0; $attempt < 10; $attempt++) {
+            if (!is_dir($path)) {
+                return;
+            }
+            if (@rmdir($path)) {
+                return;
+            }
+            usleep(50_000);
+            clearstatcache(true, $path);
+        }
+
+        rmdir($path);
+    }
+
+    private function runEntityFixtureAction(string $action, string $value = ''): void
+    {
+        $runner = $this->repoRoot . '/tests/Integration/Phase13/Fixtures/ssr_entity_runner.php';
+        $command = sprintf(
+            '%s %s %s %s %s %s 2>&1',
+            escapeshellarg(PHP_BINARY),
+            escapeshellarg($runner),
+            escapeshellarg($this->repoRoot),
+            escapeshellarg($this->projectRoot),
+            escapeshellarg($action),
+            escapeshellarg($value),
+        );
+
+        $output = shell_exec($command);
+        $this->assertNotNull($output, 'SSR entity runner produced no output.');
+
+        $lines = array_values(array_filter(
+            preg_split('/\R/', trim((string) $output)) ?: [],
+            static fn(string $line): bool => trim($line) !== '',
+        ));
+        $jsonPayload = $lines !== [] ? $lines[count($lines) - 1] : '';
+        $payload = json_decode($jsonPayload, true);
+
+        $this->assertIsArray($payload, 'SSR entity runner returned invalid JSON: ' . $output);
+        $this->assertSame(true, $payload['ok'] ?? false, 'SSR entity runner failed: ' . $output);
     }
 }

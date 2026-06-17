@@ -84,11 +84,11 @@ final class MediaRouter implements DomainRouterInterface
         $safeName = $this->sanitizeUploadFilename($uploadedFile->getClientOriginalName());
         $filesRoot = $this->resolveFilesRootDir();
 
-        // Standard "ensure directory exists" idiom: suppress mkdir's PHP
-        // warning (e.g. when an ancestor path is a regular file) and let
-        // the move attempt below produce a clean 500 from the catch block.
         if (!is_dir($filesRoot) && !@mkdir($filesRoot, 0o755, true) && !is_dir($filesRoot)) {
-            // Directory could not be created; fall through.
+            return $this->uploadStorageFailureResponse();
+        }
+        if (!is_dir($filesRoot)) {
+            return $this->uploadStorageFailureResponse();
         }
 
         $uri = 'public://' . $safeName;
@@ -97,10 +97,7 @@ final class MediaRouter implements DomainRouterInterface
         try {
             $uploadedFile->move(dirname($destPath), basename($destPath));
         } catch (\Throwable $e) {
-            return $this->jsonApiResponse(500, [
-                'jsonapi' => ['version' => '1.1'],
-                'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'Failed to store uploaded file.']],
-            ]);
+            return $this->uploadStorageFailureResponse();
         }
 
         $file = new File(
@@ -130,6 +127,14 @@ final class MediaRouter implements DomainRouterInterface
         ];
 
         return $this->jsonApiResponse(201, ['jsonapi' => ['version' => '1.1'], 'data' => $fileData]);
+    }
+
+    private function uploadStorageFailureResponse(): Response
+    {
+        return $this->jsonApiResponse(500, [
+            'jsonapi' => ['version' => '1.1'],
+            'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'Failed to store uploaded file.']],
+        ]);
     }
 
     public function resolveFilesRootDir(): string

@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 
 /**
  * @api
  */
 final class FixturePackRefreshHandler
 {
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $inputDir = trim((string) ($io->option('input-dir') ?? ''));
         if ($inputDir === '' || !is_dir($inputDir)) {

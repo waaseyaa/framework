@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\NorthCloud\Sync\NcSyncResult;
 use Waaseyaa\NorthCloud\Sync\NcSyncService;
 
@@ -15,7 +15,7 @@ final class NcSyncHandler
         private readonly ?string $statusPath = null,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $limit = (int) ($io->option('limit') ?? '20');
         $since = $io->option('since');

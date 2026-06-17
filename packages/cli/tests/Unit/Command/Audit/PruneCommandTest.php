@@ -13,7 +13,8 @@ use Waaseyaa\Audit\Contract\AuditQueryInterface;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
 use Waaseyaa\CLI\Command\Audit\PruneCommand;
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
+use Waaseyaa\CLI\Testing\CapturingSymfonyCommandIO;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DeleteInterface;
 use Waaseyaa\Database\InsertInterface;
@@ -25,87 +26,14 @@ use Waaseyaa\Database\UpdateInterface;
 #[CoversClass(PruneCommand::class)]
 final class PruneCommandTest extends TestCase
 {
-    /**
+        /**
      * @param array<string, mixed> $options
      */
-    private function makeIo(array $options = [])
+    private function makeIo(array $options = []): CapturingSymfonyCommandIO
     {
-        return new class ($options) implements CliIO {
-            /** @var string[] */
-            public array $lines = [];
-            /** @var string[] */
-            public array $errors = [];
-
-            /** @param array<string, mixed> $opts */
-            public function __construct(private readonly array $opts) {}
-
-            public function option(string $name): string|int|float|bool|array|null
-            {
-                return $this->opts[$name] ?? null;
-            }
-
-            public function argument(string $name): string|int|float|bool|array|null
-            {
-                return null;
-            }
-
-            /** @return array<string, scalar|array|null> */
-            public function arguments(): array
-            {
-                return [];
-            }
-
-            /** @return array<string, scalar|array|null> */
-            public function options(): array
-            {
-                return $this->opts;
-            }
-
-            public function write(string $text): void {}
-
-            public function writeln(string $line = ''): void
-            {
-                $this->lines[] = $line;
-            }
-
-            public function error(string $line): void
-            {
-                $this->errors[] = $line;
-            }
-
-            public function ask(string $question, ?string $default = null): ?string
-            {
-                return $default;
-            }
-
-            public function confirm(string $question, bool $default = false): bool
-            {
-                return $default;
-            }
-
-            public function isVerbose(): bool
-            {
-                return false;
-            }
-
-            public function isInteractive(): bool
-            {
-                return false;
-            }
-
-            /** @return string[] */
-            public function outputLines(): array
-            {
-                return $this->lines;
-            }
-
-            /** @return string[] */
-            public function errorLines(): array
-            {
-                return $this->errors;
-            }
-        };
+        return new CapturingSymfonyCommandIO($options);
     }
+
 
     private function makeNullQuery(int $count = 5): AuditQueryInterface
     {

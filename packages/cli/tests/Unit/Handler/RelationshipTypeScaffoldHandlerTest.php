@@ -14,10 +14,10 @@ use Waaseyaa\CLI\Testing\CliTester;
 #[CoversClass(RelationshipTypeScaffoldHandler::class)]
 final class RelationshipTypeScaffoldHandlerTest extends TestCase
 {
-    private function makeDefinition(): \Waaseyaa\CLI\CommandDefinition
+    private function makeDefinition(): \Waaseyaa\CLI\Command\HandlerCommand
     {
         $provider = new OtherScaffoldsServiceProvider();
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'scaffold:relationship') {
                 return $cmd;
             }

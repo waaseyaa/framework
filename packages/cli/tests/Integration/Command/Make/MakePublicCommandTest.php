@@ -77,7 +77,7 @@ final class MakePublicCommandTest extends TestCase
     {
         $provider = new MakeServiceProviderB();
         $definition = null;
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'make:public') {
                 $definition = $cmd;
                 break;

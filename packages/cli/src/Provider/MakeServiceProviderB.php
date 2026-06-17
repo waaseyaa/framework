@@ -4,106 +4,106 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Provider;
 
-use Waaseyaa\CLI\ArgumentDefinition;
-use Waaseyaa\CLI\ArgumentMode;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerArgument;
+use Waaseyaa\CLI\Command\HandlerArgumentMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\MakeEntityTypeHandler;
 use Waaseyaa\CLI\Handler\MakePluginHandler;
 use Waaseyaa\CLI\Handler\MakeProviderHandler;
 use Waaseyaa\CLI\Handler\MakePublicHandler;
 use Waaseyaa\CLI\Handler\MakeTestHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
-use Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
-final class MakeServiceProviderB extends ServiceProvider implements HasNativeCommandsInterface
+final class MakeServiceProviderB extends ServiceProvider implements ProvidesConsoleCommandsInterface
 {
     public function register(): void {}
 
-    public function nativeCommands(): iterable
+    public function consoleCommands(): iterable
     {
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'make:provider',
             description: 'Generate a service provider class',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'name',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'The provider class name (e.g. "Blog" or "BlogServiceProvider")',
                 ),
             ],
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'domain',
                     shortcut: 'd',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Generate a domain provider with entity type registration boilerplate',
                 ),
             ],
             handler: [MakeProviderHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'make:public',
             description: 'Scaffold the canonical public/index.php front controller',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'force',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Overwrite an existing public/index.php',
                 ),
             ],
             handler: [MakePublicHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'make:test',
             description: 'Generate a PHPUnit test class',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'name',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'The test class name (e.g. "NodeRepositoryTest")',
                 ),
             ],
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'unit',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Generate a unit test (default is integration)',
                 ),
             ],
             handler: [MakeTestHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'make:entity-type',
             description: 'Generate an entity type class',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'name',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'The entity type name (e.g. "event")',
                 ),
             ],
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'content',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Generate a content entity (default is config entity)',
                 ),
             ],
             handler: [MakeEntityTypeHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'make:plugin',
             description: 'Generate a plugin class with #[WaaseyaaPlugin] attribute',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'name',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'The plugin name (e.g. "my_formatter")',
                 ),
             ],

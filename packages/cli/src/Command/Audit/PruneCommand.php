@@ -9,7 +9,7 @@ use Waaseyaa\Audit\Contract\AuditQuery;
 use Waaseyaa\Audit\Contract\AuditQueryInterface;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
@@ -53,7 +53,7 @@ final class PruneCommand
         $this->logger = $logger ?? new NullLogger();
     }
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $olderThanRaw = $io->option('older-than');
         if (!is_string($olderThanRaw) || $olderThanRaw === '') {

@@ -28,12 +28,12 @@ use Waaseyaa\AI\Agent\Service\AgentRunService;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
-use Waaseyaa\CLI\ArgumentDefinition;
-use Waaseyaa\CLI\ArgumentMode;
+use Waaseyaa\CLI\Command\HandlerArgument;
+use Waaseyaa\CLI\Command\HandlerArgumentMode;
 use Waaseyaa\CLI\Command\Ai\AiRunCommand;
-use Waaseyaa\CLI\CommandDefinition;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
@@ -260,25 +260,25 @@ final class AiRunCommandTest extends TestCase
         return new AgentAuditLogRepository($entityRepo, $this->database);
     }
 
-    private function commandDefinition(): CommandDefinition
+    private function commandDefinition(): HandlerCommand
     {
-        return new CommandDefinition(
+        return new HandlerCommand(
             name: 'ai:run',
             description: 'Run an AI agent (FR-005).',
             arguments: [
-                new ArgumentDefinition(name: 'prompt', mode: ArgumentMode::Required),
+                new HandlerArgument(name: 'prompt', mode: HandlerArgumentMode::Required),
             ],
             options: [
-                new OptionDefinition(name: 'inline', mode: OptionMode::None),
-                new OptionDefinition(name: 'agent', mode: OptionMode::Required, default: ''),
-                new OptionDefinition(name: 'dry-run', mode: OptionMode::None),
-                new OptionDefinition(name: 'watch', mode: OptionMode::None),
-                new OptionDefinition(
+                new HandlerOption(name: 'inline', mode: HandlerOptionMode::None),
+                new HandlerOption(name: 'agent', mode: HandlerOptionMode::Required, default: ''),
+                new HandlerOption(name: 'dry-run', mode: HandlerOptionMode::None),
+                new HandlerOption(name: 'watch', mode: HandlerOptionMode::None),
+                new HandlerOption(
                     name: 'destructive-approval',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     default: 'none',
                 ),
-                new OptionDefinition(name: 'account', mode: OptionMode::Required, default: ''),
+                new HandlerOption(name: 'account', mode: HandlerOptionMode::Required, default: ''),
             ],
             handler: [AiRunCommand::class, 'execute'],
         );

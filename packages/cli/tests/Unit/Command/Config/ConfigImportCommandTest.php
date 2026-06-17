@@ -9,9 +9,9 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Waaseyaa\CLI\Command\Config\ConfigImportCommand;
-use Waaseyaa\CLI\CommandDefinition;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Config\Exception\ConfigImportFailedException;
 use Waaseyaa\Config\Sync\ConfigImportApplyHookInterface;
@@ -157,30 +157,30 @@ final class ConfigImportCommandTest extends TestCase
         );
     }
 
-    private function commandDefinition(): CommandDefinition
+    private function commandDefinition(): HandlerCommand
     {
-        return new CommandDefinition(
+        return new HandlerCommand(
             name: 'config:import',
             description: 'Apply the sync store to the active store in DAG order (FR-022).',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'dry-run',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Compute would-be writes without DB mutation.',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'delete-orphans',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Delete active-store entities with no matching sync file.',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'halt-on-error',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Stop after the first per-entity failure.',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'no-dependency-check',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Emergency bypass: skip validation and DAG ordering.',
                 ),
             ],

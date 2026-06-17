@@ -15,8 +15,8 @@ use Waaseyaa\Audit\Query\AuditEventQuery;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
 use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
 use Waaseyaa\Audit\Writer\AuditEventWriter;
-use Waaseyaa\CLI\CliIO;
 use Waaseyaa\CLI\Command\Audit\PruneCommand;
+use Waaseyaa\CLI\Testing\CapturingSymfonyCommandIO;
 use Waaseyaa\Database\DBALDatabase;
 
 /**
@@ -145,71 +145,9 @@ final class AuditRetentionPruneTest extends TestCase
     /**
      * @param array<string, mixed> $options
      */
-    private function makeIo(array $options): CliIO
+    private function makeIo(array $options): CapturingSymfonyCommandIO
     {
-        return new class ($options) implements CliIO {
-            /** @var string[] */
-            public array $lines = [];
-
-            /** @param array<string, mixed> $opts */
-            public function __construct(private readonly array $opts) {}
-
-            public function option(string $name): string|int|float|bool|array|null
-            {
-                return $this->opts[$name] ?? null;
-            }
-
-            public function argument(string $name): string|int|float|bool|array|null
-            {
-                return null;
-            }
-
-            /** @return array<string, scalar|array|null> */
-            public function arguments(): array
-            {
-                return [];
-            }
-
-            /** @return array<string, scalar|array|null> */
-            public function options(): array
-            {
-                return $this->opts;
-            }
-
-            public function write(string $text): void {}
-
-            public function writeln(string $line = ''): void
-            {
-                $this->lines[] = $line;
-            }
-
-            public function error(string $line): void {}
-
-            public function ask(string $question, ?string $default = null): ?string
-            {
-                return $default;
-            }
-
-            public function confirm(string $question, bool $default = false): bool
-            {
-                return $default;
-            }
-
-            public function isVerbose(): bool
-            {
-                return false;
-            }
-
-            public function isInteractive(): bool
-            {
-                return false;
-            }
-
-            /** @return string[] */
-            public function outputLines(): array
-            {
-                return $this->lines;
-            }
-        };
+        return new CapturingSymfonyCommandIO($options);
     }
+
 }

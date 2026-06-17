@@ -218,7 +218,6 @@ final class PipelineInvariantTest extends TestCase
         // This is the "no direct PDO bypass" invariant (entity-storage-invariant.md).
         $reflection = new \ReflectionObject($coordinator);
         foreach ($reflection->getProperties() as $property) {
-            $property->setAccessible(true);
             $value = $property->getValue($coordinator);
             self::assertNotInstanceOf(
                 \PDO::class,
@@ -242,7 +241,6 @@ final class PipelineInvariantTest extends TestCase
         $reflection = new \ReflectionObject($driver);
         $hasPdo = false;
         foreach ($reflection->getProperties() as $property) {
-            $property->setAccessible(true);
             $value = $property->getValue($driver);
             if ($value instanceof \PDO) {
                 $hasPdo = true;

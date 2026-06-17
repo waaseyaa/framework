@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
 final class RouteListHandler
@@ -13,7 +13,7 @@ final class RouteListHandler
         private readonly WaaseyaaRouter $router,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $routes = $this->router->getRouteCollection();
         $filterPath = $io->option('path');

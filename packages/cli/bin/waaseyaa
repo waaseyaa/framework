@@ -26,12 +26,6 @@ if (!file_exists($autoload)) {
 }
 require $autoload;
 
-// Hand off to the native CLI surface.
-// CliApplication::main() builds the CommandRegistry (native + legacy bridge),
-// assembles the CliKernel, runs it, and calls exit().
-// No Symfony\Component\Console imports belong in this file — all glue lives
-// in packages/cli/src/Compat/ (deleted in WP23).
-Waaseyaa\CLI\CliApplication::main(
-    argv: array_slice($_SERVER['argv'], 1),
-    projectRoot: $projectRoot,
-);
+// Hand off to the Symfony Console based CLI surface. ConsoleKernel owns
+// framework boot, command registration, dispatch, and process exit code.
+exit((new Waaseyaa\Foundation\Kernel\ConsoleKernel($projectRoot))->handle());

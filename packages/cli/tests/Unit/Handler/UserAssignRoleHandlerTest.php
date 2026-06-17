@@ -8,7 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\UserAssignRoleHandler;
 use Waaseyaa\CLI\Provider\UserPermissionServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
@@ -22,10 +22,10 @@ use Waaseyaa\User\RoleRepository;
 #[CoversClass(RoleRepository::class)]
 final class UserAssignRoleHandlerTest extends TestCase
 {
-    private function makeDefinition(): CommandDefinition
+    private function makeDefinition(): HandlerCommand
     {
         $provider = new UserPermissionServiceProvider();
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'user:assign-role') {
                 return $cmd;
             }

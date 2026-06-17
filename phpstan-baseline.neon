@@ -228,77 +228,17 @@ parameters:
 			count: 1
 			path: packages/cache/src/Backend/DatabaseBackend.php
 
-		-
-			message: '#^If condition is always false\.$#'
-			identifier: if.alwaysFalse
-			count: 1
-			path: packages/cli/src/CliKernel.php
 
-		-
-			message: '#^Variable method call on mixed\.$#'
-			identifier: method.dynamicName
-			count: 1
-			path: packages/cli/src/CliKernel.php
 
-		-
-			message: '#^Call to function is_string\(\) with class\-string will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: packages/cli/src/CommandDefinition.php
 
-		-
-			message: '#^Call to function is_string\(\) with string will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: packages/cli/src/CommandDefinition.php
 
-		-
-			message: '#^Instanceof between Waaseyaa\\CLI\\ArgumentDefinition and Waaseyaa\\CLI\\ArgumentDefinition will always evaluate to true\.$#'
-			identifier: instanceof.alwaysTrue
-			count: 1
-			path: packages/cli/src/CommandDefinition.php
 
-		-
-			message: '#^Instanceof between Waaseyaa\\CLI\\OptionDefinition and Waaseyaa\\CLI\\OptionDefinition will always evaluate to true\.$#'
-			identifier: instanceof.alwaysTrue
-			count: 1
-			path: packages/cli/src/CommandDefinition.php
 
-		-
-			message: '#^Parameter \#1 \$array \(array\{class\-string, string\}\) of array_values is already a list, call has no effect\.$#'
-			identifier: arrayValues.list
-			count: 1
-			path: packages/cli/src/CommandDefinition.php
 
-		-
-			message: '#^Parameter \#1 \$array \(list\<Waaseyaa\\CLI\\ArgumentDefinition\>\) of array_values is already a list, call has no effect\.$#'
-			identifier: arrayValues.list
-			count: 1
-			path: packages/cli/src/CommandDefinition.php
 
-		-
-			message: '#^Parameter \#1 \$array \(list\<Waaseyaa\\CLI\\OptionDefinition\>\) of array_values is already a list, call has no effect\.$#'
-			identifier: arrayValues.list
-			count: 1
-			path: packages/cli/src/CommandDefinition.php
 
-		-
-			message: '#^Result of \|\| is always false\.$#'
-			identifier: booleanOr.alwaysFalse
-			count: 2
-			path: packages/cli/src/CommandDefinition.php
 
-		-
-			message: '#^Strict comparison using \!\=\= between 2 and 2 will always evaluate to false\.$#'
-			identifier: notIdentical.alwaysFalse
-			count: 1
-			path: packages/cli/src/CommandDefinition.php
 
-		-
-			message: '#^Strict comparison using \=\=\= between class\-string and '''' will always evaluate to false\.$#'
-			identifier: identical.alwaysFalse
-			count: 1
-			path: packages/cli/src/CommandDefinition.php
 
 		-
 			message: '#^Call to function is_string\(\) with string will always evaluate to true\.$#'
@@ -708,23 +648,8 @@ parameters:
 			count: 1
 			path: packages/cli/src/Ingestion/ValidationGateValidator.php
 
-		-
-			message: '#^Parameter \#1 \$array \(list\<string\>\) of array_values is already a list, call has no effect\.$#'
-			identifier: arrayValues.list
-			count: 1
-			path: packages/cli/src/Io/StringQueueStdinSource.php
 
-		-
-			message: '#^Parameter &\$parsedOptions by\-ref type of method Waaseyaa\\CLI\\Parser\\ArgvParser\:\:applyOption\(\) expects array\<string, array\|bool\|float\|int\|string\|null\>, array\<string, mixed\> given\.$#'
-			identifier: parameterByRef.type
-			count: 2
-			path: packages/cli/src/Parser/ArgvParser.php
 
-		-
-			message: '#^Short ternary operator is not allowed\. Use null coalesce operator if applicable or consider using long ternary\.$#'
-			identifier: ternary.shortNotAllowed
-			count: 1
-			path: packages/cli/src/Parser/ArgvParser.php
 
 		-
 			message: '#^Short ternary operator is not allowed\. Use null coalesce operator if applicable or consider using long ternary\.$#'
@@ -732,29 +657,8 @@ parameters:
 			count: 1
 			path: packages/cli/src/Provenance/ComposerProvenanceReporter.php
 
-		-
-			message: '#^Instanceof between Waaseyaa\\CLI\\CommandDefinition and Waaseyaa\\CLI\\CommandDefinition will always evaluate to true\.$#'
-			identifier: instanceof.alwaysTrue
-			count: 1
-			path: packages/cli/src/Provider/CliKernelServiceProvider.php
 
-		-
-			message: '#^Casting to string something that''s already string\.$#'
-			identifier: cast.useless
-			count: 2
-			path: packages/cli/src/Testing/CliTester.php
 
-		-
-			message: '#^Only booleans are allowed in a ternary operator condition, mixed given\.$#'
-			identifier: ternary.condNotBoolean
-			count: 2
-			path: packages/cli/src/Testing/CliTester.php
-
-		-
-			message: '#^Variable method call on mixed\.$#'
-			identifier: method.dynamicName
-			count: 1
-			path: packages/cli/src/Testing/CliTester.php
 
 		-
 			message: '#^Construct empty\(\) is not allowed\. Use more strict comparison\.$#'
@@ -1354,12 +1258,6 @@ parameters:
 			message: '#^Casting to string something that''s already string\.$#'
 			identifier: cast.useless
 			count: 3
-			path: packages/ssr/src/ThemeServiceProvider.php
-
-		-
-			message: '#^Short ternary operator is not allowed\. Use null coalesce operator if applicable or consider using long ternary\.$#'
-			identifier: ternary.shortNotAllowed
-			count: 2
 			path: packages/ssr/src/ThemeServiceProvider.php
 
 		-

@@ -9,7 +9,7 @@ use Waaseyaa\AI\Agent\Entity\AgentRun;
 use Waaseyaa\AI\Agent\Enum\HitlMode;
 use Waaseyaa\AI\Agent\Service\AgentRunDraft;
 use Waaseyaa\AI\Agent\Service\AgentRunService;
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\HttpClient\HttpRequestException;
 use Waaseyaa\HttpClient\SseLineStreamInterface;
 
@@ -52,7 +52,7 @@ final class AiRunCommand
         private readonly string $baseUrl = '',
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $prompt = $io->argument('prompt');
         if (!\is_string($prompt) || trim($prompt) === '') {
@@ -134,7 +134,7 @@ final class AiRunCommand
         return $this->runAsync($io, $draft, $watch);
     }
 
-    private function runInline(CliIO $io, AgentRunDraft $draft): int
+    private function runInline(SymfonyCommandIO $io, AgentRunDraft $draft): int
     {
         try {
             $run = $this->runService->runInline($draft);
@@ -148,7 +148,7 @@ final class AiRunCommand
         return $run->isTerminal() && $run->getStatus()->value === 'failed' ? 1 : 0;
     }
 
-    private function runAsync(CliIO $io, AgentRunDraft $draft, bool $watch): int
+    private function runAsync(SymfonyCommandIO $io, AgentRunDraft $draft, bool $watch): int
     {
         try {
             $run = $this->runService->enqueue($draft);
@@ -179,7 +179,7 @@ final class AiRunCommand
      * Consume an SSE stream line-by-line, printing each event to stdout.
      * Exits cleanly when the `terminated` event arrives or the stream closes.
      */
-    private function consumeSseStream(string $url, CliIO $io): int
+    private function consumeSseStream(string $url, SymfonyCommandIO $io): int
     {
         $client = $this->sseClient;
         if ($client === null) {
@@ -254,7 +254,7 @@ final class AiRunCommand
         return 'http://localhost:8000';
     }
 
-    private function printRunSummary(CliIO $io, AgentRun $run): void
+    private function printRunSummary(SymfonyCommandIO $io, AgentRun $run): void
     {
         $runId = (string) $run->get('id');
         $status = (string) $run->get('status');

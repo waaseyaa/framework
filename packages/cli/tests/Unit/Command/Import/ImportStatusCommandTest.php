@@ -8,10 +8,10 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
-use Waaseyaa\CLI\ArgumentDefinition;
-use Waaseyaa\CLI\ArgumentMode;
+use Waaseyaa\CLI\Command\HandlerArgument;
+use Waaseyaa\CLI\Command\HandlerArgumentMode;
 use Waaseyaa\CLI\Command\Import\ImportStatusCommand;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Migration\Discovery\HasMigrationsInterface;
@@ -186,11 +186,11 @@ final class ImportStatusCommandTest extends TestCase
         $registry->boot();
 
         $command = new ImportStatusCommand($registry, $idMap, $runState);
-        $definitionCli = new CommandDefinition(
+        $definitionCli = new HandlerCommand(
             name: 'import:status',
             description: 'Report per-migration import state (FR-034).',
             arguments: [
-                new ArgumentDefinition(name: 'migration_id', mode: ArgumentMode::Optional),
+                new HandlerArgument(name: 'migration_id', mode: HandlerArgumentMode::Optional),
             ],
             handler: [ImportStatusCommand::class, 'execute'],
         );

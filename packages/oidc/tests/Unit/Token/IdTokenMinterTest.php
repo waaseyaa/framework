@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Waaseyaa\Oidc\Keys\OpenSslKeyFactory;
 use Waaseyaa\Oidc\Keys\SigningKey;
 use Waaseyaa\Oidc\Token\IdTokenMinter;
 use Waaseyaa\Oidc\Token\KeyMaterialProviderInterface;
@@ -21,19 +22,10 @@ final class IdTokenMinterTest extends TestCase
 
     protected function setUp(): void
     {
-        $resource = openssl_pkey_new([
-            'private_key_bits' => 2048,
-            'private_key_type' => OPENSSL_KEYTYPE_RSA,
-        ]);
-        self::assertNotFalse($resource);
+        $keyPair = new OpenSslKeyFactory()->generateRsaKeyPair();
 
-        $private = '';
-        openssl_pkey_export($resource, $private);
-        $details = openssl_pkey_get_details($resource);
-        self::assertIsArray($details);
-
-        $this->privateKeyPem = $private;
-        $this->publicKeyPem = $details['key'];
+        $this->privateKeyPem = $keyPair['private'];
+        $this->publicKeyPem = $keyPair['public'];
     }
 
     #[Test]

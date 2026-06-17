@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Entity\Audit\EntityAuditLogger;
 use Waaseyaa\Entity\EntityTypeIdNormalizer;
 use Waaseyaa\Entity\EntityTypeLifecycleManager;
@@ -25,7 +25,7 @@ final class MigrateDefaultsHandler
         private readonly ?EntityTypeIdNormalizer $typeIdNormalizer = null,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         /** @var string[] $tenants */
         $tenants = array_map('trim', (array) ($io->option('tenant') ?? []));
@@ -119,7 +119,7 @@ final class MigrateDefaultsHandler
         string $actor,
         bool $skipConfirm,
         bool $dryRun,
-        CliIO $io,
+        SymfonyCommandIO $io,
     ): int {
         $entries = $this->readMigrationLog();
         if ($entries === []) {

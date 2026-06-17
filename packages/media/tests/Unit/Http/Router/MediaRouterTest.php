@@ -157,8 +157,10 @@ final class MediaRouterTest extends TestCase
         ));
         $request->files->set('file', $uploadedFile);
 
-        // Point files_root to a non-writable path to force move() failure.
-        $router = $this->createRouter(config: ['files_root' => '/dev/null/impossible']);
+        $invalidRoot = $tmpDir . '/not-a-directory';
+        file_put_contents($invalidRoot, 'regular file, not a directory');
+
+        $router = $this->createRouter(config: ['files_root' => $invalidRoot]);
         $response = $router->handle($request);
 
         self::assertSame(500, $response->getStatusCode());

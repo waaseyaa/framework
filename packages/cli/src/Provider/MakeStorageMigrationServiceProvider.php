@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Provider;
 
-use Waaseyaa\CLI\ArgumentDefinition;
-use Waaseyaa\CLI\ArgumentMode;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerArgument;
+use Waaseyaa\CLI\Command\HandlerArgumentMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\MakeStorageMigrationHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
-use Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 /**
@@ -18,40 +18,40 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
  *
  * @api
  */
-final class MakeStorageMigrationServiceProvider extends ServiceProvider implements HasNativeCommandsInterface
+final class MakeStorageMigrationServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
 {
     public function register(): void {}
 
     /**
      * @api
      */
-    public function nativeCommands(): iterable
+    public function consoleCommands(): iterable
     {
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'make:storage-migration',
             description: 'Generate a sql-column storage migration for an entity type',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'entity_type_id',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'The entity type machine name (e.g. "node", "user")',
                 ),
             ],
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'target',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Target backend id (default: sql-column)',
                     default: 'sql-column',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'dry-run',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Print the migration to stdout without writing a file',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'force',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Overwrite an existing migration file for this entity type',
                 ),
             ],

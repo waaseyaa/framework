@@ -18,10 +18,10 @@ use Waaseyaa\Entity\Storage\EntityStorageInterface;
 #[CoversClass(EntityCreateHandler::class)]
 final class EntityCreateHandlerTest extends TestCase
 {
-    private function makeDefinition(): \Waaseyaa\CLI\CommandDefinition
+    private function makeDefinition(): \Waaseyaa\CLI\Command\HandlerCommand
     {
         $provider = new EntityTypeServiceProvider();
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'entity:create') {
                 return $cmd;
             }

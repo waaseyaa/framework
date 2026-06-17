@@ -4,105 +4,105 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Provider;
 
-use Waaseyaa\CLI\ArgumentDefinition;
-use Waaseyaa\CLI\ArgumentMode;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerArgument;
+use Waaseyaa\CLI\Command\HandlerArgumentMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\PermissionListHandler;
 use Waaseyaa\CLI\Handler\UserAssignRoleHandler;
 use Waaseyaa\CLI\Handler\UserCreateHandler;
 use Waaseyaa\CLI\Handler\UserRoleHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
-use Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
-final class UserPermissionServiceProvider extends ServiceProvider implements HasNativeCommandsInterface
+final class UserPermissionServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
 {
     public function register(): void {}
 
-    public function nativeCommands(): iterable
+    public function consoleCommands(): iterable
     {
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'user:create',
             description: 'Create a new user account',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'username',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'The username for the new account',
                 ),
             ],
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'email',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Email address for the user',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'password',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Password for the user (will be hashed)',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'role',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Role to assign to the user',
                 ),
             ],
             handler: [UserCreateHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'user:role',
             description: 'Add or remove a role from a user',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'user_id',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'The user ID',
                 ),
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'role',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'The role to add or remove',
                 ),
             ],
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'remove',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Remove the role instead of adding it',
                 ),
             ],
             handler: [UserRoleHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'user:assign-role',
             description: 'Assign a registered role to a user and stamp its permissions onto the account',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'user_id',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'The user ID',
                 ),
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'role',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'The registered role id to assign or remove',
                 ),
             ],
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'remove',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Remove the role and recompute permissions instead of assigning it',
                 ),
             ],
             handler: [UserAssignRoleHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'permission:list',
             description: 'List all registered permissions',
             handler: [PermissionListHandler::class, 'execute'],

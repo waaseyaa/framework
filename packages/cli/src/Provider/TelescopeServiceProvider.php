@@ -4,71 +4,71 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Provider;
 
-use Waaseyaa\CLI\ArgumentDefinition;
-use Waaseyaa\CLI\ArgumentMode;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerArgument;
+use Waaseyaa\CLI\Command\HandlerArgumentMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\TelescopeClearHandler;
 use Waaseyaa\CLI\Handler\TelescopeListHandler;
 use Waaseyaa\CLI\Handler\TelescopePruneHandler;
 use Waaseyaa\CLI\Handler\TelescopeValidateHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
-use Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
-final class TelescopeServiceProvider extends ServiceProvider implements HasNativeCommandsInterface
+final class TelescopeServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
 {
     public function register(): void {}
 
-    public function nativeCommands(): iterable
+    public function consoleCommands(): iterable
     {
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'telescope',
             description: 'List recent telescope entries',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'type',
                     shortcut: 't',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Filter by entry type (query, event, request, cache, job, exception)',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'limit',
                     shortcut: 'l',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Maximum entries to show',
                     default: '20',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'slow',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Show only slow queries exceeding threshold in ms',
                 ),
             ],
             handler: [TelescopeListHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'telescope:clear',
             description: 'Clear all telescope entries',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'type',
                     shortcut: 't',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Clear only entries of a specific type',
                 ),
             ],
             handler: [TelescopeClearHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'telescope:prune',
             description: 'Prune telescope entries older than retention period',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'hours',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Prune entries older than N hours',
                     default: '24',
                 ),
@@ -76,18 +76,18 @@ final class TelescopeServiceProvider extends ServiceProvider implements HasNativ
             handler: [TelescopePruneHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'telescope:validate',
             description: 'Validate codified context for a session and compute drift score',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'session_id',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'Session ID to validate',
                 ),
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'output_file',
-                    mode: ArgumentMode::Optional,
+                    mode: HandlerArgumentMode::Optional,
                     description: 'Path to write validation report JSON',
                 ),
             ],

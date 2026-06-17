@@ -8,12 +8,12 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
-use Waaseyaa\CLI\ArgumentDefinition;
-use Waaseyaa\CLI\ArgumentMode;
+use Waaseyaa\CLI\Command\HandlerArgument;
+use Waaseyaa\CLI\Command\HandlerArgumentMode;
 use Waaseyaa\CLI\Command\Import\ImportResumeCommand;
-use Waaseyaa\CLI\CommandDefinition;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\Migration\Migration;
@@ -161,18 +161,18 @@ final class ImportResumeCommandTest extends TestCase
         return [$tester, $runner];
     }
 
-    private function commandDefinition(): CommandDefinition
+    private function commandDefinition(): HandlerCommand
     {
-        return new CommandDefinition(
+        return new HandlerCommand(
             name: 'import:resume',
             description: 'Resume the most recent run of one migration (FR-037).',
             arguments: [
-                new ArgumentDefinition(name: 'migration_id', mode: ArgumentMode::Required),
+                new HandlerArgument(name: 'migration_id', mode: HandlerArgumentMode::Required),
             ],
             options: [
-                new OptionDefinition(name: 'dry-run', mode: OptionMode::None),
-                new OptionDefinition(name: 'halt-on-error', mode: OptionMode::None),
-                new OptionDefinition(name: 'limit', mode: OptionMode::Required),
+                new HandlerOption(name: 'dry-run', mode: HandlerOptionMode::None),
+                new HandlerOption(name: 'halt-on-error', mode: HandlerOptionMode::None),
+                new HandlerOption(name: 'limit', mode: HandlerOptionMode::Required),
             ],
             handler: [ImportResumeCommand::class, 'execute'],
         );

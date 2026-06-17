@@ -4,104 +4,104 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Provider;
 
-use Waaseyaa\CLI\ArgumentDefinition;
-use Waaseyaa\CLI\ArgumentMode;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerArgument;
+use Waaseyaa\CLI\Command\HandlerArgumentMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\HealthCheckHandler;
 use Waaseyaa\CLI\Handler\HealthReportHandler;
 use Waaseyaa\CLI\Handler\RevisionsEnableHandler;
 use Waaseyaa\CLI\Handler\SchemaCheckHandler;
 use Waaseyaa\CLI\Handler\SchemaListHandler;
 use Waaseyaa\CLI\Handler\SchemaSyncHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
-use Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
-final class HealthSchemaServiceProvider extends ServiceProvider implements HasNativeCommandsInterface
+final class HealthSchemaServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
 {
     public function register(): void {}
 
-    public function nativeCommands(): iterable
+    public function consoleCommands(): iterable
     {
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'health:check',
             description: 'Run all diagnostic health checks and report results',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'json',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Output results as JSON',
                 ),
             ],
             handler: [HealthCheckHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'health:report',
             description: 'Generate a full diagnostic report for operator review',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'json',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Output as JSON',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'output',
                     shortcut: 'o',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Write report to file',
                 ),
             ],
             handler: [HealthReportHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'schema:check',
             description: 'Detect schema drift between entity type definitions and database tables',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'json',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Output results as JSON',
                 ),
             ],
             handler: [SchemaCheckHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'schema:list',
             description: 'List registered schemas with versions and compatibility policy',
             handler: [SchemaListHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'schema:sync',
             description: 'Materialize the storage schema (tables) for every registered entity type. Idempotent.',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'dry-run',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Report which entity tables would be created without writing them.',
                 ),
             ],
             handler: [SchemaSyncHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'revisions:enable',
             description: 'Make an existing entity type revisionable: ensure its revision schema and backfill an initial revision for each existing row.',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'entity_type',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'The entity type ID to enable revisions for (must already be registered with revisionable: true).',
                 ),
             ],
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'dry-run',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Report what would happen without writing schema or backfilling.',
                 ),
             ],

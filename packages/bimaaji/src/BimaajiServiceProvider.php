@@ -31,7 +31,7 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
-use Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider as FoundationServiceProvider;
 use Waaseyaa\Foundation\Sovereignty\SovereigntyConfigInterface;
 use Waaseyaa\Foundation\Sovereignty\SovereigntyProfile;
@@ -54,13 +54,13 @@ use Waaseyaa\Routing\WaaseyaaRouter;
  * via their own ServiceProvider's `register()` (the framework does not yet
  * support generic tagged-service resolution).
  *
- * Implements {@see HasNativeCommandsInterface} so future CLI command
+ * Implements {@see ProvidesConsoleCommandsInterface} so future CLI command
  * discovery (WP02 of mission bimaaji-wakeup-01KS5VEY) can attach the
  * `graph:dump` command without an additional discovery layer.
  *
  * @api
  */
-final class BimaajiServiceProvider extends FoundationServiceProvider implements HasNativeCommandsInterface
+final class BimaajiServiceProvider extends FoundationServiceProvider implements ProvidesConsoleCommandsInterface
 {
     public function register(): void
     {
@@ -188,7 +188,7 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
 
         // 7. Bind SkillSetParser + BimaajiInstallCommand so the CLI handler
         //    can be resolved by the kernel command-dispatcher (registered in
-        //    nativeCommands() below). Skills directory resolution mirrors
+        //    consoleCommands() below). Skills directory resolution mirrors
         //    resolveSpecsDirectory — config['bimaaji']['skills_directory']
         //    with <projectRoot>/skills/waaseyaa fallback. M5 WP03 of
         //    mission bimaaji-install-command-01KS5W0S.
@@ -217,66 +217,66 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
     public const string SECTION_PROVIDER_TAG = 'bimaaji.section_provider';
 
     /**
-     * Native commands exported by this provider. `graph:dump` emits the
+     * Symfony Console commands exported by this provider. `graph:dump` emits the
      * application graph as JSON; see {@see GraphDumpHandler} for the flag
      * surface and exit-code contract.
      *
-     * Inline FQCN references for `\Waaseyaa\CLI\CommandDefinition` and friends
-     * keep this method compliant with `bin/check-package-layers` (bimaaji is L4,
-     * cli is L6; the layer gate scans `use` imports only). The method is invoked
-     * only when the CLI kernel has booted, so the cli package is guaranteed to
-     * be autoloadable when this code runs.
+     * Inline FQCN references for CLI command metadata keep this method
+     * compliant with `bin/check-package-layers` (bimaaji is L4, cli is L6; the
+     * layer gate scans `use` imports only). The method is invoked only when the
+     * Symfony CLI runtime has booted, so the cli package is guaranteed to be
+     * autoloadable when this code runs.
      *
-     * @return iterable<\Waaseyaa\CLI\CommandDefinition>
+     * @return iterable<\Symfony\Component\Console\Command\Command>
      */
-    public function nativeCommands(): iterable
+    public function consoleCommands(): iterable
     {
-        yield new \Waaseyaa\CLI\CommandDefinition(
+        yield new \Waaseyaa\CLI\Command\HandlerCommand(
             name: 'graph:dump',
             description: 'Dump the application graph as JSON (sections: admin, entities, jsonapi, public_surface, routing, sovereignty).',
             options: [
-                new \Waaseyaa\CLI\OptionDefinition(
+                new \Waaseyaa\CLI\Command\HandlerOption(
                     name: 'section',
-                    mode: \Waaseyaa\CLI\OptionMode::Required,
+                    mode: \Waaseyaa\CLI\Command\HandlerOptionMode::Required,
                     description: 'Scope output to a single section key (e.g. routing).',
                 ),
-                new \Waaseyaa\CLI\OptionDefinition(
+                new \Waaseyaa\CLI\Command\HandlerOption(
                     name: 'format',
-                    mode: \Waaseyaa\CLI\OptionMode::Required,
+                    mode: \Waaseyaa\CLI\Command\HandlerOptionMode::Required,
                     description: 'Output format. Only "json" is supported in this release.',
                 ),
-                new \Waaseyaa\CLI\OptionDefinition(
+                new \Waaseyaa\CLI\Command\HandlerOption(
                     name: 'strict',
-                    mode: \Waaseyaa\CLI\OptionMode::None,
+                    mode: \Waaseyaa\CLI\Command\HandlerOptionMode::None,
                     description: 'Fail-closed: re-raise provider errors with FQCN in the message and exit non-zero.',
                 ),
             ],
             handler: [GraphDumpHandler::class, 'execute'],
         );
 
-        yield new \Waaseyaa\CLI\CommandDefinition(
+        yield new \Waaseyaa\CLI\Command\HandlerCommand(
             name: 'bimaaji:install',
             description: 'Install Waaseyaa framework guidelines + skills into a consuming project for one or more agent clients (claude, cursor, codex, copilot, gemini, windsurf, junie).',
             options: [
-                new \Waaseyaa\CLI\OptionDefinition(
+                new \Waaseyaa\CLI\Command\HandlerOption(
                     name: 'client',
-                    mode: \Waaseyaa\CLI\OptionMode::Array_,
+                    mode: \Waaseyaa\CLI\Command\HandlerOptionMode::Array_,
                     description: 'Client id (repeatable or comma-separated). Available: claude, cursor, codex, copilot, gemini, windsurf, junie. Prompts interactively when omitted on a TTY.',
                 ),
-                new \Waaseyaa\CLI\OptionDefinition(
+                new \Waaseyaa\CLI\Command\HandlerOption(
                     name: 'features',
-                    mode: \Waaseyaa\CLI\OptionMode::Required,
+                    mode: \Waaseyaa\CLI\Command\HandlerOptionMode::Required,
                     description: 'Comma-separated feature list. Currently advisory; reserved for future filtering.',
                     default: 'guidelines,skills',
                 ),
-                new \Waaseyaa\CLI\OptionDefinition(
+                new \Waaseyaa\CLI\Command\HandlerOption(
                     name: 'dry-run',
-                    mode: \Waaseyaa\CLI\OptionMode::None,
+                    mode: \Waaseyaa\CLI\Command\HandlerOptionMode::None,
                     description: 'Show the would-be write set without touching the filesystem; exits 0.',
                 ),
-                new \Waaseyaa\CLI\OptionDefinition(
+                new \Waaseyaa\CLI\Command\HandlerOption(
                     name: 'force',
-                    mode: \Waaseyaa\CLI\OptionMode::None,
+                    mode: \Waaseyaa\CLI\Command\HandlerOptionMode::None,
                     description: 'Skip every confirmation prompt and overwrite existing files unconditionally.',
                 ),
             ],

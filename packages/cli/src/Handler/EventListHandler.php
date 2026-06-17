@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Handler;
 
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 
 /**
  * @api
@@ -16,7 +16,7 @@ final class EventListHandler
         private readonly EventDispatcherInterface $dispatcher,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $listeners = $this->dispatcher->getListeners();
 

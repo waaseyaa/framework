@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\Oidc;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Tests\Support\ComposerProjectFixture;
 
 #[CoversNothing]
 final class OidcDiscoveryIntegrationTest extends TestCase
@@ -22,7 +23,7 @@ final class OidcDiscoveryIntegrationTest extends TestCase
         mkdir($this->projectRoot . '/config', 0o755, true);
         mkdir($this->projectRoot . '/storage', 0o755, true);
 
-        self::assertTrue(symlink($this->repoRoot . '/vendor', $this->projectRoot . '/vendor'));
+        ComposerProjectFixture::installMetadata($this->repoRoot, $this->projectRoot);
 
         file_put_contents($this->projectRoot . '/config/entity-types.php', "<?php\n\nreturn [];\n");
         file_put_contents($this->projectRoot . '/config/waaseyaa.php', $this->buildConfigFile());

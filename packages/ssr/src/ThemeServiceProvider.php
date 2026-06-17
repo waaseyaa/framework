@@ -87,7 +87,7 @@ final class ThemeServiceProvider extends ServiceProvider
     public static function createTemplateChainLoader(string $projectRoot, string $activeTheme = ''): ChainLoader
     {
         $chain = new ChainLoader();
-        $root = rtrim($projectRoot, '/');
+        $root = rtrim(self::normalizePath($projectRoot), '/');
 
         // 1) App templates (highest priority)
         self::addPathLoaderIfExists($chain, $root . '/templates');
@@ -183,7 +183,7 @@ final class ThemeServiceProvider extends ServiceProvider
      */
     private static function vendorPackageTemplateDirectories(string $projectRoot): array
     {
-        $installedJson = rtrim($projectRoot, '/') . '/vendor/composer/installed.json';
+        $installedJson = rtrim(self::normalizePath($projectRoot), '/') . '/vendor/composer/installed.json';
         if (!is_file($installedJson)) {
             return [];
         }
@@ -199,8 +199,8 @@ final class ThemeServiceProvider extends ServiceProvider
             return [];
         }
 
-        $composerDir = rtrim($projectRoot, '/') . '/vendor/composer';
-        $vendorDir = rtrim($projectRoot, '/') . '/vendor';
+        $composerDir = rtrim(self::normalizePath($projectRoot), '/') . '/vendor/composer';
+        $vendorDir = rtrim(self::normalizePath($projectRoot), '/') . '/vendor';
         $out = [];
         foreach ($packages as $package) {
             if (!is_array($package)) {
@@ -220,7 +220,7 @@ final class ThemeServiceProvider extends ServiceProvider
                 continue;
             }
 
-            $templates = $resolved . '/templates';
+            $templates = self::normalizePath($resolved) . '/templates';
             if (is_dir($templates)) {
                 $out[] = $templates;
             }
@@ -257,7 +257,7 @@ final class ThemeServiceProvider extends ServiceProvider
      */
     private static function extractThemeTemplateDirs(string $projectRoot, string $packageName, mixed $themeMeta): array
     {
-        $root = rtrim($projectRoot, '/');
+        $root = rtrim(self::normalizePath($projectRoot), '/');
         $paths = [];
         $packagePath = self::resolvePackagePath($projectRoot, $packageName);
         if ($packagePath === null) {
@@ -284,7 +284,7 @@ final class ThemeServiceProvider extends ServiceProvider
 
     private static function resolvePackagePath(string $projectRoot, string $packageName): ?string
     {
-        $root = rtrim($projectRoot, '/');
+        $root = rtrim(self::normalizePath($projectRoot), '/');
         $installedPath = $root . '/vendor/composer/installed.json';
         if (!is_file($installedPath)) {
             return null;
@@ -314,12 +314,21 @@ final class ThemeServiceProvider extends ServiceProvider
             }
 
             if (str_starts_with($installPath, '../')) {
-                return realpath($root . '/vendor/' . $installPath) ?: null;
+                $resolved = realpath($root . '/vendor/' . $installPath);
+
+                return is_string($resolved) ? self::normalizePath($resolved) : null;
             }
 
-            return realpath($root . '/' . ltrim($installPath, '/')) ?: null;
+            $resolved = realpath($root . '/' . ltrim($installPath, '/'));
+
+            return is_string($resolved) ? self::normalizePath($resolved) : null;
         }
 
         return null;
+    }
+
+    private static function normalizePath(string $path): string
+    {
+        return str_replace('\\', '/', $path);
     }
 }

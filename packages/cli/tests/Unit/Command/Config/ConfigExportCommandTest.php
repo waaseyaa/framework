@@ -9,9 +9,9 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Waaseyaa\CLI\Command\Config\ConfigExportCommand;
-use Waaseyaa\CLI\CommandDefinition;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Config\Exception\ConfigSerializationException;
 use Waaseyaa\Config\Sync\ConfigExporter;
@@ -143,20 +143,20 @@ final class ConfigExportCommandTest extends TestCase
         );
     }
 
-    private function commandDefinition(): CommandDefinition
+    private function commandDefinition(): HandlerCommand
     {
-        return new CommandDefinition(
+        return new HandlerCommand(
             name: 'config:export',
             description: 'Write the active store out to the sync store (FR-017).',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'diff',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Write only when YAML differs (preserves git mtime semantics).',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'dry-run',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Compute would-be writes without filesystem effects.',
                 ),
             ],

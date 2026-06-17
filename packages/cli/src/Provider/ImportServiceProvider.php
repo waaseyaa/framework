@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Provider;
 
-use Waaseyaa\CLI\ArgumentDefinition;
-use Waaseyaa\CLI\ArgumentMode;
+use Waaseyaa\CLI\Command\HandlerArgument;
+use Waaseyaa\CLI\Command\HandlerArgumentMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Command\Import\ImportResetCommand;
 use Waaseyaa\CLI\Command\Import\ImportResumeCommand;
 use Waaseyaa\CLI\Command\Import\ImportRollbackCommand;
 use Waaseyaa\CLI\Command\Import\ImportRunAllCommand;
 use Waaseyaa\CLI\Command\Import\ImportRunCommand;
 use Waaseyaa\CLI\Command\Import\ImportStatusCommand;
-use Waaseyaa\CLI\CommandDefinition;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
 use Waaseyaa\Foundation\Log\LoggerInterface;
-use Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Migration\Discovery\MigrationRegistry;
 use Waaseyaa\Migration\MigrationIdMap;
@@ -41,11 +41,11 @@ use Waaseyaa\Migration\Runner\RollbackWalker;
  * {@see \Waaseyaa\Migration\ServiceProvider}; this provider only binds the
  * thin command handler classes (which the CLI kernel container resolves
  * via `[Class, method]` handler references) and yields the
- * {@see CommandDefinition}s.
+ * {@see HandlerCommand}s.
  *
  * @spec FR-061 — per-migration concurrency lock wiring
  */
-final class ImportServiceProvider extends ServiceProvider implements HasNativeCommandsInterface
+final class ImportServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
 {
     /**
      * Lock-file directory relative to the working directory.
@@ -159,143 +159,143 @@ final class ImportServiceProvider extends ServiceProvider implements HasNativeCo
         return $logger instanceof LoggerInterface ? $logger : null;
     }
 
-    public function nativeCommands(): iterable
+    public function consoleCommands(): iterable
     {
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'import:run',
             description: 'Run a single migration end-to-end (FR-032).',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'migration_id',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'Id of the migration to execute (e.g. wp_users_to_accounts).',
                 ),
             ],
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'dry-run',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Execute source + process steps; skip destination writes (FR-039).',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'halt-on-error',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Halt on the first per-record error (FR-047).',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'limit',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Process only the first N source records (FR-040).',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'run-id',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Override the generated UUIDv7 run id (advanced; CI/testing).',
                 ),
             ],
             handler: [ImportRunCommand::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'import:run-all',
             description: 'Run every registered migration in dependency order (FR-033).',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'dry-run',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Execute source + process steps; skip destination writes (FR-039).',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'halt-on-error',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Halt on the first per-record error in any migration (FR-047).',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'limit',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Per-migration record cap (FR-040).',
                 ),
             ],
             handler: [ImportRunAllCommand::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'import:status',
             description: 'Report per-migration import state (FR-034).',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'migration_id',
-                    mode: ArgumentMode::Optional,
+                    mode: HandlerArgumentMode::Optional,
                     description: 'Optional migration id to filter on; default lists all migrations.',
                 ),
             ],
             handler: [ImportStatusCommand::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'import:resume',
             description: 'Resume the most recent run of one migration (FR-037).',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'migration_id',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'Id of the migration to resume.',
                 ),
             ],
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'dry-run',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Execute source + process steps; skip destination writes (FR-039).',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'halt-on-error',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Halt on the first per-record error (FR-047).',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'limit',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Process only the next N source records (FR-040).',
                 ),
             ],
             handler: [ImportResumeCommand::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'import:rollback',
             description: 'Undo every previously-written record for one migration (FR-035).',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'migration_id',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'Id of the migration to roll back.',
                 ),
             ],
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'confirm',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Required to proceed; destructive operation gate.',
                 ),
             ],
             handler: [ImportRollbackCommand::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'import:reset',
             description: 'Clear the id-map and run-state without touching destination entities (FR-036).',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'migration_id',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'Id of the migration whose import history will be cleared.',
                 ),
             ],
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'confirm',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Required to proceed; destructive operation gate.',
                 ),
             ],

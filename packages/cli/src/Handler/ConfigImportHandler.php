@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Config\ConfigManagerInterface;
 
 /**
@@ -16,7 +16,7 @@ final class ConfigImportHandler
         private readonly ConfigManagerInterface $configManager,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $result = $this->configManager->import();
 

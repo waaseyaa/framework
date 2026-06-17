@@ -22,7 +22,7 @@ final class PackageManifestCompiler
     private const AGENT_DEFINITION_ATTRIBUTE = 'Waaseyaa\\AI\\Agent\\Attribute\\AsAgentDefinition';
 
     /** @internal String FQN avoids upward layer import (Foundation must not import from CLI/L6). */
-    private const CAPABILITY_HAS_NATIVE_COMMANDS = 'Waaseyaa\\Foundation\\ServiceProvider\\Capability\\HasNativeCommandsInterface';
+    private const CAPABILITY_PROVIDES_CONSOLE_COMMANDS = 'Waaseyaa\\Foundation\\ServiceProvider\\Capability\\ProvidesConsoleCommandsInterface';
 
     /**
      * @internal String FQN avoids a direct import from the scheduler package within Foundation.
@@ -62,7 +62,7 @@ final class PackageManifestCompiler
         $policies = [];
         $packageDeclarations = [];
         $attributeEntityTypes = [];
-        $nativeCommandProviders = [];
+        $consoleCommandProviders = [];
         $agentTools = [];
         $agentDefinitions = [];
         $scheduleEntries = [];
@@ -110,15 +110,15 @@ final class PackageManifestCompiler
         // declared in the project's extra.waaseyaa.providers must be read separately.
         $this->mergeRootWaaseyaaIntoLists($providers, $permissions, onlyAppendMissingFromRoot: false);
 
-        // Detect provider capability: HasNativeCommandsInterface
+        // Detect provider capability: ProvidesConsoleCommandsInterface
         // Uses string constant to avoid importing from Layer 6 (CLI package).
         foreach ($providers as $providerClass) {
             if (!class_exists($providerClass)) {
                 continue;
             }
             $implements = class_implements($providerClass);
-            if (is_array($implements) && isset($implements[self::CAPABILITY_HAS_NATIVE_COMMANDS])) {
-                $nativeCommandProviders[] = $providerClass;
+            if (is_array($implements) && isset($implements[self::CAPABILITY_PROVIDES_CONSOLE_COMMANDS])) {
+                $consoleCommandProviders[] = $providerClass;
             }
         }
 
@@ -213,7 +213,7 @@ final class PackageManifestCompiler
             policies: $policies,
             packageDeclarations: $packageDeclarations,
             attributeEntityTypes: $attributeEntityTypes,
-            nativeCommandProviders: $nativeCommandProviders,
+            consoleCommandProviders: $consoleCommandProviders,
             agentTools: $agentTools,
             agentDefinitions: $agentDefinitions,
             scheduleEntries: $scheduleEntries,
@@ -648,7 +648,7 @@ final class PackageManifestCompiler
             policies: $manifest->policies,
             packageDeclarations: $manifest->packageDeclarations,
             attributeEntityTypes: $manifest->attributeEntityTypes,
-            nativeCommandProviders: $manifest->nativeCommandProviders,
+            consoleCommandProviders: $manifest->consoleCommandProviders,
             agentTools: $manifest->agentTools,
             agentDefinitions: $manifest->agentDefinitions,
             scheduleEntries: $manifest->scheduleEntries,

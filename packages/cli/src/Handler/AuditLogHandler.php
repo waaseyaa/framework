@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Entity\Audit\EntityAuditLogger;
 use Waaseyaa\Entity\EntityTypeLifecycleManager;
 
@@ -18,7 +18,7 @@ final class AuditLogHandler
         private readonly ?EntityAuditLogger $entityAuditLogger = null,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $entityTypeFilter = $io->option('entity-type');
 
@@ -32,7 +32,7 @@ final class AuditLogHandler
         return $this->showLifecycleLog($typeFilter, $tenantFilter, $io);
     }
 
-    private function showLifecycleLog(string $typeFilter, string $tenantFilter, CliIO $io): int
+    private function showLifecycleLog(string $typeFilter, string $tenantFilter, SymfonyCommandIO $io): int
     {
         $tenantFilter = trim($tenantFilter);
         $entries = $this->lifecycleManager->readAuditLog($typeFilter, $tenantFilter !== '' ? $tenantFilter : null);
@@ -65,7 +65,7 @@ final class AuditLogHandler
         return 0;
     }
 
-    private function showEntityWriteLog(string $entityTypeFilter, CliIO $io): int
+    private function showEntityWriteLog(string $entityTypeFilter, SymfonyCommandIO $io): int
     {
         if ($this->entityAuditLogger === null) {
             $io->error('Entity audit logger is not configured.');

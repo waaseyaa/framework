@@ -7,7 +7,7 @@ namespace Waaseyaa\Tests\Integration\Phase21;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\SchemaListHandler;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Foundation\Schema\DefaultsSchemaRegistry;
@@ -95,7 +95,7 @@ final class SchemaRegistryIntegrationTest extends TestCase
     public function cliSchemaListOutputsCoreNote(): void
     {
         $handler    = new SchemaListHandler($this->registry);
-        $definition = new CommandDefinition(
+        $definition = new HandlerCommand(
             name: 'schema:list',
             description: 'List registered schemas with versions and compatibility policy',
             handler: \Closure::fromCallable([$handler, 'execute']),

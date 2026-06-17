@@ -37,7 +37,7 @@ final class BinScriptTest extends TestCase
 
         self::assertSame(1, $result['exit']);
         self::assertStringContainsString('must be run from a project root', $result['stderr']);
-        self::assertStringContainsString($this->tempDir, $result['stderr']);
+        self::assertStringContainsString($this->normalizePath($this->tempDir), $this->normalizePath($result['stderr']));
     }
 
     #[Test]
@@ -50,7 +50,7 @@ final class BinScriptTest extends TestCase
 
         self::assertSame(1, $result['exit']);
         self::assertStringContainsString("Run 'composer install'", $result['stderr']);
-        self::assertStringContainsString($this->tempDir, $result['stderr']);
+        self::assertStringContainsString($this->normalizePath($this->tempDir), $this->normalizePath($result['stderr']));
     }
 
     #[Test]
@@ -66,7 +66,9 @@ final class BinScriptTest extends TestCase
         // and errors.
         file_put_contents($this->tempDir . '/composer.json', '{"name": "test/consumer-fixture"}');
         mkdir($this->tempDir . '/vendor/waaseyaa', 0755, true);
-        symlink(dirname(__DIR__, 2), $this->tempDir . '/vendor/waaseyaa/cli');
+        if (!@symlink(dirname(__DIR__, 2), $this->tempDir . '/vendor/waaseyaa/cli')) {
+            self::markTestSkipped('Symlink creation is not permitted in this environment.');
+        }
 
         $symlinkedBin = $this->tempDir . '/vendor/waaseyaa/cli/bin/waaseyaa';
         self::assertFileExists($symlinkedBin, 'fixture symlink should expose the real bin');
@@ -75,7 +77,7 @@ final class BinScriptTest extends TestCase
 
         self::assertSame(1, $result['exit']);
         self::assertStringContainsString("Run 'composer install'", $result['stderr']);
-        self::assertStringContainsString($this->tempDir, $result['stderr']);
+        self::assertStringContainsString($this->normalizePath($this->tempDir), $this->normalizePath($result['stderr']));
         // Proves the bin looked in the fixture, not in the symlink target.
         self::assertStringNotContainsString(dirname(__DIR__, 3) . '/vendor/autoload.php', $result['stderr']);
     }
@@ -113,6 +115,11 @@ final class BinScriptTest extends TestCase
     private static function canonicalBinPath(): string
     {
         return dirname(__DIR__, 2) . '/bin/waaseyaa';
+    }
+
+    private function normalizePath(string $value): string
+    {
+        return str_replace('\\', '/', $value);
     }
 
     private function removeDir(string $dir): void

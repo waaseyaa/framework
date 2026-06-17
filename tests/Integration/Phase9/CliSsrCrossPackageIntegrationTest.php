@@ -143,7 +143,7 @@ final class CliSsrCrossPackageIntegrationTest extends TestCase
 
         $provider = new EntityTypeServiceProvider();
         $createDefinition = null;
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'entity:create') {
                 $createDefinition = $cmd;
                 break;
@@ -201,7 +201,7 @@ final class CliSsrCrossPackageIntegrationTest extends TestCase
         $provider = new ConfigCacheDbAuditServiceProvider();
         $exportDef = null;
         $importDef = null;
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'config:export') {
                 $exportDef = $cmd;
             }
@@ -269,7 +269,7 @@ final class CliSsrCrossPackageIntegrationTest extends TestCase
         // Clear cache via native handler.
         $provider = new ConfigCacheDbAuditServiceProvider();
         $cacheClearDef = null;
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'cache:clear') {
                 $cacheClearDef = $cmd;
                 break;

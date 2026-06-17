@@ -13,8 +13,8 @@ use Waaseyaa\Migration\Plugin\SourcePluginInterface;
  *
  * The {@see PluginRegistry} scans the provider list in Composer
  * `installed.json` order; any provider implementing this interface contributes
- * its plugins to the registry. Mirrors the
- * `HasNativeCommandsInterface` pattern in `entity-storage`.
+ * its plugins to the registry. Mirrors the provider-capability discovery
+ * pattern used throughout the framework.
  *
  * @api
  */

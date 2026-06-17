@@ -69,7 +69,7 @@ final class KnowledgeExtensionBootstrapper
             if ($trimmed === '') {
                 continue;
             }
-            if (!str_starts_with($trimmed, '/')) {
+            if (!self::isAbsolutePath($trimmed)) {
                 $trimmed = $projectRoot . '/' . ltrim($trimmed, '/');
             }
             $directories[] = $trimmed;
@@ -78,6 +78,13 @@ final class KnowledgeExtensionBootstrapper
         sort($directories);
 
         return $directories;
+    }
+
+    private static function isAbsolutePath(string $path): bool
+    {
+        return str_starts_with($path, '/')
+            || preg_match('#^[A-Za-z]:[\\\\/]#', $path) === 1
+            || str_starts_with($path, '\\\\');
     }
 
     /**
