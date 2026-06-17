@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.222] - 2026-06-17
+
 ### Added
 
 - **Author path remediation — getting content into a stock app no longer fights the tooling.** The read side (HTML, Markdown negotiation, MCP) already worked; this closes the authoring friction found while filming a demo on Windows:
