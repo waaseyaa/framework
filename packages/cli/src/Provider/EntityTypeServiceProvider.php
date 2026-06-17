@@ -37,8 +37,23 @@ final class EntityTypeServiceProvider extends ServiceProvider implements Provide
                 new HandlerOption(
                     name: 'values',
                     mode: HandlerOptionMode::Required,
-                    description: 'JSON string of entity values',
+                    description: 'JSON string of entity values (inline; prefer --field/--values-file to avoid shell quoting)',
                     default: '{}',
+                ),
+                new HandlerOption(
+                    name: 'field',
+                    mode: HandlerOptionMode::Array_,
+                    description: 'Field value as name=value (repeatable). No JSON; quoting-free in PowerShell/cmd/POSIX.',
+                ),
+                new HandlerOption(
+                    name: 'field-file',
+                    mode: HandlerOptionMode::Array_,
+                    description: 'Load a field from a file: name=@path (repeatable). For large fields like a Markdown body.',
+                ),
+                new HandlerOption(
+                    name: 'values-file',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Read the whole value set as a JSON file path, or "-" for stdin.',
                 ),
             ],
             handler: [EntityCreateHandler::class, 'execute'],
