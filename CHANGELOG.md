@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Agent-readable apps, on by default (criteria 1–6).** A stock app now serves clean Markdown via HTTP `Accept` content negotiation on the *same* URL as the HTML page, plus a `?raw`/`?format=md` toggle returning byte-identical Markdown:
+  - `foundation`: `MediaTypeAcceptNegotiator` (RFC 7231 q-value + specificity negotiation over a supported media-type set; also resolves the `?raw`/`?format` override so the toggle and `Accept` paths converge on one answer).
+  - `api`: `EntityMarkdownPresenter` renders an entity to Markdown by composing `ResourceSerializer::serialize()` for the access-filtered/cast attribute map (so Markdown can never leak a field the JSON:API view hides — proven by a parity test), with entity references → links, images → alt-texted images, multi-value → bullet lists, entity-key fields kept to front matter.
+  - `ssr`: same-URL negotiation wired into `SsrPageHandler`; the negotiated media type is part of the SSR cache variant key + surrogate keys and responses set `Vary: Accept`, so HTML and Markdown never cross-contaminate the render cache (correctness gate); a visible "View as Markdown" affordance and per-entity-type schema.org JSON-LD injected into `<head>`; the default `entity.html.twig` now renders a full HTML document.
+  - `seo`: `EntitySchemaOrgMapper` (per-entity-type `@type` JSON-LD), `LlmsTopic` + `LlmsTxtGenerator` emitting an INDEX of per-topic `.md` URLs (default topic = one per public content entity type, curated-config overridable); public `/llms.txt`, `/sitemap.xml`, `/robots.txt` routes served via `SsrServiceProvider` + a robust `SeoPublicController`.
+  - `mcp`: a public, read-only MCP server. `PublicAnonymousAuth` resolves every request to an anonymous account holding only read capabilities; `ReadOnlyToolRegistry` makes write/destructive tools structurally absent from `tools/list` and `tools/call`; enforcement holds at three independent layers (allowlist + capability grant + per-query `accessCheck`) — proven live and by `ReadOnlyBoundaryTest`. Configurable, registry-ready `McpServerCard`/`McpServerCardConfig` (default `authentication.type: none`).
+
+### Fixed
+
+- **`mcp`: the hosted MCP endpoint now serves over HTTP.** `McpEndpoint::handle()` returned a bare `McpResponse` value object the controller dispatcher cannot send, so every HTTP MCP call 500'd. Added `McpEndpoint::serve()` wrapping the result in a Symfony `Response`; the `/mcp` route targets `::serve` and is `allowAll()`.
+- **`ai-tools`/`foundation`: agent tools hydrate over HTTP.** The agent-tool registry resolved empty over HTTP (so MCP `tools/list` and the admin tool browser were empty). Two-layer fix: expose the booted `PackageManifest` on the kernel-services bus (`ProviderRegistryKernelServices`), and add `AutowiringToolContainer` so `#[AsAgentTool]` classes (which are not container-bound) are instantiated by autowiring constructor deps from the bus.
+- **`ci`: PHP gate scripts were invoked via `bash`.** The CLI→Symfony Console migration (alpha.220) rewrote `bin/check-composer-policy`, `bin/check-package-layers`, `bin/check-dead-code` from bash to PHP, but `ci.yml` still ran them with `bash`, leaving `main` red since alpha.220. They now run via `php`.
+
+### Changed
+
+- **Metapackage tiering for the agent-readable surface.** `cms` gains `ssr` + `seo` (a CMS now ships the public, SEO-correct, agent-readable web surface); `full` gains `search` + `relationship` (they back the AI/MCP tools) and drops the now-redundant `ssr` (inherited via `cms`). The public read-only MCP server stays `full`-tier, default-on for the batteries-included/skeleton install; `cms` consumers opt in.
+
+### Documentation
+
+- **Charter truth-up (factual drift, no policy change).** DIR-005 canonical-spec pointer corrected from the SUPERSEDED `entity-storage-two-axis.md` to the live `revision-system-unified.md`; Policy Summary "PHPUnit 11" → "PHPUnit 10.5"; Doctrine DBAL noted as the established DB layer (database-legacy = named bridge).
+
 ## [0.1.0-alpha.219] - 2026-06-17
 
 ### Added
