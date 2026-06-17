@@ -1,0 +1,23 @@
+{
+  "done_count": 1,
+  "done_percentage": 100.0,
+  "mission_number": "",
+  "mission_slug": "ai-observability-dashboard-01KSE9BX",
+  "mission_type": "software-dev",
+  "per_lane_counts": {
+    "done": 1
+  },
+  "per_wp": [
+    {
+      "fractional_progress": 1.0,
+      "lane": "done",
+      "lane_weight": 1.0,
+      "wp_id": "WP01",
+      "wp_weight": 1.0
+    }
+  ],
+  "percentage": 100.0,
+  "progress_semantics": "weighted_readiness",
+  "total_count": 1,
+  "weighted_percentage": 100.0
+}

@@ -1,0 +1,23 @@
+{
+  "abandoned_after_days": 30,
+  "active_wp_count": 1,
+  "age_days": 23,
+  "blocked_wp_count": 0,
+  "completion_pct": 90.0,
+  "event_count": 15,
+  "has_event_log": true,
+  "last_activity_at": "2026-05-25T05:09:58.724927+00:00",
+  "last_follow_up_at": null,
+  "last_transition_at": "2026-05-25T05:09:58.724927+00:00",
+  "mission_number": null,
+  "mission_slug": "anokii-distribution-scaffold-01KSEFT7",
+  "mission_type": "software-dev",
+  "post_mission_events": [],
+  "reason": "Active work has gone stale and should be recovered before it resurfaces.",
+  "review_wp_count": 1,
+  "stale_after_days": 14,
+  "state": "stale",
+  "surface_state": null,
+  "terminal_wp_count": 3,
+  "total_wps": 4
+}

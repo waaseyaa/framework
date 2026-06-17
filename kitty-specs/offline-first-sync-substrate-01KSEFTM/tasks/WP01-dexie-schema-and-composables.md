@@ -24,6 +24,7 @@ shell_pid: '69774'
 history: []
 authoritative_surface: packages/admin/app/offline/db
 execution_mode: code_change
+mission_id: 01KSEFTMSAV1E8WNDG6XXHPHHP
 owned_files:
 - packages/admin/package.json
 - packages/admin/app/offline/db/OfflineDatabase.ts
@@ -40,6 +41,7 @@ tags:
 - indexeddb
 - admin-spa
 - layer-6
+wp_code: WP01
 ---
 
 # WP01 — Dexie IndexedDB schema + OfflineDatabase + composable shells

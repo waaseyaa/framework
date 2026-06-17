@@ -1,0 +1,23 @@
+{
+  "abandoned_after_days": 30,
+  "active_wp_count": 0,
+  "age_days": 0,
+  "blocked_wp_count": 0,
+  "completion_pct": 0.0,
+  "event_count": 0,
+  "has_event_log": true,
+  "last_activity_at": "2026-06-17T15:58:04.760205+00:00",
+  "last_follow_up_at": null,
+  "last_transition_at": null,
+  "mission_number": null,
+  "mission_slug": "agent-readable-app-full-bar-01KVB4VM",
+  "mission_type": "software-dev",
+  "post_mission_events": [],
+  "reason": "Mission is recoverable history and not active enough for the default surface.",
+  "review_wp_count": 0,
+  "stale_after_days": 14,
+  "state": "recoverable",
+  "surface_state": null,
+  "terminal_wp_count": 0,
+  "total_wps": 0
+}

@@ -25,6 +25,7 @@ subtasks:
 history: []
 authoritative_surface: packages/admin/app/offline/auth
 execution_mode: code_change
+mission_id: 01KSEFTMSAV1E8WNDG6XXHPHHP
 owned_files:
 - packages/admin/app/offline/auth/OfflineAuthGuard.ts
 - packages/admin/app/components/offline/OfflineStatusBadge.vue
@@ -43,6 +44,7 @@ tags:
 - ui-badge
 - integration-test
 - docs
+wp_code: WP04
 ---
 
 # WP04 — Auth offline guard + status badge + integration test + Playwright + docs

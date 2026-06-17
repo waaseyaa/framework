@@ -23,6 +23,7 @@ subtasks:
 history: []
 authoritative_surface: packages/api/src/Sync
 execution_mode: code_change
+mission_id: 01KSEFTMSAV1E8WNDG6XXHPHHP
 owned_files:
 - packages/api/src/Sync/SyncAcknowledgeController.php
 - packages/api/src/Sync/OfflineBatchAuditController.php
@@ -40,6 +41,7 @@ tags:
 - json-api
 - mercure
 - audit-integration
+wp_code: WP03
 ---
 
 # WP03 — Server-side sync endpoints + Mercure sync.conflict event

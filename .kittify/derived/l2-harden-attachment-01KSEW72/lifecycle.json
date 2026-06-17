@@ -1,0 +1,23 @@
+{
+  "abandoned_after_days": 30,
+  "active_wp_count": 0,
+  "age_days": 23,
+  "blocked_wp_count": 0,
+  "completion_pct": 0.0,
+  "event_count": 0,
+  "has_event_log": false,
+  "last_activity_at": "2026-05-25T06:12:37.553238+00:00",
+  "last_follow_up_at": null,
+  "last_transition_at": null,
+  "mission_number": null,
+  "mission_slug": "l2-harden-attachment-01KSEW72",
+  "mission_type": "software-dev",
+  "post_mission_events": [],
+  "reason": "Mission is recoverable but stale and should not pollute primary surfaces.",
+  "review_wp_count": 0,
+  "stale_after_days": 14,
+  "state": "stale",
+  "surface_state": null,
+  "terminal_wp_count": 0,
+  "total_wps": 0
+}

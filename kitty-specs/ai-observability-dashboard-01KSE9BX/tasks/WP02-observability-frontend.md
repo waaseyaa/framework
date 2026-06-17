@@ -16,6 +16,7 @@ subtasks: []
 history: []
 authoritative_surface: packages/admin/app/pages/ai/observability.vue
 execution_mode: code_change
+mission_id: 01KSE9BXVFDDBGCPZ4KN1F8YPM
 owned_files:
 - packages/admin/app/composables/useAiObservability.ts
 - packages/admin/app/pages/ai/observability.vue
@@ -27,6 +28,7 @@ owned_files:
 - docs/specs/admin-spa.md
 - CHANGELOG.md
 tags: []
+wp_code: WP02
 ---
 
 # WP02 — Frontend: dashboard page, composable, nav, i18n, docs (M5A)
