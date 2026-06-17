@@ -1,0 +1,13 @@
+{
+  "coordination_branch": "kitty/mission-charter-truth-up-2026-06-01KVB6MW",
+  "created_at": "2026-06-17T16:29:21.249293+00:00",
+  "friendly_name": "charter truth up 2026 06",
+  "mission_id": "01KVB6MWYX6PTQDM45DFB0S4JS",
+  "mission_number": null,
+  "mission_slug": "charter-truth-up-2026-06-01KVB6MW",
+  "mission_type": "software-dev",
+  "purpose_context": "This mission advances charter truth up 2026 06 on main so stakeholders can track the work from mission creation onward.",
+  "purpose_tldr": "charter truth up 2026 06",
+  "slug": "charter-truth-up-2026-06-01KVB6MW",
+  "target_branch": "main"
+}
