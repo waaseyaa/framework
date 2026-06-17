@@ -22,8 +22,12 @@ use Waaseyaa\Foundation\ServiceProvider\Capability\HasRenderCacheListenersInterf
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\SSR\Flash\Flash;
 use Waaseyaa\SSR\Flash\FlashMessageService;
+use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Routing\RouteBuilder;
+use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\SSR\Http\Router\AppControllerRouter;
 use Waaseyaa\SSR\Http\Router\SsrRouter;
+use Waaseyaa\SSR\Http\SeoPublicController;
 use Waaseyaa\SSR\Twig\FlashTwigExtension;
 
 final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttpKernelInterface, HasHttpDomainRoutersInterface, HasRenderCacheListenersInterface, LanguagePathStripperInterface
@@ -67,6 +71,45 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
         if (self::$twigEnvironment !== null) {
             self::$twigEnvironment->addExtension(new FlashTwigExtension($flashService));
         }
+    }
+
+    /**
+     * Register the public, crawler-facing agent/SEO routes. Priority 10 keeps
+     * them ahead of the SSR `/{path}` render fallback (BuiltinRouteRegistrar).
+     */
+    public function routes(WaaseyaaRouter $router, EntityTypeManager $entityTypeManager): void
+    {
+        $controller = SeoPublicController::class;
+
+        $router->addRoute(
+            'seo.robots_txt',
+            RouteBuilder::create('/robots.txt')
+                ->controller($controller . '::robotsTxt')
+                ->methods('GET')
+                ->allowAll()
+                ->priority(10)
+                ->build(),
+        );
+
+        $router->addRoute(
+            'seo.sitemap_xml',
+            RouteBuilder::create('/sitemap.xml')
+                ->controller($controller . '::sitemapXml')
+                ->methods('GET')
+                ->allowAll()
+                ->priority(10)
+                ->build(),
+        );
+
+        $router->addRoute(
+            'seo.llms_txt',
+            RouteBuilder::create('/llms.txt')
+                ->controller($controller . '::llmsTxt')
+                ->methods('GET')
+                ->allowAll()
+                ->priority(10)
+                ->build(),
+        );
     }
 
     public function registerRenderCacheListeners(EventDispatcherInterface $dispatcher, ?CacheBackendInterface $renderCacheBackend): void
