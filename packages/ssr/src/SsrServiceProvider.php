@@ -171,6 +171,7 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
             logger: $this->resolve(LoggerInterface::class),
             gate: new EntityAccessGate($kernel->getAccessHandler()),
             inertiaFullPageRenderer: $kernel->getInertiaFullPageRenderer(),
+            accessHandler: $kernel->getAccessHandler(),
         );
     }
 

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Author path remediation — getting content into a stock app no longer fights the tooling.** The read side (HTML, Markdown negotiation, MCP) already worked; this closes the authoring friction found while filming a demo on Windows:
+  - `cli`: `make:content-type` — one command scaffolds a usable content type. `waaseyaa make:content-type story --fields="title:string,body:text,source_url:string"` generates `App\Entity\Story` (a `ContentEntityBase` with an auto-added published `status` flag and each requested field — `entity_reference:<target>` carries the required target metadata, no constructor spelunking), a dedicated `App\Provider\StoryServiceProvider` registering it in the `content` group, and registers that provider in the app `composer.json` (`extra.waaseyaa.providers`, idempotent).
+  - `cli`: cross-platform `entity:create` input — repeatable `--field name=value`, `--field-file name=@path` (for large bodies), and `--values-file=path.json` / `-` (stdin), so content can be created without inline JSON or shell-quoting gymnastics in PowerShell, cmd, or POSIX. Later sources win (file overrides flag overrides `--values`).
+  - `foundation`: dev-mode manifest auto-discovery — in development the package manifest is compiled fresh each boot, so a newly scaffolded entity type / access policy / provider is picked up without `composer dump-autoload -o` + `optimize:manifest`. Production keeps the compiled, cached manifest.
+  - `access`: `PublishedContentAccessPolicy` — a published `content`-group entity is anonymously readable (HTML, Markdown negotiation, MCP `entity.read`) with **no hand-written policy**, exposing its actual stored fields. Additive (never `Forbidden`, so any specific policy's deny still wins); scoped to the `content` group so `user`/`taxonomy` are never affected. Wired as a default in `AbstractKernel`.
+
+### Fixed
+
+- **`ssr`: unpublished content could leak via HTML/Markdown (security).** The SSR canonical `/{type}/{id}` path gated visibility only through the node-centric `EditorialVisibilityResolver`, which allows any non-`node` type outright — so a generic `make:content-type` draft (`status=0`) was served to anonymous visitors over HTML and Markdown (and via the `?preview=1` query param), even though MCP and JSON:API correctly denied it. `SsrPageHandler` now defers non-`node` content-group renders to the **same** per-entity `EntityAccessHandler` decision the other read surfaces use (`PublishedContentAccessPolicy` ⇒ anonymous may view only published items), and fails closed when no handler is wired. Nodes keep their published/preview/workflow nuance in the editorial resolver. Proven by `SsrContentPublishedGateTest` and a live three-surface acceptance run (published serves with body; draft is `403`/`403`/MCP-denied).
+
 ## [0.1.0-alpha.221] - 2026-06-17
 
 ### Added

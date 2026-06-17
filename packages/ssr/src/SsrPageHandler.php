@@ -68,6 +68,7 @@ final class SsrPageHandler
         private readonly ?InertiaFullPageRendererInterface $inertiaFullPageRenderer = null,
         private readonly array $appControllerArgumentResolvers = [],
         ?AppControllerMethodInvoker $appControllerMethodInvoker = null,
+        private readonly ?\Waaseyaa\Access\EntityAccessHandler $accessHandler = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
         $this->languageResolver = $languageResolver ?? new LanguageResolver(serviceResolver: $this->serviceResolver);
@@ -178,6 +179,15 @@ final class SsrPageHandler
             $visibilityResolver = new EditorialVisibilityResolver();
             $visibility = $visibilityResolver->canRender($entity, $account, $previewRequested);
             if ($visibility->isForbidden()) {
+                $response = new RenderController($twig)->renderForbidden($aliasLookupPath, $account);
+                $headers = $this->extractHeaders($response);
+                $headers['Cache-Control'] = $cacheControlHeader;
+                return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
+            }
+            // Canonical published gate for generic content the node-centric
+            // EditorialVisibilityResolver does not cover (it allows any non-`node`
+            // type outright). See {@see shouldDenyContentGroupRender()}.
+            if ($this->shouldDenyContentGroupRender($entityTypeId, $entity, $account)) {
                 $response = new RenderController($twig)->renderForbidden($aliasLookupPath, $account);
                 $headers = $this->extractHeaders($response);
                 $headers['Cache-Control'] = $cacheControlHeader;
@@ -725,6 +735,45 @@ final class SsrPageHandler
         }
 
         return [$type, $id];
+    }
+
+    /**
+     * The canonical published gate for generic content the node-centric
+     * {@see EditorialVisibilityResolver} does not cover (it allows any non-`node`
+     * type outright). Returns true when a content-group entity that is not a
+     * `node` must be denied for ($account, 'view') per the SAME per-entity
+     * AccessPolicy the MCP and JSON:API paths use — PublishedContentAccessPolicy
+     * grants anonymous `view` only for published items — so HTML/Markdown can
+     * never serve an unpublished draft the other surfaces deny.
+     *
+     * Nodes are excluded: their published/preview/workflow nuance stays with the
+     * editorial resolver, preserving the shipped node behavior. Fails closed —
+     * when no access handler is wired, a content render is denied rather than
+     * risk leaking a draft through a wiring gap.
+     */
+    private function shouldDenyContentGroupRender(string $entityTypeId, EntityInterface $entity, AccountInterface $account): bool
+    {
+        if ($entityTypeId === 'node' || !$this->isContentGroupEntity($entityTypeId)) {
+            return false;
+        }
+
+        return $this->accessHandler === null
+            || !$this->accessHandler->check($entity, 'view', $account)->isAllowed();
+    }
+
+    /**
+     * Whether an entity type belongs to the `content` group — the set of
+     * publishable, anonymously-readable-when-published types. Used to scope the
+     * canonical published gate so non-content types (user, taxonomy, …) keep
+     * their existing visibility behavior.
+     */
+    private function isContentGroupEntity(string $entityTypeId): bool
+    {
+        if (!$this->entityTypeManager->hasDefinition($entityTypeId)) {
+            return false;
+        }
+
+        return $this->entityTypeManager->getDefinition($entityTypeId)->getGroup() === 'content';
     }
 
     /**
