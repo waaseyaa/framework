@@ -14,8 +14,9 @@ final readonly class McpRouteProvider
         $router->addRoute(
             'mcp.endpoint',
             RouteBuilder::create('/mcp')
-                ->controller('Waaseyaa\\Mcp\\McpEndpoint::handle')
+                ->controller('Waaseyaa\\Mcp\\McpEndpoint::serve')
                 ->methods('POST', 'GET')
+                ->allowAll()
                 ->csrfExempt()
                 ->build(),
         );

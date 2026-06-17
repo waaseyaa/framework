@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Mcp;
 
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
@@ -63,6 +64,25 @@ final readonly class McpEndpoint
         return $this->dispatch(
             $request->getContent(),
             $request->headers->get('Authorization'),
+        );
+    }
+
+    /**
+     * HTTP controller entry point. Wraps {@see self::handle()} in a Symfony
+     * {@see HttpResponse} so the kernel's controller dispatcher can send it
+     * (the dispatcher only understands HttpResponse / Inertia results — a bare
+     * {@see McpResponse} value object would otherwise be unrenderable).
+     */
+    public function serve(
+        AccountInterface $account,
+        HttpRequest $request,
+    ): HttpResponse {
+        $mcp = $this->handle($account, $request);
+
+        return new HttpResponse(
+            $mcp->body,
+            $mcp->statusCode,
+            ['Content-Type' => $mcp->contentType],
         );
     }
 
