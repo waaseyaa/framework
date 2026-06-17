@@ -1,0 +1,166 @@
+version: 1
+mission: agent-readable-app-full-bar-01KVB4VM
+work_packages:
+  - id: WP01
+    title: Media-type Accept negotiation primitive
+    description: >
+      A reusable HTTP media-type negotiator (modeled on the existing
+      AcceptHeaderNegotiator for languages) that parses RFC 7231 q-values and
+      selects the best supported media type, plus resolves the ?raw / ?format=md
+      query override to the same media-type result. Lives in foundation (L0) so
+      both api and ssr can consume it without upward edges.
+    dependencies: []
+    owned_files:
+      - "packages/foundation/src/Http/ContentNegotiation/**"
+      - "packages/foundation/tests/Unit/Http/ContentNegotiation/**"
+    requirement_refs: [FR-001, FR-004]
+    subtasks:
+      - st1: Define MediaTypeAcceptNegotiator with negotiate(accept, supported, default)
+      - st2: RFC 7231 q-value parsing incl. */* and type/* wildcards
+      - st3: Map ?raw / ?format=md query override to a media type
+      - st4: Unit tests (q-value ordering, wildcard fallback, override precedence)
+
+  - id: WP02
+    title: EntityMarkdownPresenter (reuse ResourceSerializer)
+    description: >
+      Render an entity to clean markdown reusing ResourceSerializer field
+      resolution and access filtering (no internal/credential/view-only leakage).
+      Entity references -> markdown links; images -> alt-texted markdown images;
+      respects view modes. Deterministic byte output (the ?raw toggle returns it
+      verbatim).
+    dependencies: []
+    owned_files:
+      - "packages/api/src/Markdown/**"
+      - "packages/api/src/ResourceSerializer.php"
+      - "packages/api/tests/Unit/Markdown/**"
+    requirement_refs: [FR-002, FR-003]
+    subtasks:
+      - st1: Extract shared field-resolution/cast pipeline from ResourceSerializer
+      - st2: EntityMarkdownPresenter::present(entity, viewMode, access, account)
+      - st3: Reference fields -> links; image/media fields -> alt-texted images
+      - st4: View-mode-aware field selection
+      - st5: Unit tests incl. access filtering and reference/image rendering
+
+  - id: WP03
+    title: SSR content negotiation, cache-variant keying, raw toggle, JSON-LD head
+    description: >
+      Wire the negotiator (WP01) and presenter (WP02) into the SSR render path so
+      the same URL serves markdown for Accept: text/markdown and HTML otherwise;
+      add the negotiated media type to the SSR cache variant key and set
+      Vary: Accept (correctness gate — no HTML/markdown cross-contamination on hit
+      or miss); add a visible ?raw toggle returning byte-identical markdown via the
+      same presenter; inject schema.org JSON-LD (from WP04 mapper) into <head>.
+    dependencies: [WP01, WP02, WP04]
+    owned_files:
+      - "packages/ssr/src/SsrPageHandler.php"
+      - "packages/ssr/src/Http/Router/SsrRouter.php"
+      - "packages/ssr/src/RenderController.php"
+      - "packages/ssr/src/EntityRenderer.php"
+      - "packages/ssr/src/Markdown/**"
+      - "packages/ssr/src/SsrServiceProvider.php"
+      - "packages/ssr/templates/**"
+      - "packages/ssr/tests/**"
+    requirement_refs: [FR-001, FR-004, FR-005, NFR-001, NFR-004]
+    subtasks:
+      - st1: Negotiate media type in SsrPageHandler; branch HTML vs markdown
+      - st2: Markdown response via EntityMarkdownPresenter; Content-Type + Vary: Accept
+      - st3: Add media type to cache variant/surrogate key
+      - st4: Cross-contamination tests (hit + miss, both media types)
+      - st5: ?raw toggle through the identical presenter; byte-identity test
+      - st6: Visible raw/markdown affordance in the page template
+      - st7: Inject schema.org JSON-LD into <head> via EntitySchemaOrgMapper
+
+  - id: WP04
+    title: SEO agent-readability — schema.org mapper, llms.txt, public routes
+    description: >
+      Per-entity-type schema.org mapper (via JsonLdBuilder); LlmsTopic +
+      LlmsTxtGenerator producing an index of per-topic .md URLs (default topic =
+      one per public content entity type, with a curated config override); and a
+      seo route provider that serves /llms.txt, /sitemap.xml, /robots.txt publicly
+      (accessCheck(false) crawler inventory, mirroring SitemapGenerator).
+    dependencies: [WP02]
+    owned_files:
+      - "packages/seo/src/SchemaOrg/**"
+      - "packages/seo/src/Llms/**"
+      - "packages/seo/src/Route/**"
+      - "packages/seo/src/SeoServiceProvider.php"
+      - "packages/seo/tests/**"
+    requirement_refs: [FR-006, FR-007, FR-014, FR-015]
+    subtasks:
+      - st1: EntitySchemaOrgMapper with per-entity-type @type mapping
+      - st2: LlmsTopic value object + topic model (derived default + curated config)
+      - st3: LlmsTxtGenerator emitting per-topic .md index (not llms-full)
+      - st4: Seo route provider — /llms.txt, /sitemap.xml, /robots.txt public
+      - st5: Register bindings/routes in SeoServiceProvider
+      - st6: Tests — topic derivation, llms.txt format, schema.org mapping
+
+  - id: WP05
+    title: Public read-only MCP — anonymous auth, allowlist, 3-layer enforcement, card
+    description: >
+      PublicAnonymousAuth resolving missing creds to the anonymous account;
+      ReadOnlyToolAllowlist so only destructive:false read tools appear in
+      tools/list and tools/call; anon capability grants (entity.read,
+      entity.search, relationship.traverse, bimaaji.read); accessCheck(true) on all
+      public queries; configurable, registry-ready server card declaring public
+      auth. Security boundary — tests prove a write tool is absent from the list AND
+      rejected on call, anonymously, at each layer. Default binding wired here.
+    dependencies: []
+    owned_files:
+      - "packages/mcp/src/Auth/**"
+      - "packages/mcp/src/ReadOnlyToolAllowlist.php"
+      - "packages/mcp/src/McpServerCard.php"
+      - "packages/mcp/src/McpServerCardConfig.php"
+      - "packages/mcp/src/McpServiceProvider.php"
+      - "packages/mcp/tests/**"
+    requirement_refs: [FR-008, FR-009, FR-010, FR-011, FR-012, FR-013, NFR-002, NFR-003]
+    subtasks:
+      - st1: PublicAnonymousAuth implements McpAuthInterface -> AnonymousUser
+      - st2: ReadOnlyToolAllowlist filtering bridge to destructive:false read tools
+      - st3: Anonymous capability grant set (the four read capabilities)
+      - st4: Audit every public-tool query uses setAccount(anon)+accessCheck(true)
+      - st5: McpServerCardConfig — configurable name/desc/url/auth + registry fields
+      - st6: Declare public auth mode; default binding in McpServiceProvider
+      - st7: Security tests — write tool absent from list AND rejected on call (per layer)
+
+  - id: WP06
+    title: Default wiring + metapackage tiering + skeleton enablement
+    description: >
+      Make it on-by-default. Tiering (delegated decision, resolved): cms gains ssr
+      and seo; full gains search and relationship; public MCP enabled by default in
+      the skeleton/full path, cms opt-in. Skeleton config enables the agent-readable
+      providers; bump waaseyaa/framework constraint if needed. All edits via
+      bin/sync-internal-versions and pass bin/check-composer-policy and
+      bin/check-package-layers (no new KERNEL_EXEMPT_FILES).
+    dependencies: [WP03, WP04, WP05]
+    owned_files:
+      - "packages/cms/composer.json"
+      - "packages/full/composer.json"
+      - "skeleton/composer.json"
+      - "skeleton/config/**"
+    requirement_refs: [FR-017, NFR-005, C-005]
+    subtasks:
+      - st1: cms += ssr, seo
+      - st2: full += search, relationship
+      - st3: Public MCP default-on in skeleton/full path; cms opt-in
+      - st4: Skeleton config enables agent-readable providers
+      - st5: Run sync-internal-versions; pass composer-policy + package-layers
+
+  - id: WP07
+    title: Live isitagentready verification (acceptance gate)
+    description: >
+      Boot the dev server and verify by runtime check: curl a page with
+      Accept: text/markdown; curl ?raw byte-identity; /llms.txt; /sitemap.xml;
+      /robots.txt; /.well-known/mcp.json; schema.org JSON-LD present in <head>;
+      anonymous MCP read works and write is rejected. Run the full
+      isitagentready.com checklist; fix or document each failing/non-applicable
+      check. Capture all curl output and the checklist result in the mission record.
+    dependencies: [WP06]
+    owned_files:
+      - "kitty-specs/agent-readable-app-full-bar-01KVB4VM/verification/**"
+    requirement_refs: [FR-016, NFR-004]
+    subtasks:
+      - st1: Boot composer dev; capture curl for each public surface
+      - st2: Confirm JSON-LD in <head>; sitemap/robots reachable
+      - st3: Confirm anon MCP read works + write rejected end-to-end
+      - st4: Run isitagentready checklist; fix or document each item
+      - st5: Write verification report (curls + checklist) into mission record
