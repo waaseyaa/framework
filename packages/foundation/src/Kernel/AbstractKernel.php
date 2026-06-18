@@ -8,6 +8,7 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface as SymfonyContrac
 use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\Policy\ContentAdminAccessPolicy;
 use Waaseyaa\Access\Policy\PublishedContentAccessPolicy;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
@@ -557,6 +558,14 @@ abstract class AbstractKernel
         // group) is anonymously viewable with no hand-written per-type policy.
         // Additive only (never Forbidden), so a specific policy's denial wins.
         $this->accessHandler->addPolicy(new PublishedContentAccessPolicy($this->entityTypeManager));
+
+        // Framework default: an account holding `administer content` may fully
+        // manage any content-group entity (view/update/delete/create, drafts
+        // included) with no hand-written per-type policy — the per-group analogue
+        // of NodeAccessPolicy's `administer nodes` bypass. Additive (never
+        // Forbidden); gated strictly on `administer content`, so anonymous and
+        // the public/MCP read path keep published-view-only.
+        $this->accessHandler->addPolicy(new ContentAdminAccessPolicy($this->entityTypeManager));
     }
 
     /**

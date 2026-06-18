@@ -45,4 +45,27 @@ final class ServeHandlerTest extends TestCase
         self::assertSame('/home/test', $env['HOME']);
         self::assertSame('development', $env['APP_ENV']);
     }
+
+    #[Test]
+    public function it_defaults_server_workers_so_the_sse_connection_does_not_deadlock(): void
+    {
+        $handler = new ServeHandler('/tmp');
+
+        $env = $handler->resolveChildEnv([]);
+
+        // PHP's built-in server is single-worker by default; the admin SPA's
+        // long-lived SSE stream would pin that sole worker. Default to >1.
+        self::assertSame('4', $env['PHP_CLI_SERVER_WORKERS']);
+        self::assertGreaterThan(1, (int) $env['PHP_CLI_SERVER_WORKERS']);
+    }
+
+    #[Test]
+    public function it_respects_caller_set_server_workers(): void
+    {
+        $handler = new ServeHandler('/tmp');
+
+        $env = $handler->resolveChildEnv(['PHP_CLI_SERVER_WORKERS' => '8']);
+
+        self::assertSame('8', $env['PHP_CLI_SERVER_WORKERS']);
+    }
 }

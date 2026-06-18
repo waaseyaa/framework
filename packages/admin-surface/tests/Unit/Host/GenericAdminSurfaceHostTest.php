@@ -29,6 +29,71 @@ use Waaseyaa\Entity\Storage\EntityStorageInterface;
 #[CoversClass(GenericAdminSurfaceHost::class)]
 final class GenericAdminSurfaceHostTest extends TestCase
 {
+    /**
+     * A host wired with a permissive access handler and a resolved admin session,
+     * so list/get exercise filter/sort/serialize logic with access granted. The
+     * host fails closed without both, which these data-shaping tests do not
+     * exercise (dedicated fail-closed tests cover that path).
+     */
+    private function permissiveHost(EntityTypeManagerInterface $etm): GenericAdminSurfaceHost
+    {
+        $accessHandler = $this->createMock(EntityAccessHandler::class);
+        $accessHandler->method('check')->willReturn(AccessResult::allowed('ok'));
+        $accessHandler->method('filterFields')->willReturnCallback(
+            static fn(EntityInterface $entity, array $fields): array => $fields,
+        );
+
+        $host = new GenericAdminSurfaceHost($etm, $accessHandler);
+
+        $account = $this->createStub(AccountInterface::class);
+        $account->method('id')->willReturn(1);
+        $account->method('hasPermission')->willReturn(true);
+        $account->method('getRoles')->willReturn(['administrator']);
+        $request = Request::create('/');
+        $request->attributes->set('_account', $account);
+        $host->resolveSession($request);
+
+        return $host;
+    }
+
+    #[Test]
+    public function list_fails_closed_without_access_handler(): void
+    {
+        $storage = $this->createMock(EntityStorageInterface::class);
+
+        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getStorage')->willReturn($storage);
+
+        // No access handler and no resolved session — must expose nothing.
+        $host = new GenericAdminSurfaceHost($etm);
+        $result = $host->list('event');
+
+        $this->assertTrue($result->ok);
+        $this->assertSame([], $result->data['entities']);
+        $this->assertSame(0, $result->data['total']);
+    }
+
+    #[Test]
+    public function get_fails_closed_without_access_handler(): void
+    {
+        $entity = $this->createStub(EntityInterface::class);
+
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage->method('load')->willReturn($entity);
+
+        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getStorage')->willReturn($storage);
+
+        // No access handler and no resolved session — must deny.
+        $host = new GenericAdminSurfaceHost($etm);
+        $result = $host->get('event', '1');
+
+        $this->assertFalse($result->ok);
+        $this->assertSame(403, $result->error['status']);
+    }
+
     #[Test]
     public function resolve_session_returns_null_for_unauthenticated_request(): void
     {
@@ -451,7 +516,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm->method('getDefinition')->willReturn($articleType);
         $etm->method('getStorage')->willReturn($storage);
 
-        $host = new GenericAdminSurfaceHost($etm);
+        $host = $this->permissiveHost($etm);
 
         $query = new SurfaceQuery(
             filters: [['field' => 'status', 'operator' => SurfaceFilterOperator::EQUALS, 'value' => 'published']],
@@ -499,7 +564,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm->method('getDefinition')->willReturn($type);
         $etm->method('getStorage')->willReturn($storage);
 
-        $host = new GenericAdminSurfaceHost($etm);
+        $host = $this->permissiveHost($etm);
 
         // Lexicographically 'zzz' > 'mmm'; float cast would make both 0.0 and match nothing.
         $query = new SurfaceQuery(
@@ -548,7 +613,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm->method('getDefinition')->willReturn($type);
         $etm->method('getStorage')->willReturn($storage);
 
-        $host = new GenericAdminSurfaceHost($etm);
+        $host = $this->permissiveHost($etm);
 
         $query = new SurfaceQuery(
             filters: [['field' => 'n', 'operator' => SurfaceFilterOperator::GT, 'value' => '5']],
@@ -605,7 +670,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm->method('getDefinition')->willReturn($contactType);
         $etm->method('getStorage')->willReturn($storage);
 
-        $host = new GenericAdminSurfaceHost($etm);
+        $host = $this->permissiveHost($etm);
 
         $query = new SurfaceQuery(
             filters: [['field' => 'stage', 'operator' => SurfaceFilterOperator::IN, 'value' => 'lead,qualified']],
@@ -660,7 +725,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm->method('getDefinition')->willReturn($articleType);
         $etm->method('getStorage')->willReturn($storage);
 
-        $host = new GenericAdminSurfaceHost($etm);
+        $host = $this->permissiveHost($etm);
 
         $query = new SurfaceQuery(
             sortField: 'created_at',
@@ -718,7 +783,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm->method('getDefinition')->willReturn($eventType);
         $etm->method('getStorage')->willReturn($storage);
 
-        $host = new GenericAdminSurfaceHost($etm);
+        $host = $this->permissiveHost($etm);
 
         // Call with no query (backward compat)
         $result = $host->list('event');

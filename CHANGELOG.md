@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`admin-surface`/`access`: custom content types are now fully manageable in the admin SPA out of the box (security + UX).** A type scaffolded by `make:content-type` previously returned `{entities:[],total:0}` from `/admin/_surface/{type}` and `403` from `/admin/_surface/{type}/{id}` — even for a logged-in administrator, even for published items — because the admin surface built its **own** access handler from the on-disk manifest cache (`storage/framework/packages.php`) and omitted the framework defaults. Two-part fix:
+  - `AdminSurfaceServiceProvider::discoverAccessHandler()` now returns the **kernel's** already-built `EntityAccessHandler` (via the kernel-services bus) instead of rebuilding one from the cache file. This restores `PublishedContentAccessPolicy`, picks up every discovered per-type policy, and — because the dev kernel fresh-compiles the manifest per request — makes the admin surface track newly added types/policies with **no manual `optimize:manifest`**.
+  - New framework-default `Waaseyaa\Access\Policy\ContentAdminAccessPolicy`: an account holding `administer content` may `view`/`update`/`delete`/`create` any `content`-group entity (drafts included) with no hand-written per-type policy — the per-group analogue of `NodeAccessPolicy`'s `administer nodes` bypass. Additive (never `Forbidden`), scoped to the `content` group, and gated strictly on `administer content`, so anonymous and the public/MCP read paths keep their published-view-only boundary and never gain manage or draft visibility.
+  - `GenericAdminSurfaceHost` now **fails closed**: `list`/`get`/`delete`/`create`/`update` deny (empty list / `403`) when no access handler or resolved account is present, instead of skipping the check and exposing every entity unchecked (the prior behavior when the cache file was absent).
+- **`cli`: the bundled dev server no longer deadlocks against the admin SPA's SSE connection on POSIX.** `bin/waaseyaa serve` now defaults `PHP_CLI_SERVER_WORKERS` to `4` itself (override via the env var) and logs the worker count, instead of relying on the `composer dev:php` / `skeleton/bin/dev.sh` wrappers. PHP's built-in server is single-worker by default, so the admin SPA's long-lived `/api/broadcast` SSE stream would pin the sole worker and block every other request. Note: `PHP_CLI_SERVER_WORKERS` is `fork()`-gated and **ignored on Windows** (`php -S` is always single-worker there) — for the admin SPA on Windows, use **FrankenPHP** (worker mode, supported by `public/index.php`), now documented as the recommended dev runtime in `docs/specs/operations-playbooks.md`.
+
 ## [0.1.0-alpha.222] - 2026-06-17
 
 ### Added

@@ -45,11 +45,15 @@ Use this as the default runbook for upgrades, baseline refreshes, and verificati
 
 | Script | Process | Purpose |
 |--------|---------|---------|
-| `composer dev:php` | `bin/waaseyaa serve` | PHP built-in server with `PHP_CLI_SERVER_WORKERS=4`. Single foreground process, no shell forking. |
+| `composer dev:php` | `bin/waaseyaa serve` | PHP built-in server. `bin/waaseyaa serve` now defaults `PHP_CLI_SERVER_WORKERS` to `4` itself (set the env var to override) — no reliance on the composer/shell wrapper. Single foreground process, no shell forking. |
 | `composer dev:admin` | `bin/waaseyaa admin:dev` | Nuxt admin SPA dev server. Reads `NUXT_BACKEND_URL` (defaults to `http://127.0.0.1:${APP_PORT:-8080}`). |
 | `composer dev` | delegates to `dev:php` | Convenience alias for the most common case (PHP-only). |
 
 For full-stack local development, run `composer dev:php` in one terminal and `composer dev:admin` in another. Each process owns its own lifecycle; killing one does not orphan the other. CI and Docker compose files invoke the typed entries directly rather than the legacy shell pipeline.
+
+**Why >1 worker is mandatory for the admin SPA.** The admin SPA holds a long-lived Server-Sent-Events connection to `/api/broadcast` for live updates (`packages/admin/app/composables/useRealtime.ts` → `packages/foundation/src/Http/Router/BroadcastRouter.php`). That stream pins one PHP worker for its entire lifetime. PHP's built-in server is **single-worker by default**, so with one worker the SSE stream blocks every other request and the admin SPA deadlocks. `bin/waaseyaa serve` therefore defaults `PHP_CLI_SERVER_WORKERS=4`. Note the SSE-per-client model consumes one worker per connected admin client, so heavy multi-client use needs more workers (or a concurrency-capable runtime).
+
+**Recommended dev runtime: FrankenPHP.** The front controller (`public/index.php`) supports FrankenPHP worker mode, which serves requests concurrently across threads — a long-lived `/api/broadcast` SSE stream pins one thread while the rest stay responsive, with no `PHP_CLI_SERVER_WORKERS` tuning. For admin-SPA-heavy local development (and as the production runtime), FrankenPHP is the recommended server; the `php -S` path with `PHP_CLI_SERVER_WORKERS≥4` remains the zero-dependency fallback.
 
 ### Verification Entry Point
 
