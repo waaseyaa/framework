@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.223] - 2026-06-18
+
 ### Fixed
 
 - **`admin-surface`/`access`: custom content types are now fully manageable in the admin SPA out of the box (security + UX).** A type scaffolded by `make:content-type` previously returned `{entities:[],total:0}` from `/admin/_surface/{type}` and `403` from `/admin/_surface/{type}/{id}` — even for a logged-in administrator, even for published items — because the admin surface built its **own** access handler from the on-disk manifest cache (`storage/framework/packages.php`) and omitted the framework defaults. Two-part fix:
