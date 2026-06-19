@@ -68,6 +68,20 @@ declared in `composer.json`, so `composer install` flags a runtime missing them.
 
 ### Serving with FrankenPHP (concurrent runtime)
 
+The quickest way to run the real concurrent runtime is the bundled Composer
+script — classic per-request mode against `public/`, bound to loopback on a
+non-privileged port so it never triggers a privileged-port or HTTPS-certificate
+prompt:
+
+```bash
+composer serve:franken   # → http://127.0.0.1:8080  (Ctrl+C to stop)
+```
+
+This assumes the `frankenphp` binary is on your `PATH` — install it from
+<https://frankenphp.dev> (no per-machine paths to configure). For the warm,
+worker-mode runtime (best for the admin SPA's SSE), use the native invocation
+shown below instead.
+
 `./vendor/bin/waaseyaa serve` is the plain single-worker `php -S` dev server. It
 is a zero-config convenience and is **not** the right runtime for the admin SPA's
 live `/api/broadcast` SSE connection or for production.

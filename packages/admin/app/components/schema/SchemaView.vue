@@ -9,24 +9,33 @@ const props = defineProps<{
 }>()
 
 const { t } = useLanguage()
-const { schema, loading: schemaLoading, error: schemaError, fetch: fetchSchema, sortedProperties } = useSchema(props.entityType)
+const { schema, error: schemaError, fetch: fetchSchema, sortedProperties } = useSchema(props.entityType)
 const { get } = useEntity()
 
 const entityData = ref<Record<string, any>>({})
 const loadError = ref<string | null>(null)
+// True for the whole initial load (schema + entity). Keeps the view in one
+// explicit busy state instead of going blank in the gap between the two fetches.
+const loading = ref(true)
 
 onMounted(async () => {
-  // Scope the schema to this entity's bundle so its per-bundle fields (e.g. a
-  // page's body) are shown, not just the shared core fields.
-  await fetchSchema(props.entityId)
-  if (schema.value) {
-    try {
-      const resource = await get(props.entityType, props.entityId)
-      entityData.value = { id: resource.id, ...resource.attributes }
-    } catch (e: any) {
-      loadError.value = e.data?.errors?.[0]?.detail ?? e.message ?? t('error_loading_entity')
-    }
+  // Schema (scoped to this entity's bundle so per-bundle fields like a page's
+  // body show) and the entity record are independent reads, so fetch them
+  // concurrently — the slower of the two bounds the wait instead of their sum.
+  // The entity GET is deduped against the sibling history widget requesting the
+  // same record in the same tick (see the transport adapter).
+  const [, entityResult] = await Promise.allSettled([
+    fetchSchema(props.entityId),
+    get(props.entityType, props.entityId),
+  ])
+  if (entityResult.status === 'fulfilled') {
+    const resource = entityResult.value
+    entityData.value = { id: resource.id, ...resource.attributes }
+  } else {
+    const e: any = entityResult.reason
+    loadError.value = e?.data?.errors?.[0]?.detail ?? e?.message ?? t('error_loading_entity')
   }
+  loading.value = false
 })
 
 // Exclude widgets with no human-readable display (e.g. the structured "blocks"
@@ -60,8 +69,8 @@ function formatValue(value: any, fieldSchema: Record<string, any>): string {
 </script>
 
 <template>
-  <div class="schema-view">
-    <div v-if="schemaLoading" class="loading">{{ t('loading') }}</div>
+  <div class="schema-view" :aria-busy="loading ? 'true' : 'false'">
+    <div v-if="loading" class="loading" role="status" aria-live="polite">{{ t('opening') }}</div>
     <div v-else-if="schemaError" class="error">{{ schemaError }}</div>
     <div v-else-if="loadError" class="error">{{ loadError }}</div>
     <dl v-else class="field-list">
