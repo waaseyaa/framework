@@ -7,11 +7,11 @@
         "php": ">=8.5",
         "psr/cache": "^3.0",
         "psr/simple-cache": "^3.0",
-        "waaseyaa/foundation": "^0.1.0-alpha.231"
+        "waaseyaa/foundation": "^0.1.0-alpha.232"
     },
     "suggest": {
-        "waaseyaa/entity": "^0.1.0-alpha.231",
-        "waaseyaa/config": "^0.1.0-alpha.231"
+        "waaseyaa/entity": "^0.1.0-alpha.232",
+        "waaseyaa/config": "^0.1.0-alpha.232"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
