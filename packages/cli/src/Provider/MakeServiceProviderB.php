@@ -83,7 +83,12 @@ final class MakeServiceProviderB extends ServiceProvider implements ProvidesCons
                     description: 'Overwrite an existing public/index.php',
                 ),
             ],
-            handler: [MakePublicHandler::class, 'execute'],
+            // MakePublicHandler requires a scalar string $projectRoot, which the
+            // kernel handler container cannot auto-wire. Build it eagerly here —
+            // same pattern as make:content-type above — instead of the
+            // class-reference form, which crashed with "unresolvable parameter
+            // $projectRoot" on a stock downstream app (D2).
+            handler: \Closure::fromCallable([new MakePublicHandler(projectRoot: $projectRoot), 'execute']),
         );
 
         yield new HandlerCommand(

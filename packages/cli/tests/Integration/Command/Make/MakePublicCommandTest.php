@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
+use Psr\Container\NotFoundExceptionInterface;
 use Waaseyaa\CLI\Handler\MakePublicHandler;
 use Waaseyaa\CLI\Provider\MakeServiceProviderB;
 use Waaseyaa\CLI\Testing\CliTester;
@@ -76,6 +77,9 @@ final class MakePublicCommandTest extends TestCase
     private function createTester(string $projectRoot): CliTester
     {
         $provider = new MakeServiceProviderB();
+        // The provider builds make:public's handler eagerly from its own
+        // $projectRoot (set by the kernel), so point it at the temp dir.
+        $provider->setKernelContext($projectRoot, [], []);
         $definition = null;
         foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'make:public') {
@@ -85,20 +89,27 @@ final class MakePublicCommandTest extends TestCase
         }
         self::assertNotNull($definition);
 
-        $container = new class ($projectRoot) implements ContainerInterface {
-            public function __construct(private readonly string $projectRoot) {}
-
+        // Regression guard for D2: drive make:public through a container that can
+        // resolve NOTHING — the same way the real kernel handler container fails
+        // to auto-wire MakePublicHandler's scalar string $projectRoot. The command
+        // MUST still work because the provider now wires make:public via an eager
+        // Closure (mirroring make:content-type), so HandlerCommand::resolveHandler()
+        // short-circuits and never consults the container. With the previous
+        // class-reference handler this container threw and the command crashed.
+        $container = new class implements ContainerInterface {
             public function get(string $id): mixed
             {
-                if ($id === MakePublicHandler::class) {
-                    return new MakePublicHandler($this->projectRoot);
-                }
-                throw new \RuntimeException("Not found: {$id}");
+                throw new class ($id) extends \RuntimeException implements NotFoundExceptionInterface {
+                    public function __construct(string $id)
+                    {
+                        parent::__construct("No entry found for: {$id}");
+                    }
+                };
             }
 
             public function has(string $id): bool
             {
-                return $id === MakePublicHandler::class;
+                return false;
             }
         };
 

@@ -397,6 +397,48 @@ final class GenericAdminSurfaceHostTest extends TestCase
     }
 
     #[Test]
+    public function delete_resolves_by_uuid_when_id_is_non_numeric(): void
+    {
+        // The admin SPA sends the JSON:API resource id, which is the UUID for
+        // int-keyed content entities. handleDelete must resolve it via the UUID
+        // fallback (like get()) and actually delete — instead of returning a
+        // misleading 404 and leaving the row in storage (D7 regression guard).
+        $uuid = '807e4373-0f98-44fe-9fb5-111d5bd3a5ef';
+
+        $entity = $this->createMock(EntityInterface::class);
+        $entity->method('getEntityTypeId')->willReturn('story');
+        $entity->method('id')->willReturn(1);
+        $entity->method('uuid')->willReturn($uuid);
+
+        $storage = $this->createMock(EntityStorageInterface::class);
+        // Non-numeric id => load() is skipped; resolution goes through loadByKey('uuid').
+        $storage->method('loadByKey')->with('uuid', $uuid)->willReturn($entity);
+        $storage->expects($this->once())->method('delete')->with([$entity]);
+
+        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getStorage')->willReturn($storage);
+
+        $accessHandler = $this->createMock(EntityAccessHandler::class);
+        $accessHandler->method('check')->willReturn(AccessResult::allowed('ok'));
+
+        $host = new GenericAdminSurfaceHost($etm, $accessHandler);
+
+        $account = $this->createStub(AccountInterface::class);
+        $account->method('id')->willReturn(1);
+        $account->method('hasPermission')->willReturn(true);
+        $account->method('getRoles')->willReturn(['administrator']);
+        $request = Request::create('/admin/surface/session');
+        $request->attributes->set('_account', $account);
+        $host->resolveSession($request);
+
+        $result = $host->action('story', 'delete', ['id' => $uuid]);
+
+        $this->assertTrue($result->ok, 'Delete by UUID should succeed, not 404.');
+        $this->assertSame(['deleted' => true], $result->data);
+    }
+
+    #[Test]
     public function list_filters_entities_by_access(): void
     {
         $eventType = new EntityType(
