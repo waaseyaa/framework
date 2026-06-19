@@ -479,6 +479,11 @@ return [
     'Waaseyaa\Mcp\Bridge\ToolRegistryInterface' => 'public',
     'Waaseyaa\Mcp\Auth\McpAuthInterface' => 'public',
     'Waaseyaa\Mcp\Admin\RecentInvocationsQueryInterface' => 'public',
+    // Wayfinding Phase 5 (wayfinding-01KVGH5X): authenticated MCP write tier.
+    // WriteTierAuthInterface is the app override point for write-tier credentials;
+    // AbstractTrailTool is the internal shared base for the wayfinding trail tools.
+    'Waaseyaa\Mcp\Auth\WriteTierAuthInterface' => 'public',
+    'Waaseyaa\AI\Agent\Tool\Wayfinding\AbstractTrailTool' => 'internal',
     'Waaseyaa\Oidc\Keys\OidcKeyLoaderInterface' => 'public',
     'Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface' => 'public',
     'Waaseyaa\Oidc\Token\KeyMaterialProviderInterface' => 'public',

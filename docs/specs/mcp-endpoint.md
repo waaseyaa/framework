@@ -1,5 +1,6 @@
 # MCP Endpoint
 
+<!-- Spec reviewed 2026-06-19 - Wayfinding Phase 5 (wayfinding-01KVGH5X): the authenticated MCP WRITE TIER. New SEPARATE route `/mcp/write` → `AuthenticatedMcpEndpoint::serve` (a thin controller composing an inner McpEndpoint configured for writes), so the public read-only `/mcp` is byte-identical and untouched (C-001). The inner endpoint uses (a) `WriteTierAuthInterface` — a marker auth bound by default to `BearerTokenAuth([])` (empty token map ⇒ every request fails closed 401 until an app re-binds it with its token→account map; NFR-002), distinct from the public `McpAuthInterface`=PublicAnonymousAuth binding so the two surfaces configure independently; and (b) `CapabilityScopedToolRegistry(fullRegistry, capabilities)` — the dual of `ReadOnlyToolRegistry`: it exposes ONLY tools whose capability is on an allowlist, destructive INCLUDED (default `['present guided content']`, override via `mcp.write_tier.capabilities`), so the tier surfaces exactly its own tools, never the whole destructive catalogue. Per-tool `AbstractAgentTool::requireCapability` remains the authorization layer. The wayfinding write tools themselves live in ai-agent (see ai-integration.md / wayfinding.md). See the "Authenticated write tier" section at the end of this spec. -->
 <!-- Spec reviewed 2026-06-12 - mission request-surface-hardening-01KTX7F2 WP03 (#1652): BearerTokenAuth::authenticate() hardened. (1) Constant-time comparison — the array lookup is replaced by a full hash_equals() scan over EVERY token-map entry with no early exit (whole-call timing independent of which entry matches); map keys are (string)-cast before comparison because PHP coerces purely numeric token strings to int array keys. (2) Blocked-account fail-closed check — a matched account exposing isActive() (duck-typed method_exists; AccountInterface has no status member, no mcp→user manifest edge) that returns false is rejected with null, byte-indistinguishable from an unknown token (same 401 JSON-RPC envelope; no blocked-vs-invalid oracle). Zero added queries (NFR-003): kernels and token maps are per-request, so the in-memory isActive() read reflects persisted state as of this request's boot. Accounts without isActive() authenticate as before — custom McpAuthInterface implementations own their account objects' liveness semantics. Prefix handling and getTokens() (admin fingerprinting) unchanged. Pinned by BearerTokenAuthHardeningTest; the pre-existing 7-test BearerTokenAuthTest matrix passes unchanged. -->
 <!-- Spec reviewed 2026-06-12 - mission revision-audit-provenance-01KTWY5V WP05: McpEndpoint gains two optional ctor params (?EventDispatcherInterface, ?AccountContextInterface, container-injected via McpServiceProvider's explicit binding); dispatch() scopes the acting-account context to the bearer-auth account post-auth/pre-parse with finally-restore, and fires Waaseyaa\Mcp\Event\McpDispatchEvent ('waaseyaa.mcp.dispatch': method, raw params, ?accountUid) exactly once per authenticated well-formed JSON-RPC request, post-parse pre-routing, best-effort; 401/parse-error fire nothing; event name pinned cross-package to McpDispatchAuditListener::EVENT_NAME (mcp does not require audit at runtime; new require-dev edge for the pin test). McpEndpoint Class section also updated to the real post-M3 two-required-dep signature. Independent of #1635/#1636. Refs #1645. -->
 <!-- Spec reviewed 2026-05-25 - per-record-ai-access-flagship-01KSEFT5 WP02: McpEntityFieldFilter wired into McpController and EntityTools.getEntity(). Forbidden fields are now replaced by the canonical redaction marker {accessRestricted: true, reason: "field_forbidden_for_account"} rather than omitted. JSON:API omits; MCP redacts — both compliant with open-by-default; MCP redacts to preserve audit lineage. FR-005, FR-006, FR-007 satisfied. McpJsonApiFieldParityTest guards this contract. -->
@@ -816,4 +817,72 @@ packages/admin/tests/unit/composables/useMcpTools.test.ts
 packages/admin/tests/unit/composables/useMcpTool.test.ts
 packages/admin/tests/unit/composables/useMcpServerConfig.test.ts
 packages/admin/e2e/mcp-admin.spec.ts
+```
+
+## Authenticated write tier (Wayfinding Phase 5)
+
+The public `/mcp` endpoint is read-only: `PublicAnonymousAuth` resolves every
+request to an anonymous account, and `ReadOnlyToolRegistry` hides every
+`destructive: true` tool (the alpha.221 trio, constraint **C-001**). Wayfinding
+Phase 5 adds a **separate authenticated write tier** for write tools, without
+touching that surface (**FR-004**).
+
+### Route + controller
+
+`McpRouteProvider` registers a second route `POST /mcp/write` →
+`AuthenticatedMcpEndpoint::serve`. Like `/mcp` it is `allowAll()` + `csrfExempt()`
+at the HTTP layer; authentication is enforced *inside* the endpoint (fail-closed),
+not by the router. `AuthenticatedMcpEndpoint` is a thin, routable controller that
+composes an inner `McpEndpoint` — a route controller resolves to a single
+container binding, so a second differently-wired endpoint needs its own class.
+All JSON-RPC dispatch (auth, per-request bridge, capability gating, the
+`waaseyaa.mcp.dispatch` event) is the unchanged inner `McpEndpoint`.
+
+### Auth: `WriteTierAuthInterface`
+
+`McpServiceProvider` binds `WriteTierAuthInterface` (a marker extending
+`McpAuthInterface`) to `BearerTokenAuth([])` by default — an **empty token map**,
+so every `/mcp/write` request fails closed with HTTP 401 until a deployment
+re-binds it with its `token → AccountInterface` map (accounts holding the write
+capability). Token→account mapping is application-specific. The marker keeps the
+write-tier credential binding **distinct** from the public `McpAuthInterface`
+(=`PublicAnonymousAuth`) binding, so the two surfaces configure independently and
+the public read tier is never affected.
+
+### Registry: `CapabilityScopedToolRegistry`
+
+The structural dual of `ReadOnlyToolRegistry`. Given a capability allowlist, it
+exposes only tools whose `capability` is listed — **destructive included** — and
+hides everything else (`get`/`has` behave as "unregistered", `all`/`tools/list`
+omit them). The write tier is wired with the allowlist from
+`mcp.write_tier.capabilities` (default `['present guided content']`), so it
+surfaces exactly the Wayfinding write tools and **not** the whole destructive
+catalogue (e.g. editorial write tools, whose capability is not on the allowlist,
+stay absent). Per-tool `AbstractAgentTool::requireCapability` is still the
+authorization layer (NFR-002): a token-authenticated caller lacking the
+capability gets a `forbidden` envelope.
+
+### Three-layer guarantee
+
+| Layer | Public `/mcp` (read-only) | `/mcp/write` (authenticated write tier) |
+|---|---|---|
+| Auth | `PublicAnonymousAuth` → anonymous, never 401 | `WriteTierAuthInterface`=`BearerTokenAuth` → 401 without a valid token |
+| Registry | `ReadOnlyToolRegistry` (hides all destructive) | `CapabilityScopedToolRegistry` (allowlisted capabilities, destructive incl.) |
+| Per-tool | `requireCapability` vs anonymous read caps | `requireCapability` vs the bearer-resolved account |
+
+The wayfinding write tools (`wayfinding_record_trail`, `wayfinding_rerecord_trail`,
+`wayfinding_get_trail`, `wayfinding_emit_beacon`) are `#[AsAgentTool]` adapters in
+`packages/ai-agent/src/Tool/Wayfinding/` — see `ai-integration.md` and
+`wayfinding.md`. Acceptance: `AuthenticatedMcpEndpointTest` +
+`CapabilityScopedToolRegistryTest` (mcp), and the tool tests (ai-agent).
+
+### Files (Phase 5)
+
+```
+packages/mcp/src/AuthenticatedMcpEndpoint.php
+packages/mcp/src/CapabilityScopedToolRegistry.php
+packages/mcp/src/Auth/WriteTierAuthInterface.php
+packages/mcp/src/McpRouteProvider.php          (adds /mcp/write)
+packages/mcp/src/McpServiceProvider.php         (write-tier bindings)
+packages/mcp/src/Auth/BearerTokenAuth.php       (implements WriteTierAuthInterface)
 ```

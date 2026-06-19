@@ -1,5 +1,6 @@
 # Wayfinding
 
+<!-- Spec reviewed 2026-06-19 - Phase 5 (authenticated MCP write tier). Wayfinding write tools ship as four #[AsAgentTool] adapters in packages/ai-agent/src/Tool/Wayfinding/ (ai-agent L5 → wayfinding L4 downward dep): wayfinding_record_trail / wayfinding_rerecord_trail / wayfinding_get_trail (via TrailStore) + wayfinding_emit_beacon (anchor-validate via AnchorRegistry, push via BroadcastStorage). All capability:'present guided content', requireCapability fail-closed (FR-003/NFR-002); the write/emit ones destructive:true so ReadOnlyToolRegistry hides them from public /mcp (C-001). The separate authenticated tier lives in packages/mcp: new route POST /mcp/write → AuthenticatedMcpEndpoint over a CapabilityScopedToolRegistry (dual of ReadOnlyToolRegistry — exposes allowlisted capabilities incl. destructive; default ['present guided content'], config mcp.write_tier.capabilities) + WriteTierAuthInterface (bound to BearerTokenAuth([]) default = 401 fail-closed). Public /mcp untouched (FR-004). Acceptance: AuthenticatedMcpEndpointTest + CapabilityScopedToolRegistryTest (mcp), WayfindingTrailToolsTest + EmitBeaconToolTest (ai-agent). Full contract in mcp-endpoint.md. -->
 <!-- Spec reviewed 2026-06-19 - Phase 4 (trail persistence + record-to-saved). wayfinding L4 gains the wayfinding_trail two-axis (revisionable + translatable, en+fr) entity (Entity/Trail.php), registered via EntityType::fromClass(revisionable:true, translatable:true); three tables (base, _revision, __translation__revision) materialised by EntitySchemaSync on schema:sync — the first shipping two-axis type. TrailStore (Trail/TrailStore.php, depends on concrete EntityRepository = L4→L1 entity-storage) realises the no-silent-overwrite rule on native two-axis primitives: live value = peer row (saveTranslation/loadTranslation); drafts/history = per-language revisions (saveTranslationRevision/listTranslationRevisions). record() makes a human-owned trail (origin=recorded); editAsHuman() advances + latches origin=human; reRecord() onto a human-owned trail appends a DRAFT revision and leaves the live value byte-for-byte intact (promoted=false), else advances it (promoted=true). TrailAccessPolicy: owner-only update/delete, capability-gated create/view. Persistence substrate only; the HTTP/MCP write tier exposing it is Phase 5. Acceptance: tests/Unit/Trail/TrailStoreTest.php proves SC-005 (FR-009/010/011). -->
 <!-- Spec reviewed 2026-06-19 - Phase 3 (overlay/beacon component with full a11y). Admin SPA: new useBeacons composable builds a live trail from wayfinding.beacon SSE events (useRealtime now listens for that event); new WayfindingOverlay.vue mounted globally in app.vue renders the active beacon as an aria-live role=status region, fully keyboard-navigable (arrows move, Esc dismisses), spotlights the data-anchor element (outline ring + scroll + focus, no trap), dismissable, honours prefers-reduced-motion. Ships in the prebuilt bundle (dist rebuilt; served-bundle wf-beacon assertion). Contract detailed in docs/specs/admin-spa.md. -->
 <!-- Spec reviewed 2026-06-19 - Phase 2 (session-scoped beacon delivery). foundation L0 gains SessionChannel (reserved `session:` namespace; token = substr(sha256(session_id),0,32)) and BroadcastRouter now strips client-supplied private channels + auto-subscribes each connection to its own server-derived session channel (resolveSubscriberChannels, pure + unit-tested) — enforcing NFR-001 (a client can only receive its own session's beacons). The SSE connected frame exposes the non-secret sessionToken. wayfinding L4 gains EmitBeaconController: POST /api/wayfinding/beacons, authenticated + 'present guided content' capability (fail-closed, re-checked in controller), validates anchor via AnchorRegistry::isValid, publishes a wayfinding.beacon to the target session's private channel via BroadcastStorage::push; content transported verbatim (escaping is Phase 3). Reconnect/resume inherited from Last-Event-ID. -->
@@ -181,8 +182,36 @@ on save, so **only its owner** may `update`/`delete`; `view` is the owner or any
 (LD-2/FR-003). Field-level: `owner_uid` / `origin` and identity keys are
 store-managed and not directly editable.
 
-## Phase 5 — Authenticated MCP write tier (planned — see mission spec)
+## Phase 5 — Authenticated MCP write tier (shipped)
 
 The separate authenticated MCP write-tool surface for emitting live trails and
-**managing saved trails** (capability-gated), exposing the Phase-4 `TrailStore`
-over HTTP/MCP, leaving the read-only alpha.221 trio untouched.
+**managing saved trails**, capability-gated, leaving the read-only alpha.221 trio
+untouched (FR-003/FR-004/NFR-002/C-001/SC-002).
+
+### Wayfinding write tools (`packages/ai-agent/src/Tool/Wayfinding/`)
+
+Four `#[AsAgentTool]` adapters — in **ai-agent (L5)**, importing wayfinding (L4)
+downward, the established home for first-party tool adapters (mirrors the Bimaaji
+family). All carry `capability: 'present guided content'`
+({@see EmitBeaconController::CAPABILITY}) and `requireCapability` fail-closed:
+
+- `wayfinding_record_trail` (`destructive: true`) → `TrailStore::record` (FR-010).
+- `wayfinding_rerecord_trail` (`destructive: true`) → `TrailStore::reRecord`; the
+  no-silent-overwrite rule rides through (FR-011): re-recording a human-owned trail
+  reports `promoted: false` (draft).
+- `wayfinding_get_trail` (`destructive: false`) → `TrailStore::current`.
+- `wayfinding_emit_beacon` (`destructive: true`) → validates the anchor via
+  `AnchorRegistry` (FR-005) and pushes a `wayfinding.beacon` to the target session
+  channel via `BroadcastStorage` (the MCP analogue of the Phase-2 emit controller;
+  the duplicated emit logic is logged as a cleanup item, CL-5).
+
+The `destructive` tools are **structurally hidden** from the public read-only
+`/mcp` surface by `ReadOnlyToolRegistry` (C-001), for free.
+
+### The authenticated tier (`packages/mcp/`)
+
+A SEPARATE route `POST /mcp/write` → `AuthenticatedMcpEndpoint`, over a
+`CapabilityScopedToolRegistry` scoped to `present guided content` and
+bearer-token auth (`WriteTierAuthInterface`, fail-closed 401 by default). The
+public `/mcp` is byte-identical and untouched. Full contract:
+[mcp-endpoint.md](mcp-endpoint.md) "Authenticated write tier".
