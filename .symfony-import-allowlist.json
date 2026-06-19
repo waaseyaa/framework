@@ -132,6 +132,7 @@
     "packages/user/src/Middleware/CsrfMiddleware.php",
     "packages/user/src/Middleware/SessionMiddleware.php",
     "packages/user/src/Session/NativeSession.php",
+    "packages/wayfinding/src/Http/AnchorCatalogController.php",
     "packages/workspace/src/WorkspaceAssetController.php"
   ]
 }
