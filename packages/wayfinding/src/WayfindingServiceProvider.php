@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Wayfinding;
 
+use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\Wayfinding\Anchor\AnchorRegistry;
+use Waaseyaa\Wayfinding\Entity\Trail;
 use Waaseyaa\Wayfinding\Http\AnchorCatalogController;
 use Waaseyaa\Wayfinding\Http\EmitBeaconController;
 
@@ -19,8 +21,11 @@ use Waaseyaa\Wayfinding\Http\EmitBeaconController;
  * and registers the public, read-only anchor-catalog endpoint.
  * Phase 2 (session-scoped delivery): registers the authenticated emit endpoint
  * ({@see EmitBeaconController}) that publishes beacons to a target session's
- * reserved private channel over the bounded SSE loop. Later phases add the overlay,
- * trail persistence, and the authenticated MCP write tier
+ * reserved private channel over the bounded SSE loop.
+ * Phase 4 (trail persistence): registers the {@see Trail} two-axis (revisionable +
+ * translatable) entity type that backs saved trails (LD-5 / FR-009..FR-011); the
+ * persistence model lives in {@see \Waaseyaa\Wayfinding\Trail\TrailStore} and the
+ * authenticated write tier that exposes it is Phase 5
  * (kitty-specs/wayfinding-01KVGH5X/spec.md).
  */
 final class WayfindingServiceProvider extends ServiceProvider
@@ -32,6 +37,17 @@ final class WayfindingServiceProvider extends ServiceProvider
         // its own from the kernel-bound EntityTypeManager.
         $this->singleton(AnchorRegistry::class, fn(): AnchorRegistry => new AnchorRegistry(
             $this->resolve(EntityTypeManager::class),
+        ));
+
+        // Phase 4: the saved-trail entity is versioned + translatable (en + fr)
+        // — the two storage axes the no-silent-overwrite revision rule rides on
+        // (LD-5). Schema is materialised by EntitySchemaSync at db:init like any
+        // other registered type.
+        $this->entityType(EntityType::fromClass(
+            Trail::class,
+            revisionable: true,
+            translatable: true,
+            group: 'content',
         ));
     }
 
