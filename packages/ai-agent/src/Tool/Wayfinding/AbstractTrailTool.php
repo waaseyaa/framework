@@ -21,6 +21,9 @@ use Waaseyaa\Wayfinding\Trail\TrailStore;
  * FR-003), and structurally hidden from the public read-only `/mcp` surface
  * (`destructive: true` ⇒ filtered by `ReadOnlyToolRegistry`, C-001).
  *
+ * @internal Shared base for the wayfinding trail tools — not a public extension
+ *           point (the concrete `#[AsAgentTool]` tools are the public surface).
+ *
  * @phpstan-type BeaconShape array{anchor_id: string, content: string, order: int}
  */
 abstract class AbstractTrailTool extends AbstractAgentTool
