@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Wayfinding (flagship) Phase 4 — trail persistence + record-to-saved.** Saved trails are now **versioned + translatable** content entities, with a strict **human-owned / no-silent-overwrite** revision rule. New `wayfinding_trail` entity (`Entity/Trail.php`) is the framework's first shipping **two-axis** type — **revisionable + translatable** (en + fr) — registered via `EntityType::fromClass(Trail::class, revisionable: true, translatable: true)`; its three tables (base, `_revision`, `__translation__revision`) are materialised by `EntitySchemaSync` on `schema:sync` like any other type. New `TrailStore` (`Trail/TrailStore.php`) realises the rule directly on the framework's native two-axis primitives: the **live/current** value is the per-language peer row (`saveTranslation`/`loadTranslation`), while **history + drafts** are per-language revisions (`saveTranslationRevision`/`listTranslationRevisions`, which never touch the peer row). So `record()` saves a human-owned trail (`origin = recorded`); a human's `editAsHuman()` advances the live value and latches it `origin = human`; and `reRecord()` onto a **human-owned** trail appends the re-recording as a **draft revision** and leaves the live value **byte-for-byte intact** (`promoted = false`) — never silently overwriting human edits — while re-recording an agent-recorded (or untranslated) language safely advances it (`promoted = true`). Languages are versioned **independently** (editing fr never disturbs en). New `TrailAccessPolicy` (`#[PolicyAttribute(entityType: 'wayfinding_trail')]`): a trail is owner-only for `update`/`delete`, and `create`/`view` are gated on the `present guided content` capability. This phase ships the **persistence substrate only**; the authenticated HTTP/MCP write tier that exposes it is Phase 5. Acceptance gate: `tests/Unit/Trail/TrailStoreTest.php` drives the real `Trail` type over a real two-axis SQLite store and proves **SC-005** (FR-009/FR-010/FR-011). Mission: `wayfinding-01KVGH5X`.
+
 ## [0.1.0-alpha.231] - 2026-06-19
 
 ### Added

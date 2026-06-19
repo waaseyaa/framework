@@ -1,5 +1,6 @@
 # Wayfinding
 
+<!-- Spec reviewed 2026-06-19 - Phase 4 (trail persistence + record-to-saved). wayfinding L4 gains the wayfinding_trail two-axis (revisionable + translatable, en+fr) entity (Entity/Trail.php), registered via EntityType::fromClass(revisionable:true, translatable:true); three tables (base, _revision, __translation__revision) materialised by EntitySchemaSync on schema:sync — the first shipping two-axis type. TrailStore (Trail/TrailStore.php, depends on concrete EntityRepository = L4→L1 entity-storage) realises the no-silent-overwrite rule on native two-axis primitives: live value = peer row (saveTranslation/loadTranslation); drafts/history = per-language revisions (saveTranslationRevision/listTranslationRevisions). record() makes a human-owned trail (origin=recorded); editAsHuman() advances + latches origin=human; reRecord() onto a human-owned trail appends a DRAFT revision and leaves the live value byte-for-byte intact (promoted=false), else advances it (promoted=true). TrailAccessPolicy: owner-only update/delete, capability-gated create/view. Persistence substrate only; the HTTP/MCP write tier exposing it is Phase 5. Acceptance: tests/Unit/Trail/TrailStoreTest.php proves SC-005 (FR-009/010/011). -->
 <!-- Spec reviewed 2026-06-19 - Phase 3 (overlay/beacon component with full a11y). Admin SPA: new useBeacons composable builds a live trail from wayfinding.beacon SSE events (useRealtime now listens for that event); new WayfindingOverlay.vue mounted globally in app.vue renders the active beacon as an aria-live role=status region, fully keyboard-navigable (arrows move, Esc dismisses), spotlights the data-anchor element (outline ring + scroll + focus, no trap), dismissable, honours prefers-reduced-motion. Ships in the prebuilt bundle (dist rebuilt; served-bundle wf-beacon assertion). Contract detailed in docs/specs/admin-spa.md. -->
 <!-- Spec reviewed 2026-06-19 - Phase 2 (session-scoped beacon delivery). foundation L0 gains SessionChannel (reserved `session:` namespace; token = substr(sha256(session_id),0,32)) and BroadcastRouter now strips client-supplied private channels + auto-subscribes each connection to its own server-derived session channel (resolveSubscriberChannels, pure + unit-tested) — enforcing NFR-001 (a client can only receive its own session's beacons). The SSE connected frame exposes the non-secret sessionToken. wayfinding L4 gains EmitBeaconController: POST /api/wayfinding/beacons, authenticated + 'present guided content' capability (fail-closed, re-checked in controller), validates anchor via AnchorRegistry::isValid, publishes a wayfinding.beacon to the target session's private channel via BroadcastStorage::push; content transported verbatim (escaping is Phase 3). Reconnect/resume inherited from Last-Event-ID. -->
 <!-- Spec reviewed 2026-06-19 - Phase 1 (anchor registry + published catalog). New L4 package packages/wayfinding: AnchorRegistry derives the valid data-anchor catalog from EntityTypeManager + SchemaPresenter (byte-identical to the SPA scheme shipped alpha.227), and AnchorCatalogController publishes it read-only at GET /.well-known/waaseyaa-anchors.json (allowAll, mirrors the /llms.txt discovery family). Mission kitty-specs/wayfinding-01KVGH5X. -->
@@ -121,7 +122,67 @@ aria-live primitive (LD-6 / FR-012). Detailed in [admin-spa.md](admin-spa.md).
   assertion guard it). Beacon content is still transported verbatim from Phase 2;
   the constrained-markup renderer is Phase 4/Phase-5 design under FR-008/NFR-003.
 
-## Phases 4–5 (planned — see mission spec)
+## Phase 4 — Trail persistence + record-to-saved (shipped)
 
-- **Phase 4** — versioned + translatable saved-trail content entity; record-a-live-trail-to-saved with the human-owned-on-save / no-silent-overwrite rule.
-- **Phase 5** — the authenticated MCP write tier (capability-gated emit + trail management), leaving the read-only trio untouched.
+Saved trails are **versioned + translatable** content entities, and recording a
+live trail to a saved one is governed by the **human-owned-on-save /
+no-silent-overwrite** revision rule (LD-5 / FR-009..FR-011 / SC-005). This phase
+ships the persistence substrate only; the authenticated surface that exposes it
+(HTTP/MCP write tools) is Phase 5.
+
+### `Trail` two-axis entity (`packages/wayfinding/src/Entity/Trail.php`)
+
+`wayfinding_trail` is registered (in `WayfindingServiceProvider::register()`) as
+**revisionable + translatable** via `EntityType::fromClass(Trail::class,
+revisionable: true, translatable: true)`. Keys: `tid` / `uuid` / `title` /
+`revision_id` / `langcode` / `default_langcode`. Fields: `title`, `beacons` (a
+JSON-encoded ordered list of `{anchor_id, content, order}` — `TrailStore` owns
+(de)serialization so the column stays a plain string), `owner_uid`, and `origin`
+(`recorded` | `human`). Its three tables (`wayfinding_trail`,
+`wayfinding_trail_revision`, `wayfinding_trail__translation__revision`) are
+materialised by `EntitySchemaSync` on `schema:sync` like any other type — the
+first shipping two-axis entity in the framework.
+
+### `TrailStore` (`packages/wayfinding/src/Trail/TrailStore.php`)
+
+The persistence model maps one-to-one onto the framework's two-axis primitives,
+which is the whole no-silent-overwrite mechanism:
+
+- **Live / current value** = the per-language peer row — `saveTranslation()` /
+  `loadTranslation()`. This is what plays back.
+- **History + drafts** = the per-language revision log — `saveTranslationRevision()`
+  (which does **not** touch the peer row) / `listTranslationRevisions()`.
+
+Operations:
+
+- **`record(langcode, title, beacons, ownerUid)`** (FR-010) — saves a new trail
+  owned by `ownerUid`, live value `origin = recorded`.
+- **`editAsHuman(id, langcode, …)`** — a human authors/edits a language; advances
+  the live value and latches it `origin = human`. Creating a translation in a new
+  language uses the same path (ownership inherited from the default-language row),
+  so en + fr sequence **independently** (FR-009).
+- **`reRecord(id, langcode, …)`** (FR-011) — if the target language is
+  **human-owned**, the re-recording is appended as a **draft revision** and the
+  live value is left byte-for-byte intact (`promoted = false`); otherwise
+  (agent-recorded, or that language not yet translated) it is safe to advance the
+  live value (`promoted = true`). Either branch creates a new revision.
+
+`TrailStore` requires the concrete `EntityRepository` (the per-language revision
+API is part of the two-axis surface beyond `EntityRepositoryInterface`), a
+legitimate L4→L1 dependency (`waaseyaa/entity-storage`). The acceptance gate is
+`tests/Unit/Trail/TrailStoreTest.php`, which drives the real `Trail` type over a
+real two-axis SQLite store and proves SC-005 directly.
+
+### `TrailAccessPolicy` (`packages/wayfinding/src/Access/TrailAccessPolicy.php`)
+
+`#[PolicyAttribute(entityType: 'wayfinding_trail')]`. A trail becomes human-owned
+on save, so **only its owner** may `update`/`delete`; `view` is the owner or any
+`present guided content` capability holder; `create` is gated on that capability
+(LD-2/FR-003). Field-level: `owner_uid` / `origin` and identity keys are
+store-managed and not directly editable.
+
+## Phase 5 — Authenticated MCP write tier (planned — see mission spec)
+
+The separate authenticated MCP write-tool surface for emitting live trails and
+**managing saved trails** (capability-gated), exposing the Phase-4 `TrailStore`
+over HTTP/MCP, leaving the read-only alpha.221 trio untouched.
