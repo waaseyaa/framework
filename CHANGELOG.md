@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.226] - 2026-06-19
+
 ### Fixed
 
 - **Runtime / front controller: classic FrankenPHP (`frankenphp php-server`) no longer 500s on every request.** alpha.225's runtime adapter branched on `function_exists('frankenphp_handle_request')`, but that function is ALSO defined under classic FrankenPHP / FPM, where *calling* it throws `"called while not in worker mode"`. So the documented zero-config `frankenphp php-server --root public` crashed every request with a `RuntimeException` (alpha.225 only ever exercised worker mode — there was no native FrankenPHP binary to test classic mode against). The worker loop now tolerates a first-call throw and falls through to a single synchronous request, so classic FrankenPHP, `php -S`, and FPM all serve correctly while worker mode is unchanged. Verified against a real FrankenPHP 1.12 binary (classic `php-server` → `200`; worker mode → `200` on repeated warm requests). Applied identically across all four front-controller copies (repo `public/index.php`, `skeleton/public/index.php`, the `make:public` stub, and the golden drift reference) and locked by `tests/Architecture/FrontControllerRuntimeDispatchTest.php`.
