@@ -14,6 +14,10 @@
         },
         {
             "type": "path",
+            "url": "../foundation"
+        },
+        {
+            "type": "path",
             "url": "../routing"
         }
     ],
@@ -21,6 +25,7 @@
         "php": ">=8.5",
         "waaseyaa/api": "^0.1.0-alpha.229",
         "waaseyaa/entity": "^0.1.0-alpha.229",
+        "waaseyaa/foundation": "^0.1.0-alpha.229",
         "waaseyaa/routing": "^0.1.0-alpha.229"
     },
     "require-dev": {

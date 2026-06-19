@@ -1,5 +1,6 @@
 # Wayfinding
 
+<!-- Spec reviewed 2026-06-19 - Phase 2 (session-scoped beacon delivery). foundation L0 gains SessionChannel (reserved `session:` namespace; token = substr(sha256(session_id),0,32)) and BroadcastRouter now strips client-supplied private channels + auto-subscribes each connection to its own server-derived session channel (resolveSubscriberChannels, pure + unit-tested) — enforcing NFR-001 (a client can only receive its own session's beacons). The SSE connected frame exposes the non-secret sessionToken. wayfinding L4 gains EmitBeaconController: POST /api/wayfinding/beacons, authenticated + 'present guided content' capability (fail-closed, re-checked in controller), validates anchor via AnchorRegistry::isValid, publishes a wayfinding.beacon to the target session's private channel via BroadcastStorage::push; content transported verbatim (escaping is Phase 3). Reconnect/resume inherited from Last-Event-ID. -->
 <!-- Spec reviewed 2026-06-19 - Phase 1 (anchor registry + published catalog). New L4 package packages/wayfinding: AnchorRegistry derives the valid data-anchor catalog from EntityTypeManager + SchemaPresenter (byte-identical to the SPA scheme shipped alpha.227), and AnchorCatalogController publishes it read-only at GET /.well-known/waaseyaa-anchors.json (allowAll, mirrors the /llms.txt discovery family). Mission kitty-specs/wayfinding-01KVGH5X. -->
 
 The human-facing complement to the alpha.221 agent-readable trio. Where 221 made
@@ -69,9 +70,39 @@ public catalog to learn valid anchors, then (in later phases) emits beacons via
 the **separate, authenticated** write tier. The public 221 trio is unchanged
 (C-001) — this only **adds** a read-only discovery surface.
 
-## Phases 2–5 (planned — see mission spec)
+## Phase 2 — Session-scoped beacon delivery (shipped)
 
-- **Phase 2** — session-scoped beacon delivery over per-session SSE topics on the bounded `BroadcastRouter` loop (reconnect/resume; server-side session isolation).
+Beacons are delivered to exactly one user session over the bounded alpha.224 SSE
+loop, with server-side session isolation (LD-1 / FR-001 / FR-002 / NFR-001).
+
+### Reserved per-session channels (`SessionChannel`, foundation L0)
+
+A "private" channel lives in the reserved `session:` namespace. The subscribe side
+(`BroadcastRouter`) **never** honours a client-supplied private channel: it strips
+any `session:*` from `?channels=` and auto-subscribes each connection to its OWN
+channel `session:<token>`, where `token = substr(sha256(session_id), 0, 32)` is
+derived **server-side** from the connection's PHP session id. The non-secret token
+is returned in the SSE `connected` frame (`sessionToken`) so an authorized
+presenter can address that session without ever learning its raw session id. Net:
+a client can only ever receive its own session's beacons regardless of what it
+requests — `BroadcastRouter::resolveSubscriberChannels()` is pure and unit-tested
+for this isolation contract.
+
+### Emit endpoint (`EmitBeaconController`, wayfinding L4)
+
+`POST /api/wayfinding/beacons` — **authenticated + the `present guided content`
+capability** (fail-closed: 401 anonymous, 403 without the capability; re-checked in
+the controller as defence-in-depth — LD-2/FR-003). Payload: `{ session?, anchor_id,
+content, order? }`. The anchor is validated against the published catalog
+(`AnchorRegistry::isValid`, FR-005); `content` is length-capped and transported
+verbatim (escaping/constrained markup is Phase 3 — LD-4/A-004). The beacon is
+published via `BroadcastStorage::push(SessionChannel::forToken(session) , 'wayfinding.beacon', …)`
+to the target session's private channel; omitting `session` self-targets the
+caller. Reconnect/resume is inherited from the SSE loop's `Last-Event-ID` handling
+(FR-002).
+
+## Phases 3–5 (planned — see mission spec)
+
 - **Phase 3** — the overlay/beacon component with full a11y (keyboard nav, `aria-live`, focus management, dismissable, reduced-motion).
 - **Phase 4** — versioned + translatable saved-trail content entity; record-a-live-trail-to-saved with the human-owned-on-save / no-silent-overwrite rule.
 - **Phase 5** — the authenticated MCP write tier (capability-gated emit + trail management), leaving the read-only trio untouched.
