@@ -101,9 +101,15 @@ PHPRC="$PWD/config/frankenphp" frankenphp php-server --root public
 
 The `Caddyfile` (worker mode → `public/index.php`) and `php.ini` are committed
 under `config/frankenphp/` in this skeleton. `PHPRC` points the embedded PHP at
-that `php.ini`, which enables `pdo_sqlite`/`sqlite3` so a stock SQLite app boots
-with no hand-edited ini. Most static FrankenPHP builds bundle those extensions,
-in which case `PHPRC` is optional.
+that `php.ini` for the SSE-friendly output and error settings worker mode needs.
+
+The `php.ini` does **not** enable `pdo_sqlite`/`sqlite3` itself: the official
+statically-built FrankenPHP binaries (Windows/Linux) already compile those in,
+and force-loading them with `extension=` breaks driver registration — every
+request then 500s with `could not find driver`. The committed config relies on
+the bundled extensions, just like `composer serve:franken`. Only if your runtime
+genuinely lacks SQLite (a custom build) should you uncomment the `extension=`
+lines in `config/frankenphp/php.ini`, per the comments there.
 
 ## First 60 Seconds
 

@@ -9,7 +9,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useLanguage()
-const { schema, error: schemaError, fetch: fetchSchema, sortedProperties } = useSchema(props.entityType)
+const { error: schemaError, fetch: fetchSchema, sortedProperties } = useSchema(props.entityType)
 const { get } = useEntity()
 
 const entityData = ref<Record<string, any>>({})

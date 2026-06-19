@@ -5,10 +5,12 @@
 #
 #     PHPRC="$PWD/config/frankenphp" frankenphp run --config config/frankenphp/Caddyfile
 #
-# PHPRC points the embedded PHP at the sibling php.ini, which enables
-# pdo_sqlite/sqlite3 for the SQLite default (storage/waaseyaa.sqlite). Most
-# static FrankenPHP builds already bundle those extensions, in which case PHPRC
-# is optional.
+# PHPRC points the embedded PHP at the sibling php.ini for the SSE / error
+# settings worker mode needs. The php.ini does NOT enable pdo_sqlite/sqlite3 by
+# default: static FrankenPHP builds (the official Windows/Linux releases) already
+# bundle those, and force-loading them via `extension=` breaks the pdo_sqlite
+# driver registration → every request 500s with "could not find driver". See the
+# php.ini comments before uncommenting those lines.
 #
 # `waaseyaa serve` is the plain single-worker php -S dev server and does NOT use
 # this file — it is not for the admin SPA's concurrent SSE or for production.
