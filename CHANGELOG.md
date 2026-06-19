@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.224] - 2026-06-19
+
 ### Fixed
 
 - **`foundation`: the broadcast SSE loop no longer holds a worker indefinitely (admin-SPA Edit hang / dev-server starvation).** `BroadcastRouter`'s stream ran `while (connection_aborted() === 0) { … }` with keepalive-gated disconnect detection and no upper bound, so each `/api/broadcast` `EventSource` pinned a worker for the connection's lifetime — and under FrankenPHP worker mode (which sets `ignore_user_abort`) a missed disconnect pinned it forever. Repeated admin list↔edit navigation then exhausted the pool, so the editor's mount-time API calls hung and "Edit" appeared to do nothing. The loop is now **bounded**: it returns on client disconnect OR after a per-connection time budget (`BroadcastRouter::DEFAULT_MAX_DURATION_SEC`, 30s), whichever comes first, and the browser's `EventSource` auto-reconnects (resuming from `Last-Event-ID`, so no events are missed). The keepalive cadence dropped 15s → 2s so a client disconnect is detected — and the worker released — within ~2s of navigating away. The continuation rule is the pure, unit-tested `BroadcastRouter::streamShouldContinue()`. Realtime still works (events are delivered live); this only stops workers from leaking.
