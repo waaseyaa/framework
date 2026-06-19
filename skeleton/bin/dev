@@ -1,0 +1,57 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Waaseyaa\Foundation\Runtime\FrankenPhpLocator;
+
+/*
+ * Cross-platform `composer dev` launcher for FrankenPHP.
+ *
+ * Run via `composer dev` (wired as "@php bin/dev", so Composer's OWN PHP runs it
+ * — never FrankenPHP's bundled php.exe). It resolves the frankenphp binary to an
+ * absolute path (FRANKENPHP_BIN → known per-OS locations → PATH) and execs it BY
+ * FULL PATH in classic per-request mode. It NEVER modifies PATH, so on Windows
+ * the FrankenPHP SDK's OpenSSL-disabled php.exe can't shadow system PHP and break
+ * Composer. Classic mode uses FrankenPHP's built-in pdo_sqlite — no php.ini hack.
+ *
+ * Optional override: set FRANKENPHP_BIN to an absolute frankenphp path.
+ */
+
+$projectRoot = \dirname(__DIR__);
+
+$autoload = $projectRoot . '/vendor/autoload.php';
+if (!is_file($autoload)) {
+    fwrite(STDERR, "vendor/autoload.php not found — run `composer install` first.\n");
+    exit(1);
+}
+require $autoload;
+
+try {
+    $binary = FrankenPhpLocator::fromEnvironment();
+} catch (\Throwable $e) {
+    fwrite(STDERR, $e->getMessage() . "\n");
+    exit(1);
+}
+
+$docroot = $projectRoot . '/public';
+$listen = getenv('WAASEYAA_DEV_LISTEN') ?: '127.0.0.1:8080';
+
+// Array form bypasses the shell: the binary runs by full path with no PATH
+// resolution and no escaping pitfalls, cross-platform.
+$command = [$binary, 'php-server', '--root', $docroot, '--listen', $listen];
+
+fwrite(STDOUT, sprintf(
+    "Serving %s with FrankenPHP → http://%s  (Ctrl+C to stop)\n  binary: %s\n",
+    $docroot,
+    $listen,
+    $binary,
+));
+
+$process = proc_open($command, [STDIN, STDOUT, STDERR], $pipes);
+if (!\is_resource($process)) {
+    fwrite(STDERR, "Failed to launch FrankenPHP.\n");
+    exit(1);
+}
+
+exit(proc_close($process));
