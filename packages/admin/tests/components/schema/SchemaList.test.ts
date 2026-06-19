@@ -4,13 +4,17 @@
 // must give immediate feedback (aria-busy + an "Opening…" label) while the
 // destination editor resolves, and a repeat activation must be swallowed so a
 // double-click can't start a second navigation.
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 
 const { ref } = require('vue') as typeof import('vue')
 
 const sampleEntity = { type: 'node', id: '7', attributes: { title: 'Hello' } }
+
+// Hoisted so the useEntity mock factory can reference it; lets a test make
+// remove() reject to exercise the delete-error surfacing (D7).
+const { removeMock } = vi.hoisted(() => ({ removeMock: vi.fn() }))
 
 vi.mock('~/composables/useAdmin', () => ({
   useAdmin: () => ({ hasCapability: () => true }),
@@ -49,9 +53,14 @@ vi.mock('~/composables/useSchema', () => ({
 vi.mock('~/composables/useEntity', () => ({
   useEntity: () => ({
     list: vi.fn().mockResolvedValue({ data: [sampleEntity], meta: { total: 1 } }),
-    remove: vi.fn(),
+    remove: removeMock,
   }),
 }))
+
+beforeEach(() => {
+  removeMock.mockReset()
+  removeMock.mockResolvedValue(undefined)
+})
 
 // Keep NuxtLink inert so clicking it exercises our @click handler without the
 // router actually navigating (which would unmount the list mid-assertion).
@@ -103,5 +112,37 @@ describe('SchemaList Edit link busy state', () => {
     const repeat = new MouseEvent('click', { cancelable: true, bubbles: true })
     link.element.dispatchEvent(repeat)
     expect(repeat.defaultPrevented).toBe(true)
+  })
+})
+
+describe('SchemaList Wayfinding anchor groundwork', () => {
+  it('emits stable data-anchor IDs derived from entity type + field/operation', async () => {
+    const wrapper = await mountList()
+
+    // Container, field-identity column header, and per-operation action anchors.
+    expect(wrapper.find('[data-anchor="list:node"]').exists()).toBe(true)
+    expect(wrapper.find('[data-anchor="list-field:node:title"]').exists()).toBe(true)
+    expect(wrapper.find('[data-anchor="action:node:edit"]').exists()).toBe(true)
+    expect(wrapper.find('[data-anchor="action:node:delete"]').exists()).toBe(true)
+  })
+})
+
+describe('SchemaList delete error surfacing (D7)', () => {
+  it('shows a delete failure inline without blanking the table', async () => {
+    vi.stubGlobal('confirm', () => true)
+    removeMock.mockRejectedValueOnce({ message: 'Not found' })
+
+    const wrapper = await mountList()
+    await wrapper.get('button.btn-danger').trigger('click')
+    await flushPromises()
+
+    // Inline delete-error notice is shown, framed as a delete failure...
+    const notice = wrapper.find('.error--inline')
+    expect(notice.exists()).toBe(true)
+    expect(notice.text()).toContain('error_deleting')
+    // ...and the table is NOT replaced by a full-page error (the D7 symptom).
+    expect(wrapper.find('.entity-table').exists()).toBe(true)
+
+    vi.unstubAllGlobals()
   })
 })

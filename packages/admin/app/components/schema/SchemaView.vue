@@ -69,13 +69,13 @@ function formatValue(value: any, fieldSchema: Record<string, any>): string {
 </script>
 
 <template>
-  <div class="schema-view" :aria-busy="loading ? 'true' : 'false'">
+  <div class="schema-view" :aria-busy="loading ? 'true' : 'false'" :data-anchor="`view:${entityType}`">
     <div v-if="loading" class="loading" role="status" aria-live="polite">{{ t('opening') }}</div>
     <div v-else-if="schemaError" class="error">{{ schemaError }}</div>
     <div v-else-if="loadError" class="error">{{ loadError }}</div>
     <dl v-else class="field-list">
       <template v-for="[fieldName, fieldSchema] in populatedFields" :key="fieldName">
-        <div class="field-row">
+        <div class="field-row" :data-anchor="`field:${entityType}:${fieldName}`">
           <dt class="field-label">{{ fieldSchema['x-label'] || fieldName }}</dt>
           <dd
             v-if="fieldSchema['x-widget'] === 'richtext' && entityData[fieldName]"
@@ -95,7 +95,7 @@ function formatValue(value: any, fieldSchema: Record<string, any>): string {
       </div>
 
       <template v-if="showEmpty">
-        <div v-for="[fieldName, fieldSchema] in emptyFields" :key="fieldName" class="field-row field-row--empty">
+        <div v-for="[fieldName, fieldSchema] in emptyFields" :key="fieldName" class="field-row field-row--empty" :data-anchor="`field:${entityType}:${fieldName}`">
           <dt class="field-label">{{ fieldSchema['x-label'] || fieldName }}</dt>
           <dd class="field-value field-value--empty">{{ t('field_not_set') }}</dd>
         </div>

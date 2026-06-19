@@ -88,26 +88,32 @@ async function onSubmit() {
 </script>
 
 <template>
-  <div class="schema-form" :aria-busy="loading ? 'true' : 'false'">
+  <div class="schema-form" :aria-busy="loading ? 'true' : 'false'" :data-anchor="`form:${entityType}`">
     <div v-if="loading" class="loading" role="status" aria-live="polite">{{ t('opening') }}</div>
     <div v-else-if="schemaError" class="error">{{ schemaError }}</div>
     <div v-else-if="loadError" class="error">{{ loadError }}</div>
     <form v-else @submit.prevent="onSubmit">
-      <SchemaField
+      <div
         v-for="[fieldName, fieldSchema] in editableFields"
         :key="fieldName"
-        :name="fieldName"
-        :schema="fieldSchema"
-        :disabled="!!fieldSchema['x-access-restricted']"
-        :model-value="formData[fieldName] ?? ''"
-        @update:model-value="(val: any) => { if (!fieldSchema['x-access-restricted']) formData[fieldName] = val }"
-      />
+        class="field-anchor"
+        :data-anchor="`field:${entityType}:${fieldName}`"
+      >
+        <SchemaField
+          :name="fieldName"
+          :schema="fieldSchema"
+          :disabled="!!fieldSchema['x-access-restricted']"
+          :model-value="formData[fieldName] ?? ''"
+          @update:model-value="(val: any) => { if (!fieldSchema['x-access-restricted']) formData[fieldName] = val }"
+        />
+      </div>
 
       <div class="form-actions">
         <button
           type="submit"
           :disabled="saving"
           class="btn btn-primary"
+          :data-anchor="`action:${entityType}:submit`"
           :aria-label="saving ? t('saving') : (entityId ? t('save') : t('create'))"
         >
           {{ saving ? t('saving') : (entityId ? t('save') : t('create')) }}

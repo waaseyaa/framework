@@ -445,7 +445,16 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         }
 
         $storage = $this->entityTypeManager->getStorage($type);
-        $entity = $storage->load($id);
+        $entity = is_numeric($id) ? $storage->load($id) : null;
+
+        // The admin SPA sends the JSON:API resource id, which is the UUID for
+        // int-keyed content entities. Fall back to a UUID lookup on a non-numeric
+        // id, exactly as get()/resolveSchemaBundle() do — without this the delete
+        // missed, returned a misleading 404 "Not found", and never reached
+        // delete() (D7). Per-entity authorization is still enforced below.
+        if ($entity === null) {
+            $entity = $storage->loadByKey('uuid', $id);
+        }
 
         if ($entity === null) {
             return AdminSurfaceResultData::error(404, 'Not found', "Entity '{$type}/{$id}' does not exist.");

@@ -26,6 +26,10 @@ const limit = ref(25)
 const sortField = ref<string | null>(null)
 const sortAsc = ref(true)
 const listError = ref<string | null>(null)
+// Delete failures are surfaced separately from listError so they read as a
+// non-blocking "delete failed" notice ABOVE the table rather than replacing the
+// whole list with what looked like a "Not found" page (D7).
+const deleteError = ref<string | null>(null)
 const bundleFilter = ref<string | null>(null)
 // Id of the row whose Edit link was activated, held until navigation replaces
 // this list. Drives an immediate aria-busy / disabled state on the clicked link
@@ -122,12 +126,17 @@ function onEditNavigate(entity: JsonApiResource, event: MouseEvent) {
 
 async function deleteEntity(entity: JsonApiResource) {
   if (!confirm(t('confirm_delete'))) return
+  deleteError.value = null
   try {
     await remove(props.entityType, entity.id)
     await fetchEntities()
   } catch (e: any) {
     console.error('[Waaseyaa] Failed to delete entity:', e)
-    listError.value = e.data?.errors?.[0]?.detail ?? e.message ?? t('error_deleting')
+    // Frame as a delete failure rather than echoing the raw backend title (a
+    // bare "Not found" read like the list itself was missing). Keep the table
+    // visible — deleteError renders as an inline notice, not a full-page error.
+    const detail = e.data?.errors?.[0]?.detail ?? e.message
+    deleteError.value = detail ? `${t('error_deleting')} ${detail}` : t('error_deleting')
   }
 }
 
@@ -197,10 +206,11 @@ watch(messages, (msgs) => {
 </script>
 
 <template>
-  <div class="schema-list">
+  <div class="schema-list" :data-anchor="`list:${entityType}`">
     <div v-if="schemaLoading || loading" class="loading">{{ t('loading') }}</div>
     <div v-else-if="listError" class="error">{{ listError }}</div>
     <template v-else>
+      <div v-if="deleteError" class="error error--inline" role="alert">{{ deleteError }}</div>
       <div v-if="bundleOptions" class="entity-filters">
         <label class="entity-filter-label">
           {{ t('bundle_filter_label') }}
@@ -224,6 +234,7 @@ watch(messages, (msgs) => {
               v-for="[fieldName, fieldSchema] in columns"
               :key="fieldName"
               class="sortable"
+              :data-anchor="`list-field:${entityType}:${fieldName}`"
               @click="toggleSort(fieldName)"
             >
               {{ fieldSchema['x-label'] ?? fieldName }}
@@ -248,6 +259,7 @@ watch(messages, (msgs) => {
                 :class="{ 'is-busy': navigatingId === entity.id }"
                 :aria-busy="navigatingId === entity.id ? 'true' : 'false'"
                 :aria-disabled="navigatingId === entity.id ? 'true' : undefined"
+                :data-anchor="`action:${entityType}:edit`"
                 @click="onEditNavigate(entity, $event)"
               >
                 {{ navigatingId === entity.id ? t('opening') : t('edit') }}
@@ -256,6 +268,7 @@ watch(messages, (msgs) => {
                 v-if="canDelete"
                 class="btn btn-sm btn-danger"
                 :aria-label="t('delete') + ': ' + getEntityLabel(entity)"
+                :data-anchor="`action:${entityType}:delete`"
                 @click="deleteEntity(entity)"
               >
                 {{ t('delete') }}
@@ -289,5 +302,11 @@ watch(messages, (msgs) => {
   pointer-events: none;
   opacity: 0.65;
   cursor: progress;
+}
+
+/* Delete failures render inline above the table (table stays visible) rather
+   than replacing the whole list like a load error. */
+.error--inline {
+  margin-bottom: 12px;
 }
 </style>
