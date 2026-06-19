@@ -55,8 +55,7 @@ composer install                    # Install dependencies
 composer run dev                    # Start backend (+ admin HMR when configured)
 ./vendor/bin/phpunit                # Run tests
 ./vendor/bin/waaseyaa optimize:manifest  # Rebuild provider manifest
-./vendor/bin/waaseyaa serve              # Dev server (php -S, defaults PHP_CLI_SERVER_WORKERS=4)
-./vendor/bin/waaseyaa serve --frankenphp # Dev server via FrankenPHP (concurrent; recommended for the admin SPA)
+./vendor/bin/waaseyaa serve              # Single-worker php -S dev server (zero-config; not for the admin SPA's SSE or production)
 ./vendor/bin/waaseyaa                    # CLI
 ./bin/maintenance/waaseyaa-audit-site    # Optional convergence preflight
 ```
@@ -67,20 +66,30 @@ This app defaults to a **SQLite** database (`storage/waaseyaa.sqlite`), so the P
 runtime must have **`pdo_sqlite`** and **`sqlite3`** (and `sodium`). These are
 declared in `composer.json`, so `composer install` flags a runtime missing them.
 
-### Serving with FrankenPHP
+### Serving with FrankenPHP (concurrent runtime)
 
-[FrankenPHP](https://frankenphp.dev) is the recommended runtime for admin-SPA
-work — it serves requests concurrently across threads, so the admin SPA's live
-`/api/broadcast` connection never starves other requests. Install the `frankenphp`
-binary (or set `WAASEYAA_FRANKENPHP_BIN`), then:
+`./vendor/bin/waaseyaa serve` is the plain single-worker `php -S` dev server. It
+is a zero-config convenience and is **not** the right runtime for the admin SPA's
+live `/api/broadcast` SSE connection or for production.
+
+For a concurrent runtime, run [FrankenPHP](https://frankenphp.dev) **natively** —
+the framework does not wrap it in a subcommand (the Symfony/Laravel/Drupal
+convention). Install the `frankenphp` binary, then from the project root:
 
 ```bash
-./vendor/bin/waaseyaa serve --frankenphp
+# Worker mode (recommended) — boots public/index.php once and serves requests
+# concurrently across threads, so the admin SPA's SSE stream never starves others:
+PHPRC="$PWD/config/frankenphp" frankenphp run --config config/frankenphp/Caddyfile
+
+# Zero-config classic alternative (still concurrent, no Caddyfile):
+PHPRC="$PWD/config/frankenphp" frankenphp php-server --root public
 ```
 
-This points the embedded PHP at `config/frankenphp/php.ini` (shipped with this
-skeleton), which enables `pdo_sqlite`/`sqlite3` so a stock SQLite app boots with
-no hand-edited ini. Override the ini path with `WAASEYAA_FRANKENPHP_INI`.
+The `Caddyfile` (worker mode → `public/index.php`) and `php.ini` are committed
+under `config/frankenphp/` in this skeleton. `PHPRC` points the embedded PHP at
+that `php.ini`, which enables `pdo_sqlite`/`sqlite3` so a stock SQLite app boots
+with no hand-edited ini. Most static FrankenPHP builds bundle those extensions,
+in which case `PHPRC` is optional.
 
 ## First 60 Seconds
 

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The dev-serve / runtime story now matches the Symfony/Laravel/Drupal convention: the framework is runtime-agnostic and never wraps a runtime binary in a subcommand.** A trivial `php -S` dev server stays as a zero-config convenience; the concurrent runtime (FrankenPHP) is launched by its own **native** command plus a committed config file.
+  - **`cli`: `waaseyaa serve` is now ONLY the plain single-worker `php -S` dev server.** Its help text says so explicitly — it is not for production and not for the admin SPA's concurrent SSE (`/api/broadcast`). It still defaults `PHP_CLI_SERVER_WORKERS=4` on POSIX (the knob is `fork()`-gated and ignored on Windows).
+  - **`public/index.php` is the single source of runtime awareness (the Symfony-Runtime equivalent).** The FrankenPHP worker-mode adapter — boot once, then loop on `frankenphp_handle_request()` so the app stays warm and serves requests concurrently across threads — now lives identically in all three front controllers: the repo's `public/index.php`, the `make:public` template (`packages/cli/templates/public/index.php.stub`), and `skeleton/public/index.php`. A stock app therefore boots under natively-launched FrankenPHP worker mode out of the box. Combined with alpha.224's bounded broadcast loop, a logged-in admin can edit content with no hang while the SSE stream is open.
+  - **Ships the FrankenPHP runtime config in the skeleton (`config/frankenphp/`): a `Caddyfile` (worker mode → `public/index.php`) and the `php.ini` that enables `pdo_sqlite`/`sqlite3`.** The documented native invocation is `PHPRC="$PWD/config/frankenphp" frankenphp run --config config/frankenphp/Caddyfile` (worker mode), or `frankenphp php-server --root public` (zero-config classic). Documented in `docs/specs/operations-playbooks.md` and the skeleton `README.md`. The `ext-pdo_sqlite`/`ext-sqlite3` composer requirements are retained.
+
+### Removed
+
+- **`cli`: the `--frankenphp` flag on `waaseyaa serve`.** No deployed downstream apps depend on it. A framework subcommand is the wrong place to launch a concurrent runtime (it wrapped the `frankenphp` binary, resolved a php.ini, and shelled out via `proc_open`); FrankenPHP is now launched natively against the committed `config/frankenphp/Caddyfile`. Removed the flag, the `ServeHandler` FrankenPHP code path and its `WAASEYAA_FRANKENPHP_BIN`/`WAASEYAA_FRANKENPHP_INI` env knobs, and the associated tests and docs. The runtime adapter in `public/index.php` is unchanged in behavior — that, not a subcommand, is how the app becomes FrankenPHP-aware.
+
 ## [0.1.0-alpha.224] - 2026-06-19
 
 ### Fixed
