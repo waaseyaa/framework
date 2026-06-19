@@ -15,7 +15,7 @@ transport. Cross-process or cross-server delivery is out of scope.
 |---|---|---|
 | `BroadcastStorage` | `packages/api/src/Controller/BroadcastStorage.php` | Durable message log backed by SQLite/MySQL via DBAL. Owns the `_broadcast_log` table; exposes `push`, `poll`, `prune`. |
 | `EventListenerRegistrar::registerBroadcastListeners` | `packages/foundation/src/Kernel/EventListenerRegistrar.php` | Wires Symfony EventDispatcher listeners for `waaseyaa.entity.post_save` and `waaseyaa.entity.post_delete` → `BroadcastStorage::push`. |
-| `BroadcastRouter` | `packages/foundation/src/Http/Router/BroadcastRouter.php` | `DomainRouterInterface` implementation. Reads `BroadcastStorage` from `WaaseyaaContext`, emits SSE frames via `StreamedResponse` until `connection_aborted()` returns 1. |
+| `BroadcastRouter` | `packages/foundation/src/Http/Router/BroadcastRouter.php` | `DomainRouterInterface` implementation. Reads `BroadcastStorage` from `WaaseyaaContext`, emits SSE frames via `StreamedResponse` in a **bounded** loop — exits on client disconnect OR a per-connection time budget (`DEFAULT_MAX_DURATION_SEC`), so a worker is never pinned indefinitely. |
 | `WaaseyaaContext::broadcastStorage` | `packages/foundation/src/Http/Router/WaaseyaaContext.php` | Per-request handle the kernel attaches to `$request->attributes['_broadcast_storage']`. |
 
 ## Data flow
@@ -32,8 +32,23 @@ BroadcastRouter::handle (StreamedResponse loop)
 HTTP client (EventSource)
 ```
 
-The router loop runs until `connection_aborted() === 1`, polling every 500ms
-and emitting `: keepalive\n\n` every 15 seconds.
+The router loop is **bounded**: it exits when `connection_aborted()` reports the
+client left **or** when the per-connection time budget
+(`BroadcastRouter::DEFAULT_MAX_DURATION_SEC`, 30s) elapses — whichever comes
+first. Either exit returns the worker; the browser's `EventSource` reconnects
+automatically and resumes from `Last-Event-ID`, so no events are missed. It
+polls every 500ms (`DEFAULT_POLL_INTERVAL_US`) and emits `: keepalive\n\n` every
+2s (`DEFAULT_KEEPALIVE_INTERVAL_SEC`); the short keepalive cadence is the
+disconnect probe — a failed write is what flips `connection_aborted()`, so a
+frequent write makes disconnect detection (and worker release) prompt.
+
+This bound is the durable cure for SSE worker starvation: a never-ending loop
+held one worker per open admin tab, and under FrankenPHP worker mode (which sets
+`ignore_user_abort`) a disconnect could go undetected so the worker was pinned
+indefinitely — repeated list↔edit navigation in the admin SPA then exhausted the
+pool and hung subsequent requests. The hard time budget guarantees release even
+if the SAPI never reports the disconnect. The continuation rule is the pure,
+unit-tested `BroadcastRouter::streamShouldContinue()`.
 
 ## `_broadcast_log` schema
 

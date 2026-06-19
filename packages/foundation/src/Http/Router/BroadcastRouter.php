@@ -15,10 +15,52 @@ final class BroadcastRouter implements DomainRouterInterface
 {
     use JsonApiResponseTrait;
 
+    /**
+     * Hard cap on a single SSE connection's lifetime. When it elapses the
+     * stream handler returns, releasing the worker; the browser's EventSource
+     * auto-reconnects (resuming from `Last-Event-ID`, so no events are missed).
+     * This is the durable guarantee that a worker is never held indefinitely —
+     * even if the SAPI never reports the client disconnect (a known risk under
+     * FrankenPHP worker mode, where the request loop sets ignore_user_abort).
+     */
+    public const int DEFAULT_MAX_DURATION_SEC = 30;
+
+    /**
+     * Keepalive cadence. Kept short so the loop attempts a write to the client
+     * frequently — a failed write is what flips connection_aborted() to 1, so a
+     * short cadence is what makes disconnect detection (and worker release)
+     * prompt after the client navigates away.
+     */
+    public const int DEFAULT_KEEPALIVE_INTERVAL_SEC = 2;
+
+    /** Pause between broadcast polls. */
+    public const int DEFAULT_POLL_INTERVAL_US = 500_000;
+
+    /**
+     * @param (\Closure(): int)|null $clock       Override `time()` (seconds) — tests inject a fake clock.
+     * @param (\Closure(): int)|null $abortSignal Override `connection_aborted()` — tests inject disconnect.
+     */
     public function __construct(
         private readonly ?LoggerInterface $logger = null,
         private readonly ?string $subscribersJsonPath = null,
+        private readonly int $maxDurationSec = self::DEFAULT_MAX_DURATION_SEC,
+        private readonly int $keepaliveIntervalSec = self::DEFAULT_KEEPALIVE_INTERVAL_SEC,
+        private readonly int $pollIntervalUs = self::DEFAULT_POLL_INTERVAL_US,
+        private readonly ?\Closure $clock = null,
+        private readonly ?\Closure $abortSignal = null,
     ) {}
+
+    /**
+     * Loop-continuation predicate for the SSE stream: keep streaming only while
+     * the client is connected AND the per-connection time budget remains. Pure
+     * and static so the bounded-exit contract is unit-testable without a live
+     * socket. Exiting on either condition releases the worker; the client
+     * reconnects automatically.
+     */
+    public static function streamShouldContinue(int $abortStatus, int $elapsedSec, int $maxDurationSec): bool
+    {
+        return $abortStatus === 0 && $elapsedSec < $maxDurationSec;
+    }
 
     public function supports(Request $request): bool
     {
@@ -84,6 +126,12 @@ final class BroadcastRouter implements DomainRouterInterface
             });
         }
 
+        $clock = $this->clock ?? static fn(): int => time();
+        $abort = $this->abortSignal ?? static fn(): int => connection_aborted();
+        $maxDurationSec = $this->maxDurationSec;
+        $keepaliveIntervalSec = $this->keepaliveIntervalSec;
+        $pollIntervalUs = $this->pollIntervalUs;
+
         return new StreamedResponse(function () use (
             $broadcastStorage,
             $channels,
@@ -91,6 +139,11 @@ final class BroadcastRouter implements DomainRouterInterface
             $initialCursor,
             $subscribersPath,
             $connectionId,
+            $clock,
+            $abort,
+            $maxDurationSec,
+            $keepaliveIntervalSec,
+            $pollIntervalUs,
         ): void {
             echo "event: connected\ndata: " . json_encode(['channels' => $channels], JSON_THROW_ON_ERROR) . "\n\n";
             if (ob_get_level() > 0) {
@@ -99,9 +152,15 @@ final class BroadcastRouter implements DomainRouterInterface
             flush();
 
             $cursor = $initialCursor;
-            $lastKeepalive = time();
+            $start = $clock();
+            $lastKeepalive = $start;
 
-            while (connection_aborted() === 0) {
+            // Bounded loop: exit on client disconnect OR when the per-connection
+            // time budget elapses. Either exit returns the worker; the client's
+            // EventSource reconnects (resuming via Last-Event-ID). A never-ending
+            // loop here is what starved the worker pool (admin SSE pinning a
+            // worker per tab) — see docs/specs/broadcasting.md.
+            while (self::streamShouldContinue($abort(), $clock() - $start, $maxDurationSec)) {
                 try {
                     $messages = $broadcastStorage->poll($cursor, $channels);
                 } catch (\Throwable $e) {
@@ -111,7 +170,9 @@ final class BroadcastRouter implements DomainRouterInterface
                         ob_flush();
                     }
                     flush();
-                    usleep(5_000_000);
+                    if ($pollIntervalUs > 0) {
+                        usleep($pollIntervalUs * 2);
+                    }
                     continue;
                 }
 
@@ -139,13 +200,16 @@ final class BroadcastRouter implements DomainRouterInterface
                     flush();
                 }
 
-                if ((time() - $lastKeepalive) >= 15) {
+                if (($clock() - $lastKeepalive) >= $keepaliveIntervalSec) {
                     echo ": keepalive\n\n";
                     if (ob_get_level() > 0) {
                         ob_flush();
                     }
                     flush();
-                    $lastKeepalive = time();
+                    $lastKeepalive = $clock();
+
+                    // A keepalive write is also our disconnect probe: if the client
+                    // is gone the next streamShouldContinue() sees abort and exits.
 
                     // Update heartbeat in subscribers.json (best-effort).
                     if ($subscribersPath !== null) {
@@ -157,7 +221,9 @@ final class BroadcastRouter implements DomainRouterInterface
                     }
                 }
 
-                usleep(500_000);
+                if ($pollIntervalUs > 0) {
+                    usleep($pollIntervalUs);
+                }
             }
         }, 200, [
             'Content-Type' => 'text/event-stream',

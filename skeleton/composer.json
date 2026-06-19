@@ -5,6 +5,8 @@
     "license": "GPL-2.0-or-later",
     "require": {
         "php": ">=8.5",
+        "ext-pdo_sqlite": "*",
+        "ext-sqlite3": "*",
         "symfony/dotenv": "^8.0",
         "waaseyaa/framework": "^0.1.0-alpha.199"
     },

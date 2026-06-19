@@ -295,7 +295,9 @@
     ],
     "require": {
         "php": ">=8.5",
+        "ext-pdo_sqlite": "*",
         "ext-sodium": "*",
+        "ext-sqlite3": "*",
         "dragonmantank/cron-expression": "^3.0",
         "symfony/console": "^8.0",
         "symfony/dotenv": "^8.0",

@@ -51,9 +51,21 @@ Use this as the default runbook for upgrades, baseline refreshes, and verificati
 
 For full-stack local development, run `composer dev:php` in one terminal and `composer dev:admin` in another. Each process owns its own lifecycle; killing one does not orphan the other. CI and Docker compose files invoke the typed entries directly rather than the legacy shell pipeline.
 
-**Why >1 worker is mandatory for the admin SPA.** The admin SPA holds a long-lived Server-Sent-Events connection to `/api/broadcast` for live updates (`packages/admin/app/composables/useRealtime.ts` → `packages/foundation/src/Http/Router/BroadcastRouter.php`). That stream pins one PHP worker for its entire lifetime. PHP's built-in server is **single-worker by default**, so with one worker the SSE stream blocks every other request and the admin SPA deadlocks. `bin/waaseyaa serve` therefore defaults `PHP_CLI_SERVER_WORKERS=4`. Note the SSE-per-client model consumes one worker per connected admin client, so heavy multi-client use needs more workers (or a concurrency-capable runtime).
+**The admin SPA's realtime SSE and worker usage.** The admin SPA holds a long-lived Server-Sent-Events connection to `/api/broadcast` for live updates (`packages/admin/app/composables/useRealtime.ts` → `packages/foundation/src/Http/Router/BroadcastRouter.php`). The `BroadcastRouter` loop is **bounded** (see `docs/specs/broadcasting.md`): it returns on client disconnect or after a per-connection time budget (`DEFAULT_MAX_DURATION_SEC`, 30s), so a worker is never pinned indefinitely and the client's `EventSource` reconnects automatically. A short keepalive cadence (2s) makes disconnect detection prompt so the worker is released soon after a tab navigates away. Even so, each *concurrently open* admin tab uses one worker for the duration of its stream, so the server still needs **>1 worker**. PHP's built-in server is single-worker by default, so `bin/waaseyaa serve` defaults `PHP_CLI_SERVER_WORKERS=4`.
 
-**Recommended dev runtime: FrankenPHP.** The front controller (`public/index.php`) supports FrankenPHP worker mode, which serves requests concurrently across threads — a long-lived `/api/broadcast` SSE stream pins one thread while the rest stay responsive, with no `PHP_CLI_SERVER_WORKERS` tuning. For admin-SPA-heavy local development (and as the production runtime), FrankenPHP is the recommended server; the `php -S` path with `PHP_CLI_SERVER_WORKERS≥4` remains the zero-dependency fallback.
+**Recommended dev runtime: FrankenPHP.** The front controller (`public/index.php`) supports FrankenPHP worker mode, which serves requests concurrently across threads — a `/api/broadcast` SSE stream occupies one thread while the rest stay responsive, with no `PHP_CLI_SERVER_WORKERS` tuning. For admin-SPA-heavy local development (and as the production runtime), FrankenPHP is the recommended server; the `php -S` path with `PHP_CLI_SERVER_WORKERS≥4` remains the zero-dependency fallback.
+
+Serve with FrankenPHP out of the box:
+
+```bash
+vendor/bin/waaseyaa serve --frankenphp
+```
+
+This runs `frankenphp php-server` against `public/` and points the embedded PHP at `config/frankenphp/php.ini` (via `PHPRC`), which **enables `pdo_sqlite` and `sqlite3`** — required because Waaseyaa defaults to a SQLite database (`storage/waaseyaa.sqlite`). FrankenPHP's bundled PHP does not always enable these by default, so without this a stock app fails to boot. Requirements and overrides:
+
+- **`frankenphp` must be on `PATH`** (install: <https://frankenphp.dev>), or set `WAASEYAA_FRANKENPHP_BIN` to its path.
+- The php.ini path defaults to `config/frankenphp/php.ini` (shipped in the skeleton); override with `WAASEYAA_FRANKENPHP_INI`.
+- **Required PHP extensions for any runtime:** `pdo_sqlite` and `sqlite3` (the SQLite default), plus `sodium`. These are declared in `composer.json` `require` (`ext-pdo_sqlite`, `ext-sqlite3`, `ext-sodium`) so `composer install` flags a runtime missing them. If your FrankenPHP binary already compiles `pdo_sqlite`/`sqlite3` in, the shipped php.ini's `extension=` lines emit a harmless "already loaded" warning — comment them out to silence it.
 
 ### Verification Entry Point
 

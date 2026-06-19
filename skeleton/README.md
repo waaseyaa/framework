@@ -55,10 +55,32 @@ composer install                    # Install dependencies
 composer run dev                    # Start backend (+ admin HMR when configured)
 ./vendor/bin/phpunit                # Run tests
 ./vendor/bin/waaseyaa optimize:manifest  # Rebuild provider manifest
-./vendor/bin/waaseyaa serve              # Dev server
+./vendor/bin/waaseyaa serve              # Dev server (php -S, defaults PHP_CLI_SERVER_WORKERS=4)
+./vendor/bin/waaseyaa serve --frankenphp # Dev server via FrankenPHP (concurrent; recommended for the admin SPA)
 ./vendor/bin/waaseyaa                    # CLI
 ./bin/maintenance/waaseyaa-audit-site    # Optional convergence preflight
 ```
+
+### Required PHP extensions
+
+This app defaults to a **SQLite** database (`storage/waaseyaa.sqlite`), so the PHP
+runtime must have **`pdo_sqlite`** and **`sqlite3`** (and `sodium`). These are
+declared in `composer.json`, so `composer install` flags a runtime missing them.
+
+### Serving with FrankenPHP
+
+[FrankenPHP](https://frankenphp.dev) is the recommended runtime for admin-SPA
+work — it serves requests concurrently across threads, so the admin SPA's live
+`/api/broadcast` connection never starves other requests. Install the `frankenphp`
+binary (or set `WAASEYAA_FRANKENPHP_BIN`), then:
+
+```bash
+./vendor/bin/waaseyaa serve --frankenphp
+```
+
+This points the embedded PHP at `config/frankenphp/php.ini` (shipped with this
+skeleton), which enables `pdo_sqlite`/`sqlite3` so a stock SQLite app boots with
+no hand-edited ini. Override the ini path with `WAASEYAA_FRANKENPHP_INI`.
 
 ## First 60 Seconds
 
