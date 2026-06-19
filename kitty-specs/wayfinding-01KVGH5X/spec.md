@@ -1,6 +1,8 @@
 # Feature Specification: Wayfinding (Flagship / North-Star Feature)
 
-**Mission:** `wayfinding-01KVGH5X` · **Type:** software-dev · **Target:** main · **Created:** 2026-06-19 · **Status:** Flagship — subsystem build HELD for explicit green-light
+**Mission:** `wayfinding-01KVGH5X` · **Type:** software-dev · **Target:** main · **Created:** 2026-06-19 · **Status:** Flagship — GREEN-LIT; building phase by phase (each its own alpha release)
+
+**Phase progress:** Phase 1 (anchor registry + published catalog) — **shipped in alpha.228** (`packages/wayfinding`, `docs/specs/wayfinding.md`). Phases 2–5 in progress per the order below.
 
 ## Vocabulary (canonical — use consistently)
 

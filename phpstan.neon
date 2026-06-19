@@ -78,6 +78,7 @@ parameters:
         - packages/typed-data/src
         - packages/user/src
         - packages/validation/src
+        - packages/wayfinding/src
         - packages/workflows/src
         - packages/workspace/src
         # C-19: these three were silently outside analysis until now. The paths

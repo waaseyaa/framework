@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0-alpha.227] - 2026-06-19
+### Added
+
+- **Wayfinding (flagship) Phase 1 — anchor registry + published catalog.** New Layer-4 package `waaseyaa/wayfinding`. `AnchorRegistry` derives the set of valid `data-anchor` IDs from the registered entity types + their `SchemaPresenter` fields (byte-identical to the inert `data-anchor` attributes the schema-driven admin shipped in alpha.227 — `list:{type}`, `list-field:{type}:{field}`, `view:{type}`, `field:{type}:{field}`, `form:{type}`, `action:{type}:{edit|delete|submit}`), excluding hidden-widget fields to match what the SPA renders. `AnchorRegistry::isValid()` is the source of truth for rejecting beacons that target an unknown anchor (FR-005). `AnchorCatalogController` publishes the catalog read-only at `GET /.well-known/waaseyaa-anchors.json` (`allowAll`, mirroring the `/llms.txt` discovery family), completing the read/write symmetry with the alpha.221 trio (FR-007). The public 221 read-only trio is unchanged — this only adds a read-only discovery surface. Spec: `docs/specs/wayfinding.md` / `kitty-specs/wayfinding-01KVGH5X/spec.md`. (Phases 2–5 — session delivery, overlay, trails, MCP write tier — follow as their own releases; the subsystem build is now green-lit.)
 
 ### Fixed
 
