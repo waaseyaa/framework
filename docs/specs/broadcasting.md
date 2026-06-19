@@ -132,6 +132,21 @@ that, each `BroadcastStorage::poll` row is emitted as
 foundation logger and emit an `error` SSE event before pausing 5 seconds and
 retrying.
 
+## Per-session private channels (session isolation)
+
+The reserved `session:` namespace (`Waaseyaa\Foundation\Http\Router\SessionChannel`)
+carries **per-session** messages. A client may **not** subscribe to a private
+channel by name: `BroadcastRouter::resolveSubscriberChannels()` strips any
+client-supplied `session:*` from the requested set and instead auto-subscribes the
+connection to its OWN channel `session:<token>`, derived server-side from the
+connection's PHP session id (`token = substr(sha256(session_id), 0, 32)`). So a
+connection only ever receives its own session's private messages, regardless of
+the `?channels=` it sends. The `connected` frame exposes the non-secret
+`sessionToken` so an authorized publisher can address that session
+(`SessionChannel::forToken($token)`) without learning the raw session id. Public
+channels (e.g. `admin`) are unaffected. This is the substrate for Wayfinding's
+session-scoped beacon delivery (NFR-001).
+
 ## Built-in publishers
 
 Two listeners ship in `EventListenerRegistrar::registerBroadcastListeners`:

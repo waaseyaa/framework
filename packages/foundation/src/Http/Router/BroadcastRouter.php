@@ -71,10 +71,16 @@ final class BroadcastRouter implements DomainRouterInterface
     {
         $ctx = WaaseyaaContext::fromRequest($request);
         $broadcastStorage = $ctx->broadcastStorage;
-        $channels = self::parseChannels($ctx->query['channels'] ?? 'admin');
-        if ($channels === []) {
-            $channels = ['admin'];
-        }
+        // Strip any client-supplied private `session:*` channel and auto-subscribe
+        // this connection to its OWN session channel (derived server-side). A
+        // client can therefore never receive another session's private messages,
+        // regardless of the channels it requests (Wayfinding NFR-001).
+        $requested = self::parseChannels($ctx->query['channels'] ?? 'admin');
+        $ownSessionChannel = self::ownSessionChannel($request);
+        $channels = self::resolveSubscriberChannels($requested, $ownSessionChannel);
+        $sessionToken = $ownSessionChannel === null
+            ? null
+            : substr($ownSessionChannel, strlen(SessionChannel::PREFIX));
         $logger = $this->logger ?? new NullLogger();
 
         $initialCursor = self::resolveInitialCursor($request, $broadcastStorage->maxId($channels));
@@ -135,6 +141,7 @@ final class BroadcastRouter implements DomainRouterInterface
         return new StreamedResponse(function () use (
             $broadcastStorage,
             $channels,
+            $sessionToken,
             $logger,
             $initialCursor,
             $subscribersPath,
@@ -145,7 +152,9 @@ final class BroadcastRouter implements DomainRouterInterface
             $keepaliveIntervalSec,
             $pollIntervalUs,
         ): void {
-            echo "event: connected\ndata: " . json_encode(['channels' => $channels], JSON_THROW_ON_ERROR) . "\n\n";
+            // sessionToken lets the client (or a paired presenter) address this
+            // connection's private channel without ever learning the raw session id.
+            echo "event: connected\ndata: " . json_encode(['channels' => $channels, 'sessionToken' => $sessionToken], JSON_THROW_ON_ERROR) . "\n\n";
             if (ob_get_level() > 0) {
                 ob_flush();
             }
@@ -333,5 +342,51 @@ final class BroadcastRouter implements DomainRouterInterface
         $channels = array_map('trim', explode(',', $channelsParam));
 
         return array_values(array_filter($channels, static fn(string $ch): bool => $ch !== ''));
+    }
+
+    /**
+     * Resolve the channel set a connection actually subscribes to.
+     *
+     * Client-supplied private channels (the reserved `session:` namespace) are
+     * DROPPED — a client may not name another session's private channel. Public
+     * channels are kept (defaulting to `admin` when none remain), and the
+     * connection's OWN server-derived session channel is appended. This is the
+     * server-side enforcement of session isolation (Wayfinding NFR-001). Pure and
+     * static so the isolation contract is unit-testable without a live socket.
+     *
+     * @param list<string> $requested        channels the client asked for
+     * @param string|null  $ownSessionChannel this connection's own private channel, or null when no session
+     * @return list<string>
+     */
+    public static function resolveSubscriberChannels(array $requested, ?string $ownSessionChannel): array
+    {
+        $public = array_values(array_filter(
+            $requested,
+            static fn(string $ch): bool => !SessionChannel::isReserved($ch),
+        ));
+
+        if ($public === []) {
+            $public = ['admin'];
+        }
+
+        if ($ownSessionChannel !== null && !in_array($ownSessionChannel, $public, true)) {
+            $public[] = $ownSessionChannel;
+        }
+
+        return array_values(array_unique($public));
+    }
+
+    /**
+     * This connection's own private session channel, derived server-side from the
+     * PHP session id (started by SessionMiddleware). Null when there is no session.
+     */
+    private static function ownSessionChannel(Request $request): ?string
+    {
+        $sessionId = $request->hasSession() ? $request->getSession()->getId() : (string) session_id();
+        if ($sessionId === '') {
+            return null;
+        }
+
+        return SessionChannel::forSessionId($sessionId);
     }
 }

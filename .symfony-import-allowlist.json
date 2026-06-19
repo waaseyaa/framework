@@ -133,6 +133,7 @@
     "packages/user/src/Middleware/SessionMiddleware.php",
     "packages/user/src/Session/NativeSession.php",
     "packages/wayfinding/src/Http/AnchorCatalogController.php",
+    "packages/wayfinding/src/Http/EmitBeaconController.php",
     "packages/workspace/src/WorkspaceAssetController.php"
   ]
 }
