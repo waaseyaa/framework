@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.227] - 2026-06-19
+
 ### Fixed
 
 - **`cli`: `make:public --force` no longer crashes with "unresolvable parameter `$projectRoot`".** `make:public` — the canonical way to install/repair an app's `public/index.php` front controller — was wired by class-reference, so the kernel handler container tried to auto-wire `MakePublicHandler`'s required scalar `string $projectRoot` and threw. It is now built eagerly from the provider's project root (the same pattern `make:content-type` already used). A regression test drives the command through a container that resolves nothing (mirroring the real kernel), so the masking fake-container test can no longer hide it. (D2)
