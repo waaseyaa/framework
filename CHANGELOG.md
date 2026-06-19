@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.229] - 2026-06-19
+
 ### Changed
 
 - **`composer dev` now launches FrankenPHP cleanly and cross-platform — zero PATH setup (Windows/macOS/Linux).** The skeleton's `dev` script is now `@php bin/dev` (run by Composer's own PHP, never FrankenPHP's bundled `php.exe`). `bin/dev` resolves the `frankenphp` binary to an **absolute path** via the new `Waaseyaa\Foundation\Runtime\FrankenPhpLocator` (`FRANKENPHP_BIN` → known per-OS locations [`%USERPROFILE%\.frankenphp\frankenphp.exe`; `/usr/local/bin`, `/usr/bin`, `/opt/homebrew/bin`, `~/.frankenphp`] → `frankenphp` on `PATH` → an actionable error) and execs it **by full path** in classic per-request mode on `127.0.0.1:8080`. Because it never adds the FrankenPHP install directory to `PATH`, the official Windows release's bundled OpenSSL-disabled `php.exe` can no longer shadow system PHP and break Composer — the root cause behind the demo-run PATH/full-path/OpenSSL workarounds. Classic mode uses FrankenPHP's built-in `pdo_sqlite`, so no `php.ini` hack is needed. This replaces the PATH-dependent `composer serve:franken` and the POSIX-only `bin/dev.sh` (both removed). The resolution order is unit-tested (`FrankenPhpLocatorTest`); the skeleton README and operations playbook are rewritten to drop the "put frankenphp on PATH" guidance and document `composer dev` plus the optional `FRANKENPHP_BIN` override. The skeleton also documents using a **caret** framework constraint (`composer require waaseyaa/framework:^…`) so `composer update` takes point releases — a bare exact pin silently no-ops (D1). Mission: `windows-runtime-ergonomics-01KVGEPD`.

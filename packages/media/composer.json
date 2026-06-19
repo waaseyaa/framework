@@ -43,14 +43,14 @@
     ],
     "require": {
         "php": ">=8.5",
-        "waaseyaa/entity": "^0.1.0-alpha.228",
-        "waaseyaa/foundation": "^0.1.0-alpha.228"
+        "waaseyaa/entity": "^0.1.0-alpha.229",
+        "waaseyaa/foundation": "^0.1.0-alpha.229"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
-        "waaseyaa/access": "^0.1.0-alpha.228",
-        "waaseyaa/api": "^0.1.0-alpha.228",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.228"
+        "waaseyaa/access": "^0.1.0-alpha.229",
+        "waaseyaa/api": "^0.1.0-alpha.229",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.229"
     },
     "autoload": {
         "psr-4": {
