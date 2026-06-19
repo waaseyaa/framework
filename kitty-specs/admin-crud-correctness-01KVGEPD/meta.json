@@ -1,0 +1,16 @@
+{
+  "coordination_branch": "kitty/mission-admin-crud-correctness-01KVGEPD",
+  "created_at": "2026-06-19T00:00:00.000000+00:00",
+  "friendly_name": "admin crud correctness",
+  "mission_id": "01KVGEPDPGX42NWC6WXVN3KNKX",
+  "mission_number": null,
+  "mission_slug": "admin-crud-correctness-01KVGEPD",
+  "mission_type": "software-dev",
+  "parent_mission": "wayfinding-01KVGH5X",
+  "roadmap_priority": "P0 (D6, D7) + Wayfinding Phase-1 anchor groundwork; P3 docs note (D8)",
+  "enables": "wayfinding: the beacon overlay ships in this same admin bundle; data-anchor groundwork seeds the anchor catalog",
+  "purpose_context": "Close the admin-dist packaging gap so the shipped admin SPA bundle can never silently lag source (D6), and fix GenericAdminSurfaceHost::handleDelete to resolve by UUID like its siblings so admin delete persists and stops showing a misleading Not found (D7), preserving the delete authorization boundary. Also lands Wayfinding Phase-1 groundwork: stable data-anchor IDs on the schema-driven admin components.",
+  "purpose_tldr": "admin crud correctness",
+  "slug": "admin-crud-correctness-01KVGEPD",
+  "target_branch": "main"
+}

@@ -1,0 +1,16 @@
+{
+  "coordination_branch": "kitty/mission-cli-command-di-resolution-01KVGEPD",
+  "created_at": "2026-06-19T00:00:00.000000+00:00",
+  "friendly_name": "cli command di resolution",
+  "mission_id": "01KVGEPDKW55C79QEZYZZJMQZS",
+  "mission_number": null,
+  "mission_slug": "cli-command-di-resolution-01KVGEPD",
+  "mission_type": "software-dev",
+  "parent_mission": "wayfinding-01KVGH5X",
+  "roadmap_priority": "P0 (D2 make:public); P2 (D3 route:list, held)",
+  "enables": "wayfinding: make:public is the canonical front-controller repair path used to stand up a Wayfinding-capable app",
+  "purpose_context": "Fix two console commands (make:public, route:list) that crash on a stock downstream app due to handler-container DI wiring, and close the test gaps that let the defects ship. D2 (make:public) ships in the P0 trio; D3 (route:list) is held at P2.",
+  "purpose_tldr": "cli command di resolution",
+  "slug": "cli-command-di-resolution-01KVGEPD",
+  "target_branch": "main"
+}
