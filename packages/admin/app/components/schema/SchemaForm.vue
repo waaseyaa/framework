@@ -15,13 +15,17 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useLanguage()
-const { schema, loading: schemaLoading, error: schemaError, fetch: fetchSchema, sortedProperties } = useSchema(props.entityType)
+const { schema, error: schemaError, fetch: fetchSchema, sortedProperties } = useSchema(props.entityType)
 const { get, create, update } = useEntity()
 
 const formData = ref<Record<string, any>>({})
 const saving = ref(false)
 const loadError = ref<string | null>(null)
 const isEditMode = computed(() => !!props.entityId)
+// True for the whole initial load (schema, plus the existing record in edit
+// mode). Keeps the form in one busy state instead of flashing blank between
+// the schema and entity fetches.
+const loading = ref(true)
 
 provide(schemaFormContextKey, {
   formData,
@@ -32,28 +36,37 @@ provide(schemaFormContextKey, {
 // In edit mode the entity id scopes the schema to the record's bundle so its
 // per-bundle fields (e.g. a page's body) appear in the form.
 onMounted(async () => {
-  await fetchSchema(props.entityId)
-
-  if (schema.value && props.entityId) {
-    // Edit mode: load existing entity.
-    try {
-      const resource = await get(props.entityType, props.entityId)
-      formData.value = { ...resource.attributes }
-    } catch (e: any) {
-      loadError.value = e.data?.errors?.[0]?.detail ?? e.message ?? t('error_loading_entity')
+  if (props.entityId) {
+    // Edit mode: the bundle-scoped schema and the existing record are
+    // independent reads — fetch them concurrently so the slower one bounds the
+    // wait. The entity GET is deduped against the sibling history widget
+    // requesting the same record in the same tick (see the transport adapter).
+    const [, entityResult] = await Promise.allSettled([
+      fetchSchema(props.entityId),
+      get(props.entityType, props.entityId),
+    ])
+    if (entityResult.status === 'fulfilled') {
+      formData.value = { ...entityResult.value.attributes }
+    } else {
+      const e: any = entityResult.reason
+      loadError.value = e?.data?.errors?.[0]?.detail ?? e?.message ?? t('error_loading_entity')
     }
-  } else if (schema.value) {
-    // Create mode: initialize from schema defaults.
-    const defaults: Record<string, any> = {}
-    for (const [fieldName, fieldSchema] of Object.entries(schema.value.properties ?? {})) {
-      if ('default' in fieldSchema) {
-        defaults[fieldName] = fieldSchema.default
-      } else if (fieldSchema.type === 'boolean') {
-        defaults[fieldName] = false
+  } else {
+    // Create mode: only the schema is needed; seed defaults from it.
+    await fetchSchema()
+    if (schema.value) {
+      const defaults: Record<string, any> = {}
+      for (const [fieldName, fieldSchema] of Object.entries(schema.value.properties ?? {})) {
+        if ('default' in fieldSchema) {
+          defaults[fieldName] = fieldSchema.default
+        } else if (fieldSchema.type === 'boolean') {
+          defaults[fieldName] = false
+        }
       }
+      formData.value = defaults
     }
-    formData.value = defaults
   }
+  loading.value = false
 })
 
 const editableFields = computed(() => sortedProperties(true))
@@ -75,8 +88,8 @@ async function onSubmit() {
 </script>
 
 <template>
-  <div class="schema-form">
-    <div v-if="schemaLoading" class="loading">{{ t('loading') }}</div>
+  <div class="schema-form" :aria-busy="loading ? 'true' : 'false'">
+    <div v-if="loading" class="loading" role="status" aria-live="polite">{{ t('opening') }}</div>
     <div v-else-if="schemaError" class="error">{{ schemaError }}</div>
     <div v-else-if="loadError" class="error">{{ loadError }}</div>
     <form v-else @submit.prevent="onSubmit">

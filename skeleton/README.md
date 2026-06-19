@@ -68,6 +68,20 @@ declared in `composer.json`, so `composer install` flags a runtime missing them.
 
 ### Serving with FrankenPHP (concurrent runtime)
 
+The quickest way to run the real concurrent runtime is the bundled Composer
+script — classic per-request mode against `public/`, bound to loopback on a
+non-privileged port so it never triggers a privileged-port or HTTPS-certificate
+prompt:
+
+```bash
+composer serve:franken   # → http://127.0.0.1:8080  (Ctrl+C to stop)
+```
+
+This assumes the `frankenphp` binary is on your `PATH` — install it from
+<https://frankenphp.dev> (no per-machine paths to configure). For the warm,
+worker-mode runtime (best for the admin SPA's SSE), use the native invocation
+shown below instead.
+
 `./vendor/bin/waaseyaa serve` is the plain single-worker `php -S` dev server. It
 is a zero-config convenience and is **not** the right runtime for the admin SPA's
 live `/api/broadcast` SSE connection or for production.
@@ -87,9 +101,15 @@ PHPRC="$PWD/config/frankenphp" frankenphp php-server --root public
 
 The `Caddyfile` (worker mode → `public/index.php`) and `php.ini` are committed
 under `config/frankenphp/` in this skeleton. `PHPRC` points the embedded PHP at
-that `php.ini`, which enables `pdo_sqlite`/`sqlite3` so a stock SQLite app boots
-with no hand-edited ini. Most static FrankenPHP builds bundle those extensions,
-in which case `PHPRC` is optional.
+that `php.ini` for the SSE-friendly output and error settings worker mode needs.
+
+The `php.ini` does **not** enable `pdo_sqlite`/`sqlite3` itself: the official
+statically-built FrankenPHP binaries (Windows/Linux) already compile those in,
+and force-loading them with `extension=` breaks driver registration — every
+request then 500s with `could not find driver`. The committed config relies on
+the bundled extensions, just like `composer serve:franken`. Only if your runtime
+genuinely lacks SQLite (a custom build) should you uncomment the `extension=`
+lines in `config/frankenphp/php.ini`, per the comments there.
 
 ## First 60 Seconds
 

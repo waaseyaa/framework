@@ -27,6 +27,11 @@ const sortField = ref<string | null>(null)
 const sortAsc = ref(true)
 const listError = ref<string | null>(null)
 const bundleFilter = ref<string | null>(null)
+// Id of the row whose Edit link was activated, held until navigation replaces
+// this list. Drives an immediate aria-busy / disabled state on the clicked link
+// so opening an entity is never a silent click (the destination editor still
+// resolves asynchronously after the route changes).
+const navigatingId = ref<string | null>(null)
 // Unix-epoch seconds at component setup. Used to gate the messages watch so
 // historical events the SSE server replayed on connect cannot trigger refetch
 // floods. The framework's BroadcastRouter now starts new connections at the
@@ -102,6 +107,17 @@ function prevPage() {
     offset.value = Math.max(0, offset.value - limit.value)
     fetchEntities()
   }
+}
+
+function onEditNavigate(entity: JsonApiResource, event: MouseEvent) {
+  // Swallow repeat activations once a navigation is already in flight so a
+  // double-click can't start a second route change. The first click falls
+  // through to NuxtLink's default navigation.
+  if (navigatingId.value !== null) {
+    event.preventDefault()
+    return
+  }
+  navigatingId.value = entity.id
 }
 
 async function deleteEntity(entity: JsonApiResource) {
@@ -225,8 +241,16 @@ watch(messages, (msgs) => {
               {{ formatCellValue(getCellValue(entity, fieldName, fieldSchema as unknown as Record<string, unknown>), fieldSchema as unknown as Record<string, unknown>) }}
             </td>
             <td class="actions">
-              <NuxtLink v-if="canUpdate" :to="`/${entityType}/${entity.id}`" class="btn btn-sm">
-                {{ t('edit') }}
+              <NuxtLink
+                v-if="canUpdate"
+                :to="`/${entityType}/${entity.id}`"
+                class="btn btn-sm"
+                :class="{ 'is-busy': navigatingId === entity.id }"
+                :aria-busy="navigatingId === entity.id ? 'true' : 'false'"
+                :aria-disabled="navigatingId === entity.id ? 'true' : undefined"
+                @click="onEditNavigate(entity, $event)"
+              >
+                {{ navigatingId === entity.id ? t('opening') : t('edit') }}
               </NuxtLink>
               <button
                 v-if="canDelete"
@@ -257,3 +281,13 @@ watch(messages, (msgs) => {
     </template>
   </div>
 </template>
+
+<style scoped>
+/* Clicked Edit link while its destination editor is opening: visually muted and
+   non-interactive so it reads as busy and can't be re-activated mid-navigation. */
+.btn.is-busy {
+  pointer-events: none;
+  opacity: 0.65;
+  cursor: progress;
+}
+</style>
