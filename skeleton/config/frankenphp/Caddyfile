@@ -3,14 +3,15 @@
 # convention: the framework never wraps the runtime binary; you run it directly
 # against this file. Run from the PROJECT ROOT:
 #
-#     PHPRC="$PWD/config/frankenphp" frankenphp run --config config/frankenphp/Caddyfile
+#     PHP_INI_SCAN_DIR="$PWD/config/frankenphp" frankenphp run --config config/frankenphp/Caddyfile
 #
-# PHPRC points the embedded PHP at the sibling php.ini for the SSE / error
-# settings worker mode needs. The php.ini does NOT enable pdo_sqlite/sqlite3 by
-# default: static FrankenPHP builds (the official Windows/Linux releases) already
-# bundle those, and force-loading them via `extension=` breaks the pdo_sqlite
-# driver registration → every request 500s with "could not find driver". See the
-# php.ini comments before uncommenting those lines.
+# PHP_INI_SCAN_DIR merges the sibling php.ini (SSE / error settings) ON TOP of the
+# FrankenPHP binary's own bundled php.ini. Do NOT use PHPRC here: PHPRC *replaces*
+# the bundled ini, and on shared-extension builds (e.g. the official Windows
+# release) that bundled ini is what loads pdo_sqlite/sqlite3 — replacing it strands
+# the SQLite driver and every request 500s with "could not find driver". The
+# committed php.ini deliberately does not enable the extensions itself; see its
+# comments. SQLite works because the runtime's own ini already provides it.
 #
 # `waaseyaa serve` is the plain single-worker php -S dev server and does NOT use
 # this file — it is not for the admin SPA's concurrent SSE or for production.
