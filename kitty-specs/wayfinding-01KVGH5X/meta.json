@@ -13,7 +13,7 @@
   "phase_status": {
     "phase_1_anchor_registry_catalog": "shipped (alpha.228)",
     "phase_2_session_delivery": "shipped (alpha.230)",
-    "phase_3_overlay_a11y": "planned",
+    "phase_3_overlay_a11y": "shipped (alpha.231)",
     "phase_4_trail_persistence": "planned",
     "phase_5_mcp_write_tier": "planned"
   },

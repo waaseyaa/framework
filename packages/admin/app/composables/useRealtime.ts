@@ -59,6 +59,9 @@ export function useRealtime(channels: string[] = [...DEFAULT_REALTIME_CHANNELS],
     eventSource.addEventListener('connected', (event: MessageEvent) => appendMessage(event.data))
     eventSource.addEventListener('entity.saved', (event: MessageEvent) => appendMessage(event.data))
     eventSource.addEventListener('entity.deleted', (event: MessageEvent) => appendMessage(event.data))
+    // Wayfinding beacons arrive on this connection's own (server-derived) session
+    // channel — see useBeacons for the trail/overlay consumer.
+    eventSource.addEventListener('wayfinding.beacon', (event: MessageEvent) => appendMessage(event.data))
 
     eventSource.onerror = () => {
       if (disconnectRequested) return

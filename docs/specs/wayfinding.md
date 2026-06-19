@@ -1,5 +1,6 @@
 # Wayfinding
 
+<!-- Spec reviewed 2026-06-19 - Phase 3 (overlay/beacon component with full a11y). Admin SPA: new useBeacons composable builds a live trail from wayfinding.beacon SSE events (useRealtime now listens for that event); new WayfindingOverlay.vue mounted globally in app.vue renders the active beacon as an aria-live role=status region, fully keyboard-navigable (arrows move, Esc dismisses), spotlights the data-anchor element (outline ring + scroll + focus, no trap), dismissable, honours prefers-reduced-motion. Ships in the prebuilt bundle (dist rebuilt; served-bundle wf-beacon assertion). Contract detailed in docs/specs/admin-spa.md. -->
 <!-- Spec reviewed 2026-06-19 - Phase 2 (session-scoped beacon delivery). foundation L0 gains SessionChannel (reserved `session:` namespace; token = substr(sha256(session_id),0,32)) and BroadcastRouter now strips client-supplied private channels + auto-subscribes each connection to its own server-derived session channel (resolveSubscriberChannels, pure + unit-tested) — enforcing NFR-001 (a client can only receive its own session's beacons). The SSE connected frame exposes the non-secret sessionToken. wayfinding L4 gains EmitBeaconController: POST /api/wayfinding/beacons, authenticated + 'present guided content' capability (fail-closed, re-checked in controller), validates anchor via AnchorRegistry::isValid, publishes a wayfinding.beacon to the target session's private channel via BroadcastStorage::push; content transported verbatim (escaping is Phase 3). Reconnect/resume inherited from Last-Event-ID. -->
 <!-- Spec reviewed 2026-06-19 - Phase 1 (anchor registry + published catalog). New L4 package packages/wayfinding: AnchorRegistry derives the valid data-anchor catalog from EntityTypeManager + SchemaPresenter (byte-identical to the SPA scheme shipped alpha.227), and AnchorCatalogController publishes it read-only at GET /.well-known/waaseyaa-anchors.json (allowAll, mirrors the /llms.txt discovery family). Mission kitty-specs/wayfinding-01KVGH5X. -->
 
@@ -101,8 +102,26 @@ to the target session's private channel; omitting `session` self-targets the
 caller. Reconnect/resume is inherited from the SSE loop's `Last-Event-ID` handling
 (FR-002).
 
-## Phases 3–5 (planned — see mission spec)
+## Phase 3 — Overlay / beacon component with full a11y (shipped)
 
-- **Phase 3** — the overlay/beacon component with full a11y (keyboard nav, `aria-live`, focus management, dismissable, reduced-motion).
+The flagship on-screen overlay (admin SPA), built on the alpha.226 `role="status"`
+aria-live primitive (LD-6 / FR-012). Detailed in [admin-spa.md](admin-spa.md).
+
+- **`useBeacons` composable** builds a live trail from `wayfinding.beacon` SSE
+  events delivered on the connection's own per-session channel (Phase 2);
+  `useRealtime` now also listens for that event. The overlay auto-advances to the
+  newest beacon and a new beacon re-shows a dismissed overlay.
+- **`WayfindingOverlay.vue`** (mounted globally in `app.vue`) renders the active
+  beacon as an `aria-live` `role="status"` region. It is **fully keyboard-navigable**
+  (←/→ or ↑/↓ move, Esc dismisses), **spotlights the declared `data-anchor` element**
+  (outline ring + scroll-into-view + moves focus to it **without trapping** — a
+  non-focusable anchor gets a transient `tabindex="-1"`), is **dismissable at any
+  time**, and **honours `prefers-reduced-motion`**. It ships in the prebuilt admin
+  bundle (dist rebuilt; the alpha.227 freshness gate + a served-bundle `wf-beacon`
+  assertion guard it). Beacon content is still transported verbatim from Phase 2;
+  the constrained-markup renderer is Phase 4/Phase-5 design under FR-008/NFR-003.
+
+## Phases 4–5 (planned — see mission spec)
+
 - **Phase 4** — versioned + translatable saved-trail content entity; record-a-live-trail-to-saved with the human-owned-on-save / no-silent-overwrite rule.
 - **Phase 5** — the authenticated MCP write tier (capability-gated emit + trail management), leaving the read-only trio untouched.
