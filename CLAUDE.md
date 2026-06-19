@@ -31,6 +31,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/access/*`, `packages/user/src/Middleware/*` | `waaseyaa:access-control` | `docs/specs/access-control.md`, `docs/specs/field-access.md` |
 | `packages/auth/*` | `waaseyaa:access-control` | `docs/specs/access-control.md` |
 | `packages/api/*`, `packages/routing/*` | `waaseyaa:api-layer` | `docs/specs/api-layer.md`, `docs/specs/jsonapi.md` (cast-aware attributes) |
+| `packages/wayfinding/*` (flagship Wayfinding: anchor registry/catalog, beacon delivery, trails, MCP write tier) | — | `docs/specs/wayfinding.md`, `kitty-specs/wayfinding-01KVGH5X/spec.md` |
 | `packages/api/src/Controller/BroadcastStorage.php`, `packages/foundation/src/Http/Router/BroadcastRouter.php`, `packages/foundation/src/Kernel/EventListenerRegistrar.php` (SSE broadcasting) | — | `docs/specs/broadcasting.md` |
 | `packages/attachment/*`, `packages/structured-import/*`, `packages/field/src/Form/*`, `packages/field/src/Attribute/BundleTemplate.php`, `packages/field/src/Attribute/FieldTemplate.php`, `packages/field/src/BundleTemplateCompiler.php`, `packages/routing/src/EntityDeepLinkRouteBuilder.php`, `packages/api/src/Controller/FieldAutoSaveController.php` | — | `docs/specs/work-surface.md` |
 | `packages/admin/*` | `waaseyaa:admin-spa` | `docs/specs/admin-spa.md` |
@@ -92,7 +93,7 @@ When the mapping is not obvious, search under `docs/specs/` (e.g. `rg -n "TopicO
 | 1 | Core Data | entity, entity-storage, access, audit, user, config, field, auth, oidc, testing |
 | 2 | Content Types | node, taxonomy, media, path, menu, note, relationship, groups, engagement |
 | 3 | Services | workflows, search, seo, notification, billing, github, migration, northcloud, listing, messaging |
-| 4 | API | api, bimaaji, routing |
+| 4 | API | api, bimaaji, routing, wayfinding |
 | 5 | AI | ai-agent, ai-observability, ai-pipeline, ai-schema, ai-vector |
 | 6 | Interfaces | cli, admin-surface, graphql, mcp, ssr, telescope, deployer, inertia, debug, workspace |
 

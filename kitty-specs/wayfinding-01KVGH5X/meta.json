@@ -10,6 +10,13 @@
   "purpose_context": "Flagship north-star feature: the human-facing complement to the alpha.221 agent-readable trio. Surfaces agent and human-authored actions as guided, element-anchored beacons delivered live per-session or saved as reusable trails. SPEC + phased plan only; subsystem build held for an explicit green-light. Enabled by the P0 demo-unblocker missions.",
   "purpose_tldr": "wayfinding flagship feature",
   "roadmap_priority": "flagship",
+  "phase_status": {
+    "phase_1_anchor_registry_catalog": "shipped (alpha.228)",
+    "phase_2_session_delivery": "planned",
+    "phase_3_overlay_a11y": "planned",
+    "phase_4_trail_persistence": "planned",
+    "phase_5_mcp_write_tier": "planned"
+  },
   "slug": "wayfinding-01KVGH5X",
   "target_branch": "main"
 }
