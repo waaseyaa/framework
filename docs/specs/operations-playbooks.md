@@ -66,21 +66,22 @@ Waaseyaa is runtime-agnostic and **never wraps a runtime binary in a framework s
 
 **Concurrent runtime: launch FrankenPHP natively.** The runtime adapter lives in the front controller (`public/index.php`): when FrankenPHP runs it in worker mode, it boots once and loops on `frankenphp_handle_request()`, serving requests concurrently across threads — a `/api/broadcast` SSE stream occupies one thread while the rest stay responsive (and with the bounded broadcast loop, `BroadcastRouter::DEFAULT_MAX_DURATION_SEC`, the worker is always released). `public/index.php` is the single source of runtime awareness; there is no `serve` flag for it.
 
-Run it directly against the committed `config/frankenphp/Caddyfile` (worker mode → `public/index.php`):
+The ergonomic dev front door is the skeleton's `composer serve:franken` (classic per-request `php-server` on `127.0.0.1:8080` — loopback + non-privileged, so no privileged-port or auto-HTTPS prompt). For the warm, concurrent worker runtime, run it directly against the committed `config/frankenphp/Caddyfile` (worker mode → `public/index.php`):
 
 ```bash
 # Worker mode (recommended) — concurrent, app stays warm:
-PHPRC="$PWD/config/frankenphp" frankenphp run --config config/frankenphp/Caddyfile
+PHP_INI_SCAN_DIR="$PWD/config/frankenphp" frankenphp run --config config/frankenphp/Caddyfile
 
 # Zero-config classic alternative (still concurrent across threads, no Caddyfile):
-PHPRC="$PWD/config/frankenphp" frankenphp php-server --root public
+PHP_INI_SCAN_DIR="$PWD/config/frankenphp" frankenphp php-server --root public
 ```
 
-Both point the embedded PHP at `config/frankenphp/php.ini` (via `PHPRC`), which **enables `pdo_sqlite` and `sqlite3`** — required because Waaseyaa defaults to a SQLite database (`storage/waaseyaa.sqlite`). Requirements and notes:
+Both **merge** the skeleton `config/frankenphp/php.ini` (SSE / error settings) on top of the runtime's own ini via `PHP_INI_SCAN_DIR`. Requirements and notes:
 
 - **`frankenphp` must be installed** (install: <https://frankenphp.dev>) and run directly — the framework does not install or wrap it.
 - The `Caddyfile` and `php.ini` are committed under `config/frankenphp/` (shipped in the skeleton, so a stock app works out of the box with no hand-edited ini).
-- Most static FrankenPHP builds already compile `pdo_sqlite`/`sqlite3` in, so `PHPRC` is optional and the php.ini's `extension=` lines emit a harmless "already loaded" warning — comment them out to silence it.
+- **Use `PHP_INI_SCAN_DIR`, not `PHPRC`.** `PHPRC` *replaces* the runtime's bundled `php.ini` wholesale, and on shared-extension builds (e.g. the official Windows release) that bundled ini is what loads `pdo_sqlite`/`sqlite3` — replacing it strands the SQLite driver and every request 500s with `could not find driver`. `PHP_INI_SCAN_DIR` is additive and avoids that.
+- The committed `php.ini` deliberately leaves its `extension=pdo_sqlite`/`extension=sqlite3` lines **commented out** — every mainstream build already provides those (compiled in, or via its own bundled ini), and force-loading them from this ini (which has no `extension_dir`) re-breaks driver registration. Uncomment them (and set `extension_dir`) only for a custom build that genuinely lacks SQLite.
 - **Required PHP extensions for any runtime:** `pdo_sqlite` and `sqlite3` (the SQLite default), plus `sodium`. These are declared in `composer.json` `require` (`ext-pdo_sqlite`, `ext-sqlite3`, `ext-sodium`) so `composer install` flags a runtime missing them.
 
 ### Verification Entry Point

@@ -93,23 +93,30 @@ convention). Install the `frankenphp` binary, then from the project root:
 ```bash
 # Worker mode (recommended) — boots public/index.php once and serves requests
 # concurrently across threads, so the admin SPA's SSE stream never starves others:
-PHPRC="$PWD/config/frankenphp" frankenphp run --config config/frankenphp/Caddyfile
+PHP_INI_SCAN_DIR="$PWD/config/frankenphp" frankenphp run --config config/frankenphp/Caddyfile
 
 # Zero-config classic alternative (still concurrent, no Caddyfile):
-PHPRC="$PWD/config/frankenphp" frankenphp php-server --root public
+PHP_INI_SCAN_DIR="$PWD/config/frankenphp" frankenphp php-server --root public
 ```
 
 The `Caddyfile` (worker mode → `public/index.php`) and `php.ini` are committed
-under `config/frankenphp/` in this skeleton. `PHPRC` points the embedded PHP at
-that `php.ini` for the SSE-friendly output and error settings worker mode needs.
+under `config/frankenphp/` in this skeleton. `PHP_INI_SCAN_DIR` merges that
+`php.ini` (SSE-friendly output and error settings) **on top of** the FrankenPHP
+binary's own bundled `php.ini`.
 
-The `php.ini` does **not** enable `pdo_sqlite`/`sqlite3` itself: the official
-statically-built FrankenPHP binaries (Windows/Linux) already compile those in,
-and force-loading them with `extension=` breaks driver registration — every
-request then 500s with `could not find driver`. The committed config relies on
-the bundled extensions, just like `composer serve:franken`. Only if your runtime
-genuinely lacks SQLite (a custom build) should you uncomment the `extension=`
-lines in `config/frankenphp/php.ini`, per the comments there.
+> **Use `PHP_INI_SCAN_DIR`, not `PHPRC`.** `PHPRC` *replaces* the runtime's
+> bundled `php.ini`, and on the common shared-extension builds (e.g. the official
+> Windows release) that bundled ini is what loads `pdo_sqlite`/`sqlite3`.
+> Replacing it strands the SQLite driver, so every request 500s with `could not
+> find driver`. `PHP_INI_SCAN_DIR` is additive and avoids that.
+
+The committed `php.ini` deliberately does **not** enable `pdo_sqlite`/`sqlite3`
+itself — every mainstream FrankenPHP build already provides them (compiled in, or
+loaded by its own bundled ini), and force-loading them from the skeleton ini
+re-breaks driver registration. The config relies on the bundled extensions, just
+like `composer serve:franken`. Only if your runtime genuinely lacks SQLite (a
+custom build) should you uncomment the `extension=` lines in
+`config/frankenphp/php.ini`, per the comments there.
 
 ## First 60 Seconds
 
