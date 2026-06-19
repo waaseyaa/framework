@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.225] - 2026-06-19
+
 ### Changed
 
 - **The dev-serve / runtime story now matches the Symfony/Laravel/Drupal convention: the framework is runtime-agnostic and never wraps a runtime binary in a subcommand.** A trivial `php -S` dev server stays as a zero-config convenience; the concurrent runtime (FrankenPHP) is launched by its own **native** command plus a committed config file.
