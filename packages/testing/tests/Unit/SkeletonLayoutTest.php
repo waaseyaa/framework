@@ -32,7 +32,7 @@ final class SkeletonLayoutTest extends TestCase
     public function skeletonDevScriptIsWiredAndValid(): void
     {
         $repoRoot = dirname(__DIR__, 4);
-        $devScript = $repoRoot . '/skeleton/bin/dev.sh';
+        $devScript = $repoRoot . '/skeleton/bin/dev';
         $composerJson = $repoRoot . '/skeleton/composer.json';
 
         self::assertFileExists($devScript);
@@ -44,12 +44,15 @@ final class SkeletonLayoutTest extends TestCase
         $scripts = $composer['scripts'] ?? null;
         self::assertIsArray($scripts);
 
+        // `composer dev` is the cross-platform FrankenPHP launcher: "@php bin/dev"
+        // runs bin/dev with Composer's OWN PHP (never FrankenPHP's bundled php.exe).
         $dev = $scripts['dev'] ?? null;
         self::assertIsArray($dev);
         self::assertContains('Composer\\Config::disableProcessTimeout', $dev);
-        self::assertContains('bash bin/dev.sh', $dev);
+        self::assertContains('@php bin/dev', $dev);
 
-        $command = sprintf('bash -n %s 2>&1', escapeshellarg('bin/dev.sh'));
+        // bin/dev is a PHP launcher (cross-platform by construction) — lint it.
+        $command = sprintf('php -l %s 2>&1', escapeshellarg('bin/dev'));
         exec('cd ' . escapeshellarg($repoRoot . '/skeleton') . ' && ' . $command, $output, $exitCode);
         self::assertSame(0, $exitCode, implode("\n", $output));
     }
@@ -61,7 +64,7 @@ final class SkeletonLayoutTest extends TestCase
         $requiredFiles = [
             '/skeleton/.env.example',
             '/skeleton/bin/post-create-setup.php',
-            '/skeleton/bin/dev.sh',
+            '/skeleton/bin/dev',
             '/skeleton/public/index.php',
             '/skeleton/config/waaseyaa.php',
             '/skeleton/composer.json',
