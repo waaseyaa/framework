@@ -64,6 +64,7 @@ jobs:
           # Layer 4: API
           - { local: 'packages/api', remote: 'api' }
           - { local: 'packages/routing', remote: 'routing' }
+          - { local: 'packages/wayfinding', remote: 'wayfinding' }
           # Layer 5: AI
           - { local: 'packages/ai-schema', remote: 'ai-schema' }
           - { local: 'packages/ai-agent', remote: 'ai-agent' }

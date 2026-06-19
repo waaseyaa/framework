@@ -122,6 +122,10 @@
         },
         {
             "type": "path",
+            "url": "packages/wayfinding"
+        },
+        {
+            "type": "path",
             "url": "packages/ai-schema"
         },
         {
@@ -366,6 +370,7 @@
         "waaseyaa/typed-data": "self.version",
         "waaseyaa/user": "self.version",
         "waaseyaa/validation": "self.version",
+        "waaseyaa/wayfinding": "self.version",
         "waaseyaa/workflows": "self.version"
     },
     "require-dev": {
@@ -410,6 +415,7 @@
             "Waaseyaa\\ErrorHandler\\Tests\\": "packages/error-handler/tests/",
             "Waaseyaa\\Access\\Tests\\": "packages/access/tests/",
             "Waaseyaa\\Api\\Tests\\": "packages/api/tests/",
+            "Waaseyaa\\Wayfinding\\Tests\\": "packages/wayfinding/tests/",
             "Waaseyaa\\Attachment\\Tests\\": "packages/attachment/tests/",
             "Waaseyaa\\StructuredImport\\Tests\\": "packages/structured-import/tests/",
             "Waaseyaa\\Queue\\Tests\\": "packages/queue/tests/",
