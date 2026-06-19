@@ -2,7 +2,7 @@
 
 **Mission:** `wayfinding-01KVGH5X` · **Type:** software-dev · **Target:** main · **Created:** 2026-06-19 · **Status:** Flagship — GREEN-LIT; building phase by phase (each its own alpha release)
 
-**Phase progress:** Phase 1 (anchor registry + published catalog) — **shipped in alpha.228**. Phase 2 (session-scoped beacon delivery — reserved per-session channels in `BroadcastRouter`, authenticated `EmitBeaconController`) — **shipped in alpha.230** (`docs/specs/wayfinding.md`). Phases 3–5 in progress per the order below.
+**Phase progress:** Phase 1 (anchor registry + published catalog) — **shipped in alpha.228**. Phase 2 (session-scoped beacon delivery — reserved per-session channels in `BroadcastRouter`, authenticated `EmitBeaconController`) — **shipped in alpha.230**. Phase 3 (overlay/beacon component with full a11y — `WayfindingOverlay.vue` + `useBeacons`, keyboard nav / aria-live / focus management / dismissable / reduced-motion) — **shipped in alpha.231** (`docs/specs/admin-spa.md`). Phases 4–5 in progress per the order below.
 
 ## Vocabulary (canonical — use consistently)
 

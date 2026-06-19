@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Wayfinding (flagship) Phase 3 — the beacon overlay, fully accessible.** The on-screen overlay that walks a user through a live trail of element-anchored **beacons**. New `WayfindingOverlay.vue` (mounted globally in the admin SPA's `app.vue`) renders the active beacon as an `aria-live` `role="status"` region (built on the alpha.226 busy-region primitive). It is **fully keyboard-navigable** (← / → or ↑ / ↓ move between beacons, `Esc` dismisses; nav buttons too), **spotlights the declared `data-anchor` element** (outline ring + scroll-into-view + moves focus to it **without trapping** the page — a non-focusable anchor gets a transient `tabindex="-1"`), is **dismissable at any time** (a new beacon re-shows a dismissed overlay), and **honours `prefers-reduced-motion`**. New `useBeacons` composable builds the live trail from `wayfinding.beacon` SSE events delivered on the connection's own per-session channel (Phase 2); `useRealtime` now also listens for that event. Ships in the prebuilt admin bundle (rebuilt; guarded by the alpha.227 dist-freshness gate and a served-bundle `wf-beacon` assertion). Beacon content is transported verbatim; the constrained-markup renderer is a later phase. Mission: `wayfinding-01KVGH5X`.
+
 ## [0.1.0-alpha.230] - 2026-06-19
 
 ### Added
