@@ -67,6 +67,10 @@
         {
             "type": "path",
             "url": "../bimaaji"
+        },
+        {
+            "type": "path",
+            "url": "../wayfinding"
         }
     ],
     "require": {
@@ -83,7 +87,8 @@
         "waaseyaa/entity": "^0.1.0-alpha.232",
         "waaseyaa/entity-storage": "^0.1.0-alpha.232",
         "waaseyaa/foundation": "^0.1.0-alpha.232",
-        "waaseyaa/http-client": "^0.1.0-alpha.232"
+        "waaseyaa/http-client": "^0.1.0-alpha.232",
+        "waaseyaa/wayfinding": "^0.1.0-alpha.232"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"

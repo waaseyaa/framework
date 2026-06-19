@@ -6,7 +6,14 @@ namespace Waaseyaa\Mcp\Auth;
 
 use Waaseyaa\Access\AccountInterface;
 
-final readonly class BearerTokenAuth implements McpAuthInterface
+/**
+ * Credentialed bearer-token auth: an opaque token maps to an account, and an
+ * absent/unknown/blocked token fails closed (returns null ⇒ HTTP 401). Because
+ * it genuinely requires credentials (unlike {@see PublicAnonymousAuth}, which
+ * falls back to anonymous), it is the canonical strategy for the authenticated
+ * MCP write tier — hence it also satisfies {@see WriteTierAuthInterface}.
+ */
+final readonly class BearerTokenAuth implements WriteTierAuthInterface
 {
     /**
      * @param array<string|int, AccountInterface> $tokens Token string → account

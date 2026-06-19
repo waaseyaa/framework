@@ -80,6 +80,7 @@
     "packages/graphql/src/Http/Router/GraphQlRouter.php",
     "packages/inertia/src/InertiaMiddleware.php",
     "packages/listing/src/ServiceProvider.php",
+    "packages/mcp/src/AuthenticatedMcpEndpoint.php",
     "packages/mcp/src/McpEndpoint.php",
     "packages/mcp/src/McpServerCard.php",
     "packages/mcp/src/McpServiceProvider.php",

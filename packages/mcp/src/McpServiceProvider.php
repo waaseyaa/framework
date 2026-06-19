@@ -14,8 +14,10 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Mcp\Admin\RecentInvocationsQueryInterface;
 use Waaseyaa\Mcp\Admin\ServerConfigReadModel;
 use Waaseyaa\Mcp\Admin\ToolRegistryReadModel;
+use Waaseyaa\Mcp\Auth\BearerTokenAuth;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\Auth\PublicAnonymousAuth;
+use Waaseyaa\Mcp\Auth\WriteTierAuthInterface;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
 /**
@@ -83,6 +85,45 @@ final class McpServiceProvider extends ServiceProvider
             },
         );
 
+        // Authenticated MCP write tier (FR-004) — a SEPARATE endpoint from the
+        // public read-only `/mcp`, so the alpha.221 trio is untouched (C-001).
+        //
+        // WriteTierAuthInterface default: BearerTokenAuth with an empty token map,
+        // so every `/mcp/write` request fails closed (HTTP 401) until a deployment
+        // re-binds it with its token→account map (accounts holding the configured
+        // write capability). Token→account mapping is application-specific.
+        $this->singleton(
+            WriteTierAuthInterface::class,
+            static fn(): WriteTierAuthInterface => new BearerTokenAuth([]),
+        );
+
+        $this->singleton(
+            AuthenticatedMcpEndpoint::class,
+            function (): AuthenticatedMcpEndpoint {
+                $dispatcher = $this->resolveOptional(EventDispatcherInterface::class);
+                $accountContext = $this->resolveOptional(AccountContextInterface::class);
+
+                // Capability-scoped structural layer: this tier exposes ONLY tools
+                // whose capability is on the write-tier allowlist (destructive
+                // included) — not the whole destructive catalogue. Defaults to the
+                // Wayfinding `present guided content` capability; override via the
+                // `mcp.write_tier.capabilities` config.
+                $writeRegistry = new CapabilityScopedToolRegistry(
+                    $this->resolve(AgentToolRegistryInterface::class),
+                    $this->writeTierCapabilities(),
+                );
+
+                $inner = new McpEndpoint(
+                    auth: $this->resolve(WriteTierAuthInterface::class),
+                    agentRegistry: $writeRegistry,
+                    dispatcher: $dispatcher instanceof EventDispatcherInterface ? $dispatcher : null,
+                    accountContext: $accountContext instanceof AccountContextInterface ? $accountContext : null,
+                );
+
+                return new AuthenticatedMcpEndpoint($inner);
+            },
+        );
+
         // M5C WP01 T003: admin read-model bindings.
         // ToolRegistryReadModelInterface → ToolRegistryReadModel (resolves
         // AgentToolRegistryInterface from container; RecentInvocationsQueryInterface
@@ -115,6 +156,32 @@ final class McpServiceProvider extends ServiceProvider
     public function routes(WaaseyaaRouter $router, EntityTypeManagerInterface $entityTypeManager): void
     {
         new McpRouteProvider()->registerRoutes($router);
+    }
+
+    /**
+     * The capability allowlist for the authenticated write tier. Tools whose
+     * capability is listed are exposed on `/mcp/write` (destructive included).
+     * Defaults to the Wayfinding `present guided content` capability; override
+     * via `mcp.write_tier.capabilities` (a list of capability strings).
+     *
+     * @return non-empty-list<string>
+     */
+    private function writeTierCapabilities(): array
+    {
+        $mcp = $this->config['mcp'] ?? null;
+        $writeTier = \is_array($mcp) && \is_array($mcp['write_tier'] ?? null) ? $mcp['write_tier'] : [];
+        $capabilities = $writeTier['capabilities'] ?? null;
+
+        $resolved = [];
+        if (\is_array($capabilities)) {
+            foreach ($capabilities as $capability) {
+                if (\is_string($capability) && $capability !== '') {
+                    $resolved[] = $capability;
+                }
+            }
+        }
+
+        return $resolved !== [] ? $resolved : ['present guided content'];
     }
 
     /**
