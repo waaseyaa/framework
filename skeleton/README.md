@@ -17,7 +17,7 @@ Use `./vendor/bin/waaseyaa` for the CLI. Optional path-linked `waaseyaa/*` check
 
 ```
 bin/
-├── dev.sh               Local development runner (`composer run dev`)
+├── dev                  Cross-platform FrankenPHP dev launcher (`composer run dev`)
 ├── post-create-setup.php  One-time setup after `create-project`
 └── maintenance/         Audit/release helpers (optional for beginners)
 
@@ -52,7 +52,7 @@ and all references when moving code.
 
 ```bash
 composer install                    # Install dependencies
-composer run dev                    # Start backend (+ admin HMR when configured)
+composer run dev                    # Serve on FrankenPHP at http://127.0.0.1:8080
 ./vendor/bin/phpunit                # Run tests
 ./vendor/bin/waaseyaa optimize:manifest  # Rebuild provider manifest
 ./vendor/bin/waaseyaa serve              # Single-worker php -S dev server (zero-config; not for the admin SPA's SSE or production)
@@ -66,57 +66,73 @@ This app defaults to a **SQLite** database (`storage/waaseyaa.sqlite`), so the P
 runtime must have **`pdo_sqlite`** and **`sqlite3`** (and `sodium`). These are
 declared in `composer.json`, so `composer install` flags a runtime missing them.
 
-### Serving with FrankenPHP (concurrent runtime)
+### Serving with FrankenPHP (`composer dev`)
 
-The quickest way to run the real concurrent runtime is the bundled Composer
-script — classic per-request mode against `public/`, bound to loopback on a
-non-privileged port so it never triggers a privileged-port or HTTPS-certificate
-prompt:
+`composer dev` runs the app on [FrankenPHP](https://frankenphp.dev) — the real
+concurrent runtime — in classic per-request mode, bound to loopback on a
+non-privileged port (no privileged-port or HTTPS-certificate prompt):
 
 ```bash
-composer serve:franken   # → http://127.0.0.1:8080  (Ctrl+C to stop)
+composer dev   # → http://127.0.0.1:8080  (Ctrl+C to stop)
 ```
 
-This assumes the `frankenphp` binary is on your `PATH` — install it from
-<https://frankenphp.dev> (no per-machine paths to configure). For the warm,
-worker-mode runtime (best for the admin SPA's SSE), use the native invocation
-shown below instead.
+It works identically on **Windows, macOS, and Linux with zero PATH setup**. The
+launcher (`bin/dev`, run via Composer's own PHP) resolves the `frankenphp` binary
+to an **absolute path** and execs it directly, so you never add the FrankenPHP
+directory to `PATH`.
 
-`./vendor/bin/waaseyaa serve` is the plain single-worker `php -S` dev server. It
-is a zero-config convenience and is **not** the right runtime for the admin SPA's
-live `/api/broadcast` SSE connection or for production.
+> **Do NOT put the FrankenPHP directory on `PATH`.** The official Windows release
+> is a full PHP SDK that bundles its own `php.exe` with OpenSSL disabled — on
+> `PATH` it shadows your system PHP and breaks Composer (TLS to Packagist fails).
+> `composer dev` sidesteps this by calling `frankenphp` by absolute path.
 
-For a concurrent runtime, run [FrankenPHP](https://frankenphp.dev) **natively** —
-the framework does not wrap it in a subcommand (the Symfony/Laravel/Drupal
-convention). Install the `frankenphp` binary, then from the project root:
+**Binary resolution order:** `FRANKENPHP_BIN` (an absolute path) → a known install
+location (`%USERPROFILE%\.frankenphp\frankenphp.exe` on Windows; `/usr/local/bin`,
+`/usr/bin`, `/opt/homebrew/bin`, `~/.frankenphp` on macOS/Linux) → `frankenphp` on
+`PATH`. If none resolve, `composer dev` prints exactly what to do. To point at a
+custom install:
 
 ```bash
-# Worker mode (recommended) — boots public/index.php once and serves requests
-# concurrently across threads, so the admin SPA's SSE stream never starves others:
+# POSIX
+FRANKENPHP_BIN=/opt/frankenphp/frankenphp composer dev
+# Windows (PowerShell)
+$env:FRANKENPHP_BIN="C:\tools\frankenphp\frankenphp.exe"; composer dev
+```
+
+Classic mode uses FrankenPHP's built-in SQLite — **no `php.ini` hack needed**.
+
+`./vendor/bin/waaseyaa serve` remains the zero-dependency `php -S` dev server (no
+FrankenPHP required); it is fine for quick edits but is **not** the right runtime
+for the admin SPA's live `/api/broadcast` SSE connection or for production.
+
+**Worker mode (advanced).** For the warm, worker-mode runtime (best for heavy
+SSE), run FrankenPHP natively against the committed `config/frankenphp/`:
+
+```bash
 PHP_INI_SCAN_DIR="$PWD/config/frankenphp" frankenphp run --config config/frankenphp/Caddyfile
-
-# Zero-config classic alternative (still concurrent, no Caddyfile):
-PHP_INI_SCAN_DIR="$PWD/config/frankenphp" frankenphp php-server --root public
 ```
 
-The `Caddyfile` (worker mode → `public/index.php`) and `php.ini` are committed
-under `config/frankenphp/` in this skeleton. `PHP_INI_SCAN_DIR` merges that
-`php.ini` (SSE-friendly output and error settings) **on top of** the FrankenPHP
-binary's own bundled `php.ini`.
+Use `PHP_INI_SCAN_DIR` (additive), **never** `PHPRC` — `PHPRC` *replaces* the
+runtime's bundled `php.ini`, which on shared-extension builds (e.g. the official
+Windows release) strands `pdo_sqlite`/`sqlite3` and 500s every request with
+`could not find driver`. The committed `php.ini` does not enable those extensions
+itself (mainstream builds already provide them); uncomment its `extension=` lines
+only for a custom build that genuinely lacks SQLite.
 
-> **Use `PHP_INI_SCAN_DIR`, not `PHPRC`.** `PHPRC` *replaces* the runtime's
-> bundled `php.ini`, and on the common shared-extension builds (e.g. the official
-> Windows release) that bundled ini is what loads `pdo_sqlite`/`sqlite3`.
-> Replacing it strands the SQLite driver, so every request 500s with `could not
-> find driver`. `PHP_INI_SCAN_DIR` is additive and avoids that.
+### Upgrading the framework
 
-The committed `php.ini` deliberately does **not** enable `pdo_sqlite`/`sqlite3`
-itself — every mainstream FrankenPHP build already provides them (compiled in, or
-loaded by its own bundled ini), and force-loading them from the skeleton ini
-re-breaks driver registration. The config relies on the bundled extensions, just
-like `composer serve:franken`. Only if your runtime genuinely lacks SQLite (a
-custom build) should you uncomment the `extension=` lines in
-`config/frankenphp/php.ini`, per the comments there.
+This skeleton requires `waaseyaa/framework` with a **caret** constraint
+(`^0.1.0-alpha.NNN`), so a plain `composer update waaseyaa/framework` takes the
+next point release. Keep it a caret:
+
+```bash
+composer update waaseyaa/framework   # moves to the latest matching alpha
+```
+
+> Avoid `composer require waaseyaa/framework:0.1.0-alpha.NNN` — an **exact**
+> version writes a pinned constraint, and then `composer update` silently does
+> nothing on later releases. Use `composer require waaseyaa/framework:^0.1.0-alpha.NNN`
+> (with the caret) if you ever re-add it.
 
 ## First 60 Seconds
 
@@ -125,22 +141,25 @@ composer install
 composer run dev
 ```
 
-`composer run dev` always starts the PHP app. If an admin Nuxt package is configured,
-it also starts the admin dev server with hot reloading.
+`composer run dev` serves the whole app on FrankenPHP — including the prebuilt
+admin SPA at `/admin` (served from `public/`; no separate build step). Open
+`http://127.0.0.1:8080`.
 
-Open your app at `http://127.0.0.1:8080` (or your configured `APP_HOST` / `APP_PORT`).
+## Optional: Admin SPA hot-reload (HMR)
 
-## Optional: Admin HMR Setup
-
-If your project has a Nuxt admin app outside this skeleton, point Waaseyaa to it:
+The admin SPA ships as a prebuilt bundle, so most apps need nothing extra. If you
+are developing a custom Nuxt admin, run its dev server in a second terminal
+alongside `composer dev`:
 
 ```bash
-export WAASEYAA_ADMIN_PATH=../waaseyaa/packages/admin
-composer run dev
+# Terminal 1 — the app on FrankenPHP
+composer dev
+# Terminal 2 — the admin SPA dev server (HMR), pointed at the backend
+NUXT_BACKEND_URL=http://127.0.0.1:8080 vendor/bin/waaseyaa admin:dev
 ```
 
-When `WAASEYAA_ADMIN_PATH` resolves to a directory containing `package.json`,
-the dev command launches both backend and admin HMR together.
+Set `WAASEYAA_ADMIN_PATH` (or `extra.waaseyaa.admin_path` in `composer.json`) to a
+Nuxt admin package outside this skeleton if `admin:dev` cannot find one.
 
 ## Configuration
 

@@ -36,11 +36,7 @@
         "audit-site": "./bin/maintenance/waaseyaa-audit-site",
         "dev": [
             "Composer\\Config::disableProcessTimeout",
-            "bash bin/dev.sh"
-        ],
-        "serve:franken": [
-            "Composer\\Config::disableProcessTimeout",
-            "frankenphp php-server --root public --listen 127.0.0.1:8080"
+            "@php bin/dev"
         ],
         "regen-lock": "@composer update 'waaseyaa/*' --no-plugins --no-install --no-scripts",
         "post-create-project-cmd": [

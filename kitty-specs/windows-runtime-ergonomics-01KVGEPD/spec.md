@@ -13,13 +13,16 @@ This mission makes a downstream point-upgrade take cleanly and makes `serve:fran
 
 **Constraint:** no deployed downstream apps depend on current guidance; prefer the correct clean design.
 
-## Resolved Decisions (locked — no longer open)
+## Resolved Decisions (locked — implemented in alpha.229)
 
-- **D4:** Add a `bin/serve-franken` wrapper that resolves the binary as `${FRANKENPHP_BIN:-frankenphp}`, so an operator points at an absolute `frankenphp` install via `FRANKENPHP_BIN` **without** adding the SDK directory to PATH. `serve:franken` invokes the wrapper.
-- **D4 docs:** Rewrite the skeleton README and the Windows operations playbook to instruct users to **NOT** add the FrankenPHP SDK directory to PATH (the official Windows release bundles an OpenSSL-less `php.exe` that shadows system PHP and breaks Composer); document `FRANKENPHP_BIN` instead. Remove the false "no per-machine paths to configure" claim for Windows.
-- **D1:** Downstream constraint hygiene (use a caret); the framework change is documentation/helper only. No framework scaffold bug.
+**Elevated scope (promoted from held):** the deliverable is a clean, cross-platform `composer run dev` that just works with FrankenPHP — zero PATH mangling, zero manual steps. This supersedes the earlier `bin/serve-franken` shell-wrapper sketch in the FR table below.
 
-**This mission is HELD at P1** — decisions locked, implementation awaits an explicit go (not in the P0 trio).
+- **`composer dev` → `@php bin/dev`.** The skeleton's `dev` script runs a PHP launcher (`skeleton/bin/dev`) via Composer's OWN PHP (`@php`), so FrankenPHP's bundled `php.exe` is never the interpreter. Cross-platform by construction (PHP, not bash). Replaces the old `serve:franken` (removed) and the POSIX-only `bin/dev.sh` (removed).
+- **Absolute-path resolution, never PATH.** `bin/dev` resolves the binary via `Waaseyaa\Foundation\Runtime\FrankenPhpLocator`: `FRANKENPHP_BIN` → known per-OS locations (`%USERPROFILE%\.frankenphp\frankenphp.exe`; POSIX `/usr/local/bin`, `/usr/bin`, `/opt/homebrew/bin`, `~/.frankenphp`) → `frankenphp` on PATH → actionable error. It execs the binary **by full path** in classic mode (`php-server --root public --listen 127.0.0.1:8080`) and **never modifies PATH**, so the SDK's OpenSSL-disabled `php.exe` cannot shadow system PHP. Classic mode uses FrankenPHP's built-in `pdo_sqlite` — no `php.ini` hack. The resolution order is unit-tested (`FrankenPhpLocatorTest`).
+- **Docs.** Skeleton README + operations playbook rewritten: the "put frankenphp on PATH" guidance is removed; `composer dev` + the optional `FRANKENPHP_BIN` override are documented.
+- **D1.** The skeleton's `waaseyaa/framework` constraint is a caret (`^0.1.0-alpha.NNN`) so `composer update` takes point releases; the README documents that `composer require pkg:<exact>` writes an exact pin that blocks upgrades.
+
+**This mission is PROMOTED and SHIPPING in alpha.229**, independent of the in-flight Wayfinding phases.
 
 ## Actors
 
