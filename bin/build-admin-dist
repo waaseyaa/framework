@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Rebuild the committed admin SPA dist from packages/admin/app source and refresh
+# the freshness signature (D6). This is the single reproducible step that keeps
+# the committed packages/admin-surface/dist bundle and its content signature in
+# lockstep, so a stale bundle can never be tagged into a release.
+#
+# Usage:  bin/build-admin-dist   (run from anywhere; resolves the repo root)
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+echo "==> Installing admin SPA dependencies (npm ci)"
+( cd "$ROOT/packages/admin" && npm ci )
+
+echo "==> Generating static Nuxt SPA"
+( cd "$ROOT/packages/admin" && npm run generate )
+
+echo "==> Copying build output to packages/admin-surface/dist"
+rm -rf "$ROOT/packages/admin-surface/dist"
+cp -r "$ROOT/packages/admin/.output/public" "$ROOT/packages/admin-surface/dist"
+
+echo "==> Writing admin dist freshness signature"
+php "$ROOT/bin/check-admin-dist-fresh" --write
+
+echo "==> Done. Commit packages/admin-surface/dist/ and packages/admin-surface/dist.signature together."

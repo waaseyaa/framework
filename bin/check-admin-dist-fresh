@@ -1,0 +1,108 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Admin dist freshness gate (D6).
+ *
+ * Fails when packages/admin/app source changes without a corresponding rebuild
+ * of the committed packages/admin-surface/dist bundle. The shipped admin SPA is
+ * a prebuilt bundle committed into the repo and served to downstream consumers
+ * via Composer; before this gate, source could advance while the committed
+ * bundle stayed stale and still be tagged into a release (the alpha.226 admin
+ * Edit-feedback feature shipped in source but never reached the served bundle).
+ *
+ * The gate compares a committed CONTENT SIGNATURE of the admin source against a
+ * freshly computed one. The signature is line-ending normalised so a Windows
+ * (CRLF) checkout and a Linux (LF) checkout produce the same value.
+ *
+ * Usage:
+ *   php bin/check-admin-dist-fresh            # verify (CI gate; non-zero on stale)
+ *   php bin/check-admin-dist-fresh --write    # (re)write the signature; called by bin/build-admin-dist
+ */
+
+$root = dirname(__DIR__);
+$marker = $root . '/packages/admin-surface/dist.signature';
+
+$signature = computeAdminSourceSignature($root);
+
+if (in_array('--write', $argv, true)) {
+    file_put_contents($marker, $signature . "\n");
+    fwrite(STDOUT, "admin dist source signature written: {$signature}\n");
+    exit(0);
+}
+
+if (!is_file($marker)) {
+    fwrite(STDERR, "ERROR: admin dist signature marker missing ({$marker}).\n");
+    fwrite(STDERR, "       Rebuild the admin bundle with: bin/build-admin-dist\n");
+    exit(1);
+}
+
+$committed = trim((string) file_get_contents($marker));
+
+if ($committed !== $signature) {
+    fwrite(STDERR, "ERROR: packages/admin/app source changed but packages/admin-surface/dist was not rebuilt (D6 staleness gate).\n");
+    fwrite(STDERR, "       committed signature: {$committed}\n");
+    fwrite(STDERR, "       current signature:   {$signature}\n");
+    fwrite(STDERR, "       Rebuild + refresh with: bin/build-admin-dist\n");
+    exit(1);
+}
+
+fwrite(STDOUT, "OK: admin dist is in sync with packages/admin/app source ({$signature}).\n");
+exit(0);
+
+/**
+ * Deterministic, OS-independent signature of the admin SPA source set that
+ * determines the built bundle.
+ */
+function computeAdminSourceSignature(string $root): string
+{
+    $parts = [];
+
+    // 1. Everything under packages/admin/app (components, adapters, composables, i18n, pages, ...).
+    $appDir = $root . '/packages/admin/app';
+    if (is_dir($appDir)) {
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($appDir, FilesystemIterator::SKIP_DOTS),
+        );
+        $files = [];
+        foreach ($iterator as $file) {
+            if ($file->isFile()) {
+                $files[] = $file->getPathname();
+            }
+        }
+        foreach ($files as $path) {
+            $rel = str_replace('\\', '/', substr($path, strlen($root) + 1));
+            $parts[] = $rel . ':' . hashNormalized($path);
+        }
+    }
+
+    // 2. Build-determining top-level files (dependency pins + nuxt config) — a
+    //    dependency bump or config change also changes the bundle.
+    $topLevel = [
+        'packages/admin/nuxt.config.ts',
+        'packages/admin/app.config.ts',
+        'packages/admin/package.json',
+        'packages/admin/package-lock.json',
+    ];
+    foreach ($topLevel as $rel) {
+        $path = $root . '/' . $rel;
+        if (is_file($path)) {
+            $parts[] = $rel . ':' . hashNormalized($path);
+        }
+    }
+
+    sort($parts, SORT_STRING);
+
+    return hash('sha256', implode("\n", $parts));
+}
+
+function hashNormalized(string $path): string
+{
+    $contents = (string) file_get_contents($path);
+    // Normalise CRLF/CR to LF so Windows and Linux checkouts hash identically.
+    $contents = str_replace(["\r\n", "\r"], "\n", $contents);
+
+    return hash('sha256', $contents);
+}
