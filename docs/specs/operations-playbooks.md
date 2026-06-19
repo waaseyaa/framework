@@ -53,19 +53,35 @@ For full-stack local development, run `composer dev:php` in one terminal and `co
 
 **The admin SPA's realtime SSE and worker usage.** The admin SPA holds a long-lived Server-Sent-Events connection to `/api/broadcast` for live updates (`packages/admin/app/composables/useRealtime.ts` → `packages/foundation/src/Http/Router/BroadcastRouter.php`). The `BroadcastRouter` loop is **bounded** (see `docs/specs/broadcasting.md`): it returns on client disconnect or after a per-connection time budget (`DEFAULT_MAX_DURATION_SEC`, 30s), so a worker is never pinned indefinitely and the client's `EventSource` reconnects automatically. A short keepalive cadence (2s) makes disconnect detection prompt so the worker is released soon after a tab navigates away. Even so, each *concurrently open* admin tab uses one worker for the duration of its stream, so the server still needs **>1 worker**. PHP's built-in server is single-worker by default, so `bin/waaseyaa serve` defaults `PHP_CLI_SERVER_WORKERS=4`.
 
-**Recommended dev runtime: FrankenPHP.** The front controller (`public/index.php`) supports FrankenPHP worker mode, which serves requests concurrently across threads — a `/api/broadcast` SSE stream occupies one thread while the rest stay responsive, with no `PHP_CLI_SERVER_WORKERS` tuning. For admin-SPA-heavy local development (and as the production runtime), FrankenPHP is the recommended server; the `php -S` path with `PHP_CLI_SERVER_WORKERS≥4` remains the zero-dependency fallback.
+### Two runtimes, two launchers
 
-Serve with FrankenPHP out of the box:
+Waaseyaa is runtime-agnostic and **never wraps a runtime binary in a framework subcommand** — the Symfony Runtime / Laravel Octane / Drupal-DDEV convention. There are exactly two supported ways to serve the app, and the choice mirrors that convention:
+
+| Runtime | How it is launched | Use for |
+|---|---|---|
+| `php -S` (single worker) | `vendor/bin/waaseyaa serve` | Zero-config local dev convenience. **Not** for production; **not** for the admin SPA's concurrent SSE. |
+| FrankenPHP (worker mode, concurrent) | the **native** `frankenphp` command + a committed config file | Admin-SPA-heavy local dev and production. |
+
+`waaseyaa serve` is the plain single-worker `php -S` dev server. PHP's built-in server is single-worker by default, so a long-lived `/api/broadcast` SSE stream would pin the sole worker; `serve` defaults `PHP_CLI_SERVER_WORKERS` to `4` to soften that on POSIX, but the knob is `fork()`-gated and **ignored on Windows**. It is a convenience, not a concurrent runtime.
+
+**Concurrent runtime: launch FrankenPHP natively.** The runtime adapter lives in the front controller (`public/index.php`): when FrankenPHP runs it in worker mode, it boots once and loops on `frankenphp_handle_request()`, serving requests concurrently across threads — a `/api/broadcast` SSE stream occupies one thread while the rest stay responsive (and with the bounded broadcast loop, `BroadcastRouter::DEFAULT_MAX_DURATION_SEC`, the worker is always released). `public/index.php` is the single source of runtime awareness; there is no `serve` flag for it.
+
+Run it directly against the committed `config/frankenphp/Caddyfile` (worker mode → `public/index.php`):
 
 ```bash
-vendor/bin/waaseyaa serve --frankenphp
+# Worker mode (recommended) — concurrent, app stays warm:
+PHPRC="$PWD/config/frankenphp" frankenphp run --config config/frankenphp/Caddyfile
+
+# Zero-config classic alternative (still concurrent across threads, no Caddyfile):
+PHPRC="$PWD/config/frankenphp" frankenphp php-server --root public
 ```
 
-This runs `frankenphp php-server` against `public/` and points the embedded PHP at `config/frankenphp/php.ini` (via `PHPRC`), which **enables `pdo_sqlite` and `sqlite3`** — required because Waaseyaa defaults to a SQLite database (`storage/waaseyaa.sqlite`). FrankenPHP's bundled PHP does not always enable these by default, so without this a stock app fails to boot. Requirements and overrides:
+Both point the embedded PHP at `config/frankenphp/php.ini` (via `PHPRC`), which **enables `pdo_sqlite` and `sqlite3`** — required because Waaseyaa defaults to a SQLite database (`storage/waaseyaa.sqlite`). Requirements and notes:
 
-- **`frankenphp` must be on `PATH`** (install: <https://frankenphp.dev>), or set `WAASEYAA_FRANKENPHP_BIN` to its path.
-- The php.ini path defaults to `config/frankenphp/php.ini` (shipped in the skeleton); override with `WAASEYAA_FRANKENPHP_INI`.
-- **Required PHP extensions for any runtime:** `pdo_sqlite` and `sqlite3` (the SQLite default), plus `sodium`. These are declared in `composer.json` `require` (`ext-pdo_sqlite`, `ext-sqlite3`, `ext-sodium`) so `composer install` flags a runtime missing them. If your FrankenPHP binary already compiles `pdo_sqlite`/`sqlite3` in, the shipped php.ini's `extension=` lines emit a harmless "already loaded" warning — comment them out to silence it.
+- **`frankenphp` must be installed** (install: <https://frankenphp.dev>) and run directly — the framework does not install or wrap it.
+- The `Caddyfile` and `php.ini` are committed under `config/frankenphp/` (shipped in the skeleton, so a stock app works out of the box with no hand-edited ini).
+- Most static FrankenPHP builds already compile `pdo_sqlite`/`sqlite3` in, so `PHPRC` is optional and the php.ini's `extension=` lines emit a harmless "already loaded" warning — comment them out to silence it.
+- **Required PHP extensions for any runtime:** `pdo_sqlite` and `sqlite3` (the SQLite default), plus `sodium`. These are declared in `composer.json` `require` (`ext-pdo_sqlite`, `ext-sqlite3`, `ext-sodium`) so `composer install` flags a runtime missing them.
 
 ### Verification Entry Point
 
@@ -268,7 +284,7 @@ you handle these operations externally.
 
 | Command | Description | Key Options |
 |---------|-------------|-------------|
-| `serve` | Start the PHP development server | `--host` (default: 127.0.0.1), `--port` / `-p` (default: 8080) |
+| `serve` | Start the single-worker `php -S` dev server (not for production or the admin SPA's concurrent SSE — for those, launch FrankenPHP natively against `config/frankenphp/Caddyfile`) | `--host` (default: 0.0.0.0), `--port` / `-p` (default: 8080) |
 | `sync-rules` | Sync framework rules from Waaseyaa to app | `--force` / `-f`, `--dry-run` |
 
 ## Queue Operations Playbook

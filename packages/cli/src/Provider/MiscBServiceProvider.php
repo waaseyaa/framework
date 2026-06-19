@@ -84,7 +84,7 @@ final class MiscBServiceProvider extends ServiceProvider implements ProvidesCons
 
         yield new HandlerCommand(
             name: 'serve',
-            description: 'Start the PHP development server',
+            description: 'Start the single-worker php -S development server (not for production or the admin SPA\'s concurrent SSE)',
             options: [
                 new HandlerOption(
                     name: 'host',
@@ -98,11 +98,6 @@ final class MiscBServiceProvider extends ServiceProvider implements ProvidesCons
                     mode: HandlerOptionMode::Optional,
                     description: 'Specify which port the server should listen on. Can also be set via APP_PORT.',
                     default: (getenv('APP_PORT') !== false ? getenv('APP_PORT') : '8080'),
-                ),
-                new HandlerOption(
-                    name: 'frankenphp',
-                    mode: HandlerOptionMode::None,
-                    description: 'Serve with FrankenPHP (concurrent worker runtime) instead of php -S. Uses config/frankenphp/php.ini so the SQLite default boots out of the box. Requires the frankenphp binary on PATH.',
                 ),
             ],
             handler: \Closure::fromCallable([new ServeHandler(projectRoot: $projectRoot), 'execute']),
