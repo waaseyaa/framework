@@ -70,3 +70,57 @@ DRY'd in Phase 5 to avoid refactoring the working, tested Phase-2 controller mid
 `emit(BroadcastStorage, sessionToken, anchorId, content, order, emittedBy)`) and have both
 the controller and the tool delegate to it, preserving the controller's exact 403/422/202
 responses. **Risk:** low (behavior-preserving extraction + re-run the Phase-2 controller test).
+
+### CL-6 — auth: `AuthTokenRepository::ensureSchema()` is not idempotent (boot 500)
+**Found:** 2026-06-20 (alpha.233 wayfinding hands-on, my-app). `AuthServiceProvider::register()`
+resolves `AuthTokenRepository->ensureSchema()` → `DBALSchema->createTable()` with a plain
+`CREATE TABLE auth_tokens` (no `IF NOT EXISTS` / existence guard). Under classic FrankenPHP
+`php-server` (per-request boot — the documented dev serve mode), two near-simultaneous
+first-boots raced to create the table and one threw `table auth_tokens already exists`,
+500ing `/api/broadcast`. It self-heals once the table exists, but the create path is racy /
+non-idempotent. **Fix:** make `ensureSchema()` idempotent (create-if-not-exists, or catch
+"already exists"). **Risk:** low. Source: `packages/auth/src/Token/AuthTokenRepository.php:29`,
+`AuthServiceProvider.php:32`.
+
+### CL-7 — cli: `migrate:defaults` is not container-auto-wirable (latent, like the alpha.236 migrate bug)
+**Found:** 2026-06-20 (alpha.236 migrate-command fix). `migrate`/`migrate:rollback`/
+`migrate:status` were fixed (bound explicitly in `MigrateServiceProvider`), but
+`migrate:defaults` is still wired as `[MigrateDefaultsHandler::class, 'execute']` and its
+ctor takes a non-auto-wirable `string $projectRoot` (+ `EntityTypeLifecycleManager`,
+`?EntityAuditLogger`) — so a real invocation fails the same way (`unresolvable parameter`).
+Not exercised by the skeleton smoke. **Fix:** bind `MigrateDefaultsHandler` explicitly in
+`MigrateServiceProvider` (resolve the entity-lifecycle deps + pass projectRoot), mirroring
+the migrate handlers. **Risk:** low. Source: `packages/cli/src/Handler/MigrateDefaultsHandler.php`,
+`packages/cli/src/Provider/MigrateServiceProvider.php`.
+
+### CL-8 — wayfinding: the human-owned trail latch has no app surface (SC-005 unreachable)
+**Found:** 2026-06-20 (alpha.233 wayfinding hands-on). The no-silent-overwrite guarantee
+rides on `TrailStore::editAsHuman()` setting `origin = human`, but that method has NO MCP,
+HTTP, admin, or CLI surface. The write tier exposes record / re-record / get / emit only —
+an app/agent can never make a trail human-owned, so the "human edits preserved on re-record"
+branch (SC-005) is reachable **only** from `TrailStoreTest`, not from a running app. **Fix:**
+expose an authenticated human-edit path (e.g. a `wayfinding_edit_trail` write tool or an
+admin trail editor that routes through `editAsHuman`). **Risk:** medium (feature gap — the
+flagship's headline "human edits are never overwritten" can't actually be demonstrated end
+to end). Source: `packages/wayfinding/src/Trail/TrailStore.php`.
+
+### CL-9 — admin: `enableRealtime` is build-baked, not serve-time configurable
+**Found:** 2026-06-20 (alpha.233 wayfinding hands-on). The prebuilt admin SPA bakes
+`config.public.enableRealtime` from `NODE_ENV` at `nuxt generate` time
+(`packages/admin/nuxt.config.ts:54`). A consumer serving the committed
+`packages/admin-surface/dist` bundle cannot toggle realtime per-deploy without rebuilding
+the SPA — so the live beacon overlay / SSE auto-connect is on-or-off by build, not by app
+config. **Fix:** inject `enableRealtime` at serve time (e.g. the admin-surface host writes a
+runtime-config `<script>` into the served index.html from a waaseyaa config key), so apps
+flip it without a rebuild. **Risk:** low-moderate. Source: `packages/admin/nuxt.config.ts`,
+`packages/admin-surface/src/AdminSurfaceServiceProvider.php`.
+
+### CL-10 — release infra: `split.yml` git push has no retry → transient auth half-publishes a release
+**Found:** 2026-06-20 (alpha.236 release). The per-package `split (packages/<pkg>, <remote>)`
+matrix job pushes each tag to its split repo with no retry. A transient
+`Authentication failed for <pkg>.git` on ONE job (error-handler, alpha.236) left the tag
+unpushed → not crawled to Packagist → `waaseyaa/framework@alpha.236` was briefly
+uninstallable until the failed job was re-run. **Fix:** wrap the split git push in a bounded
+retry (idempotent on an already-present tag). **Risk:** moderate (a single flaky push can
+ship a broken/uninstallable release; the skeleton smoke now catches it but only after the
+fact). Tracked: spawned background task. Source: `.github/workflows/split.yml`.

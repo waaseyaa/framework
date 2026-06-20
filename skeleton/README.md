@@ -66,37 +66,49 @@ This app defaults to a **SQLite** database (`storage/waaseyaa.sqlite`), so the P
 runtime must have **`pdo_sqlite`** and **`sqlite3`** (and `sodium`). These are
 declared in `composer.json`, so `composer install` flags a runtime missing them.
 
-### Serving with FrankenPHP (`composer dev`)
+### Serving with FrankenPHP (`composer run dev`)
 
-`composer dev` runs the app on [FrankenPHP](https://frankenphp.dev) — the real
+`composer run dev` runs the app on [FrankenPHP](https://frankenphp.dev) — the real
 concurrent runtime — in classic per-request mode, bound to loopback on a
 non-privileged port (no privileged-port or HTTPS-certificate prompt):
 
 ```bash
-composer dev   # → http://127.0.0.1:8080  (Ctrl+C to stop)
+composer run dev   # → http://127.0.0.1:8080  (Ctrl+C to stop)
 ```
 
-It works identically on **Windows, macOS, and Linux with zero PATH setup**. The
-launcher (`bin/dev`, run via Composer's own PHP) resolves the `frankenphp` binary
-to an **absolute path** and execs it directly, so you never add the FrankenPHP
-directory to `PATH`.
+**The first run downloads the FrankenPHP binary for you** (via the optional
+`waaseyaa/frankenphp` package, installed by default in the skeleton) — so there
+is nothing to download or place by hand. If the binary isn't present yet,
+`composer run dev` offers to fetch it; you can also do it up front:
+
+```bash
+php vendor/bin/waaseyaa frankenphp:install
+```
+
+It works identically on **Windows, macOS, and Linux with zero PATH setup**.
+`composer run dev` routes to the `waaseyaa dev` command via Composer's own PHP
+(`@php`), which resolves the `frankenphp` binary to an **absolute path** and execs
+it directly — you never add the FrankenPHP directory to `PATH`.
 
 > **Do NOT put the FrankenPHP directory on `PATH`.** The official Windows release
 > is a full PHP SDK that bundles its own `php.exe` with OpenSSL disabled — on
 > `PATH` it shadows your system PHP and breaks Composer (TLS to Packagist fails).
-> `composer dev` sidesteps this by calling `frankenphp` by absolute path.
+> `waaseyaa dev` sidesteps this entirely: it execs `frankenphp` by absolute path
+> and never invokes the bundled `php.exe`.
 
-**Binary resolution order:** `FRANKENPHP_BIN` (an absolute path) → a known install
-location (`%USERPROFILE%\.frankenphp\frankenphp.exe` on Windows; `/usr/local/bin`,
+**Binary resolution order:** `FRANKENPHP_BIN` (an absolute path) → the managed
+install from `frankenphp:install` (under `vendor/bin/`) → a known install location
+(`%USERPROFILE%\.frankenphp\frankenphp.exe` on Windows; `/usr/local/bin`,
 `/usr/bin`, `/opt/homebrew/bin`, `~/.frankenphp` on macOS/Linux) → `frankenphp` on
-`PATH`. If none resolve, `composer dev` prints exactly what to do. To point at a
-custom install:
+`PATH`. If none resolve, `composer run dev` prints exactly what to do (and offers
+to install). Override the listen address with `WAASEYAA_DEV_LISTEN`, or point at a
+custom binary:
 
 ```bash
 # POSIX
-FRANKENPHP_BIN=/opt/frankenphp/frankenphp composer dev
+FRANKENPHP_BIN=/opt/frankenphp/frankenphp composer run dev
 # Windows (PowerShell)
-$env:FRANKENPHP_BIN="C:\tools\frankenphp\frankenphp.exe"; composer dev
+$env:FRANKENPHP_BIN="C:\tools\frankenphp\frankenphp.exe"; composer run dev
 ```
 
 Classic mode uses FrankenPHP's built-in SQLite — **no `php.ini` hack needed**.

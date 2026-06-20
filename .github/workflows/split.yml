@@ -76,6 +76,7 @@ jobs:
           - { local: 'packages/graphql', remote: 'graphql' }
           # Layer 6: Interfaces
           - { local: 'packages/cli', remote: 'cli' }
+          - { local: 'packages/frankenphp', remote: 'frankenphp' }
           - { local: 'packages/genealogy', remote: 'genealogy' }
           - { local: 'packages/inertia', remote: 'inertia' }
           - { local: 'packages/mcp', remote: 'mcp' }
