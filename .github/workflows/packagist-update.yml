@@ -40,7 +40,7 @@ jobs:
       packages: ${{ steps.scan.outputs.packages }}
       tag: ${{ steps.target.outputs.tag }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Resolve target tag
         id: target
