@@ -33,7 +33,11 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' &&
        startsWith(github.event.workflow_run.head_branch, 'v'))
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Wider than the work itself takes: the Packagist-propagation gate below can
+    # legitimately wait several minutes for the slowest sibling crawl during a
+    # release window (its per-package budget is 30x60s, but realistically bounded
+    # by the single slowest crawl since siblings index concurrently).
+    timeout-minutes: 40
     steps:
       - name: Resolve target framework version
         id: target
@@ -69,39 +73,44 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - name: composer create-project waaseyaa/waaseyaa
-        run: |
-          composer create-project waaseyaa/waaseyaa smoke-app \
-            --stability=alpha --no-interaction --prefer-dist
-
-      - name: Wait for Packagist to index framework + siblings
+      # MUST run BEFORE composer create-project. create-project resolves the
+      # skeleton's FULL dependency graph in one shot: waaseyaa/waaseyaa ->
+      # waaseyaa/framework -> every waaseyaa/* sibling pinned to the EXACT tag
+      # (self.version). If ANY of those isn't crawled onto Packagist yet,
+      # composer fails opaquely ("found [many versions] but it does not match
+      # the constraint", without naming the culprit) and the whole smoke run
+      # dies before it ever reaches a wait/retry. The previous layout polled
+      # only framework + admin-surface AFTER create-project, so a lagging
+      # sibling (e.g. waaseyaa/access at a fresh release) sailed straight into a
+      # create-project resolution failure on every release — the persistent red
+      # this step fixes. Poll the SAME set packagist-update.yml verifies (the
+      # skeleton + the framework meta + every packages/*/composer.json sibling),
+      # breaking per package as soon as the tag is visible.
+      - name: Wait for Packagist to index skeleton + framework + all siblings
         env:
           CONSTRAINT: ${{ steps.target.outputs.constraint }}
         run: |
-          # composer require fails opaquely when ANY sibling waaseyaa/*
-          # package hasn't been indexed yet — the resolver lists tens of
-          # found versions but says "does not match the constraint", masking
-          # WHICH dep is the culprit. Poll the Packagist p2 endpoint for
-          # each first-party sibling (admin-surface has been the canary)
-          # so the smoke run has a clean go/no-go signal before invoking
-          # composer. Budget: 30 attempts × 60s = 30 minutes — wider than
-          # the previous 12-minute composer-retry loop because split
-          # packages can lag the framework's own crawl during release
-          # windows. p2 is a CDN GET; polling 7 packages is cheap.
           set -euo pipefail
           tag="v${CONSTRAINT}"
           # Discover all waaseyaa/* packages from the checked-out monorepo
-          # (matches packagist-update.yml's discover step so the two stay in lockstep).
+          # (matches packagist-update.yml's discover step so the two stay in
+          # lockstep), and prepend the skeleton + framework meta that
+          # create-project pulls first. The skeleton (waaseyaa/waaseyaa) lives in
+          # its own repo, synced + tagged in lockstep by the upstream "Sync
+          # Application Skeleton" run that triggered this smoke.
           pkgs=$(
+            echo "waaseyaa/waaseyaa"
+            echo "waaseyaa/framework"
             for f in framework/packages/*/composer.json; do
               jq -r '.name // empty' "$f"
             done
-            jq -r '.name // empty' framework/composer.json
           )
-          # Smoke-canary subset: framework + the packages most likely to lag
-          # (admin-surface historically; others can be added if they trip the gate).
-          canaries="waaseyaa/framework waaseyaa/admin-surface"
-          for pkg in $canaries; do
+          # p2 is a cheap CDN GET; break per package as soon as the tag is
+          # visible. Budget: 30 attempts x 60s per package, but realistically
+          # bounded by the single slowest crawl since siblings index
+          # concurrently — by the time an early package is visible the rest
+          # usually are too.
+          for pkg in $pkgs; do
             attempt=1
             max_attempts=30
             while true; do
@@ -122,6 +131,11 @@ jobs:
               sleep 60
             done
           done
+
+      - name: composer create-project waaseyaa/waaseyaa
+        run: |
+          composer create-project waaseyaa/waaseyaa smoke-app \
+            --stability=alpha --no-interaction --prefer-dist
 
       - name: Pin framework to ${{ steps.target.outputs.constraint }}
         working-directory: smoke-app
