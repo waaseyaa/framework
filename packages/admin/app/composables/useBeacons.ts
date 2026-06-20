@@ -21,7 +21,7 @@ export interface Beacon {
  * (next/prev) lets the user move within the trail; dismiss hides it.
  */
 export function useBeacons() {
-  const { messages, connected } = useRealtime()
+  const { messages, connected, sessionToken } = useRealtime()
 
   const trail: Ref<Beacon[]> = ref([])
   const activeIndex = ref(0)
@@ -75,5 +75,8 @@ export function useBeacons() {
     dismissed.value = true
   }
 
-  return { trail, active, activeIndex, visible, hasPrev, hasNext, connected, next, prev, dismiss }
+  // `sessionToken` is re-exposed so a presenter pairing UI can read THIS
+  // connection's session token (the beacon overlay consumer is the natural place
+  // for it to live) and hand it to a guiding agent / the emit endpoint.
+  return { trail, active, activeIndex, visible, hasPrev, hasNext, connected, sessionToken, next, prev, dismiss }
 }

@@ -332,7 +332,8 @@ Server-Sent Events connection for real-time entity updates.
 ```ts
 function useRealtime(channels?: string[]): {
   messages: Ref<BroadcastMessage[]>; connected: Ref<boolean>; error: Ref<string | null>
-  disconnect(): void; reconnect(): void
+  sessionToken: Ref<string | null>
+  connect(): void; disconnect(): void; reconnect(): void
 }
 interface BroadcastMessage {
   channel: string; event: string; data: Record<string, unknown>; timestamp: number
@@ -347,7 +348,8 @@ interface BroadcastMessage {
 - Auto-connects on instantiation; auto-disconnects on `onUnmounted`
 - Exponential backoff reconnect: delay = `min(3000 * 2^(retryCount-1), 30000)`, max 10 retries
 - Message buffer: last 100 messages (ring buffer via `slice(-99)`)
-- Event types: `entity.saved`, `entity.deleted` (used by SchemaList for auto-refresh)
+- Event types: `entity.saved`, `entity.deleted` (used by SchemaList for auto-refresh), `wayfinding.beacon` (consumed by `useBeacons`)
+- **Session pairing token (Wayfinding presenter pairing):** the `connected` SSE frame carries this connection's own non-secret `sessionToken` (`substr(sha256(session_id), 0, 32)`, server-derived). `useRealtime` captures it into the `sessionToken` ref (cleared on `disconnect`); `useBeacons` re-exposes it. A presenter-pairing UI / guiding agent reads it to target this exact session's beacon channel via `POST /api/wayfinding/beacons` — see [wayfinding.md](wayfinding.md). (alpha.234, mission `wayfinding-stress-remediation-01KVGK4Q`.)
 - Invariant: the SPA realtime client targets the canonical backend broadcast SSE endpoint and default admin channel; this contract is asserted in unit tests.
 
 ## Schema-Driven Forms

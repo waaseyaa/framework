@@ -123,4 +123,36 @@ describe('useRealtime', () => {
     expect(MockEventSource.instances).toHaveLength(1)
     expect(MockEventSource.instances[0].url).toBe(`${REALTIME_ENDPOINT_PATH}?channels=${DEFAULT_REALTIME_CHANNELS[0]}`)
   })
+
+  // P0-2 (wayfinding-stress-remediation-01KVGK4Q): the admin client must expose
+  // its own session pairing token so a presenter can target this exact session.
+  it('exposes the session pairing token from the connected frame', () => {
+    const { sessionToken } = useRealtime(['admin'])
+    const es = MockEventSource.instances[0]
+
+    es.emitOpen()
+    expect(sessionToken.value).toBeNull()
+
+    es.emitNamed('connected', { channels: ['admin', 'session:abc123'], sessionToken: 'abc123' })
+    expect(sessionToken.value).toBe('abc123')
+  })
+
+  it('leaves the session token null when the connected frame omits it', () => {
+    const { sessionToken } = useRealtime(['admin'])
+    const es = MockEventSource.instances[0]
+
+    es.emitNamed('connected', { channels: ['admin'] })
+    expect(sessionToken.value).toBeNull()
+  })
+
+  it('clears the session token on disconnect', () => {
+    const realtime = useRealtime(['admin'])
+    const es = MockEventSource.instances[0]
+
+    es.emitNamed('connected', { channels: ['admin', 'session:abc123'], sessionToken: 'abc123' })
+    expect(realtime.sessionToken.value).toBe('abc123')
+
+    realtime.disconnect()
+    expect(realtime.sessionToken.value).toBeNull()
+  })
 })
