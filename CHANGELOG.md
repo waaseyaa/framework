@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.236] - 2026-06-20
+
 ### Fixed
 
 - **`waaseyaa migrate` (and `migrate:rollback` / `migrate:status`) work again in consumer apps.** The `migrate*` commands resolved their handlers (`MigrateHandler` / `MigrateRollbackHandler` / `MigrateStatusHandler`) from the console handler container by class name, but those handlers are not container auto-wirable: `Migrator`'s first constructor parameter is a raw `Doctrine\DBAL\Connection` (auto-wiring fails with *"unresolvable parameter $params"*) and each handler additionally requires a `\Closure` migrations provider (a closure can never be reflection-constructed). So every `waaseyaa migrate` invocation in a fresh skeleton / consumer app died at command time — surfaced once the Skeleton Smoke's `composer create-project` step stopped failing first (see below). `MigrateServiceProvider` now binds the three handlers explicitly with a lazily-built migration runtime (DBAL connection + `MigrationRepository` + `MigrationLoader`), mirroring how `db:init` and `AbstractKernel::bootMigrations()` construct it; the database is opened only when a migrate* command actually runs. `migrate`, `migrate --dry-run`, `migrate --verify`, and `migrate:status` are verified working in a real consumer app. Regression guard: `MigrateServiceProviderTest` asserts the handlers are bound (never left to auto-wiring).
