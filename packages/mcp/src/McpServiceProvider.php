@@ -88,15 +88,17 @@ final class McpServiceProvider extends ServiceProvider
         // Authenticated MCP write tier (FR-004) — a SEPARATE endpoint from the
         // public read-only `/mcp`, so the alpha.221 trio is untouched (C-001).
         //
-        // WriteTierAuthInterface default: BearerTokenAuth with an empty token map,
-        // so every `/mcp/write` request fails closed (HTTP 401) until a deployment
-        // re-binds it with its token→account map (accounts holding the configured
-        // write capability). Token→account mapping is application-specific.
-        $this->singleton(
-            WriteTierAuthInterface::class,
-            static fn(): WriteTierAuthInterface => new BearerTokenAuth([]),
-        );
-
+        // The write-tier auth is the documented app override point
+        // (`WriteTierAuthInterface`, `docs/public-surface-map.php`). It is
+        // resolved per-request by resolveWriteTierAuth() below and is
+        // deliberately NOT bound to a package default HERE: binding a default in
+        // this provider shadows an app override, because ServiceProvider::resolve()
+        // consults the provider's OWN bindings before the cross-provider
+        // kernel-services bus. That shadowing was the alpha.233 stress-test
+        // blocker P0-1 — an app could bind WriteTierAuthInterface but `/mcp/write`
+        // still used the empty-token default and always 401'd. See
+        // kitty-specs/wayfinding-stress-remediation-01KVGK4Q/spec.md
+        // ("The P0-1 precedence decision").
         $this->singleton(
             AuthenticatedMcpEndpoint::class,
             function (): AuthenticatedMcpEndpoint {
@@ -114,7 +116,7 @@ final class McpServiceProvider extends ServiceProvider
                 );
 
                 $inner = new McpEndpoint(
-                    auth: $this->resolve(WriteTierAuthInterface::class),
+                    auth: $this->resolveWriteTierAuth(),
                     agentRegistry: $writeRegistry,
                     dispatcher: $dispatcher instanceof EventDispatcherInterface ? $dispatcher : null,
                     accountContext: $accountContext instanceof AccountContextInterface ? $accountContext : null,
@@ -156,6 +158,27 @@ final class McpServiceProvider extends ServiceProvider
     public function routes(WaaseyaaRouter $router, EntityTypeManagerInterface $entityTypeManager): void
     {
         new McpRouteProvider()->registerRoutes($router);
+    }
+
+    /**
+     * Resolve the authenticated write-tier auth, preferring an application
+     * override and failing closed otherwise (FR-001/FR-003, P0-1).
+     *
+     * An application binds `WriteTierAuthInterface` in its OWN service provider
+     * (e.g. `BearerTokenAuth` mapping a token to an account holding the
+     * `present guided content` capability). `resolveOptional()` falls through
+     * this provider's (deliberately empty) local bindings to the cross-provider
+     * kernel-services bus, so the app binding is what reaches the write tier —
+     * it is no longer shadowed by a package default. When no provider supplies
+     * one, this fails closed with an empty-token `BearerTokenAuth`, so every
+     * `/mcp/write` request is HTTP 401: the framework ships no usable default
+     * credential (token→account mapping is inherently application-specific).
+     */
+    private function resolveWriteTierAuth(): WriteTierAuthInterface
+    {
+        $auth = $this->resolveOptional(WriteTierAuthInterface::class);
+
+        return $auth instanceof WriteTierAuthInterface ? $auth : new BearerTokenAuth([]);
     }
 
     /**

@@ -97,7 +97,18 @@ final class DbInitHandler
                 $io->writeln(sprintf('Ran %d %s.', $result->count, $label));
             }
 
-            if ((bool) $io->option('sync-schema')) {
+            // Schema sync runs BY DEFAULT so a fresh db:init fully provisions
+            // every registered entity type's storage — including two-axis
+            // (revisionable × translatable) revision/translation tables like
+            // `wayfinding_trail__translation__revision` — not just the
+            // migration-defined tables. `--no-sync-schema` opts out for a
+            // migrations-only run; `--sync-schema` is still accepted (now a
+            // redundant explicit affirmation) so existing `db:init --sync-schema`
+            // invocations keep working. Before this default, a fresh db:init
+            // created no entity-storage tables at all and the saved-trail tables
+            // needed a manual `schema:sync` / `revisions:enable` step (P0-3,
+            // mission wayfinding-stress-remediation-01KVGK4Q).
+            if (!(bool) $io->option('no-sync-schema')) {
                 $this->syncSchema($io);
             }
 
@@ -113,30 +124,52 @@ final class DbInitHandler
      *
      * Boots a console kernel so all service-provider and app-defined entity
      * types are registered, then runs the hardened schema sync against the
-     * just-migrated database. This is the deploy-time complement to the
-     * `schema:sync` command: one `db:init --sync-schema` brings a fresh
-     * database fully up — migrations plus every registered entity's schema.
+     * just-migrated database — including the two-axis (revisionable ×
+     * translatable) revision/translation tables. Runs by default (opt out with
+     * `--no-sync-schema`): one `db:init` brings a fresh database fully up —
+     * migrations PLUS every registered entity's schema — so app entity types
+     * (e.g. the saved-trail `wayfinding_trail`) need no separate `schema:sync`
+     * or manual `revisions:enable` step. The schema-sync kernel's DB connection
+     * is closed before returning so it never holds a lock on the new file.
      */
     private function syncSchema(SymfonyCommandIO $io): void
     {
         $kernel = new ConsoleKernel($this->projectRoot);
         $kernel->bootForCli();
 
+        // Trigger the (lazy) kernel boot and capture the services BEFORE the
+        // try/finally. If the boot fails (e.g. a project with no registered
+        // content types), the exception propagates cleanly here — the finally
+        // must NOT re-call a kernel accessor, or it would re-trigger the boot and
+        // mask the real error.
         $entityTypeManager = $kernel->getEntityTypeManager();
-        $runner = new EntitySchemaSyncRunner(
-            $kernel->getDatabase(),
-            $entityTypeManager->getFieldRegistry(),
-        );
-        $report = $runner->run($entityTypeManager->getDefinitions());
+        $database = $kernel->getDatabase();
 
-        if ($report->created === []) {
-            $io->writeln(sprintf('Schema sync: all %d registered entity table(s) already exist.', $report->total()));
-            return;
-        }
+        try {
+            $runner = new EntitySchemaSyncRunner(
+                $database,
+                $entityTypeManager->getFieldRegistry(),
+            );
+            $report = $runner->run($entityTypeManager->getDefinitions());
 
-        $io->writeln(sprintf('Schema sync: created %d table(s):', count($report->created)));
-        foreach ($report->created as $table) {
-            $io->writeln(sprintf('  + %s', $table));
+            if ($report->created === []) {
+                $io->writeln(sprintf('Schema sync: all %d registered entity table(s) already exist.', $report->total()));
+            } else {
+                $io->writeln(sprintf('Schema sync: created %d table(s):', count($report->created)));
+                foreach ($report->created as $table) {
+                    $io->writeln(sprintf('  + %s', $table));
+                }
+            }
+        } finally {
+            // Release the schema-sync kernel's DB connection (captured above, so
+            // this never re-triggers the boot). db:init boots a second kernel
+            // only to enumerate entity types; leaving its connection open holds a
+            // file lock on the just-created SQLite file (breaks redeploys/cleanup
+            // on Windows, where an open handle blocks unlink). The migration
+            // flow's own connection is a separate, GC-released local.
+            if ($database instanceof DBALDatabase) {
+                $database->getConnection()->close();
+            }
         }
     }
 

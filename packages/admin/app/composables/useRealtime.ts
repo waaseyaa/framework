@@ -21,6 +21,11 @@ export function useRealtime(channels: string[] = [...DEFAULT_REALTIME_CHANNELS],
   const messages: Ref<BroadcastMessage[]> = ref([])
   const connected = ref(false)
   const error = ref<string | null>(null)
+  // The non-secret per-session pairing token from the server's `connected` SSE
+  // frame (server derives it as substr(sha256(session_id), 0, 32)). Surfacing it
+  // is what lets a presenter target THIS viewer's session for a Wayfinding live
+  // trail (Phase 2 / FR-004) — the server already isolates delivery by token.
+  const sessionToken = ref<string | null>(null)
 
   let eventSource: EventSource | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -35,6 +40,19 @@ export function useRealtime(channels: string[] = [...DEFAULT_REALTIME_CHANNELS],
       messages.value = [...messages.value.slice(-99), msg]
     } catch (e) {
       console.warn('[Waaseyaa] Failed to parse SSE message:', raw)
+    }
+  }
+
+  // Capture the per-session pairing token from the `connected` frame, whose
+  // payload is `{ channels, sessionToken }` (not a BroadcastMessage envelope).
+  function captureSessionToken(raw: string) {
+    if (!raw || raw.trim() === '') return
+
+    try {
+      const payload = JSON.parse(raw) as { sessionToken?: unknown }
+      sessionToken.value = typeof payload.sessionToken === 'string' ? payload.sessionToken : null
+    } catch {
+      // appendMessage already warns on malformed payloads; nothing to surface.
     }
   }
 
@@ -55,8 +73,12 @@ export function useRealtime(channels: string[] = [...DEFAULT_REALTIME_CHANNELS],
       appendMessage(event.data)
     }
 
-    // Server uses named SSE events.
-    eventSource.addEventListener('connected', (event: MessageEvent) => appendMessage(event.data))
+    // Server uses named SSE events. The `connected` frame additionally carries
+    // this connection's own session pairing token — capture it for presenters.
+    eventSource.addEventListener('connected', (event: MessageEvent) => {
+      captureSessionToken(event.data)
+      appendMessage(event.data)
+    })
     eventSource.addEventListener('entity.saved', (event: MessageEvent) => appendMessage(event.data))
     eventSource.addEventListener('entity.deleted', (event: MessageEvent) => appendMessage(event.data))
     // Wayfinding beacons arrive on this connection's own (server-derived) session
@@ -100,6 +122,7 @@ export function useRealtime(channels: string[] = [...DEFAULT_REALTIME_CHANNELS],
     eventSource?.close()
     eventSource = null
     connected.value = false
+    sessionToken.value = null
   }
 
   function reconnect() {
@@ -113,5 +136,5 @@ export function useRealtime(channels: string[] = [...DEFAULT_REALTIME_CHANNELS],
   }
   onUnmounted(disconnect)
 
-  return { messages, connected, error, connect, disconnect, reconnect }
+  return { messages, connected, error, sessionToken, connect, disconnect, reconnect }
 }

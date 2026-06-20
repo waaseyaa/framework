@@ -75,6 +75,17 @@ is touched and no row is rewritten. The sync runs at kernel boot / `db:init`
 Pre-existing rows keep SQL NULL and read back a `null` author with zero
 migration.
 
+**`db:init` provisions two-axis schema by default (alpha.234, mission
+`wayfinding-stress-remediation-01KVGK4Q`).** `db:init` now runs `EntitySchemaSync`
+**by default** (opt out with `--no-sync-schema`), so a fresh `db:init` materializes
+every registered entity type's full schema — including the two-axis
+`<id>_revision` and `<id>__translation__revision` tables — not just
+migration-defined tables. Previously schema sync was opt-in (`--sync-schema`), so a
+fresh `db:init` created none of the entity-storage tables and a two-axis type like
+the saved-trail `wayfinding_trail` needed a manual `schema:sync` /
+`revisions:enable wayfinding_trail` step. `schema:sync` (the same runner) was and
+remains correct; only `db:init`'s default changed.
+
 ## 3. Save contract
 
 `EntityRepository::save($entity, SaveContext $ctx)` — `SaveContext` already

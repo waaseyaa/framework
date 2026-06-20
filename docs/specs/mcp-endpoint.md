@@ -840,14 +840,29 @@ All JSON-RPC dispatch (auth, per-request bridge, capability gating, the
 
 ### Auth: `WriteTierAuthInterface`
 
-`McpServiceProvider` binds `WriteTierAuthInterface` (a marker extending
-`McpAuthInterface`) to `BearerTokenAuth([])` by default — an **empty token map**,
-so every `/mcp/write` request fails closed with HTTP 401 until a deployment
-re-binds it with its `token → AccountInterface` map (accounts holding the write
-capability). Token→account mapping is application-specific. The marker keeps the
-write-tier credential binding **distinct** from the public `McpAuthInterface`
-(=`PublicAnonymousAuth`) binding, so the two surfaces configure independently and
-the public read tier is never affected.
+`WriteTierAuthInterface` (a marker extending `McpAuthInterface`) is the
+**application override point** for write-tier credentials. An app binds it in its
+OWN service provider to a `BearerTokenAuth` mapping `token → AccountInterface`
+(accounts holding the write capability); token→account mapping is
+application-specific. The marker keeps the write-tier credential binding
+**distinct** from the public `McpAuthInterface` (=`PublicAnonymousAuth`) binding,
+so the two surfaces configure independently and the public read tier is never
+affected.
+
+**Resolution precedence (alpha.234, mission `wayfinding-stress-remediation-01KVGK4Q`).**
+`McpServiceProvider` deliberately does **not** bind a package default for
+`WriteTierAuthInterface`. Instead, the `AuthenticatedMcpEndpoint` binding resolves
+it per-request via `resolveWriteTierAuth()`, which goes through the **cross-provider
+kernel-services bus** (`resolveOptional`) and falls back to a fail-closed
+`BearerTokenAuth([])` (empty token map → HTTP 401) only when no provider supplies
+one. This is the fix for the alpha.233 stress-test blocker: when the package bound
+its own default, `ServiceProvider::resolve()`'s own-bindings-first lookup made that
+default **shadow** an app override, so `/mcp/write` always 401'd regardless of what
+the app bound. Removing the package binding makes the app's binding the one the bus
+returns. The blast radius is confined to the write-tier auth path — no global
+binding-precedence change (the public read tier and every other binding are
+untouched). When no app binds it, the behaviour is unchanged: every `/mcp/write`
+request fails closed with HTTP 401.
 
 ### Registry: `CapabilityScopedToolRegistry`
 
@@ -883,6 +898,6 @@ packages/mcp/src/AuthenticatedMcpEndpoint.php
 packages/mcp/src/CapabilityScopedToolRegistry.php
 packages/mcp/src/Auth/WriteTierAuthInterface.php
 packages/mcp/src/McpRouteProvider.php          (adds /mcp/write)
-packages/mcp/src/McpServiceProvider.php         (write-tier bindings)
+packages/mcp/src/McpServiceProvider.php         (write-tier wiring; resolveWriteTierAuth app-override seam)
 packages/mcp/src/Auth/BearerTokenAuth.php       (implements WriteTierAuthInterface)
 ```

@@ -86,10 +86,16 @@ any `session:*` from `?channels=` and auto-subscribes each connection to its OWN
 channel `session:<token>`, where `token = substr(sha256(session_id), 0, 32)` is
 derived **server-side** from the connection's PHP session id. The non-secret token
 is returned in the SSE `connected` frame (`sessionToken`) so an authorized
-presenter can address that session without ever learning its raw session id. Net:
-a client can only ever receive its own session's beacons regardless of what it
-requests — `BroadcastRouter::resolveSubscriberChannels()` is pure and unit-tested
-for this isolation contract.
+presenter can address that session without ever learning its raw session id. The
+admin client surfaces it: `useRealtime()` captures the token from the `connected`
+frame and returns it as a `sessionToken` ref (re-exposed by `useBeacons()`), so a
+presenter-pairing UI / guiding agent can read this connection's own token and hand
+it to the emit endpoint (alpha.234, mission `wayfinding-stress-remediation-01KVGK4Q`;
+before this the client received the frame but dropped the token, so no presenter
+could target a viewer's session). Net: a client can only ever receive its own
+session's beacons regardless of what it requests —
+`BroadcastRouter::resolveSubscriberChannels()` is pure and unit-tested for this
+isolation contract.
 
 ### Emit endpoint (`EmitBeaconController`, wayfinding L4)
 

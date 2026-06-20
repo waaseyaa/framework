@@ -57,7 +57,7 @@ final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements
 
         yield new HandlerCommand(
             name: 'db:init',
-            description: 'Initialize the database on first deploy and apply pending migrations.',
+            description: 'Initialize the database on first deploy: apply pending migrations and materialize every registered entity type\'s schema.',
             options: [
                 new HandlerOption(
                     name: 'dry-run',
@@ -67,7 +67,12 @@ final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements
                 new HandlerOption(
                     name: 'sync-schema',
                     mode: HandlerOptionMode::None,
-                    description: 'After migrations, materialize tables for every registered entity type (idempotent). Closes the app-entity persistence gap.',
+                    description: 'Deprecated/redundant: schema sync now runs by default. Accepted for back-compat with existing invocations.',
+                ),
+                new HandlerOption(
+                    name: 'no-sync-schema',
+                    mode: HandlerOptionMode::None,
+                    description: 'Skip entity-schema materialization and run migrations only. Use when you want a migrations-only db:init.',
                 ),
             ],
             handler: \Closure::fromCallable([$dbInitHandler, 'execute']),

@@ -13,7 +13,8 @@ vi.mock('~/composables/useRealtime', () => {
   const { ref } = require('vue') as typeof import('vue')
   const messages = ref<unknown[]>([])
   const connected = ref(true)
-  return { useRealtime: () => ({ messages, connected }), __messages: messages }
+  const sessionToken = ref<string | null>('session-abc')
+  return { useRealtime: () => ({ messages, connected, sessionToken }), __messages: messages }
 })
 
 const messages = (realtimeModule as unknown as { __messages: { value: unknown[] } }).__messages
@@ -77,6 +78,13 @@ describe('useBeacons', () => {
     expect(api.active.value?.content).toBe('one')
     api.prev() // at start — no-op
     expect(api.activeIndex.value).toBe(0)
+  })
+
+  // P0-2 (wayfinding-stress-remediation-01KVGK4Q): the beacon consumer re-exposes
+  // the connection's own session token so a presenter pairing UI can read it.
+  it('re-exposes the connection session token for presenter pairing', () => {
+    const api = mountBeacons()
+    expect(api.sessionToken.value).toBe('session-abc')
   })
 
   it('dismiss hides the overlay; a new beacon re-shows it', async () => {
