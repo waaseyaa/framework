@@ -1,5 +1,6 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-06-20 - list-view column policy (UX-1, mission admin-list-column-policy-01KVH8MT): SchemaList no longer dumps full long-text / rich-text bodies into table columns. `columns` now applies a framework-wide policy: rich-text / text-format fields (x-widget 'richtext', from the 'text_long' field type) are dropped from the DEFAULT column set entirely (they stay on SchemaView/SchemaForm, which select fields independently); an explicit `x-list-display:true` opt-in still wins. Every text cell is collapsed to one line and truncated to a 120-char snippet (truncateSnippet) regardless of widget, and a CSS max-width on `.entity-table td:not(.actions)` bounds column width as defense-in-depth. New subsection "List-View Column Policy" under Schema-Driven Forms. Acceptance: SchemaListColumnPolicy.test.ts. Dist rebuilt (freshness gate). No public admin surface contract change. -->
 <!-- Spec reviewed 2026-06-19 - Wayfinding Phase 3 (mission wayfinding-01KVGH5X): the flagship beacon overlay. New global component app/components/wayfinding/WayfindingOverlay.vue mounted in app.vue as a persistent sibling of the layout. New composable app/composables/useBeacons.ts builds a live trail from `wayfinding.beacon` SSE events (delivered on this connection's own per-session channel from Phase 2) — useRealtime.ts now also listens for the 'wayfinding.beacon' event. The overlay renders the active beacon as an aria-live role="status" region (built on the alpha.226 busy-region primitive): fully keyboard-navigable (←/→ or ↑/↓ move, Esc dismisses; nav buttons reuse t('previous'/'next'/'dismiss')), it spotlights the declared data-anchor element (adds a global .wf-anchored outline ring, scrolls it into view, and moves focus to it WITHOUT trapping — non-focusable anchors get a transient tabindex=-1), is dismissable at any time (a new beacon re-shows a dismissed overlay), and honours prefers-reduced-motion (no transitions / instant scroll). No new i18n keys; no public admin surface contract change. The overlay ships in the prebuilt bundle (dist rebuilt; freshness gate + served-bundle 'wf-beacon' assertion). -->
 <!-- Spec reviewed 2026-06-19 - admin CRUD correctness + Wayfinding Phase-1 groundwork (missions admin-crud-correctness-01KVGEPD, wayfinding-01KVGH5X). (1) Delete UX: a failed delete in SchemaList no longer blanks the table with a misleading list-level error — `deleteError` is now a separate ref from `listError`, rendered as a non-blocking inline notice (`.error--inline`, role="alert") ABOVE the table and framed as a delete failure (t('error_deleting') + detail) rather than echoing the raw backend title. (The coupled backend fix — GenericAdminSurfaceHost::handleDelete resolving by UUID like get() so the SPA's UUID-keyed delete actually persists — lives in packages/admin-surface, see docs/specs/access-control.md-adjacent host behavior.) (2) Wayfinding Phase-1 anchor groundwork: SchemaList/SchemaView/SchemaForm emit stable, inert `data-anchor` IDs derived from schema field identity — see the new "Element anchors" subsection under Schema-Driven Forms. No public admin surface contract change. -->
 <!-- Spec reviewed 2026-06-19 - entity-editor open feedback (clicking a list "Edit" was a silent ~6s wait): app.vue adds a route-level <NuxtLoadingIndicator> for immediate navigation feedback; SchemaList's Edit link goes aria-busy + disabled with an "Opening…" label the instant it's activated and swallows repeat-activation (no double-navigation); SchemaView/SchemaForm now render one accessible busy region (role="status", aria-busy) spanning the WHOLE load instead of going blank in the gap between the schema and entity fetches. Latency reduction: SchemaView/SchemaForm fetch schema + entity CONCURRENTLY (Promise.allSettled) rather than sequentially, and AdminSurfaceTransportAdapter.get() now dedupes concurrent identical in-flight GETs (in-flight only, cleared on settle — no persistent cache, so a read after a save still hits the server) so the viewer and the <WorkflowTransitionHistoryTimeline> widget share a single entity read instead of issuing duplicate GETs. New i18n key `opening` (en/fr). Public admin surface contract unchanged. -->
@@ -360,6 +361,38 @@ The form rendering pipeline:
 2. `sortedProperties(true)` returns editable fields sorted by `x-weight`
 3. For each field, `SchemaField` resolves the widget component from `x-widget`
 4. Each widget receives `modelValue`, `label`, `description`, `required`, `disabled`, `schema`
+
+### List-View Column Policy (`packages/admin/app/components/schema/SchemaList.vue`)
+
+The list table (`SchemaList`) is schema-driven: by default it renders the first six
+non-hidden fields as columns. Without a bound, a content type with a long-text /
+rich-text body (the `text` / `text_long` field types) dumps the whole body into a
+cell, blowing out row height and making the list nearly unusable (UX-1). The
+column policy bounds the table framework-wide for every content type:
+
+- **Rich-text / text-format columns are dropped from the default set.** Fields
+  with `x-widget: 'richtext'` (from the `text_long` field type) are excluded from
+  the default `columns`. They are **not** removed from the data — `SchemaView`
+  (detail) and `SchemaForm` (edit) select their own fields via
+  `sortedProperties()` and are unaffected, so the body stays fully viewable and
+  editable.
+- **An explicit `x-list-display: true` opt-in still wins.** When any field
+  declares it, exactly those fields are the columns (the author chose them) —
+  including a rich-text field if they opt it back in. Cells are still truncated.
+- **Every text cell is truncated to a snippet.** `formatCellValue` routes string
+  values through `truncateSnippet`, which collapses internal whitespace/newlines
+  to one line and caps the length at `SNIPPET_MAX_CHARS` (120) with an ellipsis.
+  This bounds a long plain-text field (`x-widget: 'textarea'`) that remains a
+  column, and any opted-in rich-text column. Boolean (`✓`/`—`) and `date-time`
+  cells are already short and return before truncation.
+- **CSS defense-in-depth.** `.entity-table td:not(.actions)` carries a `max-width`
+  with `overflow: hidden; text-overflow: ellipsis` so column width stays bounded
+  even if a value ever slips past `truncateSnippet`; the actions column is exempt
+  so its buttons stay on one line.
+
+Acceptance: `tests/components/schema/SchemaListColumnPolicy.test.ts` proves a
+long-text/rich-text content type renders bounded columns — the rich-text column
+is absent and the long-text cell is a truncated snippet, never the full body.
 
 ### Element anchors (Wayfinding Phase-1 groundwork)
 
