@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.235] - 2026-06-20
+
 ### Fixed
 
 - **Admin list tables no longer dump full long-text / rich-text bodies into a column (UX-1).** The schema-driven `SchemaList` rendered every non-hidden field as an unbounded table column, so a content type with a `text` / `text_long` body field (e.g. `story`) blew out row height and made the list nearly unusable. `SchemaList` now applies a framework-wide **list-view column policy**: rich-text / text-format fields (`x-widget: 'richtext'`, from the `text_long` field type) are excluded from the **default** column set entirely — they remain on the detail (`SchemaView`) and edit (`SchemaForm`) views, which select their own fields via `sortedProperties()` independently of these columns, so the body stays fully viewable and editable — and every remaining text cell is collapsed to one line and truncated to a 120-char snippet (`truncateSnippet`) so a long plain-text field (`x-widget: 'textarea'`) that stays a column is still bounded. An explicit `x-list-display: true` opt-in still wins (the author chose those columns) but its cells are snippet-truncated too; a CSS `max-width` on `.entity-table td:not(.actions)` bounds column width as defense-in-depth. The prebuilt admin bundle was rebuilt (dist-freshness gate). Acceptance: `SchemaListColumnPolicy.test.ts` (admin) proves a long-text/rich-text content type renders bounded columns — the rich-text column is absent and the long-text cell is a truncated snippet, never the full body. Mission: `admin-list-column-policy-01KVH8MT`.
