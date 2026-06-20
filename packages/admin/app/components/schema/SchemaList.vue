@@ -57,12 +57,29 @@ const bundleOptions = computed<string[] | null>(() => {
   return values && values.length > 0 ? values : null
 })
 
-// Visible columns: prefer fields with x-list-display:true; fall back to first 6
-// non-hidden fields when no schema field declares x-list-display.
+// List-view column policy (UX-1). Long-text / rich-text bodies must never be
+// dumped into a table cell (it blows out row height and makes the list
+// unusable). Two complementary rules, framework-wide for every content type:
+//   1. Rich-text / text-format fields (x-widget 'richtext', from the 'text_long'
+//      field type) are DROPPED from the default column set entirely — they stay
+//      on the detail (SchemaView) and edit (SchemaForm) views, which select
+//      their own fields independently of these columns.
+//   2. Every cell value is collapsed to one line and truncated to a snippet
+//      (see truncateSnippet) so a long plain-text body (x-widget 'textarea')
+//      that remains a column is still bounded.
+const LIST_EXCLUDED_WIDGETS = new Set(['richtext'])
+const SNIPPET_MAX_CHARS = 120
+
+// Visible columns: an explicit x-list-display:true opt-in wins (the author chose
+// exactly these columns — cell values are still snippet-truncated below).
+// Otherwise the default policy drops rich-text/text-format columns and takes the
+// first 6 of what remains.
 const columns = computed(() => {
   const all = sortedProperties(false).filter(([, prop]) => prop['x-widget'] !== 'hidden')
   const explicit = all.filter(([, prop]) => prop['x-list-display'] === true)
-  return explicit.length > 0 ? explicit : all.slice(0, 6)
+  if (explicit.length > 0) return explicit
+  const listable = all.filter(([, prop]) => !LIST_EXCLUDED_WIDGETS.has(prop['x-widget'] as string))
+  return listable.slice(0, 6)
 })
 
 async function fetchEntities() {
@@ -168,7 +185,18 @@ function formatCellValue(value: unknown, fieldSchema: Record<string, unknown>): 
     }
   }
 
-  return String(value)
+  return truncateSnippet(String(value))
+}
+
+// Collapse internal whitespace/newlines so a multi-line body renders as a single
+// line, then cap the length with an ellipsis. Bounds every text cell regardless
+// of the underlying field size — the table-column half of the UX-1 policy (the
+// other half is excluding rich-text widgets from `columns`).
+function truncateSnippet(value: string): string {
+  const oneLine = value.replace(/\s+/g, ' ').trim()
+  return oneLine.length > SNIPPET_MAX_CHARS
+    ? oneLine.slice(0, SNIPPET_MAX_CHARS).trimEnd() + '…'
+    : oneLine
 }
 
 function getEntityLabel(entity: JsonApiResource): string {
@@ -308,5 +336,15 @@ watch(messages, (msgs) => {
    than replacing the whole list like a load error. */
 .error--inline {
   margin-bottom: 12px;
+}
+
+/* Bound every data column so a long value can never stretch a row, even if one
+   ever slips past the snippet truncation (UX-1 defense-in-depth). The actions
+   column is exempt so its buttons stay on one line. */
+.entity-table td:not(.actions) {
+  max-width: 28rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

@@ -1,0 +1,18 @@
+{
+  "coordination_branch": "admin-list-column-policy-01KVH8MT",
+  "created_at": "2026-06-20T00:00:00.000000+00:00",
+  "friendly_name": "admin-list-column-policy",
+  "is_flagship": false,
+  "mission_id": "01KVH8MT4R2P7QF9D3B6C0NXEZ",
+  "mission_number": null,
+  "mission_slug": "admin-list-column-policy-01KVH8MT",
+  "mission_type": "software-dev",
+  "parent_mission": "wayfinding-stress-remediation-01KVGK4Q",
+  "purpose_context": "UX-1, routed out of wayfinding-stress-remediation-01KVGK4Q: admin SPA list tables (SchemaList) dump full long-text/rich-text bodies as unbounded columns, making /admin/<type> tables nearly unusable. Gives SchemaList a framework-wide list-view column policy: exclude rich-text/text-format (x-widget richtext) from default columns and snippet-truncate every text cell; honor explicit x-list-display opt-in; CSS max-width defense-in-depth. Finish-and-ship in alpha.235.",
+  "purpose_tldr": "admin list-view column policy (bounded columns)",
+  "roadmap_priority": "ux-fix",
+  "status": "shipping (alpha.235)",
+  "acceptance": "packages/admin/tests/components/schema/SchemaListColumnPolicy.test.ts (bounded columns: rich-text excluded, long-text truncated, opt-in honored)",
+  "slug": "admin-list-column-policy-01KVH8MT",
+  "target_branch": "main"
+}
