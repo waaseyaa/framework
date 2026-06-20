@@ -1,18 +1,23 @@
 name: Publish to Packagist
 
-# Auto-fires on every release tag and triggers a Packagist crawl for every
-# `waaseyaa/*` package (monorepo + 67 split packages, discovered dynamically
-# from `packages/*/composer.json` so the matrix can't drift like
-# split.yml did historically).
+# Verifies every `waaseyaa/*` package (monorepo + split packages, discovered
+# dynamically from `packages/*/composer.json` so the matrix can't drift) is
+# published to Packagist after a release tag.
 #
-# Two jobs:
-#   - update: hits Packagist's update-package API per package
-#   - verify: polls the p2 endpoint until the just-cut tag is visible
+# Crawling is done by Packagist's GitHub auto-update webhooks installed on the
+# monorepo and each split repo (they fire on the tag push / split push). This
+# workflow used to ALSO POST the update-package API per package, which
+# double-crawled every package per release (webhook + API) — the redundant
+# "publishes twice" behaviour. The update job was removed; this workflow now
+# only VERIFIES the webhook-driven result.
 #
-# `verify` will stay red until the Packagist-side outage that surfaced
-# 2026-04-15 is resolved (Packagist accepts 202 jobs but does not crawl).
-# That's the intended signal — when Packagist is healthy, this workflow
-# turns green automatically and the whole release pipeline self-reports.
+# Jobs:
+#   - discover: enumerate waaseyaa/* package names
+#   - verify: poll the p2 endpoint until the just-cut tag is visible per package
+#
+# `verify` will stay red if Packagist's crawl is stalled (e.g. the 2026-04-15
+# outage where it accepts jobs but does not crawl). That's the intended signal —
+# when Packagist is healthy this turns green automatically.
 
 on:
   push:
@@ -86,45 +91,8 @@ jobs:
           json=$(jq -R -s -c 'split("\n") | map(select(length > 0))' /tmp/pkgs.txt)
           echo "packages=$json" >> "$GITHUB_OUTPUT"
 
-  update:
-    needs: discover
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      max-parallel: 6
-      matrix:
-        package: ${{ fromJSON(needs.discover.outputs.packages) }}
-    steps:
-      - name: Trigger Packagist crawl for ${{ matrix.package }}
-        env:
-          PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}
-          PACKAGIST_USERNAME: jonesrussell
-          PACKAGE: ${{ matrix.package }}
-        run: |
-          if [[ -z "$PACKAGIST_TOKEN" ]]; then
-            echo "::error::PACKAGIST_TOKEN secret is not set"
-            exit 1
-          fi
-          repo_url="https://github.com/${PACKAGE}"
-          response=$(curl -s -o /tmp/body.json -w "%{http_code}" -X POST \
-            -H "Content-Type: application/json" \
-            -d "{\"repository\":{\"url\":\"${repo_url}\"}}" \
-            "https://packagist.org/api/update-package?username=${PACKAGIST_USERNAME}&apiToken=${PACKAGIST_TOKEN}")
-          echo "HTTP $response for $PACKAGE"
-          cat /tmp/body.json
-          echo
-          if [[ "$response" != "202" ]]; then
-            echo "::error::Packagist refused update for $PACKAGE (HTTP $response)"
-            exit 1
-          fi
-          status=$(jq -r '.status // "unknown"' /tmp/body.json 2>/dev/null || echo "unparseable")
-          if [[ "$status" != "success" ]]; then
-            echo "::error::Packagist update for $PACKAGE returned status: $status"
-            exit 1
-          fi
-
   verify:
-    needs: [discover, update]
+    needs: [discover]
     if: always() && needs.discover.result == 'success'
     runs-on: ubuntu-latest
     strategy:
