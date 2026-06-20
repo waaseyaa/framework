@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.237] - 2026-06-20
+
 ### Added
 
 - **`waaseyaa/frankenphp` — an optional FrankenPHP dev-runtime package (the Laravel Octane model), permanently closing the dev-server ergonomics gap (P1-5).** A new Layer-6 package registers two console commands via its own `FrankenPhpServiceProvider`, and removes both roots of the recurring "where is FrankenPHP / PATH shadowing / the shell can't find PHP" failures: shell fragility *and* binary-location guessing.

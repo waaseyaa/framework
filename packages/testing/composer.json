@@ -13,7 +13,7 @@
         "php": ">=8.5",
         "phpunit/phpunit": "^10.5",
         "symfony/event-dispatcher": "^7.0",
-        "waaseyaa/entity": "^0.1.0-alpha.236"
+        "waaseyaa/entity": "^0.1.0-alpha.237"
     },
     "suggest": {
         "fakerphp/faker": "Optional realistic strings and emails for EntityTypeFixtureValues (framework#1186)."
