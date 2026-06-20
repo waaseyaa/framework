@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.234] - 2026-06-20
+
 ### Fixed
 
 - **Wayfinding stress-test remediation (P0) — the flagship's seams are now reachable from a real app.** Three demo/correctness blockers from the alpha.233 end-to-end stress test, fixed finish-and-ship (P1/P2 held). Mission: `wayfinding-stress-remediation-01KVGK4Q`.
