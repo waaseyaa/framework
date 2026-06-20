@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\Wayfinding\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
@@ -38,7 +40,14 @@ final class SessionTokenControllerTest extends TestCase
         self::assertSame('session:' . $expected, $body['data']['channel']);
     }
 
+    // Isolated process: the controller falls back to the global PHP session_id()
+    // when the request carries no Symfony session, and session_id() is
+    // process-global — another test in the full suite can leave one set, which
+    // would make this no-session path return a real token. A fresh process keeps
+    // the assertion deterministic.
     #[Test]
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function returns_null_when_there_is_no_session(): void
     {
         $request = Request::create('/api/wayfinding/session', 'GET');

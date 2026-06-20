@@ -136,6 +136,7 @@
     "packages/user/src/Session/NativeSession.php",
     "packages/wayfinding/src/Http/AnchorCatalogController.php",
     "packages/wayfinding/src/Http/EmitBeaconController.php",
+    "packages/wayfinding/src/Http/SessionTokenController.php",
     "packages/workspace/src/WorkspaceAssetController.php"
   ]
 }
