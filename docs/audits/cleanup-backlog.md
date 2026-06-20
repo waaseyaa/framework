@@ -81,6 +81,23 @@ first-boots raced to create the table and one threw `table auth_tokens already e
 non-idempotent. **Fix:** make `ensureSchema()` idempotent (create-if-not-exists, or catch
 "already exists"). **Risk:** low. Source: `packages/auth/src/Token/AuthTokenRepository.php:29`,
 `AuthServiceProvider.php:32`.
+**DONE (alpha.238):** `ensureSchema()` now tolerates the concurrent create — existence guard
++ catch the race-loser's "already exists" (rethrow only if the table is still absent on a
+fresh re-check). Reproduced on .237 (30 parallel cold `/api/broadcast` → `auth_tokens already
+exists` in the log) and verified gone after the fix; the other three boot-ish `ensureSchema`
+(audit / ai-vector / search) already used `CREATE … IF NOT EXISTS`, so were race-safe.
+Acceptance: `AuthTokenRepositoryTest`. **Follow-up (CL-11) still open:** the DDL still runs on
+every request.
+
+### CL-11 — auth: schema DDL runs on the request hot path (design smell)
+**Found:** 2026-06-20 (CL-6 fix). `AuthServiceProvider::register()` resolves
+`AuthTokenRepository::ensureSchema()` during route registration, so a `tableExists()` probe
+(and, on a cold DB, a `CREATE TABLE`) runs on **every** HTTP request under classic FrankenPHP
+per-request boot. The CL-6 fix makes it race-safe, but the bootstrap still belongs in
+`db:init`/`migrate`, not the request path. **Fix:** move `auth_tokens` provisioning into the
+install/migrate path (like other tables) and drop the per-request `ensureSchema()` resolve
+from `AuthServiceProvider::register()`. **Risk:** low-moderate (must guarantee the table is
+provisioned before first auth use). Source: `packages/auth/src/AuthServiceProvider.php:32`.
 
 ### CL-7 — cli: `migrate:defaults` is not container-auto-wirable (latent, like the alpha.236 migrate bug)
 **Found:** 2026-06-20 (alpha.236 migrate-command fix). `migrate`/`migrate:rollback`/

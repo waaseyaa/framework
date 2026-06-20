@@ -18,6 +18,20 @@ final class AuthTokenRepository implements AuthTokenRepositoryInterface
         private readonly string $secret,
     ) {}
 
+    /**
+     * Idempotent, race-safe schema bootstrap.
+     *
+     * This runs on the request hot path (AuthServiceProvider resolves the repo
+     * during route registration). Under FrankenPHP's classic `php-server`, every
+     * request boots the kernel afresh and the runtime serves requests across many
+     * worker threads, so several cold boots can hit this concurrently. A plain
+     * `tableExists()`-then-`createTable()` is TOCTOU: two threads both see the
+     * table missing, both `CREATE TABLE`, and the loser gets the driver's
+     * "table auth_tokens already exists" — a 500 on `/api/broadcast` that kills
+     * the live Wayfinding beacon. So tolerate the concurrent create: if the table
+     * exists afterwards, the race was benign; otherwise the failure is real and
+     * rethrown.
+     */
     public function ensureSchema(): void
     {
         $schema = $this->db->schema();
@@ -26,20 +40,29 @@ final class AuthTokenRepository implements AuthTokenRepositoryInterface
             return;
         }
 
-        $schema->createTable(self::TABLE, [
-            'fields' => [
-                'id' => ['type' => 'serial', 'not null' => true],
-                'user_id' => ['type' => 'text', 'not null' => false],
-                'token_hash' => ['type' => 'text', 'not null' => true],
-                'type' => ['type' => 'text', 'not null' => true],
-                'created_at' => ['type' => 'integer', 'not null' => true],
-                'expires_at' => ['type' => 'integer', 'not null' => true],
-                'consumed_at' => ['type' => 'integer', 'not null' => false],
-                'meta' => ['type' => 'text', 'not null' => false],
-                'created_by' => ['type' => 'text', 'not null' => false],
-            ],
-            'primary key' => ['id'],
-        ]);
+        try {
+            $schema->createTable(self::TABLE, [
+                'fields' => [
+                    'id' => ['type' => 'serial', 'not null' => true],
+                    'user_id' => ['type' => 'text', 'not null' => false],
+                    'token_hash' => ['type' => 'text', 'not null' => true],
+                    'type' => ['type' => 'text', 'not null' => true],
+                    'created_at' => ['type' => 'integer', 'not null' => true],
+                    'expires_at' => ['type' => 'integer', 'not null' => true],
+                    'consumed_at' => ['type' => 'integer', 'not null' => false],
+                    'meta' => ['type' => 'text', 'not null' => false],
+                    'created_by' => ['type' => 'text', 'not null' => false],
+                ],
+                'primary key' => ['id'],
+            ]);
+        } catch (\Throwable $e) {
+            // A concurrent boot created the table between our check and create.
+            // Re-fetch the schema for a fresh read (the world changed since the
+            // guard above); only rethrow if the table genuinely isn't there.
+            if (!$this->db->schema()->tableExists(self::TABLE)) {
+                throw $e;
+            }
+        }
     }
 
     public function createToken(

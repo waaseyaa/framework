@@ -750,6 +750,8 @@ All user-facing responses from `ForgotPasswordController` and `RegisterControlle
 
 Replaces `PasswordResetTokenRepository` (which used raw PDO). Uses `DatabaseInterface` (DBAL). Tokens are 64-char hex strings hashed with HMAC-SHA256 using `auth.token_secret` from config. Plain tokens are never persisted.
 
+**Schema bootstrap — idempotent and race-safe.** `ensureSchema()` provisions the `auth_tokens` table and is resolved on the **request hot path** (`AuthServiceProvider` registers it during route registration). Under FrankenPHP classic `php-server` (the `composer run dev` runtime) the kernel boots afresh per request across many worker threads, so `ensureSchema()` runs on every request and can run concurrently on a cold DB. It therefore keeps an existence guard *and* tolerates a concurrent create: if `createTable()` throws (the race-loser's "table auth_tokens already exists"), it rethrows only when a fresh re-check shows the table genuinely absent. A bare `CREATE TABLE` behind a non-atomic check is a TOCTOU bug that 500s `/api/broadcast` (alpha.238). The cleanup-backlog (CL-11) tracks moving this provisioning off the request path into `db:init`/`migrate`; see `docs/specs/operations-playbooks.md` "Two runtimes, two launchers" for the per-request-boot invariant.
+
 **Token types and default TTLs:**
 
 | Type | Default TTL | Notes |
