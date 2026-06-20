@@ -98,3 +98,17 @@ This mission makes a downstream point-upgrade take cleanly and makes `serve:fran
 **In:** `serve:franken` binary-resolution override; corrected Windows guidance in skeleton README + operations playbook; downstream caret-upgrade documentation; optional upgrade helper.
 
 **Out:** changing `public/index.php`; changing the release-time skeleton caret (already correct); the Windows `chmod`-aborts-post-create on-ramp bug (#1628, sibling but distinct); non-Windows FrankenPHP behaviour.
+
+## Scope-up (alpha.237): the FrankenPHP runtime is its own package (Laravel Octane model)
+
+The alpha.229 resolution (`skeleton/bin/dev` launcher + `Foundation\Runtime\FrankenPhpLocator`) is **superseded**. P1-5 (the alpha.233 stress test: "`composer run dev` is broken on Git Bash") and the whole "where is FrankenPHP / PATH shadowing / bash can't find PHP" class are closed **definitively** by removing both roots — shell fragility **and** binary-location guessing.
+
+**Resolution (locked, shipping alpha.237):**
+
+- **New optional package `waaseyaa/frankenphp` (Layer 6, Octane model).** Registers two console commands via its own `FrankenPhpServiceProvider`; the commands exist only when the package is installed. **Core stays runtime-agnostic** — `FrankenPhpLocator` is deleted from `foundation`; the package is **not** in `core`/`cms`/`full`; it rides the whole-monorepo `waaseyaa/framework` meta so the skeleton has it by default. The runtime-agnostic `waaseyaa serve` (`php -S`) stays in core as the zero-dependency fallback.
+- **`frankenphp:install`** auto-downloads the correct binary for the OS/arch from `php/frankenphp` releases into `vendor/bin/` (Windows: the full SDK zip is extracted into `vendor/bin/frankenphp-dist/` so `frankenphp.exe` finds its DLLs — the single biggest Windows gotcha; ext-zip or `tar`). sha256-verified vs the release `digest`; idempotent; pinned `v1.12.4` (overridable). After this the binary's location is never the operator's problem.
+- **`dev`** resolves the binary by absolute path (`FRANKENPHP_BIN` → managed install → known per-OS locations → PATH → offer `frankenphp:install`) and execs `frankenphp php-server` shell-free with inherited stdio (Ctrl-C clean), **never** touching PATH or the bundled `php.exe`. Listen override via `WAASEYAA_DEV_LISTEN`.
+- **Skeleton:** `bin/dev` deleted; `composer run dev` → `@php vendor/bin/waaseyaa dev`; README rewritten (first run auto-installs; no PATH/.sh instructions).
+- **Acceptance (release gate):** `AssetSelectorTest`, `BinaryResolverTest` (cross-platform), `InstallerTest` (offline-safe), `CoreAgnosticTest`, `SkeletonLayoutTest` (dev-script guard). Plus a real Windows manual check: `frankenphp:install` downloads + extracts the SDK and `frankenphp.exe version` runs (verified: FrankenPHP 1.12.4 / PHP 8.5.7 / Caddy 2.11.4 on Windows/AMD64).
+
+This **supersedes** the alpha.229 `bin/dev`/`FrankenPhpLocator` rows in the FR table above; the `serve:franken` script was already removed in alpha.229.

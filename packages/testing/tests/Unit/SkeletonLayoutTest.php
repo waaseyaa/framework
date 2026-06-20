@@ -28,14 +28,18 @@ final class SkeletonLayoutTest extends TestCase
         }
     }
 
+    /**
+     * Guard: `composer run dev` routes to the discoverable `waaseyaa dev`
+     * command (provided by the optional waaseyaa/frankenphp package) via
+     * Composer's OWN PHP (`@php`), so it works identically in Git Bash,
+     * PowerShell, cmd, and POSIX. It must NEVER regress to a shell script or a
+     * standalone PHP launcher (the superseded `bin/dev` / `bin/dev.sh`).
+     */
     #[Test]
-    public function skeletonDevScriptIsWiredAndValid(): void
+    public function skeletonDevScriptRoutesToTheCliDevCommandWithNoShellDependency(): void
     {
         $repoRoot = dirname(__DIR__, 4);
-        $devScript = $repoRoot . '/skeleton/bin/dev';
         $composerJson = $repoRoot . '/skeleton/composer.json';
-
-        self::assertFileExists($devScript);
         self::assertFileExists($composerJson);
 
         $composer = json_decode((string) file_get_contents($composerJson), true, 512, JSON_THROW_ON_ERROR);
@@ -44,17 +48,19 @@ final class SkeletonLayoutTest extends TestCase
         $scripts = $composer['scripts'] ?? null;
         self::assertIsArray($scripts);
 
-        // `composer dev` is the cross-platform FrankenPHP launcher: "@php bin/dev"
-        // runs bin/dev with Composer's OWN PHP (never FrankenPHP's bundled php.exe).
         $dev = $scripts['dev'] ?? null;
         self::assertIsArray($dev);
         self::assertContains('Composer\\Config::disableProcessTimeout', $dev);
-        self::assertContains('@php bin/dev', $dev);
+        self::assertContains('@php vendor/bin/waaseyaa dev', $dev);
 
-        // bin/dev is a PHP launcher (cross-platform by construction) — lint it.
-        $command = sprintf('php -l %s 2>&1', escapeshellarg('bin/dev'));
-        exec('cd ' . escapeshellarg($repoRoot . '/skeleton') . ' && ' . $command, $output, $exitCode);
-        self::assertSame(0, $exitCode, implode("\n", $output));
+        // No regression to a shell/launcher: no `.sh`, no standalone `bin/dev`.
+        $joined = implode("\n", $dev);
+        self::assertStringNotContainsString('.sh', $joined, 'the dev script must not depend on a shell script');
+        self::assertStringNotContainsString('@php bin/dev', $joined, 'the dev script must route to `waaseyaa dev`, not a bin/dev launcher');
+
+        // The superseded launcher files must be gone.
+        self::assertFileDoesNotExist($repoRoot . '/skeleton/bin/dev', 'skeleton/bin/dev is superseded by the `waaseyaa dev` command');
+        self::assertFileDoesNotExist($repoRoot . '/skeleton/bin/dev.sh', 'skeleton/bin/dev.sh is superseded by the `waaseyaa dev` command');
     }
 
     #[Test]
@@ -64,7 +70,6 @@ final class SkeletonLayoutTest extends TestCase
         $requiredFiles = [
             '/skeleton/.env.example',
             '/skeleton/bin/post-create-setup.php',
-            '/skeleton/bin/dev',
             '/skeleton/public/index.php',
             '/skeleton/config/waaseyaa.php',
             '/skeleton/composer.json',

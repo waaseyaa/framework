@@ -1,0 +1,47 @@
+{
+    "name": "waaseyaa/frankenphp",
+    "description": "Optional FrankenPHP dev-runtime for Waaseyaa — auto-installs the FrankenPHP binary and serves the app via `waaseyaa dev` (the Laravel Octane model). Not part of core/cms/full; default-installed in the skeleton.",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../foundation"
+        }
+    ],
+    "require": {
+        "php": ">=8.5",
+        "ext-json": "*",
+        "symfony/console": "^8.0",
+        "waaseyaa/foundation": "^0.1.0-alpha.236"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Waaseyaa\\FrankenPhp\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Waaseyaa\\FrankenPhp\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "extra": {
+        "waaseyaa": {
+            "providers": [
+                "Waaseyaa\\FrankenPhp\\FrankenPhpServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "0.1.x-dev",
+            "dev-develop/v1.1": "0.1.x-dev"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

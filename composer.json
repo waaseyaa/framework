@@ -178,6 +178,10 @@
         },
         {
             "type": "path",
+            "url": "packages/frankenphp"
+        },
+        {
+            "type": "path",
             "url": "packages/geo"
         },
         {
@@ -332,6 +336,7 @@
         "waaseyaa/error-handler": "self.version",
         "waaseyaa/field": "self.version",
         "waaseyaa/foundation": "self.version",
+        "waaseyaa/frankenphp": "self.version",
         "waaseyaa/geo": "self.version",
         "waaseyaa/github": "self.version",
         "waaseyaa/graphql": "self.version",
@@ -401,6 +406,7 @@
             "Waaseyaa\\Entity\\Tests\\": "packages/entity/tests/",
             "Waaseyaa\\Field\\Tests\\": "packages/field/tests/",
             "Waaseyaa\\Foundation\\Tests\\": "packages/foundation/tests/",
+            "Waaseyaa\\FrankenPhp\\Tests\\": "packages/frankenphp/tests/",
             "Waaseyaa\\Geo\\Tests\\": "packages/geo/tests/",
             "Waaseyaa\\Genealogy\\Tests\\": "packages/genealogy/tests/",
             "Waaseyaa\\Workspace\\": "packages/workspace/src/",

@@ -36,7 +36,7 @@
         "audit-site": "./bin/maintenance/waaseyaa-audit-site",
         "dev": [
             "Composer\\Config::disableProcessTimeout",
-            "@php bin/dev"
+            "@php vendor/bin/waaseyaa dev"
         ],
         "regen-lock": "@composer update 'waaseyaa/*' --no-plugins --no-install --no-scripts",
         "post-create-project-cmd": [
