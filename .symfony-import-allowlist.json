@@ -5,7 +5,8 @@
     "packages/routing/",
     "packages/api/",
     "packages/validation/",
-    "packages/cli/"
+    "packages/cli/",
+    "packages/frankenphp/"
   ],
   "legacy_files": [
     "packages/access/src/AccessChecker.php",
