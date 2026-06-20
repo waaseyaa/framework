@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\AI\Tools\Catalogue;
 
 use Psr\Container\ContainerInterface;
+use Waaseyaa\AI\Tools\ToolDependencyUnavailableException;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
@@ -92,9 +93,21 @@ final class AutowiringToolContainer implements ContainerInterface
         if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
             $typeName = $type->getName();
 
-            $service = $this->kernelServices?->get($typeName);
-            if (\is_object($service)) {
-                return $service;
+            try {
+                $service = $this->kernelServices?->get($typeName);
+                if (\is_object($service)) {
+                    return $service;
+                }
+            } catch (\Throwable $e) {
+                // A bound service whose OWN factory could not be satisfied in
+                // this kernel (e.g. a routing-introspection service needing a
+                // RouteCollection that isn't bound here). If this parameter has
+                // no fallback, the owning tool is simply unavailable in this
+                // configuration — a quiet, expected skip, not a hard error.
+                if (!$parameter->isDefaultValueAvailable() && !$parameter->allowsNull()) {
+                    throw ToolDependencyUnavailableException::forDependency($owner, $typeName, $e);
+                }
+                // else: fall through to default/null below.
             }
 
             // Concrete class dependency not on the bus: recurse.
@@ -114,12 +127,14 @@ final class AutowiringToolContainer implements ContainerInterface
             return null;
         }
 
+        // Unresolvable required dependency: the tool cannot be built in this
+        // kernel. Typed so the registry skips it quietly (it is an optional
+        // tool whose deps are absent — e.g. VectorSearchTool's embedding-provider
+        // closures with no binding), rather than logging it as a failure.
         $typeLabel = $type instanceof \ReflectionNamedType ? $type->getName() : 'mixed';
-        throw new \RuntimeException(sprintf(
-            'Cannot resolve constructor parameter "$%s" (%s) for "%s".',
-            $parameter->getName(),
-            $typeLabel,
+        throw ToolDependencyUnavailableException::forDependency(
             $owner,
-        ));
+            sprintf('$%s (%s)', $parameter->getName(), $typeLabel),
+        );
     }
 }

@@ -51,12 +51,24 @@ final class AnchorRegistryTest extends TestCase
 
         foreach ([
             'list:widget', 'view:widget', 'form:widget',
-            'action:widget:edit', 'action:widget:delete', 'action:widget:submit',
+            'action:widget:create', 'action:widget:edit', 'action:widget:delete', 'action:widget:submit',
             'field:widget:title', 'field:widget:body', 'field:widget:status',
             'list-field:widget:title', 'list-field:widget:body', 'list-field:widget:status',
         ] as $expected) {
             self::assertContains($expected, $ids, "catalog should contain {$expected}");
         }
+    }
+
+    #[Test]
+    public function catalog_includes_the_list_level_create_action_anchor(): void
+    {
+        // P1-3: the list-view "Create new" control is now a catalogued target so a
+        // presenter can beacon it directly (mirrors the data-anchor SchemaList
+        // emits on that button).
+        $registry = $this->registry();
+
+        self::assertContains('action:widget:create', $this->ids($registry));
+        self::assertTrue($registry->isValid('action:widget:create'));
     }
 
     #[Test]

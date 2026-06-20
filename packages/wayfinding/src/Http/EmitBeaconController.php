@@ -33,6 +33,14 @@ final class EmitBeaconController
 {
     public const string CAPABILITY = 'present guided content';
 
+    /**
+     * How long an emitted beacon stays "active" — retained and replayed to the
+     * target session on (re)connect — before its TTL expires. Long enough to
+     * outlast a guided session and any reconnect churn; short enough that a
+     * stale trail does not haunt a session indefinitely.
+     */
+    public const int BEACON_TTL_SECONDS = 3600;
+
     private const int MAX_CONTENT_LENGTH = 4000;
 
     public function __construct(
@@ -95,13 +103,39 @@ final class EmitBeaconController
             'emitted_by' => $ctx->account->id(),
         ];
 
-        $ctx->broadcastStorage->push($channel, 'wayfinding.beacon', $beacon);
+        // Retain the beacon (keyed by anchor) so it is replayed to the target
+        // session on every (re)connect — a beacon emitted during the hydration
+        // reconnect window, or before a reload, is no longer dropped. The same
+        // call also pushes it live to the currently-connected session.
+        $ctx->broadcastStorage->pushRetained($channel, 'wayfinding.beacon', $beacon, $anchorId, self::BEACON_TTL_SECONDS);
 
         return new Response(
             json_encode(['data' => $beacon], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
             202,
             ['Content-Type' => 'application/json; charset=UTF-8'],
         );
+    }
+
+    /**
+     * Clear the caller's OWN session's retained beacons (Phase 5 hardening).
+     *
+     * A viewer dismissing the live trail calls this so the active beacons stop
+     * being replayed on the next reconnect/reload ("non-dismissed" survives,
+     * dismissed does not). Scoped to the caller's own server-derived session
+     * channel — a caller can only ever clear its own session, so this needs no
+     * presenter capability (unlike emit). No-ops cleanly when there is no
+     * session or nothing retained.
+     */
+    public function clear(Request $request): Response
+    {
+        $ctx = WaaseyaaContext::fromRequest($request);
+
+        $sessionId = (string) session_id();
+        if ($sessionId !== '') {
+            $ctx->broadcastStorage->dropRetained(SessionChannel::forSessionId($sessionId));
+        }
+
+        return new Response('', 204, ['Content-Type' => 'application/json; charset=UTF-8']);
     }
 
     private function error(int $status, string $title, string $detail): Response

@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_REALTIME_CHANNELS, REALTIME_ENDPOINT_PATH, useRealtime } from '~/composables/useRealtime'
+import { DEFAULT_REALTIME_CHANNELS, REALTIME_ENDPOINT_PATH, useRealtime, __resetRealtime } from '~/composables/useRealtime'
 
 vi.mock('vue', async () => {
   const actual = await vi.importActual<typeof import('vue')>('vue')
@@ -60,9 +60,13 @@ describe('useRealtime', () => {
     vi.useFakeTimers()
     MockEventSource.instances = []
     vi.stubGlobal('EventSource', MockEventSource as unknown as typeof EventSource)
+    // Connections are shared at module scope; drop any from a prior test so
+    // each test starts from a clean slate.
+    __resetRealtime()
   })
 
   afterEach(() => {
+    __resetRealtime()
     vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
@@ -122,6 +126,40 @@ describe('useRealtime', () => {
 
     expect(MockEventSource.instances).toHaveLength(1)
     expect(MockEventSource.instances[0].url).toBe(`${REALTIME_ENDPOINT_PATH}?channels=${DEFAULT_REALTIME_CHANNELS[0]}`)
+  })
+
+  // P0-1 (wayfinding-showcase-hardening): multiple consumers of the same channel
+  // set share ONE EventSource — the persistent overlay (useBeacons) plus each
+  // SchemaList must not each pin their own FrankenPHP worker (the hydration
+  // "reconnect storm" / worker-starvation fix).
+  it('shares a single EventSource across consumers on the same channel set', () => {
+    const a = useRealtime(['admin'])
+    const b = useRealtime(['admin'])
+
+    expect(MockEventSource.instances).toHaveLength(1)
+
+    // Both consumers observe the same stream and pairing token.
+    const es = MockEventSource.instances[0]
+    es.emitNamed('connected', { channels: ['admin', 'session:tok'], sessionToken: 'tok' })
+    expect(a.sessionToken.value).toBe('tok')
+    expect(b.sessionToken.value).toBe('tok')
+
+    es.emitNamed('entity.saved', { id: 1, channel: 'admin', event: 'entity.saved', data: {}, created_at: 1 })
+    expect(a.messages.value).toBe(b.messages.value)
+  })
+
+  it('keeps the shared stream alive until the last consumer releases it', () => {
+    const a = useRealtime(['admin'])
+    const b = useRealtime(['admin'])
+    expect(MockEventSource.instances).toHaveLength(1)
+
+    // One consumer leaving does not tear down the connection the other needs.
+    a.disconnect()
+    expect(MockEventSource.instances[0].readyState).not.toBe(MockEventSource.CLOSED)
+
+    // The last consumer leaving tears it down.
+    b.disconnect()
+    expect(MockEventSource.instances[0].readyState).toBe(MockEventSource.CLOSED)
   })
 
   // P0-2 (wayfinding-stress-remediation-01KVGK4Q): the admin client must expose

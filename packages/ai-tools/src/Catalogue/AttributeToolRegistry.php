@@ -9,6 +9,7 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolInterface;
+use Waaseyaa\AI\Tools\ToolDependencyUnavailableException;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
@@ -130,11 +131,29 @@ final class AttributeToolRegistry implements ToolRegistryInterface
             try {
                 $impl = $this->container->get($class);
             } catch (\Throwable $e) {
-                $this->logger->error(sprintf(
-                    'AttributeToolRegistry: failed to resolve %s from container: %s',
-                    $class,
-                    $e->getMessage(),
-                ));
+                // An optional tool whose dependencies are absent in this kernel
+                // (routing-introspection without a RouteCollection, vector search
+                // without an embedding provider) signals so by type — that is an
+                // expected, recoverable skip, logged at debug so boot / tools/list
+                // logs stay clean. Any OTHER throwable is a genuine failure and
+                // stays at error. Either way the tool is skipped, so the resolved
+                // tool set is unchanged — only the log level differs. (One
+                // \Throwable catch with an instanceof branch, not two typed
+                // catches: the container is typed to ContainerInterface, which is
+                // not declared to throw the concrete exception.)
+                if ($e instanceof ToolDependencyUnavailableException) {
+                    $this->logger->debug(sprintf(
+                        'AttributeToolRegistry: %s unavailable in this kernel (dependency absent); skipping. %s',
+                        $class,
+                        $e->getMessage(),
+                    ));
+                } else {
+                    $this->logger->error(sprintf(
+                        'AttributeToolRegistry: failed to resolve %s from container: %s',
+                        $class,
+                        $e->getMessage(),
+                    ));
+                }
                 continue;
             }
             if (!$impl instanceof AgentToolInterface) {

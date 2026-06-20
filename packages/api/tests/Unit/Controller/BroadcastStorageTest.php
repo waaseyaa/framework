@@ -141,4 +141,78 @@ final class BroadcastStorageTest extends TestCase
         $this->assertCount(1, $messages);
         $this->assertSame('recent', $messages[0]['event']);
     }
+
+    // ── Retained messages (Wayfinding beacon-reconnect race fix) ─────────────
+
+    #[Test]
+    public function pushRetainedDeliversLiveAndIsReplayableOnConnect(): void
+    {
+        $id = $this->storage->pushRetained(
+            'session:abc',
+            'wayfinding.beacon',
+            ['anchor_id' => 'list:story', 'content' => 'hi', 'order' => 0],
+            'list:story',
+        );
+
+        // Live: a currently-connected poller receives it from the log.
+        $live = $this->storage->poll(0, ['session:abc']);
+        $this->assertCount(1, $live);
+        $this->assertSame('wayfinding.beacon', $live[0]['event']);
+        $this->assertSame($id, $live[0]['id']);
+
+        // Durable: a NEW subscriber replays it on connect — the reconnect race fix.
+        $retained = $this->storage->retainedFor(['session:abc']);
+        $this->assertCount(1, $retained);
+        $this->assertSame('list:story', $retained[0]['data']['anchor_id']);
+        $this->assertSame($id, $retained[0]['id'], 'replay carries the original broadcast id so clients de-dupe against the live push');
+    }
+
+    #[Test]
+    public function retainedIsLastWriteWinsPerKey(): void
+    {
+        $this->storage->pushRetained('session:abc', 'wayfinding.beacon', ['anchor_id' => 'list:story', 'content' => 'first', 'order' => 0], 'list:story');
+        $this->storage->pushRetained('session:abc', 'wayfinding.beacon', ['anchor_id' => 'list:story', 'content' => 'second', 'order' => 0], 'list:story');
+
+        $retained = $this->storage->retainedFor(['session:abc']);
+        $this->assertCount(1, $retained, 're-emitting the same key supersedes the prior value');
+        $this->assertSame('second', $retained[0]['data']['content']);
+    }
+
+    #[Test]
+    public function retainedForIsChannelScopedAndOrderedByEmission(): void
+    {
+        $this->storage->pushRetained('session:abc', 'wayfinding.beacon', ['anchor_id' => 'list:story', 'content' => 'a', 'order' => 0], 'list:story');
+        $this->storage->pushRetained('session:abc', 'wayfinding.beacon', ['anchor_id' => 'action:story:edit', 'content' => 'b', 'order' => 1], 'action:story:edit');
+        // A different session's retained beacon is never returned (LD-1 isolation).
+        $this->storage->pushRetained('session:other', 'wayfinding.beacon', ['anchor_id' => 'list:story', 'content' => 'x', 'order' => 0], 'list:story');
+
+        $retained = $this->storage->retainedFor(['session:abc']);
+        $this->assertSame(
+            ['list:story', 'action:story:edit'],
+            array_map(static fn(array $m): string => $m['data']['anchor_id'], $retained),
+        );
+    }
+
+    #[Test]
+    public function dropRetainedClearsOneKeyOrTheWholeChannel(): void
+    {
+        $this->storage->pushRetained('session:abc', 'wayfinding.beacon', ['anchor_id' => 'list:story', 'content' => 'a', 'order' => 0], 'list:story');
+        $this->storage->pushRetained('session:abc', 'wayfinding.beacon', ['anchor_id' => 'action:story:edit', 'content' => 'b', 'order' => 1], 'action:story:edit');
+
+        $this->storage->dropRetained('session:abc', 'list:story');
+        $this->assertCount(1, $this->storage->retainedFor(['session:abc']), 'keyed drop removes only that beacon');
+
+        // Whole-channel drop is what a viewer's dismiss triggers.
+        $this->storage->dropRetained('session:abc');
+        $this->assertCount(0, $this->storage->retainedFor(['session:abc']));
+    }
+
+    #[Test]
+    public function expiredRetainedMessagesAreNotReplayedAndArePruned(): void
+    {
+        // A TTL already in the past — the beacon is "active (non-expired)" no more.
+        $this->storage->pushRetained('session:abc', 'wayfinding.beacon', ['anchor_id' => 'list:story', 'content' => 'a', 'order' => 0], 'list:story', -1.0);
+
+        $this->assertCount(0, $this->storage->retainedFor(['session:abc']));
+    }
 }

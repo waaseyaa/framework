@@ -17,6 +17,11 @@ vi.mock('~/composables/useRealtime', () => {
   return { useRealtime: () => ({ messages, connected, sessionToken }), __messages: messages }
 })
 
+// Mock the API layer so dismiss()'s "clear my retained beacons" call is
+// observable (and never touches a real $fetch in the test env).
+const { apiFetchSpy } = vi.hoisted(() => ({ apiFetchSpy: vi.fn(() => Promise.resolve()) }))
+vi.mock('~/composables/useApi', () => ({ useApi: () => ({ apiFetch: apiFetchSpy }) }))
+
 const messages = (realtimeModule as unknown as { __messages: { value: unknown[] } }).__messages
 
 function beaconMsg(id: number, anchorId: string, content: string, order = 0) {
@@ -37,6 +42,7 @@ function mountBeacons() {
 
 beforeEach(() => {
   messages.value = []
+  apiFetchSpy.mockClear()
 })
 
 describe('useBeacons', () => {
@@ -100,5 +106,18 @@ describe('useBeacons', () => {
     await flushPromises()
     expect(api.visible.value).toBe(true)
     expect(api.active.value?.content).toBe('two')
+  })
+
+  // P0-1 (wayfinding-showcase-hardening): dismissing clears the session's
+  // server-retained beacons so a dismissed trail does not replay on reload.
+  it('clears server-retained beacons on dismiss', async () => {
+    const api = mountBeacons()
+    messages.value = [beaconMsg(1, 'a', 'one')]
+    await flushPromises()
+    apiFetchSpy.mockClear()
+
+    api.dismiss()
+
+    expect(apiFetchSpy).toHaveBeenCalledWith('/api/wayfinding/beacons', { method: 'DELETE' })
   })
 })

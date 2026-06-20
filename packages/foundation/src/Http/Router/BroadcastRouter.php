@@ -18,10 +18,22 @@ final class BroadcastRouter implements DomainRouterInterface
     /**
      * Hard cap on a single SSE connection's lifetime. When it elapses the
      * stream handler returns, releasing the worker; the browser's EventSource
-     * auto-reconnects (resuming from `Last-Event-ID`, so no events are missed).
-     * This is the durable guarantee that a worker is never held indefinitely —
-     * even if the SAPI never reports the client disconnect (a known risk under
-     * FrankenPHP worker mode, where the request loop sets ignore_user_abort).
+     * auto-reconnects (resuming from `Last-Event-ID`, AND re-receiving any
+     * retained messages via the replay-on-connect path, so no live state is
+     * dropped). This is the durable guarantee that a worker is never held
+     * indefinitely — even if the SAPI never reports the client disconnect (a
+     * known risk under FrankenPHP worker mode, where the request loop sets
+     * ignore_user_abort).
+     *
+     * Kept at 30s deliberately. A long-lived SSE pins one slot of the browser's
+     * ~6-per-origin HTTP/1.1 connection pool for its whole lifetime; lengthening
+     * this (e.g. to 5 min) let a single stream starve the admin SPA's own API
+     * fetches under FrankenPHP classic `php-server` (the list hung at "Loading…").
+     * Reconnect churn is NOT addressed by a longer lifetime — the thrash came
+     * from MANY connections (one EventSource per consumer), now fixed by sharing
+     * a single connection per channel set (see admin `useRealtime`). With one
+     * shared connection, a 30s recycle is a single, lossless reconnect (retained
+     * replay re-syncs live state), not a storm.
      */
     public const int DEFAULT_MAX_DURATION_SEC = 30;
 
@@ -155,6 +167,24 @@ final class BroadcastRouter implements DomainRouterInterface
             // sessionToken lets the client (or a paired presenter) address this
             // connection's private channel without ever learning the raw session id.
             echo "event: connected\ndata: " . json_encode(['channels' => $channels, 'sessionToken' => $sessionToken], JSON_THROW_ON_ERROR) . "\n\n";
+
+            // Replay still-active retained messages for the subscribed channels
+            // immediately after `connected`, so a reconnect (or a fresh page
+            // load) re-receives live state that predates this connection — e.g.
+            // a Wayfinding beacon emitted during the hydration reconnect window,
+            // which the cursor stream alone would drop (the showcase blocker).
+            // Replay frames carry the original broadcast id INSIDE the JSON
+            // envelope (clients de-dupe by it) but deliberately emit NO SSE
+            // `id:` line, so they never rewind the connection's Last-Event-ID
+            // cursor — only genuinely-new live messages below advance it.
+            try {
+                foreach ($broadcastStorage->retainedFor($channels) as $msg) {
+                    echo 'event: ' . $msg['event'] . "\ndata: " . json_encode($msg, JSON_THROW_ON_ERROR) . "\n\n";
+                }
+            } catch (\Throwable $e) {
+                $logger->error(sprintf('SSE retained replay error: %s', $e->getMessage()));
+            }
+
             if (ob_get_level() > 0) {
                 ob_flush();
             }

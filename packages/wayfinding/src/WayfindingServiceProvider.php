@@ -13,6 +13,7 @@ use Waaseyaa\Wayfinding\Anchor\AnchorRegistry;
 use Waaseyaa\Wayfinding\Entity\Trail;
 use Waaseyaa\Wayfinding\Http\AnchorCatalogController;
 use Waaseyaa\Wayfinding\Http\EmitBeaconController;
+use Waaseyaa\Wayfinding\Http\SessionTokenController;
 
 /**
  * Wayfinding service provider.
@@ -72,6 +73,34 @@ final class WayfindingServiceProvider extends ServiceProvider
                 ->methods('POST')
                 ->requireAuthentication()
                 ->requirePermission(EmitBeaconController::CAPABILITY)
+                ->priority(10)
+                ->build(),
+        );
+
+        // Phase 5 (P0-2): supported read path for the caller's own non-secret
+        // session token — the value the SSE `connected` frame carries — without
+        // intercepting the SSE wire. Authenticated; returns only the caller's
+        // own token (derived from its session).
+        $router->addRoute(
+            'wayfinding.session_token',
+            RouteBuilder::create('/api/wayfinding/session')
+                ->controller(SessionTokenController::class . '::show')
+                ->methods('GET')
+                ->requireAuthentication()
+                ->priority(10)
+                ->build(),
+        );
+
+        // Phase 5 (P0-1): a viewer dismissing the live trail clears its OWN
+        // session's retained beacons so they stop replaying on reconnect/reload.
+        // Authenticated, own-session scoped — no presenter capability (the
+        // viewer is not the presenter), unlike emit.
+        $router->addRoute(
+            'wayfinding.clear_beacons',
+            RouteBuilder::create('/api/wayfinding/beacons')
+                ->controller(EmitBeaconController::class . '::clear')
+                ->methods('DELETE')
+                ->requireAuthentication()
                 ->priority(10)
                 ->build(),
         );

@@ -331,13 +331,13 @@ function useLanguage(): {
 Server-Sent Events connection for real-time entity updates.
 
 ```ts
-function useRealtime(channels?: string[]): {
+function useRealtime(channels?: string[], options?: { autoConnect?: boolean }): {
   messages: Ref<BroadcastMessage[]>; connected: Ref<boolean>; error: Ref<string | null>
   sessionToken: Ref<string | null>
   connect(): void; disconnect(): void; reconnect(): void
 }
 interface BroadcastMessage {
-  channel: string; event: string; data: Record<string, unknown>; timestamp: number
+  id: number; channel: string; event: string; data: Record<string, unknown>; created_at: number
 }
 ```
 
@@ -346,11 +346,20 @@ interface BroadcastMessage {
 - Runtime constants:
   - `REALTIME_ENDPOINT_PATH = '/api/broadcast'`
   - `DEFAULT_REALTIME_CHANNELS = ['admin']`
-- Auto-connects on instantiation; auto-disconnects on `onUnmounted`
+- **Shared connection (one per channel set).** Consumers asking for the same
+  channel set share a single, module-level `EventSource` and the same
+  `messages`/`connected`/`sessionToken` refs (`wayfinding-showcase-hardening`,
+  P0-1). The admin SPA mounts several consumers at once — the persistent
+  `WayfindingOverlay` (via `useBeacons`) plus each `SchemaList` — and an
+  EventSource pins a FrankenPHP worker for the life of the stream; one connection
+  per consumer multiplied worker pressure into a hydration "reconnect storm".
+  Sharing is ref-counted: the connection is torn down only when its LAST consumer
+  unmounts, so a `SchemaList` leaving on navigation never kills the overlay's
+  stream. `connect()` is idempotent. `__resetRealtime()` is a test-only reset.
 - Exponential backoff reconnect: delay = `min(3000 * 2^(retryCount-1), 30000)`, max 10 retries
 - Message buffer: last 100 messages (ring buffer via `slice(-99)`)
-- Event types: `entity.saved`, `entity.deleted` (used by SchemaList for auto-refresh), `wayfinding.beacon` (consumed by `useBeacons`)
-- **Session pairing token (Wayfinding presenter pairing):** the `connected` SSE frame carries this connection's own non-secret `sessionToken` (`substr(sha256(session_id), 0, 32)`, server-derived). `useRealtime` captures it into the `sessionToken` ref (cleared on `disconnect`); `useBeacons` re-exposes it. A presenter-pairing UI / guiding agent reads it to target this exact session's beacon channel via `POST /api/wayfinding/beacons` — see [wayfinding.md](wayfinding.md). (alpha.234, mission `wayfinding-stress-remediation-01KVGK4Q`.)
+- Event types: `entity.saved`, `entity.deleted` (used by SchemaList for auto-refresh), `wayfinding.beacon` (consumed by `useBeacons`; the server replays still-active beacons on (re)connect, so a beacon survives reconnects/reloads)
+- **Session pairing token (Wayfinding presenter pairing):** the `connected` SSE frame carries this connection's own non-secret `sessionToken` (`substr(sha256(session_id), 0, 32)`, server-derived). `useRealtime` captures it into the `sessionToken` ref; `useBeacons` re-exposes it. The **supported, race-free read path** (no SSE interception) is **`GET /api/wayfinding/session`** → `{ data: { sessionToken, channel } }`, surfaced in-page as **`data-wf-session`** on the document root (`plugins/wayfindingSession.client.ts`). A presenter-pairing UI / guiding agent reads either to target this exact session's beacon channel via `POST /api/wayfinding/beacons` — see [wayfinding.md](wayfinding.md). (alpha.234 exposed it in the composable, mission `wayfinding-stress-remediation-01KVGK4Q`; the supported handle was added by `wayfinding-showcase-hardening`, P0-2.)
 - Invariant: the SPA realtime client targets the canonical backend broadcast SSE endpoint and default admin channel; this contract is asserted in unit tests.
 
 ## Schema-Driven Forms
@@ -403,6 +412,7 @@ they are a published targeting contract for element-anchored *beacons*. The sche
 
 | Component | Element | `data-anchor` |
 |-----------|---------|---------------|
+| `[entityType]/index` (list page) | Create-new button | `action:{entityType}:create` |
 | `SchemaList` | container | `list:{entityType}` |
 | `SchemaList` | column header | `list-field:{entityType}:{fieldName}` |
 | `SchemaList` | Edit / Delete action | `action:{entityType}:edit` / `action:{entityType}:delete` |
@@ -412,9 +422,14 @@ they are a published targeting contract for element-anchored *beacons*. The sche
 | `SchemaForm` | field wrapper | `field:{entityType}:{fieldName}` |
 | `SchemaForm` | submit action | `action:{entityType}:submit` |
 
-Anchors are validated against a published catalog only once Wayfinding lands; in this
-release they are attributes only. The shipped bundle is asserted to contain
-`data-anchor` by `AdminDistContentTest` (see "Pre-built SPA distribution").
+These are now validated against the published Wayfinding anchor catalog
+(`/.well-known/waaseyaa-anchors.json`, `AnchorRegistry`); an emit referencing an
+anchor not in the catalog is rejected (FR-005). The list-level
+`action:{entityType}:create` row was added so a presenter can beacon the
+"Create new" control directly (`wayfinding-showcase-hardening`, P1-3) — it
+mirrors the per-row `action:*:edit`/`:delete` scheme. The shipped bundle is
+asserted to contain `data-anchor` by `AdminDistContentTest` (see "Pre-built SPA
+distribution").
 
 ### Widget Resolution (`packages/admin/app/components/schema/SchemaField.vue`)
 

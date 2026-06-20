@@ -125,10 +125,16 @@ final class EmitBeaconTool extends AbstractAgentTool
         ];
 
         try {
-            new BroadcastStorage($this->database)->push(
+            // Retain the beacon (keyed by anchor) so it replays to the target
+            // session on every (re)connect — surviving the hydration reconnect
+            // window and page reloads — while also pushing it live. Mirrors the
+            // Phase-2 EmitBeaconController emit path.
+            new BroadcastStorage($this->database)->pushRetained(
                 SessionChannel::forToken($token),
                 'wayfinding.beacon',
                 $beacon,
+                $anchorId,
+                EmitBeaconController::BEACON_TTL_SECONDS,
             );
         } catch (\Throwable $e) {
             return AgentToolResult::error(

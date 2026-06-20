@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\AI\Tools\Catalogue\AutowiringToolContainer;
+use Waaseyaa\AI\Tools\ToolDependencyUnavailableException;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
@@ -102,15 +103,41 @@ final class AutowiringToolContainerTest extends TestCase
     }
 
     #[Test]
-    public function required_unresolvable_dependency_throws(): void
+    public function required_unresolvable_dependency_throws_typed_unavailable(): void
     {
         $container = new AutowiringToolContainer(
             $this->kernelServices([AutowireDepInterface::class => new AutowireDep()]),
             $this->provider(),
         );
 
-        $this->expectException(\RuntimeException::class);
+        // A required scalar with no binding (mirrors VectorSearchTool's Closure
+        // params): the tool is unavailable in this kernel, signalled by type so
+        // the registry skips it quietly rather than logging a failure.
+        $this->expectException(ToolDependencyUnavailableException::class);
         $container->get(AutowireWithRequiredUnresolvable::class);
+    }
+
+    #[Test]
+    public function bound_dependency_whose_factory_throws_is_typed_unavailable(): void
+    {
+        // A dependency that IS on the bus but whose own resolution throws (the
+        // Bimaaji case: a routing-introspection service needing a RouteCollection
+        // that isn't bound in this kernel) makes the OWNING tool unavailable —
+        // a quiet, expected skip, not a hard error.
+        $throwing = new class implements KernelServicesInterface {
+            public function get(string $abstract): ?object
+            {
+                if ($abstract === AutowireDepInterface::class) {
+                    throw new \RuntimeException('no RouteCollection or WaaseyaaRouter bound on the kernel-services bus');
+                }
+
+                return null;
+            }
+        };
+        $container = new AutowiringToolContainer($throwing, $this->provider());
+
+        $this->expectException(ToolDependencyUnavailableException::class);
+        $container->get(AutowireWithInterfaceDep::class);
     }
 
     #[Test]

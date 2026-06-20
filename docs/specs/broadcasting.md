@@ -182,6 +182,45 @@ HTTP client. Each row arrives as a JSON-encoded `MessageEvent` whose `event`
 field is the row's event name. The connection survives until either side
 closes; the server-side loop terminates when `connection_aborted()` returns 1.
 
+## Retained messages (replay on connect)
+
+The plain log is fire-and-forget: a message pushed before a connection exists is
+never seen by it. That dropped live Wayfinding beacons — a beacon emitted during
+the admin SPA's hydration reconnect window vanished before it could render
+(`wayfinding-showcase-hardening`). **Retained messages** are the durable
+counterpart, modelled on MQTT retained messages: the still-active *state* for a
+`(channel, retain_key)` pair, last-write-wins, re-delivered to every NEW
+subscriber on connect.
+
+`BroadcastStorage` owns a second table, `_broadcast_retained`:
+
+| Method | Purpose |
+|--------|---------|
+| `pushRetained($channel, $event, $data, $retainKey, ?$ttlSeconds)` | Push live (into `_broadcast_log`) **and** retain as the current value for `$retainKey`. Returns the broadcast-log id, which is stored on the retained row. |
+| `retainedFor($channels)` | Non-expired retained messages for the channels, oldest first; prunes expired rows. Same envelope shape as `poll()`. |
+| `dropRetained($channel, ?$retainKey)` | Drop one key, or the channel's whole retained set. |
+| `pruneRetained()` | Delete expired (TTL-elapsed) rows. |
+
+`BroadcastRouter` replays `retainedFor($channels)` immediately after the
+`connected` frame. Replay frames carry the original broadcast id **inside the
+JSON envelope** (so a client de-dupes against a live push it already saw) but
+emit **no SSE `id:` line** — they must not rewind the connection's
+`Last-Event-ID` cursor; only genuinely-new live messages advance it.
+
+The per-connection lifetime cap (`BroadcastRouter::DEFAULT_MAX_DURATION_SEC`) is
+kept at 30s. Lengthening it is counter-productive for a browser client: a
+long-lived SSE pins one slot of the browser's ~6-per-origin HTTP/1.1 connection
+pool for its whole lifetime, and a longer cap let a single stream starve the
+admin SPA's own API fetches under FrankenPHP classic `php-server`. Reconnect
+churn is addressed by sharing ONE connection per channel set on the client (not
+by a longer cap), and retained replay makes each 30s recycle a single, lossless
+reconnect; the 2s keepalive write remains the prompt disconnect probe.
+
+The Wayfinding emit paths use this: `EmitBeaconController` /
+`EmitBeaconTool` call `pushRetained(... , retainKey: anchorId, ttl: 3600)`, so a
+beacon survives reconnects and reloads; a viewer dismissing the trail clears its
+own session's retained beacons (`dropRetained($sessionChannel)`).
+
 ## Constraints
 
 - Single-process: there is no Redis, NATS, or other cross-process transport.
@@ -189,8 +228,10 @@ closes; the server-side loop terminates when `connection_aborted()` returns 1.
   its own SSE connection.
 - Polling: the router polls every 500ms; latency is bounded above by that
   interval, not by event arrival.
-- No replay: clients receive only messages with `id > cursor`. There is no
-  durable cursor per client — reconnects start fresh from "now."
+- No history replay: clients receive only log messages with `id > cursor`.
+  There is no durable cursor per client — reconnects start fresh from "now."
+  The one exception is **retained messages** (below), which are state, not
+  history, and ARE re-sent on every connect.
 - No per-channel ACLs: routing is by string name, not capability. Any
   authenticated session can subscribe to any channel.
 - Authentication: the `/broadcast` route inherits the kernel's session

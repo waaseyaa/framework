@@ -56,6 +56,11 @@ final class AnchorRegistry
             $anchors[] = Anchor::structural('list', $typeId);
             $anchors[] = Anchor::structural('view', $typeId);
             $anchors[] = Anchor::structural('form', $typeId);
+            // `create` is the list-level "Create new" control (top of the list
+            // view); `edit`/`delete` are per-row and `submit` is the form's save
+            // button. Mirrors the data-anchor the SchemaList header now emits so
+            // a presenter can beacon the create affordance directly (P1-3).
+            $anchors[] = Anchor::action($typeId, 'create');
             $anchors[] = Anchor::action($typeId, 'edit');
             $anchors[] = Anchor::action($typeId, 'delete');
             $anchors[] = Anchor::action($typeId, 'submit');

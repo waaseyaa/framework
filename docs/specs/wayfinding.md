@@ -40,14 +40,14 @@ Beacons target a single `data-anchor` ID. The IDs are static and type-level
 | `view` | `view:{entityType}` | SchemaView container |
 | `field` | `field:{entityType}:{field}` | SchemaView / SchemaForm field |
 | `form` | `form:{entityType}` | SchemaForm container |
-| `action` | `action:{entityType}:{edit\|delete\|submit}` | SchemaList / SchemaForm actions |
+| `action` | `action:{entityType}:{create\|edit\|delete\|submit}` | list-level Create-new (`create`) + SchemaList row (`edit`/`delete`) + SchemaForm (`submit`) |
 
 ### `AnchorRegistry` (`packages/wayfinding/src/Anchor/AnchorRegistry.php`)
 
 Derives the catalog from `EntityTypeManagerInterface::getDefinitions()` and, per
 type, the `SchemaPresenter` `properties` (`resolveFieldDefinitions()`), emitting:
 
-- structural + action anchors per entity type (`list`/`view`/`form` + `edit`/`delete`/`submit`);
+- structural + action anchors per entity type (`list`/`view`/`form` + `create`/`edit`/`delete`/`submit`; `create` is the list-level "Create new" control, added in `wayfinding-showcase-hardening` P1-3);
 - `field` and `list-field` anchors for each **non-hidden** field (`x-widget !== 'hidden'`), matching the SPA's field filter so the catalog mirrors what the admin renders.
 
 Field enumeration is best-effort per type (a type whose schema cannot be
@@ -105,10 +105,11 @@ the controller as defence-in-depth — LD-2/FR-003). Payload: `{ session?, ancho
 content, order? }`. The anchor is validated against the published catalog
 (`AnchorRegistry::isValid`, FR-005); `content` is length-capped and transported
 verbatim (escaping/constrained markup is Phase 3 — LD-4/A-004). The beacon is
-published via `BroadcastStorage::push(SessionChannel::forToken(session) , 'wayfinding.beacon', …)`
+published via `BroadcastStorage::pushRetained(SessionChannel::forToken(session), 'wayfinding.beacon', …, retainKey: anchorId, ttl: 3600)`
 to the target session's private channel; omitting `session` self-targets the
-caller. Reconnect/resume is inherited from the SSE loop's `Last-Event-ID` handling
-(FR-002).
+caller. `pushRetained` both delivers live AND retains the beacon so it is
+replayed on every (re)connect (Phase 6) — beacons no longer evaporate on a
+reconnect; this superseded the bare `push` originally shipped here.
 
 ## Phase 3 — Overlay / beacon component with full a11y (shipped)
 
@@ -221,3 +222,53 @@ A SEPARATE route `POST /mcp/write` → `AuthenticatedMcpEndpoint`, over a
 bearer-token auth (`WriteTierAuthInterface`, fail-closed 401 by default). The
 public `/mcp` is byte-identical and untouched. Full contract:
 [mcp-endpoint.md](mcp-endpoint.md) "Authenticated write tier".
+
+## Phase 6 — Showcase hardening (shipped)
+
+A single-clean-take dry run of the live showcase surfaced defects that the five
+phases didn't (mission `wayfinding-showcase-hardening`). Each fix makes the
+already-correct mechanism robust under a real, reconnecting browser; no redesign.
+
+- **Beacon-reconnect race (P0-1) — the demo-killer.** `/api/broadcast` is a
+  fire-and-forget cursor stream that starts each connection at "now", so a beacon
+  emitted during the admin SPA's hydration reconnect window was delivered to a
+  connection that no longer existed and never rendered. Fix: beacons are now
+  **retained** and **replayed on every connect** (see [broadcasting.md](broadcasting.md)
+  "Retained messages"). `EmitBeaconController`/`EmitBeaconTool` call
+  `BroadcastStorage::pushRetained(channel, 'wayfinding.beacon', beacon, retainKey: anchorId, ttl: 3600)`;
+  `BroadcastRouter` replays `retainedFor()` right after the `connected` frame
+  (replay frames carry the original id in the JSON envelope for client de-dup but
+  no SSE `id:` line). To stop the connection thrash that amplified the race, the
+  admin client now shares **one** `EventSource` per channel set (ref-counted; see
+  [admin-spa.md](admin-spa.md) `useRealtime`) — that, not a longer SSE lifetime,
+  is the thrash fix (the per-connection cap stays at 30s; lengthening it starved
+  the SPA's own fetches by pinning the browser's connection pool). A viewer
+  dismissing the trail clears its own
+  session's retained beacons via **`DELETE /api/wayfinding/beacons`**
+  (`EmitBeaconController::clear`, own-session scoped, authenticated, no presenter
+  capability) — "non-dismissed" survives reload, dismissed does not.
+- **Session token had no supported read path (P0-2).** alpha.234 exposed the
+  token in `useRealtime`/`useBeacons`, but reading it from outside still required
+  intercepting the SSE wire and winning the hydration race. Added
+  **`GET /api/wayfinding/session`** (`SessionTokenController`, authenticated,
+  returns only the caller's own `{ sessionToken, channel }` — identical to the
+  `connected` frame) and surfaced it in-page as **`data-wf-session`** on the
+  document root (`plugins/wayfindingSession.client.ts`). No SSE interception, no
+  race.
+- **Create-new anchor coverage (P1-3).** `AnchorRegistry` now emits
+  `action:{entityType}:create` and the list page's "Create new" control carries
+  the matching `data-anchor`, so a presenter can beacon the create affordance
+  directly (it was previously unanchored).
+- **Quiet tool-resolution (folds CL-2 / P2-10).** Optional MCP tools whose deps
+  are absent in a given kernel (Bimaaji routing-introspection without a
+  `RouteCollection`; vector search without an embedding provider) were logged at
+  `error` on boot and public `tools/list`. The tool container now raises a typed
+  `ToolDependencyUnavailableException` for an unresolvable dependency and
+  `AttributeToolRegistry` skips it at `debug` (genuine failures stay at `error`).
+  The resolved tool set is unchanged — only the log level differs.
+
+Acceptance (release gate): `BroadcastStorageTest` (retained push/replay/drop/TTL),
+`AnchorRegistryTest` (create anchor), `SessionTokenControllerTest`,
+`AutowiringToolContainerTest` + `AttributeToolRegistryTest` (typed-unavailable /
+quiet skip), and admin Vitest (`useRealtime` shared connection, `useBeacons`
+clear-on-dismiss).

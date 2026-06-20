@@ -1,5 +1,6 @@
 import { ref, computed, watch, type Ref } from 'vue'
 import { useRealtime, type BroadcastMessage } from '~/composables/useRealtime'
+import { useApi } from '~/composables/useApi'
 
 /**
  * A single Wayfinding beacon: one element-anchored tip in a live trail.
@@ -73,6 +74,16 @@ export function useBeacons() {
 
   function dismiss(): void {
     dismissed.value = true
+    // Tell the server to drop this session's retained beacons so a dismissed
+    // trail does not replay on the next reconnect/reload ("non-dismissed"
+    // survives, dismissed does not). Own-session scoped and best-effort —
+    // resolved lazily and fully guarded so a dismiss never throws even if the
+    // API layer is unavailable; the worst case is tips reappearing on reload.
+    try {
+      void useApi().apiFetch('/api/wayfinding/beacons', { method: 'DELETE' }).catch(() => {})
+    } catch {
+      // best-effort
+    }
   }
 
   // `sessionToken` is re-exposed so a presenter pairing UI can read THIS
