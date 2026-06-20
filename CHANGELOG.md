@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`waaseyaa migrate` (and `migrate:rollback` / `migrate:status`) work again in consumer apps.** The `migrate*` commands resolved their handlers (`MigrateHandler` / `MigrateRollbackHandler` / `MigrateStatusHandler`) from the console handler container by class name, but those handlers are not container auto-wirable: `Migrator`'s first constructor parameter is a raw `Doctrine\DBAL\Connection` (auto-wiring fails with *"unresolvable parameter $params"*) and each handler additionally requires a `\Closure` migrations provider (a closure can never be reflection-constructed). So every `waaseyaa migrate` invocation in a fresh skeleton / consumer app died at command time — surfaced once the Skeleton Smoke's `composer create-project` step stopped failing first (see below). `MigrateServiceProvider` now binds the three handlers explicitly with a lazily-built migration runtime (DBAL connection + `MigrationRepository` + `MigrationLoader`), mirroring how `db:init` and `AbstractKernel::bootMigrations()` construct it; the database is opened only when a migrate* command actually runs. `migrate`, `migrate --dry-run`, `migrate --verify`, and `migrate:status` are verified working in a real consumer app. Regression guard: `MigrateServiceProviderTest` asserts the handlers are bound (never left to auto-wiring).
+- **Skeleton Smoke (Packaged-form CI) no longer fails on every release from a Packagist propagation race.** `composer create-project waaseyaa/waaseyaa` resolves the skeleton's full dependency graph (`waaseyaa/framework` → every `waaseyaa/*` sibling pinned to the exact tag via `self.version`) in one shot and fails opaquely if any sibling hasn't been crawled onto Packagist yet, but the index-wait gate ran *after* `create-project` and polled only `framework` + `admin-surface` — so a lagging sibling (e.g. `waaseyaa/access`) sailed straight into a resolution failure. The wait gate now runs **before** `create-project` and polls the full sibling set (the skeleton + the framework meta + every `packages/*/composer.json` sibling), matching `packagist-update.yml`. CI-only; alert-only workflow, does not gate releases.
+
 ## [0.1.0-alpha.235] - 2026-06-20
 
 ### Fixed
