@@ -164,8 +164,27 @@ final class InstallerTest extends TestCase
         self::assertSame('WINDOWS-EXE-BYTES', file_get_contents($outcome->path));
         // The sibling DLL the exe needs must be extracted alongside it.
         self::assertFileExists($this->dir . '/frankenphp-dist/php8ts.dll');
+        // A working php.ini is generated next to the exe (the SDK ships none): it
+        // enables the SQLite drivers and disables ASLR-fatal opcache.
+        $iniPath = $this->dir . '/frankenphp-dist/php.ini';
+        self::assertFileExists($iniPath);
+        $ini = (string) file_get_contents($iniPath);
+        self::assertStringContainsString('extension = pdo_sqlite', $ini);
+        self::assertStringContainsString('opcache.enable = 0', $ini);
         // No leftover download artifact.
         $leftover = glob($this->dir . '/.frankenphp-*.download');
         self::assertEmpty($leftover === false ? [] : $leftover, 'the downloaded archive must be cleaned up');
+    }
+
+    #[Test]
+    public function the_windows_runtime_ini_enables_sqlite_and_disables_opcache(): void
+    {
+        $ini = Installer::windowsRuntimeIni('C:/app/vendor/bin/frankenphp-dist/ext');
+
+        self::assertStringContainsString('extension_dir = "C:/app/vendor/bin/frankenphp-dist/ext"', $ini);
+        self::assertStringContainsString('extension = pdo_sqlite', $ini);
+        self::assertStringContainsString('extension = sqlite3', $ini);
+        self::assertStringContainsString('opcache.enable = 0', $ini);
+        self::assertStringContainsString('output_buffering = Off', $ini);
     }
 }
