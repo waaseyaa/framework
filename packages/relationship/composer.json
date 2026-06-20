@@ -15,9 +15,9 @@
     },
     "require": {
         "php": ">=8.5",
-        "waaseyaa/access": "^0.1.0-alpha.237",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.237",
-        "waaseyaa/entity": "^0.1.0-alpha.237"
+        "waaseyaa/access": "^0.1.0-alpha.238",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.238",
+        "waaseyaa/entity": "^0.1.0-alpha.238"
     },
     "extra": {
         "waaseyaa": {

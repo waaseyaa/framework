@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.238] - 2026-06-20
+
 ### Fixed
 
 - **`/api/broadcast` no longer 500s under concurrent cold boots — the live SSE beacon path is reliable (the Wayfinding showcase blocker).** `AuthTokenRepository::ensureSchema()` runs on the request hot path (`AuthServiceProvider` resolves it during route registration), and under FrankenPHP classic `php-server` every request boots the kernel afresh across many worker threads. Its `tableExists()`-then-`createTable()` was TOCTOU: two concurrent cold boots both saw `auth_tokens` missing, both ran `CREATE TABLE`, and the loser hit the driver's *"table auth_tokens already exists"* — a 500 on `/api/broadcast` that kills the live beacon stream. Reproduced on alpha.237 (30 parallel cold `/api/broadcast` → the error in the server log). `ensureSchema()` is now idempotent + race-safe: it keeps the existence guard and catches the concurrent create, rethrowing only if a fresh re-check shows the table genuinely absent. The other boot-ish bootstraps (`audit`, `ai-vector`, `search`) already used `CREATE … IF NOT EXISTS` and were race-safe. Verified end-to-end under `composer run dev` on Windows: repeated `/api/broadcast` return 200 and an emitted beacon is delivered over its paired session's SSE stream (and only that session). Acceptance: `AuthTokenRepositoryTest`. Follow-up (cleanup-backlog CL-11): the bootstrap still runs on the request path and should move to `db:init`/`migrate`.
