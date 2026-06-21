@@ -107,6 +107,27 @@ final class DevCommand extends Command
         $listen = getenv('WAASEYAA_DEV_LISTEN');
         $listen = is_string($listen) && $listen !== '' ? $listen : '127.0.0.1:8080';
 
+        // Preflight: refuse to launch into an address that is already bound.
+        // Without this, FrankenPHP prints a buried "bind: address already in use"
+        // and exits IMMEDIATELY — but only AFTER we have already printed
+        // "Serving … http://…", so a stale/orphaned dev server (this launcher
+        // does not kill FrankenPHP on a non-graceful parent exit) makes a fresh
+        // `composer run dev` look like it started while the browser gets
+        // ERR_CONNECTION_REFUSED. Detecting the conflict up front turns that into
+        // one clear, actionable line and a non-zero exit — and we never print a
+        // misleading "Serving" for a server that cannot bind.
+        if (self::listenAddressInUse($listen)) {
+            $io->error(sprintf(
+                "Cannot start FrankenPHP: %s is already in use.\n"
+                . 'A dev server is probably already running — likely an orphaned frankenphp from a previous run '
+                . '(closing the terminal or force-killing the launcher leaves the child holding the port).',
+                $listen,
+            ));
+            $io->note($this->portReleaseHint($listen));
+
+            return Command::FAILURE;
+        }
+
         // Array form bypasses the shell entirely: the binary runs by full path,
         // no PATH resolution, no escaping pitfalls — identical on POSIX, cmd,
         // PowerShell, and Git Bash.
@@ -120,7 +141,9 @@ final class DevCommand extends Command
         ));
 
         // Inherit the console's streams so output is live and Ctrl-C reaches the
-        // server. No pipes: the child shares our STDIN/STDOUT/STDERR.
+        // server. No pipes: the child shares our STDIN/STDOUT/STDERR. proc_close
+        // blocks for the life of the server, keeping FrankenPHP in the foreground
+        // and surfacing its stderr live (no silent detach).
         $process = proc_open($command, [\STDIN, \STDOUT, \STDERR], $pipes);
         if (!\is_resource($process)) {
             $io->error('Failed to launch FrankenPHP.');
@@ -129,5 +152,80 @@ final class DevCommand extends Command
         }
 
         return proc_close($process);
+    }
+
+    /**
+     * Whether a server is already accepting connections on the dev listen
+     * address — in which case FrankenPHP's bind would fail with EADDRINUSE.
+     *
+     * This is a CONNECT probe, not a bind probe: on Windows PHP's
+     * `stream_socket_server` sets SO_REUSEADDR, so a test bind would happily
+     * coexist with the orphan and miss it — yet FrankenPHP (which does not set
+     * SO_REUSEADDR) still fails. A successful TCP connect proves something is
+     * listening there; connection-refused proves the address is free. For a
+     * wildcard host (0.0.0.0 / ::) the probe targets loopback, where the
+     * conflicting dev server is reachable.
+     *
+     * Pure and injectable: tests pass a $probe so the contract is verified
+     * without real sockets. Returns false for an unparseable address (let
+     * FrankenPHP validate it) so the preflight never blocks a launch it cannot
+     * reason about.
+     *
+     * @param (callable(string $host, int $port): bool)|null $probe returns true when something is listening (in use)
+     */
+    public static function listenAddressInUse(string $listen, ?callable $probe = null): bool
+    {
+        [$host, $port] = self::splitListen($listen);
+        if ($port === null) {
+            return false;
+        }
+
+        $probe ??= static function (string $h, int $p): bool {
+            $connectHost = ($h === '0.0.0.0' || $h === '::' || $h === '[::]') ? '127.0.0.1' : $h;
+            $errno = 0;
+            $errstr = '';
+            $conn = @stream_socket_client("tcp://{$connectHost}:{$p}", $errno, $errstr, 0.5);
+            if ($conn === false) {
+                return false;
+            }
+            fclose($conn);
+
+            return true;
+        };
+
+        return $probe($host, $port);
+    }
+
+    /**
+     * Split a `host:port` listen string into [host, port]. A bare numeric value
+     * is treated as a port on localhost; an empty host (":8080") becomes
+     * localhost. Port is null when it cannot be parsed.
+     *
+     * @return array{0: string, 1: int|null}
+     */
+    private static function splitListen(string $listen): array
+    {
+        $pos = strrpos($listen, ':');
+        if ($pos === false) {
+            return ctype_digit($listen) ? ['127.0.0.1', (int) $listen] : [$listen, null];
+        }
+
+        $host = substr($listen, 0, $pos);
+        $portStr = substr($listen, $pos + 1);
+        if ($host === '') {
+            $host = '127.0.0.1';
+        }
+
+        return ctype_digit($portStr) ? [$host, (int) $portStr] : [$host, null];
+    }
+
+    private function portReleaseHint(string $listen): string
+    {
+        [, $port] = self::splitListen($listen);
+        $port ??= 8080;
+
+        return \PHP_OS_FAMILY === 'Windows'
+            ? sprintf('Find and stop it:  netstat -ano | findstr :%d   then   taskkill /PID <pid> /F', $port)
+            : sprintf('Find and stop it:  lsof -ti tcp:%d | xargs kill', $port);
     }
 }
