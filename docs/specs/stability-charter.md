@@ -101,7 +101,7 @@ A symbol whose tier is unclear is treated as **provisional** until a maintainer 
 
 ### 2.5 Where classification lives
 
-Single source of truth: [`public-surface-map.md`](../public-surface-map.md) and its companion `public-surface-map.php`. Every package section in the map must label its exported items with `stable | provisional | internal`. Unlabeled items default to provisional. (Completing this labeling is the remaining §3.2-1 beta-entry item — tracked as audit C-15.)
+Single source of truth: [`public-surface-map.md`](../public-surface-map.md) and its companion `public-surface-map.php`. Every tracked contract shape is labeled `public` or `internal` (the binary model — §2 above); the surface-parity gate (`tools/check-surface-parity.php`) fails on any source element missing from the map, so the labeling is **complete by construction** — there are no unlabeled items. Audit C-15 (surface tier labeling) is therefore satisfied and the §3.2-1 beta-entry criterion is met. (The earlier `stable | provisional | internal` scheme never shipped — see §2.)
 
 ### 2.6 Mission-status column
 
@@ -823,7 +823,7 @@ A CI job runs on every PR:
 3. Fails on:
    - Symbol present in source, missing from map (untracked surface).
    - Symbol present in map, missing from source (removal without deprecation entry).
-   - Symbol's classification (`stable | provisional | internal`) downgraded without a deprecation entry in the matching changelog.
+   - Symbol's classification downgraded (`public` → `internal`) without a deprecation entry in the matching changelog.
 
 ### 8.2 CI: changelog discipline
 
