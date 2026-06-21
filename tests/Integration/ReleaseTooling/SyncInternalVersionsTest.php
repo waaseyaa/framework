@@ -179,7 +179,7 @@ final class SyncInternalVersionsTest extends TestCase
         // discoverSyncManifests() — the single source of truth — must surface the
         // skeleton (separator-normalised for cross-platform path comparison).
         $discovered = array_map(
-            static fn (string $p): string => str_replace('\\', '/', $p),
+            static fn(string $p): string => str_replace('\\', '/', $p),
             discoverSyncManifests($dir),
         );
         self::assertContains(
