@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.243] - 2026-06-21
+
 ### Fixed
 
 - **`route:list` works in the console instead of crashing (#1684).** The command did `$this->resolve(WaaseyaaRouter::class)`, but `WaaseyaaRouter` is built per HTTP request inside `HttpKernel` and is never container-bound — so the console raised `RuntimeException: No binding registered for Waaseyaa\Routing\WaaseyaaRouter`. The command now builds a populated router from the SAME single source the kernel uses (`BuiltinRouteRegistrar`) and lists the real route table (builtin + per-entity-type routes). Provider-supplied HTTP domain routes are out of scope for the console listing — the command context exposes no provider list — but the command no longer crashes or prints a misleading "No routes found." Acceptance: `MiscBRouteListCommandTest` (verified to throw the binding error against the pre-fix code).

@@ -11,7 +11,7 @@
     ],
     "require": {
         "php": ">=8.5",
-        "waaseyaa/foundation": "^0.1.0-alpha.242"
+        "waaseyaa/foundation": "^0.1.0-alpha.243"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
