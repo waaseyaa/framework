@@ -1,5 +1,6 @@
 # Operations Playbooks
 
+<!-- Spec reviewed 2026-06-21 - issue #1707 `waaseyaa dev` port preflight (packages/frankenphp): before printing "Serving …" and exec'ing FrankenPHP, the `dev` command now connect-probes the resolved listen address (DevCommand.php). A connect probe — Windows SO_REUSEADDR-safe, unlike a test bind — detects an already-bound address (e.g. an orphaned prior dev server) and the command fails fast with one actionable line plus a port-release hint, instead of printing "Serving" then exiting silently and leaving the browser at ERR_CONNECTION_REFUSED. The probe is injectable; covered by DevCommandPortPreflightTest. No other dev/install behavior changed. -->
 ## Purpose
 
 This document consolidates operational workflows introduced across v1.0-v1.2:

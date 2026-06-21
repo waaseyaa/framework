@@ -200,4 +200,73 @@ final class BroadcastRouterTest extends TestCase
         self::assertStringContainsString('event: entity.saved', $out);
         self::assertStringContainsString('"entityType":"story"', $out);
     }
+
+    #[Test]
+    public function stream_closes_the_php_session_to_unblock_concurrent_same_session_requests(): void
+    {
+        if (session_status() === \PHP_SESSION_DISABLED) {
+            self::markTestSkipped('PHP sessions are disabled in this SAPI.');
+        }
+
+        $db = \Waaseyaa\Database\DBALDatabase::createSqlite();
+        $storage = new \Waaseyaa\Api\Controller\BroadcastStorage($db);
+
+        // Simulate SessionMiddleware having opened the native session. Its file
+        // lock would otherwise serialize every concurrent same-PHPSESSID request
+        // (the SPA's reloads, /api/* fetches, a second tab) behind this stream
+        // for its whole lifetime — the 15-25s admin blank under reloads/tabs.
+        if (session_status() !== \PHP_SESSION_ACTIVE) {
+            @session_start();
+        }
+        self::assertSame(\PHP_SESSION_ACTIVE, session_status());
+
+        $now = 0;
+        $clock = function () use (&$now): int { return $now++; };
+        $router = new BroadcastRouter(
+            maxDurationSec: 1,
+            keepaliveIntervalSec: 1,
+            pollIntervalUs: 0,
+            clock: $clock,
+            abortSignal: static fn(): int => 0,
+        );
+
+        $this->runStream($router->handle($this->broadcastRequest($storage)));
+
+        // The stream must have released the session lock (closed the session)
+        // before entering its loop, so concurrent same-session requests proceed.
+        self::assertSame(\PHP_SESSION_NONE, session_status());
+    }
+
+    #[Test]
+    public function stream_clears_ignore_user_abort_so_disconnects_surface(): void
+    {
+        $db = \Waaseyaa\Database\DBALDatabase::createSqlite();
+        $storage = new \Waaseyaa\Api\Controller\BroadcastStorage($db);
+
+        // Simulate the FrankenPHP / php-fpm request bootstrap, which enables
+        // ignore_user_abort(true). With that left on, a failed write to a
+        // navigated-away client never flips connection_aborted(), so the stream
+        // would pin the worker until its time budget — the bug behind the admin
+        // SPA blank-screen stall under reloads / multiple tabs.
+        $previous = ignore_user_abort(true);
+        try {
+            $now = 0;
+            $clock = function () use (&$now): int { return $now++; };
+            $router = new BroadcastRouter(
+                maxDurationSec: 1,
+                keepaliveIntervalSec: 1,
+                pollIntervalUs: 0,
+                clock: $clock,
+                abortSignal: static fn(): int => 0,
+            );
+
+            $this->runStream($router->handle($this->broadcastRequest($storage)));
+
+            // The stream must have cleared the flag for its own lifetime so a
+            // dead-socket write can surface as an abort and release the worker.
+            self::assertSame(0, ignore_user_abort());
+        } finally {
+            ignore_user_abort((bool) $previous);
+        }
+    }
 }

@@ -141,3 +141,17 @@ uninstallable until the failed job was re-run. **Fix:** wrap the split git push 
 retry (idempotent on an already-present tag). **Risk:** moderate (a single flaky push can
 ship a broken/uninstallable release; the skeleton smoke now catches it but only after the
 fact). Tracked: spawned background task. Source: `.github/workflows/split.yml`.
+
+### CL-12 — api: `MercureMonitorController::events()` SSE loop is unbounded (worker-pin risk)
+**Found:** 2026-06-20 (Failure B broadcast SSE teardown). `events()` streams with
+`while (connection_aborted() === 0)` and **no time-budget cap** at
+`packages/api/src/Controller/MercureMonitorController.php:110` — unlike `BroadcastRouter`,
+which bounds its loop with a 30s `streamShouldContinue()` backstop. Keepalive is every 15s
+(line 145) and `ignore_user_abort()` is never cleared, so the `/api/mercure/events` admin
+monitor stream is susceptible to the *same* missed-disconnect worker pinning that Failure B
+fixed in `BroadcastRouter` — and worse, with no durable backstop a binary that never flips
+`connection_aborted()` pins the worker indefinitely. **Fix:** port the Failure B teardown to
+this loop — clear `ignore_user_abort()` at stream start, re-probe the abort state after each
+write, and add a bounded time-budget cap mirroring `BroadcastRouter::streamShouldContinue()`.
+**Risk:** low (admin-only debug endpoint, gated by the monitor role) but unbounded. Source:
+`packages/api/src/Controller/MercureMonitorController.php:80-155`.

@@ -164,6 +164,34 @@ final class BroadcastRouter implements DomainRouterInterface
             $keepaliveIntervalSec,
             $pollIntervalUs,
         ): void {
+            // CRITICAL — release the PHP session lock before the long-lived stream.
+            // SessionMiddleware opened the native session (session_start) and PHP
+            // holds its PHPSESSID file lock until the script ends — for this
+            // StreamedResponse that is the full stream lifetime (up to the 30s cap).
+            // While the lock is held, EVERY other request carrying the same
+            // PHPSESSID blocks in session_start() until this stream ends: the SPA's
+            // own document reloads, its /api/* fetches, and a second admin tab all
+            // serialize behind the SSE — THIS is the 15-25s admin "blank" under
+            // reloads / multiple tabs. All session data this stream needs
+            // ($channels, $sessionToken) was read in handle() before this closure,
+            // and the stream never writes the session, so closing now is safe; the
+            // session cookie (sent at session_start) is unaffected.
+            if (function_exists('session_write_close') && session_status() === \PHP_SESSION_ACTIVE) {
+                session_write_close();
+            }
+
+            // Defensive: under FrankenPHP (and php-fpm) the request bootstrap sets
+            // ignore_user_abort(true), which can suppress connection_aborted() from
+            // flipping when a write lands on a dead socket. Clearing it for this
+            // stream lets a failed keepalive write surface as an abort so the bounded
+            // loop exits within one keepalive after a client navigates away, instead
+            // of waiting out the time-budget cap. (Measured on FrankenPHP 1.12.4 the
+            // abort already flips on the keepalive write regardless, so this is
+            // hardening, not the primary fix; the 30s cap is the durable backstop.)
+            if (function_exists('ignore_user_abort')) {
+                ignore_user_abort(false);
+            }
+
             // sessionToken lets the client (or a paired presenter) address this
             // connection's private channel without ever learning the raw session id.
             echo "event: connected\ndata: " . json_encode(['channels' => $channels, 'sessionToken' => $sessionToken], JSON_THROW_ON_ERROR) . "\n\n";
@@ -237,6 +265,12 @@ final class BroadcastRouter implements DomainRouterInterface
                         ob_flush();
                     }
                     flush();
+
+                    // The write above doubles as a disconnect probe: if the client
+                    // is gone, break now instead of polling another cycle.
+                    if ($abort() !== 0) {
+                        break;
+                    }
                 }
 
                 if (($clock() - $lastKeepalive) >= $keepaliveIntervalSec) {
@@ -247,8 +281,15 @@ final class BroadcastRouter implements DomainRouterInterface
                     flush();
                     $lastKeepalive = $clock();
 
-                    // A keepalive write is also our disconnect probe: if the client
-                    // is gone the next streamShouldContinue() sees abort and exits.
+                    // The keepalive write above doubles as our disconnect probe.
+                    // Re-read the abort state now instead of deferring to the next
+                    // streamShouldContinue(): a client that navigated away then
+                    // releases the worker within this keepalive (~2s) rather than
+                    // after another poll cycle. ignore_user_abort(false) at the top
+                    // of the stream is what lets the failed write flip this.
+                    if ($abort() !== 0) {
+                        break;
+                    }
 
                     // Update heartbeat in subscribers.json (best-effort).
                     if ($subscribersPath !== null) {
