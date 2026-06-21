@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.239] - 2026-06-21
+
 ### Added
 
 - **Supported read path for a viewer's Wayfinding session token — a presenter no longer has to intercept the SSE wire.** New `GET /api/wayfinding/session` (`SessionTokenController`, authenticated) returns the caller's own non-secret `{ sessionToken, channel }` — identical to the value the SSE `connected` frame carries (`substr(sha256(session_id), 0, 32)`) — and the admin shell surfaces it as `data-wf-session` on the document root (`plugins/wayfindingSession.client.ts`). Before this the token lived only in `useRealtime`/`useBeacons` Vue state, so reading it from outside the app required monkey-patching `EventSource` and winning the hydration race (exactly what the single-take dry run had to do). Returns only the caller's own token (derived from its session); null when there is no session. Mission `wayfinding-showcase-hardening`, P0-2. Acceptance: `SessionTokenControllerTest`.
