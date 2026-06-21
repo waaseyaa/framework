@@ -13,6 +13,7 @@ use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\AI\Agent\AgentExecutor;
 use Waaseyaa\AI\Agent\Entity\AgentAuditLog;
 use Waaseyaa\AI\Agent\Entity\AgentRun;
+use Waaseyaa\AI\Agent\Enum\EventType;
 use Waaseyaa\AI\Agent\Enum\HitlMode;
 use Waaseyaa\AI\Agent\Enum\RunStatus;
 use Waaseyaa\AI\Agent\Provider\ClientErrorException;
@@ -26,6 +27,7 @@ use Waaseyaa\AI\Observability\Event\AgentRunProviderCallCompleted;
 use Waaseyaa\AI\Observability\Event\AgentRunStarted;
 use Waaseyaa\AI\Observability\Event\AgentRunTerminated;
 use Waaseyaa\AI\Observability\Event\AgentRunToolCallObserved;
+use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolInterface;
 use Waaseyaa\AI\Tools\AgentToolResult;
@@ -396,6 +398,64 @@ final class AgentExecutorEventDispatchTest extends TestCase
         self::assertTrue($result->success);
     }
 
+    #[Test]
+    public function listValuedToolArgumentsAreAuditedAndDoNotCrashTheRun(): void
+    {
+        $run = $this->seedRun();
+
+        // A tool_use turn carrying a LIST-valued argument (the shape an
+        // entity.create `values.blocks` / `tags` produces), then end_turn.
+        $provider = new class implements ProviderInterface {
+            private int $call = 0;
+
+            public function sendMessage(MessageRequest $request): MessageResponse
+            {
+                $this->call++;
+                if ($this->call === 1) {
+                    return new MessageResponse(
+                        content: [[
+                            'type' => 'tool_use',
+                            'id' => 'tool-1',
+                            'name' => 'list_arg_tool',
+                            'input' => ['values' => ['blocks' => [['type' => 'prose']], 'tags' => ['a', 'b']]],
+                        ]],
+                        stopReason: 'tool_use',
+                        usage: ['input_tokens' => 5, 'output_tokens' => 2],
+                    );
+                }
+
+                return new MessageResponse(
+                    content: [['type' => 'text', 'text' => 'done']],
+                    stopReason: 'end_turn',
+                    usage: ['input_tokens' => 5, 'output_tokens' => 2],
+                );
+            }
+        };
+
+        $registry = $this->registryWith([$this->makeRealAuditTool('list_arg_tool')]);
+        $executor = $this->makeExecutor($registry, new RecordingEventDispatcher());
+
+        // Pre-#1637: argumentsForAudit() threw a TypeError on the integer list
+        // keys at the audit step — which sits OUTSIDE the execute() try/catch —
+        // so the run crashed and the tool_call audit row was never written.
+        $result = $executor->executeRun(
+            $run,
+            $this->fakeAccount(1),
+            $provider,
+            messages: [['role' => 'user', 'content' => 'go']],
+            maxIterations: 5,
+        );
+
+        self::assertTrue($result->success, 'a list-valued tool argument must not crash the run');
+
+        $logged = $this->auditRepository->findByRunId((string) $run->id());
+        $toolCalls = array_filter(
+            $logged,
+            static fn(AgentAuditLog $log): bool => $log->getEventType() === EventType::ToolCall,
+        );
+        self::assertNotEmpty($toolCalls, 'the tool_call audit row (written right after argumentsForAudit) must be present');
+    }
+
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
@@ -627,6 +687,41 @@ final class AgentExecutorEventDispatchTest extends TestCase
             public function description(): string
             {
                 return 'Echo tool';
+            }
+        };
+
+        return new AgentTool(
+            name: $name,
+            capability: 'tool.test.' . $name,
+            destructive: false,
+            dryRunSupported: false,
+            category: 'test',
+            inputSchema: ['type' => 'object', 'properties' => []],
+            impl: $impl,
+        );
+    }
+
+    /**
+     * A tool whose impl uses the REAL {@see AbstractAgentTool::argumentsForAudit()}
+     * (not the pass-through fixtures), so a list-valued argument exercises the
+     * #1637 audit path through {@see AgentExecutor}.
+     */
+    private function makeRealAuditTool(string $name): AgentTool
+    {
+        $impl = new class extends AbstractAgentTool {
+            public function execute(array $arguments, AccountInterface $account): AgentToolResult
+            {
+                return AgentToolResult::text('ok');
+            }
+
+            public function inputSchema(): array
+            {
+                return ['type' => 'object', 'properties' => []];
+            }
+
+            public function description(): string
+            {
+                return 'Real-audit tool fixture.';
             }
         };
 

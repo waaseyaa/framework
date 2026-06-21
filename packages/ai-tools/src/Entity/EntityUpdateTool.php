@@ -105,6 +105,14 @@ final class EntityUpdateTool extends AbstractAgentTool
             if ($refused !== []) {
                 return EntityKeyGuard::refusalError('entity.update', $refused);
             }
+            // Per-field edit access, mirroring the JSON:API write path (#1638):
+            // an agent with entity-level update must still not set a field a
+            // FieldAccessPolicy forbids (e.g. user.roles/status). Runs BEFORE
+            // any set() — whole-write rejection, nothing mutated on refusal.
+            $fieldDenied = $this->requireFieldEditAccess($entity, $values, $account);
+            if ($fieldDenied !== null) {
+                return $fieldDenied;
+            }
             foreach ($values as $field => $value) {
                 if (!is_string($field)) {
                     continue;

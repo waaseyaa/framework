@@ -8,6 +8,7 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Validation\EntityValidationException;
 
@@ -99,6 +100,15 @@ final class EntityCreateTool extends AbstractAgentTool
             $revisionLog = $arguments['revision_log'] ?? null;
             if (is_string($revisionLog) && $revisionLog !== '' && method_exists($entity, 'setRevisionLog')) {
                 $entity->setRevisionLog($revisionLog);
+            }
+            // Per-field edit access, mirroring the JSON:API create path (#1638):
+            // entity-level create access does not license setting a field a
+            // FieldAccessPolicy forbids. Refuse before save — nothing persists.
+            if ($entity instanceof EntityInterface) {
+                $fieldDenied = $this->requireFieldEditAccess($entity, $values, $account);
+                if ($fieldDenied !== null) {
+                    return $fieldDenied;
+                }
             }
             $repository = $this->entityTypeManager->getRepository($entityType);
             $result = $repository->save($entity);

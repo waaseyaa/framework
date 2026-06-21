@@ -112,16 +112,31 @@ abstract class AbstractAgentTool implements AgentToolInterface
      */
     public function argumentsForAudit(array $arguments): array
     {
+        return $this->redactArguments($arguments);
+    }
+
+    /**
+     * Recursively redact credential-named keys. Operates on arbitrarily-keyed
+     * arrays because nested values may be lists (e.g. an entity.create
+     * `values.blocks` / `tags`) — whose integer keys are never credential
+     * names and, crucially, must not be passed to strtolower() under
+     * strict_types (#1637).
+     *
+     * @param array<array-key, mixed> $arguments
+     *
+     * @return array<array-key, mixed>
+     */
+    private function redactArguments(array $arguments): array
+    {
         $redacted = [];
         foreach ($arguments as $key => $value) {
-            $keyLower = strtolower($key);
+            $keyLower = is_string($key) ? strtolower($key) : '';
             if (in_array($keyLower, self::REDACTED_KEYS, true)) {
                 $redacted[$key] = '[REDACTED]';
                 continue;
             }
             if (is_array($value)) {
-                /** @var array<string, mixed> $value */
-                $redacted[$key] = $this->argumentsForAudit($value);
+                $redacted[$key] = $this->redactArguments($value);
                 continue;
             }
             $redacted[$key] = $value;
@@ -236,6 +251,41 @@ abstract class AbstractAgentTool implements AgentToolInterface
                 message: sprintf('Account %s is not permitted to create %s', $account->id(), $entityTypeId),
                 summary: 'forbidden',
             );
+        }
+
+        return null;
+    }
+
+    /**
+     * Enforce per-field edit access for a write payload, mirroring the JSON:API
+     * write path ({@see EntityAccessHandler::checkFieldAccess()} with the `edit`
+     * operation; open-by-default — only an explicit Forbidden denies). Returns a
+     * `forbidden` refusal for the first field the account may not edit (whole-
+     * write rejection — the caller must run this BEFORE any `set()`), or null
+     * when every submitted field is writable.
+     *
+     * No-op in capability-only mode (no handler attached): entity-level access
+     * has already been enforced by the caller, and hosts/tests with no field
+     * policy keep prior behavior — identical to {@see applyFieldAccessFilter()}.
+     * Non-string keys are skipped (they are never field names).
+     *
+     * @param array<array-key, mixed> $values
+     */
+    protected function requireFieldEditAccess(EntityInterface $entity, array $values, AccountInterface $account): ?AgentToolResult
+    {
+        if ($this->accessHandler === null) {
+            return null;
+        }
+        foreach ($values as $field => $_value) {
+            if (!is_string($field)) {
+                continue;
+            }
+            if ($this->accessHandler->checkFieldAccess($entity, $field, 'edit', $account)->isForbidden()) {
+                return AgentToolResult::error(
+                    message: sprintf('Account %s is not permitted to edit field %s on %s', $account->id(), $field, $entity->getEntityTypeId()),
+                    summary: 'forbidden',
+                );
+            }
         }
 
         return null;
