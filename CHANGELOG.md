@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Closed the `AppendOnlyAuditDatabase` identifier-quoting bypass (#1648).** The raw-SQL guard on `query()` stripped **double-quoted** spans as if they were string literals — but in SQLite/Postgres double quotes are *identifier* quotes — so `DELETE FROM "audit_event"` (and the `` `audit_event` ``, `[audit_event]`, and `main."audit_event"` forms SQLite accepts) erased the append-only table name from the guard's view and the raw mutation passed straight through to the inner database (verified: under the old guard those statements reach the engine and raise `TableNotFoundException`, not the guard's `LogicException`). The guard now removes single-quoted literals + comments but **unquotes** identifier delimiters so a quoted table name stays visible to the verb+table check; every quoting form is covered by `AppendOnlyAuditDatabaseTest`, and a quoted-name `SELECT` stays allowed (no false positive). The decorator remains the enforcement layer by design — `audit:prune` deletes through the raw `DatabaseInterface`, so a blanket DB trigger would block the sanctioned retention path.
 
+### Added
+
+- **`Foundation\RateLimit\DatabaseRateLimiter` — a persistent, cross-request rate limiter (#1611).** The shipped `InMemoryRateLimiter` holds its window map in a per-request PHP array, so under php-fpm / FrankenPHP (kernel rebuilt per request) it resets every request and never actually limits across them. The new implementation records each fixed window in a `rate_limit_windows` table through the kernel's persistent `DatabaseInterface`, so the count survives across requests and workers, with semantics identical to `InMemoryRateLimiter`. The default binding stays `InMemoryRateLimiter` (no table required); bind `RateLimiterInterface` to `DatabaseRateLimiter` in an app provider when a limit must hold across requests. Acceptance: `DatabaseRateLimiterTest`, including a two-separate-connections persistence proof.
+
+### Fixed
+
+- **`resolve(DatabaseInterface)` returns the kernel's persistent connection in every phase, including route building (#1611).** The alpha.188 field report saw a `ServiceProvider::routes()` build-time resolve capture an *ephemeral* connection whose writes silently never reached the file. On the current kernel, `ProviderRegistryKernelServices::get(DatabaseInterface::class)` hands back the single `$this->database` the kernel bootstrapped — so a captured reference is the persistent connection and writes through it persist. Pinned by a new `ProviderRegistryKernelServicesTest` (same instance across resolves; a write through one resolve is visible through another).
+
 ## [0.1.0-alpha.241] - 2026-06-21
 
 ### Fixed
