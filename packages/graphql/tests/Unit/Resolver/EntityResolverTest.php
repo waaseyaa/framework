@@ -16,7 +16,6 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Entity\EntityInterface;
-use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Tests\Helper\TestEntityType;
 use Waaseyaa\Field\FieldDefinition;
@@ -36,7 +35,7 @@ final class EntityResolverTest extends TestCase
 
         $this->entityTypeManager = new EntityTypeManager(
             new EventDispatcher(),
-            fn () => $this->storage,
+            fn() => $this->storage,
         );
         $this->entityTypeManager->registerCoreEntityType(TestEntityType::stub(
             'article',
@@ -62,7 +61,11 @@ final class EntityResolverTest extends TestCase
     {
         $guard = new GraphQlAccessGuard($handler, $this->account);
 
-        return new EntityResolver($this->entityTypeManager, $guard);
+        // Pass the account to BOTH the guard and the resolver, as production does
+        // (GraphQlEndpoint), so the access-filtered-total path (#1702 C-7) is
+        // exercised. A null resolver account is the system-context bypass and is
+        // covered separately by GraphQLResolverFilterTest.
+        return new EntityResolver($this->entityTypeManager, $guard, $this->account);
     }
 
     private function openAccessHandler(): EntityAccessHandler
@@ -149,8 +152,56 @@ final class EntityResolverTest extends TestCase
         $resolver = $this->createResolver(new EntityAccessHandler([$policy]));
         $result = $resolver->resolveList('article', []);
 
-        // total reflects unfiltered count (full dataset), items are access-filtered.
-        self::assertSame(2, $result['total']);
+        // #1702 (C-7): `total` is access-filtered and reconciles with `items` —
+        // the Neutral ('Hidden') row is absent from BOTH the items and the total.
+        // Previously `total` was the raw storage COUNT (2), leaking the restricted
+        // collection's cardinality while only the Allowed row was returned.
+        self::assertSame(1, $result['total']);
+        self::assertCount(1, $result['items']);
+        self::assertSame('Visible', $result['items'][0]['title']);
+    }
+
+    #[Test]
+    public function resolveListTotalReconcilesAcrossPagesWithAccessFilteredItems(): void
+    {
+        // 1 Allowed + 3 Neutral. The Neutral rows must leak through NEITHER the
+        // items NOR the total — and the total must be the access-filtered
+        // cardinality across ALL pages, not the current page size (#1702 C-7).
+        $this->seedArticle('Visible');
+        $this->seedArticle('Hidden-A');
+        $this->seedArticle('Hidden-B');
+        $this->seedArticle('Hidden-C');
+
+        $policy = new class implements AccessPolicyInterface, FieldAccessPolicyInterface {
+            public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+            {
+                return ($entity->get('title') ?? '') === 'Visible'
+                    ? AccessResult::allowed()
+                    : AccessResult::neutral();
+            }
+
+            public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+            {
+                return AccessResult::allowed();
+            }
+
+            public function appliesTo(string $entityTypeId): bool
+            {
+                return true;
+            }
+
+            public function fieldAccess(EntityInterface $entity, string $fieldName, string $operation, AccountInterface $account): AccessResult
+            {
+                return AccessResult::neutral();
+            }
+        };
+
+        $resolver = $this->createResolver(new EntityAccessHandler([$policy]));
+
+        // Page size 2 — smaller than the dataset — so a raw-count total would be 4.
+        $result = $resolver->resolveList('article', ['limit' => 2, 'offset' => 0]);
+
+        self::assertSame(1, $result['total'], 'total must be the access-filtered cardinality across all pages, not 4');
         self::assertCount(1, $result['items']);
         self::assertSame('Visible', $result['items'][0]['title']);
     }

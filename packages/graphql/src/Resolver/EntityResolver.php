@@ -61,20 +61,44 @@ final class EntityResolver
         $offset = isset($args['offset']) ? max(0, (int) $args['offset']) : 0;
         $limit = isset($args['limit']) ? min(self::MAX_LIMIT, max(1, (int) $args['limit'])) : self::DEFAULT_LIMIT;
 
-        // Count query — filters only, no sorts/pagination, access enforced at query layer.
+        // Total — filters only, no sorts/pagination.
         $countQuery = $storage->getQuery();
         if ($this->account !== null) {
+            // Access-filtered total (#1702, audit C-7). The query layer is
+            // open-by-default (admits Allowed AND Neutral), but `items` below are
+            // deny-by-default via guard->canView(); taking `total` from the raw
+            // storage COUNT therefore leaks the unfiltered collection cardinality
+            // (Neutral/policy-less rows inflate it) while those rows never appear
+            // in `items`. Recompute `total` across ALL matching rows with the
+            // SAME guard->canView() predicate as the per-item filter, so the two
+            // reconcile across pages — mirroring JsonApiController::accessFilteredTotal
+            // for the REST collection.
             $countQuery = $countQuery->setAccount($this->account);
+            foreach ($filters as $filter) {
+                $countQuery->condition($filter->field, $filter->value, $filter->operator);
+            }
+            $countIds = $countQuery->execute();
+            $total = 0;
+            if ($countIds !== []) {
+                foreach ($storage->loadMultiple($countIds) as $countEntity) {
+                    if ($this->guard->canView($countEntity)) {
+                        ++$total;
+                    }
+                }
+            }
         } else {
-            // system context: resolver invoked without an account in scope (e.g. internal tooling)
+            // System context (no bound account — internal tooling such as
+            // background ingestion / sitemap build): the resolver routes through
+            // accessCheck(false) and the unfiltered storage COUNT is the documented
+            // total (GraphQLResolverFilterTest::systemContextBypass...).
             $countQuery = $countQuery->accessCheck(false);
+            foreach ($filters as $filter) {
+                $countQuery->condition($filter->field, $filter->value, $filter->operator);
+            }
+            $countQuery->count();
+            $countResult = $countQuery->execute();
+            $total = (int) ($countResult[0] ?? 0);
         }
-        foreach ($filters as $filter) {
-            $countQuery->condition($filter->field, $filter->value, $filter->operator);
-        }
-        $countQuery->count();
-        $countResult = $countQuery->execute();
-        $total = (int) ($countResult[0] ?? 0);
 
         // Main query via QueryApplier — access enforced at query layer.
         $parsedQuery = new ParsedQuery(
