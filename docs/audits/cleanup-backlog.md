@@ -120,6 +120,12 @@ expose an authenticated human-edit path (e.g. a `wayfinding_edit_trail` write to
 admin trail editor that routes through `editAsHuman`). **Risk:** medium (feature gap — the
 flagship's headline "human edits are never overwritten" can't actually be demonstrated end
 to end). Source: `packages/wayfinding/src/Trail/TrailStore.php`.
+**DONE (alpha.245, #1705):** shipped `wayfinding_edit_trail` — a fifth `#[AsAgentTool]`
+adapter (`packages/ai-agent/src/Tool/Wayfinding/EditTrailTool.php`, `destructive: true`,
+`present guided content`) routing to `TrailStore::editAsHuman()` on the authenticated
+`/mcp/write` tier. `WayfindingTrailToolsTest::editing_as_human_via_the_tool_latches_origin_and_survives_rerecord`
+now drives SC-005 end-to-end through tools only (human edit → re-record lands a draft →
+live value intact), replacing the `new TrailStore(...)->editAsHuman()` back-channel.
 
 ### CL-9 — admin: `enableRealtime` is build-baked, not serve-time configurable
 **Found:** 2026-06-20 (alpha.233 wayfinding hands-on). The prebuilt admin SPA bakes

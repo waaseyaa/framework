@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`wayfinding_edit_trail` agent tool — the human-owned trail latch is now reachable from a running app (#1705, CL-8).** The flagship "human edits are never overwritten on re-record" guarantee (SC-005) rides on `TrailStore::editAsHuman()` latching `origin = human`, but that method had **no** MCP/HTTP/admin/CLI caller — so SC-005 was demonstrable only from a unit test that reached *around* the tool layer (`new TrailStore(...)->editAsHuman(...)`). A fifth `#[AsAgentTool]` adapter `EditTrailTool` (`packages/ai-agent/src/Tool/Wayfinding/`, `destructive: true`, `present guided content` capability, attribute-discovered — no wiring) routes to `editAsHuman()`, mirroring `ReRecordTrailTool`. It surfaces only on the authenticated `/mcp/write` tier (hidden from the public read-only `/mcp` by `ReadOnlyToolRegistry`). Acceptance: `WayfindingTrailToolsTest::editing_as_human_via_the_tool_latches_origin_and_survives_rerecord` drives the full SC-005 flow (record → human edit → re-record lands a draft, `promoted: false` → live value intact) **entirely through tools**, plus `edit_is_forbidden_without_the_capability`.
+
+### Fixed
+
+- **Stability charter §2.5/§8.1 no longer claim surface tier-labeling is an unfinished beta-entry item (#1703, audit C-15).** PR #1676 made the **binary `public | internal`** model canonical (charter §2) and the `public-surface-map` + surface-parity gate (`tools/check-surface-parity.php`) enforce zero unlabeled tracked elements — so §3.2-1 (surface labeling complete) is satisfied and green. Two residual lines that #1676 missed still asserted the never-shipped three-tier `stable | provisional | internal` scheme and called the labeling "the remaining §3.2-1 beta-entry item": §2.5 (now states the labeling is complete by construction, C-15 satisfied) and §8.1 (vocabulary corrected to `public → internal`). Doc-consistency only; no code behavior change — the standing acceptance is the already-green surface-parity gate.
+
 ## [0.1.0-alpha.244] - 2026-06-21
 
 ### Security

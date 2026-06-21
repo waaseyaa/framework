@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Agent\Tests\Support\FakeEntityTypeManager;
+use Waaseyaa\AI\Agent\Tool\Wayfinding\EditTrailTool;
 use Waaseyaa\AI\Agent\Tool\Wayfinding\GetTrailTool;
 use Waaseyaa\AI\Agent\Tool\Wayfinding\RecordTrailTool;
 use Waaseyaa\AI\Agent\Tool\Wayfinding\ReRecordTrailTool;
@@ -33,6 +34,7 @@ use Waaseyaa\Wayfinding\Trail\TrailStore;
 #[CoversClass(RecordTrailTool::class)]
 #[CoversClass(ReRecordTrailTool::class)]
 #[CoversClass(GetTrailTool::class)]
+#[CoversClass(EditTrailTool::class)]
 final class WayfindingTrailToolsTest extends TestCase
 {
     private EntityRepository $repository;
@@ -120,6 +122,57 @@ final class WayfindingTrailToolsTest extends TestCase
         self::assertSame('Human title', $got->content[0]['data']['title']);
         self::assertSame('human one', $got->content[0]['data']['beacons'][0]['content']);
         self::assertSame('human', $got->content[0]['data']['origin']);
+    }
+
+    #[Test]
+    public function editing_as_human_via_the_tool_latches_origin_and_survives_rerecord(): void
+    {
+        // SC-005 end-to-end through the TOOL layer only — no direct TrailStore
+        // back-channel. This is the path #1705/CL-8 said had no app surface: the
+        // human-owned latch is now reachable via wayfinding_edit_trail.
+        $account = $this->account(hasCapability: true);
+
+        $recorded = new RecordTrailTool($this->entityTypeManager)->execute([
+            'title' => 'Recorded',
+            'beacons' => [['anchor_id' => 'a', 'content' => 'recorded one', 'order' => 0]],
+        ], $account);
+        $trailId = $recorded->content[0]['data']['trail_id'];
+
+        // A human edits the trail THROUGH THE TOOL — origin latches to human.
+        $edited = new EditTrailTool($this->entityTypeManager)->execute([
+            'trail_id' => $trailId,
+            'title' => 'Human title',
+            'beacons' => [['anchor_id' => 'a', 'content' => 'human one', 'order' => 0]],
+        ], $account);
+        self::assertFalse($edited->isError);
+        self::assertSame('human', $edited->content[0]['data']['origin'], 'the edit tool latches origin = human');
+
+        // The agent re-records over it — must land as a draft, never overwrite.
+        $reRecorded = new ReRecordTrailTool($this->entityTypeManager)->execute([
+            'trail_id' => $trailId,
+            'title' => 'Agent re-record',
+            'beacons' => [['anchor_id' => 'a', 'content' => 'agent one', 'order' => 0]],
+        ], $account);
+        self::assertFalse($reRecorded->isError);
+        self::assertFalse($reRecorded->content[0]['data']['promoted'], 're-record of a human-owned trail lands a draft');
+
+        // The human's live trail survives byte-for-byte — entirely via tools.
+        $got = new GetTrailTool($this->entityTypeManager)->execute(['trail_id' => $trailId], $account);
+        self::assertSame('Human title', $got->content[0]['data']['title']);
+        self::assertSame('human one', $got->content[0]['data']['beacons'][0]['content']);
+        self::assertSame('human', $got->content[0]['data']['origin']);
+    }
+
+    #[Test]
+    public function edit_is_forbidden_without_the_capability(): void
+    {
+        $result = new EditTrailTool($this->entityTypeManager)->execute(
+            ['trail_id' => '1', 'title' => 'x', 'beacons' => [['anchor_id' => 'a', 'content' => 'b']]],
+            $this->account(hasCapability: false),
+        );
+
+        self::assertTrue($result->isError);
+        self::assertSame('forbidden', $result->summary);
     }
 
     #[Test]

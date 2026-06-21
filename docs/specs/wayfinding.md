@@ -197,7 +197,7 @@ untouched (FR-003/FR-004/NFR-002/C-001/SC-002).
 
 ### Wayfinding write tools (`packages/ai-agent/src/Tool/Wayfinding/`)
 
-Four `#[AsAgentTool]` adapters — in **ai-agent (L5)**, importing wayfinding (L4)
+Five `#[AsAgentTool]` adapters — in **ai-agent (L5)**, importing wayfinding (L4)
 downward, the established home for first-party tool adapters (mirrors the Bimaaji
 family). All carry `capability: 'present guided content'`
 ({@see EmitBeaconController::CAPABILITY}) and `requireCapability` fail-closed:
@@ -206,6 +206,12 @@ family). All carry `capability: 'present guided content'`
 - `wayfinding_rerecord_trail` (`destructive: true`) → `TrailStore::reRecord`; the
   no-silent-overwrite rule rides through (FR-011): re-recording a human-owned trail
   reports `promoted: false` (draft).
+- `wayfinding_edit_trail` (`destructive: true`) → `TrailStore::editAsHuman` (SC-005):
+  advances the live value AND latches `origin = human`, so a later re-record lands
+  as a draft instead of overwriting it. This is the authenticated surface that makes
+  the "human edits are never overwritten" guarantee reachable from a running app —
+  before it, `editAsHuman()` had no MCP/HTTP/admin/CLI caller and SC-005 was
+  demonstrable only from a unit test reaching around the tool layer (closes CL-8).
 - `wayfinding_get_trail` (`destructive: false`) → `TrailStore::current`.
 - `wayfinding_emit_beacon` (`destructive: true`) → validates the anchor via
   `AnchorRegistry` (FR-005) and pushes a `wayfinding.beacon` to the target session
