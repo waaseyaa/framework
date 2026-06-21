@@ -168,6 +168,34 @@ function validateVersionInput(string $input): string
  *
  * @throws \RuntimeException On read/write failure.
  */
+/**
+ * Discover every composer.json whose waaseyaa/* constraints the release process
+ * keeps on the released line: all split packages (packages/(*)/composer.json)
+ * AND the create-project skeleton (skeleton/composer.json) when present.
+ *
+ * The skeleton is included so `composer create-project waaseyaa/waaseyaa` always
+ * installs the CURRENT framework line rather than drifting behind it (#1622):
+ * before this, only packages/* were synced, so the skeleton's
+ * `waaseyaa/framework` constraint lagged every release (it sat at alpha.199 while
+ * the line was alpha.242), and a `create-project` could resolve a months-old set.
+ *
+ * @return list<string> Absolute manifest paths (the skeleton last, when present).
+ */
+function discoverSyncManifests(string $repoRoot): array
+{
+    $manifests = glob($repoRoot . '/packages/*/composer.json');
+    if ($manifests === false) {
+        $manifests = [];
+    }
+
+    $skeleton = $repoRoot . '/skeleton/composer.json';
+    if (is_file($skeleton)) {
+        $manifests[] = $skeleton;
+    }
+
+    return $manifests;
+}
+
 function syncManifestFile(string $manifestPath, string $constraint): bool
 {
     $original = file_get_contents($manifestPath);

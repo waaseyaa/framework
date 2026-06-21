@@ -40,10 +40,13 @@ $constraint = expectedConstraint($version);
 // ── locate packages ───────────────────────────────────────────────────────────
 
 $repoRoot = dirname(__DIR__);
-$manifests = glob($repoRoot . '/packages/*/composer.json');
+// All split packages AND the create-project skeleton (#1622) — keeping the
+// skeleton's waaseyaa/framework constraint on the released line so
+// `composer create-project` installs the current set. See discoverSyncManifests().
+$manifests = discoverSyncManifests($repoRoot);
 
-if ($manifests === false || $manifests === []) {
-    fwrite(STDERR, "Error: no packages/*/composer.json files found under {$repoRoot}.\n");
+if ($manifests === []) {
+    fwrite(STDERR, "Error: no composer.json files found to sync under {$repoRoot}.\n");
     exit(2);
 }
 
