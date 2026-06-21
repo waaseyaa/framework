@@ -151,6 +151,7 @@ declare -A PATTERN_TO_SPEC=(
   ["packages/github/"]="docs/specs/infrastructure.md"
   ["packages/deployer/"]="docs/specs/infrastructure.md"
   ["packages/inertia/"]="docs/specs/infrastructure.md"
+  ["packages/frankenphp/"]="docs/specs/operations-playbooks.md"
   ["public/"]="docs/specs/middleware-pipeline.md"
 )
 

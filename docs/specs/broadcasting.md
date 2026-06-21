@@ -50,6 +50,26 @@ pool and hung subsequent requests. The hard time budget guarantees release even
 if the SAPI never reports the disconnect. The continuation rule is the pure,
 unit-tested `BroadcastRouter::streamShouldContinue()`.
 
+Two further releases make the bound bite promptly rather than only at the 30s
+cap (issue #1707):
+
+- **Prompt disconnect detection.** The stream clears `ignore_user_abort(false)`
+  for its lifetime, undoing the FrankenPHP/php-fpm bootstrap default that would
+  otherwise suppress `connection_aborted()`, and re-probes the abort signal
+  immediately after each keepalive and message-batch flush. An abandoned stream
+  (reload, route change, closed tab) therefore releases its worker within one
+  keepalive (~2s) instead of riding out the full time budget.
+- **Session-lock release.** The stream calls `session_write_close()` at the top
+  of the closure, after `handle()` has captured `$channels`/`$sessionToken`.
+  `SessionMiddleware` opens the native PHP session and PHP holds the `PHPSESSID`
+  file lock for the whole script — for a `StreamedResponse` that is the entire
+  stream lifetime, so without this every concurrent same-session request (the
+  SPA's own document reloads, `/api/*` fetches, a second admin tab) blocked in
+  `session_start()` behind the live SSE (the 15-25s admin "blank"). The stream
+  never writes the session and the cookie was already sent, so closing it early
+  is safe. Measured under `composer run dev`: same-session `/admin/*` while an
+  SSE is active dropped from ~28s to <1s.
+
 ## `_broadcast_log` schema
 
 Created idempotently by `BroadcastStorage::ensureTable()`:
