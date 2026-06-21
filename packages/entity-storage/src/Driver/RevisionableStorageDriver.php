@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\EntityStorage\Driver;
 
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\EntityStorage\Connection\ConnectionResolverInterface;
@@ -31,6 +32,21 @@ use Waaseyaa\EntityStorage\Connection\ConnectionResolverInterface;
  */
 final class RevisionableStorageDriver
 {
+    /**
+     * Max attempts to allocate-and-insert a revision id before giving up (#1706).
+     *
+     * Revision ids are allocated `MAX(revision_id)+1`, which is NOT atomic: a
+     * concurrent writer for the same key can read the same MAX and claim the
+     * same id between our read and our INSERT. The composite PRIMARY KEY
+     * (`entity_id, revision_id` — and `entity_id, langcode, revision_id` for
+     * translations) is the integrity backstop: it makes a duplicate id
+     * structurally impossible, so a race can only make the losing INSERT fail,
+     * never silently assign the same id. This retry count turns that failure
+     * into liveness — re-read MAX and try the next id — while staying bounded so
+     * a genuine, persistent unique conflict still surfaces rather than spinning.
+     */
+    private const int MAX_REVISION_ALLOCATION_ATTEMPTS = 5;
+
     private readonly string $revisionTable;
 
     private readonly string $translationRevisionTable;
@@ -308,37 +324,53 @@ final class RevisionableStorageDriver
     {
         $db = $this->getDatabase();
 
-        $revisionId = $this->getNextRevisionId($entityId);
-
-        $row = [
-            'entity_id'        => $entityId,
-            'revision_id'      => $revisionId,
-            'revision_created' => date('Y-m-d H:i:s'),
-            'revision_log'     => $log,
-            // Resolved acting account (FR-001). SQL NULL when no actor was in
-            // scope; 0 if and only if the anonymous account acted.
-            'revision_author'  => $author,
-        ];
-
         $keys = $this->entityType->getKeys();
         $idKey = $keys['id'] ?? 'id';
-        foreach ($values as $key => $value) {
-            // `revision_author` in $values is skipped: the explicit $author
-            // parameter is authoritative (a rollback re-reads an old revision
-            // row whose author must NOT leak onto the new revision).
-            if ($key === $idKey || $key === 'revision_id' || $key === 'revision_author' || $key === 'is_default_revision' || $key === 'is_latest_revision') {
-                continue;
+
+        // Allocate-and-insert with a bounded retry (#1706). getNextRevisionId is
+        // MAX+1, not atomic; the composite PK rejects a concurrent duplicate, and
+        // we retry with a freshly re-read MAX rather than surfacing that to the
+        // caller. Single-threaded, the loop runs exactly once.
+        for ($attempt = 1; ; $attempt++) {
+            $revisionId = $this->getNextRevisionId($entityId);
+
+            $row = [
+                'entity_id'        => $entityId,
+                'revision_id'      => $revisionId,
+                'revision_created' => date('Y-m-d H:i:s'),
+                'revision_log'     => $log,
+                // Resolved acting account (FR-001). SQL NULL when no actor was in
+                // scope; 0 if and only if the anonymous account acted.
+                'revision_author'  => $author,
+            ];
+
+            foreach ($values as $key => $value) {
+                // `revision_author` in $values is skipped: the explicit $author
+                // parameter is authoritative (a rollback re-reads an old revision
+                // row whose author must NOT leak onto the new revision).
+                if ($key === $idKey || $key === 'revision_id' || $key === 'revision_author' || $key === 'is_default_revision' || $key === 'is_latest_revision') {
+                    continue;
+                }
+                $row[$key] = $value;
             }
-            $row[$key] = $value;
+
+            $row = $this->foldData($this->revisionTable, $row);
+
+            try {
+                $db->insert($this->revisionTable)
+                    ->fields(array_keys($row))
+                    ->values($row)
+                    ->execute();
+
+                return $revisionId;
+            } catch (UniqueConstraintViolationException $e) {
+                // A concurrent writer claimed this (entity_id, revision_id); the
+                // composite PK rejected our duplicate. Re-read MAX and retry.
+                if ($attempt >= self::MAX_REVISION_ALLOCATION_ATTEMPTS) {
+                    throw $e;
+                }
+            }
         }
-
-        $row = $this->foldData($this->revisionTable, $row);
-        $db->insert($this->revisionTable)
-            ->fields(array_keys($row))
-            ->values($row)
-            ->execute();
-
-        return $revisionId;
     }
 
     /**
@@ -363,44 +395,59 @@ final class RevisionableStorageDriver
     ): int {
         $db = $this->getDatabase();
 
-        $revisionId = $this->getNextLangcodeRevisionId($entityId, $langcode);
-
-        $row = [
-            'entity_id'        => $entityId,
-            'langcode'         => $langcode,
-            'revision_id'      => $revisionId,
-            'revision_created' => date('Y-m-d H:i:s'),
-            'revision_log'     => $log,
-            // Resolved acting account (FR-001) — same semantics as the
-            // single-axis path: NULL = no actor, 0 = anonymous.
-            'revision_author'  => $author,
-        ];
-
         $keys = $this->entityType->getKeys();
         $idKey = $keys['id'] ?? 'id';
-        foreach ($values as $key => $value) {
-            if (
-                $key === $idKey
-                || $key === 'revision_id'
-                || $key === 'langcode'
-                || $key === 'revision_author'
-                || $key === 'is_default_revision'
-                || $key === 'is_latest_revision'
-            ) {
-                continue;
+
+        // Bounded allocate-and-insert retry (#1706), same rationale as the
+        // single-axis path: the per-(entity_id, langcode) MAX+1 allocation is
+        // not atomic, and the composite PK (entity_id, langcode, revision_id) is
+        // the integrity backstop that lets us retry the loser rather than leak a
+        // unique-constraint violation to the caller.
+        for ($attempt = 1; ; $attempt++) {
+            $revisionId = $this->getNextLangcodeRevisionId($entityId, $langcode);
+
+            $row = [
+                'entity_id'        => $entityId,
+                'langcode'         => $langcode,
+                'revision_id'      => $revisionId,
+                'revision_created' => date('Y-m-d H:i:s'),
+                'revision_log'     => $log,
+                // Resolved acting account (FR-001) — same semantics as the
+                // single-axis path: NULL = no actor, 0 = anonymous.
+                'revision_author'  => $author,
+            ];
+
+            foreach ($values as $key => $value) {
+                if (
+                    $key === $idKey
+                    || $key === 'revision_id'
+                    || $key === 'langcode'
+                    || $key === 'revision_author'
+                    || $key === 'is_default_revision'
+                    || $key === 'is_latest_revision'
+                ) {
+                    continue;
+                }
+                $row[$key] = $value;
             }
-            $row[$key] = $value;
+
+            $row = $this->foldData($this->translationRevisionTable, $row);
+
+            try {
+                $db->insert($this->translationRevisionTable)
+                    ->fields(array_keys($row))
+                    ->values($row)
+                    ->execute();
+
+                $this->currentLangcodePointers[$entityId][$langcode] = $revisionId;
+
+                return $revisionId;
+            } catch (UniqueConstraintViolationException $e) {
+                if ($attempt >= self::MAX_REVISION_ALLOCATION_ATTEMPTS) {
+                    throw $e;
+                }
+            }
         }
-
-        $row = $this->foldData($this->translationRevisionTable, $row);
-        $db->insert($this->translationRevisionTable)
-            ->fields(array_keys($row))
-            ->values($row)
-            ->execute();
-
-        $this->currentLangcodePointers[$entityId][$langcode] = $revisionId;
-
-        return $revisionId;
     }
 
     /**
