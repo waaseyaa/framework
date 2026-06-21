@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Public content is reachable at `GET /{type}/{uuid}`, not only `/{type}/{id}` (#1686).** The canonical SSR path fed the raw path segment to `SqlEntityStorage::load()`, which queries the numeric `id` column only — so a UUID never matched and a valid published entity 404'd purely on identifier shape. `SsrPageHandler` now resolves a UUID-shaped segment to the numeric id first (new `loadByIdOrUuid()`, mirroring `JsonApiController`); `load()` itself stays numeric-keyed (the column is never dual-keyed). The canonical public path is unchanged (still numeric); UUID resolution is additive. Identity resolution uses `accessCheck(false)` so authorization stays with the existing SSR visibility gates (`EditorialVisibilityResolver` + `shouldDenyContentGroupRender`) — the UUID and numeric paths are symmetric and the UUID path cannot leak a draft. (The default "published content is anonymously viewable, drafts gated" policy and the fail-closed gate were already in place via the kernel-registered `PublishedContentAccessPolicy` — verified, not changed.) Acceptance: `SsrPageHandlerUuidResolutionTest`.
+
 ## [0.1.0-alpha.242] - 2026-06-21
 
 ### Fixed
