@@ -164,6 +164,21 @@ final class BroadcastRouter implements DomainRouterInterface
             $keepaliveIntervalSec,
             $pollIntervalUs,
         ): void {
+            // Under FrankenPHP (and php-fpm) the request bootstrap enables
+            // ignore_user_abort(true); while that is on, PHP does not flip
+            // connection_aborted() when a write lands on a dead socket, so a
+            // client that navigated away (reload / route change / closed tab)
+            // would pin this worker until the time budget elapses — the abandoned
+            // streams that accumulate into the admin SPA's blank-screen stall.
+            // Clear it for the lifetime of THIS stream so a failed keepalive write
+            // surfaces as an abort and the bounded loop below exits within one
+            // keepalive (~2s). The time-budget cap in streamShouldContinue()
+            // remains the durable backstop for runtimes where the SAPI still
+            // never flips it (best-effort, not guaranteed, on every binary).
+            if (function_exists('ignore_user_abort')) {
+                ignore_user_abort(false);
+            }
+
             // sessionToken lets the client (or a paired presenter) address this
             // connection's private channel without ever learning the raw session id.
             echo "event: connected\ndata: " . json_encode(['channels' => $channels, 'sessionToken' => $sessionToken], JSON_THROW_ON_ERROR) . "\n\n";
@@ -237,6 +252,12 @@ final class BroadcastRouter implements DomainRouterInterface
                         ob_flush();
                     }
                     flush();
+
+                    // The write above doubles as a disconnect probe: if the client
+                    // is gone, break now instead of polling another cycle.
+                    if ($abort() !== 0) {
+                        break;
+                    }
                 }
 
                 if (($clock() - $lastKeepalive) >= $keepaliveIntervalSec) {
@@ -247,8 +268,15 @@ final class BroadcastRouter implements DomainRouterInterface
                     flush();
                     $lastKeepalive = $clock();
 
-                    // A keepalive write is also our disconnect probe: if the client
-                    // is gone the next streamShouldContinue() sees abort and exits.
+                    // The keepalive write above doubles as our disconnect probe.
+                    // Re-read the abort state now instead of deferring to the next
+                    // streamShouldContinue(): a client that navigated away then
+                    // releases the worker within this keepalive (~2s) rather than
+                    // after another poll cycle. ignore_user_abort(false) at the top
+                    // of the stream is what lets the failed write flip this.
+                    if ($abort() !== 0) {
+                        break;
+                    }
 
                     // Update heartbeat in subscribers.json (best-effort).
                     if ($subscribersPath !== null) {

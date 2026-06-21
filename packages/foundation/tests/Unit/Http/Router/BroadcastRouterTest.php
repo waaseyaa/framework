@@ -200,4 +200,37 @@ final class BroadcastRouterTest extends TestCase
         self::assertStringContainsString('event: entity.saved', $out);
         self::assertStringContainsString('"entityType":"story"', $out);
     }
+
+    #[Test]
+    public function stream_clears_ignore_user_abort_so_disconnects_surface(): void
+    {
+        $db = \Waaseyaa\Database\DBALDatabase::createSqlite();
+        $storage = new \Waaseyaa\Api\Controller\BroadcastStorage($db);
+
+        // Simulate the FrankenPHP / php-fpm request bootstrap, which enables
+        // ignore_user_abort(true). With that left on, a failed write to a
+        // navigated-away client never flips connection_aborted(), so the stream
+        // would pin the worker until its time budget — the bug behind the admin
+        // SPA blank-screen stall under reloads / multiple tabs.
+        $previous = ignore_user_abort(true);
+        try {
+            $now = 0;
+            $clock = function () use (&$now): int { return $now++; };
+            $router = new BroadcastRouter(
+                maxDurationSec: 1,
+                keepaliveIntervalSec: 1,
+                pollIntervalUs: 0,
+                clock: $clock,
+                abortSignal: static fn(): int => 0,
+            );
+
+            $this->runStream($router->handle($this->broadcastRequest($storage)));
+
+            // The stream must have cleared the flag for its own lifetime so a
+            // dead-socket write can surface as an abort and release the worker.
+            self::assertSame(0, ignore_user_abort());
+        } finally {
+            ignore_user_abort((bool) $previous);
+        }
+    }
 }
