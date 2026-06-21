@@ -49,6 +49,19 @@ final class BroadcastRouter implements DomainRouterInterface
     public const int DEFAULT_POLL_INTERVAL_US = 500_000;
 
     /**
+     * Max concurrent SSE streams admitted per account before a new connection is
+     * refused with 503 + Retry-After (#1704 residual 503). The admin SPA shares
+     * ONE connection per channel set, so a healthy client holds 1; the headroom
+     * absorbs reload overlap (an old stream not yet released + the reconnect)
+     * while capping the runaway accumulation that saturates the FrankenPHP worker
+     * pool under a rapid-reload reconnect storm. 0 disables the cap.
+     */
+    public const int DEFAULT_MAX_CONCURRENT_STREAMS = 6;
+
+    /** Retry-After (seconds) sent with the 503 when the per-account cap is hit. */
+    public const int DEFAULT_RETRY_AFTER_SEC = 5;
+
+    /**
      * @param (\Closure(): int)|null $clock       Override `time()` (seconds) — tests inject a fake clock.
      * @param (\Closure(): int)|null $abortSignal Override `connection_aborted()` — tests inject disconnect.
      */
@@ -60,6 +73,8 @@ final class BroadcastRouter implements DomainRouterInterface
         private readonly int $pollIntervalUs = self::DEFAULT_POLL_INTERVAL_US,
         private readonly ?\Closure $clock = null,
         private readonly ?\Closure $abortSignal = null,
+        private readonly int $maxConcurrentStreams = self::DEFAULT_MAX_CONCURRENT_STREAMS,
+        private readonly int $retryAfterSec = self::DEFAULT_RETRY_AFTER_SEC,
     ) {}
 
     /**
@@ -118,6 +133,46 @@ final class BroadcastRouter implements DomainRouterInterface
         }
 
         $subscribersPath = $this->subscribersJsonPath;
+
+        // Per-account concurrent-stream cap (#1704 residual 503). subscribers.json
+        // is process-shared, so the count spans the whole FrankenPHP worker pool.
+        // When an account already holds the cap, refuse the NEW connection with
+        // 503 + Retry-After before building the long-lived stream — this applies
+        // backpressure and frees the worker immediately, instead of letting a
+        // rapid-reload reconnect storm accumulate streams until the pool starves.
+        // Stale rows (no heartbeat within the max stream lifetime — e.g. a worker
+        // that died before its shutdown cleanup) are excluded so a leftover row
+        // can never wedge an account out permanently. The count→admit window is
+        // not locked; an exact ceiling is unnecessary for a coarse safety cap.
+        if ($subscribersPath !== null && $this->maxConcurrentStreams > 0) {
+            $active = self::countActiveStreamsForAccount(
+                $this->readSubscribers($subscribersPath),
+                $accountId,
+                microtime(true),
+                (float) $this->maxDurationSec,
+            );
+            if ($active >= $this->maxConcurrentStreams) {
+                $logger->warning(sprintf(
+                    'BroadcastRouter: account %d at concurrent-stream cap (%d active >= %d); refusing with 503.',
+                    $accountId,
+                    $active,
+                    $this->maxConcurrentStreams,
+                ));
+
+                return new Response(
+                    json_encode([
+                        'error' => 'too_many_concurrent_streams',
+                        'retryAfter' => $this->retryAfterSec,
+                    ], JSON_THROW_ON_ERROR),
+                    Response::HTTP_SERVICE_UNAVAILABLE,
+                    [
+                        'Content-Type' => 'application/json',
+                        'Retry-After' => (string) $this->retryAfterSec,
+                        'Cache-Control' => 'no-cache',
+                    ],
+                );
+            }
+        }
 
         // Register this connection in subscribers.json (best-effort; never fatal).
         if ($subscribersPath !== null) {
@@ -349,6 +404,63 @@ final class BroadcastRouter implements DomainRouterInterface
     }
 
     /**
+     * Read subscribers.json into rows (empty on missing/malformed). Extracted so
+     * the concurrency cap can count without the read-modify-write cycle.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function readSubscribers(string $jsonPath): array
+    {
+        if (!is_file($jsonPath)) {
+            return [];
+        }
+
+        try {
+            $raw = file_get_contents($jsonPath);
+            if ($raw === false || $raw === '') {
+                return [];
+            }
+            $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+
+            return is_array($decoded) ? $decoded : [];
+        } catch (\JsonException) {
+            // Malformed file — treat as empty.
+            return [];
+        }
+    }
+
+    /**
+     * Count an account's currently-active SSE streams in the subscribers table.
+     * Pure + static so the concurrency-cap decision is unit-testable without a
+     * live socket or a real file. A row counts when its last heartbeat (falling
+     * back to connect time) is within $staleAfterSec; rows older than the max
+     * stream lifetime are treated as dead (a worker that exited without running
+     * its shutdown cleanup) and excluded, so a stale row cannot permanently wedge
+     * an account out of new connections.
+     *
+     * @param array<int, mixed> $rows
+     */
+    public static function countActiveStreamsForAccount(array $rows, int $accountId, float $now, float $staleAfterSec): int
+    {
+        $count = 0;
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            if ((int) ($row['accountId'] ?? -1) !== $accountId) {
+                continue;
+            }
+            $last = (float) ($row['lastHeartbeat'] ?? $row['connectedSince'] ?? 0.0);
+            if ($staleAfterSec > 0.0 && ($now - $last) > $staleAfterSec) {
+                continue;
+            }
+            ++$count;
+        }
+
+        return $count;
+    }
+
+    /**
      * Atomic read-modify-write on subscribers.json.
      *
      * Uses write-to-temp-then-rename per CLAUDE.md atomic-file-write rule.
@@ -362,20 +474,7 @@ final class BroadcastRouter implements DomainRouterInterface
             mkdir($dir, 0o755, true);
         }
 
-        $existing = [];
-        if (is_file($jsonPath)) {
-            try {
-                $raw = file_get_contents($jsonPath);
-                if ($raw !== false && $raw !== '') {
-                    $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-                    if (is_array($decoded)) {
-                        $existing = $decoded;
-                    }
-                }
-            } catch (\JsonException) {
-                // Malformed file — start fresh
-            }
-        }
+        $existing = $this->readSubscribers($jsonPath);
 
         $updated = $mutate($existing);
 

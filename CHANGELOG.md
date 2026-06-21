@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`MercureMonitorController`'s SSE stream is now bounded (CL-12).** The admin broadcast-monitor event stream looped on `while (connection_aborted() === 0)` with **no time-budget cap** — the same missed-disconnect worker-pin class `BroadcastRouter` already fixed (under FrankenPHP worker mode a never-surfaced disconnect could pin the worker indefinitely). The stream now releases the PHP session lock (`session_write_close()`), clears `ignore_user_abort()`, re-probes the abort signal after each write/keepalive, and exits on disconnect **or** a 30s per-connection time budget (`DEFAULT_MAX_DURATION_SEC`) — whichever comes first. The continuation rule is the pure, unit-tested `MercureMonitorController::streamShouldContinue()`. Acceptance: `MercureMonitorControllerTest`.
+
+### Added
+
+- **Per-account concurrent-SSE-stream cap on `/api/broadcast` (#1704 residual 503).** `BroadcastRouter` now refuses a new SSE connection with **`503` + `Retry-After`** when the requesting account already holds `BroadcastRouter::DEFAULT_MAX_CONCURRENT_STREAMS` (6) active streams, counted from the process-shared `subscribers.json` (so the count spans the whole FrankenPHP worker pool; stale rows past the max stream lifetime are excluded so a dead worker's leftover row can't wedge an account out). This applies backpressure to the rapid-reload reconnect storm that could otherwise saturate the single-process worker pool faster than 30s-capped streams release (the residual `503`/hung-admin churn). The cap is a coarse safety valve, not an exact ceiling. Acceptance: `BroadcastRouterTest` (`countActiveStreamsForAccount` + the `503`/`Retry-After` path).
+
+### Changed
+
+- **The SSE subscriber-tracking path is now wired in `HttpKernel`** (`<storage>/broadcast/subscribers.json`, resolved identically to `MercureMonitorServiceProvider`'s read side and gated by the same `broadcasting.monitor.enabled` flag). Previously the kernel built `BroadcastRouter` without the path, so the write side was dormant — the monitor dashboard's subscriber list was always empty and no concurrency state existed. Wiring it activates both the monitor's subscriber view and the new per-account stream cap above.
+
 ## [0.1.0-alpha.240] - 2026-06-21
 
 ### Fixed
