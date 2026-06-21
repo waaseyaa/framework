@@ -79,21 +79,21 @@
     ],
     "require": {
         "php": ">=8.5",
-        "waaseyaa/access": "^0.1.0-alpha.240",
-        "waaseyaa/ai-agent": "^0.1.0-alpha.240",
-        "waaseyaa/ai-schema": "^0.1.0-alpha.240",
-        "waaseyaa/ai-tools": "^0.1.0-alpha.240",
-        "waaseyaa/ai-vector": "^0.1.0-alpha.240",
-        "waaseyaa/api": "^0.1.0-alpha.240",
-        "waaseyaa/cache": "^0.1.0-alpha.240",
-        "waaseyaa/entity": "^0.1.0-alpha.240",
-        "waaseyaa/routing": "^0.1.0-alpha.240",
-        "waaseyaa/user": "^0.1.0-alpha.240",
-        "waaseyaa/workflows": "^0.1.0-alpha.240"
+        "waaseyaa/access": "^0.1.0-alpha.241",
+        "waaseyaa/ai-agent": "^0.1.0-alpha.241",
+        "waaseyaa/ai-schema": "^0.1.0-alpha.241",
+        "waaseyaa/ai-tools": "^0.1.0-alpha.241",
+        "waaseyaa/ai-vector": "^0.1.0-alpha.241",
+        "waaseyaa/api": "^0.1.0-alpha.241",
+        "waaseyaa/cache": "^0.1.0-alpha.241",
+        "waaseyaa/entity": "^0.1.0-alpha.241",
+        "waaseyaa/routing": "^0.1.0-alpha.241",
+        "waaseyaa/user": "^0.1.0-alpha.241",
+        "waaseyaa/workflows": "^0.1.0-alpha.241"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
-        "waaseyaa/audit": "^0.1.0-alpha.240"
+        "waaseyaa/audit": "^0.1.0-alpha.241"
     },
     "autoload": {
         "psr-4": {

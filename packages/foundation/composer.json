@@ -22,13 +22,13 @@
         "symfony/http-foundation": "^7.0",
         "symfony/messenger": "^7.0",
         "symfony/uid": "^7.0",
-        "waaseyaa/queue": "^0.1.0-alpha.240"
+        "waaseyaa/queue": "^0.1.0-alpha.241"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
-        "waaseyaa/entity": "^0.1.0-alpha.240",
-        "waaseyaa/error-handler": "^0.1.0-alpha.240",
-        "waaseyaa/routing": "^0.1.0-alpha.240"
+        "waaseyaa/entity": "^0.1.0-alpha.241",
+        "waaseyaa/error-handler": "^0.1.0-alpha.241",
+        "waaseyaa/routing": "^0.1.0-alpha.241"
     },
     "autoload": {
         "files": [

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.241] - 2026-06-21
+
 ### Fixed
 
 - **`MercureMonitorController`'s SSE stream is now bounded (CL-12).** The admin broadcast-monitor event stream looped on `while (connection_aborted() === 0)` with **no time-budget cap** — the same missed-disconnect worker-pin class `BroadcastRouter` already fixed (under FrankenPHP worker mode a never-surfaced disconnect could pin the worker indefinitely). The stream now releases the PHP session lock (`session_write_close()`), clears `ignore_user_abort()`, re-probes the abort signal after each write/keepalive, and exits on disconnect **or** a 30s per-connection time budget (`DEFAULT_MAX_DURATION_SEC`) — whichever comes first. The continuation rule is the pure, unit-tested `MercureMonitorController::streamShouldContinue()`. Acceptance: `MercureMonitorControllerTest`.
