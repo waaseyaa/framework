@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.240] - 2026-06-21
+
 ### Fixed
 
 - **The admin shell no longer goes blank for 15-25s under reloads / multiple tabs (realtime Failure B, root cause).** `SessionMiddleware` opens the native PHP session and PHP holds the `PHPSESSID` file lock for the whole script — for the `/api/broadcast` `StreamedResponse` that is the entire stream lifetime (up to the 30s cap), so every concurrent same-session request (the SPA's own document reloads, its `/api/*` fetches, a second admin tab) blocked in `session_start()` behind the live SSE. The stream now calls `session_write_close()` at the top of the stream closure, after `handle()` has captured everything the stream needs (`$channels`, `$sessionToken`); the stream never writes the session and the cookie was already sent, so this is safe. Measured under `composer run dev` (FrankenPHP classic `php-server`): same-session `/admin/story` while an SSE is active went from 28.5s to 0.76s; in-browser reloads from 28s/23s to a flat 1.7-2.4s, and a second admin tab from ~28s to 2.2s. Acceptance: `BroadcastRouterTest` (asserts the stream closes an active session).
