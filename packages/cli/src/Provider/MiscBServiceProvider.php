@@ -75,8 +75,23 @@ final class MiscBServiceProvider extends ServiceProvider implements ProvidesCons
                 ),
             ],
             handler: function (\Waaseyaa\CLI\Command\SymfonyCommandIO $io): int {
-                /** @var \Waaseyaa\Routing\WaaseyaaRouter $router */
-                $router = $this->resolve(\Waaseyaa\Routing\WaaseyaaRouter::class);
+                // WaaseyaaRouter is built per HTTP request inside
+                // HttpKernel::serveHttpRequest() (never container-bound), so there
+                // is nothing to resolve in the console — `resolve()` threw
+                // "No binding registered for ...WaaseyaaRouter" (#1684). Build a
+                // populated router from the SAME single source the kernel uses,
+                // BuiltinRouteRegistrar, so route:list reflects the real route
+                // table (builtin + per-entity-type routes) instead of crashing.
+                //
+                // Provider-supplied HTTP domain routes are out of scope here: the
+                // console command context exposes no provider list to enumerate
+                // them (consoleCommands() takes no providers), and a bare empty
+                // router would wrongly print "No routes found."
+                $entityTypeManager = $this->resolve(\Waaseyaa\Entity\EntityTypeManagerInterface::class);
+                \assert($entityTypeManager instanceof \Waaseyaa\Entity\EntityTypeManager);
+
+                $router = new \Waaseyaa\Routing\WaaseyaaRouter();
+                new \Waaseyaa\Foundation\Kernel\BuiltinRouteRegistrar($entityTypeManager)->register($router);
 
                 return new RouteListHandler(router: $router)->execute($io);
             },
