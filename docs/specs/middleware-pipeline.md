@@ -322,7 +322,7 @@ All HTTP middleware implement `HttpMiddlewareInterface` and use `#[AsMiddleware(
 
 | Priority | Class | Package | Purpose |
 |----------|-------|---------|---------|
-| 100 | `SecurityHeadersMiddleware` | foundation | CSP, X-Frame-Options, HSTS. Constructor: `(string $csp, bool $hstsEnabled, int $hstsMaxAge)` |
+| 100 | `SecurityHeadersMiddleware` | foundation | CSP, X-Frame-Options, HSTS. Constructor: `(string $csp, bool $hstsEnabled, int $hstsMaxAge)`. **NOT wired into the runtime pipeline** — see note below; its `process()` decorates only the auth pipeline's stub `200`. The framing/sniffing defaults (`X-Frame-Options: SAMEORIGIN` + `nosniff`) are instead applied post-dispatch by `HttpKernel` via `SecurityHeadersMiddleware::applyResponseDefaults()` (#1651). |
 | 90 | `CompressionMiddleware` | foundation | gzip compression for responses above minimum size. Constructor: `(int $minimumSize = 1024)` |
 | 80 | `RateLimitMiddleware` | foundation | IP-based rate limiting via `RateLimiterInterface`. Constructor: `(RateLimiterInterface, int $maxAttempts = 60, int $windowSeconds = 60)` |
 | 70 | `BodySizeLimitMiddleware` | foundation | Rejects payloads over max bytes (413). Constructor: `(int $maxBytes = 1_048_576)` |
