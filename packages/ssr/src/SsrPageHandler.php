@@ -166,8 +166,7 @@ final class SsrPageHandler
                 return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
             }
 
-            $targetStorage = $this->entityTypeManager->getStorage($entityTypeId);
-            $entity = $targetStorage->load($entityId);
+            $entity = $this->loadByIdOrUuid($entityTypeId, $entityId);
             if ($entity === null) {
                 $response = new RenderController($twig)->renderNotFound($aliasLookupPath, $account);
                 $headers = $this->extractHeaders($response);
@@ -735,6 +734,45 @@ final class SsrPageHandler
         }
 
         return [$type, $id];
+    }
+
+    /**
+     * Resolve a content entity by its canonical numeric id OR — when the path
+     * segment is UUID-shaped and the type has a `uuid` key — by uuid (#1686).
+     *
+     * The canonical public path stays numeric `/{type}/{id}`, but a valid entity
+     * must never 404 purely on identifier shape: `GET /story/{uuid}` previously
+     * fed the UUID to `load()`, which queries the numeric `id` column only, so it
+     * never matched. We resolve the uuid to the numeric id via a query first;
+     * `load()` itself stays numeric-keyed (the column is never dual-keyed).
+     *
+     * `accessCheck(false)` — identity resolution only. Authorization stays with
+     * the SSR visibility gates in the caller (`EditorialVisibilityResolver` +
+     * {@see shouldDenyContentGroupRender()}), exactly as on the numeric path
+     * (`load()` does not access-check either), so the uuid and numeric paths are
+     * symmetric and the uuid path cannot leak a draft.
+     */
+    private function loadByIdOrUuid(string $entityTypeId, int|string $id): ?EntityInterface
+    {
+        $storage = $this->entityTypeManager->getStorage($entityTypeId);
+        $keys = $this->entityTypeManager->getDefinition($entityTypeId)->getKeys();
+
+        if (
+            isset($keys['uuid'])
+            && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', (string) $id) === 1
+        ) {
+            $ids = $storage->getQuery()
+                ->accessCheck(false)
+                ->condition($keys['uuid'], (string) $id)
+                ->execute();
+            if ($ids === []) {
+                return null;
+            }
+
+            return $storage->load(reset($ids));
+        }
+
+        return $storage->load($id);
     }
 
     /**
