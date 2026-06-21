@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.244] - 2026-06-21
+
 ### Security
 
 - **Stock agent write tools now enforce per-field edit access, closing a B-1-class field escalation on the agent path (#1638).** `EntityCreateTool`/`EntityUpdateTool` applied every submitted field after only the coarse `tool.entity.*` capability + entity-level `AccessPolicy` + the identity-key guard — with **no** per-field `checkFieldAccess('edit')`. So an agent holding entity-level `update`/`create` access could set a field a `FieldAccessPolicy` forbids (e.g. `user.roles`/`status`/`permissions`), bypassing the exact field guard the HTTP write path enforces (`JsonApiController::store()`/`update()`) — the same escalation the B-1 fix closed for REST/GraphQL, re-opened for agents the moment the write-tool tier is enabled. A shared `AbstractAgentTool::requireFieldEditAccess()` now mirrors the HTTP gate (`checkFieldAccess('edit')`; **open-by-default** — only an explicit `Forbidden` denies), run after the identity-key refusal and **before any `set()`**, so a forbidden field aborts the whole write with a `forbidden` error and nothing is mutated or saved. No-op in capability-only construction (no access handler wired), preserving the historical contract. Acceptance: `EntityWriteFieldAccessTest` (verified the forbidden field was applied + saved against the pre-fix code; open-by-default fields stay writable). See `docs/specs/ai-integration.md` § Per-field edit access.
