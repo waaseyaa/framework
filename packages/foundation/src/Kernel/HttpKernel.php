@@ -34,6 +34,7 @@ use Waaseyaa\Foundation\Log\Processor\RequestContextProcessor;
 use Waaseyaa\Foundation\Middleware\DebugHeaderMiddleware;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
+use Waaseyaa\Foundation\Middleware\SecurityHeadersMiddleware;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
@@ -456,6 +457,21 @@ final class HttpKernel extends AbstractKernel
         // helper here to satisfy contract §1 (cookie on every text/html
         // response) once the actual Content-Type is known.
         CsrfMiddleware::attachCookieIfHtml($httpRequest, $finalResponse);
+
+        // Apply framing / MIME-sniffing security headers to the dispatched
+        // response (#1651). SecurityHeadersMiddleware never reaches the real
+        // response through the authorization pipeline (its inner handler is a
+        // stub 200), so — like the CSRF cookie above — the headers are applied
+        // here, post-dispatch. X-Frame-Options defaults to SAMEORIGIN (blocks
+        // cross-origin clickjacking, preserves same-origin previews) and is
+        // configurable via security_headers.frame_options; routes that must be
+        // embeddable cross-origin set the _frame_exempt request attribute to opt
+        // out. CSP/HSTS remain opt-in via the middleware constructor.
+        $frameOptions = is_array($this->config['security_headers'] ?? null)
+            && is_string($this->config['security_headers']['frame_options'] ?? null)
+            ? $this->config['security_headers']['frame_options']
+            : 'SAMEORIGIN';
+        SecurityHeadersMiddleware::applyResponseDefaults($httpRequest, $finalResponse, $frameOptions);
 
         return $finalResponse;
     }
