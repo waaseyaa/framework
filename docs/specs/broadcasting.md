@@ -243,9 +243,35 @@ own session's retained beacons (`dropRetained($sessionChannel)`).
 
 ## Constraints
 
-- Single-process: there is no Redis, NATS, or other cross-process transport.
-  Multi-worker PHP-FPM deployments share the SQL store but each worker holds
-  its own SSE connection.
+- Single-process **(known beta limitation, #1704)**: there is no Redis, NATS, or
+  other cross-process transport. Multi-worker PHP-FPM / FrankenPHP deployments
+  share the SQL store but each worker holds its own SSE connection, and every
+  in-PHP SSE stream pins one worker for its lifetime. Under a rapid-reload
+  reconnect storm, EventSource reconnects can arrive faster than 30s-capped
+  streams release and saturate the worker pool. Two bounds contain this for
+  beta: the per-connection 30s lifetime cap (above) and the **per-account
+  concurrent-stream cap** (below). The durable fix — moving off in-PHP SSE to a
+  real broker (Mercure) — is tracked post-beta as #1624.
+
+### Per-account concurrent-stream cap
+
+`BroadcastRouter` refuses a new `/api/broadcast` connection with **`503` +
+`Retry-After`** once the requesting account already holds
+`DEFAULT_MAX_CONCURRENT_STREAMS` (6) active streams. Active streams are counted
+from the process-shared `subscribers.json` (so the count spans the whole worker
+pool), via the pure static
+`BroadcastRouter::countActiveStreamsForAccount(rows, accountId, now, staleAfterSec)`;
+rows whose last heartbeat is older than the max stream lifetime are treated as
+dead and excluded, so a worker that died before its shutdown cleanup cannot
+permanently wedge an account out. The admin SPA shares ONE connection per
+channel set, so a healthy client holds 1 stream — the headroom absorbs reload
+overlap (an old stream not yet released + the reconnect) while the cap rejects
+the runaway accumulation. It is a coarse safety valve: the count→admit window is
+not locked, so the effective ceiling may transiently exceed the cap by a small
+amount under concurrent connects. Tunable via the `maxConcurrentStreams` /
+`retryAfterSec` constructor parameters (0 disables the cap). Enforcement requires
+the subscriber-tracking path to be wired (it is, in `HttpKernel`, whenever
+`broadcasting.monitor.enabled` is not false).
 - Polling: the router polls every 500ms; latency is bounded above by that
   interval, not by event arrival.
 - No history replay: clients receive only log messages with `id > cursor`.

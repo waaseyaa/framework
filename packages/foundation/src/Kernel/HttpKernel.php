@@ -424,8 +424,20 @@ final class HttpKernel extends AbstractKernel
             }
         }
 
+        // Wire the SSE subscriber-tracking path so BroadcastRouter records each
+        // connection (the write side the monitor dashboard reads) AND can enforce
+        // the per-account concurrent-stream cap (#1704). Resolved identically to
+        // MercureMonitorServiceProvider's read side (same flag + path) so the two
+        // never diverge; null when the monitor is disabled, which also disables
+        // the cap.
+        $broadcastMonitorEnabled = $this->config['broadcasting']['monitor']['enabled'] ?? true;
+        $broadcastSubscribersPath = $broadcastMonitorEnabled === false
+            ? null
+            : ($this->config['broadcasting']['monitor']['subscribers_path']
+                ?? (($this->config['storage_path'] ?? './storage') . '/broadcast/subscribers.json'));
+
         $routers = array_merge($foundationRouters, $providerRouters, [
-            new HttpRouter\BroadcastRouter($this->logger),
+            new HttpRouter\BroadcastRouter($this->logger, $broadcastSubscribersPath),
         ]);
 
         $dispatcher = new ControllerDispatcher(

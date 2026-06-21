@@ -73,8 +73,9 @@ final class BroadcastRouterTest extends TestCase
         $request->attributes->set('_account', $account);
         $request->attributes->set('_broadcast_storage', $broadcastStorage);
         $request->attributes->set('_parsed_body', null);
-        $request->attributes->set('_waaseyaa_context',
-            \Waaseyaa\Foundation\Http\Router\WaaseyaaContext::fromRequest($request)
+        $request->attributes->set(
+            '_waaseyaa_context',
+            \Waaseyaa\Foundation\Http\Router\WaaseyaaContext::fromRequest($request),
         );
 
         $response = $router->handle($request);
@@ -118,8 +119,9 @@ final class BroadcastRouterTest extends TestCase
         $request->attributes->set('_account', $account);
         $request->attributes->set('_broadcast_storage', $storage);
         $request->attributes->set('_parsed_body', null);
-        $request->attributes->set('_waaseyaa_context',
-            \Waaseyaa\Foundation\Http\Router\WaaseyaaContext::fromRequest($request)
+        $request->attributes->set(
+            '_waaseyaa_context',
+            \Waaseyaa\Foundation\Http\Router\WaaseyaaContext::fromRequest($request),
         );
 
         return $request;
@@ -134,7 +136,9 @@ final class BroadcastRouterTest extends TestCase
         // Monotonic fake clock so the per-connection budget is reached
         // deterministically; abort always 0 (client stays connected).
         $now = 0;
-        $clock = function () use (&$now): int { return $now++; };
+        $clock = function () use (&$now): int {
+            return $now++;
+        };
 
         $router = new BroadcastRouter(
             maxDurationSec: 4,
@@ -160,7 +164,9 @@ final class BroadcastRouterTest extends TestCase
 
         // abort returns 0 once, then 1 — simulating the client navigating away.
         $calls = 0;
-        $abort = function () use (&$calls): int { return $calls++ === 0 ? 0 : 1; };
+        $abort = function () use (&$calls): int {
+            return $calls++ === 0 ? 0 : 1;
+        };
 
         $router = new BroadcastRouter(
             maxDurationSec: 30,
@@ -181,7 +187,9 @@ final class BroadcastRouterTest extends TestCase
         $storage = new \Waaseyaa\Api\Controller\BroadcastStorage($db);
 
         $now = 0;
-        $clock = function () use (&$now): int { return $now++; };
+        $clock = function () use (&$now): int {
+            return $now++;
+        };
         $router = new BroadcastRouter(
             maxDurationSec: 4,
             keepaliveIntervalSec: 1,
@@ -221,7 +229,9 @@ final class BroadcastRouterTest extends TestCase
         self::assertSame(\PHP_SESSION_ACTIVE, session_status());
 
         $now = 0;
-        $clock = function () use (&$now): int { return $now++; };
+        $clock = function () use (&$now): int {
+            return $now++;
+        };
         $router = new BroadcastRouter(
             maxDurationSec: 1,
             keepaliveIntervalSec: 1,
@@ -251,7 +261,9 @@ final class BroadcastRouterTest extends TestCase
         $previous = ignore_user_abort(true);
         try {
             $now = 0;
-            $clock = function () use (&$now): int { return $now++; };
+            $clock = function () use (&$now): int {
+                return $now++;
+            };
             $router = new BroadcastRouter(
                 maxDurationSec: 1,
                 keepaliveIntervalSec: 1,
@@ -268,5 +280,94 @@ final class BroadcastRouterTest extends TestCase
         } finally {
             ignore_user_abort((bool) $previous);
         }
+    }
+
+    // --- per-account concurrent-stream cap (#1704 residual 503) ---
+
+    #[Test]
+    public function handle_refuses_with_503_and_retry_after_when_account_at_concurrent_cap(): void
+    {
+        $db = \Waaseyaa\Database\DBALDatabase::createSqlite();
+        $storage = new \Waaseyaa\Api\Controller\BroadcastStorage($db);
+
+        // Pre-populate subscribers.json with `cap` active streams for account 0
+        // (the stub account's id()), as if a reload storm already opened them.
+        $now = microtime(true);
+        $path = sys_get_temp_dir() . '/waaseyaa-subs-' . uniqid('', true) . '.json';
+        file_put_contents($path, (string) json_encode([
+            ['accountId' => 0, 'accountLabel' => null, 'channels' => ['admin'], 'connectedSince' => $now, 'lastHeartbeat' => $now, 'connectionId' => 'c1'],
+            ['accountId' => 0, 'accountLabel' => null, 'channels' => ['admin'], 'connectedSince' => $now, 'lastHeartbeat' => $now, 'connectionId' => 'c2'],
+        ]));
+
+        try {
+            $router = new BroadcastRouter(
+                subscribersJsonPath: $path,
+                maxConcurrentStreams: 2,
+                retryAfterSec: 7,
+            );
+
+            $response = $router->handle($this->broadcastRequest($storage));
+
+            self::assertNotInstanceOf(\Symfony\Component\HttpFoundation\StreamedResponse::class, $response);
+            self::assertSame(503, $response->getStatusCode());
+            self::assertSame('7', $response->headers->get('Retry-After'));
+            self::assertStringContainsString('too_many_concurrent_streams', (string) $response->getContent());
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    #[Test]
+    public function handle_streams_when_below_concurrent_cap(): void
+    {
+        $db = \Waaseyaa\Database\DBALDatabase::createSqlite();
+        $storage = new \Waaseyaa\Api\Controller\BroadcastStorage($db);
+
+        $now = microtime(true);
+        $path = sys_get_temp_dir() . '/waaseyaa-subs-' . uniqid('', true) . '.json';
+        file_put_contents($path, (string) json_encode([
+            ['accountId' => 0, 'accountLabel' => null, 'channels' => ['admin'], 'connectedSince' => $now, 'lastHeartbeat' => $now, 'connectionId' => 'c1'],
+        ]));
+
+        try {
+            $router = new BroadcastRouter(
+                subscribersJsonPath: $path,
+                maxConcurrentStreams: 2,
+                // Keep the loop from actually running long if the callback is invoked elsewhere.
+                maxDurationSec: 1,
+                pollIntervalUs: 0,
+                abortSignal: static fn(): int => 1,
+            );
+
+            $response = $router->handle($this->broadcastRequest($storage));
+
+            // One active stream < cap of 2 → admitted as a normal SSE stream.
+            self::assertInstanceOf(\Symfony\Component\HttpFoundation\StreamedResponse::class, $response);
+            self::assertSame('text/event-stream', $response->headers->get('Content-Type'));
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    #[Test]
+    public function count_active_streams_filters_by_account_and_excludes_stale_rows(): void
+    {
+        $now = 1_000.0;
+        $rows = [
+            ['accountId' => 7, 'lastHeartbeat' => $now - 1.0, 'connectionId' => 'a'],   // account 7, fresh
+            ['accountId' => 7, 'connectedSince' => $now - 2.0, 'connectionId' => 'b'],  // account 7, fresh (no heartbeat → connectedSince)
+            ['accountId' => 7, 'lastHeartbeat' => $now - 999.0, 'connectionId' => 'c'], // account 7, STALE (excluded)
+            ['accountId' => 3, 'lastHeartbeat' => $now, 'connectionId' => 'd'],         // other account (excluded)
+            'not-an-array',                                                              // malformed (skipped)
+        ];
+
+        // staleAfter = 30s: rows c (999s old) excluded; a and b counted.
+        self::assertSame(2, BroadcastRouter::countActiveStreamsForAccount($rows, 7, $now, 30.0));
+        // Account 3 has one fresh row.
+        self::assertSame(1, BroadcastRouter::countActiveStreamsForAccount($rows, 3, $now, 30.0));
+        // An account with no rows.
+        self::assertSame(0, BroadcastRouter::countActiveStreamsForAccount($rows, 99, $now, 30.0));
+        // staleAfter = 0 disables the staleness filter → all account-7 rows count.
+        self::assertSame(3, BroadcastRouter::countActiveStreamsForAccount($rows, 7, $now, 0.0));
     }
 }
