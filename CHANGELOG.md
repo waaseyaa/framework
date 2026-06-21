@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Stock agent write tools now enforce per-field edit access, closing a B-1-class field escalation on the agent path (#1638).** `EntityCreateTool`/`EntityUpdateTool` applied every submitted field after only the coarse `tool.entity.*` capability + entity-level `AccessPolicy` + the identity-key guard — with **no** per-field `checkFieldAccess('edit')`. So an agent holding entity-level `update`/`create` access could set a field a `FieldAccessPolicy` forbids (e.g. `user.roles`/`status`/`permissions`), bypassing the exact field guard the HTTP write path enforces (`JsonApiController::store()`/`update()`) — the same escalation the B-1 fix closed for REST/GraphQL, re-opened for agents the moment the write-tool tier is enabled. A shared `AbstractAgentTool::requireFieldEditAccess()` now mirrors the HTTP gate (`checkFieldAccess('edit')`; **open-by-default** — only an explicit `Forbidden` denies), run after the identity-key refusal and **before any `set()`**, so a forbidden field aborts the whole write with a `forbidden` error and nothing is mutated or saved. No-op in capability-only construction (no access handler wired), preserving the historical contract. Acceptance: `EntityWriteFieldAccessTest` (verified the forbidden field was applied + saved against the pre-fix code; open-by-default fields stay writable). See `docs/specs/ai-integration.md` § Per-field edit access.
+
+### Fixed
+
+- **An agent run no longer crashes (and silently skips its audit row) on a list-valued tool argument (#1637).** `AbstractAgentTool::argumentsForAudit()` called `strtolower()` on the **integer** keys of a list payload (e.g. an `entity.create` `values.blocks`/`tags`) under `strict_types`, raising an uncaught `TypeError`. `AgentExecutor` invokes it on raw, model-controlled tool input at the audit step — which sits **outside** the `execute()` try/catch — so a single benign list argument aborted the whole run and the `tool_call` audit row (written immediately after) was never recorded. Redaction now recurses over arbitrarily-keyed arrays (a private `redactArguments()` typed `array<array-key, mixed>`); integer list keys are preserved verbatim and never matched against credential names, and the public `argumentsForAudit()` contract is unchanged. Acceptance: `AbstractAgentToolArgumentsForAuditTest` + `AgentExecutorEventDispatchTest::listValuedToolArgumentsAreAuditedAndDoNotCrashTheRun` (both verified to throw/lose the audit row against the pre-fix code).
+
 ## [0.1.0-alpha.243] - 2026-06-21
 
 ### Fixed
