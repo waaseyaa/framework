@@ -123,6 +123,7 @@ declare -A PATTERN_TO_SPEC=(
   ["packages/access/"]="docs/specs/access-control.md"
   ["packages/audit/"]="docs/specs/ocap-audit-log.md"
   ["packages/api/"]="docs/specs/api-layer.md"
+  ["packages/graphql/"]="docs/specs/api-layer.md"
   ["packages/routing/"]="docs/specs/api-layer.md"
   ["packages/wayfinding/"]="docs/specs/wayfinding.md"
   ["packages/foundation/"]="docs/specs/infrastructure.md"

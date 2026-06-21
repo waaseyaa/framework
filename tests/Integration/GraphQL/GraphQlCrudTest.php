@@ -13,8 +13,10 @@ final class GraphQlCrudTest extends GraphQlIntegrationTestBase
         $this->assertNoErrors($response);
         $data = $response['data']['articleList'];
 
-        // total=2 (count query runs without access filtering).
-        $this->assertSame(2, $data['total']);
+        // #1702 (C-7): total is access-filtered — article2 (denied by
+        // DenyByIdPolicy) counts toward neither items nor total. Previously total
+        // was the unfiltered count (2).
+        $this->assertSame(1, $data['total']);
 
         // items contains only article1 (article2 denied by DenyByIdPolicy).
         $titles = array_column($data['items'], 'title');
