@@ -366,12 +366,27 @@ to satisfy this budget on SQLite and MySQL/PostgreSQL.
 - **Raw SQL through the decorator is guarded too** (FR-008 of mission
   `revision-audit-provenance-01KTWY5V`, #1648 — previously `query()` passed
   raw SQL through unguarded). `AppendOnlyAuditDatabase::query()` performs a
-  token-level check, not a SQL parse: single-/double-quoted string literals
-  and SQL comments (`--`, `/* */`) are stripped, then a word-boundary
-  mutation verb (`UPDATE` / `DELETE` / `DROP` / `ALTER` / `TRUNCATE`)
-  co-occurring with a word-boundary append-only table name (`audit_event`)
-  throws the **same** `\LogicException` as the builder-level guard (shared
-  message factory).
+  token-level check, not a SQL parse: **single-quoted** string literals and
+  SQL comments (`--`, `/* */`) are removed, and **identifier quotes are
+  UNQUOTED** — the delimiters of `"…"`, `` `…` `` and `[…]` (the three forms
+  SQLite accepts) are dropped while the inner name is kept — then a
+  word-boundary mutation verb (`UPDATE` / `DELETE` / `DROP` / `ALTER` /
+  `TRUNCATE`) co-occurring with a word-boundary append-only table name
+  (`audit_event`) throws the **same** `\LogicException` as the builder-level
+  guard (shared message factory).
+  - **Identifier-quoting bypass closed (#1648, 2026-06-21):** the earlier
+    implementation stripped **double-quoted** spans as if they were string
+    literals, so `DELETE FROM "audit_event"` (and the `` `audit_event` `` /
+    `[audit_event]` / `main."audit_event"` forms) deleted the table name from
+    the guard's view and the raw mutation reached the inner database. Unquoting
+    rather than stripping identifier delimiters keeps the table name visible to
+    the check. Acceptance: `AppendOnlyAuditDatabaseTest::blockedRawSql` now
+    includes every quoting form, proven to reach the inner DB before the fix.
+  - **Why a decorator and not a database trigger:** the sole sanctioned
+    deletion — `audit:prune` — runs through the **raw** `DatabaseInterface`
+    builder, so a blanket `BEFORE DELETE` trigger would block retention too.
+    Caller discrimination (writer ⇒ decorator ⇒ blocked; prune ⇒ raw ⇒
+    allowed) can only live at the decorator layer.
   - **What passes:** `SELECT`s over `audit_event` — including ones whose
     string literals merely *contain* mutation verbs, e.g.
     `WHERE attributes LIKE '%delete%'` (`attributes` is a JSON TEXT column,
@@ -406,3 +421,4 @@ to satisfy this budget on SQLite and MySQL/PostgreSQL.
 <!-- Spec written 2026-05-25 - mission ocap-audit-log-substrate-01KSEFTF WP03: JSON:API audit endpoint + audit:prune CLI + integration tests. Refs gap-matrix-A3, DIR-004. -->
 <!-- Spec reviewed 2026-06-09 - alpha.202: audit_event/audit_retention_policy de-registered as content entities (now raw OCAP log tables + typed read models); append-only enforcement moved from the dormant AppendOnlyDriverGuard to the active AppendOnlyAuditDatabase DatabaseInterface decorator; writer migrated to insert-only raw INSERT. Refs #1625. -->
 <!-- Spec reviewed 2026-06-12 - mission revision-audit-provenance-01KTWY5V WP05: actor_uid authoritative three-state column (+index, guarded ALTER migration; account_uid retained as legacy actor??0); AuditEventDescriptor::$accountUid widened to ?int; AuditEvent::getActorUid(); taxonomy 17→19 (revision.publish / revision.revert); listener catalogue gains PublishPointerAuditListener + per-listener actor-source table (entity lifecycle no longer reads the entity's uid field; agent tools no longer hardcode 0); AppendOnlyAuditDatabase::query() raw-SQL guard documented (literal/comment stripping, conjunctive verb+table match, fail-closed residuals, structural NFR-003 argument). Refs #1645, #1648. -->
+<!-- Spec reviewed 2026-06-21 - #1648 identifier-quoting bypass closed: AppendOnlyAuditDatabase::query() previously stripped DOUBLE-quoted spans as string literals, so `DELETE FROM "audit_event"` (and the backtick/bracket/schema-qualified forms SQLite accepts) erased the table name from the guard's view and the raw mutation reached the inner DB (proven: those statements raise TableNotFoundException from the engine, not LogicException, under the old code). Fixed by `normalizeSqlForGuard()` — single-quoted literals + comments are removed, but identifier quotes (`"…"`, backtick, `[…]`) are UNQUOTED (delimiters dropped, inner name kept) so a quoted append-only table name is still matched. The decorator remains the enforcement layer by design (a blanket DB trigger would also block the raw-connection `audit:prune` retention path). Acceptance: AppendOnlyAuditDatabaseTest (every quoting form in blockedRawSql; a quoted-name SELECT stays in allowedRawSql to prove no false positive). -->

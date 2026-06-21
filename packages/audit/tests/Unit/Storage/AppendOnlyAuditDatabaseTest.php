@@ -100,6 +100,18 @@ final class AppendOnlyAuditDatabaseTest extends TestCase
             'CTE-wrapped DELETE (not first-keyword-fooled)' => ['WITH x AS (SELECT 1) DELETE FROM audit_event'],
             'comment does not hide the verb+table' => ['UPDATE /* harmless */ audit_event SET x = 1'],
             'fail-closed: identifier named delete joined to audit_event' => ['SELECT 1 FROM audit_event JOIN delete ON delete.id = audit_event.id'],
+            // #1648 identifier-quoting exploit: the prior guard stripped these
+            // double-/backtick-/bracket-quoted names as string literals, so the
+            // table-name check never saw `audit_event` and the raw mutation
+            // passed straight through to the inner database. All must now throw.
+            'double-quoted identifier DELETE (the #1648 exploit)' => ['DELETE FROM "audit_event" WHERE id = 1'],
+            'double-quoted identifier UPDATE' => ['UPDATE "audit_event" SET outcome = ?'],
+            'double-quoted identifier built by quoteIdentifier()' => ['DELETE FROM "audit_event"'],
+            'backtick identifier DELETE (MySQL/SQLite form)' => ['DELETE FROM `audit_event`'],
+            'bracket identifier DELETE (SQLite form)' => ['DELETE FROM [audit_event]'],
+            'schema-qualified quoted DELETE' => ['DELETE FROM main."audit_event" WHERE id = 1'],
+            'quoted DROP TABLE' => ['DROP TABLE "audit_event"'],
+            'quoted TRUNCATE' => ['TRUNCATE TABLE `audit_event`'],
         ];
     }
 
@@ -127,6 +139,9 @@ final class AppendOnlyAuditDatabaseTest extends TestCase
             'DELETE from a non-audit table'        => ['DELETE FROM cache_items'],
             'line comment stripped'                => ["SELECT id FROM audit_event -- update audit_event later\n"],
             'plain SELECT over audit_event'        => ['SELECT id, event_kind FROM audit_event WHERE id = 1'],
+            // Unquoting identifiers must NOT make a legitimate quoted-name SELECT
+            // false-positive: it has no mutation verb, so it still passes.
+            'double-quoted SELECT over audit_event' => ['SELECT id, event_kind FROM "audit_event" WHERE id = 1'],
         ];
     }
 

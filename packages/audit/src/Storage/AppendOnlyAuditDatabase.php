@@ -22,17 +22,29 @@ use Waaseyaa\Database\UpdateInterface;
  * (FR-003): the {@see \Waaseyaa\Audit\Writer\AuditEventWriter} is wired with this
  * decorator, so the only mutation it can express is an append.
  *
- * Raw SQL is guarded too (FR-008, #1648): {@see query()} strips string
- * literals and SQL comments, then throws the same {@see \LogicException} when
- * a mutation verb (UPDATE / DELETE / DROP / ALTER / TRUNCATE) co-occurs with
- * an append-only table name in the remainder. SELECTs over audit_event
- * (including literals that merely *contain* mutation verbs, e.g.
- * `WHERE attributes LIKE '%delete%'`), INSERTs, and mutations of non-audit
- * tables pass through. The guard is deliberately fail-closed on residual
- * ambiguity: a CTE-wrapped mutation (`WITH x AS (...) DELETE FROM
- * audit_event`) throws, and so does a pathological SELECT joining
- * audit_event with an identifier literally named `delete` — accepted for an
- * append-only guarantee (contract clause 23).
+ * Raw SQL is guarded too (FR-008, #1648): {@see query()} normalizes the SQL —
+ * removing single-quoted string literals and SQL comments, and UNQUOTING
+ * identifier delimiters (`"…"`, `` `…` ``, `[…]` — the three forms SQLite
+ * accepts) so a quoted table name is still seen — then throws the same
+ * {@see \LogicException} when a mutation verb (UPDATE / DELETE / DROP / ALTER /
+ * TRUNCATE) co-occurs with an append-only table name in the remainder. This
+ * closes the identifier-quoting bypass where `DELETE FROM "audit_event"` (or
+ * the backtick / bracket forms, or `main."audit_event"`) previously slipped
+ * past because the double-quoted name was stripped as if it were a string
+ * literal. SELECTs over audit_event (including literals that merely *contain*
+ * mutation verbs, e.g. `WHERE attributes LIKE '%delete%'`, and plain
+ * `SELECT … FROM "audit_event"`), INSERTs, and mutations of non-audit tables
+ * pass through. The guard is deliberately fail-closed on residual ambiguity: a
+ * CTE-wrapped mutation (`WITH x AS (...) DELETE FROM audit_event`) throws, and
+ * so does a pathological SELECT joining audit_event with an identifier
+ * literally named `delete` — accepted for an append-only guarantee (contract
+ * clause 23).
+ *
+ * The decorator (not a database trigger) is the enforcement layer by design:
+ * the sole sanctioned deletion — `audit:prune` — runs through the RAW
+ * {@see DatabaseInterface}, so a blanket trigger would block retention too.
+ * Caller discrimination (writer ⇒ decorator ⇒ blocked; prune ⇒ raw ⇒ allowed)
+ * can only live here.
  *
  * The one sanctioned bulk-delete path — `audit:prune` retention purging
  * ({@see \Waaseyaa\CLI\Command\Audit\PruneCommand}) — deliberately resolves the
@@ -131,7 +143,7 @@ final class AppendOnlyAuditDatabase implements DatabaseInterface
      */
     private function assertQueryAppendOnly(string $sql): void
     {
-        $stripped = $this->stripLiteralsAndComments($sql);
+        $stripped = $this->normalizeSqlForGuard($sql);
 
         $verb = null;
         foreach (self::MUTATION_VERBS as $candidate) {
@@ -153,21 +165,55 @@ final class AppendOnlyAuditDatabase implements DatabaseInterface
     }
 
     /**
-     * Remove single-quoted/double-quoted string literals and SQL comments
-     * (`--` line comments and slash-star block comments) so that mutation
-     * verbs inside payload
-     * text (`WHERE attributes LIKE '%delete%'` — attributes is JSON TEXT)
-     * never false-positive. One alternation pass keeps left-to-right
-     * precedence between quote and comment openers; `''` / `""` doubling is
-     * honoured inside literals.
+     * Normalize SQL so the verb+table guard sees the real statement structure.
+     *
+     * One left-to-right pass with correct quote-context precedence:
+     *   - single-quoted string literals → removed. Payload text, not statement
+     *     structure: a mutation verb inside one (`WHERE attributes LIKE
+     *     '%delete%'` — `attributes` is JSON TEXT) must never false-positive.
+     *   - SQL comments (`--` line, slash-star block) → removed.
+     *   - identifier quotes — `"…"`, `` `…` `` and `[…]`, the three forms SQLite
+     *     accepts — are UNQUOTED: the delimiters are dropped and the inner name
+     *     kept, so a quoted append-only table (`"audit_event"`, `` `audit_event` ``,
+     *     `[audit_event]`, `main."audit_event"`) is still matched by the
+     *     table-name check.
+     *
+     * The prior implementation stripped double-quoted spans as if they were
+     * string literals (#1648), which deleted the table name from the guard's
+     * view and let `DELETE FROM "audit_event"` slip through to the inner
+     * database. Matching the literal/comment alternatives FIRST means a quote
+     * character living inside a string literal or comment is consumed there and
+     * never mistaken for an identifier delimiter.
      */
-    private function stripLiteralsAndComments(string $sql): string
+    private function normalizeSqlForGuard(string $sql): string
     {
-        return (string) preg_replace(
-            '/\'(?:[^\']|\'\')*\'|"(?:[^"]|"")*"|--[^\r\n]*|\/\*.*?\*\//s',
-            ' ',
+        $result = preg_replace_callback(
+            '/(\'(?:[^\']|\'\')*\')'        // 1: single-quoted string literal
+            . '|(--[^\r\n]*|\/\*.*?\*\/)'   // 2: line / block comment
+            . '|"((?:[^"]|"")*)"'           // 3: "double-quoted identifier"
+            . '|`((?:[^`]|``)*)`'           // 4: `backtick identifier`
+            . '|\[([^\]]*)\]/s',            // 5: [bracket identifier]
+            static function (array $m): string {
+                // Group 1 (single-quoted literal) and group 2 (comment) → erase.
+                // Both offsets are always present in the match array once group 1
+                // is known not to have matched ('' otherwise), so no
+                // null-coalesce is needed (PCRE keeps non-trailing groups).
+                if ($m[1] !== '' || $m[2] !== '') {
+                    return ' ';
+                }
+
+                // Otherwise an identifier branch matched: keep the inner name,
+                // space-padded so adjacent tokens never fuse
+                // (`FROM"audit_event"` → `FROM audit_event`). Offset 3 is always
+                // present here; the backtick/bracket groups are trailing-optional.
+                return ' ' . $m[3] . ($m[4] ?? '') . ($m[5] ?? '') . ' ';
+            },
             $sql,
         );
+
+        // preg_replace_callback returns null only on PCRE failure; fall back to
+        // the raw SQL so the verb/table check still runs (fail-closed).
+        return $result ?? $sql;
     }
 
     /**

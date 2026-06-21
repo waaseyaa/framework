@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Closed the `AppendOnlyAuditDatabase` identifier-quoting bypass (#1648).** The raw-SQL guard on `query()` stripped **double-quoted** spans as if they were string literals — but in SQLite/Postgres double quotes are *identifier* quotes — so `DELETE FROM "audit_event"` (and the `` `audit_event` ``, `[audit_event]`, and `main."audit_event"` forms SQLite accepts) erased the append-only table name from the guard's view and the raw mutation passed straight through to the inner database (verified: under the old guard those statements reach the engine and raise `TableNotFoundException`, not the guard's `LogicException`). The guard now removes single-quoted literals + comments but **unquotes** identifier delimiters so a quoted table name stays visible to the verb+table check; every quoting form is covered by `AppendOnlyAuditDatabaseTest`, and a quoted-name `SELECT` stays allowed (no false positive). The decorator remains the enforcement layer by design — `audit:prune` deletes through the raw `DatabaseInterface`, so a blanket DB trigger would block the sanctioned retention path.
+
 ## [0.1.0-alpha.241] - 2026-06-21
 
 ### Fixed
