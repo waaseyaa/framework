@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.242] - 2026-06-21
+
 ### Fixed
 
 - **Revision-id allocation is race-safe under concurrent writes (#1706).** `RevisionableStorageDriver` allocates revision ids `MAX(revision_id)+1`, which is not atomic — two concurrent writers for the same entity could read the same MAX. The composite `PRIMARY KEY (entity_id, revision_id)` (and `(entity_id, langcode, revision_id)` for translation revisions) already made assigning the *same* id twice structurally impossible (the held P1-4 integrity concern does not hold — the DB rejects a duplicate, it is never silently stored); the residual was that the losing writer's insert surfaced the unique-constraint violation. Both write paths now wrap allocate-and-insert in a bounded retry (5 attempts) that re-reads MAX and advances to the next id on a conflict. Acceptance: `RevisionIdAllocationRaceTest` (a concurrent-steal harness proves the duplicate is rejected *and* the loser advances; verified to fail against the pre-retry code).
