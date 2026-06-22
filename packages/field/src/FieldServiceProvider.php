@@ -124,18 +124,39 @@ final class FieldServiceProvider extends ServiceProvider
             fn(): ClassificationLabelRegistry => $this->resolve(ClassificationLabelRegistryInterface::class),
         );
 
-        // Bind the role-based clearance checker. The configurable mapping
-        // (`classification.role_clearance`) is consumed by the host
-        // application's ConfigInterface at boot; the default mapping is
-        // applied when no override is present.
+        // Bind the role-based clearance checker, wiring the configurable
+        // role→clearance mapping from `classification.role_clearance`. The
+        // previous binding passed no argument, so the override was silently
+        // ignored and clearance was permanently the stock default. The checker
+        // falls back to its DEFAULT_ROLE_CLEARANCE when no override is present.
         $this->singleton(
             ClassificationClearanceCheckerInterface::class,
-            fn(): ClassificationClearanceCheckerInterface => new RoleBasedClearanceChecker(),
+            fn(): ClassificationClearanceCheckerInterface => new RoleBasedClearanceChecker(
+                $this->classificationRoleClearanceConfig(),
+            ),
         );
         $this->singleton(
             RoleBasedClearanceChecker::class,
             fn(): RoleBasedClearanceChecker => $this->resolve(ClassificationClearanceCheckerInterface::class),
         );
+    }
+
+    /**
+     * The host's `classification.role_clearance` override (role-id → clearance
+     * level), or null to use the checker's default mapping.
+     *
+     * @return array<array-key, mixed>|null
+     */
+    private function classificationRoleClearanceConfig(): ?array
+    {
+        $classification = $this->config['classification'] ?? null;
+        if (!is_array($classification)) {
+            return null;
+        }
+
+        $roleClearance = $classification['role_clearance'] ?? null;
+
+        return is_array($roleClearance) ? $roleClearance : null;
     }
 
     public function boot(): void

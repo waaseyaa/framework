@@ -124,6 +124,17 @@ final class PurgeJob
                     continue;
                 }
 
+                // Legal-hold guard (C-004): a `hold-*` label is never purgeable,
+                // regardless of policy match. The class doc claims this holds
+                // "by construction" because purge policies use action=purge while
+                // holds use action=hold-flag — but a misconfigured purge policy
+                // whose `applies_to` glob matches `hold-*` (e.g. `hold-*` or `*`)
+                // would otherwise delete legal-hold content. Enforce it here so
+                // the invariant cannot be configured away.
+                if (str_starts_with($labelId, 'hold-')) {
+                    continue;
+                }
+
                 $uuid = (string) ($entity->get('uuid') ?? '');
                 if ($uuid !== '' && $policy->isExempt($entityTypeId, $uuid)) {
                     continue;
