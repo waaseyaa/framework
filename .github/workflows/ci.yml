@@ -531,6 +531,14 @@ jobs:
       - name: Validate ingestion schema metadata and compatibility rules
         run: bash bin/check-ingestion-defaults
 
+  release-publish-shape:
+    name: Release publish shape
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Assert exactly-once Packagist publish + forward-only release shape
+        run: bash bin/check-release-publish-shape
+
   security-defaults:
     name: Security defaults
     runs-on: ubuntu-latest

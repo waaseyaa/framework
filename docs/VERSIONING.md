@@ -100,6 +100,39 @@ CI validates that every file under `defaults/` contains this block.
 
 ---
 
+## 8. Forward-Only Releases & Single-Crawl Publish
+
+Releases are **forward-only**. A tagged release version is **immutable** once
+published to Packagist — Packagist keeps the dist for an existing tag and will
+not adopt a moved tag (anti-tamper). Therefore:
+
+- **Never re-tag.** If a cut release is bad, recover by cutting the **next**
+  version (`alpha.N+1`), never by deleting/moving an existing tag. `release-cut.yml`
+  already refuses to re-cut an existing version; `split.yml` pushes the release
+  tag to each split repo **non-force** and fails with `RETAG_BLOCKED` if the tag
+  already exists there at a different commit.
+
+- **One crawl per package per release.** Packagist's GitHub auto-update **push
+  webhooks are disabled** on the monorepo and every split repo. They fired once
+  per pushed ref (gate-branch create + main fast-forward + tag + gate-branch
+  delete on the monorepo; main + tag on each split repo), so GitHub delivered
+  multiple webhooks and Packagist re-crawled/re-published the just-cut version
+  2-3x (audit alpha.245 §1). Publishing is instead a single idempotent
+  `POST /api/update-package` per package, run by the `publish-packagist` job in
+  `split.yml` **after** split + tag-parity + require-parity succeed. That POST is
+  the only crawl trigger, so each package is published exactly once.
+
+  Requires repo secrets `PACKAGIST_USERNAME` + `PACKAGIST_TOKEN`. The
+  invariant is enforced in CI by `bin/check-release-publish-shape`.
+
+**Cutover order (one-time, when this lands):** (1) merge this change; (2) set the
+`PACKAGIST_USERNAME`/`PACKAGIST_TOKEN` secrets; (3) **then** delete the Packagist
+auto-update webhook from the monorepo and every split repo. Do not delete the
+webhooks before the POST mechanism + secrets are live, or a release would not
+publish at all.
+
+---
+
 ## Audit Log
 
 _No entries yet. Records of tag deletions and v1.0 authorizations will appear here._

@@ -4,12 +4,15 @@ name: Publish to Packagist
 # dynamically from `packages/*/composer.json` so the matrix can't drift) is
 # published to Packagist after a release tag.
 #
-# Crawling is done by Packagist's GitHub auto-update webhooks installed on the
-# monorepo and each split repo (they fire on the tag push / split push). This
-# workflow used to ALSO POST the update-package API per package, which
-# double-crawled every package per release (webhook + API) — the redundant
-# "publishes twice" behaviour. The update job was removed; this workflow now
-# only VERIFIES the webhook-driven result.
+# Crawling is triggered by the `publish-packagist` job in split.yml: exactly ONE
+# idempotent `POST /api/update-package` per package, gated on split + tag-parity
+# + require-parity success. Packagist's GitHub auto-update PUSH webhooks are
+# DISABLED on the monorepo + every split repo — they fired once per pushed ref
+# (gate-branch + main + tag + gate-delete on the monorepo; main + tag on each
+# split repo), re-crawling and re-publishing the just-cut version 2-3x per
+# release (audit alpha.245 §1). With webhooks off, the single update-package
+# POST is the only crawl trigger, so each package publishes exactly once.
+# This workflow now only VERIFIES that result. See docs/VERSIONING.md §8.
 #
 # Jobs:
 #   - discover: enumerate waaseyaa/* package names
