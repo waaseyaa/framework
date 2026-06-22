@@ -40,6 +40,17 @@ interface ServiceProviderInterface
     /**
      * Contribute HTTP routes. Called by `BuiltinRouteRegistrar` after every
      * provider is registered.
+     *
+     * **Called exactly once, at boot.** Anything you build here lives for the
+     * lifetime of the process. Do NOT eagerly `resolve()` and construct a
+     * controller in this method when that controller depends on a
+     * request-scoped service such as `DatabaseInterface` — the controller
+     * would capture the boot-time instance and reuse it for every request,
+     * so its writes can be silently lost (#1611). Instead defer construction
+     * to dispatch time: register a closure controller that resolves its
+     * dependencies when the route is matched. See
+     * {@see \Waaseyaa\AI\Agent\Routing\AgentRouteServiceProvider} for the
+     * canonical lazy-factory pattern.
      */
     public function routes(\Waaseyaa\Routing\WaaseyaaRouter $router, \Waaseyaa\Entity\EntityTypeManager $entityTypeManager): void;
 

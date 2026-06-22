@@ -137,7 +137,12 @@ final class NcSyncService
                 }
 
                 if ($fields[$dedupField] !== '' && $fields[$dedupField] !== null) {
+                    // Background sync runs with no per-user account; bind the dedup-existence
+                    // lookup with accessCheck(false) so it checks ALL rows for a duplicate (a
+                    // duplicate is a duplicate regardless of visibility) instead of throwing
+                    // MissingQueryAccountException on the real SqlEntityStorage (B-5).
                     $existing = $storage->getQuery()
+                        ->accessCheck(false)
                         ->condition($dedupField, $fields[$dedupField])
                         ->execute();
 

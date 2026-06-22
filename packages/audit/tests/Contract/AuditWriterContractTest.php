@@ -10,9 +10,10 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
+use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
 use Waaseyaa\Audit\Writer\AuditEventWriter;
 use Waaseyaa\Audit\Writer\NullAuditWriter;
-use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Database\DBALDatabase;
 
 /**
  * Contract test: every AuditWriterInterface implementation must be best-effort.
@@ -25,10 +26,10 @@ final class AuditWriterContractTest extends TestCase
      */
     private function implementations(): array
     {
-        $repo = $this->createMock(EntityRepositoryInterface::class);
-
         return [
-            'AuditEventWriter' => new AuditEventWriter($repo),
+            'AuditEventWriter' => new AuditEventWriter(
+                new AppendOnlyAuditDatabase(DBALDatabase::createSqlite()),
+            ),
             'NullAuditWriter'  => new NullAuditWriter(),
         ];
     }

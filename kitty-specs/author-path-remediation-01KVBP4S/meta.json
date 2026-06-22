@@ -1,0 +1,13 @@
+{
+  "coordination_branch": "kitty/mission-author-path-remediation-01KVBP4S",
+  "created_at": "2026-06-17T21:00:10.438668+00:00",
+  "friendly_name": "author path remediation",
+  "mission_id": "01KVBP4SA3QAVESJ0TDFZPZK1E",
+  "mission_number": null,
+  "mission_slug": "author-path-remediation-01KVBP4S",
+  "mission_type": "software-dev",
+  "purpose_context": "This mission advances author path remediation on main so stakeholders can track the work from mission creation onward.",
+  "purpose_tldr": "author path remediation",
+  "slug": "author-path-remediation-01KVBP4S",
+  "target_branch": "main"
+}

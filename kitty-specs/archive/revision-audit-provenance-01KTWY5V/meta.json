@@ -1,0 +1,13 @@
+{
+  "created_at": "2026-06-12T03:31:59.567088+00:00",
+  "friendly_name": "Revision & Audit Provenance",
+  "mission_id": "01KTWY5VRQH4QPFMCHX6BHX64F",
+  "mission_number": 7,
+  "mission_slug": "revision-audit-provenance-01KTWY5V",
+  "mission_type": "software-dev",
+  "slug": "revision-audit-provenance-01KTWY5V",
+  "source_description": "Framework issues #1644 (revision author never recorded), #1645 (audit actor mis-attribution, publish moves unaudited, MCP event never fired), #1648 (append-only query() bypass). Sprint Mission 2; target v0.1.0-alpha.205.",
+  "target_branch": "main",
+  "vcs": "git",
+  "vcs_locked_at": "2026-06-12T04:20:10.263446+00:00"
+}

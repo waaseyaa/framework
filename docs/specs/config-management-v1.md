@@ -1,6 +1,13 @@
+<!-- Spec reviewed 2026-06-15 - convention-spec-gate D-10: this v1 mission spec shipped as M-003 and was superseded by the canonical doctrine spec config-management.md. Added a SUPERSEDED banner and corrected the stale Draft status so it no longer reads as a live spec. -->
 # Configuration Management v1 — Active/Sync Store Split
 
-**Status:** Draft mission spec (2026-05-11)
+> **⚠️ SUPERSEDED.** This is the original M-003 mission spec, retained for
+> historical/audit context only. The mission **shipped 2026-05-16**; the live,
+> canonical doctrine spec is **[`config-management.md`](config-management.md)** —
+> read that for the current Configuration Management (CMI) surface. Do not build
+> against the draft requirements below.
+
+**Status:** Superseded by [`config-management.md`](config-management.md) — shipped as M-003 (mission `config-management-v1-01KRCDEC`, 2026-05-16); retained for historical/audit context.
 **Audience:** framework maintainers; input for Spec Kitty `specify` → `plan` → `tasks` flow
 **Mission ID:** TBD (to be assigned by `@jonesrussell` on mission creation)
 **Origin:** [ADR 018](../adr/018-configuration-management-sync.md) (Accepted 2026-05-11).

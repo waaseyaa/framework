@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Kernel\Bootstrap;
 
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
+use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Exception\EntityTypeRegistrationCollisionException;
@@ -25,6 +27,13 @@ final class ProviderRegistry
      * Discover, instantiate, and register all service providers from the manifest.
      *
      * @param array<string, mixed> $config
+     * @param AccountContextInterface|null $accountContext The kernel's shared acting-account
+     *        context, exposed to providers via the kernel-services bus (mission
+     *        revision-audit-provenance-01KTWY5V FR-002).
+     * @param (\Closure(): ?EntityAccessHandler)|null $accessHandlerAccessor Lazy
+     *        accessor for the kernel access handler (C-12), exposed to providers
+     *        via the kernel-services bus. Lazy because access policies are
+     *        discovered after this registration pass.
      * @return list<ServiceProvider>
      */
     public function discoverAndRegister(
@@ -34,6 +43,8 @@ final class ProviderRegistry
         EntityTypeManager $entityTypeManager,
         DatabaseInterface $database,
         EventDispatcherInterface $dispatcher,
+        ?AccountContextInterface $accountContext = null,
+        ?\Closure $accessHandlerAccessor = null,
     ): array {
         $this->providers = [];
 
@@ -43,6 +54,9 @@ final class ProviderRegistry
             dispatcher: $dispatcher,
             logger: $this->logger,
             providersAccessor: fn(): array => $this->providers,
+            accountContext: $accountContext,
+            accessHandlerAccessor: $accessHandlerAccessor,
+            manifest: $manifest,
         );
 
         foreach ($manifest->providers as $providerClass) {

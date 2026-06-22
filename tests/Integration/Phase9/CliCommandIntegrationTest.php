@@ -10,7 +10,9 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Cache\CacheFactory;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\CacheClearHandler;
 use Waaseyaa\CLI\Handler\ConfigExportHandler;
 use Waaseyaa\CLI\Handler\ConfigImportHandler;
@@ -19,8 +21,6 @@ use Waaseyaa\CLI\Handler\EntityListHandler;
 use Waaseyaa\CLI\Handler\InstallHandler;
 use Waaseyaa\CLI\Handler\UserCreateHandler;
 use Waaseyaa\CLI\Handler\UserRoleHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
 use Waaseyaa\CLI\Provider\ConfigCacheDbAuditServiceProvider;
 use Waaseyaa\CLI\Provider\EntityTypeServiceProvider;
 use Waaseyaa\CLI\Provider\UserPermissionServiceProvider;
@@ -127,7 +127,7 @@ final class CliCommandIntegrationTest extends TestCase
         // Run cache:clear command via native handler.
         $provider = new ConfigCacheDbAuditServiceProvider();
         $cacheClearDef = null;
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'cache:clear') {
                 $cacheClearDef = $cmd;
                 break;
@@ -179,7 +179,7 @@ final class CliCommandIntegrationTest extends TestCase
         $provider = new ConfigCacheDbAuditServiceProvider();
         $exportDef = null;
         $importDef = null;
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'config:export') {
                 $exportDef = $cmd;
             }
@@ -264,7 +264,7 @@ final class CliCommandIntegrationTest extends TestCase
 
         $provider = new EntityTypeServiceProvider();
         $definitions = [];
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             $definitions[$cmd->name] = $cmd;
         }
 
@@ -319,7 +319,7 @@ final class CliCommandIntegrationTest extends TestCase
 
         $provider = new UserPermissionServiceProvider();
         $definition = null;
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'user:create') {
                 $definition = $cmd;
                 break;
@@ -351,14 +351,14 @@ final class CliCommandIntegrationTest extends TestCase
             entityTypeManager: $this->entityTypeManager,
             configManager: $this->configManager,
         );
-        $definition = new CommandDefinition(
+        $definition = new HandlerCommand(
             name: 'install',
             description: 'Install Waaseyaa with initial configuration',
             options: [
-                new OptionDefinition(name: 'site-name', mode: OptionMode::Required, description: 'The name of the site', default: 'Waaseyaa'),
-                new OptionDefinition(name: 'site-mail', mode: OptionMode::Required, description: 'Site email address', default: 'admin@example.com'),
-                new OptionDefinition(name: 'admin-email', mode: OptionMode::Required, description: 'Admin user email', default: 'admin@example.com'),
-                new OptionDefinition(name: 'admin-password', mode: OptionMode::Required, description: 'Admin user password'),
+                new HandlerOption(name: 'site-name', mode: HandlerOptionMode::Required, description: 'The name of the site', default: 'Waaseyaa'),
+                new HandlerOption(name: 'site-mail', mode: HandlerOptionMode::Required, description: 'Site email address', default: 'admin@example.com'),
+                new HandlerOption(name: 'admin-email', mode: HandlerOptionMode::Required, description: 'Admin user email', default: 'admin@example.com'),
+                new HandlerOption(name: 'admin-password', mode: HandlerOptionMode::Required, description: 'Admin user password'),
             ],
             handler: \Closure::fromCallable([$handler, 'execute']),
         );
@@ -417,7 +417,7 @@ final class CliCommandIntegrationTest extends TestCase
         $provider = new UserPermissionServiceProvider();
         $createDefinition = null;
         $roleDefinition = null;
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'user:create') {
                 $createDefinition = $cmd;
             } elseif ($cmd->name === 'user:role') {

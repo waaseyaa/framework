@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Foundation\Schema\SchemaRegistryInterface;
 
 /**
@@ -16,7 +16,7 @@ final class SchemaListHandler
         private readonly SchemaRegistryInterface $registry,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $entries = $this->registry->list();
 

@@ -205,7 +205,12 @@ final class NoteRbacIntegrationTest extends TestCase
 
         $doc = $controller->show('note', $note->id());
 
-        $this->assertSame(403, $doc->statusCode);
+        // FR-003 (#1649): a view-denied single read answers with the canonical
+        // not-found shape — never a 403 — so it cannot act as an existence oracle.
+        $this->assertSame(404, $doc->statusCode);
+        $array = $doc->toArray();
+        $this->assertSame('404', $array['errors'][0]['status']);
+        $this->assertArrayNotHasKey('code', $array['errors'][0]);
     }
 
     #[Test]

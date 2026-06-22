@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Command\Oidc;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Oidc\Key\SigningKeyRepository;
 
 /**
@@ -22,7 +22,7 @@ final class RotateSigningKeyCommand
         private readonly SigningKeyRepository $repository,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $previous = $this->repository->previousKey();
         $priorCurrentKid = null;

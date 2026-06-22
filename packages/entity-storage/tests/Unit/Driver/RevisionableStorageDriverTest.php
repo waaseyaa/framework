@@ -161,4 +161,106 @@ final class RevisionableStorageDriverTest extends TestCase
         $rows = $this->driver->readMultipleRevisions('1', [1, 3]);
         $this->assertCount(2, $rows);
     }
+
+    // ------------------------------------------------------------------
+    // Revision author (mission revision-audit-provenance-01KTWY5V FR-001,
+    // contract revision-author.md clauses 3, 6)
+    // ------------------------------------------------------------------
+
+    #[Test]
+    public function write_revision_records_author_on_single_axis_path(): void
+    {
+        $this->driver->writeRevision('1', ['title' => 'v1', 'uuid' => 'a'], null, null, 7);
+
+        $row = $this->driver->readRevision('1', 1);
+        $this->assertSame(7, (int) $row['revision_author']);
+    }
+
+    #[Test]
+    public function write_revision_with_null_author_reads_back_sql_null(): void
+    {
+        $this->driver->writeRevision('1', ['title' => 'v1', 'uuid' => 'a'], null);
+
+        $row = $this->driver->readRevision('1', 1);
+        $this->assertArrayHasKey('revision_author', $row);
+        $this->assertNull($row['revision_author'], 'No author must be SQL NULL, never 0 or empty string.');
+    }
+
+    #[Test]
+    public function write_revision_records_anonymous_zero_author(): void
+    {
+        $this->driver->writeRevision('1', ['title' => 'v1', 'uuid' => 'a'], null, null, 0);
+
+        $row = $this->driver->readRevision('1', 1);
+        $this->assertNotNull($row['revision_author'], 'Anonymous (0) is an actor — must not collapse to NULL.');
+        $this->assertSame(0, (int) $row['revision_author']);
+    }
+
+    #[Test]
+    public function update_revision_never_touches_a_previously_written_author(): void
+    {
+        // Clause 6: revision_author is immutable revision metadata, like
+        // revision_created / revision_log — in-place updates skip it.
+        $this->driver->writeRevision('1', ['title' => 'v1', 'uuid' => 'a'], 'log', null, 7);
+
+        $this->driver->updateRevision('1', 1, [
+            'title' => 'v1-updated',
+            'uuid' => 'a',
+            'revision_author' => 99,
+        ]);
+
+        $row = $this->driver->readRevision('1', 1);
+        $this->assertSame('v1-updated', $row['title']);
+        $this->assertSame(7, (int) $row['revision_author']);
+    }
+
+    #[Test]
+    public function explicit_author_parameter_wins_over_author_key_in_values(): void
+    {
+        // A rollback re-reads an old revision row whose revision_author must
+        // not leak onto the new revision via $values.
+        $this->driver->writeRevision('1', [
+            'title' => 'v1',
+            'uuid' => 'a',
+            'revision_author' => 7,
+        ], null, null, 42);
+
+        $row = $this->driver->readRevision('1', 1);
+        $this->assertSame(42, (int) $row['revision_author']);
+    }
+
+    #[Test]
+    public function write_revision_records_author_on_per_langcode_path(): void
+    {
+        $twoAxisType = new EntityType(
+            id: 'driver_author_two_axis',
+            label: 'Driver Author Two Axis',
+            class: TestRevisionableEntity::class,
+            keys: [
+                'id' => 'id',
+                'uuid' => 'uuid',
+                'label' => 'title',
+                'revision' => 'revision_id',
+                'langcode' => 'langcode',
+                'default_langcode' => 'default_langcode',
+            ],
+            revisionable: true,
+            revisionDefault: true,
+            translatable: true,
+        );
+        $handler = new SqlSchemaHandler($twoAxisType, $this->db);
+        $handler->ensureTable();
+        $handler->ensureRevisionTable();
+        $handler->ensureTranslationRevisionTable();
+
+        $driver = new RevisionableStorageDriver(new SingleConnectionResolver($this->db), $twoAxisType);
+
+        $driver->writeRevision('1', ['title' => 'Bonjour'], null, 'fr', 7);
+        $driver->writeRevision('1', ['title' => 'Hello'], null, 'en');
+
+        $frRow = $driver->readLangcodeRevision('1', 'fr', 1);
+        $enRow = $driver->readLangcodeRevision('1', 'en', 1);
+        $this->assertSame(7, (int) $frRow['revision_author']);
+        $this->assertNull($enRow['revision_author']);
+    }
 }

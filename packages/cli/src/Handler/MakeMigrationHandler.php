@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
 use Waaseyaa\CLI\Command\Make\AbstractMakeHandler;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 
@@ -21,7 +21,7 @@ final class MakeMigrationHandler extends AbstractMakeHandler
         private readonly ?AddTranslationsMigrationGenerator $translationsGenerator = null,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $addTranslations = $io->option('add-translations');
         if ($addTranslations !== null && $addTranslations !== '' && $addTranslations !== false) {
@@ -79,7 +79,7 @@ final class MakeMigrationHandler extends AbstractMakeHandler
      *     without a live connection; the exception class is shipped so consumers and
      *     future hooks can wrap the apply step.
      */
-    private function executeAddTranslations(string $entityTypeId, CliIO $io): int
+    private function executeAddTranslations(string $entityTypeId, SymfonyCommandIO $io): int
     {
         $defaultLangcode = $io->option('default-langcode');
         if ($defaultLangcode === null || $defaultLangcode === '' || $defaultLangcode === false) {
@@ -160,7 +160,7 @@ final class MakeMigrationHandler extends AbstractMakeHandler
         return $name;
     }
 
-    private function resolveMigrationDirectory(?string $package, CliIO $io): ?string
+    private function resolveMigrationDirectory(?string $package, SymfonyCommandIO $io): ?string
     {
         if ($package === null) {
             return $this->projectRoot . '/migrations';

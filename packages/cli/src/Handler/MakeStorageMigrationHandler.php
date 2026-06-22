@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
 use Waaseyaa\CLI\Command\Migration\StorageMigrationEmitter;
 use Waaseyaa\CLI\Command\Migration\StorageMigrationTemplate;
 use Waaseyaa\CLI\Command\Migration\UnmappedFieldTypeException;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\EntityStorage\Backend\TypeMapping;
 
@@ -40,7 +40,7 @@ final class MakeStorageMigrationHandler
     /**
      * @api
      */
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $entityTypeId = (string) $io->argument('entity_type_id');
         $target       = (string) ($io->option('target') ?? 'sql-column');

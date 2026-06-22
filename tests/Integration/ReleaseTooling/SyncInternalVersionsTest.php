@@ -160,6 +160,45 @@ final class SyncInternalVersionsTest extends TestCase
     }
 
     #[Test]
+    public function sync_includes_the_create_project_skeleton(): void
+    {
+        // #1622: the skeleton is not a packages/* manifest, so the release sync
+        // used to skip it — its waaseyaa/framework constraint drifted behind the
+        // line (it sat at alpha.199 while the line was alpha.242), and a
+        // `composer create-project` could resolve a stale set. It must now be
+        // synced alongside the packages.
+        $dir = $this->makeTempPackageDir([
+            'packages/mypackage/composer.json' => $this->fixtureContent([
+                'waaseyaa/foundation' => '^0.1.0-alpha.150',
+            ]),
+            'skeleton/composer.json' => $this->fixtureContent([
+                'waaseyaa/framework' => '^0.1.0-alpha.150',
+            ]),
+        ]);
+
+        // discoverSyncManifests() — the single source of truth — must surface the
+        // skeleton (separator-normalised for cross-platform path comparison).
+        $discovered = array_map(
+            static fn(string $p): string => str_replace('\\', '/', $p),
+            discoverSyncManifests($dir),
+        );
+        self::assertContains(
+            str_replace('\\', '/', $dir) . '/skeleton/composer.json',
+            $discovered,
+            'the create-project skeleton must be in the synced manifest set',
+        );
+
+        $this->runSyncScript($dir, '0.1.0-alpha.999');
+
+        $skeleton = $this->readManifest($dir . '/skeleton/composer.json');
+        self::assertSame(
+            '^0.1.0-alpha.999',
+            $skeleton['require']['waaseyaa/framework'],
+            'the skeleton framework constraint must track the released line so create-project installs the current set',
+        );
+    }
+
+    #[Test]
     public function sync_is_idempotent(): void
     {
         $dir = $this->makeTempPackageDir([
@@ -298,20 +337,16 @@ final class SyncInternalVersionsTest extends TestCase
     }
 
     /**
-     * Run the sync logic in-process against all packages/(*)/composer.json
-     * files found under $repoRoot. Mirrors what bin/sync-internal-versions does.
+     * Run the sync logic in-process against the SAME manifest set the script
+     * syncs — `discoverSyncManifests()` (packages/(*) + the skeleton), the single
+     * source of truth — so the test cannot drift from the script's discovery.
      */
     private function runSyncScript(string $repoRoot, string $version): void
     {
         $normalized = validateVersionInput($version);
         $constraint = expectedConstraint($normalized);
 
-        $manifests = glob($repoRoot . '/packages/*/composer.json');
-        if ($manifests === false || $manifests === []) {
-            return;
-        }
-
-        foreach ($manifests as $manifestPath) {
+        foreach (discoverSyncManifests($repoRoot) as $manifestPath) {
             syncManifestFile($manifestPath, $constraint);
         }
     }

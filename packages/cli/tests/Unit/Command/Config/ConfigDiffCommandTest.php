@@ -8,10 +8,10 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
-use Waaseyaa\CLI\ArgumentDefinition;
-use Waaseyaa\CLI\ArgumentMode;
+use Waaseyaa\CLI\Command\HandlerArgument;
+use Waaseyaa\CLI\Command\HandlerArgumentMode;
 use Waaseyaa\CLI\Command\Config\ConfigDiffCommand;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Config\Sync\ConfigDiffer;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
@@ -144,15 +144,15 @@ final class ConfigDiffCommandTest extends TestCase
         );
     }
 
-    private function commandDefinition(): CommandDefinition
+    private function commandDefinition(): HandlerCommand
     {
-        return new CommandDefinition(
+        return new HandlerCommand(
             name: 'config:diff',
             description: 'Show unified diffs between sync and active stores (FR-030).',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'ref',
-                    mode: ArgumentMode::Optional,
+                    mode: HandlerArgumentMode::Optional,
                     description: 'Scope diff to <entity-type>.<entity-id>.',
                 ),
             ],

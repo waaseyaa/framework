@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Release gate helper: block until the CI workflow (ci.yml) has a completed,
+# successful run at the EXACT commit given, or fail.
+#
+# This is the systemic fix for alpha.200–202 shipping red-at-tag: a release
+# tag may only be created on a SHA whose Linux CI run is green. Local
+# (Windows) runs of any gate are advisory only — this helper consults the
+# GitHub Actions API, never the local machine.
+#
+# Usage: wait-for-green-ci <sha> [timeout-seconds]
+#   timeout-seconds: 0 = check once and exit (no polling). Default 1800.
+#
+# Auth: uses `gh`, honouring GH_TOKEN/GITHUB_TOKEN. Needs actions:read.
+# Repo: from GITHUB_REPOSITORY (set on Actions runners), else `gh repo view`.
+# No dependency on standalone jq (gh's built-in --jq does the parsing), so
+# the script also works from Git Bash on Windows for scripts/release.sh.
+set -euo pipefail
+
+SHA="${1:?usage: wait-for-green-ci <sha> [timeout-seconds]}"
+TIMEOUT="${2:-1800}"
+REPO="${GITHUB_REPOSITORY:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}"
+POLL_INTERVAL=20
+
+deadline=$(( $(date +%s) + TIMEOUT ))
+
+while :; do
+    # Newest run for this SHA wins (re-runs supersede older conclusions).
+    # Transient API failures are treated as "no answer yet" and polled
+    # through; in single-check mode they fail closed.
+    run_line=$(gh api \
+        "repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${SHA}&per_page=1" \
+        --jq 'if (.workflow_runs | length) == 0 then "" else .workflow_runs[0] | [.status, (.conclusion // "pending"), .html_url] | @tsv end' \
+        2>/dev/null || true)
+
+    if [ -z "$run_line" ]; then
+        echo "wait-for-green-ci: no CI run found yet for ${SHA}"
+    else
+        IFS=$'\t' read -r run_status conclusion url <<<"$run_line"
+
+        if [ "$run_status" = "completed" ]; then
+            if [ "$conclusion" = "success" ]; then
+                echo "wait-for-green-ci: CI green at ${SHA}"
+                echo "wait-for-green-ci: ${url}"
+                exit 0
+            fi
+            echo "::error::CI concluded '${conclusion}' at ${SHA}: ${url}"
+            echo "::error::Release gate: a tag cannot be created unless CI is green on the exact commit being tagged. Fix main (or wait for a re-run to go green) and re-run the cut."
+            exit 1
+        fi
+        echo "wait-for-green-ci: CI ${run_status} at ${SHA} — waiting (${url})"
+    fi
+
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+        echo "::error::Timed out after ${TIMEOUT}s waiting for green CI at ${SHA}."
+        if [ "$TIMEOUT" = "0" ]; then
+            echo "::error::Single-check mode: no completed green CI run exists for this commit (or the Actions API was unreachable)."
+        fi
+        exit 1
+    fi
+    sleep "$POLL_INTERVAL"
+done

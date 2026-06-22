@@ -39,11 +39,45 @@ use Waaseyaa\Api\MercureMonitor\SubscriberRow;
  */
 final class MercureMonitorController
 {
+    /**
+     * Per-connection time budget. Mirrors `BroadcastRouter::DEFAULT_MAX_DURATION_SEC`
+     * — the durable backstop that returns the worker even if the SAPI never
+     * reports the client disconnect (CL-12). Was previously absent here: the
+     * stream looped on `connection_aborted()` alone with no time cap.
+     */
+    public const int DEFAULT_MAX_DURATION_SEC = 30;
+
+    /** Keepalive cadence (seconds). A write doubles as the disconnect probe. */
+    public const int DEFAULT_KEEPALIVE_INTERVAL_SEC = 15;
+
+    /** Pause between event-stream polls. */
+    public const int DEFAULT_POLL_INTERVAL_US = 500_000;
+
+    /**
+     * @param (\Closure(): int)|null $clock       Override `time()` (seconds) — tests inject a fake clock.
+     * @param (\Closure(): int)|null $abortSignal Override `connection_aborted()` — tests inject disconnect.
+     */
     public function __construct(
         private readonly ?ChannelInspectorInterface $inspector = null,
         private readonly ?EventStreamReadModelInterface $stream = null,
         private readonly ?SubscriberObserverInterface $observer = null,
+        private readonly int $maxDurationSec = self::DEFAULT_MAX_DURATION_SEC,
+        private readonly int $keepaliveIntervalSec = self::DEFAULT_KEEPALIVE_INTERVAL_SEC,
+        private readonly int $pollIntervalUs = self::DEFAULT_POLL_INTERVAL_US,
+        private readonly ?\Closure $clock = null,
+        private readonly ?\Closure $abortSignal = null,
     ) {}
+
+    /**
+     * Loop-continuation predicate for the SSE stream: keep streaming only while
+     * the client is connected AND the per-connection time budget remains. Pure
+     * and static so the bounded-exit contract is unit-testable without a live
+     * socket. Mirrors `BroadcastRouter::streamShouldContinue` (CL-12).
+     */
+    public static function streamShouldContinue(int $abortStatus, int $elapsedSec, int $maxDurationSec): bool
+    {
+        return $abortStatus === 0 && $elapsedSec < $maxDurationSec;
+    }
 
     /**
      * `GET /api/mercure/channels` — 24h channel statistics.
@@ -81,9 +115,31 @@ final class MercureMonitorController
     {
         $filter = EventStreamFilter::fromQuery($request->query->all());
         $stream = $this->stream;
+        $clock = $this->clock ?? static fn(): int => time();
+        $abort = $this->abortSignal ?? static fn(): int => connection_aborted();
+        $maxDurationSec = $this->maxDurationSec;
+        $keepaliveIntervalSec = $this->keepaliveIntervalSec;
+        $pollIntervalUs = $this->pollIntervalUs;
 
         return new StreamedResponse(
-            function () use ($filter, $stream): void {
+            function () use ($filter, $stream, $clock, $abort, $maxDurationSec, $keepaliveIntervalSec, $pollIntervalUs): void {
+                // Release the PHP session lock before the long-lived stream so
+                // concurrent same-session requests don't serialize behind it
+                // (the admin "blank" root cause BroadcastRouter already fixes).
+                // Safe: this stream reads no session state past here and never
+                // writes the session.
+                if (function_exists('session_write_close') && session_status() === \PHP_SESSION_ACTIVE) {
+                    session_write_close();
+                }
+
+                // Undo the FrankenPHP/php-fpm bootstrap default (ignore_user_abort
+                // true) so a failed write to a dead socket flips
+                // connection_aborted() and the bounded loop exits within one
+                // keepalive instead of riding out the full time budget (CL-12).
+                if (function_exists('ignore_user_abort')) {
+                    ignore_user_abort(false);
+                }
+
                 if ($stream === null) {
                     echo "event: disabled\ndata: {}\n\n";
                     if (ob_get_level() > 0) {
@@ -105,11 +161,18 @@ final class MercureMonitorController
 
                 // Track the highest ID we've seen so we only stream new rows
                 $cursor = 0;
-                $lastKeepalive = time();
+                $start = $clock();
+                $lastKeepalive = $start;
 
-                while (connection_aborted() === 0) {
+                // Bounded loop (CL-12): exit on client disconnect OR when the
+                // per-connection time budget elapses — whichever comes first.
+                // Previously `while (connection_aborted() === 0)` with NO time
+                // cap, so a missed disconnect (FrankenPHP worker mode) pinned the
+                // worker indefinitely — the same class BroadcastRouter fixed.
+                while (self::streamShouldContinue($abort(), $clock() - $start, $maxDurationSec)) {
                     $rows = $stream->recentEvents($filter, 100);
 
+                    $emitted = false;
                     foreach ($rows as $row) {
                         if ($row->id <= $cursor) {
                             continue;
@@ -130,28 +193,43 @@ final class MercureMonitorController
                                 ], JSON_THROW_ON_ERROR),
                             );
                             echo $frame;
+                            $emitted = true;
                         } catch (\JsonException) {
                             // Skip malformed rows
                         }
                     }
 
-                    if ($rows !== []) {
+                    if ($emitted) {
                         if (ob_get_level() > 0) {
                             ob_flush();
                         }
                         flush();
+                        // The write doubles as a disconnect probe; bail now
+                        // rather than polling another cycle.
+                        if ($abort() !== 0) {
+                            break;
+                        }
                     }
 
-                    if ((time() - $lastKeepalive) >= 15) {
+                    if (($clock() - $lastKeepalive) >= $keepaliveIntervalSec) {
                         echo ": keepalive\n\n";
                         if (ob_get_level() > 0) {
                             ob_flush();
                         }
                         flush();
-                        $lastKeepalive = time();
+                        $lastKeepalive = $clock();
+
+                        // Re-probe immediately after the keepalive write so a
+                        // navigated-away client releases the worker within this
+                        // keepalive rather than after another poll cycle.
+                        if ($abort() !== 0) {
+                            break;
+                        }
                     }
 
-                    usleep(500_000);
+                    if ($pollIntervalUs > 0) {
+                        usleep($pollIntervalUs);
+                    }
                 }
             },
             200,

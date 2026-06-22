@@ -9,16 +9,16 @@ use Waaseyaa\AI\Agent\Reaper\StalledRunReaper;
 use Waaseyaa\AI\Agent\Repository\AgentAuditLogRepository;
 use Waaseyaa\AI\Agent\Repository\AgentRunRepository;
 use Waaseyaa\AI\Agent\Service\AgentRunService;
-use Waaseyaa\CLI\ArgumentDefinition;
-use Waaseyaa\CLI\ArgumentMode;
 use Waaseyaa\CLI\Command\Ai\AiPurgeRunsCommand;
 use Waaseyaa\CLI\Command\Ai\AiReapStalledRunsCommand;
 use Waaseyaa\CLI\Command\Ai\AiRunCommand;
-use Waaseyaa\CLI\CommandDefinition;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerArgument;
+use Waaseyaa\CLI\Command\HandlerArgumentMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
-use Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\HttpClient\PhpStreamSseClient;
 
@@ -31,7 +31,7 @@ use Waaseyaa\HttpClient\PhpStreamSseClient;
  *
  * @api
  */
-final class AiServiceProvider extends ServiceProvider implements HasNativeCommandsInterface
+final class AiServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
 {
     public function register(): void
     {
@@ -80,49 +80,49 @@ final class AiServiceProvider extends ServiceProvider implements HasNativeComman
         );
     }
 
-    public function nativeCommands(): iterable
+    public function consoleCommands(): iterable
     {
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'ai:run',
             description: 'Run an AI agent (FR-005). Use --inline for sync execution, otherwise async via the Messenger bus.',
             arguments: [
-                new ArgumentDefinition(
+                new HandlerArgument(
                     name: 'prompt',
-                    mode: ArgumentMode::Required,
+                    mode: HandlerArgumentMode::Required,
                     description: 'The user-facing prompt that drives the run.',
                 ),
             ],
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'inline',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Run synchronously via AgentRunService::runInline() instead of enqueueing.',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'agent',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Resolve a named AgentDefinition. Defaults to an ad-hoc bundle from config.ai.providers[0].',
                     default: '',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'dry-run',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Call each tool\'s dryRun() instead of execute().',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'watch',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'For async runs, attach an SSE consumer to /broadcast?channels=agent.run.<id>.',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'destructive-approval',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'HITL mode for destructive tools: none|all|interactive (default: none).',
                     default: 'none',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'account',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Initiator account id; defaults to the service account.',
                     default: '',
                 ),
@@ -130,13 +130,13 @@ final class AiServiceProvider extends ServiceProvider implements HasNativeComman
             handler: [AiRunCommand::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'ai:purge-runs',
             description: 'Purge AgentRun rows and their AgentAuditLog entries past the retention window (FR-006).',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'retention-days',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Retention window in days. Defaults to config.ai.run_retention_days (30).',
                     default: '',
                 ),
@@ -144,13 +144,13 @@ final class AiServiceProvider extends ServiceProvider implements HasNativeComman
             handler: [AiPurgeRunsCommand::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'ai:reap-stalled-runs',
             description: 'Flip stalled `running` agent runs to terminal failed/worker_crashed (FR-007, NFR-004).',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'max-runtime-seconds',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Stall threshold in seconds. Defaults to config.ai.max_runtime_seconds (600).',
                     default: '',
                 ),

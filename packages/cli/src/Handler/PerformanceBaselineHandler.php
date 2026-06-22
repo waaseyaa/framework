@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 
 /**
  * @api
  */
 final class PerformanceBaselineHandler
 {
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $contractVersion = trim((string) ($io->option('contract-version') ?? ''));
         $surface = trim((string) ($io->option('surface') ?? ''));

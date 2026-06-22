@@ -1,29 +1,31 @@
 ---
-work_package_id: "WP01"
-title: "docs/specs/jsonapi — primary-surface declaration + parity-matrix scaffold"
+work_package_id: WP01
+title: docs/specs/jsonapi — primary-surface declaration + parity-matrix scaffold
 dependencies: []
 requirement_refs:
-  - "FR-001"
-  - "FR-002"
-  - "FR-003"
-  - "NFR-002"
-  - "NFR-003"
-  - "C-003"
-planning_base_branch: "main"
-merge_target_branch: "main"
-branch_strategy: "Planning artifacts for this mission were generated on main. WP01 lands first — the JSON:API spec declaration is the source-of-truth that WP02's banner and WP03's audit both reference."
+- FR-001
+- FR-002
+- FR-003
+- NFR-002
+- NFR-003
+- C-003
+planning_base_branch: main
+merge_target_branch: main
+branch_strategy: Planning artifacts for this mission were generated on main. WP01 lands first — the JSON:API spec declaration is the source-of-truth that WP02's banner and WP03's audit both reference.
 subtasks:
-  - "T001"
-  - "T002"
-phase: "Phase 1 - Spec declaration"
-assignee: ""
-agent: ""
-shell_pid: ""
-authoritative_surface: "docs/specs/jsonapi.md"
-execution_mode: "documentation"
-owned_files:
-  - "docs/specs/jsonapi.md"
+- T001
+- T002
+phase: Phase 1 - Spec declaration
+assignee: ''
+agent: ''
+shell_pid: ''
 history: []
+authoritative_surface: docs/specs/jsonapi.md
+execution_mode: documentation
+mission_id: 01KSEFTVFWVRP1AJ1GH2AJDB9P
+owned_files:
+- docs/specs/jsonapi.md
+wp_code: WP01
 ---
 
 # WP01 — docs/specs/jsonapi — primary-surface declaration + parity-matrix scaffold

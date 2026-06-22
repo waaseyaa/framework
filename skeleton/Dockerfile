@@ -14,7 +14,9 @@ WORKDIR /app
 
 FROM base AS deps
 
-COPY composer.json composer.lock ./
+# composer.lock* — the lock exists in created projects (composer create-project
+# writes it) but not in the skeleton repo itself; the glob keeps both buildable.
+COPY composer.json composer.lock* ./
 RUN composer install --no-dev --no-scripts --prefer-dist --optimize-autoloader
 
 FROM base AS production

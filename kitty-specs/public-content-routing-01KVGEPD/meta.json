@@ -1,0 +1,16 @@
+{
+  "coordination_branch": "kitty/mission-public-content-routing-01KVGEPD",
+  "created_at": "2026-06-19T00:00:00.000000+00:00",
+  "friendly_name": "public content routing",
+  "mission_id": "01KVGEPDPGE05VYPADJN57TS3J",
+  "mission_number": null,
+  "mission_slug": "public-content-routing-01KVGEPD",
+  "mission_type": "software-dev",
+  "parent_mission": "wayfinding-01KVGH5X",
+  "roadmap_priority": "P1 (D5, held for explicit go)",
+  "enables": "wayfinding: a reliable public content read surface (uuid-or-id) complements the agent-readable read side the anchor catalog publishes",
+  "purpose_context": "Resolve why GET /story/{uuid} 404s: the canonical public content path is numeric-id keyed, not uuid. Decide and unify the canonical public identifier end-to-end, and clarify the policy-less published-content render path, while holding the published/anonymous access boundaries.",
+  "purpose_tldr": "public content routing",
+  "slug": "public-content-routing-01KVGEPD",
+  "target_branch": "main"
+}

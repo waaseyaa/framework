@@ -142,16 +142,23 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             $query = new SurfaceQuery(offset: $offset, limit: $limit);
         }
 
-        $storage = $this->entityTypeManager->getStorage($type);
-        $entities = $storage->loadMultiple();
-
-        // Access filtering
-        if ($this->accessHandler !== null && $this->currentAccount !== null) {
-            $entities = array_filter(
-                $entities,
-                fn($e) => $this->accessHandler->check($e, 'view', $this->currentAccount)->isAllowed(),
-            );
+        // Fail closed: without an access handler AND a resolved account we cannot
+        // make a per-entity access decision, so expose nothing rather than leak
+        // unchecked entities.
+        if ($this->accessHandler === null || $this->currentAccount === null) {
+            return AdminSurfaceResultData::success([
+                'entities' => [],
+                'total' => 0,
+                'offset' => $query->offset,
+                'limit' => $query->limit,
+            ]);
         }
+
+        $storage = $this->entityTypeManager->getStorage($type);
+        $entities = array_filter(
+            $storage->loadMultiple(),
+            fn($e) => $this->accessHandler->check($e, 'view', $this->currentAccount)->isAllowed(),
+        );
 
         // Apply SurfaceQuery filters
         foreach ($query->filters as $filter) {
@@ -246,10 +253,14 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             return AdminSurfaceResultData::error(404, 'Not found', "Entity '{$type}/{$id}' does not exist.");
         }
 
-        if ($this->accessHandler !== null && $this->currentAccount !== null) {
-            if (!$this->accessHandler->check($entity, 'view', $this->currentAccount)->isAllowed()) {
-                return AdminSurfaceResultData::error(403, 'Access denied', 'You do not have permission to view this entity.');
-            }
+        // Fail closed: deny unless an access handler AND account are present and
+        // the handler allows the view.
+        if (
+            $this->accessHandler === null
+            || $this->currentAccount === null
+            || !$this->accessHandler->check($entity, 'view', $this->currentAccount)->isAllowed()
+        ) {
+            return AdminSurfaceResultData::error(403, 'Access denied', 'You do not have permission to view this entity.');
         }
 
         $resource = $this->serializer()->serialize($entity, $this->accessHandler, $this->currentAccount);
@@ -352,6 +363,12 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
      */
     private function handleCreate(string $type, array $payload): AdminSurfaceResultData
     {
+        // Fail closed: the JSON:API controller only enforces create access when a
+        // handler + account are present, so deny here when either is missing.
+        if ($this->accessHandler === null || $this->currentAccount === null) {
+            return AdminSurfaceResultData::error(403, 'Access denied', 'You do not have permission to create this entity.');
+        }
+
         $api = $this->jsonApi();
 
         try {
@@ -384,6 +401,12 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         $id = $payload['id'] ?? null;
         if ($id === null || $id === '') {
             return AdminSurfaceResultData::error(400, 'Missing ID', 'Payload must include an id field.');
+        }
+
+        // Fail closed: the JSON:API controller only enforces update access when a
+        // handler + account are present, so deny here when either is missing.
+        if ($this->accessHandler === null || $this->currentAccount === null) {
+            return AdminSurfaceResultData::error(403, 'Access denied', 'You do not have permission to edit this entity.');
         }
 
         $api = $this->jsonApi();
@@ -422,16 +445,29 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         }
 
         $storage = $this->entityTypeManager->getStorage($type);
-        $entity = $storage->load($id);
+        $entity = is_numeric($id) ? $storage->load($id) : null;
+
+        // The admin SPA sends the JSON:API resource id, which is the UUID for
+        // int-keyed content entities. Fall back to a UUID lookup on a non-numeric
+        // id, exactly as get()/resolveSchemaBundle() do — without this the delete
+        // missed, returned a misleading 404 "Not found", and never reached
+        // delete() (D7). Per-entity authorization is still enforced below.
+        if ($entity === null) {
+            $entity = $storage->loadByKey('uuid', $id);
+        }
 
         if ($entity === null) {
             return AdminSurfaceResultData::error(404, 'Not found', "Entity '{$type}/{$id}' does not exist.");
         }
 
-        if ($this->accessHandler !== null && $this->currentAccount !== null) {
-            if (!$this->accessHandler->check($entity, 'delete', $this->currentAccount)->isAllowed()) {
-                return AdminSurfaceResultData::error(403, 'Access denied', 'You do not have permission to delete this entity.');
-            }
+        // Fail closed: deny unless an access handler AND account are present and
+        // the handler allows the delete.
+        if (
+            $this->accessHandler === null
+            || $this->currentAccount === null
+            || !$this->accessHandler->check($entity, 'delete', $this->currentAccount)->isAllowed()
+        ) {
+            return AdminSurfaceResultData::error(403, 'Access denied', 'You do not have permission to delete this entity.');
         }
 
         $storage->delete([$entity]);

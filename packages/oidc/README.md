@@ -22,6 +22,30 @@ This package provides the authorization-server primitives used by a dedicated Id
 - SCIM provisioning
 - Federation chaining
 
+## Security: secrets at rest
+
+Two categories of long-lived secrets are persisted by this package, and both are
+stored **unencrypted** at rest by design in v1:
+
+- **Opaque access tokens** (`oidc_access_token.token`, `AccessTokenIssuer`). The
+  value is a 256-bit random string and is looked up by exact value
+  (`findByOpaqueToken`), so the at-rest column must match the bearer string.
+  Tokens are short-lived (1h) and revocable.
+- **RSA signing private keys** (`oidc_signing_key.private_key_pem`,
+  `SigningKeyRepository`). The PEM must be available in plaintext at signing
+  time (`IdTokenMinter`), and keys rotate (current + one previous).
+
+**Threat model:** confidentiality of these secrets relies on confidentiality of
+the database file/connection (filesystem permissions, disk encryption, network
+TLS, and DB access control) — the same trust boundary as the rest of the entity
+store. A read of the DB discloses live bearer tokens and signing keys.
+
+Hashing tokens at rest and KMS/app-key-encrypting the signing keys are tracked
+hardening (audit D-13); they are deferred because token hashing must be applied
+consistently across the access- and refresh-token stores and key encryption
+requires app-key/KMS bootstrap and encryption-key rotation — out of scope for a
+single-IdP v1. Do not weaken the DB trust boundary in the meantime.
+
 See [ADR-006](../../docs/adr/006-cross-app-identity-via-oidc.md) for full context, invariants, and migration plan.
 
 ## Status

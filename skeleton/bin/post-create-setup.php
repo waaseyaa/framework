@@ -22,6 +22,17 @@ if (!file_exists($envFile) && file_exists($envExample)) {
     file_put_contents($envFile, $content);
 }
 
+// Make the maintenance scripts executable on POSIX. PHP's chmod is a harmless
+// no-op on Windows (executability is extension-based there), so this runs
+// cross-platform — unlike the shell `chmod` that previously ran as the first
+// post-create-project step and aborted `composer create-project` on Windows
+// before .env was ever generated. (#1628)
+foreach (glob($root . '/bin/maintenance/*') ?: [] as $maintenanceScript) {
+    if (is_file($maintenanceScript)) {
+        @chmod($maintenanceScript, 0o755);
+    }
+}
+
 /**
  * @return array{0: bool, 1: string}
  */

@@ -18,6 +18,18 @@ use Waaseyaa\Foundation\Log\NullLogger;
  *
  * GET /api/schema/{entity_type} — returns a JSON Schema with widget hints,
  * field metadata, and permission requirements.
+ *
+ * Field-access scope: when an access handler and account are supplied, field
+ * visibility is filtered against a *prototype* entity (a bare instance carrying
+ * only the requested bundle key — see show()). The resulting `x-access-restricted`
+ * markers and view-denied removals therefore reflect only STATIC, type/bundle-level
+ * field policy, not instance-level decisions (owner-only fields, row-state gates).
+ * Callers must not treat the rendered field set as a per-record access oracle.
+ *
+ * Route exposure: this endpoint (and /api/openapi.json) is registered option-less
+ * by foundation's BuiltinRouteRegistrar and is intentionally anonymous-reachable —
+ * see docs/specs/api-layer.md "Adjacent enumeration surfaces". Do not add auth here
+ * without retiring that documented boundary.
  */
 final class SchemaController
 {

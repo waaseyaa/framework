@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Audit\Listener;
 
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
@@ -22,6 +23,13 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * Per the spec package decision: "listeners live here so M-A5 only needs to
  * dispatch its own canonical event." Layer-discipline is maintained via string constant.
  *
+ * Actor source (resolution order, #1645): the event's additive `accountId`
+ * property (the agent run's initiator, populated by AgentExecutor) → the
+ * acting account from {@see AccountContextInterface} → null. Never a
+ * hardcoded 0 — `0` appears only when the resolved actor IS anonymous.
+ * Events lacking the property (legacy shapes) still record via the
+ * context/null fallback (duck-read, contract clause 11).
+ *
  * Best-effort: exceptions caught and logged; primary request never disrupted
  * (NFR-001).
  *
@@ -38,6 +46,7 @@ final class AgentToolAuditListener implements EventSubscriberInterface
     public function __construct(
         private readonly AuditWriterInterface $writer,
         private readonly ?LoggerInterface $logger = null,
+        private readonly ?AccountContextInterface $accountContext = null,
     ) {}
 
     public static function getSubscribedEvents(): array
@@ -48,7 +57,8 @@ final class AgentToolAuditListener implements EventSubscriberInterface
     }
 
     /**
-     * @param object $event  Expects public properties: runId (string), toolName (string), succeeded (bool).
+     * @param object $event  Expects public properties: runId (string), toolName (string),
+     *                       succeeded (bool), accountId (?int, additive — absent on legacy shapes).
      */
     public function onToolCallObserved(object $event): void
     {
@@ -59,7 +69,7 @@ final class AgentToolAuditListener implements EventSubscriberInterface
 
             $this->writer->record(new AuditEventDescriptor(
                 kind: AuditEventKind::AgentToolExecute,
-                accountUid: 0, // Agent runs are system-level; account bound by agent run context.
+                accountUid: $this->resolveActorUid($event),
                 subjectUri: sprintf('/agent/runs/%s/tools/%s', $runId, $toolName),
                 outcome: $succeeded ? 'allowed' : 'error',
                 severity: $succeeded ? 'info' : 'warning',
@@ -76,5 +86,21 @@ final class AgentToolAuditListener implements EventSubscriberInterface
                 'kind'     => AuditEventKind::AgentToolExecute->value,
             ]);
         }
+    }
+
+    /**
+     * Resolution order: event `accountId` (0 is a real value — the anonymous
+     * initiator) → acting account from context → null. Duck-read so legacy
+     * event shapes without the property fall through cleanly (clause 11).
+     */
+    private function resolveActorUid(object $event): ?int
+    {
+        if (property_exists($event, 'accountId') && $event->accountId !== null) {
+            return (int) $event->accountId;
+        }
+
+        $account = $this->accountContext?->current();
+
+        return $account !== null ? (int) $account->id() : null;
     }
 }

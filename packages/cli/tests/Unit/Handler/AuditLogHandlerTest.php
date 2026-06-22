@@ -7,10 +7,10 @@ namespace Waaseyaa\CLI\Tests\Unit\Handler;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\AuditLogHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Entity\Audit\EntityAuditEntry;
 use Waaseyaa\Entity\Audit\EntityAuditLogger;
@@ -118,13 +118,13 @@ final class AuditLogHandlerTest extends TestCase
     private function createTester(EntityTypeLifecycleManager $manager, ?EntityAuditLogger $auditLogger = null): CliTester
     {
         $handler = new AuditLogHandler($manager, $auditLogger);
-        $definition = new CommandDefinition(
+        $definition = new HandlerCommand(
             name: 'audit:log',
             description: 'Display the entity type lifecycle audit log, or entity-write audit log with --entity-type',
             options: [
-                new OptionDefinition(name: 'type', mode: OptionMode::Required, description: 'Filter lifecycle log by entity type ID (e.g. note)', default: ''),
-                new OptionDefinition(name: 'tenant', mode: OptionMode::Required, description: 'Filter lifecycle log by tenant ID', default: ''),
-                new OptionDefinition(name: 'entity-type', mode: OptionMode::Required, description: 'Show entity-write audit log, optionally filtered by type (e.g. note)'),
+                new HandlerOption(name: 'type', mode: HandlerOptionMode::Required, description: 'Filter lifecycle log by entity type ID (e.g. note)', default: ''),
+                new HandlerOption(name: 'tenant', mode: HandlerOptionMode::Required, description: 'Filter lifecycle log by tenant ID', default: ''),
+                new HandlerOption(name: 'entity-type', mode: HandlerOptionMode::Required, description: 'Show entity-write audit log, optionally filtered by type (e.g. note)'),
             ],
             handler: \Closure::fromCallable([$handler, 'execute']),
         );

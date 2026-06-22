@@ -46,6 +46,8 @@ use Waaseyaa\Foundation\Schema\Migration\MigrationInterfaceV2;
  * - {@see loadAllV2()} — flat list of v2 migration instances. Skips
  *   path entries. Preserves manifest order across packages and
  *   across entries within a package.
+ *
+ * @api
  */
 final class MigrationLoader
 {
@@ -138,7 +140,7 @@ final class MigrationLoader
      */
     private static function looksLikeNamespace(string $entry): bool
     {
-        return str_contains($entry, '\\');
+        return ! self::isAbsolutePath($entry) && str_contains($entry, '\\');
     }
 
     /**
@@ -213,20 +215,30 @@ final class MigrationLoader
         if ($path === '') {
             return $path;
         }
+        if (self::isAbsolutePath($path)) {
+            return $path;
+        }
         if (is_dir($path)) {
             return $path;
         }
         if (class_exists(InstalledVersions::class) && InstalledVersions::isInstalled($packageName)) {
             $install = InstalledVersions::getInstallPath($packageName);
             if (is_string($install) && $install !== '') {
-                $candidate = $install . '/' . ltrim($path, '/');
+                $candidate = rtrim($install, '/\\') . '/' . ltrim($path, '/\\');
                 if (is_dir($candidate)) {
                     return $candidate;
                 }
             }
         }
 
-        return $this->basePath . '/vendor/' . $packageName . '/' . ltrim($path, '/');
+        return rtrim($this->basePath, '/\\') . '/vendor/' . $packageName . '/' . ltrim($path, '/\\');
+    }
+
+    private static function isAbsolutePath(string $path): bool
+    {
+        return str_starts_with($path, '/')
+            || preg_match('#^[A-Za-z]:[\\\\/]#', $path) === 1
+            || str_starts_with($path, '\\\\');
     }
 
     /**

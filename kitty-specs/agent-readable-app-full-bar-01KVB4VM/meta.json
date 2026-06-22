@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-06-17T15:58:04.760205+00:00",
+  "friendly_name": "agent readable app full bar",
+  "mission_id": "01KVB4VM4KPKQSW02A8QJ0P37G",
+  "mission_number": null,
+  "mission_slug": "agent-readable-app-full-bar-01KVB4VM",
+  "mission_type": "software-dev",
+  "slug": "agent-readable-app-full-bar-01KVB4VM",
+  "target_branch": "main"
+}

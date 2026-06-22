@@ -201,6 +201,24 @@ final class EntityValidatorTest extends TestCase
         $this->assertSame('status', $violations->get(0)->getPropertyPath());
     }
 
+    public function testCreateDefaultProducesWorkingValidator(): void
+    {
+        $entity = $this->createFieldableEntity(['title' => '']);
+
+        $violations = EntityValidator::createDefault()->validate($entity, [
+            'title' => [new \Symfony\Component\Validator\Constraints\NotBlank()],
+        ]);
+
+        $this->assertGreaterThan(0, $violations->count());
+        $this->assertSame('title', $violations->get(0)->getPropertyPath());
+    }
+
+    public function testCreateDefaultReturnsFreshInstancePerCall(): void
+    {
+        // The factory must stay dumb: no static caching — the kernel owns sharing.
+        $this->assertNotSame(EntityValidator::createDefault(), EntityValidator::createDefault());
+    }
+
     /**
      * @param array<string, mixed> $values
      */

@@ -1,0 +1,26 @@
+{
+  "coordination_branch": "wayfinding-showcase-hardening-01KVHB7X",
+  "created_at": "2026-06-20T00:00:00.000000+00:00",
+  "friendly_name": "wayfinding-showcase-hardening",
+  "is_flagship": false,
+  "mission_id": "01KVHB7XQ9R2S4T6V8W0Y1Z3AB",
+  "mission_number": null,
+  "mission_slug": "wayfinding-showcase-hardening-01KVHB7X",
+  "mission_type": "software-dev",
+  "parent_mission": "wayfinding-01KVGH5X",
+  "purpose_context": "Hardening pass driven by a single-clean-take dry run of the live Wayfinding showcase (agent guides a human through the story admin over the framework's own SSE protocol, then saves the narration as a reusable trail). The dry run surfaced a demo-killing beacon-reconnect race plus follow-ons to the alpha.234 stress-remediation set. Ships finish-and-ship: acceptance test = release gate, no BC shims (C-002 of the parent holds — no deployed downstream apps). Picks up the parent's held P2-10 (quiet noisy MCP tool-resolution, folds CL-2).",
+  "purpose_tldr": "make the Wayfinding live showcase bulletproof",
+  "roadmap_priority": "remediation",
+  "p0_status": {
+    "p0_1_beacon_reconnect_replay": "shipping (this cut)",
+    "p0_2_supported_session_token_read_path": "shipping (this cut)",
+    "p1_3_create_action_anchor_coverage": "shipping (this cut)",
+    "foldin_quiet_mcp_tool_resolution": "shipping (this cut) — folds parent P2-10 / CL-2"
+  },
+  "sibling_missions": [
+    "wayfinding-stress-remediation-01KVGK4Q",
+    "admin-list-column-policy-01KVH8MT"
+  ],
+  "slug": "wayfinding-showcase-hardening-01KVHB7X",
+  "target_branch": "main"
+}

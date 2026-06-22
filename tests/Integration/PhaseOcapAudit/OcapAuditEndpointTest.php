@@ -22,13 +22,11 @@ use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
 use Waaseyaa\Audit\Query\AuditEventQuery;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
+use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
 use Waaseyaa\Audit\Writer\AuditEventWriter;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
-use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
-use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\Foundation\Kernel\BuiltinRouteRegistrar;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
@@ -81,7 +79,10 @@ final class OcapAuditEndpointTest extends TestCase
         $dispatcher = new EventDispatcher();
         $this->entityTypeManager = new EntityTypeManager($dispatcher);
 
-        // Wire the audit_event repository for the writer.
+        // Register audit_event in the manager so the builtin router wiring below
+        // resolves. The writer itself appends through the append-only decorator
+        // (production wiring) — audit_event is a plain OCAP log table, not an
+        // entity the writer persists via a repository.
         $auditEventType = new EntityType(
             id: 'audit_event',
             label: 'Audit Event',
@@ -89,10 +90,7 @@ final class OcapAuditEndpointTest extends TestCase
             keys: ['id' => 'id', 'uuid' => 'uuid'],
         );
         $this->entityTypeManager->registerEntityType($auditEventType);
-        $resolver = new SingleConnectionResolver($this->database);
-        $driver = new SqlStorageDriver($resolver);
-        $repo = new EntityRepository($auditEventType, $driver, $dispatcher);
-        $this->writer = new AuditEventWriter($repo);
+        $this->writer = new AuditEventWriter(new AppendOnlyAuditDatabase($this->database));
 
         // Wire query.
         $this->query = new AuditEventQuery($this->database);

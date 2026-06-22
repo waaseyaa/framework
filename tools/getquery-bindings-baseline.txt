@@ -15,4 +15,3 @@
 # TODO(WP05/M-B.1): Drive this baseline to zero — see GitHub issue for tracking.
 #
 packages/entity/src/Storage/EntityStorageInterface.php:19  # false-positive: example code inside a PHPDoc comment block, not an executed callsite
-packages/northcloud/src/Sync/NcSyncService.php:140  # system-context: background ingestion dedup lookup, no per-user account (runs as sync service); tracked by M-B.1 for fix

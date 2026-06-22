@@ -10,8 +10,7 @@ use LogicException;
  * Discovers {@see ListingDefinition} instances from service providers that
  * implement {@see HasListingsInterface} (FR-016).
  *
- * Mirrors the discovery pattern used by {@code CliKernelServiceProvider} for
- * {@code HasNativeCommandsInterface}: iterate registered service providers,
+ * Mirrors the provider-capability discovery pattern: iterate registered service providers,
  * filter by {@code instanceof}, and flatten each provider's contribution into
  * a single list.
  *

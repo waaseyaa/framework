@@ -1,5 +1,9 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-06-20 - list-view column policy (UX-1, mission admin-list-column-policy-01KVH8MT): SchemaList no longer dumps full long-text / rich-text bodies into table columns. `columns` now applies a framework-wide policy: rich-text / text-format fields (x-widget 'richtext', from the 'text_long' field type) are dropped from the DEFAULT column set entirely (they stay on SchemaView/SchemaForm, which select fields independently); an explicit `x-list-display:true` opt-in still wins. Every text cell is collapsed to one line and truncated to a 120-char snippet (truncateSnippet) regardless of widget, and a CSS max-width on `.entity-table td:not(.actions)` bounds column width as defense-in-depth. New subsection "List-View Column Policy" under Schema-Driven Forms. Acceptance: SchemaListColumnPolicy.test.ts. Dist rebuilt (freshness gate). No public admin surface contract change. -->
+<!-- Spec reviewed 2026-06-19 - Wayfinding Phase 3 (mission wayfinding-01KVGH5X): the flagship beacon overlay. New global component app/components/wayfinding/WayfindingOverlay.vue mounted in app.vue as a persistent sibling of the layout. New composable app/composables/useBeacons.ts builds a live trail from `wayfinding.beacon` SSE events (delivered on this connection's own per-session channel from Phase 2) — useRealtime.ts now also listens for the 'wayfinding.beacon' event. The overlay renders the active beacon as an aria-live role="status" region (built on the alpha.226 busy-region primitive): fully keyboard-navigable (←/→ or ↑/↓ move, Esc dismisses; nav buttons reuse t('previous'/'next'/'dismiss')), it spotlights the declared data-anchor element (adds a global .wf-anchored outline ring, scrolls it into view, and moves focus to it WITHOUT trapping — non-focusable anchors get a transient tabindex=-1), is dismissable at any time (a new beacon re-shows a dismissed overlay), and honours prefers-reduced-motion (no transitions / instant scroll). No new i18n keys; no public admin surface contract change. The overlay ships in the prebuilt bundle (dist rebuilt; freshness gate + served-bundle 'wf-beacon' assertion). -->
+<!-- Spec reviewed 2026-06-19 - admin CRUD correctness + Wayfinding Phase-1 groundwork (missions admin-crud-correctness-01KVGEPD, wayfinding-01KVGH5X). (1) Delete UX: a failed delete in SchemaList no longer blanks the table with a misleading list-level error — `deleteError` is now a separate ref from `listError`, rendered as a non-blocking inline notice (`.error--inline`, role="alert") ABOVE the table and framed as a delete failure (t('error_deleting') + detail) rather than echoing the raw backend title. (The coupled backend fix — GenericAdminSurfaceHost::handleDelete resolving by UUID like get() so the SPA's UUID-keyed delete actually persists — lives in packages/admin-surface, see docs/specs/access-control.md-adjacent host behavior.) (2) Wayfinding Phase-1 anchor groundwork: SchemaList/SchemaView/SchemaForm emit stable, inert `data-anchor` IDs derived from schema field identity — see the new "Element anchors" subsection under Schema-Driven Forms. No public admin surface contract change. -->
+<!-- Spec reviewed 2026-06-19 - entity-editor open feedback (clicking a list "Edit" was a silent ~6s wait): app.vue adds a route-level <NuxtLoadingIndicator> for immediate navigation feedback; SchemaList's Edit link goes aria-busy + disabled with an "Opening…" label the instant it's activated and swallows repeat-activation (no double-navigation); SchemaView/SchemaForm now render one accessible busy region (role="status", aria-busy) spanning the WHOLE load instead of going blank in the gap between the schema and entity fetches. Latency reduction: SchemaView/SchemaForm fetch schema + entity CONCURRENTLY (Promise.allSettled) rather than sequentially, and AdminSurfaceTransportAdapter.get() now dedupes concurrent identical in-flight GETs (in-flight only, cleared on settle — no persistent cache, so a read after a save still hits the server) so the viewer and the <WorkflowTransitionHistoryTimeline> widget share a single entity read instead of issuing duplicate GETs. New i18n key `opening` (en/fr). Public admin surface contract unchanged. -->
 <!-- Spec reviewed 2026-05-24 - #1576 queue dashboard now shows queued + in-flight jobs in addition to failed. `TransportInterface::listJobs(int $limit, int $offset = 0, ?string $status = null): array` was added (M4B follow-up, mandatory on implementors) with two impls: `DbalTransport::listJobs()` issues a COUNT + SELECT against `waaseyaa_queue_jobs` with `reserved_at IS NULL` (queued) / `IS NOT NULL` (in_progress) / no filter (both); `InMemoryTransport::listJobs()` merges `$queues` + `$reserved` sorted by id. Abstract `Waaseyaa\Queue\Tests\Contract\TransportContractTest` (registered under the Unit suite via phpunit.xml.dist) verifies both backends in lockstep — covers empty, all-queued, queued+in_progress mix, status filter, limit/offset pagination, zero-limit, invalid-status. `GET /api/queue/jobs` now reads optional `?status=failed|queued|in_progress|all` (default `failed` — NFR-001 M4B backward compat preserved; meta envelope unchanged at `{page, per_page, total}` so M4B integration assertions pass UNCHANGED). Failed branch keeps the existing FailedJobRepository path; queued/in_progress branches call `TransportInterface::listJobs()`; `all` merges failed-first-then-transport on a single page. When `TransportInterface` is unbound (slimmed-down install), all non-failed statuses fall back to the failed shape. `ApiServiceProvider` extends the queue `resolveOptional()` block to also resolve `TransportInterface` (optional). `QueueController` constructor gains `?TransportInterface $transport = null` as the third arg. Frontend: `useQueueJobs()` returns `status` (`Ref<'failed'|'queued'|'in_progress'|'all'>`) and `fetchJobs(page, perPage, status)` accepts the third arg (default `'failed'`); response row type is now the union `QueueJob = FailedJob | TransportJob` with the `isFailedJob()` guard. `pages/queue/index.vue` adds a chip filter row above the table; failed chip keeps the M4B full-detail columns + retry/discard buttons, the live chips render a lean (id, queue, status pill, attempts, age-seconds) table with NO retry/discard buttons (C-001 — retry/discard remain failed-only). New i18n keys: queue_status_failed, queue_status_queued, queue_status_in_progress, queue_status_all, queue_age_seconds, queue_column_status, queue_column_age. queue_title flipped from "Failed jobs" to "Queue jobs" and queue_empty from "No failed jobs." to "No jobs in this view." to reflect the broader surface. -->
 <!-- Spec reviewed 2026-05-24 - M4C WP01 (#1472) admin notifications dashboard at /notifications: new NotificationController + NotificationAdminApiRouter, both gated by `_role: admin` via BuiltinRouteRegistrar. `GET /api/notification/channels` returns `{data: [{type, class}, ...]}` from `NotificationDispatcher::channels()` (new accessor — read-only view of the constructor-supplied channel map; no other dispatcher state touched). `POST /api/notification/channels/{type}/test` looks up the channel by type, builds anonymous `TestRecipient` (reads `_account` from the request, routes mail→email, database→account id) + `TestNotification` (subject `[Waaseyaa test]`, body explains "no action required"; returns a real `Waaseyaa\Mail\Envelope` from `toMail()` so `MailChannel` doesn't crash), and calls `ChannelInterface::send()` inside try/catch. 200 with `{type, status: "success", message: "Test sent."}` on success; 404 JSON:API error envelope on unknown type; 500 with `{type, status: "failed", message, exception_class}` on `\Throwable` — the controller never serialises a throwable directly (FR-010, M4B precedent). `ApiServiceProvider` gains a third `resolveOptional()` block for `NotificationDispatcher` after the queue + scheduler blocks; skips cleanly if absent (slimmed-down install). `packages/api/composer.json` adds `../notification` path repo + `waaseyaa/notification: ^0.1.0-alpha.188` require (L4 → L3, layer-clean). SPA route inventory: `/notifications` Nuxt page mirrors `/queue` shape; columns are channel type, implementation FQCN (truncated short class + tooltip with full FQCN), and a Send-test action. After a test send the page renders either a success chip or a failure card; failure card includes `exception_class` when present. New i18n keys: notifications_title, notifications_empty, notifications_column_type, notifications_column_class, notifications_column_action, notifications_action_test, notifications_confirm_test_title, notifications_confirm_test_body, notifications_status_success, notifications_status_failure, notifications_help. New composable useNotificationChannels (`{channels, loading, error, lastTestResult, fetchChannels, testChannel}`), new component NotificationChannelRow, new page pages/notifications/index.vue. NavBuilder gains a `/notifications` link in the Operations section right after `/scheduler`; NavBuilder test updated to assert 5 nav items + the new `[data-testid=nav-notifications]` link on an empty catalog. Delivery log + per-channel enable/disable are deferred — the notification package does not yet carry the persistence; the follow-up issue tracks adding a `delivery_log` table, a `ChannelConfig` model, an enable/disable flag, and a second tab to `/notifications`. Closes audit C-L3-02 + C-L0-03. -->
 <!-- Spec reviewed 2026-05-24 - M4B WP02 (#1471) admin scheduler dashboard at /scheduler: new SchedulerController + SchedulerAdminApiRouter, both gated by `_role: admin` via BuiltinRouteRegistrar. `GET /api/scheduler/tasks` returns `{data: [{name, description, expression, timezone, last_run_at, last_status, next_run_at}, ...]}` — `last_run_at`/`last_status` are nullable (no row in `waaseyaa_schedule_state` yet), `next_run_at` always set. `POST /api/scheduler/tasks/{name}/trigger` calls `ScheduleRunner::runOne()` (new public method that bypasses the cron check, honours the overlap lock, and records run state); 200 with `{status, message, exception_class?}` on success/failure, 404 on unknown task. `ScheduleRunResult` extended with optional `status`/`message`/`exceptionClass` fields so the controller never serialises a `\Throwable` (FR-010). `SchedulerServiceProvider` now binds `ScheduleStateRepository` as a container singleton (database driver only) so the L4 API provider can `resolveOptional()` it. M4B WP01 admin queue routes (landed 2026-05-23) likewise admin-only: `GET /api/queue/jobs` (paginated failed jobs), `POST /api/queue/jobs/{id}/retry`, `POST /api/queue/jobs/{id}/discard`. SPA route inventory under the always-present "Operations" sidebar section: `/queue` (failed jobs) and `/scheduler` (scheduled tasks) — both Nuxt pages at top-level paths, no `/admin/` prefix (matches the existing /workflows, /telescope convention). New i18n keys: scheduler_title, scheduler_empty, scheduler_column_*, scheduler_action_trigger, scheduler_confirm_trigger_*, scheduler_status_*. New composable useScheduledTasks, new component SchedulerTaskRow, new page pages/scheduler/index.vue. NavBuilder test asserts the /scheduler link renders alongside /queue under the Operations heading even with an empty catalog. -->
@@ -327,12 +331,13 @@ function useLanguage(): {
 Server-Sent Events connection for real-time entity updates.
 
 ```ts
-function useRealtime(channels?: string[]): {
+function useRealtime(channels?: string[], options?: { autoConnect?: boolean }): {
   messages: Ref<BroadcastMessage[]>; connected: Ref<boolean>; error: Ref<string | null>
-  disconnect(): void; reconnect(): void
+  sessionToken: Ref<string | null>
+  connect(): void; disconnect(): void; reconnect(): void
 }
 interface BroadcastMessage {
-  channel: string; event: string; data: Record<string, unknown>; timestamp: number
+  id: number; channel: string; event: string; data: Record<string, unknown>; created_at: number
 }
 ```
 
@@ -341,10 +346,20 @@ interface BroadcastMessage {
 - Runtime constants:
   - `REALTIME_ENDPOINT_PATH = '/api/broadcast'`
   - `DEFAULT_REALTIME_CHANNELS = ['admin']`
-- Auto-connects on instantiation; auto-disconnects on `onUnmounted`
+- **Shared connection (one per channel set).** Consumers asking for the same
+  channel set share a single, module-level `EventSource` and the same
+  `messages`/`connected`/`sessionToken` refs (`wayfinding-showcase-hardening`,
+  P0-1). The admin SPA mounts several consumers at once — the persistent
+  `WayfindingOverlay` (via `useBeacons`) plus each `SchemaList` — and an
+  EventSource pins a FrankenPHP worker for the life of the stream; one connection
+  per consumer multiplied worker pressure into a hydration "reconnect storm".
+  Sharing is ref-counted: the connection is torn down only when its LAST consumer
+  unmounts, so a `SchemaList` leaving on navigation never kills the overlay's
+  stream. `connect()` is idempotent. `__resetRealtime()` is a test-only reset.
 - Exponential backoff reconnect: delay = `min(3000 * 2^(retryCount-1), 30000)`, max 10 retries
 - Message buffer: last 100 messages (ring buffer via `slice(-99)`)
-- Event types: `entity.saved`, `entity.deleted` (used by SchemaList for auto-refresh)
+- Event types: `entity.saved`, `entity.deleted` (used by SchemaList for auto-refresh), `wayfinding.beacon` (consumed by `useBeacons`; the server replays still-active beacons on (re)connect, so a beacon survives reconnects/reloads)
+- **Session pairing token (Wayfinding presenter pairing):** the `connected` SSE frame carries this connection's own non-secret `sessionToken` (`substr(sha256(session_id), 0, 32)`, server-derived). `useRealtime` captures it into the `sessionToken` ref; `useBeacons` re-exposes it. The **supported, race-free read path** (no SSE interception) is **`GET /api/wayfinding/session`** → `{ data: { sessionToken, channel } }`, surfaced in-page as **`data-wf-session`** on the document root (`plugins/wayfindingSession.client.ts`). A presenter-pairing UI / guiding agent reads either to target this exact session's beacon channel via `POST /api/wayfinding/beacons` — see [wayfinding.md](wayfinding.md). (alpha.234 exposed it in the composable, mission `wayfinding-stress-remediation-01KVGK4Q`; the supported handle was added by `wayfinding-showcase-hardening`, P0-2.)
 - Invariant: the SPA realtime client targets the canonical backend broadcast SSE endpoint and default admin channel; this contract is asserted in unit tests.
 
 ## Schema-Driven Forms
@@ -355,6 +370,66 @@ The form rendering pipeline:
 2. `sortedProperties(true)` returns editable fields sorted by `x-weight`
 3. For each field, `SchemaField` resolves the widget component from `x-widget`
 4. Each widget receives `modelValue`, `label`, `description`, `required`, `disabled`, `schema`
+
+### List-View Column Policy (`packages/admin/app/components/schema/SchemaList.vue`)
+
+The list table (`SchemaList`) is schema-driven: by default it renders the first six
+non-hidden fields as columns. Without a bound, a content type with a long-text /
+rich-text body (the `text` / `text_long` field types) dumps the whole body into a
+cell, blowing out row height and making the list nearly unusable (UX-1). The
+column policy bounds the table framework-wide for every content type:
+
+- **Rich-text / text-format columns are dropped from the default set.** Fields
+  with `x-widget: 'richtext'` (from the `text_long` field type) are excluded from
+  the default `columns`. They are **not** removed from the data — `SchemaView`
+  (detail) and `SchemaForm` (edit) select their own fields via
+  `sortedProperties()` and are unaffected, so the body stays fully viewable and
+  editable.
+- **An explicit `x-list-display: true` opt-in still wins.** When any field
+  declares it, exactly those fields are the columns (the author chose them) —
+  including a rich-text field if they opt it back in. Cells are still truncated.
+- **Every text cell is truncated to a snippet.** `formatCellValue` routes string
+  values through `truncateSnippet`, which collapses internal whitespace/newlines
+  to one line and caps the length at `SNIPPET_MAX_CHARS` (120) with an ellipsis.
+  This bounds a long plain-text field (`x-widget: 'textarea'`) that remains a
+  column, and any opted-in rich-text column. Boolean (`✓`/`—`) and `date-time`
+  cells are already short and return before truncation.
+- **CSS defense-in-depth.** `.entity-table td:not(.actions)` carries a `max-width`
+  with `overflow: hidden; text-overflow: ellipsis` so column width stays bounded
+  even if a value ever slips past `truncateSnippet`; the actions column is exempt
+  so its buttons stay on one line.
+
+Acceptance: `tests/components/schema/SchemaListColumnPolicy.test.ts` proves a
+long-text/rich-text content type renders bounded columns — the rich-text column
+is absent and the long-text cell is a truncated snippet, never the full body.
+
+### Element anchors (Wayfinding Phase-1 groundwork)
+
+The schema-driven components emit stable, **inert** `data-anchor` attributes derived
+from schema field identity, seeding the future Wayfinding anchor catalog (mission
+`wayfinding-01KVGH5X`, FR-006/FR-007). They have no behaviour in the admin SPA today —
+they are a published targeting contract for element-anchored *beacons*. The scheme:
+
+| Component | Element | `data-anchor` |
+|-----------|---------|---------------|
+| `[entityType]/index` (list page) | Create-new button | `action:{entityType}:create` |
+| `SchemaList` | container | `list:{entityType}` |
+| `SchemaList` | column header | `list-field:{entityType}:{fieldName}` |
+| `SchemaList` | Edit / Delete action | `action:{entityType}:edit` / `action:{entityType}:delete` |
+| `SchemaView` | container | `view:{entityType}` |
+| `SchemaView` | field row | `field:{entityType}:{fieldName}` |
+| `SchemaForm` | container | `form:{entityType}` |
+| `SchemaForm` | field wrapper | `field:{entityType}:{fieldName}` |
+| `SchemaForm` | submit action | `action:{entityType}:submit` |
+
+These are now validated against the published Wayfinding anchor catalog
+(`/.well-known/waaseyaa-anchors.json`, `AnchorRegistry`); an emit referencing an
+anchor not in the catalog is rejected (FR-005). The list-level
+`action:{entityType}:create` row was added so a presenter can beacon the
+"Create new" control directly (`wayfinding-showcase-hardening`, P1-3) — it
+mirrors the per-row `action:*:edit`/`:delete` scheme. The shipped bundle is
+asserted to contain `data-anchor` by `AdminDistContentTest` (see "Pre-built SPA
+distribution").
 
 ### Widget Resolution (`packages/admin/app/components/schema/SchemaField.vue`)
 

@@ -41,12 +41,29 @@ final class SaveContext
      *     are set, `$translations` wins and `$langcode` is ignored for the save
      *     (per contracts/save-context-translations.md §3). Null = single-language
      *     save (M-006 unchanged path).
+     * @param ?int $actorUid Explicit revision-author override for this save
+     *     (mission revision-audit-provenance-01KTWY5V, FR-002). Meaningless
+     *     unless `$actorOverridden` is true — read it through
+     *     {@see actorUid()} / {@see actorOverridden()}.
+     * @param bool $actorOverridden Whether {@see withActorUid()} was called on
+     *     this chain. Distinguishes "no override" (defer to the ambient
+     *     {@see \Waaseyaa\Access\Context\AccountContextInterface}) from an
+     *     explicit `withActorUid(null)` (force a NULL author).
+     * @param ?int $expectedRevisionId Optimistic-locking expectation
+     *     (mission optimistic-locking-01KTXCHY, FR-001): the revision id the
+     *     caller believes is current. Null = no expectation stated. Unlike
+     *     the actor pair, no boolean pin is needed: a null expectation has no
+     *     third meaning (there is no "I expect no revision" head state on a
+     *     persisted revisionable row).
      */
     private function __construct(
         public readonly bool $withoutNewRevision = false,
         public readonly ?string $langcode = null,
         public readonly bool $isImport = false,
         public readonly ?array $translations = null,
+        private readonly ?int $actorUid = null,
+        private readonly bool $actorOverridden = false,
+        private readonly ?int $expectedRevisionId = null,
     ) {}
 
     /**
@@ -55,6 +72,94 @@ final class SaveContext
     public static function default(): self
     {
         return new self(withoutNewRevision: false, langcode: null, isImport: false, translations: null);
+    }
+
+    /**
+     * Return a new instance with an explicit revision-author override
+     * (mission revision-audit-provenance-01KTWY5V, FR-002, contract
+     * revision-author.md clause 5).
+     *
+     * The override wins over the ambient acting-account context — including
+     * `withActorUid(null)`, which forces a NULL author even inside an
+     * authenticated request (system-attributed maintenance writes). The
+     * `$actorUid` value is meaningless unless {@see actorOverridden()} is
+     * true; resolution reads the pair, never the uid alone.
+     *
+     * @api
+     */
+    public function withActorUid(?int $uid): self
+    {
+        return new self(
+            withoutNewRevision: $this->withoutNewRevision,
+            langcode: $this->langcode,
+            isImport: $this->isImport,
+            translations: $this->translations,
+            actorUid: $uid,
+            actorOverridden: true,
+            expectedRevisionId: $this->expectedRevisionId,
+        );
+    }
+
+    /**
+     * Return a new instance stating an optimistic-locking expectation
+     * (mission optimistic-locking-01KTXCHY, FR-001): the save is refused with
+     * {@see \Waaseyaa\EntityStorage\Exception\RevisionConflictException} when
+     * the entity's current revision differs from $revisionId at write time.
+     * `null` is the explicit no-expectation pass-through (callers may thread
+     * an optional value without branching). Honored only on revision-creating
+     * saves of single-axis revisionable types — see contracts/conflict-detection.md §2.
+     *
+     * @throws \InvalidArgumentException When $revisionId < 1.
+     * @api
+     */
+    public function withExpectedRevisionId(?int $revisionId): self
+    {
+        if ($revisionId !== null && $revisionId < 1) {
+            throw new \InvalidArgumentException(
+                'SaveContext::withExpectedRevisionId requires a positive revision id or null.',
+            );
+        }
+
+        return new self(
+            withoutNewRevision: $this->withoutNewRevision,
+            langcode: $this->langcode,
+            isImport: $this->isImport,
+            translations: $this->translations,
+            actorUid: $this->actorUid,
+            actorOverridden: $this->actorOverridden,
+            expectedRevisionId: $revisionId,
+        );
+    }
+
+    /**
+     * The stated optimistic-locking expectation. Null = no expectation.
+     *
+     * @api
+     */
+    public function expectedRevisionId(): ?int
+    {
+        return $this->expectedRevisionId;
+    }
+
+    /**
+     * The explicit author override. Meaningless unless {@see actorOverridden()}.
+     *
+     * @api
+     */
+    public function actorUid(): ?int
+    {
+        return $this->actorUid;
+    }
+
+    /**
+     * Whether {@see withActorUid()} set an explicit author override on this
+     * chain (true even for `withActorUid(null)` — the three-state pin).
+     *
+     * @api
+     */
+    public function actorOverridden(): bool
+    {
+        return $this->actorOverridden;
     }
 
     /**
@@ -70,6 +175,9 @@ final class SaveContext
             langcode: $this->langcode,
             isImport: $this->isImport,
             translations: $this->translations,
+            actorUid: $this->actorUid,
+            actorOverridden: $this->actorOverridden,
+            expectedRevisionId: $this->expectedRevisionId,
         );
     }
 
@@ -91,6 +199,9 @@ final class SaveContext
             langcode: $langcode,
             isImport: $this->isImport,
             translations: $this->translations,
+            actorUid: $this->actorUid,
+            actorOverridden: $this->actorOverridden,
+            expectedRevisionId: $this->expectedRevisionId,
         );
     }
 
@@ -110,6 +221,9 @@ final class SaveContext
             langcode: $this->langcode,
             isImport: true,
             translations: $this->translations,
+            actorUid: $this->actorUid,
+            actorOverridden: $this->actorOverridden,
+            expectedRevisionId: $this->expectedRevisionId,
         );
     }
 
@@ -171,6 +285,9 @@ final class SaveContext
             langcode: $this->langcode,
             isImport: $this->isImport,
             translations: $normalised,
+            actorUid: $this->actorUid,
+            actorOverridden: $this->actorOverridden,
+            expectedRevisionId: $this->expectedRevisionId,
         );
     }
 }

@@ -1,0 +1,26 @@
+{
+  "lanes": {
+    "done": [
+      "WP01"
+    ],
+    "in_progress": [
+      "WP02"
+    ]
+  },
+  "materialized_at": "2026-05-25T18:38:52.229074+00:00",
+  "mission_number": null,
+  "mission_slug": "offline-first-sync-substrate-01KSEFTM",
+  "mission_type": "software-dev",
+  "summary": {
+    "approved": 0,
+    "blocked": 0,
+    "canceled": 0,
+    "claimed": 0,
+    "done": 1,
+    "for_review": 0,
+    "in_progress": 1,
+    "in_review": 0,
+    "planned": 0
+  },
+  "total_wps": 2
+}

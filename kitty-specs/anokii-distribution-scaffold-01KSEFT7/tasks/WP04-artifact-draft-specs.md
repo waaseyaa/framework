@@ -22,6 +22,7 @@ agent: ''
 history: []
 authoritative_surface: kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/
 execution_mode: planning_artifact
+mission_id: 01KSEFT768GN09JZXHWMAMJNFR
 owned_files:
 - kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/governed-drive.spec.md
 - kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/v0.1/form-builder.spec.md
@@ -34,6 +35,7 @@ owned_files:
 - kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/cross-cutting/offline-first.spec.md
 - kitty-specs/anokii-distribution-scaffold-01KSEFT7/artifacts/cross-cutting/aoda-aa-baseline.spec.md
 tags: []
+wp_code: WP04
 ---
 
 # WP04 — Ten artifact draft specs (8 surfaces + 2 cross-cutting)

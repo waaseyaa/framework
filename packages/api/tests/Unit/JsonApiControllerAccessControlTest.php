@@ -46,8 +46,10 @@ final class JsonApiControllerAccessControlTest extends TestCase
     }
 
     #[Test]
-    public function showReturnsForbiddenWhenAccessDenied(): void
+    public function showReturnsNotFoundShapeWhenViewAccessDenied(): void
     {
+        // FR-003 (#1649): a view-denied single read answers with the canonical
+        // not-found shape — never a 403 — so it cannot act as an existence oracle.
         $entity = $this->createAndSaveEntity(['title' => 'Secret']);
 
         $controller = $this->createControllerWithAccessDenied();
@@ -56,7 +58,9 @@ final class JsonApiControllerAccessControlTest extends TestCase
         $array = $doc->toArray();
 
         $this->assertArrayHasKey('errors', $array);
-        $this->assertSame('403', $array['errors'][0]['status']);
+        $this->assertSame('404', $array['errors'][0]['status']);
+        $this->assertSame('Not Found', $array['errors'][0]['title']);
+        $this->assertArrayNotHasKey('code', $array['errors'][0]);
     }
 
     #[Test]

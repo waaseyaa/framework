@@ -26,7 +26,16 @@ const limit = ref(25)
 const sortField = ref<string | null>(null)
 const sortAsc = ref(true)
 const listError = ref<string | null>(null)
+// Delete failures are surfaced separately from listError so they read as a
+// non-blocking "delete failed" notice ABOVE the table rather than replacing the
+// whole list with what looked like a "Not found" page (D7).
+const deleteError = ref<string | null>(null)
 const bundleFilter = ref<string | null>(null)
+// Id of the row whose Edit link was activated, held until navigation replaces
+// this list. Drives an immediate aria-busy / disabled state on the clicked link
+// so opening an entity is never a silent click (the destination editor still
+// resolves asynchronously after the route changes).
+const navigatingId = ref<string | null>(null)
 // Unix-epoch seconds at component setup. Used to gate the messages watch so
 // historical events the SSE server replayed on connect cannot trigger refetch
 // floods. The framework's BroadcastRouter now starts new connections at the
@@ -48,12 +57,29 @@ const bundleOptions = computed<string[] | null>(() => {
   return values && values.length > 0 ? values : null
 })
 
-// Visible columns: prefer fields with x-list-display:true; fall back to first 6
-// non-hidden fields when no schema field declares x-list-display.
+// List-view column policy (UX-1). Long-text / rich-text bodies must never be
+// dumped into a table cell (it blows out row height and makes the list
+// unusable). Two complementary rules, framework-wide for every content type:
+//   1. Rich-text / text-format fields (x-widget 'richtext', from the 'text_long'
+//      field type) are DROPPED from the default column set entirely — they stay
+//      on the detail (SchemaView) and edit (SchemaForm) views, which select
+//      their own fields independently of these columns.
+//   2. Every cell value is collapsed to one line and truncated to a snippet
+//      (see truncateSnippet) so a long plain-text body (x-widget 'textarea')
+//      that remains a column is still bounded.
+const LIST_EXCLUDED_WIDGETS = new Set(['richtext'])
+const SNIPPET_MAX_CHARS = 120
+
+// Visible columns: an explicit x-list-display:true opt-in wins (the author chose
+// exactly these columns — cell values are still snippet-truncated below).
+// Otherwise the default policy drops rich-text/text-format columns and takes the
+// first 6 of what remains.
 const columns = computed(() => {
   const all = sortedProperties(false).filter(([, prop]) => prop['x-widget'] !== 'hidden')
   const explicit = all.filter(([, prop]) => prop['x-list-display'] === true)
-  return explicit.length > 0 ? explicit : all.slice(0, 6)
+  if (explicit.length > 0) return explicit
+  const listable = all.filter(([, prop]) => !LIST_EXCLUDED_WIDGETS.has(prop['x-widget'] as string))
+  return listable.slice(0, 6)
 })
 
 async function fetchEntities() {
@@ -104,14 +130,30 @@ function prevPage() {
   }
 }
 
+function onEditNavigate(entity: JsonApiResource, event: MouseEvent) {
+  // Swallow repeat activations once a navigation is already in flight so a
+  // double-click can't start a second route change. The first click falls
+  // through to NuxtLink's default navigation.
+  if (navigatingId.value !== null) {
+    event.preventDefault()
+    return
+  }
+  navigatingId.value = entity.id
+}
+
 async function deleteEntity(entity: JsonApiResource) {
   if (!confirm(t('confirm_delete'))) return
+  deleteError.value = null
   try {
     await remove(props.entityType, entity.id)
     await fetchEntities()
   } catch (e: any) {
     console.error('[Waaseyaa] Failed to delete entity:', e)
-    listError.value = e.data?.errors?.[0]?.detail ?? e.message ?? t('error_deleting')
+    // Frame as a delete failure rather than echoing the raw backend title (a
+    // bare "Not found" read like the list itself was missing). Keep the table
+    // visible — deleteError renders as an inline notice, not a full-page error.
+    const detail = e.data?.errors?.[0]?.detail ?? e.message
+    deleteError.value = detail ? `${t('error_deleting')} ${detail}` : t('error_deleting')
   }
 }
 
@@ -143,7 +185,18 @@ function formatCellValue(value: unknown, fieldSchema: Record<string, unknown>): 
     }
   }
 
-  return String(value)
+  return truncateSnippet(String(value))
+}
+
+// Collapse internal whitespace/newlines so a multi-line body renders as a single
+// line, then cap the length with an ellipsis. Bounds every text cell regardless
+// of the underlying field size — the table-column half of the UX-1 policy (the
+// other half is excluding rich-text widgets from `columns`).
+function truncateSnippet(value: string): string {
+  const oneLine = value.replace(/\s+/g, ' ').trim()
+  return oneLine.length > SNIPPET_MAX_CHARS
+    ? oneLine.slice(0, SNIPPET_MAX_CHARS).trimEnd() + '…'
+    : oneLine
 }
 
 function getEntityLabel(entity: JsonApiResource): string {
@@ -181,10 +234,11 @@ watch(messages, (msgs) => {
 </script>
 
 <template>
-  <div class="schema-list">
+  <div class="schema-list" :data-anchor="`list:${entityType}`">
     <div v-if="schemaLoading || loading" class="loading">{{ t('loading') }}</div>
     <div v-else-if="listError" class="error">{{ listError }}</div>
     <template v-else>
+      <div v-if="deleteError" class="error error--inline" role="alert">{{ deleteError }}</div>
       <div v-if="bundleOptions" class="entity-filters">
         <label class="entity-filter-label">
           {{ t('bundle_filter_label') }}
@@ -208,6 +262,7 @@ watch(messages, (msgs) => {
               v-for="[fieldName, fieldSchema] in columns"
               :key="fieldName"
               class="sortable"
+              :data-anchor="`list-field:${entityType}:${fieldName}`"
               @click="toggleSort(fieldName)"
             >
               {{ fieldSchema['x-label'] ?? fieldName }}
@@ -225,13 +280,23 @@ watch(messages, (msgs) => {
               {{ formatCellValue(getCellValue(entity, fieldName, fieldSchema as unknown as Record<string, unknown>), fieldSchema as unknown as Record<string, unknown>) }}
             </td>
             <td class="actions">
-              <NuxtLink v-if="canUpdate" :to="`/${entityType}/${entity.id}`" class="btn btn-sm">
-                {{ t('edit') }}
+              <NuxtLink
+                v-if="canUpdate"
+                :to="`/${entityType}/${entity.id}`"
+                class="btn btn-sm"
+                :class="{ 'is-busy': navigatingId === entity.id }"
+                :aria-busy="navigatingId === entity.id ? 'true' : 'false'"
+                :aria-disabled="navigatingId === entity.id ? 'true' : undefined"
+                :data-anchor="`action:${entityType}:edit`"
+                @click="onEditNavigate(entity, $event)"
+              >
+                {{ navigatingId === entity.id ? t('opening') : t('edit') }}
               </NuxtLink>
               <button
                 v-if="canDelete"
                 class="btn btn-sm btn-danger"
                 :aria-label="t('delete') + ': ' + getEntityLabel(entity)"
+                :data-anchor="`action:${entityType}:delete`"
                 @click="deleteEntity(entity)"
               >
                 {{ t('delete') }}
@@ -257,3 +322,29 @@ watch(messages, (msgs) => {
     </template>
   </div>
 </template>
+
+<style scoped>
+/* Clicked Edit link while its destination editor is opening: visually muted and
+   non-interactive so it reads as busy and can't be re-activated mid-navigation. */
+.btn.is-busy {
+  pointer-events: none;
+  opacity: 0.65;
+  cursor: progress;
+}
+
+/* Delete failures render inline above the table (table stays visible) rather
+   than replacing the whole list like a load error. */
+.error--inline {
+  margin-bottom: 12px;
+}
+
+/* Bound every data column so a long value can never stretch a row, even if one
+   ever slips past the snippet truncation (UX-1 defense-in-depth). The actions
+   column is exempt so its buttons stay on one line. */
+.entity-table td:not(.actions) {
+  max-width: 28rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+</style>

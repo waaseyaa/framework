@@ -35,6 +35,12 @@ final class SqlState implements StateInterface
             ->execute();
 
         foreach ($result as $row) {
+            // Trust boundary (D-12): state values are this application's own
+            // serialized payloads from a server-controlled table and are `mixed`
+            // (objects allowed — see SqlStateTest::testSerializationOfObject), so
+            // `allowed_classes => false` cannot be used. Deferred hardening (HMAC
+            // integrity signing) is tracked in docs/specs/infrastructure.md
+            // "Stored-payload unserialize() trust boundary (D-12)".
             $value = unserialize($row['value']);
             $this->cache[$key] = $value;
             return $value;
@@ -66,6 +72,8 @@ final class SqlState implements StateInterface
                 ->execute();
 
             foreach ($result as $row) {
+                // Trust boundary (D-12): see get() — server-controlled `mixed`
+                // state payload; `allowed_classes => false` is not viable.
                 $value = unserialize($row['value']);
                 $this->cache[$row['name']] = $value;
                 $values[$row['name']] = $value;

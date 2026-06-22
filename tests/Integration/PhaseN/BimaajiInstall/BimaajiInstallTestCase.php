@@ -10,7 +10,7 @@ use Waaseyaa\Bimaaji\BimaajiServiceProvider;
 use Waaseyaa\Bimaaji\Command\BimaajiInstallCommand;
 use Waaseyaa\Bimaaji\Install\ClientTransformerInterface;
 use Waaseyaa\Bimaaji\Install\SkillSetParser;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Io\StdinSource;
 use Waaseyaa\CLI\Testing\CliTester;
 
@@ -24,8 +24,8 @@ use Waaseyaa\CLI\Testing\CliTester;
  *  - A fresh `BimaajiInstallCommand` constructed with the optional
  *    custom transformer set (defaults to the seven framework
  *    transformers).
- *  - A `CliTester` wrapping the install command's `CommandDefinition`
- *    pulled directly from `BimaajiServiceProvider::nativeCommands()`.
+ *  - A `CliTester` wrapping the install command's `HandlerCommand`
+ *    pulled directly from `BimaajiServiceProvider::consoleCommands()`.
  *
  * @api
  */
@@ -106,9 +106,9 @@ abstract class BimaajiInstallTestCase extends TestCase
         );
     }
 
-    private function findInstallDefinition(BimaajiServiceProvider $provider): CommandDefinition
+    private function findInstallDefinition(BimaajiServiceProvider $provider): HandlerCommand
     {
-        foreach ($provider->nativeCommands() as $command) {
+        foreach ($provider->consoleCommands() as $command) {
             if ($command->name === 'bimaaji:install') {
                 return $command;
             }

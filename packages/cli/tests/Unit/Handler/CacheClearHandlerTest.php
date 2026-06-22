@@ -10,10 +10,10 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Cache\CacheFactoryInterface;
 use Waaseyaa\Cache\TagAwareCacheInterface;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\CacheClearHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 
 #[CoversClass(CacheClearHandler::class)]
@@ -75,12 +75,12 @@ final class CacheClearHandlerTest extends TestCase
     private function createTester(CacheFactoryInterface $factory): CliTester
     {
         $handler = new CacheClearHandler($factory);
-        $definition = new CommandDefinition(
+        $definition = new HandlerCommand(
             name: 'cache:clear',
             description: 'Clear one or all cache bins',
             options: [
-                new OptionDefinition(name: 'bin', shortcut: 'b', mode: OptionMode::Required, description: 'Clear a specific cache bin instead of all bins'),
-                new OptionDefinition(name: 'tags', mode: OptionMode::Required, description: 'Invalidate cache entries by comma-separated tags'),
+                new HandlerOption(name: 'bin', shortcut: 'b', mode: HandlerOptionMode::Required, description: 'Clear a specific cache bin instead of all bins'),
+                new HandlerOption(name: 'tags', mode: HandlerOptionMode::Required, description: 'Invalidate cache entries by comma-separated tags'),
             ],
             handler: \Closure::fromCallable([$handler, 'execute']),
         );

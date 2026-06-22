@@ -1,0 +1,13 @@
+{
+  "done_count": 0,
+  "done_percentage": 0.0,
+  "mission_number": "",
+  "mission_slug": "",
+  "mission_type": "software-dev",
+  "per_lane_counts": {},
+  "per_wp": [],
+  "percentage": 0.0,
+  "progress_semantics": "weighted_readiness",
+  "total_count": 0,
+  "weighted_percentage": 0.0
+}

@@ -1,0 +1,45 @@
+{
+  "done_count": 3,
+  "done_percentage": 75.0,
+  "mission_number": "",
+  "mission_slug": "anokii-distribution-scaffold-01KSEFT7",
+  "mission_type": "software-dev",
+  "per_lane_counts": {
+    "done": 3,
+    "for_review": 1
+  },
+  "per_wp": [
+    {
+      "fractional_progress": 0.6,
+      "lane": "for_review",
+      "lane_weight": 0.6,
+      "wp_id": "WP01",
+      "wp_weight": 1.0
+    },
+    {
+      "fractional_progress": 1.0,
+      "lane": "done",
+      "lane_weight": 1.0,
+      "wp_id": "WP02",
+      "wp_weight": 1.0
+    },
+    {
+      "fractional_progress": 1.0,
+      "lane": "done",
+      "lane_weight": 1.0,
+      "wp_id": "WP03",
+      "wp_weight": 1.0
+    },
+    {
+      "fractional_progress": 1.0,
+      "lane": "done",
+      "lane_weight": 1.0,
+      "wp_id": "WP04",
+      "wp_weight": 1.0
+    }
+  ],
+  "percentage": 90.0,
+  "progress_semantics": "weighted_readiness",
+  "total_count": 4,
+  "weighted_percentage": 90.0
+}

@@ -30,6 +30,7 @@ shell_pid: '588123'
 history: []
 authoritative_surface: packages/admin/app/offline/sync
 execution_mode: code_change
+mission_id: 01KSEFTMSAV1E8WNDG6XXHPHHP
 owned_files:
 - packages/admin/sw.ts
 - packages/admin/nuxt.config.ts
@@ -50,6 +51,7 @@ tags:
 - fsm
 - sync
 - mercure
+wp_code: WP02
 ---
 
 # WP02 — Workbox service worker + sync FSM + ConflictResolver + SyncEngine + Mercure consumer

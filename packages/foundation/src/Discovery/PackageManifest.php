@@ -40,8 +40,8 @@ final class PackageManifest
         public readonly array $packageDeclarations = [],
         /** @var list<class-string> Classes carrying #[AsEntityType] that also implement DefinesEntityType */
         public readonly array $attributeEntityTypes = [],
-        /** @var list<class-string> Provider classes that implement HasNativeCommandsInterface */
-        public readonly array $nativeCommandProviders = [],
+        /** @var list<class-string> Provider classes that implement ProvidesConsoleCommandsInterface */
+        public readonly array $consoleCommandProviders = [],
         /**
          * Classes carrying `#[Waaseyaa\AI\Tools\Attribute\AsAgentTool]`.
          *
@@ -87,7 +87,7 @@ final class PackageManifest
         unset($data['commands'], $data['routes']);
 
         $requiredKeys = ['providers', 'migrations', 'field_types', 'middleware'];
-        $optionalKeys = ['permissions', 'policies', 'formatters', 'package_declarations', 'attribute_entity_types', 'native_command_providers', 'agent_tools', 'agent_definitions', 'schedule_entries'];
+        $optionalKeys = ['permissions', 'policies', 'formatters', 'package_declarations', 'attribute_entity_types', 'console_command_providers', 'agent_tools', 'agent_definitions', 'schedule_entries'];
         $missing = array_diff($requiredKeys, array_keys($data));
 
         if ($missing !== []) {
@@ -117,7 +117,7 @@ final class PackageManifest
             policies: $data['policies'] ?? [],
             packageDeclarations: $data['package_declarations'] ?? [],
             attributeEntityTypes: $data['attribute_entity_types'] ?? [],
-            nativeCommandProviders: $data['native_command_providers'] ?? [],
+            consoleCommandProviders: $data['console_command_providers'] ?? [],
             agentTools: $data['agent_tools'] ?? [],
             agentDefinitions: $data['agent_definitions'] ?? [],
             scheduleEntries: $data['schedule_entries'] ?? [],
@@ -141,7 +141,7 @@ final class PackageManifest
             'policies' => $this->policies,
             'package_declarations' => $this->packageDeclarations,
             'attribute_entity_types' => $this->attributeEntityTypes,
-            'native_command_providers' => $this->nativeCommandProviders,
+            'console_command_providers' => $this->consoleCommandProviders,
             'agent_tools' => $this->agentTools,
             'agent_definitions' => $this->agentDefinitions,
             'schedule_entries' => $this->scheduleEntries,

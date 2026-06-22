@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\CLI\Ingestion\AuthoringAssistBuilder;
 use Waaseyaa\CLI\Ingestion\IngestionEnvelopeNormalizer;
 use Waaseyaa\CLI\Ingestion\RelationshipInferenceEngine;
@@ -16,12 +16,23 @@ use Waaseyaa\CLI\Ingestion\ValidationGateValidator;
 
 /**
  * @api
+ *
+ * TECH-DEBT (audit D-23): This is a ~792-LOC procedural orchestrator that threads a single
+ * mutable by-ref $diagnostics array through parseStructured()/parseUnstructured()/mapRecords()/
+ * readRefreshBaseline() and mutates it inline in execute(). Intended decomposition (tracked,
+ * deliberately NOT done as a minor fix because it rewrites the live `ingest:run` entrypoint and
+ * its output contract): split the parse -> map -> envelope -> validate -> refresh -> assist steps
+ * into typed pipeline stages and own the diagnostics in a dedicated collaborator instead of a
+ * shared mutable bag. The per-step emitters already live in packages/cli/src/Ingestion/
+ * (SchemaDiagnosticEmitter, ValidationDiagnosticEmitter, IngestionEnvelopeNormalizer, etc.);
+ * the remaining work is extracting the orchestration body here. See AUDIT.md "Code quality
+ * (god-objects / dup)" (alongside D-20 EntityRepository::doSave and D-21 SqlEntityStorage).
  */
 final class IngestRunHandler
 {
     private const array VALID_STATES = ['draft', 'review', 'published', 'archived'];
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $inputPath = trim($this->stringify($io->option('input')));
         if ($inputPath === '') {
@@ -748,7 +759,7 @@ final class IngestRunHandler
         return $value;
     }
 
-    private function writeFile(string $path, string $contents, CliIO $io): bool
+    private function writeFile(string $path, string $contents, SymfonyCommandIO $io): bool
     {
         $dir = dirname($path);
         if (!is_dir($dir) && !mkdir($dir, 0o755, true) && !is_dir($dir)) {

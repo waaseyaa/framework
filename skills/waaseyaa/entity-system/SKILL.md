@@ -444,5 +444,5 @@ $config->save();
 
 - `docs/specs/entity-system.md` -- full subsystem specification with all interface signatures
 - `CLAUDE.md` -- project-wide gotchas and conventions
-- `docs/plans/2026-02-27-aurora-cms-design.md` -- original CMS design with entity/storage architecture
-- `docs/plans/2026-02-28-aurora-architecture-v2-design.md` -- architecture v2 with 17 pillars
+- `docs/history/plans/2026-02-27-aurora-cms-design.md` -- original CMS design with entity/storage architecture
+- `docs/history/plans/2026-02-28-aurora-architecture-v2-design.md` -- architecture v2 with 17 pillars

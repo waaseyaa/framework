@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Command\Import;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Migration\Discovery\MigrationRegistry;
 use Waaseyaa\Migration\Exception\MigrationAbortedException;
 use Waaseyaa\Migration\Exception\MigrationConcurrencyException;
@@ -59,7 +59,7 @@ final class ImportRunCommand
         private readonly \Closure $lockFactory,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $migrationId = $io->argument('migration_id');
         if (!\is_string($migrationId) || $migrationId === '') {
@@ -110,7 +110,7 @@ final class ImportRunCommand
      * errors as `\InvalidArgumentException` so the caller can return a
      * usage-error exit code.
      */
-    private function buildOptions(CliIO $io): RunOptions
+    private function buildOptions(SymfonyCommandIO $io): RunOptions
     {
         $dryRun = (bool) $io->option('dry-run');
         $haltOnError = (bool) $io->option('halt-on-error');
@@ -140,7 +140,7 @@ final class ImportRunCommand
         );
     }
 
-    private function renderReport(CliIO $io, RunReport $report): void
+    private function renderReport(SymfonyCommandIO $io, RunReport $report): void
     {
         $io->writeln($report->summaryLine());
 

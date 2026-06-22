@@ -14,10 +14,10 @@ use Waaseyaa\CLI\Testing\CliTester;
 #[CoversClass(PerformanceBaselineHandler::class)]
 final class PerformanceBaselineHandlerTest extends TestCase
 {
-    private function makeDefinition(): \Waaseyaa\CLI\CommandDefinition
+    private function makeDefinition(): \Waaseyaa\CLI\Command\HandlerCommand
     {
         $provider = new SchedulePerfServiceProvider();
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'perf:baseline') {
                 return $cmd;
             }

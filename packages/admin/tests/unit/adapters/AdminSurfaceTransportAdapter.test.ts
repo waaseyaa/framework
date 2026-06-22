@@ -68,4 +68,46 @@ describe('AdminSurfaceTransportAdapter', () => {
       detail: 'Denied',
     })
   })
+
+  it('dedupes concurrent GETs of the same record into a single request', async () => {
+    let calls = 0
+    const fetchFn = vi.fn(async () => {
+      calls++
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true, data: { type: 'node', id: '7', attributes: { title: 'A' } } }),
+      }
+    })
+    const adapter = new AdminSurfaceTransportAdapter('/admin/', fetchFn as unknown as typeof fetch)
+
+    // The detail page mounts a viewer/form and a history widget in the same tick;
+    // both read the same record. They must share one network request.
+    const [a, b] = await Promise.all([adapter.get('node', '7'), adapter.get('node', '7')])
+
+    expect(calls).toBe(1)
+    expect(a).toEqual(b)
+    expect(a).toEqual({ type: 'node', id: '7', attributes: { title: 'A' } })
+
+    // A read issued AFTER the first settles must hit the network again — the
+    // dedup is in-flight-only, not a persistent cache (no staleness after saves).
+    await adapter.get('node', '7')
+    expect(calls).toBe(2)
+  })
+
+  it('does not share in-flight requests across different records', async () => {
+    const fetchFn = vi.fn(async (url: string) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        data: { type: 'node', id: url.includes('/8') ? '8' : '7', attributes: {} },
+      }),
+    }))
+    const adapter = new AdminSurfaceTransportAdapter('/admin/', fetchFn as unknown as typeof fetch)
+
+    await Promise.all([adapter.get('node', '7'), adapter.get('node', '8')])
+
+    expect(fetchFn).toHaveBeenCalledTimes(2)
+  })
 })

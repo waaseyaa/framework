@@ -244,6 +244,14 @@ final class SqlSchemaHandler
      *
      * The revision table stores snapshots of all field values for each revision.
      * Primary key is composite (entity_id, revision_id).
+     *
+     * When the table already exists, revision-metadata columns added since it
+     * was created are synced additively (`fieldExists` → targeted raw
+     * `ALTER TABLE … ADD COLUMN`, see {@see ensureRevisionAuthorColumn()}
+     * re #1653) — currently `revision_author` (mission
+     * revision-audit-provenance-01KTWY5V FR-003). Idempotent; no other column
+     * is touched and no row is rewritten (C-001). Runs at kernel boot /
+     * db:init, never per save.
      */
     public function ensureRevisionTable(): void
     {
@@ -251,11 +259,53 @@ final class SqlSchemaHandler
         $revisionTableName = $this->getRevisionTableName();
 
         if ($schema->tableExists($revisionTableName)) {
+            $this->ensureRevisionAuthorColumn($revisionTableName);
             return;
         }
 
         $spec = $this->buildRevisionTableSpec();
         $schema->createTable($revisionTableName, $spec);
+    }
+
+    /**
+     * Additive sync arm for the `revision_author` column on a pre-existing
+     * revision (or translation-revision) table (FR-003, contract
+     * revision-author.md clauses 12–14).
+     *
+     * Nullable int, NO default, NO FK constraint (soft FK — revision history
+     * survives user deletion; definition adopted verbatim from the dormant
+     * RevisionTableBuilder dialect, research D7). Pre-existing rows read back
+     * SQL NULL with zero migration. Without this arm the column would only
+     * exist on fresh installs and foldData() would silently absorb the author
+     * into the `_data` blob.
+     */
+    private function ensureRevisionAuthorColumn(string $tableName): void
+    {
+        $schema = $this->database->schema();
+
+        if ($schema->fieldExists($tableName, 'revision_author')) {
+            return;
+        }
+
+        // Targeted ALTER, not DBALSchema::addField() (#1653, alpha.205
+        // regression): addField() runs whole-schema introspection
+        // (AbstractSchemaManager::introspectSchema()), which throws on
+        // databases containing FTS5 virtual tables — their shadow tables
+        // have typeless columns that DBAL 4.4's SQLite column parser cannot
+        // handle. fieldExists() above introspects only the named table, so
+        // the guard is safe; the ADD COLUMN itself needs no introspection.
+        // Same pattern as the audit package's actor_uid arm
+        // (AuditEventSchemaHandler): metadata-only DDL, nullable, no
+        // default, no FK — portable across SQLite/MySQL/PostgreSQL.
+        $quote = $this->database instanceof DBALDatabase
+            ? fn(string $id): string => $this->database->quoteIdentifier($id)
+            : static fn(string $id): string => '"' . str_replace('"', '""', $id) . '"';
+
+        $this->database->query(\sprintf(
+            'ALTER TABLE %s ADD COLUMN %s INTEGER',
+            $quote($tableName),
+            $quote('revision_author'),
+        ));
     }
 
     /**
@@ -295,6 +345,9 @@ final class SqlSchemaHandler
         $schema = $this->database->schema();
         $tableName = $this->getTranslationRevisionTableName();
         if ($schema->tableExists($tableName)) {
+            // Same additive author-column sync as ensureRevisionTable() —
+            // the translation axis gets identical treatment (DIR-005).
+            $this->ensureRevisionAuthorColumn($tableName);
             return;
         }
 
@@ -668,6 +721,14 @@ final class SqlSchemaHandler
             'not null' => false,
         ];
 
+        // Acting account that created the revision (FR-001/FR-003). Nullable,
+        // NO default (absence is SQL NULL, never 0), NO FK constraint — soft
+        // FK so history survives user deletion (D7 dialect convergence).
+        $fields['revision_author'] = [
+            'type' => 'int',
+            'not null' => false,
+        ];
+
         // Mirror base table field columns.
         $labelKey = $keys['label'] ?? 'label';
         $fields[$labelKey] = [
@@ -738,6 +799,9 @@ final class SqlSchemaHandler
             'revision_id' => ['type' => 'int', 'not null' => true],
             'revision_created' => ['type' => 'varchar', 'length' => 32, 'not null' => true],
             'revision_log' => ['type' => 'text', 'not null' => false],
+            // Acting account (FR-001/FR-003): nullable int, no default, soft FK
+            // — identical definition to the single-axis revision table.
+            'revision_author' => ['type' => 'int', 'not null' => false],
             '_data' => ['type' => 'text', 'not null' => true, 'default' => '{}'],
         ];
 

@@ -154,7 +154,7 @@ final class DefinitionValidatorBootTest extends TestCase
                     policies: $this->manifest->policies,
                     packageDeclarations: $this->manifest->packageDeclarations,
                     attributeEntityTypes: $this->manifest->attributeEntityTypes,
-                    nativeCommandProviders: $this->manifest->nativeCommandProviders,
+                    consoleCommandProviders: $this->manifest->consoleCommandProviders,
                 );
             }
         };

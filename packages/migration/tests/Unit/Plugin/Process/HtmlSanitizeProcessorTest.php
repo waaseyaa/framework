@@ -152,6 +152,76 @@ final class HtmlSanitizeProcessorTest extends TestCase
     /**
      * @param array<string, mixed> $fields
      */
+    #[Test]
+    public function strips_javascript_href(): void
+    {
+        $p = new HtmlSanitizeProcessor('body');
+        $result = $p->transform(null, $this->context([
+            'body' => '<a href="javascript:alert(document.cookie)">click</a>',
+        ]));
+
+        self::assertIsString($result);
+        self::assertStringNotContainsString('javascript:', $result);
+        self::assertStringNotContainsString('href', $result);
+        self::assertStringContainsString('click', $result);
+    }
+
+    #[Test]
+    public function strips_data_uri_image_src(): void
+    {
+        $p = new HtmlSanitizeProcessor('body');
+        $result = $p->transform(null, $this->context([
+            'body' => '<img src="data:text/html;base64,PHNjcmlwdD4=" alt="x">',
+        ]));
+
+        self::assertIsString($result);
+        self::assertStringNotContainsString('data:', $result);
+        self::assertStringNotContainsString('src', $result);
+    }
+
+    #[Test]
+    public function strips_vbscript_href(): void
+    {
+        $p = new HtmlSanitizeProcessor('body');
+        $result = $p->transform(null, $this->context([
+            'body' => '<a href="vbscript:msgbox(1)">x</a>',
+        ]));
+
+        self::assertIsString($result);
+        self::assertStringNotContainsString('vbscript', $result);
+    }
+
+    #[Test]
+    public function strips_obfuscated_javascript_scheme(): void
+    {
+        $p = new HtmlSanitizeProcessor('body');
+        // Mixed case + an embedded tab — browsers ignore both when resolving the scheme.
+        $result = $p->transform(null, $this->context([
+            'body' => "<a href=\"Ja\tVaScRiPt:alert(1)\">x</a>",
+        ]));
+
+        self::assertIsString($result);
+        self::assertStringNotContainsStringIgnoringCase('javascript', $result);
+        self::assertStringNotContainsString('href', $result);
+    }
+
+    #[Test]
+    public function preserves_relative_mailto_and_fragment_hrefs(): void
+    {
+        $p = new HtmlSanitizeProcessor('body');
+
+        $relative = $p->transform(null, $this->context(['body' => '<a href="/docs/page">x</a>']));
+        $mailto = $p->transform(null, $this->context(['body' => '<a href="mailto:a@b.com">x</a>']));
+        $fragment = $p->transform(null, $this->context(['body' => '<a href="#section">x</a>']));
+
+        self::assertIsString($relative);
+        self::assertStringContainsString('href="/docs/page"', $relative);
+        self::assertIsString($mailto);
+        self::assertStringContainsString('href="mailto:a@b.com"', $mailto);
+        self::assertIsString($fragment);
+        self::assertStringContainsString('href="#section"', $fragment);
+    }
+
     private function context(array $fields): ProcessContext
     {
         return new ProcessContext(

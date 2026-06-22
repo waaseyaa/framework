@@ -18,10 +18,10 @@ use Waaseyaa\Foundation\Http\LanguagePathStripperInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasGraphqlMutationOverridesInterface;
-use Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasRenderCacheListenersInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProviderInterface;
 
@@ -78,7 +78,7 @@ final class ServiceProviderContractTest extends TestCase
         'withMigrationProviders' => AcceptsMigrationProvidersInterface::class,
         'stripLanguagePrefixForRouting' => LanguagePathStripperInterface::class,
         'graphqlMutationOverrides' => HasGraphqlMutationOverridesInterface::class,
-        'nativeCommands' => HasNativeCommandsInterface::class,
+        'consoleCommands' => ProvidesConsoleCommandsInterface::class,
         'registerRenderCacheListeners' => HasRenderCacheListenersInterface::class,
         'configureHttpKernel' => ConfiguresHttpKernelInterface::class,
         'middleware' => HasMiddlewareInterface::class,

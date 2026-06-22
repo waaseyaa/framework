@@ -217,7 +217,7 @@ function findOffenders(array $scanDirs, string $repoRoot): array
                 }
 
                 // Unbound callsite found
-                $relPath = ltrim(str_replace($repoRoot, '', $filePath), '/');
+                $relPath = str_replace('\\', '/', ltrim(str_replace($repoRoot, '', $filePath), '/\\'));
                 $lineNumber = $i + 1; // 1-based
                 $offenders[] = $relPath . ':' . $lineNumber;
             }

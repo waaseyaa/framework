@@ -1,36 +1,38 @@
 ---
-work_package_id: "WP02"
-title: "GraphQL README banner + manifest demotion from full to suggest"
-dependencies: ["WP01"]
+work_package_id: WP02
+title: GraphQL README banner + manifest demotion from full to suggest
+dependencies: [WP01]
 requirement_refs:
-  - "FR-004"
-  - "FR-005"
-  - "FR-006"
-  - "FR-007"
-  - "NFR-001"
-  - "NFR-002"
-  - "C-001"
-  - "C-002"
-  - "C-003"
-planning_base_branch: "main"
-merge_target_branch: "main"
-branch_strategy: "Planning artifacts for this mission were generated on main. WP02 depends on WP01 (the JSON:API primary declaration is the canonical reference the GraphQL banner points at). May run in parallel with WP03 after WP01 lands."
+- FR-004
+- FR-005
+- FR-006
+- FR-007
+- NFR-001
+- NFR-002
+- C-001
+- C-002
+- C-003
+planning_base_branch: main
+merge_target_branch: main
+branch_strategy: Planning artifacts for this mission were generated on main. WP02 depends on WP01 (the JSON:API primary declaration is the canonical reference the GraphQL banner points at). May run in parallel with WP03 after WP01 lands.
 subtasks:
-  - "T003"
-  - "T004"
-  - "T005"
-phase: "Phase 2 - Manifest + README"
-assignee: ""
-agent: ""
-shell_pid: ""
-authoritative_surface: "packages/graphql/README.md"
-execution_mode: "documentation"
-owned_files:
-  - "packages/graphql/README.md"
-  - "packages/full/composer.json"
-  - "packages/graphql/composer.json"
-  - "composer.lock"
+- T003
+- T004
+- T005
+phase: Phase 2 - Manifest + README
+assignee: ''
+agent: ''
+shell_pid: ''
 history: []
+authoritative_surface: packages/graphql/README.md
+execution_mode: documentation
+mission_id: 01KSEFTVFWVRP1AJ1GH2AJDB9P
+owned_files:
+- packages/graphql/README.md
+- packages/full/composer.json
+- packages/graphql/composer.json
+- composer.lock
+wp_code: WP02
 ---
 
 # WP02 — GraphQL README banner + manifest demotion from full to suggest

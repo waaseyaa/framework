@@ -3,6 +3,12 @@
 // Authoritative disposition map for all public API elements.
 // Format: 'Fully\Qualified\ClassName' => 'public|internal|extract|remove'
 // This file is verified by PublicSurfaceVerificationTest.
+//
+// Scope (audit C-16): tracks contract shapes only — interfaces, abstract classes,
+// traits, enums (the public extension surface). Concrete final/plain classes are
+// implementations, not extension points, and are intentionally NOT listed. The
+// vocabulary is binary public|internal, not the charter's aborted 3-tier model
+// (audit C-15). See docs/specs/stability-charter.md §2.
 
 declare(strict_types=1);
 
@@ -40,7 +46,8 @@ return [
     // constructor-parameter resolution for policies that need kernel services.
     'Waaseyaa\Foundation\Kernel\Bootstrap\PolicyDependencyResolverInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface' => 'public',
-    'Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface' => 'public',
+    'Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface' => 'public',
+    'Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\HasGraphqlMutationOverridesInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface' => 'public',
@@ -203,8 +210,8 @@ return [
     // WP06 — definition validator
     'Waaseyaa\EntityStorage\Query\DefinitionValidator' => 'public',
     // WP07 — revisionable entities (entity package)
+    // ('Waaseyaa\Entity\RevisionableEntityTrait' is listed once in the Layer-1 public block above.)
     'Waaseyaa\Entity\RevisionableEntityInterface' => 'public',
-    'Waaseyaa\Entity\RevisionableEntityTrait' => 'public',
     'Waaseyaa\Entity\RevisionMetadata' => 'public',
     'Waaseyaa\EntityStorage\Schema\RevisionTableBuilder' => 'public',
     // WP08 — revisionable storage
@@ -241,11 +248,15 @@ return [
     'Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy' => 'public',
     'Waaseyaa\Access\Policy\RevisionPolicyComposition' => 'public',
     'Waaseyaa\Access\AccountInterface' => 'public',
+    // Acting-account context (mission #1644/#1645): request-scoped holder read
+    // by entity-storage (revision author) and audit (actor attribution).
+    'Waaseyaa\Access\Context\AccountContextInterface' => 'public',
     'Waaseyaa\Access\AccessPolicyInterface' => 'public',
     'Waaseyaa\Access\ContextAwareAccessPolicyInterface' => 'public',
     'Waaseyaa\Access\FieldAccessPolicyInterface' => 'public',
     'Waaseyaa\Access\PermissionHandlerInterface' => 'public',
     'Waaseyaa\Access\Gate\GateInterface' => 'public',
+    'Waaseyaa\Access\Gate\ListingFastPathProbeInterface' => 'public',
     'Waaseyaa\Access\AccessStatus' => 'public',
     'Waaseyaa\Auth\Config\MailMissingPolicy' => 'public',
     'Waaseyaa\Config\ConfigInterface' => 'public',
@@ -331,6 +342,7 @@ return [
     // Layer 3: Services — public
     'Waaseyaa\Search\SearchProviderInterface' => 'public',
     'Waaseyaa\Search\SearchIndexerInterface' => 'public',
+    'Waaseyaa\Search\BatchSearchIndexerInterface' => 'public',
     'Waaseyaa\Search\SearchIndexableInterface' => 'public',
     'Waaseyaa\Notification\NotificationInterface' => 'public',
     'Waaseyaa\Notification\NotifiableInterface' => 'public',
@@ -344,8 +356,12 @@ return [
     'Waaseyaa\Migration\Discovery\HasMigrationPluginsInterface' => 'public',
     // Migration platform discovery / dependency graph (mission migration-platform-v1-01KRCDE9 WP02).
     'Waaseyaa\Migration\Discovery\HasMigrationsInterface' => 'public',
-    // Migration content-model derivation contract.
-    'Waaseyaa\Migration\ContentModel\DerivesContentModelInterface' => 'public',
+    // Migration content-model derivation contract. UNWIRED scaffolding (audit C-5):
+    // the ContentModelRegistrar is bound by no ServiceProvider and deriveContentModel()
+    // has no callers; the kernel capability bus dispatches HasMigrationsInterface only.
+    // Demoted to 'internal' (shipped but unsupported) until wired; see
+    // docs/specs/migration-platform.md "Unwired scaffolding".
+    'Waaseyaa\Migration\ContentModel\DerivesContentModelInterface' => 'internal',
     // Migration platform DTOs / value objects (mission migration-platform-v1-01KRCDE9 WP01..WP04).
     'Waaseyaa\Migration\MigrationDefinition' => 'public',
     'Waaseyaa\Migration\SourceId' => 'public',
@@ -455,17 +471,19 @@ return [
 
     // Layer 6: Interfaces — public
     'Waaseyaa\CLI\Ingestion\SourceConnectorInterface' => 'public',
-    // WP04: native CLI kernel
-    'Waaseyaa\CLI\CliKernel' => 'public',
-    'Waaseyaa\CLI\Provider\CliKernelServiceProvider' => 'public',
     'Waaseyaa\AdminSurface\Action\SurfaceActionHandlerInterface' => 'public',
     'Waaseyaa\AdminSurface\Query\SurfaceFilterOperator' => 'public',
     'Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost' => 'public',
-    'Waaseyaa\Bimaaji\Graph\GraphSectionProviderInterface' => 'public',
+    // ('Waaseyaa\Bimaaji\Graph\GraphSectionProviderInterface' is listed once in the Layer-5 public block above.)
     'Waaseyaa\Mcp\Bridge\ToolExecutorInterface' => 'public',
     'Waaseyaa\Mcp\Bridge\ToolRegistryInterface' => 'public',
     'Waaseyaa\Mcp\Auth\McpAuthInterface' => 'public',
     'Waaseyaa\Mcp\Admin\RecentInvocationsQueryInterface' => 'public',
+    // Wayfinding Phase 5 (wayfinding-01KVGH5X): authenticated MCP write tier.
+    // WriteTierAuthInterface is the app override point for write-tier credentials;
+    // AbstractTrailTool is the internal shared base for the wayfinding trail tools.
+    'Waaseyaa\Mcp\Auth\WriteTierAuthInterface' => 'public',
+    'Waaseyaa\AI\Agent\Tool\Wayfinding\AbstractTrailTool' => 'internal',
     'Waaseyaa\Oidc\Keys\OidcKeyLoaderInterface' => 'public',
     'Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface' => 'public',
     'Waaseyaa\Oidc\Token\KeyMaterialProviderInterface' => 'public',
@@ -482,15 +500,6 @@ return [
     // Layer 3: Services — public (single-entity-work-surface-01KQ7M1P)
     'Waaseyaa\StructuredImport\StructuredImporterInterface' => 'public',
 
-    // Layer 6: CLI native kernel — WP02 (native-cli-kernel-01KR2NR7)
-    'Waaseyaa\CLI\ArgumentMode' => 'public',
-    'Waaseyaa\CLI\CliIO' => 'public',
-    'Waaseyaa\CLI\OptionMode' => 'public',
-    'Waaseyaa\CLI\Parser\ParseErrorKind' => 'public',
-
-    // Layer 6: CLI native kernel — WP03 (native-cli-kernel-01KR2NR7)
-    'Waaseyaa\CLI\Io\CliInput' => 'public',
-    'Waaseyaa\CLI\Io\CliOutput' => 'public',
     'Waaseyaa\CLI\Io\StdinSource' => 'public',
 
     // Layer 6: Interfaces — internal
@@ -499,6 +508,8 @@ return [
     'Waaseyaa\Telescope\CodifiedContext\Storage\CodifiedContextStoreInterface' => 'internal',
     'Waaseyaa\CLI\Command\Make\AbstractMakeCommand' => 'internal',
     'Waaseyaa\CLI\Command\Make\AbstractMakeHandler' => 'internal',
+    'Waaseyaa\CLI\Command\HandlerArgumentMode' => 'public',
+    'Waaseyaa\CLI\Command\HandlerOptionMode' => 'public',
     'Waaseyaa\Mcp\Tools\McpTool' => 'internal',
     'Waaseyaa\SSR\Http\AppController\AppControllerArgumentResolver' => 'public',
     'Waaseyaa\SSR\Http\AppController\AppParameterKind' => 'public',

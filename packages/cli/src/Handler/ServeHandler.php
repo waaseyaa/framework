@@ -4,11 +4,34 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 
+/**
+ * `waaseyaa serve` — a single-worker `php -S` development server.
+ *
+ * This is a zero-config convenience for local development ONLY. It is the plain
+ * PHP built-in server; the framework never wraps a concurrent runtime binary
+ * (the Symfony/Laravel/Drupal convention). In particular it is:
+ *
+ *   - NOT for production, and
+ *   - NOT the right runtime for the admin SPA's concurrent SSE
+ *     (`/api/broadcast`). PHP's built-in server is single-worker by default, so
+ *     one long-lived SSE stream pins the sole worker and blocks everything else.
+ *     We default `PHP_CLI_SERVER_WORKERS` to {@see DEFAULT_SERVER_WORKERS} to
+ *     soften that on POSIX, but the knob is `fork()`-gated and ignored on
+ *     Windows.
+ *
+ * For a concurrent runtime, launch FrankenPHP natively against the committed
+ * `config/frankenphp/Caddyfile` (worker mode) — see the skeleton `README.md`
+ * and `docs/specs/operations-playbooks.md`. The runtime adapter that makes the
+ * app boot under FrankenPHP lives in `public/index.php`, not here.
+ */
 final class ServeHandler
 {
     public function __construct(private readonly string $projectRoot) {}
+
+    /** Worker count the PHP built-in server runs with unless the caller overrides it. */
+    public const string DEFAULT_SERVER_WORKERS = '4';
 
     /**
      * Build the environment the PHP child server will run under.
@@ -16,6 +39,12 @@ final class ServeHandler
      * If the caller hasn't set APP_ENV, default to development and force
      * APP_DEBUG=1 so dev-mode database auto-creation and boot-error
      * visibility kick in. All other parent env vars pass through.
+     *
+     * PHP's built-in server is single-worker by default, which deadlocks against
+     * the admin SPA's long-lived SSE connection (`/api/broadcast`): that one
+     * stream pins the sole worker and every other request blocks. So when the
+     * caller hasn't set PHP_CLI_SERVER_WORKERS we default it to
+     * {@see DEFAULT_SERVER_WORKERS} — no reliance on a composer/shell wrapper.
      *
      * @param array<string, string> $parentEnv
      * @return array<string, string>
@@ -29,10 +58,14 @@ final class ServeHandler
             $env['APP_DEBUG'] = '1';
         }
 
+        if (!isset($env['PHP_CLI_SERVER_WORKERS']) || $env['PHP_CLI_SERVER_WORKERS'] === '') {
+            $env['PHP_CLI_SERVER_WORKERS'] = self::DEFAULT_SERVER_WORKERS;
+        }
+
         return $env;
     }
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $host = $io->option('host') ?? (getenv('APP_HOST') !== false ? getenv('APP_HOST') : '0.0.0.0');
         $port = $io->option('port') ?? (getenv('APP_PORT') !== false ? getenv('APP_PORT') : '8080');
@@ -57,7 +90,12 @@ final class ServeHandler
         }
 
         $displayHost = $host === '0.0.0.0' ? 'localhost' : (string) $host;
-        $io->writeln(sprintf('Waaseyaa development server started: http://%s:%s', $displayHost, $port));
+        $io->writeln(sprintf('Waaseyaa development server (php -S, single-worker) started: http://%s:%s', $displayHost, $port));
+        $io->writeln(sprintf(
+            'Concurrency: %s PHP worker(s) (PHP_CLI_SERVER_WORKERS; ignored on Windows). For the admin SPA\'s '
+            . 'concurrent SSE — or any production traffic — launch FrankenPHP natively (config/frankenphp/Caddyfile).',
+            $env['PHP_CLI_SERVER_WORKERS'] ?? '1',
+        ));
         $io->writeln('Press Ctrl+C to stop.');
 
         $process = proc_open(

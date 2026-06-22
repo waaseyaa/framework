@@ -94,6 +94,14 @@ final class Worker
      */
     private function processJob(array $raw, string $queue, WorkerOptions $options): void
     {
+        // Trust boundary (D-12): payloads are serialized job messages this same
+        // application enqueued into the server-controlled queue transport — never
+        // request-derived. We must restore arbitrary consumer-defined message
+        // objects (no marker interface; dispatched to HandlerInterface and tested
+        // with `instanceof Job`), so `allowed_classes => false` cannot be used here.
+        // Object-injection hardening for stored payloads (HMAC integrity signing)
+        // is tracked tech-debt — see docs/specs/infrastructure.md "Stored-payload
+        // unserialize() trust boundary (D-12)".
         try {
             $message = @unserialize($raw['payload']);
         } catch (\Throwable $e) {

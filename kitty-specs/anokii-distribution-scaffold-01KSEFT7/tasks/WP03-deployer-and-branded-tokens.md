@@ -21,6 +21,7 @@ agent: ''
 history: []
 authoritative_surface: deploy.php
 execution_mode: code_change
+mission_id: 01KSEFT768GN09JZXHWMAMJNFR
 owned_files:
 - deploy.php
 - config/classification.anokii-default.yaml
@@ -28,6 +29,7 @@ owned_files:
 - assets/theme/anokii-tokens.css
 - CHANGELOG.md
 tags: []
+wp_code: WP03
 ---
 
 # WP03 — Deployer recipe overlay + branded UX baseline

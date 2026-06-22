@@ -5,21 +5,25 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Dispatched by release-cut.yml on its gate branch so the exact release
+  # commit is CI-proven BEFORE the tag is created (red-at-tag fix, alpha.202
+  # post-mortem). Manual dispatch on any ref is also fine.
+  workflow_dispatch:
 
 jobs:
   composer-policy:
     name: composer-policy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-tags: true  # fetch-tags: required for CP-NEW (composer-internal-version-sweep WP03)
 
       - name: Enforce composer policy
-        run: bash bin/check-composer-policy
+        run: php bin/check-composer-policy
 
       - name: Enforce package layer graph
-        run: bash bin/check-package-layers
+        run: php bin/check-package-layers
 
       - name: Audit require-dev layer graph (warn-only)
         run: bash bin/audit-require-dev-layers
@@ -28,7 +32,7 @@ jobs:
     name: composer-deps-audit (warn-only)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -51,20 +55,24 @@ jobs:
 
   spec-drift:
     name: spec-drift
+    # Doc-code coupling is a pull-request concern (like changelog-discipline):
+    # it asks "did this PR update the spec alongside the source?". There is no
+    # such question to ask on a post-merge push to main, so skip it there.
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Check for stale specs
-        run: bash tools/drift-detector.sh 5
+        run: bash tools/drift-detector.sh "origin/${{ github.base_ref }}"
 
   ci-lint:
     name: ci/lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -118,7 +126,7 @@ jobs:
     name: check-dead-code
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -149,7 +157,7 @@ jobs:
             phpstan-dead-code-cache-${{ hashFiles('tools/phpstan/WaaseyaaEntrypointProvider.php', 'phpstan-dead-code.neon', 'phpstan-dead-code-baseline.neon', 'phpstan.neon') }}-
 
       - name: Run dead-code check (fails on new findings)
-        run: bash bin/check-dead-code
+        run: php bin/check-dead-code
 
       - name: Save dead-code PHPStan result cache
         uses: actions/cache/save@v5
@@ -162,7 +170,7 @@ jobs:
     name: ci/unit-tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -202,7 +210,7 @@ jobs:
     name: ci/skeleton-create-project
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -227,7 +235,7 @@ jobs:
     name: packaged-form
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -251,12 +259,113 @@ jobs:
         working-directory: tests/PackagedForm/skeleton
         run: ./vendor/bin/phpunit --configuration phpunit.xml.dist
 
+  core-only-boot:
+    # Boots the kernel from a consumer that requires ONLY waaseyaa/core, installed via a path
+    # repository so it tests the SOURCE core metapackage (no release lag). Guards the class of
+    # bug where core omits a fail-closed kernel boot dependency (e.g. waaseyaa/scheduler, fixed
+    # in this train) — the gap that source-tree co-resolution masks. See tests/CoreOnlyBoot/boot.php.
+    name: ci/core-only-boot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml
+          coverage: none
+
+      - name: Install waaseyaa/core alone and boot the kernel
+        run: |
+          set -euo pipefail
+          work=$(mktemp -d)
+          cleanup() { rm -rf "$work"; }
+          trap cleanup EXIT
+          # CI checks out a detached merge ref, so the packages/* path repos are version-guessed
+          # as a bare dev-<sha> pseudo-version that matches no numeric constraint. Put HEAD on a
+          # local `main` so they resolve via the existing dev-main -> 0.1.x-dev branch-alias and
+          # satisfy the internal ^<tag> sibling constraints (the canonical path repo otherwise
+          # blocks Packagist fallback). Tree is unchanged — same commit, so the checkout is clean.
+          git -C "$GITHUB_WORKSPACE" checkout -B main
+          printf '{"name":"waaseyaa/core-only-boot-fixture","type":"project","require":{"waaseyaa/core":"*"},"repositories":[{"type":"path","url":"%s/packages/*","options":{"symlink":false}}],"minimum-stability":"dev","prefer-stable":true}\n' "$GITHUB_WORKSPACE" > "$work/composer.json"
+          composer install --working-dir "$work" --no-interaction
+          test -d "$work/vendor/waaseyaa/scheduler" || { echo "::error::core-only install did not pull waaseyaa/scheduler (core metapackage is missing a fail-closed kernel boot dependency)"; exit 1; }
+          mkdir -p "$work/config" "$work/config/sync" "$work/storage" "$work/storage/files"
+          cp "$GITHUB_WORKSPACE/skeleton/config/waaseyaa.php" "$work/config/waaseyaa.php"
+          printf 'APP_ENV=local\nAPP_DEBUG=false\n' > "$work/.env"
+          cp "$GITHUB_WORKSPACE/tests/CoreOnlyBoot/boot.php" "$work/boot.php"
+          php "$work/boot.php"
+
+  verify-gates:
+    name: ci/verify-gates
+    # The permanent "verify-only" boundary gates that `composer verify` runs but CI
+    # historically did NOT, so they could not gate PRs (audit C-17 — CI was a strict subset
+    # of verify). Wired here after confirming each green at HEAD. Run via the `composer
+    # <script>` aliases so this job stays byte-identical to what `composer verify` enforces.
+    # (check-phpstan-paths — the PHPStan coverage invariant — was added for audit C-19.)
+    #
+    # check-external-consumers is intentionally NOT here: it is a mission-scoped pre-deletion
+    # tripwire (WP01 ai-tools migration, key 'ai-agent-orphans'), not a permanent invariant —
+    # its accessCheck(false) scan flags legitimate system-context usage framework-wide
+    # (northcloud/seo/path/user/groups/field) because its excludes snapshot went stale. It was
+    # reclassified out of `composer verify` so verify == this CI gate set; run it on demand via
+    # `composer check-external-consumers`. See roadmap triage for the retire/narrow follow-up.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml
+          coverage: none
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v5
+        with:
+          path: vendor
+          key: composer-v2-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-v2-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run the permanent verify-only boundary gates
+        run: |
+          set -uo pipefail
+          fail=0
+          run_gate() {
+            echo "::group::composer $1"
+            if composer "$1"; then
+              echo "PASS: $1"
+            else
+              echo "::error::verify gate failed: composer $1"
+              fail=1
+            fi
+            echo "::endgroup::"
+          }
+          run_gate check-phpstan-paths
+          run_gate check-distribution-extensions
+          run_gate check-symfony-imports
+          run_gate check-getquery-bindings
+          run_gate check-admin-coercion-patterns
+          run_gate check-admin-coercion-self-test
+          run_gate check-openapi
+          exit "$fail"
+
   ci-playwright-smoke:
     name: ci/playwright-smoke
     runs-on: ubuntu-latest
     needs: [frontend-build]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -335,7 +444,7 @@ jobs:
       run:
         working-directory: packages/admin
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -371,7 +480,7 @@ jobs:
     name: Manifest conformance
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Validate defaults manifests have project_versioning
         run: |
@@ -418,7 +527,7 @@ jobs:
     name: Ingestion defaults
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Validate ingestion schema metadata and compatibility rules
         run: bash bin/check-ingestion-defaults
 
@@ -426,7 +535,7 @@ jobs:
     name: Security defaults
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Check no secrets in defaults/
         run: bash bin/check-no-secrets

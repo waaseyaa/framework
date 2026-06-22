@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Command\Config;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Config\Exception\ConfigSerializationException;
 use Waaseyaa\Config\Sync\ConfigExporter;
 use Waaseyaa\Config\Sync\ConfigExportFileResult;
@@ -43,7 +43,7 @@ final class ConfigExportCommand
         private readonly ConfigExporter $exporter,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $diff = (bool) $io->option('diff');
         $dryRun = (bool) $io->option('dry-run');

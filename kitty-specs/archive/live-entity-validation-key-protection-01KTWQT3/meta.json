@@ -1,0 +1,13 @@
+{
+  "created_at": "2026-06-12T01:40:41.551294+00:00",
+  "friendly_name": "Live Entity Validation & Key Protection",
+  "mission_id": "01KTWQT3NNRQDGER2BR699SNM2",
+  "mission_number": 6,
+  "mission_slug": "live-entity-validation-key-protection-01KTWQT3",
+  "mission_type": "software-dev",
+  "slug": "live-entity-validation-key-protection-01KTWQT3",
+  "source_description": "Framework issues #1643 (save-time validation dormant framework-wide) and #1646 (agent tools write entity-key fields verbatim). Sprint Mission 1; target release v0.1.0-alpha.204.",
+  "target_branch": "main",
+  "vcs": "git",
+  "vcs_locked_at": "2026-06-12T01:54:42.801163+00:00"
+}

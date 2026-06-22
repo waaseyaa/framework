@@ -147,6 +147,33 @@ final class NcSyncServiceTest extends TestCase
     }
 
     #[Test]
+    public function dedupQueryBindsAccessCheckFalse(): void
+    {
+        // Regression for B-5: the dedup-existence query must be bound with accessCheck(false).
+        // Otherwise the real SqlEntityStorage (accessCheckEnabled defaults true, no account in
+        // a background sync) throws MissingQueryAccountException and deduplication silently fails.
+        $client = $this->stubClient(['hits' => [['id' => 'a']], 'total_hits' => 1]);
+
+        $query = $this->createMock(EntityQueryInterface::class);
+        $query->expects($this->once())->method('accessCheck')->with(false)->willReturnSelf();
+        $query->method('condition')->willReturnSelf();
+        $query->method('execute')->willReturn([$this->createStub(EntityInterface::class)]);
+
+        $registry = new MapperRegistry();
+        $registry->register(new FakeMapper(dedup: 'source_url', map: ['source_url' => 'https://x', 'title' => 'T']));
+
+        $service = new NcSyncService(
+            $client,
+            $this->stubEntityTypeManager(['thing' => $this->stubStorage($query)]),
+            $registry,
+        );
+
+        $result = $service->sync();
+
+        $this->assertSame(1, $result->skipped);
+    }
+
+    #[Test]
     public function dedupFieldMissingFromMapThrowsLogicException(): void
     {
         $client = $this->stubClient(['hits' => [['id' => 'a']], 'total_hits' => 1]);
@@ -304,6 +331,7 @@ final class NcSyncServiceTest extends TestCase
     private function stubQuery(array $results): EntityQueryInterface
     {
         $query = $this->createMock(EntityQueryInterface::class);
+        $query->method('accessCheck')->willReturnSelf();
         $query->method('condition')->willReturnSelf();
         $query->method('execute')->willReturn($results);
         return $query;

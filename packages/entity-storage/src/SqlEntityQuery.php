@@ -644,6 +644,19 @@ final class SqlEntityQuery implements EntityQueryInterface
 
     /**
      * Deterministic fingerprint for {@see SqlEntityQueryResultCache}.
+     *
+     * Security (C-010): the cached result of a query is a function of the
+     * access dimension as well as the SQL shape. An access-filtered list is
+     * account-specific, so the account MUST discriminate the key when access
+     * checking is on — otherwise account B can be served account A's filtered
+     * survivors, or a system-context accessCheck(false) unfiltered list can be
+     * served to an access-checked caller (cross-account / filter-bypass leak).
+     * We always fold in accessCheckEnabled; we fold in a per-account
+     * discriminator only when access checking is on. When it is off the result
+     * is account-independent, so every accessCheck(false) caller emits the same
+     * `account => null` and legitimately shares one cache key. The throw at the
+     * top of execute() guarantees accessCheckEnabled is never true with a null
+     * account, so the discriminator is always present when it matters.
      */
     private function buildCacheFingerprint(): string
     {
@@ -653,6 +666,10 @@ final class SqlEntityQuery implements EntityQueryInterface
             'rangeOffset' => $this->rangeOffset,
             'rangeLimit' => $this->rangeLimit,
             'isCount' => $this->isCount,
+            'accessCheck' => $this->accessCheckEnabled,
+            'account' => $this->accessCheckEnabled && $this->account !== null
+                ? [$this->account->id(), $this->account::class]
+                : null,
         ];
 
         return hash('xxh128', json_encode($payload, JSON_THROW_ON_ERROR));

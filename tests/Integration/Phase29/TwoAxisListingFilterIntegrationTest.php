@@ -199,6 +199,21 @@ final class TwoAxisListingFilterIntegrationTest extends TestCase
             {
                 throw new \LogicException('not used');
             }
+
+            public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int
+            {
+                throw new \LogicException('not used');
+            }
+
+            public function loadTranslation(string $entityId, string $langcode): ?EntityInterface
+            {
+                throw new \LogicException('not used');
+            }
+
+            public function listTranslationRevisions(string $entityId, string $langcode): array
+            {
+                throw new \LogicException('not used');
+            }
         };
     }
 

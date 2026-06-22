@@ -22,10 +22,12 @@ base_branch: kitty/mission-ai-observability-dashboard-01KSE9BX
 base_commit: c8c31f146eac38d1dbb757cddd4345db19ecbaae
 created_at: '2026-05-25T01:18:16.156123+00:00'
 subtasks: []
-shell_pid: "450032"
+agent: claude:opus:reviewer:reviewer
+shell_pid: '450032'
 history: []
 authoritative_surface: packages/api/src/AiObservability
 execution_mode: code_change
+mission_id: 01KSE9BXVFDDBGCPZ4KN1F8YPM
 owned_files:
 - packages/api/src/AiObservability/AiObservabilityReadModelInterface.php
 - packages/api/src/AiObservability/ObservabilitySummary.php
@@ -43,7 +45,7 @@ owned_files:
 - packages/foundation/src/Kernel/BuiltinRouteRegistrar.php
 - tests/Integration/PhaseAiObservability/AiObservabilityDashboardEndpointTest.php
 tags: []
-agent: "claude:opus:reviewer:reviewer"
+wp_code: WP01
 ---
 
 # WP01 — Backend: read contract, adapter, binding, route, kernel-boot test (M5A)

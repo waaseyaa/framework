@@ -9,7 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Waaseyaa\CLI\Command\Config\ConfigValidateCommand;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
 use Waaseyaa\Config\Sync\ConfigSyncRepository;
@@ -155,9 +155,9 @@ final class ConfigValidateCommandTest extends TestCase
         );
     }
 
-    private function commandDefinition(): CommandDefinition
+    private function commandDefinition(): HandlerCommand
     {
-        return new CommandDefinition(
+        return new HandlerCommand(
             name: 'config:validate',
             description: 'Validate every sync-store file against entity-type field constraints (FR-037).',
             options: [],

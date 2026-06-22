@@ -1,9 +1,17 @@
 # Cookbook — Translatable + Revisionable Entities (Two-Axis Storage)
 
+> **⚠️ Uses the retired M-004 `vid` model in places.** The live two-axis model
+> unifies onto `EntityRepository`'s `revision_id` system (not the `vid` surrogate)
+> — canonical doctrine is now
+> [`../specs/revision-system-unified.md`](../specs/revision-system-unified.md).
+> Declare the revision key as `'revision' => 'revision_id'` (not `'vid'`) and edit
+> translations via `EntityRepository::saveTranslation()` / `loadTranslation()` /
+> `listTranslationRevisions()`; the `vid` / `<entity>__revision` /
+> `SaveContext::withTranslations` shapes below are the M-004 design, retained for
+> context.
+>
 > **Operator and integrator guide for entity types that are BOTH revisionable
-> AND translatable.** Canonical doctrine lives at
-> [`../specs/entity-storage-two-axis.md`](../specs/entity-storage-two-axis.md);
-> charter linkage is §5.3.
+> AND translatable.** Charter linkage is §5.3.
 
 This cookbook walks the full lifecycle: declaration → save (single + atomic
 multi-language) → load → migrate → prune. The worked example is Minoo
@@ -44,7 +52,7 @@ $entityTypeManager->addEntityType(new EntityType(
         'id'               => 'tid',
         'uuid'             => 'uuid',
         'label'            => 'title',
-        'revision'         => 'vid',
+        'revision'         => 'revision_id',
         'default_langcode' => 'default_langcode',  // required for translatable
     ],
     revisionable: true,

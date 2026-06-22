@@ -56,7 +56,8 @@ final class LayerDependencyTest extends TestCase
     #[Test]
     public function foundationHttpLayerOutsideRouterDoesNotImportNonFoundationWaaseyaaPackages(): void
     {
-        $httpSrc = dirname(__DIR__, 2) . '/src/Http';
+        $srcRoot = $this->normalizePath(dirname(__DIR__, 2) . '/src');
+        $httpSrc = $srcRoot . '/Http';
         $httpRouterDir = $httpSrc . '/Router';
         $httpInboundDir = $httpSrc . '/Inbound';
         $violations = [];
@@ -72,8 +73,8 @@ final class LayerDependencyTest extends TestCase
             if ($file->getExtension() !== 'php') {
                 continue;
             }
-            $path = $file->getPathname();
-            if (str_starts_with($path, $httpRouterDir . \DIRECTORY_SEPARATOR)) {
+            $path = $this->normalizePath($file->getPathname());
+            if (str_starts_with($path, $httpRouterDir . '/')) {
                 continue;
             }
             // Http/Inbound/ hosts cross-layer read-model adapters (M5D pattern):
@@ -81,7 +82,7 @@ final class LayerDependencyTest extends TestCase
             // by per-feature service providers. Exempt for the same reason as
             // Http/Router/ — the directory is the documented cross-layer surface.
             // Also enumerated in bin/check-package-layers under its INBOUND_EXEMPT set.
-            if (str_starts_with($path, $httpInboundDir . \DIRECTORY_SEPARATOR)) {
+            if (str_starts_with($path, $httpInboundDir . '/')) {
                 continue;
             }
 
@@ -92,12 +93,12 @@ final class LayerDependencyTest extends TestCase
 
             if (preg_match_all('/^\s*use\s+Waaseyaa\\\\(?!Foundation\\\\)[^;]+;/m', $contents, $matches)) {
                 foreach ($matches[0] as $line) {
-                    $violations[] = str_replace(dirname(__DIR__, 2) . '/src/', '', $path) . ': ' . trim($line);
+                    $violations[] = str_replace($srcRoot . '/', '', $path) . ': ' . trim($line);
                 }
             }
             if (preg_match_all('/^\s*use\s+function\s+Waaseyaa\\\\(?!Foundation\\\\)[^;]+;/m', $contents, $fnMatches)) {
                 foreach ($fnMatches[0] as $line) {
-                    $violations[] = str_replace(dirname(__DIR__, 2) . '/src/', '', $path) . ': ' . trim($line);
+                    $violations[] = str_replace($srcRoot . '/', '', $path) . ': ' . trim($line);
                 }
             }
         }
@@ -108,5 +109,10 @@ final class LayerDependencyTest extends TestCase
             "Foundation Http/ outside Http/Router/ must not import Waaseyaa namespaces other than Waaseyaa\\Foundation\\\n"
             . implode("\n", $violations),
         );
+    }
+
+    private function normalizePath(string $path): string
+    {
+        return str_replace('\\', '/', $path);
     }
 }

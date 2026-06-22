@@ -64,23 +64,35 @@ final readonly class Result
         return $this->value;
     }
 
-    /** @return self<U, E> */
+    /**
+     * @template U
+     *
+     * @param \Closure(T): U $fn
+     *
+     * @return self<U, E>
+     */
     public function map(\Closure $fn): self
     {
         if (!$this->ok) {
-            return $this;
+            return new self(ok: false, value: $this->value);
         }
 
-        return self::ok($fn($this->value));
+        return new self(ok: true, value: $fn($this->value));
     }
 
-    /** @return self<T, F> */
+    /**
+     * @template F
+     *
+     * @param \Closure(E): F $fn
+     *
+     * @return self<T, F>
+     */
     public function mapError(\Closure $fn): self
     {
         if ($this->ok) {
-            return $this;
+            return new self(ok: true, value: $this->value);
         }
 
-        return self::fail($fn($this->value));
+        return new self(ok: false, value: $fn($this->value));
     }
 }

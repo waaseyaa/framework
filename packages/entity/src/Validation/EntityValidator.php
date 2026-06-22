@@ -23,6 +23,18 @@ final class EntityValidator
     ) {}
 
     /**
+     * Create a validator backed by Symfony's default validator.
+     *
+     * Intended for kernel wiring (research D1): the instance is stateless and
+     * safe to share across all repositories. Deliberately not cached statically
+     * — the kernel owns sharing.
+     */
+    public static function createDefault(): self
+    {
+        return new self(\Symfony\Component\Validator\Validation::createValidator());
+    }
+
+    /**
      * Validate an entity's values against the provided constraints.
      *
      * Values are read via {@see EntityInterface::get()}, which is part of the core

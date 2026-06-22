@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "mission_slug": "revision-audit-provenance-01KTWY5V",
+  "mission_id": "01KTWY5VRQH4QPFMCHX6BHX64F",
+  "mission_branch": "kitty/mission-revision-audit-provenance-01KTWY5V",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01",
+        "WP02",
+        "WP04",
+        "WP03",
+        "WP05"
+      ],
+      "write_scope": [
+        "CHANGELOG.md",
+        "docs/specs/access-control.md",
+        "docs/specs/mcp-endpoint.md",
+        "docs/specs/ocap-audit-log.md",
+        "docs/specs/revision-system-unified.md",
+        "packages/access/src/Context/AccountContextInterface.php",
+        "packages/access/src/Context/RequestAccountContext.php",
+        "packages/access/tests/Unit/Context/**",
+        "packages/ai-agent/**",
+        "packages/ai-observability/src/Event/AgentRunToolCallObserved.php",
+        "packages/ai-observability/tests/**",
+        "packages/audit/**",
+        "packages/entity-storage/src/Driver/RevisionableStorageDriver.php",
+        "packages/entity-storage/src/EntityRepository.php",
+        "packages/entity-storage/src/Event/RevisionPointerMovedEvent.php",
+        "packages/entity-storage/src/SaveContext.php",
+        "packages/entity-storage/src/SqlSchemaHandler.php",
+        "packages/entity-storage/tests/**",
+        "packages/entity/src/RevisionMetadata.php",
+        "packages/foundation/src/Kernel/AbstractKernel.php",
+        "packages/foundation/src/Kernel/Bootstrap/ProviderRegistry.php",
+        "packages/foundation/src/Kernel/Bootstrap/ProviderRegistryKernelServices.php",
+        "packages/foundation/src/Kernel/HttpKernel.php",
+        "packages/mcp/**",
+        "packages/user/src/Middleware/SessionMiddleware.php",
+        "packages/user/tests/**",
+        "tests/Integration/Provenance/**"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "artifact-rendering",
+        "dashboard",
+        "legacy-cleanup",
+        "tests",
+        "tracker-integration"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-06-12T04:19:47.815563+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": [],
+  "collapse_report": {
+    "events": [
+      {
+        "wp_a": "WP02",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP02 depends on WP01"
+      },
+      {
+        "wp_a": "WP03",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP03 depends on WP01"
+      },
+      {
+        "wp_a": "WP03",
+        "wp_b": "WP04",
+        "rule": "dependency",
+        "evidence": "WP03 depends on WP04"
+      },
+      {
+        "wp_a": "WP05",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP05 depends on WP01"
+      }
+    ],
+    "total_merges": 4,
+    "independent_wps_collapsed": 0,
+    "by_rule": {
+      "dependency": 4
+    }
+  }
+}

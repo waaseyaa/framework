@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Waaseyaa\User\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\User\User;
 use Waaseyaa\User\UserAccessPolicy;
 
@@ -219,6 +222,101 @@ final class UserAccessPolicyTest extends TestCase
 
         $result = $this->policy->access($user, 'unknown_op', $account);
         $this->assertTrue($result->isNeutral());
+    }
+
+    // -----------------------------------------------------------------
+    // Field access — B-1: JSON:API mass-assignment privilege escalation
+    // -----------------------------------------------------------------
+
+    public function testImplementsFieldAccessPolicyInterface(): void
+    {
+        $this->assertInstanceOf(FieldAccessPolicyInterface::class, $this->policy);
+    }
+
+    /**
+     * The core B-1 invariant. `access('update')` ALLOWS a non-admin to edit their own
+     * account, but the field gate must FORBID a privileged field — so the JSON:API write
+     * path (which 403s when checkFieldAccess() is Forbidden) refuses a self-PATCH of
+     * `roles: ['administrator']`. Without this, any authenticated user escalates to admin.
+     */
+    public function testNonAdminCannotEditOwnRoles(): void
+    {
+        $user = new User(['uid' => 5, 'name' => 'alice', 'status' => 1]);
+        $selfNonAdmin = $this->createAccount(5, []);
+
+        $this->assertTrue($this->policy->access($user, 'update', $selfNonAdmin)->isAllowed());
+        $this->assertTrue($this->policy->fieldAccess($user, 'roles', 'edit', $selfNonAdmin)->isForbidden());
+    }
+
+    #[DataProvider('privilegedFieldProvider')]
+    public function testNonAdminCannotEditPrivilegedField(string $field): void
+    {
+        $user = new User(['uid' => 5]);
+        $nonAdmin = $this->createAccount(5, []);
+
+        $this->assertTrue($this->policy->fieldAccess($user, $field, 'edit', $nonAdmin)->isForbidden());
+    }
+
+    /** @return list<array{string}> */
+    public static function privilegedFieldProvider(): array
+    {
+        return [['roles'], ['permissions'], ['status'], ['email_verified']];
+    }
+
+    public function testAdminMayEditPrivilegedFields(): void
+    {
+        $user = new User(['uid' => 5]);
+        $admin = $this->createAccount(1, ['administer users']);
+
+        $this->assertFalse($this->policy->fieldAccess($user, 'roles', 'edit', $admin)->isForbidden());
+        $this->assertFalse($this->policy->fieldAccess($user, 'permissions', 'edit', $admin)->isForbidden());
+    }
+
+    #[DataProvider('credentialFieldProvider')]
+    public function testCredentialFieldsForbiddenForEveryone(string $field, string $operation): void
+    {
+        $user = new User(['uid' => 5]);
+        // Even an administrator cannot touch credential / 2FA material through the generic surface.
+        $admin = $this->createAccount(1, ['administer users']);
+
+        $this->assertTrue($this->policy->fieldAccess($user, $field, $operation, $admin)->isForbidden());
+    }
+
+    /** @return list<array{string, string}> */
+    public static function credentialFieldProvider(): array
+    {
+        return [
+            ['pass', 'edit'],
+            ['pass', 'view'],
+            ['two_factor_secret', 'edit'],
+            ['two_factor_secret', 'view'],
+            ['two_factor_recovery_codes_hash', 'edit'],
+        ];
+    }
+
+    public function testNonPrivilegedFieldStaysOpenByDefault(): void
+    {
+        $user = new User(['uid' => 5]);
+        $nonAdmin = $this->createAccount(5, []);
+
+        // Ordinary fields are not restricted — field access stays open-by-default.
+        $this->assertFalse($this->policy->fieldAccess($user, 'mail', 'edit', $nonAdmin)->isForbidden());
+        // Privilege fields are only locked for 'edit'; viewing a role list is not restricted here.
+        $this->assertFalse($this->policy->fieldAccess($user, 'roles', 'view', $nonAdmin)->isForbidden());
+    }
+
+    /**
+     * Wiring check: the forbid result surfaces through EntityAccessHandler, which is the
+     * path JsonApiController actually calls — and which only consults policies that are
+     * instanceof FieldAccessPolicyInterface.
+     */
+    public function testEntityAccessHandlerForbidsRoleEscalation(): void
+    {
+        $handler = new EntityAccessHandler([$this->policy]);
+        $user = new User(['uid' => 5]);
+        $nonAdmin = $this->createAccount(5, []);
+
+        $this->assertTrue($handler->checkFieldAccess($user, 'roles', 'edit', $nonAdmin)->isForbidden());
     }
 
     // -----------------------------------------------------------------

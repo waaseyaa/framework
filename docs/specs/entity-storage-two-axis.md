@@ -1,13 +1,24 @@
 <!-- Spec reviewed 2026-05-20 - M-006 translation-hardening: added §11 translation access-gate convention -->
+<!-- Spec reviewed 2026-06-09 - alpha.201 doc-drift: this spec describes the RETIRED M-004 vid stack (never kernel-wired, removed alpha.196). Added a SUPERSEDED banner pointing to revision-system-unified.md (the live revision_id model). The vid/SaveContext::withTranslations content below is retained for historical/audit context only. -->
 # Entity Storage — Two-Axis (Revisionable × Translatable)
 
-> **Canonical doctrine for entity types that are BOTH `revisionable: true` AND
-> `translatable: true`.** This spec ships with M-004
-> (`entity-storage-translatable-revisions-01KRCDEE`, closed 2026-05-17) and
-> supersedes the planning spec [`entity-storage-translatable-revisions.md`](entity-storage-translatable-revisions.md)
-> for day-to-day reference.
+> **⚠️ SUPERSEDED (alpha.196).** This spec describes the **M-004 `vid`-based**
+> two-axis storage stack (`RevisionableSqlBlobStorage` /
+> `RevisionableSqlColumnStorage` / `RevisionRowHydrator` /
+> `RevisionableEntityStorageInterface`), which was **never wired into the kernel**
+> and was **retired in alpha.196**. The live two-axis model folds the per-language
+> design into the single `EntityRepository` revision system: it uses
+> **`revision_id`** (not the `vid` surrogate), `<entity>_revision` (single
+> underscore) for the revision axis, and `<entity>__translation__revision` keyed
+> `(entity_id, langcode, revision_id)` with independent per-`(entity, langcode)`
+> sequencing, edited via `EntityRepository::saveTranslation()` /
+> `loadTranslation()` / `listTranslationRevisions()`. **Read
+> [`revision-system-unified.md`](revision-system-unified.md) for the live, canonical
+> model — do not build against the `vid` / `<entity>__revision` /
+> `SaveContext::withTranslations` shapes below; they are retained for M-004
+> historical/audit context only.**
 
-**Status:** Shipped canonical spec (M-004, 2026-05-17).
+**Status:** Superseded by [`revision-system-unified.md`](revision-system-unified.md) (alpha.196); retained for historical/audit context (M-004, 2026-05-17).
 **Audience:** framework maintainers, application developers declaring two-axis entity types, operators.
 **Governing ADRs:** [ADR 016](../adr/016-revisions-first-class.md) (revisions first-class) + [ADR 017](../adr/017-per-field-translation.md) (per-field translation).
 **Charter linkage:** [`stability-charter.md`](stability-charter.md) §5.3 (Entity / storage) — two-axis surface block.

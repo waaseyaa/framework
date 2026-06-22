@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Config\ConfigManagerInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 
@@ -15,7 +15,7 @@ final class InstallHandler
         private readonly ConfigManagerInterface $configManager,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $siteName = $io->option('site-name') ?? 'Waaseyaa';
         $siteMail = $io->option('site-mail') ?? 'admin@example.com';

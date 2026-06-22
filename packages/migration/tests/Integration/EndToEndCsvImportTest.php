@@ -12,16 +12,16 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Gate\EntityAccessGate;
-use Waaseyaa\CLI\ArgumentDefinition;
-use Waaseyaa\CLI\ArgumentMode;
+use Waaseyaa\CLI\Command\HandlerArgument;
+use Waaseyaa\CLI\Command\HandlerArgumentMode;
 use Waaseyaa\CLI\Command\Import\ImportResetCommand;
 use Waaseyaa\CLI\Command\Import\ImportRollbackCommand;
 use Waaseyaa\CLI\Command\Import\ImportRunCommand;
 use Waaseyaa\CLI\Command\Import\ImportResumeCommand;
 use Waaseyaa\CLI\Command\Import\ImportStatusCommand;
-use Waaseyaa\CLI\CommandDefinition;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -672,54 +672,54 @@ final class EndToEndCsvImportTest extends TestCase
         ];
     }
 
-    private function buildCommandDefinition(string $name, object $handler): CommandDefinition
+    private function buildCommandDefinition(string $name, object $handler): HandlerCommand
     {
         // The CliTester resolves the handler class out of the container via
         // `[FQN, 'execute']`; we keep argument + option definitions aligned
         // with each Import* command's flag surface so parsing succeeds.
         return match (true) {
-            $handler instanceof ImportRunCommand => new CommandDefinition(
+            $handler instanceof ImportRunCommand => new HandlerCommand(
                 name: $name,
                 description: 'Run a single migration end-to-end (FR-032).',
-                arguments: [new ArgumentDefinition(name: 'migration_id', mode: ArgumentMode::Required)],
+                arguments: [new HandlerArgument(name: 'migration_id', mode: HandlerArgumentMode::Required)],
                 options: [
-                    new OptionDefinition(name: 'dry-run', mode: OptionMode::None),
-                    new OptionDefinition(name: 'halt-on-error', mode: OptionMode::None),
-                    new OptionDefinition(name: 'limit', mode: OptionMode::Required),
-                    new OptionDefinition(name: 'run-id', mode: OptionMode::Required),
+                    new HandlerOption(name: 'dry-run', mode: HandlerOptionMode::None),
+                    new HandlerOption(name: 'halt-on-error', mode: HandlerOptionMode::None),
+                    new HandlerOption(name: 'limit', mode: HandlerOptionMode::Required),
+                    new HandlerOption(name: 'run-id', mode: HandlerOptionMode::Required),
                 ],
                 handler: [ImportRunCommand::class, 'execute'],
             ),
-            $handler instanceof ImportResumeCommand => new CommandDefinition(
+            $handler instanceof ImportResumeCommand => new HandlerCommand(
                 name: $name,
                 description: 'Resume a partial migration (FR-037).',
-                arguments: [new ArgumentDefinition(name: 'migration_id', mode: ArgumentMode::Required)],
+                arguments: [new HandlerArgument(name: 'migration_id', mode: HandlerArgumentMode::Required)],
                 options: [
-                    new OptionDefinition(name: 'dry-run', mode: OptionMode::None),
-                    new OptionDefinition(name: 'halt-on-error', mode: OptionMode::None),
-                    new OptionDefinition(name: 'limit', mode: OptionMode::Required),
+                    new HandlerOption(name: 'dry-run', mode: HandlerOptionMode::None),
+                    new HandlerOption(name: 'halt-on-error', mode: HandlerOptionMode::None),
+                    new HandlerOption(name: 'limit', mode: HandlerOptionMode::Required),
                 ],
                 handler: [ImportResumeCommand::class, 'execute'],
             ),
-            $handler instanceof ImportStatusCommand => new CommandDefinition(
+            $handler instanceof ImportStatusCommand => new HandlerCommand(
                 name: $name,
                 description: 'Surface per-migration status (FR-034).',
-                arguments: [new ArgumentDefinition(name: 'migration_id', mode: ArgumentMode::Optional)],
+                arguments: [new HandlerArgument(name: 'migration_id', mode: HandlerArgumentMode::Optional)],
                 options: [],
                 handler: [ImportStatusCommand::class, 'execute'],
             ),
-            $handler instanceof ImportRollbackCommand => new CommandDefinition(
+            $handler instanceof ImportRollbackCommand => new HandlerCommand(
                 name: $name,
                 description: 'Roll back a migration (FR-035).',
-                arguments: [new ArgumentDefinition(name: 'migration_id', mode: ArgumentMode::Required)],
-                options: [new OptionDefinition(name: 'confirm', mode: OptionMode::None)],
+                arguments: [new HandlerArgument(name: 'migration_id', mode: HandlerArgumentMode::Required)],
+                options: [new HandlerOption(name: 'confirm', mode: HandlerOptionMode::None)],
                 handler: [ImportRollbackCommand::class, 'execute'],
             ),
-            $handler instanceof ImportResetCommand => new CommandDefinition(
+            $handler instanceof ImportResetCommand => new HandlerCommand(
                 name: $name,
                 description: 'Reset id-map without touching entities (FR-036).',
-                arguments: [new ArgumentDefinition(name: 'migration_id', mode: ArgumentMode::Required)],
-                options: [new OptionDefinition(name: 'confirm', mode: OptionMode::None)],
+                arguments: [new HandlerArgument(name: 'migration_id', mode: HandlerArgumentMode::Required)],
+                options: [new HandlerOption(name: 'confirm', mode: HandlerOptionMode::None)],
                 handler: [ImportResetCommand::class, 'execute'],
             ),
             default => throw new \LogicException(

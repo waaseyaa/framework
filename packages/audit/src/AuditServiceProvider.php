@@ -4,23 +4,22 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit;
 
-use Symfony\Component\EventDispatcher\EventDispatcherInterface;
+use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Audit\Contract\AuditQueryInterface;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
-use Waaseyaa\Audit\Entity\AuditEvent;
-use Waaseyaa\Audit\Entity\AuditRetentionPolicy;
 use Waaseyaa\Audit\Listener\AgentToolAuditListener;
 use Waaseyaa\Audit\Listener\ApiRequestAuditListener;
 use Waaseyaa\Audit\Listener\BroadcastAuditListener;
 use Waaseyaa\Audit\Listener\EntityLifecycleAuditListener;
 use Waaseyaa\Audit\Listener\McpDispatchAuditListener;
+use Waaseyaa\Audit\Listener\PublishPointerAuditListener;
 use Waaseyaa\Audit\Query\AuditEventQuery;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
+use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
 use Waaseyaa\Audit\Writer\AuditEventWriter;
 use Waaseyaa\Database\DatabaseInterface;
-use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
@@ -30,9 +29,10 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
  * Wires the OCAP audit log substrate into the application container.
  *
  * register():
- *   - Registers audit_event + audit_retention_policy entity types.
- *   - Binds AuditWriterInterface → AuditEventWriter (best-effort).
+ *   - Binds AuditWriterInterface → AuditEventWriter (append-only, best-effort).
  *   - Binds AuditQueryInterface → AuditEventQuery.
+ *   - audit_event / audit_retention_policy are deliberately NOT registered as
+ *     content entities — they are raw OCAP log tables, not entity types.
  *
  * boot():
  *   - Ensures schema tables exist.
@@ -44,31 +44,22 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
 {
     public function register(): void
     {
-        $this->entityType(new EntityType(
-            id: 'audit_event',
-            label: 'Audit Event',
-            class: AuditEvent::class,
-            keys: ['id' => 'id', 'uuid' => 'uuid'],
-            description: 'OCAP append-only audit log entry',
-            group: 'audit',
-        ));
-
-        $this->entityType(new EntityType(
-            id: 'audit_retention_policy',
-            label: 'Audit Retention Policy',
-            class: AuditRetentionPolicy::class,
-            keys: ['id' => 'id', 'uuid' => 'uuid'],
-            description: 'OCAP audit log retention rule',
-            group: 'audit',
-        ));
+        // audit_event and audit_retention_policy are intentionally NOT registered
+        // as content entity types. They are flat OCAP log tables built by
+        // AuditEventSchemaHandler and accessed through raw DatabaseInterface
+        // writes/reads — never the entity repository. Registering them as content
+        // entities produced 8 permanent schema:check false-positives (the lean
+        // log tables lack the content-entity column set) and falsely implied an
+        // entity CRUD/update path for an append-only log. See ocap-audit-log.md.
 
         $this->singleton(AuditWriterInterface::class, function (): AuditWriterInterface {
-            /** @var EntityRepositoryInterface $repo */
-            $repo = $this->resolve(EntityTypeManager::class)->getRepository('audit_event');
+            $database = $this->resolve(DatabaseInterface::class);
             $logger = $this->resolveOptional(LoggerInterface::class);
 
+            // Wrap the database in the append-only decorator: the writer can only
+            // ever append to audit_event — never update or delete (OCAP FR-003).
             return new AuditEventWriter(
-                repository: $repo,
+                database: new AppendOnlyAuditDatabase($database),
                 logger: $logger instanceof LoggerInterface ? $logger : null,
             );
         });
@@ -103,10 +94,17 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
         $logger = $this->resolveOptional(LoggerInterface::class);
         $resolvedLogger = $logger instanceof LoggerInterface ? $logger : null;
 
-        $dispatcher->addSubscriber(new EntityLifecycleAuditListener($writer, $resolvedLogger));
-        $dispatcher->addSubscriber(new AgentToolAuditListener($writer, $resolvedLogger));
+        // The kernel's shared acting-account holder, served via the
+        // kernel-services bus (null in bare-provider tests — listeners then
+        // record null actors, the correct degraded behavior).
+        $accountContext = $this->resolveOptional(AccountContextInterface::class);
+        $resolvedContext = $accountContext instanceof AccountContextInterface ? $accountContext : null;
+
+        $dispatcher->addSubscriber(new EntityLifecycleAuditListener($writer, $resolvedLogger, $resolvedContext));
+        $dispatcher->addSubscriber(new AgentToolAuditListener($writer, $resolvedLogger, $resolvedContext));
         $dispatcher->addSubscriber(new McpDispatchAuditListener($writer, $resolvedLogger));
         $dispatcher->addSubscriber(new BroadcastAuditListener($writer, $resolvedLogger));
+        $dispatcher->addSubscriber(new PublishPointerAuditListener($writer, $resolvedLogger, $resolvedContext));
     }
 
     /**

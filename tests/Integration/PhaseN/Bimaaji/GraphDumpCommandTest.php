@@ -11,9 +11,9 @@ use Psr\Container\ContainerInterface;
 use Waaseyaa\Bimaaji\Command\GraphDumpHandler;
 use Waaseyaa\Bimaaji\Graph\GraphSection;
 use Waaseyaa\Bimaaji\Graph\GraphSectionProviderInterface;
-use Waaseyaa\CLI\CommandDefinition;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 
 /**
@@ -130,13 +130,13 @@ final class GraphDumpCommandTest extends TestCase
     {
         $handler = new GraphDumpHandler(providers: $providers);
 
-        $definition = new CommandDefinition(
+        $definition = new HandlerCommand(
             name: 'graph:dump',
             description: 'Dump the application graph as JSON.',
             options: [
-                new OptionDefinition(name: 'section', mode: OptionMode::Required, description: 'Scope to one section.'),
-                new OptionDefinition(name: 'format', mode: OptionMode::Required, description: 'Output format.'),
-                new OptionDefinition(name: 'strict', mode: OptionMode::None, description: 'Fail-closed on provider errors.'),
+                new HandlerOption(name: 'section', mode: HandlerOptionMode::Required, description: 'Scope to one section.'),
+                new HandlerOption(name: 'format', mode: HandlerOptionMode::Required, description: 'Output format.'),
+                new HandlerOption(name: 'strict', mode: HandlerOptionMode::None, description: 'Fail-closed on provider errors.'),
             ],
             handler: \Closure::fromCallable([$handler, 'execute']),
         );

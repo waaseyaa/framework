@@ -7,22 +7,17 @@ namespace Waaseyaa\Tests\Integration\PhaseOcapAudit;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Audit\Contract\AuditQuery;
 use Waaseyaa\Audit\Contract\AuditQueryInterface;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
 use Waaseyaa\Audit\Query\AuditEventQuery;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
+use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
 use Waaseyaa\Audit\Writer\AuditEventWriter;
-use Waaseyaa\CLI\CliIO;
 use Waaseyaa\CLI\Command\Audit\PruneCommand;
+use Waaseyaa\CLI\Testing\CapturingSymfonyCommandIO;
 use Waaseyaa\Database\DBALDatabase;
-use Waaseyaa\Entity\EntityType;
-use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
-use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
-use Waaseyaa\EntityStorage\EntityRepository;
 
 /**
  * Integration test for the `audit:prune` CLI command (T-O §2).
@@ -45,24 +40,12 @@ final class AuditRetentionPruneTest extends TestCase
     {
         $this->database = DBALDatabase::createSqlite();
 
-        $schemaHandler = new AuditEventSchemaHandler($this->database);
-        $schemaHandler->ensureSchema();
+        new AuditEventSchemaHandler($this->database)->ensureSchema();
 
-        $dispatcher = new EventDispatcher();
-        $entityTypeManager = new EntityTypeManager($dispatcher);
-
-        $auditEventType = new EntityType(
-            id: 'audit_event',
-            label: 'Audit Event',
-            class: \Waaseyaa\Audit\Entity\AuditEvent::class,
-            keys: ['id' => 'id', 'uuid' => 'uuid'],
-        );
-        $entityTypeManager->registerEntityType($auditEventType);
-        $resolver = new SingleConnectionResolver($this->database);
-        $driver = new SqlStorageDriver($resolver);
-        $repo = new EntityRepository($auditEventType, $driver, $dispatcher);
-        $this->writer = new AuditEventWriter($repo);
-
+        // Production wiring: the writer appends through the append-only decorator;
+        // the prune command and reads use the raw database directly. audit_event is
+        // a plain OCAP log table, not a registered entity.
+        $this->writer = new AuditEventWriter(new AppendOnlyAuditDatabase($this->database));
         $this->query = new AuditEventQuery($this->database);
     }
 
@@ -104,7 +87,7 @@ final class AuditRetentionPruneTest extends TestCase
 
         // Build and run the prune command.
         $command = new PruneCommand($this->query, $this->writer, $this->database);
-        $io = $this->makeIo(['older-than' => 'PT1H']);
+        $io = $this->makeIo(['older-than' => 'PT1H', 'confirm' => true]);
 
         $exitCode = $command->execute($io);
 
@@ -162,71 +145,9 @@ final class AuditRetentionPruneTest extends TestCase
     /**
      * @param array<string, mixed> $options
      */
-    private function makeIo(array $options): CliIO
+    private function makeIo(array $options): CapturingSymfonyCommandIO
     {
-        return new class ($options) implements CliIO {
-            /** @var string[] */
-            public array $lines = [];
-
-            /** @param array<string, mixed> $opts */
-            public function __construct(private readonly array $opts) {}
-
-            public function option(string $name): string|int|float|bool|array|null
-            {
-                return $this->opts[$name] ?? null;
-            }
-
-            public function argument(string $name): string|int|float|bool|array|null
-            {
-                return null;
-            }
-
-            /** @return array<string, scalar|array|null> */
-            public function arguments(): array
-            {
-                return [];
-            }
-
-            /** @return array<string, scalar|array|null> */
-            public function options(): array
-            {
-                return $this->opts;
-            }
-
-            public function write(string $text): void {}
-
-            public function writeln(string $line = ''): void
-            {
-                $this->lines[] = $line;
-            }
-
-            public function error(string $line): void {}
-
-            public function ask(string $question, ?string $default = null): ?string
-            {
-                return $default;
-            }
-
-            public function confirm(string $question, bool $default = false): bool
-            {
-                return $default;
-            }
-
-            public function isVerbose(): bool
-            {
-                return false;
-            }
-
-            public function isInteractive(): bool
-            {
-                return false;
-            }
-
-            /** @return string[] */
-            public function outputLines(): array
-            {
-                return $this->lines;
-            }
-        };
+        return new CapturingSymfonyCommandIO($options);
     }
+
 }

@@ -38,7 +38,7 @@ final class IngestRunCommandTest extends TestCase
     {
         $provider = new IngestSearchSemanticServiceProvider();
         $definition = null;
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'ingest:run') {
                 $definition = $cmd;
                 break;

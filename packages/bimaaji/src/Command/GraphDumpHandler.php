@@ -9,10 +9,10 @@ use Waaseyaa\Bimaaji\Graph\GraphSectionProviderInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
-// Note: `\Waaseyaa\CLI\CliIO` is referenced inline (not via `use`) because cli is L6
+// Note: `\Waaseyaa\CLI\Command\SymfonyCommandIO` is referenced inline (not via `use`) because cli is L6
 // and bimaaji is L4. `bin/check-package-layers` scans `use` imports only, so inline
-// FQCNs are the canonical way to type-hint across the L4→L6 boundary. The CommandDefinition
-// reference in BimaajiServiceProvider::nativeCommands() uses the same pattern.
+// FQCNs are the canonical way to type-hint across the L4→L6 boundary. The Symfony command metadata
+// reference in BimaajiServiceProvider::consoleCommands() uses the same pattern.
 
 /**
  * `bin/waaseyaa graph:dump` — emits the application graph as JSON.
@@ -21,7 +21,7 @@ use Waaseyaa\Foundation\Log\NullLogger;
  *
  * - `--section=<key>` — scope output to a single section (returns `{<key>: GraphSection}`).
  * - `--format=json` — output format. Only `json` is supported in beta; `yaml` is reserved
- *   for a follow-up and intentionally absent from the {@see \Waaseyaa\CLI\CommandDefinition}.
+ *   for a follow-up and intentionally absent from the {@see \Waaseyaa\CLI\Symfony command metadata}.
  * - `--strict` — fail-closed: re-run the graph generation through a fresh
  *   {@see ApplicationGraphGenerator} configured with `strict: true` so provider failures
  *   surface as non-zero exit codes naming the offending provider FQCN (NFR-004).
@@ -50,7 +50,7 @@ final class GraphDumpHandler
         $this->providers = $list;
     }
 
-    public function execute(\Waaseyaa\CLI\CliIO $io): int
+    public function execute(\Waaseyaa\CLI\Command\SymfonyCommandIO $io): int
     {
         $section = $io->option('section');
         $format = $io->option('format') ?? 'json';

@@ -4,154 +4,154 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Provider;
 
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\IngestDashboardHandler;
 use Waaseyaa\CLI\Handler\IngestRunHandler;
 use Waaseyaa\CLI\Handler\SearchReindexHandler;
 use Waaseyaa\CLI\Handler\SemanticRefreshHandler;
 use Waaseyaa\CLI\Handler\SemanticWarmHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
-use Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
-final class IngestSearchSemanticServiceProvider extends ServiceProvider implements HasNativeCommandsInterface
+final class IngestSearchSemanticServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
 {
     public function register(): void {}
 
-    public function nativeCommands(): iterable
+    public function consoleCommands(): iterable
     {
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'ingest:run',
             description: 'Run deterministic structured/unstructured ingestion and emit mapped content payloads',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'input',
                     shortcut: 'i',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Input file path (.json, .txt, .md)',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'format',
                     shortcut: 'f',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Input format: auto|structured|unstructured',
                     default: 'auto',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'default-bundle',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Default bundle for mapped nodes',
                     default: 'node',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'default-workflow-state',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Default workflow state',
                     default: 'draft',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'author-id',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Mapped author UID',
                     default: '1',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'timestamp',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Deterministic ingest timestamp',
                     default: '1735689600',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'batch-id',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Batch idempotency key (defaults to deterministic hash)',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'policy',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Ingestion policy: atomic_fail_fast|validate_only',
                     default: 'atomic_fail_fast',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'source',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Source identifier for audit metadata',
                     default: 'manual://default',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'infer-relationships',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Infer candidate relationships from ingested text (review-safe defaults)',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'authoring-assist',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Emit deterministic AI-assisted authoring suggestions',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'refresh-baseline',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Optional baseline snapshot JSON path for refresh change detection',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'refresh-snapshot-output',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Optional output path for current refresh snapshot JSON',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'output',
                     shortcut: 'o',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Optional mapped output file (.json)',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'diagnostics-output',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Optional diagnostics output file (.json)',
                 ),
             ],
             handler: [IngestRunHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'ingest:dashboard',
             description: 'Build deterministic editorial dashboard summaries from ingest artifacts',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'input',
                     shortcut: 'i',
-                    mode: OptionMode::Array_,
+                    mode: HandlerOptionMode::Array_,
                     description: 'Ingest artifact JSON path(s) (repeat or comma-separated)',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'glob',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Optional glob pattern for ingest artifact JSON files',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'output',
                     shortcut: 'o',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Optional path to write dashboard payload',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'json',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Emit machine-readable JSON payload',
                 ),
             ],
             handler: [IngestDashboardHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'search:reindex',
             description: 'Rebuild the search index from all indexable entities',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'batch-size',
                     shortcut: 'b',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Entities per batch',
                     default: '100',
                 ),
@@ -159,64 +159,64 @@ final class IngestSearchSemanticServiceProvider extends ServiceProvider implemen
             handler: [SearchReindexHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'semantic:warm',
             description: 'Warm semantic embeddings for deterministic read paths',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'type',
                     shortcut: 't',
-                    mode: OptionMode::Array_,
+                    mode: HandlerOptionMode::Array_,
                     description: 'Entity type ID(s) to warm (repeat option or pass comma-separated values)',
                     default: ['node'],
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'limit',
                     shortcut: 'l',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Per-type candidate limit (0 = no limit)',
                     default: '0',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'json',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Emit the full warming report as JSON',
                 ),
             ],
             handler: [SemanticWarmHandler::class, 'execute'],
         );
 
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'semantic:refresh',
             description: 'Run resumable semantic index refresh batches',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'type',
                     shortcut: 't',
-                    mode: OptionMode::Array_,
+                    mode: HandlerOptionMode::Array_,
                     description: 'Entity type ID(s) to refresh (repeat option or pass comma-separated values)',
                     default: ['node'],
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'batch-size',
                     shortcut: 'b',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Maximum entities per batch execution',
                     default: '200',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'cursor',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Resume cursor JSON (e.g. {"type_index":0,"offset":200})',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'until-complete',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Keep running batches until the refresh completes',
                 ),
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'json',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Emit machine-readable JSON output',
                 ),
             ],

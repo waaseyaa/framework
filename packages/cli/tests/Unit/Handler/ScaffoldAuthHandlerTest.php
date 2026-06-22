@@ -36,10 +36,10 @@ final class ScaffoldAuthHandlerTest extends TestCase
         $this->removeDir($this->tempDir);
     }
 
-    private function makeDefinition(): \Waaseyaa\CLI\CommandDefinition
+    private function makeDefinition(): \Waaseyaa\CLI\Command\HandlerCommand
     {
         $provider = new OtherScaffoldsServiceProvider();
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'scaffold:auth') {
                 return $cmd;
             }
@@ -71,7 +71,7 @@ final class ScaffoldAuthHandlerTest extends TestCase
         $handler = new ScaffoldAuthHandler($this->tempDir);
         $provider = new OtherScaffoldsServiceProvider();
         $definition = null;
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'scaffold:auth') {
                 $definition = $cmd;
                 break;
@@ -81,7 +81,7 @@ final class ScaffoldAuthHandlerTest extends TestCase
 
         // Use the handler directly with a Closure-based definition
         $tester = CliTester::for(
-            new \Waaseyaa\CLI\CommandDefinition(
+            new \Waaseyaa\CLI\Command\HandlerCommand(
                 name: 'scaffold:auth',
                 description: 'Copy framework auth UI files into your app for customization',
                 options: $definition->options,
@@ -109,7 +109,7 @@ final class ScaffoldAuthHandlerTest extends TestCase
         $handler = new ScaffoldAuthHandler($this->tempDir);
         $provider = new OtherScaffoldsServiceProvider();
         $definition = null;
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'scaffold:auth') {
                 $definition = $cmd;
                 break;
@@ -118,7 +118,7 @@ final class ScaffoldAuthHandlerTest extends TestCase
         self::assertNotNull($definition);
 
         $tester = CliTester::for(
-            new \Waaseyaa\CLI\CommandDefinition(
+            new \Waaseyaa\CLI\Command\HandlerCommand(
                 name: 'scaffold:auth',
                 description: 'Copy framework auth UI files into your app for customization',
                 options: $definition->options,
@@ -139,7 +139,7 @@ final class ScaffoldAuthHandlerTest extends TestCase
         $handler = new ScaffoldAuthHandler($this->tempDir);
         $provider = new OtherScaffoldsServiceProvider();
         $definition = null;
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'scaffold:auth') {
                 $definition = $cmd;
                 break;
@@ -148,7 +148,7 @@ final class ScaffoldAuthHandlerTest extends TestCase
         self::assertNotNull($definition);
 
         $tester = CliTester::for(
-            new \Waaseyaa\CLI\CommandDefinition(
+            new \Waaseyaa\CLI\Command\HandlerCommand(
                 name: 'scaffold:auth',
                 description: 'Copy framework auth UI files into your app for customization',
                 options: $definition->options,

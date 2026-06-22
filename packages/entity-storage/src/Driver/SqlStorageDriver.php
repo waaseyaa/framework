@@ -208,7 +208,15 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
             return $id !== '' ? $id : $lastInsertId;
         }
 
-        // Update: exclude the id from update fields.
+        // Update: exclude the id from update fields. This exclusion is a
+        // deliberate contract, not an optimization: row identity is immutable
+        // through the storage driver. A divergent id value in $values is
+        // silently dropped — the UPDATE is keyed on the existing row's id and
+        // never rewrites the id column, so an entity that had a different id
+        // set on it cannot move or duplicate a row. Mutating identity requires
+        // delete+insert or a migration. Pinned by
+        // SqlStorageDriverTest::updateNeverRewritesTheIdColumn (#1646;
+        // kitty-specs/live-entity-validation-key-protection-01KTWQT3/contracts/tool-refusal.md).
         $updateFields = [];
         foreach ($values as $key => $value) {
             if ($key === $this->idKey) {

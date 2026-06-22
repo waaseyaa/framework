@@ -8,10 +8,10 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\MigrateDefaultsHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeLifecycleManager;
@@ -95,16 +95,16 @@ final class MigrateDefaultsHandlerTest extends TestCase
             null,
             $this->tempDir,
         );
-        $definition = new CommandDefinition(
+        $definition = new HandlerCommand(
             name: 'migrate:defaults',
             description: 'Migrate default content type enablement for tenants',
             options: [
-                new OptionDefinition(name: 'tenant', mode: OptionMode::Array_, description: 'Tenant IDs to migrate (repeatable)'),
-                new OptionDefinition(name: 'enable', mode: OptionMode::Required, description: 'Type ID to enable for all tenants (e.g. note)', default: ''),
-                new OptionDefinition(name: 'actor', mode: OptionMode::Required, description: 'Actor ID for audit log entries', default: 'cli'),
-                new OptionDefinition(name: 'yes', shortcut: 'y', mode: OptionMode::None, description: 'Skip confirmation prompts'),
-                new OptionDefinition(name: 'dry-run', mode: OptionMode::None, description: 'Report actions without making changes'),
-                new OptionDefinition(name: 'rollback', mode: OptionMode::None, description: 'Rollback previous migrate:defaults actions'),
+                new HandlerOption(name: 'tenant', mode: HandlerOptionMode::Array_, description: 'Tenant IDs to migrate (repeatable)'),
+                new HandlerOption(name: 'enable', mode: HandlerOptionMode::Required, description: 'Type ID to enable for all tenants (e.g. note)', default: ''),
+                new HandlerOption(name: 'actor', mode: HandlerOptionMode::Required, description: 'Actor ID for audit log entries', default: 'cli'),
+                new HandlerOption(name: 'yes', shortcut: 'y', mode: HandlerOptionMode::None, description: 'Skip confirmation prompts'),
+                new HandlerOption(name: 'dry-run', mode: HandlerOptionMode::None, description: 'Report actions without making changes'),
+                new HandlerOption(name: 'rollback', mode: HandlerOptionMode::None, description: 'Rollback previous migrate:defaults actions'),
             ],
             handler: \Closure::fromCallable([$handler, 'execute']),
         );

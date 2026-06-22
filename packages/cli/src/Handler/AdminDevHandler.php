@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\CLI\Support\AdminPackagePathResolver;
 
 final class AdminDevHandler
@@ -13,7 +13,7 @@ final class AdminDevHandler
         private readonly string $projectRoot,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         try {
             $adminPath = new AdminPackagePathResolver($this->projectRoot)->resolve();

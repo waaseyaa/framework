@@ -25,9 +25,12 @@ use Waaseyaa\Api\Tests\Fixtures\SymfonyImportBoundary\SymfonyFreeController;
  *    JSON:API content type and a faithful payload — proving the
  *    Symfony-free path is not just lexical but actually wired through.
  *
- * Until the deferred `bin/check-symfony-imports` linter ships (per
- * ratified C-005 (b)), this test is the executable backstop for the
- * boundary.
+ * The `bin/check-symfony-imports` linter (ratified C-005 (b)) is the
+ * primary, repo-wide enforcement of this boundary and runs in CI
+ * (`run_gate check-symfony-imports`) and `composer verify`. This test
+ * complements the linter with a positive, executable example: it proves
+ * the Symfony-free path is not merely lexical but actually wires through
+ * to a canonical JSON:API response.
  */
 #[CoversNothing]
 final class SymfonyImportBoundaryTest extends TestCase

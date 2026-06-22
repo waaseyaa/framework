@@ -6,7 +6,7 @@ namespace Waaseyaa\CLI\Handler;
 
 use Waaseyaa\Cache\CacheFactoryInterface;
 use Waaseyaa\Cache\TagAwareCacheInterface;
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 
 /**
  * @api
@@ -19,7 +19,7 @@ final class CacheClearHandler
         private readonly CacheFactoryInterface $cacheFactory,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $bin = $io->option('bin');
         $tagsOption = $io->option('tags');

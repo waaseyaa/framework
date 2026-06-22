@@ -38,6 +38,7 @@ parameters:
         - packages/error-handler/src
         - packages/field/src
         - packages/foundation/src
+        - packages/frankenphp/src
         - packages/geo/src
         - packages/groups/src
         - packages/github/src
@@ -78,4 +79,11 @@ parameters:
         - packages/typed-data/src
         - packages/user/src
         - packages/validation/src
+        - packages/wayfinding/src
         - packages/workflows/src
+        - packages/workspace/src
+        # C-19: these three were silently outside analysis until now. The paths
+        # invariant (bin/check-phpstan-paths) keeps every packages/*/src covered.
+        - packages/attachment/src
+        - packages/audit/src
+        - packages/structured-import/src

@@ -399,7 +399,7 @@ final class CheckComposerPolicyTest extends TestCase
         );
 
         $process = proc_open(
-            ['/bin/bash', self::BIN],
+            [PHP_BINARY, self::BIN],
             $descriptors,
             $pipes,
             $fixtureRoot,

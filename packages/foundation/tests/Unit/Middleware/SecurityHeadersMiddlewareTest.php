@@ -83,6 +83,64 @@ final class SecurityHeadersMiddlewareTest extends TestCase
         $this->assertSame('max-age=3600; includeSubDomains', $response->headers->get('Strict-Transport-Security'));
     }
 
+    // ── applyResponseDefaults() — post-dispatch framing/sniffing (#1651) ──
+
+    #[Test]
+    public function apply_response_defaults_sets_sameorigin_and_nosniff(): void
+    {
+        $request = Request::create('/test');
+        $response = new Response('ok');
+
+        SecurityHeadersMiddleware::applyResponseDefaults($request, $response);
+
+        // SAMEORIGIN blocks cross-origin clickjacking while preserving
+        // same-origin previews (the consumer dependency #1651 cited).
+        $this->assertSame('SAMEORIGIN', $response->headers->get('X-Frame-Options'));
+        $this->assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
+        // CSP and HSTS are opt-in only — the post-dispatch helper never sets them
+        // (default-src 'self' would break the SPA; HSTS needs HTTPS certainty).
+        $this->assertFalse($response->headers->has('Content-Security-Policy'));
+        $this->assertFalse($response->headers->has('Strict-Transport-Security'));
+    }
+
+    #[Test]
+    public function apply_response_defaults_omits_frame_options_for_embed_exempt_routes(): void
+    {
+        $request = Request::create('/preview');
+        $request->attributes->set(SecurityHeadersMiddleware::FRAME_EXEMPT_ATTRIBUTE, true);
+        $response = new Response('ok');
+
+        SecurityHeadersMiddleware::applyResponseDefaults($request, $response);
+
+        // Cross-origin embeddable route opts out: no X-Frame-Options so it frames.
+        $this->assertFalse($response->headers->has('X-Frame-Options'));
+        // nosniff still applies regardless of the framing exemption.
+        $this->assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
+    }
+
+    #[Test]
+    public function apply_response_defaults_does_not_override_existing_frame_options(): void
+    {
+        $request = Request::create('/test');
+        $response = new Response('ok');
+        $response->headers->set('X-Frame-Options', 'DENY');
+
+        SecurityHeadersMiddleware::applyResponseDefaults($request, $response);
+
+        $this->assertSame('DENY', $response->headers->get('X-Frame-Options'));
+    }
+
+    #[Test]
+    public function apply_response_defaults_honours_custom_frame_options(): void
+    {
+        $request = Request::create('/test');
+        $response = new Response('ok');
+
+        SecurityHeadersMiddleware::applyResponseDefaults($request, $response, 'DENY');
+
+        $this->assertSame('DENY', $response->headers->get('X-Frame-Options'));
+    }
+
     private function passthroughHandler(Response $response): HttpHandlerInterface
     {
         return new class ($response) implements HttpHandlerInterface {

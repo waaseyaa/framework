@@ -326,7 +326,7 @@ final class EndToEndTest extends TestCase
     {
         $provider = new MakeStorageMigrationServiceProvider();
         $definition = null;
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'make:storage-migration') {
                 $definition = $cmd;
                 break;

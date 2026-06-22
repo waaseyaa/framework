@@ -10,11 +10,14 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Component\Routing\Route;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
+use Waaseyaa\Api\Markdown\EntityMarkdownPresenter;
+use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Cache\CacheConfigResolver;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityValues;
+use Waaseyaa\Foundation\Http\ContentNegotiation\MediaTypeAcceptNegotiator;
 use Waaseyaa\Foundation\Http\HttpServiceResolverInterface;
 use Waaseyaa\Foundation\Http\Inertia\InertiaFullPageRendererInterface;
 use Waaseyaa\Foundation\Http\Inertia\InertiaPageResultInterface;
@@ -23,6 +26,7 @@ use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Path\PathAliasResolver;
 use Waaseyaa\Relationship\RelationshipDiscoveryService;
 use Waaseyaa\Relationship\RelationshipTraversalService;
+use Waaseyaa\Seo\SchemaOrg\EntitySchemaOrgMapper;
 use Waaseyaa\SSR\Http\AppController\AppControllerArgumentResolver;
 use Waaseyaa\SSR\Http\AppController\AppControllerMethodInvoker;
 use Waaseyaa\SSR\Http\AppController\AppInvocationContext;
@@ -64,6 +68,7 @@ final class SsrPageHandler
         private readonly ?InertiaFullPageRendererInterface $inertiaFullPageRenderer = null,
         private readonly array $appControllerArgumentResolvers = [],
         ?AppControllerMethodInvoker $appControllerMethodInvoker = null,
+        private readonly ?\Waaseyaa\Access\EntityAccessHandler $accessHandler = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
         $this->languageResolver = $languageResolver ?? new LanguageResolver(serviceResolver: $this->serviceResolver);
@@ -127,12 +132,27 @@ final class SsrPageHandler
                 return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
             }
 
-            $resolved = null;
+            $entityTypeId = null;
+            $entityId = null;
             if (class_exists(PathAliasResolver::class) && $this->entityTypeManager->hasDefinition('path_alias')) {
                 $aliasResolver = new PathAliasResolver($this->entityTypeManager->getStorage('path_alias'));
                 $resolved = $aliasResolver->resolve($aliasLookupPath, $contentLangcode);
+                if ($resolved !== null) {
+                    $entityTypeId = $resolved->entityTypeId;
+                    $entityId = $resolved->entityId;
+                }
             }
-            if ($resolved === null) {
+            // Canonical system path fallback: a published content entity is
+            // reachable at /{entityTypeId}/{id} with no hand-created alias
+            // (author-path FR-006). Scoped to the `content` group so non-content
+            // types (user, taxonomy, …) are never served by guessing an id.
+            if ($entityTypeId === null) {
+                $canonical = $this->resolveCanonicalContentPath($aliasLookupPath);
+                if ($canonical !== null) {
+                    [$entityTypeId, $entityId] = $canonical;
+                }
+            }
+            if ($entityTypeId === null || $entityId === null) {
                 $renderController = new RenderController($twig);
                 $pathResponse = $renderController->tryRenderPathTemplate($aliasLookupPath, $account);
                 if ($pathResponse !== null) {
@@ -146,8 +166,7 @@ final class SsrPageHandler
                 return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
             }
 
-            $targetStorage = $this->entityTypeManager->getStorage($resolved->entityTypeId);
-            $entity = $targetStorage->load($resolved->entityId);
+            $entity = $this->loadByIdOrUuid($entityTypeId, $entityId);
             if ($entity === null) {
                 $response = new RenderController($twig)->renderNotFound($aliasLookupPath, $account);
                 $headers = $this->extractHeaders($response);
@@ -164,6 +183,15 @@ final class SsrPageHandler
                 $headers['Cache-Control'] = $cacheControlHeader;
                 return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
             }
+            // Canonical published gate for generic content the node-centric
+            // EditorialVisibilityResolver does not cover (it allows any non-`node`
+            // type outright). See {@see shouldDenyContentGroupRender()}.
+            if ($this->shouldDenyContentGroupRender($entityTypeId, $entity, $account)) {
+                $response = new RenderController($twig)->renderForbidden($aliasLookupPath, $account);
+                $headers = $this->extractHeaders($response);
+                $headers['Cache-Control'] = $cacheControlHeader;
+                return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
+            }
 
             $formatterRegistry = SsrServiceProvider::getFormatterRegistry()
                 ?? new FieldFormatterRegistry($this->manifest?->formatters ?? []);
@@ -173,6 +201,11 @@ final class SsrPageHandler
             $entityRenderer = new EntityRenderer($this->entityTypeManager, $formatterRegistry, $viewModeConfig);
             $safeViewMode = preg_replace('/[^a-z0-9_]+/i', '', strtolower($requestedViewMode)) ?: 'full';
             $viewMode = new ViewMode($safeViewMode);
+            // Content negotiation on the SAME URL: text/markdown for agents (or the
+            // ?raw / ?format=md toggle), text/html otherwise. The media type is woven
+            // into the cache variant below so the two representations never share a
+            // cache entry.
+            $mediaType = $this->negotiateMediaType($httpRequest);
             $relationshipContext = $this->buildRelationshipRenderContext($entity);
             $renderContext = $relationshipContext;
             $renderContext['workflow_visibility'] = $visibilityResolver->buildRenderContext($entity, $previewRequested);
@@ -181,6 +214,7 @@ final class SsrPageHandler
                 $viewMode->name,
                 $previewRequested,
                 $renderContext,
+                $mediaType,
             );
             $surrogateHeaders = (
                 !$account->isAuthenticated()
@@ -188,12 +222,13 @@ final class SsrPageHandler
                 && $entity->id() !== null
             )
                 ? $this->buildRenderSurrogateHeaders(
-                    $resolved->entityTypeId,
+                    $entityTypeId,
                     (string) $entity->id(),
                     $viewMode->name,
                     $contentLangcode,
                     $cacheVariantLangcode,
                     $renderContext,
+                    $mediaType,
                 )
                 : [];
 
@@ -204,7 +239,7 @@ final class SsrPageHandler
                 && $entity->id() !== null
             ) {
                 $cached = $this->renderCache->get(
-                    $resolved->entityTypeId,
+                    $entityTypeId,
                     $entity->id(),
                     $viewMode->name,
                     $cacheVariantLangcode,
@@ -212,14 +247,20 @@ final class SsrPageHandler
                 if ($cached !== null) {
                     $headers = array_merge($this->extractHeaders($cached), $surrogateHeaders);
                     $headers['Cache-Control'] = $cacheControlHeader;
+                    $headers['Vary'] = 'Accept';
                     return $this->htmlResult($cached->getStatusCode(), (string) $cached->getContent(), $headers);
                 }
             }
 
             $twigEntityContext = $renderContext;
             $twigEntityContext['account'] = $account;
+            // schema.org JSON-LD for the HTML <head> (FR-014); ignored by the
+            // Markdown branch.
+            $twigEntityContext['schema_org_jsonld'] = $this->buildSchemaOrgScript($entity, $normalizedPath);
 
-            $response = new RenderController($twig, $entityRenderer)->renderEntity($entity, $viewMode, $twigEntityContext);
+            $response = $mediaType === MediaTypeAcceptNegotiator::MARKDOWN
+                ? $this->renderEntityMarkdown($entity, $viewMode, $viewModeConfig, $normalizedPath)
+                : new RenderController($twig, $entityRenderer)->renderEntity($entity, $viewMode, $twigEntityContext);
             if (
                 !$account->isAuthenticated()
                 && !$previewRequested
@@ -228,7 +269,7 @@ final class SsrPageHandler
                 && $response->getStatusCode() === 200
             ) {
                 $this->renderCache->set(
-                    $resolved->entityTypeId,
+                    $entityTypeId,
                     $entity->id(),
                     $viewMode->name,
                     $cacheVariantLangcode,
@@ -239,6 +280,7 @@ final class SsrPageHandler
 
             $headers = array_merge($this->extractHeaders($response), $surrogateHeaders);
             $headers['Cache-Control'] = $cacheControlHeader;
+            $headers['Vary'] = 'Accept';
             return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
         } catch (\Throwable $e) {
             $this->logger->error(sprintf('Render pipeline failed: %s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine()));
@@ -590,6 +632,7 @@ final class SsrPageHandler
         string $viewMode,
         bool $previewRequested,
         array $renderContext,
+        string $mediaType = MediaTypeAcceptNegotiator::HTML,
     ): string {
         $workflowState = 'unknown';
         if (is_array($renderContext['workflow_visibility'] ?? null)) {
@@ -608,6 +651,7 @@ final class SsrPageHandler
             }
         }
 
+        $mediaToken = $this->mediaCacheToken($mediaType);
         $variantPayload = [
             'contract_version' => self::DISCOVERY_CONTRACT_VERSION,
             'langcode' => strtolower(trim($langcode)),
@@ -615,17 +659,193 @@ final class SsrPageHandler
             'preview' => $previewRequested ? 1 : 0,
             'workflow_state' => $workflowState,
             'graph_hash' => $graphHash,
+            'media_type' => $mediaToken,
         ];
         $serializedVariantPayload = json_encode($this->discoveryHandler->normalizeForCacheKey($variantPayload), JSON_THROW_ON_ERROR);
         $variantHash = substr(sha1((string) $serializedVariantPayload), 0, 16);
 
+        // The media token is appended (not inserted) so the historical
+        // `v2:lang:view:preview:workflow:` prefix is preserved, while HTML and
+        // Markdown still resolve to distinct cache entries (FR-004 / NFR-001).
         return sprintf(
-            'v2:%s:%s:%s:%s:%s',
+            'v2:%s:%s:%s:%s:%s:%s',
             $this->sanitizeCacheToken($langcode, 'unknown'),
             $this->sanitizeCacheToken($viewMode, 'full'),
             $previewRequested ? 'preview' : 'public',
             $this->sanitizeCacheToken($workflowState, 'unknown'),
             $variantHash,
+            $mediaToken,
+        );
+    }
+
+    /**
+     * Short, stable cache token for a negotiated media type.
+     */
+    private function mediaCacheToken(string $mediaType): string
+    {
+        return $mediaType === MediaTypeAcceptNegotiator::MARKDOWN ? 'md' : 'html';
+    }
+
+    /**
+     * Negotiate the response media type from the `?raw`/`?format` override or the
+     * `Accept` header, restricted to the representations SSR can serve.
+     */
+    public function negotiateMediaType(HttpRequest $httpRequest): string
+    {
+        $negotiator = new MediaTypeAcceptNegotiator();
+        $supported = [MediaTypeAcceptNegotiator::HTML, MediaTypeAcceptNegotiator::MARKDOWN];
+
+        $override = $negotiator->resolveQueryOverride($httpRequest->query->all(), $supported);
+        if ($override !== null) {
+            return $override;
+        }
+
+        return $negotiator->negotiate(
+            (string) $httpRequest->headers->get('Accept', ''),
+            $supported,
+            MediaTypeAcceptNegotiator::HTML,
+        );
+    }
+
+    /**
+     * Resolve a `/{entityTypeId}/{id}` system path to a content-entity reference
+     * so a published content item is reachable without a hand-created path alias
+     * (FR-006). Scoped to the `content` group — non-content types (user,
+     * taxonomy, …) are never served by guessing an id. Published-gating happens
+     * downstream via {@see EditorialVisibilityResolver}.
+     *
+     * @return array{0: string, 1: string}|null [entityTypeId, id], or null.
+     */
+    private function resolveCanonicalContentPath(string $path): ?array
+    {
+        $trimmed = trim($path, '/');
+        if ($trimmed === '' || substr_count($trimmed, '/') !== 1) {
+            return null;
+        }
+
+        [$type, $rawId] = explode('/', $trimmed, 2);
+        $id = rawurldecode($rawId);
+        if ($type === '' || $id === '' || !$this->entityTypeManager->hasDefinition($type)) {
+            return null;
+        }
+
+        if ($this->entityTypeManager->getDefinition($type)->getGroup() !== 'content') {
+            return null;
+        }
+
+        return [$type, $id];
+    }
+
+    /**
+     * Resolve a content entity by its canonical numeric id OR — when the path
+     * segment is UUID-shaped and the type has a `uuid` key — by uuid (#1686).
+     *
+     * The canonical public path stays numeric `/{type}/{id}`, but a valid entity
+     * must never 404 purely on identifier shape: `GET /story/{uuid}` previously
+     * fed the UUID to `load()`, which queries the numeric `id` column only, so it
+     * never matched. We resolve the uuid to the numeric id via a query first;
+     * `load()` itself stays numeric-keyed (the column is never dual-keyed).
+     *
+     * `accessCheck(false)` — identity resolution only. Authorization stays with
+     * the SSR visibility gates in the caller (`EditorialVisibilityResolver` +
+     * {@see shouldDenyContentGroupRender()}), exactly as on the numeric path
+     * (`load()` does not access-check either), so the uuid and numeric paths are
+     * symmetric and the uuid path cannot leak a draft.
+     */
+    private function loadByIdOrUuid(string $entityTypeId, int|string $id): ?EntityInterface
+    {
+        $storage = $this->entityTypeManager->getStorage($entityTypeId);
+        $keys = $this->entityTypeManager->getDefinition($entityTypeId)->getKeys();
+
+        if (
+            isset($keys['uuid'])
+            && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', (string) $id) === 1
+        ) {
+            $ids = $storage->getQuery()
+                ->accessCheck(false)
+                ->condition($keys['uuid'], (string) $id)
+                ->execute();
+            if ($ids === []) {
+                return null;
+            }
+
+            return $storage->load(reset($ids));
+        }
+
+        return $storage->load($id);
+    }
+
+    /**
+     * The canonical published gate for generic content the node-centric
+     * {@see EditorialVisibilityResolver} does not cover (it allows any non-`node`
+     * type outright). Returns true when a content-group entity that is not a
+     * `node` must be denied for ($account, 'view') per the SAME per-entity
+     * AccessPolicy the MCP and JSON:API paths use — PublishedContentAccessPolicy
+     * grants anonymous `view` only for published items — so HTML/Markdown can
+     * never serve an unpublished draft the other surfaces deny.
+     *
+     * Nodes are excluded: their published/preview/workflow nuance stays with the
+     * editorial resolver, preserving the shipped node behavior. Fails closed —
+     * when no access handler is wired, a content render is denied rather than
+     * risk leaking a draft through a wiring gap.
+     */
+    private function shouldDenyContentGroupRender(string $entityTypeId, EntityInterface $entity, AccountInterface $account): bool
+    {
+        if ($entityTypeId === 'node' || !$this->isContentGroupEntity($entityTypeId)) {
+            return false;
+        }
+
+        return $this->accessHandler === null
+            || !$this->accessHandler->check($entity, 'view', $account)->isAllowed();
+    }
+
+    /**
+     * Whether an entity type belongs to the `content` group — the set of
+     * publishable, anonymously-readable-when-published types. Used to scope the
+     * canonical published gate so non-content types (user, taxonomy, …) keep
+     * their existing visibility behavior.
+     */
+    private function isContentGroupEntity(string $entityTypeId): bool
+    {
+        if (!$this->entityTypeManager->hasDefinition($entityTypeId)) {
+            return false;
+        }
+
+        return $this->entityTypeManager->getDefinition($entityTypeId)->getGroup() === 'content';
+    }
+
+    /**
+     * Build the schema.org JSON-LD `<script>` block for an entity's HTML `<head>`.
+     */
+    private function buildSchemaOrgScript(EntityInterface $entity, string $canonicalUrl): string
+    {
+        $mapper = new EntitySchemaOrgMapper();
+
+        return $mapper->toScriptTag($mapper->map($entity, $canonicalUrl));
+    }
+
+    /**
+     * Render an entity as a Markdown HTTP response via the shared
+     * {@see EntityMarkdownPresenter} — the same bytes the `?raw` toggle returns.
+     */
+    private function renderEntityMarkdown(
+        EntityInterface $entity,
+        ViewMode $viewMode,
+        ArrayViewModeConfig $viewModeConfig,
+        string $canonicalUrl,
+    ): HttpResponse {
+        $presenter = new EntityMarkdownPresenter(
+            new ResourceSerializer($this->entityTypeManager),
+            $this->entityTypeManager,
+            $viewModeConfig,
+        );
+
+        $markdown = $presenter->present($entity, $viewMode->name, null, null, $canonicalUrl);
+
+        return new HttpResponse(
+            $markdown,
+            200,
+            ['Content-Type' => 'text/markdown; charset=UTF-8'],
         );
     }
 
@@ -649,6 +869,7 @@ final class SsrPageHandler
         string $langcode,
         string $variant,
         array $renderContext,
+        string $mediaType = MediaTypeAcceptNegotiator::HTML,
     ): array {
         $workflowState = 'unknown';
         if (is_array($renderContext['workflow_visibility'] ?? null)) {
@@ -675,6 +896,7 @@ final class SsrPageHandler
             'waaseyaa:ssr:view:' . $this->sanitizeCacheToken($viewMode, 'full'),
             'waaseyaa:ssr:lang:' . $this->sanitizeCacheToken($langcode, 'unknown'),
             'waaseyaa:ssr:graph:' . $this->sanitizeCacheToken($graphHash, 'none'),
+            'waaseyaa:ssr:media:' . $this->mediaCacheToken($mediaType),
         ]));
 
         return [

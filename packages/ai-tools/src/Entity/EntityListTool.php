@@ -77,11 +77,33 @@ final class EntityListTool extends AbstractAgentTool
             return AgentToolResult::error(sprintf('entity.list: %s', $e->getMessage()));
         }
 
-        $items = array_map(fn(EntityInterface $e): array => [
-            'entity_type' => $e->getEntityTypeId(),
-            'id' => $e->id(),
-            'label' => $e->label(),
-        ], $entities);
+        // Per-entity access gate: drop entities the initiating account may not
+        // view before they are serialized. No-op in capability-only mode (no
+        // access handler attached). Result stays bounded by $limit.
+        $entities = array_values(array_filter(
+            $entities,
+            fn(EntityInterface $e): bool => $this->canViewEntity($e, $account),
+        ));
+
+        $items = array_map(static function (EntityInterface $e): array {
+            $item = [
+                'entity_type' => $e->getEntityTypeId(),
+                'id' => $e->id(),
+                'label' => $e->label(),
+            ];
+            // FR-008 (optimistic-locking-01KTXCHY): per-item current head so
+            // a caller can form an expectation without a per-entity re-read
+            // (entities are already loaded — zero added queries). Omitted when
+            // no revision id exists.
+            if (method_exists($e, 'getRevisionId')) {
+                $revisionId = $e->getRevisionId();
+                if ($revisionId !== null) {
+                    $item['revision_id'] = $revisionId;
+                }
+            }
+
+            return $item;
+        }, $entities);
 
         return AgentToolResult::success(
             content: [['type' => 'json', 'data' => ['items' => $items, 'count' => count($items)]]],

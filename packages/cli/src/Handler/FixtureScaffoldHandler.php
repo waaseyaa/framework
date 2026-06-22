@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 
 /**
  * @api
@@ -14,7 +14,7 @@ final class FixtureScaffoldHandler
     /** @var list<string> */
     private const array VALID_STATES = ['draft', 'review', 'published', 'archived'];
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $key = trim((string) ($io->option('key') ?? ''));
         $title = trim((string) ($io->option('title') ?? ''));

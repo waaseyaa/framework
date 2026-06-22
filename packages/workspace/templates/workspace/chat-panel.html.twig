@@ -1,0 +1,45 @@
+{# Workspace chat panel scaffold.
+
+   Include from an app surface and mount the client against it:
+
+     {% include 'workspace/chat-panel.html.twig' with { chat: {
+       title: 'Co-Intelligence',
+       subtitle: 'Working on Identity with you',
+       avatar: 'CI',
+       placeholder: 'Ask me anything...',
+       intro: 'Aanii. ...',
+       chips: ['What is still a gap?'],
+     } } only %}
+
+     <script>
+       WaaseyaaChat.mount(document.querySelector('[data-ws-chat]'), { ... });
+     </script>
+
+   The composer is a real <form>: Enter submits, the button submits, and any
+   automation that drives forms works without synthetic-event games. This
+   template intentionally lives at a two-segment path (workspace/...) so the
+   SSR path-template fallback can never serve it as a page. #}
+<div class="cw-panel" data-ws-chat>
+  <div class="cw-head">
+    <div class="cw-ava">{{ chat.avatar|default('AI') }}</div>
+    <div><b>{{ chat.title|default('Assistant') }}</b><small>{{ chat.subtitle|default('') }}</small></div>
+    <button type="button" class="cw-new" data-ws-new title="Start a new chat">New chat</button>
+  </div>
+  <div class="cw-stream" data-ws-stream>
+    {% if chat.intro is defined and chat.intro %}
+    <div class="imsg ai" data-ws-intro><div class="av">{{ chat.avatar|default('AI') }}</div><div class="ibub">{{ chat.intro }}</div></div>
+    {% endif %}
+    {% if chat.chips is defined and chat.chips %}
+    <div class="cw-chips" data-ws-chips>
+      {% for chip in chat.chips %}
+      <button type="button" class="cw-chip" data-ws-chip>{{ chip }}</button>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  <form class="cw-foot" data-ws-form>
+    <textarea data-ws-input rows="1" placeholder="{{ chat.placeholder|default('Ask...') }}"></textarea>
+    <span class="ws-counter" data-ws-counter></span>
+    <button type="submit" class="cw-send" data-ws-send>Send</button>
+  </form>
+</div>

@@ -27,7 +27,7 @@ final class SemanticRefreshCommandTest extends TestCase
     {
         $provider = new IngestSearchSemanticServiceProvider();
         $definition = null;
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'semantic:refresh') {
                 $definition = $cmd;
                 break;

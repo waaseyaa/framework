@@ -9,278 +9,144 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Psr\Container\NotFoundExceptionInterface;
-use Waaseyaa\CLI\CommandDefinition;
-use Waaseyaa\CLI\CommandRegistry;
-use Waaseyaa\CLI\Provider\CliKernelServiceProvider;
-use Waaseyaa\CLI\CliIO;
+use Symfony\Component\Console\Command\Command;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
+use Waaseyaa\CLI\ConsoleApplicationFactory;
+use Waaseyaa\Config\Exception\ConfigCommandCollisionException;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
-use Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface;
+use Waaseyaa\Foundation\Kernel\AbstractKernel;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
-/**
- * Integration tests for CliKernelServiceProvider::buildRegistry().
- *
- * Verifies that provider discovery correctly populates the CommandRegistry
- * from HasNativeCommandsInterface implementors.
- */
 #[CoversNothing]
 final class ProviderRegistersCommandsTest extends TestCase
 {
-    private function makeContainer(array $bindings): ContainerInterface
-    {
-        return new class ($bindings) implements ContainerInterface {
-            public function __construct(private readonly array $bindings) {}
-
-            public function get(string $id): mixed
-            {
-                if (!isset($this->bindings[$id])) {
-                    throw new class ($id) extends \RuntimeException implements NotFoundExceptionInterface {
-                        public function __construct(string $id)
-                        {
-                            parent::__construct("No entry found for: {$id}");
-                        }
-                    };
-                }
-                return $this->bindings[$id];
-            }
-
-            public function has(string $id): bool
-            {
-                return isset($this->bindings[$id]);
-            }
-        };
-    }
-
-    private function makeManifest(array $nativeCommandProviders = []): PackageManifest
-    {
-        return new PackageManifest(
-            providers: $nativeCommandProviders,
-            nativeCommandProviders: $nativeCommandProviders,
-        );
-    }
-
-    // -------------------------------------------------------------------------
-    // Single provider with 2 commands
-    // -------------------------------------------------------------------------
-
     #[Test]
-    public function singleProviderYieldingTwoCommandsRegisteredBoth(): void
+    public function providerCommandsAreRegisteredInSymfonyApplication(): void
     {
-        $provider = new class implements HasNativeCommandsInterface {
-            public function nativeCommands(): iterable
+        $provider = new class extends ServiceProvider implements ProvidesConsoleCommandsInterface {
+            public function register(): void {}
+
+            public function consoleCommands(): iterable
             {
-                yield new CommandDefinition(
+                yield new HandlerCommand(
                     name: 'cmd-a',
                     description: 'Command A.',
-                    handler: static fn (CliIO $io): int => 0,
+                    handler: static fn(SymfonyCommandIO $io): int => 0,
                 );
-                yield new CommandDefinition(
+                yield new HandlerCommand(
                     name: 'cmd-b',
                     description: 'Command B.',
-                    handler: static fn (CliIO $io): int => 0,
+                    handler: static fn(SymfonyCommandIO $io): int => 0,
                 );
             }
         };
 
-        $manifest = $this->makeManifest([$provider::class]);
-        $container = $this->makeContainer([$provider::class => $provider]);
+        $application = $this->factory([$provider])->create();
 
-        $registry = CliKernelServiceProvider::buildRegistry($manifest, $container);
-
-        self::assertNotNull($registry->get('cmd-a'));
-        self::assertNotNull($registry->get('cmd-b'));
-        self::assertCount(2, $registry->all());
+        self::assertTrue($application->has('cmd-a'));
+        self::assertTrue($application->has('cmd-b'));
     }
 
-    // -------------------------------------------------------------------------
-    // Multiple providers
-    // -------------------------------------------------------------------------
-
     #[Test]
-    public function multipleProvidersEachContributeCommands(): void
+    public function duplicateCommandsKeepFirstRegistration(): void
     {
-        $providerA = new class implements HasNativeCommandsInterface {
-            public function nativeCommands(): iterable
+        $first = new NamedProviderCommand('shared-cmd', 'From A.');
+        $second = new NamedProviderCommand('shared-cmd', 'From B.');
+
+        $provider = new class([$first, $second]) extends ServiceProvider implements ProvidesConsoleCommandsInterface {
+            public function __construct(private readonly array $commands) {}
+
+            public function register(): void {}
+
+            public function consoleCommands(): iterable
             {
-                yield new CommandDefinition(
-                    name: 'provider-a:task',
-                    description: 'From provider A.',
-                    handler: static fn (CliIO $io): int => 0,
-                );
+                yield from $this->commands;
             }
         };
 
-        $providerB = new class implements HasNativeCommandsInterface {
-            public function nativeCommands(): iterable
+        $application = $this->factory([$provider])->create();
+
+        self::assertSame('From A.', $application->find('shared-cmd')->getDescription());
+    }
+
+    #[Test]
+    public function reservedConfigCommandCollisionFailsRegistration(): void
+    {
+        $provider = new class extends ServiceProvider implements ProvidesConsoleCommandsInterface {
+            public function register(): void {}
+
+            public function consoleCommands(): iterable
             {
-                yield new CommandDefinition(
-                    name: 'provider-b:task',
-                    description: 'From provider B.',
-                    handler: static fn (CliIO $io): int => 0,
-                );
+                yield new NamedProviderCommand('config:export', 'Collision.');
             }
         };
 
-        $manifest = $this->makeManifest([$providerA::class, $providerB::class]);
-        $container = $this->makeContainer([
-            $providerA::class => $providerA,
-            $providerB::class => $providerB,
-        ]);
+        $this->expectException(ConfigCommandCollisionException::class);
 
-        $registry = CliKernelServiceProvider::buildRegistry($manifest, $container);
-
-        self::assertNotNull($registry->get('provider-a:task'));
-        self::assertNotNull($registry->get('provider-b:task'));
-        self::assertCount(2, $registry->all());
-    }
-
-    // -------------------------------------------------------------------------
-    // Provider instances passed directly (bypass manifest)
-    // -------------------------------------------------------------------------
-
-    #[Test]
-    public function providerInstancesPassedDirectlyBypassManifest(): void
-    {
-        $provider = new class implements HasNativeCommandsInterface {
-            public function nativeCommands(): iterable
-            {
-                yield new CommandDefinition(
-                    name: 'direct-cmd',
-                    description: 'Direct provider.',
-                    handler: static fn (CliIO $io): int => 0,
-                );
-            }
-        };
-
-        // Empty manifest — provider injected directly
-        $emptyManifest = $this->makeManifest([]);
-        $container = $this->makeContainer([]);
-
-        $registry = CliKernelServiceProvider::buildRegistry(
-            manifest: $emptyManifest,
-            container: $container,
-            providerInstances: [$provider],
-        );
-
-        self::assertNotNull($registry->get('direct-cmd'));
-    }
-
-    // -------------------------------------------------------------------------
-    // Unresolvable provider is skipped with a warning (no crash)
-    // -------------------------------------------------------------------------
-
-    #[Test]
-    public function unresolvableProviderIsSkippedGracefully(): void
-    {
-        $manifest = $this->makeManifest(['App\\NonExistent\\Provider']);
-        $container = $this->makeContainer([]);  // nothing registered
-
-        // Must not throw
-        $registry = CliKernelServiceProvider::buildRegistry($manifest, $container);
-
-        self::assertSame([], $registry->all());
-    }
-
-    // -------------------------------------------------------------------------
-    // Duplicate command from two providers → second silently skipped
-    // -------------------------------------------------------------------------
-
-    #[Test]
-    public function duplicateCommandFromTwoProvidersSilentlySkipsSecond(): void
-    {
-        $providerA = new class implements HasNativeCommandsInterface {
-            public function nativeCommands(): iterable
-            {
-                yield new CommandDefinition(
-                    name: 'shared-cmd',
-                    description: 'From A.',
-                    handler: static fn (CliIO $io): int => 0,
-                );
-            }
-        };
-
-        $providerB = new class implements HasNativeCommandsInterface {
-            public function nativeCommands(): iterable
-            {
-                yield new CommandDefinition(
-                    name: 'shared-cmd',
-                    description: 'From B.',
-                    handler: static fn (CliIO $io): int => 1,
-                );
-            }
-        };
-
-        $registry = CliKernelServiceProvider::buildRegistry(
-            manifest: $this->makeManifest([]),
-            container: $this->makeContainer([]),
-            providerInstances: [$providerA, $providerB],
-        );
-
-        // Only first registration survives
-        self::assertCount(1, $registry->all());
-        self::assertSame('From A.', $registry->get('shared-cmd')?->description);
-    }
-
-    // -------------------------------------------------------------------------
-    // PackageManifestCompiler detects HasNativeCommandsInterface providers
-    // -------------------------------------------------------------------------
-
-    #[Test]
-    public function packageManifestHasNativeCommandProvidersField(): void
-    {
-        $manifest = new PackageManifest(
-            providers: ['App\\MyProvider'],
-            nativeCommandProviders: ['App\\MyProvider'],
-        );
-
-        self::assertSame(['App\\MyProvider'], $manifest->nativeCommandProviders);
+        $this->factory([$provider])->create();
     }
 
     #[Test]
-    public function packageManifestNativeCommandProvidersDefaultsToEmpty(): void
+    public function packageManifestConsoleCommandProvidersRoundTrip(): void
     {
-        $manifest = new PackageManifest();
-        self::assertSame([], $manifest->nativeCommandProviders);
-    }
-
-    #[Test]
-    public function packageManifestFromArrayWithNativeCommandProviders(): void
-    {
-        $data = [
+        $manifest = PackageManifest::fromArray([
             'providers' => ['App\\MyProvider'],
             'migrations' => [],
             'field_types' => [],
             'middleware' => [],
-            'native_command_providers' => ['App\\MyProvider'],
-        ];
+            'console_command_providers' => ['App\\MyProvider'],
+        ]);
 
-        $manifest = PackageManifest::fromArray($data);
-        self::assertSame(['App\\MyProvider'], $manifest->nativeCommandProviders);
+        self::assertSame(['App\\MyProvider'], $manifest->consoleCommandProviders);
+        self::assertSame(['App\\MyProvider'], $manifest->toArray()['console_command_providers']);
+        self::assertArrayNotHasKey('native_command_providers', $manifest->toArray());
     }
 
-    #[Test]
-    public function packageManifestFromArrayWithoutNativeCommandProvidersDefaultsToEmpty(): void
+    /**
+     * @param list<object> $providers
+     */
+    private function factory(array $providers): ConsoleApplicationFactory
     {
-        $data = [
-            'providers' => [],
-            'migrations' => [],
-            'field_types' => [],
-            'middleware' => [],
-        ];
-
-        $manifest = PackageManifest::fromArray($data);
-        self::assertSame([], $manifest->nativeCommandProviders);
-    }
-
-    #[Test]
-    public function packageManifestToArrayIncludesNativeCommandProviders(): void
-    {
-        $manifest = new PackageManifest(
-            providers: ['App\\MyProvider'],
-            nativeCommandProviders: ['App\\MyProvider'],
+        return new ConsoleApplicationFactory(
+            kernel: new class(sys_get_temp_dir()) extends AbstractKernel {},
+            container: $this->container(),
+            providers: $providers,
         );
+    }
 
-        $arr = $manifest->toArray();
-        self::assertArrayHasKey('native_command_providers', $arr);
-        self::assertSame(['App\\MyProvider'], $arr['native_command_providers']);
+    private function container(): ContainerInterface
+    {
+        return new class implements ContainerInterface {
+            public function get(string $id): mixed
+            {
+                throw new class($id) extends \RuntimeException implements NotFoundExceptionInterface {
+                    public function __construct(string $id)
+                    {
+                        parent::__construct("No entry found for: {$id}");
+                    }
+                };
+            }
+
+            public function has(string $id): bool
+            {
+                return false;
+            }
+        };
+    }
+}
+
+final class NamedProviderCommand extends Command
+{
+    public function __construct(string $name, string $description)
+    {
+        parent::__construct($name);
+        $this->setDescription($description);
+    }
+
+    protected function execute(\Symfony\Component\Console\Input\InputInterface $input, \Symfony\Component\Console\Output\OutputInterface $output): int
+    {
+        return self::SUCCESS;
     }
 }

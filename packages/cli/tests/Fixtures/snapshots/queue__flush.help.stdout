@@ -2,9 +2,10 @@ Description:
   Remove all failed queue jobs
 
 Usage:
-  queue:flush
+  queue:flush [options]
 
 Options:
+  -y, --yes             Skip the confirmation prompt (required to flush in non-interactive mode).
   -h, --help            Display help for the given command. When no command is given display help for the list command
       --silent          Do not output any message
   -q, --quiet           Only errors are displayed. All other output is suppressed

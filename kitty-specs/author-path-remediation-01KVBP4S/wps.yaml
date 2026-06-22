@@ -1,0 +1,83 @@
+version: 1
+mission: author-path-remediation-01KVBP4S
+work_packages:
+  - id: WP01
+    title: Dev-mode manifest auto-discovery
+    description: >
+      In dev mode the kernel compiles the package manifest fresh (no cache) so new
+      app entity types and access policies are discovered without
+      `composer dump-autoload -o` or `optimize:manifest`. Production keeps the
+      compiled/cached manifest.
+    dependencies: []
+    owned_files:
+      - "packages/foundation/src/Kernel/AbstractKernel.php"
+      - "packages/foundation/tests/Unit/Kernel/**"
+    requirement_refs: [FR-007, NFR-004]
+  - id: WP02
+    title: Default public-read for published content + MCP entity.read field-filter
+    description: >
+      Additive framework-default access policy granting anonymous `view` for
+      published content entities (published = status field truthy); composed into
+      the kernel access handler so it applies to all content types with no per-type
+      policy. Additive only (Allowed/Neutral; Forbidden still wins). MCP
+      entity.read serialization routed through the same internal/credential/
+      field-access filtering as ResourceSerializer.
+    dependencies: []
+    owned_files:
+      - "packages/access/src/Policy/**"
+      - "packages/access/tests/**"
+      - "packages/ai-tools/src/Entity/EntityReadTool.php"
+      - "packages/ai-tools/src/AbstractAgentTool.php"
+      - "packages/ai-tools/tests/**"
+    requirement_refs: [FR-004, NFR-001, NFR-002, NFR-003]
+  - id: WP03
+    title: Canonical /{type}/{id} serving + full Markdown field exposure
+    description: >
+      SsrPageHandler resolves a published-gated canonical /{entityTypeId}/{id} path
+      when no path alias matches (HTML + same-URL markdown). EntityMarkdownPresenter
+      unions the view-mode display with all access-safe stored fields so body and
+      other stored fields always render.
+    dependencies: [WP02]
+    owned_files:
+      - "packages/ssr/src/SsrPageHandler.php"
+      - "packages/ssr/tests/**"
+      - "packages/api/src/Markdown/EntityMarkdownPresenter.php"
+      - "packages/api/tests/**"
+    requirement_refs: [FR-005, FR-006, NFR-001]
+  - id: WP04
+    title: Cross-platform entity:create field input
+    description: >
+      entity:create accepts --field name=value (repeatable), --field-file name=@path
+      (repeatable), --values-file path.json, and stdin — no inline JSON required;
+      deterministic precedence. Works in PowerShell/cmd/POSIX. Tests for file + stdin.
+    dependencies: []
+    owned_files:
+      - "packages/cli/src/Handler/EntityCreateHandler.php"
+      - "packages/cli/src/Provider/EntityTypeServiceProvider.php"
+      - "packages/cli/tests/Unit/Handler/EntityCreateHandlerTest.php"
+    requirement_refs: [FR-001, FR-002]
+  - id: WP05
+    title: make:content-type scaffold
+    description: >
+      make:content-type <name> --fields="f:type,..." generates App\Entity\{Name}
+      (attribute-decorated content entity with a published status field + each spec
+      field, entity_reference target metadata included), registers it for discovery,
+      and leaves the type immediately usable (schema:sync materializes it).
+    dependencies: [WP01]
+    owned_files:
+      - "packages/cli/src/Handler/MakeContentTypeHandler.php"
+      - "packages/cli/src/Provider/**"
+      - "packages/cli/stubs/**"
+      - "packages/cli/tests/Unit/Handler/MakeContentTypeHandlerTest.php"
+    requirement_refs: [FR-003]
+  - id: WP06
+    title: Cold-Windows acceptance gate + release
+    description: >
+      Live on Windows in a stock app: make:content-type -> schema:sync ->
+      entity:create (file/stdin input) -> serve HTML + Accept: text/markdown + MCP
+      entity.read, documented CLI only (no one-off PHP, no base64 eval, no manifest
+      recompile). Capture evidence; then cut the release the repo's normal way.
+    dependencies: [WP01, WP02, WP03, WP04, WP05]
+    owned_files:
+      - "kitty-specs/author-path-remediation-01KVBP4S/verification/**"
+    requirement_refs: [SC-006]

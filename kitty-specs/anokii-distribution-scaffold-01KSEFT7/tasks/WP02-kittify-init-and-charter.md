@@ -20,10 +20,12 @@ agent: ''
 history: []
 authoritative_surface: .kittify/charter/charter.md
 execution_mode: planning_artifact
+mission_id: 01KSEFT768GN09JZXHWMAMJNFR
 owned_files:
 - .kittify/charter/charter.md
 - .kittify/SPEC_KITTY_VERSION
 tags: []
+wp_code: WP02
 ---
 
 # WP02 — `.kittify` init + Anokii distribution charter

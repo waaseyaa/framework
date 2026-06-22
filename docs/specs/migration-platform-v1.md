@@ -1,6 +1,13 @@
+<!-- Spec reviewed 2026-06-15 - convention-spec-gate D-10: this v1 mission spec shipped as M-002 and was superseded by the canonical doctrine spec migration-platform.md. Added a SUPERSEDED banner and corrected the stale Draft status so it no longer reads as a live spec. -->
 # Migration Platform v1 — Substrate in Core
 
-**Status:** Draft mission spec (2026-05-11)
+> **⚠️ SUPERSEDED.** This is the original M-002 mission spec, retained for
+> historical/audit context only. The mission **shipped 2026-05-13**; the live,
+> canonical doctrine spec is **[`migration-platform.md`](migration-platform.md)** —
+> read that for the current Migration Platform surface. Do not build against the
+> draft requirements below.
+
+**Status:** Superseded by [`migration-platform.md`](migration-platform.md) — shipped as M-002 (mission `migration-platform-v1-01KRCDE9`, 2026-05-13); retained for historical/audit context.
 **Audience:** framework maintainers; input for Spec Kitty `specify` → `plan` → `tasks` flow
 **Mission ID:** TBD (to be assigned by `@jonesrussell` on mission creation)
 **Origin:** [ADR 012a](../adr/012a-migration-substrate-in-core.md) (Accepted 2026-05-11).
@@ -144,7 +151,7 @@ Normative requirements use **MUST / SHOULD / MAY** per RFC 2119. Numbered for Sp
 
 - **FR-041** `DestinationPluginInterface::rollback(WriteResult)` MUST undo a single record's write.
 - **FR-042** `EntityDestination::rollback()` MUST delete the destination entity, respecting access policies (`delete` operation on entity type) and lifecycle events (`BeforeDeleteEvent` / `AfterDeleteEvent` fire normally).
-- **FR-043** `import:rollback <migration-id>` MUST walk the id-map in reverse-creation order and call rollback per record.
+- **FR-043** `import:rollback <migration-id>` MUST walk the id-map in reverse last-imported order — `last_imported_at DESC`, tie-broken by `last_run_id DESC` for sub-second determinism — and call rollback per record. (The stable-surface `migration_id_map` table (FR-025) carries no immutable creation-order column; `last_imported_at` is the only ordering signal and is refreshed by `upsert()` on every re-import. Best-effort rollback (FR-044) deletes the destination entity by `destination_uuid`, which is order-independent for *what* is removed; the ordering is an FK/dependency heuristic, for which most-recently-touched-first is the deterministic, implementable contract.)
 - **FR-044** Rollback errors MUST be logged but MUST NOT halt the rollback walk. Best-effort semantics. After completion, `import:status` reflects per-record rollback success/failure.
 
 ### 3.7 Error model

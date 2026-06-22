@@ -1,30 +1,32 @@
 ---
-work_package_id: "WP03"
-title: "Coverage audit + parity matrix population + CHANGELOG + follow-up missions"
-dependencies: ["WP01"]
+work_package_id: WP03
+title: Coverage audit + parity matrix population + CHANGELOG + follow-up missions
+dependencies: [WP01]
 requirement_refs:
-  - "FR-008"
-  - "FR-009"
-  - "NFR-002"
-  - "C-004"
-  - "C-005"
-planning_base_branch: "main"
-merge_target_branch: "main"
-branch_strategy: "Planning artifacts for this mission were generated on main. WP03 depends on WP01 (matrix scaffold is what WP03 populates). May run in parallel with WP02 after WP01 lands. Per-gap follow-up mission scaffolds are filed by this WP via `spec-kitty specify` and committed alongside this WP's matrix population."
+- FR-008
+- FR-009
+- NFR-002
+- C-004
+- C-005
+planning_base_branch: main
+merge_target_branch: main
+branch_strategy: Planning artifacts for this mission were generated on main. WP03 depends on WP01 (matrix scaffold is what WP03 populates). May run in parallel with WP02 after WP01 lands. Per-gap follow-up mission scaffolds are filed by this WP via `spec-kitty specify` and committed alongside this WP's matrix population.
 subtasks:
-  - "T006"
-  - "T007"
-  - "T008"
-phase: "Phase 2 - Audit + follow-ups"
-assignee: ""
-agent: ""
-shell_pid: ""
-authoritative_surface: "docs/specs/jsonapi.md"
-execution_mode: "documentation"
-owned_files:
-  - "docs/specs/jsonapi.md"
-  - "CHANGELOG.md"
+- T006
+- T007
+- T008
+phase: Phase 2 - Audit + follow-ups
+assignee: ''
+agent: ''
+shell_pid: ''
 history: []
+authoritative_surface: docs/specs/jsonapi.md
+execution_mode: documentation
+mission_id: 01KSEFTVFWVRP1AJ1GH2AJDB9P
+owned_files:
+- docs/specs/jsonapi.md
+- CHANGELOG.md
+wp_code: WP03
 ---
 
 # WP03 — Coverage audit + parity matrix population + CHANGELOG + follow-up missions

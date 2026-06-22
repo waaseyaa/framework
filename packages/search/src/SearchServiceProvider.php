@@ -20,9 +20,11 @@ final class SearchServiceProvider extends ServiceProvider
     {
         $this->singleton(SearchIndexerInterface::class, function (): SearchIndexerInterface {
             $database = $this->getSearchDatabase();
-            $indexer = new Fts5SearchIndexer($database);
-            $indexer->ensureSchema();
-            return $indexer;
+
+            // Do NOT call ensureSchema() here. Resolving the indexer at boot (to
+            // wire the SearchIndexSubscriber) must not run DDL — the indexer
+            // creates its schema lazily on first write instead. (D-35)
+            return new Fts5SearchIndexer($database);
         });
 
         $this->singleton(SearchProviderInterface::class, function (): SearchProviderInterface {

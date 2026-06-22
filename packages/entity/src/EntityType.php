@@ -57,6 +57,8 @@ final readonly class EntityType implements EntityTypeInterface
      * @param array{scope: string}|null $tenancy Declarative tenancy slot. `null` = non-tenant.
      *   Currently the only accepted shape is `['scope' => 'community']`. Replaces the
      *   legacy `HasCommunityInterface` marker (mission #1257 §C1).
+     * @param bool $discoverable Whether this entity type appears in the GET /api discovery
+     *   index. Visibility only — CRUD routes and access enforcement are unaffected.
      * @param array<string, FieldDefinitionInterface|array<string, mixed>> $_fieldDefinitions
      *   @internal Field definitions keyed by field name. Populated only by
      *   {@see self::fromClass()} and {@see \Waaseyaa\Entity\Tests\Helper\TestEntityType::stub()}.
@@ -80,6 +82,7 @@ final readonly class EntityType implements EntityTypeInterface
         private ?string $description = null,
         private ?string $primaryStorageBackend = null,
         private ?array $tenancy = null,
+        private bool $discoverable = true,
         private array $_fieldDefinitions = [],
     ) {
         // T036: revisionable entity types must declare a non-empty revision key.
@@ -185,6 +188,8 @@ final readonly class EntityType implements EntityTypeInterface
      */
     /**
      * @param array{scope: string}|null $tenancy Forwarded to the constructor; see __construct().
+     * @param bool $discoverable Forwarded to the constructor; see __construct(). Like other
+     *   non-tenancy overrides it is first-call-wins under the per-class cache.
      *
      * @throws \LogicException When the class has already been resolved with a
      *   different `$tenancy` slot. The cache treats most overrides as
@@ -203,6 +208,7 @@ final readonly class EntityType implements EntityTypeInterface
         array $constraints = [],
         ?string $group = null,
         ?array $tenancy = null,
+        bool $discoverable = true,
     ): self {
         $cache = &self::fromClassCacheRef();
         if (isset($cache[$class])) {
@@ -248,6 +254,7 @@ final readonly class EntityType implements EntityTypeInterface
             group: $group,
             description: $description,
             tenancy: $tenancy,
+            discoverable: $discoverable,
             _fieldDefinitions: $metadata->fields,
         );
     }
@@ -412,5 +419,17 @@ final readonly class EntityType implements EntityTypeInterface
     public function getTenancy(): ?array
     {
         return $this->tenancy;
+    }
+
+    /**
+     * Whether this entity type appears in the GET /api discovery index.
+     *
+     * Visibility only — CRUD routes and access enforcement are unaffected.
+     * Read duck-typed by ApiDiscoveryController (EntityTypeInterface is
+     * deliberately not widened; see mission request-surface-hardening research D2).
+     */
+    public function isDiscoverable(): bool
+    {
+        return $this->discoverable;
     }
 }

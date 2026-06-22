@@ -7,7 +7,7 @@ namespace Waaseyaa\CLI\Tests\Unit\Handler;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\ConfigExportHandler;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Config\ConfigManagerInterface;
@@ -36,7 +36,7 @@ final class ConfigExportHandlerTest extends TestCase
     private function createTester(ConfigManagerInterface $manager): CliTester
     {
         $handler = new ConfigExportHandler($manager);
-        $definition = new CommandDefinition(
+        $definition = new HandlerCommand(
             name: 'config:export',
             description: 'Export active configuration to the sync directory',
             handler: \Closure::fromCallable([$handler, 'execute']),

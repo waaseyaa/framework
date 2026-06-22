@@ -1,5 +1,6 @@
 # Operations Playbooks
 
+<!-- Spec reviewed 2026-06-21 - issue #1707 `waaseyaa dev` port preflight (packages/frankenphp): before printing "Serving …" and exec'ing FrankenPHP, the `dev` command now connect-probes the resolved listen address (DevCommand.php). A connect probe — Windows SO_REUSEADDR-safe, unlike a test bind — detects an already-bound address (e.g. an orphaned prior dev server) and the command fails fast with one actionable line plus a port-release hint, instead of printing "Serving" then exiting silently and leaving the browser at ERR_CONNECTION_REFUSED. The probe is injectable; covered by DevCommandPortPreflightTest. No other dev/install behavior changed. -->
 ## Purpose
 
 This document consolidates operational workflows introduced across v1.0-v1.2:
@@ -45,11 +46,45 @@ Use this as the default runbook for upgrades, baseline refreshes, and verificati
 
 | Script | Process | Purpose |
 |--------|---------|---------|
-| `composer dev:php` | `bin/waaseyaa serve` | PHP built-in server with `PHP_CLI_SERVER_WORKERS=4`. Single foreground process, no shell forking. |
+| `composer dev:php` | `bin/waaseyaa serve` | PHP built-in server. `bin/waaseyaa serve` now defaults `PHP_CLI_SERVER_WORKERS` to `4` itself (set the env var to override) — no reliance on the composer/shell wrapper. Single foreground process, no shell forking. |
 | `composer dev:admin` | `bin/waaseyaa admin:dev` | Nuxt admin SPA dev server. Reads `NUXT_BACKEND_URL` (defaults to `http://127.0.0.1:${APP_PORT:-8080}`). |
 | `composer dev` | delegates to `dev:php` | Convenience alias for the most common case (PHP-only). |
 
 For full-stack local development, run `composer dev:php` in one terminal and `composer dev:admin` in another. Each process owns its own lifecycle; killing one does not orphan the other. CI and Docker compose files invoke the typed entries directly rather than the legacy shell pipeline.
+
+**The admin SPA's realtime SSE and worker usage.** The admin SPA holds a long-lived Server-Sent-Events connection to `/api/broadcast` for live updates (`packages/admin/app/composables/useRealtime.ts` → `packages/foundation/src/Http/Router/BroadcastRouter.php`). The `BroadcastRouter` loop is **bounded** (see `docs/specs/broadcasting.md`): it returns on client disconnect or after a per-connection time budget (`DEFAULT_MAX_DURATION_SEC`, 30s), so a worker is never pinned indefinitely and the client's `EventSource` reconnects automatically. A short keepalive cadence (2s) makes disconnect detection prompt so the worker is released soon after a tab navigates away. Even so, each *concurrently open* admin tab uses one worker for the duration of its stream, so the server still needs **>1 worker**. PHP's built-in server is single-worker by default, so `bin/waaseyaa serve` defaults `PHP_CLI_SERVER_WORKERS=4`.
+
+### Two runtimes, two launchers
+
+Waaseyaa is runtime-agnostic and **never wraps a runtime binary in a framework subcommand** — the Symfony Runtime / Laravel Octane / Drupal-DDEV convention. There are exactly two supported ways to serve the app, and the choice mirrors that convention:
+
+| Runtime | How it is launched | Use for |
+|---|---|---|
+| `php -S` (single worker) | `vendor/bin/waaseyaa serve` | Zero-config local dev convenience. **Not** for production; **not** for the admin SPA's concurrent SSE. |
+| FrankenPHP (worker mode, concurrent) | the **native** `frankenphp` command + a committed config file | Admin-SPA-heavy local dev and production. |
+
+`waaseyaa serve` is the plain single-worker `php -S` dev server. PHP's built-in server is single-worker by default, so a long-lived `/api/broadcast` SSE stream would pin the sole worker; `serve` defaults `PHP_CLI_SERVER_WORKERS` to `4` to soften that on POSIX, but the knob is `fork()`-gated and **ignored on Windows**. It is a convenience, not a concurrent runtime.
+
+**Concurrent runtime: launch FrankenPHP natively.** The runtime adapter lives in the front controller (`public/index.php`): when FrankenPHP runs it in worker mode, it boots once and loops on `frankenphp_handle_request()`, serving requests concurrently across threads — a `/api/broadcast` SSE stream occupies one thread while the rest stay responsive (and with the bounded broadcast loop, `BroadcastRouter::DEFAULT_MAX_DURATION_SEC`, the worker is always released). `public/index.php` is the single source of runtime awareness; there is no `serve` flag for it.
+
+The ergonomic dev front door for a downstream app is the skeleton's **`composer run dev`**, wired to `@php vendor/bin/waaseyaa dev` so Composer's own (system) PHP runs the CLI — identically in Git Bash, PowerShell, cmd, and POSIX. The `dev` command (and `frankenphp:install`) ship in the **optional `waaseyaa/frankenphp` package** (the Laravel Octane model), which the skeleton installs by default; the framework core stays runtime-agnostic and the runtime-agnostic `waaseyaa serve` (plain `php -S`) remains the zero-dependency fallback in core. First run, `frankenphp:install` downloads the correct FrankenPHP binary for the OS/arch into a managed path (`vendor/bin/`; on Windows the full SDK zip is extracted into `vendor/bin/frankenphp-dist/` so `frankenphp.exe` finds its DLLs), so the binary's location is never the operator's problem. `dev` resolves the binary to an **absolute path** (`FRANKENPHP_BIN` → managed install → known per-OS locations → `frankenphp` on PATH → else: print + offer `frankenphp:install`) via `Waaseyaa\FrankenPhp\Binary\BinaryResolver`, and execs it shell-free in classic per-request mode on `127.0.0.1:8080` (override with `WAASEYAA_DEV_LISTEN`). It **never adds the FrankenPHP directory to `PATH`** and never invokes the bundled `php.exe`, so the official Windows release's OpenSSL-disabled `php.exe` cannot shadow system PHP and break Composer. (The legacy `skeleton/bin/dev` launcher and the `Foundation\Runtime\FrankenPhpLocator` it used are removed — superseded by the package.) For the warm, concurrent worker runtime, run frankenphp directly against the committed `config/frankenphp/Caddyfile` (worker mode → `public/index.php`):
+
+```bash
+# Worker mode (recommended) — concurrent, app stays warm:
+PHP_INI_SCAN_DIR="$PWD/config/frankenphp" frankenphp run --config config/frankenphp/Caddyfile
+
+# Zero-config classic alternative (still concurrent across threads, no Caddyfile):
+PHP_INI_SCAN_DIR="$PWD/config/frankenphp" frankenphp php-server --root public
+```
+
+Both **merge** the skeleton `config/frankenphp/php.ini` (SSE / error settings) on top of the runtime's own ini via `PHP_INI_SCAN_DIR`. Requirements and notes:
+
+- **`frankenphp` must be installed** (install: <https://frankenphp.dev>) and run directly — the framework does not install or wrap it. **Never add the FrankenPHP install directory to `PATH`**: the official Windows release is a full PHP SDK whose bundled `php.exe` (OpenSSL disabled) then shadows system PHP and breaks Composer's TLS. `composer dev` calls the binary by absolute path; for the native worker invocation, call `frankenphp` by absolute path too, or set `FRANKENPHP_BIN`.
+- The `Caddyfile` and `php.ini` are committed under `config/frankenphp/` (shipped in the skeleton, so a stock app works out of the box with no hand-edited ini).
+- **Use `PHP_INI_SCAN_DIR`, not `PHPRC`.** `PHPRC` *replaces* the runtime's bundled `php.ini` wholesale, and on shared-extension builds (e.g. the official Windows release) that bundled ini is what loads `pdo_sqlite`/`sqlite3` — replacing it strands the SQLite driver and every request 500s with `could not find driver`. `PHP_INI_SCAN_DIR` is additive and avoids that.
+- The committed `php.ini` deliberately leaves its `extension=pdo_sqlite`/`extension=sqlite3` lines **commented out** — every mainstream build already provides those (compiled in, or via its own bundled ini), and force-loading them from this ini (which has no `extension_dir`) re-breaks driver registration. Uncomment them (and set `extension_dir`) only for a custom build that genuinely lacks SQLite.
+- **Required PHP extensions for any runtime:** `pdo_sqlite` and `sqlite3` (the SQLite default), plus `sodium`. These are declared in `composer.json` `require` (`ext-pdo_sqlite`, `ext-sqlite3`, `ext-sodium`) so `composer install` flags a runtime missing them.
+- **Classic `php-server` re-boots the kernel on every request, concurrently — boot-path bootstrap must be idempotent and race-safe.** Unlike worker mode (boot once, loop), classic `php-server` (the mode `composer run dev` uses) boots a fresh kernel per request and serves them across many worker threads. So *any* schema provisioning that runs during boot or route registration executes on every request and can run in several threads at once on a cold DB. Such bootstrap **must** create-if-not-exists (and tolerate a concurrent "already exists"), never a bare `CREATE TABLE` behind a non-atomic existence check — a TOCTOU race there 500s the request (this is exactly how the live `/api/broadcast` SSE path used to fail when `auth_tokens` was provisioned on the auth route-registration path; alpha.238). Better still, provision schema in `db:init`/`migrate` rather than on the request path (cleanup-backlog CL-11). The framework's boot-path bootstraps (`auth`, `audit`, `ai-vector`, `search`) all satisfy this.
 
 ### Verification Entry Point
 
@@ -90,7 +125,7 @@ CI must invoke `composer verify` rather than re-implement these checks individua
 2. Run semantic baseline suite:
    - `./vendor/bin/phpunit --configuration phpunit.xml.dist --filter SemanticWarmBaselineIntegrationTest`
 3. If intended baseline updates are required, refresh snapshots in a dedicated commit using the existing update workflow.
-4. Record snapshot hash changes in milestone report under `docs/plans/`.
+4. Record snapshot hash changes in milestone report under `docs/history/plans/`.
 
 ### Playbook C: Performance Baseline Refresh and Drift Checks
 
@@ -121,7 +156,7 @@ CI must invoke `composer verify` rather than re-implement these checks individua
 1. Execute harness:
    - `tools/integration/run-v1.3-cross-repo-harness.sh`
 2. Review artifact:
-   - `docs/plans/artifacts/v1.3-cross-repo-harness.md`
+   - `docs/history/plans/artifacts/v1.3-cross-repo-harness.md`
 3. Treat non-zero harness exit as a cross-repo regression gate failure.
 
 ### Playbook F: Structured/Unstructured Ingestion Pipeline (v1.4)
@@ -252,7 +287,7 @@ you handle these operations externally.
 
 | Command | Description | Key Options |
 |---------|-------------|-------------|
-| `serve` | Start the PHP development server | `--host` (default: 127.0.0.1), `--port` / `-p` (default: 8080) |
+| `serve` | Start the single-worker `php -S` dev server (not for production or the admin SPA's concurrent SSE — for those, launch FrankenPHP natively against `config/frankenphp/Caddyfile`) | `--host` (default: 0.0.0.0), `--port` / `-p` (default: 8080) |
 | `sync-rules` | Sync framework rules from Waaseyaa to app | `--force` / `-f`, `--dry-run` |
 
 ## Queue Operations Playbook
@@ -304,7 +339,7 @@ php bin/waaseyaa search:reindex --batch-size=200
    - `perf:baseline`, `perf:compare`
 4. Keep every implementation issue paired with:
    - focused tests,
-   - a `docs/plans/` report,
+   - a `docs/history/plans/` report,
    - GitHub issue closure evidence.
 5. For external module work, follow:
    - `docs/specs/extension-author-onboarding.md`
@@ -312,11 +347,11 @@ php bin/waaseyaa search:reindex --batch-size=200
 ## Audit Trail
 
 - Extension release runbook: `docs/specs/extension-release-playbook.md`
-- v1.0 verification: `docs/plans/v1.0-verification-report.md`
-- v1.1 verification readiness: `docs/plans/v1.1-verification-gate-readiness-report.md`
+- v1.0 verification: `docs/history/plans/v1.0-verification-report.md`
+- v1.1 verification readiness: `docs/history/plans/v1.1-verification-gate-readiness-report.md`
 - v1.2 tooling reports:
-  - `docs/plans/v1.2-cli-scaffolding-report.md`
-  - `docs/plans/v1.2-fixture-generator-report.md`
-  - `docs/plans/v1.2-debug-context-panel-report.md`
-  - `docs/plans/v1.2-performance-cli-tooling-report.md`
-  - `docs/plans/v1.2-mcp-introspection-diagnostics-report.md`
+  - `docs/history/plans/v1.2-cli-scaffolding-report.md`
+  - `docs/history/plans/v1.2-fixture-generator-report.md`
+  - `docs/history/plans/v1.2-debug-context-panel-report.md`
+  - `docs/history/plans/v1.2-performance-cli-tooling-report.md`
+  - `docs/history/plans/v1.2-mcp-introspection-diagnostics-report.md`

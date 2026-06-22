@@ -1,0 +1,90 @@
+/*
+ * Waaseyaa workspace chat surface styles.
+ *
+ * Ported from the Anokii Identity companion (the donor layout) with brand
+ * colors lifted into CSS custom properties so consumer apps theme by setting
+ * tokens, not by forking the sheet. Class names match the donor so adoption
+ * is a markup swap, not a restyle.
+ *
+ * Tokens (set on :root or any ancestor; every one has a neutral fallback):
+ *   --ws-accent        primary accent (buttons, avatars)      e.g. #13869f
+ *   --ws-accent-strong hover/active accent                    e.g. #0f6f85
+ *   --ws-accent-soft   soft accent background                 e.g. #e9f7fa
+ *   --ws-ink           main text color
+ *   --ws-muted         secondary text color
+ *   --ws-line          hairline borders
+ *   --ws-bg            stream background
+ *   --ws-user-bubble   user bubble background
+ *   --ws-danger        destructive accents
+ */
+
+.cw-head{display:flex;align-items:center;gap:11px;padding:14px 16px;border-bottom:1px solid var(--ws-line,#e3e7ee);background:linear-gradient(180deg,rgba(0,0,0,.015),transparent)}
+.cw-ava{flex:0 0 auto;width:34px;height:34px;border-radius:10px;background:var(--ws-accent,#13869f);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;letter-spacing:.02em}
+.cw-head b{font-weight:600;font-size:15px;color:var(--ws-ink,#1c2024);display:block;line-height:1.2}
+.cw-head small{font-size:12px;color:var(--ws-muted,#6b7280);display:flex;align-items:center;gap:6px}
+.cw-head small::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ws-online,#19a974)}
+.cw-new{margin-left:auto;flex:0 0 auto;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--ws-accent,#13869f);background:#fff;border:1px solid var(--ws-line,#e3e7ee);border-radius:8px;padding:5px 11px;cursor:pointer}
+.cw-new:hover{background:var(--ws-accent-soft,#eef6f8)}
+.cw-stream{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:13px;background:var(--ws-bg,#f6f7f9)}
+.imsg{display:flex;gap:9px;align-items:flex-start}
+.imsg .av{flex:0 0 auto;width:26px;height:26px;border-radius:8px;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;color:#fff}
+.imsg.user{flex-direction:row-reverse}
+.imsg.user .av{background:var(--ws-ink,#1c2024)} .imsg.ai .av{background:var(--ws-accent,#13869f)}
+.ibub{background:#fff;border:1px solid var(--ws-line,#e3e7ee);border-radius:13px;padding:10px 13px;font-size:14.5px;line-height:1.58;color:var(--ws-ink,#1c2024);max-width:86%;overflow-wrap:anywhere;box-shadow:0 1px 2px rgba(10,14,18,.04)}
+.imsg.user .ibub{background:var(--ws-user-bubble,#15191d);border-color:var(--ws-user-bubble,#15191d);color:#eef6f9}
+.ibub p{margin:0 0 7px} .ibub p:last-child{margin:0} .ibub strong{font-weight:700}
+
+/* pending / failed user turns (honest send states, never silently "sent") */
+.imsg.pending .ibub{opacity:.55}
+.imsg.failed .ibub{border-color:var(--ws-danger,#c0563a);opacity:1}
+.ws-fail{margin-top:6px;font-size:12px;color:var(--ws-danger,#c0563a)}
+
+.cw-chips{display:flex;flex-wrap:wrap;gap:7px;margin:2px 0 0 35px}
+.cw-chip{font-size:12.5px;background:#fff;border:1px solid var(--ws-line,#e3e7ee);border-radius:20px;padding:6px 12px;color:var(--ws-accent,#13869f);cursor:pointer;letter-spacing:.01em}
+.cw-chip:hover{background:var(--ws-accent-soft,#eef6f8)}
+.cw-foot{border-top:1px solid var(--ws-line,#e3e7ee);padding:11px;display:flex;gap:8px;align-items:flex-end;background:#fff}
+.cw-foot textarea{flex:1;border:1px solid var(--ws-line,#e3e7ee);border-radius:11px;padding:10px 12px;font:inherit;font-size:14.5px;line-height:1.5;resize:none;height:42px;max-height:140px;color:var(--ws-ink,#1c2024);background:var(--ws-bg,#f6f7f9)}
+.cw-foot textarea:focus{outline:none;border-color:var(--ws-accent,#13869f);box-shadow:0 0 0 3px var(--ws-accent-soft,#d9eef4);background:#fff}
+.cw-send{flex:0 0 auto;background:var(--ws-accent,#13869f);color:#fff;border:none;border-radius:11px;height:42px;padding:0 16px;font-weight:600;font-size:14px;cursor:pointer}
+.cw-send:hover{background:var(--ws-accent-strong,#0f6f85)} .cw-send:disabled{opacity:.5;cursor:default}
+.ws-counter{display:none;font-size:11.5px;color:var(--ws-muted,#6b7280);align-self:center;padding:0 2px}
+.ws-counter.on{display:block}
+.ws-counter.over{color:var(--ws-danger,#c0563a);font-weight:600}
+.iwork{display:inline-flex;align-items:center;gap:7px;color:var(--ws-muted,#6b7280);font-size:13.5px}
+.iwork .d{width:6px;height:6px;border-radius:50%;background:var(--ws-accent,#13869f);animation:wsipulse 1s infinite}
+@keyframes wsipulse{0%,100%{opacity:.3}50%{opacity:1}}
+
+/* sources line under grounded answers */
+.srcline{margin-top:10px;padding-top:9px;border-top:1px solid var(--ws-line,#e3e7ee);font-size:12px;color:var(--ws-muted,#6b7280)}
+.srcline .src{display:inline-block;background:var(--ws-bg,#f0f2f4);border:1px solid var(--ws-line,#e3e7ee);border-radius:20px;padding:2px 10px;margin:3px 5px 0 0;color:var(--ws-ink,#3a4147);font-size:11.5px}
+
+/* lazy pagination */
+.ws-earlier{align-self:center;font-size:12px;color:var(--ws-accent,#13869f);background:#fff;border:1px solid var(--ws-line,#e3e7ee);border-radius:20px;padding:5px 14px;cursor:pointer}
+.ws-earlier:hover{background:var(--ws-accent-soft,#eef6f8)}
+
+/* proposal card inside the conversation */
+.iprop{margin-top:9px;border:1px solid var(--ws-accent,#13869f);border-radius:11px;background:var(--ws-accent-soft,#f2fafd);overflow:hidden}
+.iprop.danger{border-color:var(--ws-danger,#c0563a);background:#fdf3ec}
+.iprop .ph{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ws-accent,#13869f);padding:8px 12px;border-bottom:1px solid var(--ws-line,#d7ecf3)}
+.iprop.danger .ph{color:var(--ws-danger,#c4631f)}
+.iprop .ps{padding:9px 12px 4px;font-weight:600;font-size:14px;color:var(--ws-ink,#1c2024)}
+.iprop ul.pd{list-style:none;margin:0;padding:4px 12px 8px;display:flex;flex-direction:column;gap:5px}
+.iprop ul.pd li{font-size:13px;line-height:1.45;display:flex;flex-wrap:wrap;gap:6px;align-items:baseline}
+.iprop .f{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ws-muted,#6b7280);min-width:74px}
+.iprop .b{color:#9a4242;text-decoration:line-through;opacity:.85;overflow-wrap:anywhere} .iprop .a{color:#138a55;font-weight:600;overflow-wrap:anywhere}
+.iprop .pact{display:flex;gap:8px;padding:8px 12px 11px;align-items:center}
+.ws-awaiting{font-size:12.5px;color:var(--ws-muted,#6b7280);font-style:italic}
+.ipb{font-size:13px;font-weight:600;border-radius:9px;padding:6px 16px;cursor:pointer;border:1px solid transparent}
+.ipb.ok{background:var(--ws-accent,#1fb6d6);color:#06303a} .ipb.no{background:#fff;color:var(--ws-muted,#5b6172);border-color:var(--ws-line,#e3e7ee)} .ipb:disabled{opacity:.5;cursor:default}
+
+/* markdown bubble content (the .amd wrapper WaaseyaaMd emits) */
+.amd h4,.amd h5,.amd h6{margin:10px 0 5px;line-height:1.25}
+.amd h4{font-size:15px}.amd h5{font-size:14px}.amd h6{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--ws-muted,#6b7280)}
+.amd ul,.amd ol{margin:4px 0 8px;padding-left:20px}
+.amd li{margin:2px 0}
+.amd code{background:var(--ws-bg,#f0f2f4);border:1px solid var(--ws-line,#e3e7ee);border-radius:4px;padding:0 5px;font-size:13px}
+.amd hr{border:none;border-top:1px solid var(--ws-line,#e3e7ee);margin:10px 0}
+.amd table.amt{border-collapse:collapse;margin:6px 0 8px;font-size:13px;width:100%}
+.amd table.amt th,.amd table.amt td{border:1px solid var(--ws-line,#e3e7ee);padding:5px 8px;text-align:left;vertical-align:top}
+.amd table.amt th{background:var(--ws-bg,#f6f7f9);font-weight:600}
+.amd .stp{display:inline-block;border-radius:20px;padding:1px 9px;font-size:11.5px;font-weight:600}

@@ -113,7 +113,12 @@ useHead({ title: computed(() => `${entityLabel.value} | ${appName}`) })
           >
             {{ t('enable_type') }}
           </button>
-          <NuxtLink v-if="canCreate" :to="`/${entityType}/create`" class="btn btn-primary">
+          <NuxtLink
+            v-if="canCreate"
+            :to="`/${entityType}/create`"
+            class="btn btn-primary"
+            :data-anchor="`action:${entityType}:create`"
+          >
             {{ t('create_new') }}
           </NuxtLink>
         </div>

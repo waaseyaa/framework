@@ -5,8 +5,10 @@
     "license": "GPL-2.0-or-later",
     "require": {
         "php": ">=8.5",
+        "ext-pdo_sqlite": "*",
+        "ext-sqlite3": "*",
         "symfony/dotenv": "^8.0",
-        "waaseyaa/framework": "^0.1.0-alpha.199"
+        "waaseyaa/framework": "^0.1.0-alpha.242"
     },
     "autoload": {
         "psr-4": {
@@ -34,11 +36,10 @@
         "audit-site": "./bin/maintenance/waaseyaa-audit-site",
         "dev": [
             "Composer\\Config::disableProcessTimeout",
-            "bash bin/dev.sh"
+            "@php vendor/bin/waaseyaa dev"
         ],
         "regen-lock": "@composer update 'waaseyaa/*' --no-plugins --no-install --no-scripts",
         "post-create-project-cmd": [
-            "chmod +x bin/maintenance/waaseyaa-version bin/maintenance/verify-deploy-rsync bin/maintenance/waaseyaa-audit-site bin/maintenance/deploy-artifact-smoke",
             "php bin/post-create-setup.php"
         ]
     },

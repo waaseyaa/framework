@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Command\Config;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Config\Sync\ConfigDiffer;
 use Waaseyaa\Config\Sync\DiffResult;
 
@@ -37,7 +37,7 @@ final class ConfigDiffCommand
         private readonly ConfigDiffer $differ,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $refArg = $io->argument('ref');
         $ref = \is_string($refArg) && $refArg !== '' ? $refArg : null;
@@ -65,7 +65,7 @@ final class ConfigDiffCommand
         return $hasDifferences ? 1 : 0;
     }
 
-    private function renderResult(CliIO $io, DiffResult $result): void
+    private function renderResult(SymfonyCommandIO $io, DiffResult $result): void
     {
         if ($result->status === DiffResult::STATUS_RENAMED) {
             $io->writeln(sprintf(

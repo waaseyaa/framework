@@ -19,10 +19,10 @@ use Waaseyaa\Queue\Worker\Worker;
 #[CoversClass(QueueWorkHandler::class)]
 final class QueueWorkHandlerTest extends TestCase
 {
-    private function makeDefinition(): \Waaseyaa\CLI\CommandDefinition
+    private function makeDefinition(): \Waaseyaa\CLI\Command\HandlerCommand
     {
         $provider = new QueueServiceProvider();
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'queue:work') {
                 return $cmd;
             }

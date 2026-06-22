@@ -64,6 +64,7 @@ jobs:
           # Layer 4: API
           - { local: 'packages/api', remote: 'api' }
           - { local: 'packages/routing', remote: 'routing' }
+          - { local: 'packages/wayfinding', remote: 'wayfinding' }
           # Layer 5: AI
           - { local: 'packages/ai-schema', remote: 'ai-schema' }
           - { local: 'packages/ai-agent', remote: 'ai-agent' }
@@ -75,12 +76,14 @@ jobs:
           - { local: 'packages/graphql', remote: 'graphql' }
           # Layer 6: Interfaces
           - { local: 'packages/cli', remote: 'cli' }
+          - { local: 'packages/frankenphp', remote: 'frankenphp' }
           - { local: 'packages/genealogy', remote: 'genealogy' }
           - { local: 'packages/inertia', remote: 'inertia' }
           - { local: 'packages/mcp', remote: 'mcp' }
           - { local: 'packages/ssr', remote: 'ssr' }
           - { local: 'packages/telescope', remote: 'telescope' }
           - { local: 'packages/admin-surface', remote: 'admin-surface' }
+          - { local: 'packages/workspace', remote: 'workspace' }
           # Split parity — packages with composer.json that were missing from the matrix (#1137)
           - { local: 'packages/analytics', remote: 'analytics' }
           - { local: 'packages/engagement', remote: 'engagement' }
@@ -98,7 +101,7 @@ jobs:
           - { local: 'skeleton', remote: 'waaseyaa' }
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -180,7 +183,7 @@ jobs:
     needs: split
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -202,7 +205,7 @@ jobs:
     needs: split
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Verify root require / split parity
@@ -220,7 +223,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 

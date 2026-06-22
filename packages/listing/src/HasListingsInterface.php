@@ -13,9 +13,9 @@ namespace Waaseyaa\Listing;
  * are discovered at manifest compile time by {@see ListingDiscoverer} and
  * exposed through {@see ListingDefinitionRegistry} for id-keyed lookup.
  *
- * Mirrors {@code HasNativeCommandsInterface} / {@code HasMigrationsInterface}
- * exactly (FR-015): a single declarative method called once per process
- * boot. Implementations SHOULD be pure (no side effects, idempotent).
+ * Mirrors the declarative provider-capability pattern (FR-015): a single
+ * declarative method called once per process boot. Implementations SHOULD be
+ * pure (no side effects, idempotent).
  *
  * Layer placement: Listing (L3). Consumed by {@see ListingDiscoverer} (also
  * L3) and integrated by the {@code PackageManifestCompiler} (L0) via

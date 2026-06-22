@@ -17,9 +17,9 @@ use Waaseyaa\AI\Agent\Reaper\StalledRunReaper;
 use Waaseyaa\AI\Agent\Repository\AgentAuditLogRepository;
 use Waaseyaa\AI\Agent\Repository\AgentRunRepository;
 use Waaseyaa\CLI\Command\Ai\AiReapStalledRunsCommand;
-use Waaseyaa\CLI\CommandDefinition;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
@@ -267,15 +267,15 @@ final class AiReapStalledRunsCommandTest extends TestCase
         );
     }
 
-    private function commandDefinition(): CommandDefinition
+    private function commandDefinition(): HandlerCommand
     {
-        return new CommandDefinition(
+        return new HandlerCommand(
             name: 'ai:reap-stalled-runs',
             description: 'Reap stalled AgentRun rows (FR-007, NFR-004).',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'max-runtime-seconds',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     default: '',
                 ),
             ],

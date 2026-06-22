@@ -15,7 +15,7 @@ use Waaseyaa\Config\Exception\ConfigCommandCollisionException;
 /**
  * Integration: kernel-boot enforcement of the `config:*` namespace reservation.
  *
- * Simulates `CliKernel`'s boot-time command-registration hook iterating over
+ * Simulates Symfony CLI boot-time command registration iterating over
  * a `(verb → FQCN)` map and invoking {@see ConfigCommand::assertNoCollision()}
  * for every entry. Verifies:
  *
@@ -30,7 +30,7 @@ use Waaseyaa\Config\Exception\ConfigCommandCollisionException;
  *
  * The boot loop here mirrors the contract documented at
  * `kitty-specs/config-management-v1-01KRCDEC/contracts/cli-namespace.md`
- * §"Reservation enforcement". The real `CliKernel` hook calls
+ * §"Reservation enforcement". The Symfony Console application factory calls
  * `assertNoCollision()` inside its command-registration entry point and
  * propagates the exception, refusing to boot.
  */
@@ -145,12 +145,12 @@ final class ConfigCommandCollisionBootTest extends TestCase
     }
 
     /**
-     * Drive `CliKernel`'s notional boot-time command-registration hook.
+     * Drive the Symfony CLI boot-time command-registration hook.
      *
-     * This mirrors what `CliKernel` (or any boot orchestrator that uses the
-     * reservation API) does for every command in the registry: call
-     * {@see ConfigCommand::assertNoCollision()} with the registered verb and
-     * the handler FQCN. The first collision throws and aborts the boot.
+     * This mirrors what the Symfony Console application factory does for every
+     * provider command: call {@see ConfigCommand::assertNoCollision()} with the
+     * registered verb and source FQCN. The first collision throws and aborts
+     * the boot.
      *
      * @param array<string, class-string|string> $registrations  verb → FQCN map.
      */

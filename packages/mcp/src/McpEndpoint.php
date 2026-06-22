@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace Waaseyaa\Mcp;
 
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\Bridge\AgentToolRegistryBridge;
+use Waaseyaa\Mcp\Event\McpDispatchEvent;
 
 /**
  * Streamable-HTTP MCP endpoint. Authenticates the incoming request via
@@ -28,9 +32,19 @@ use Waaseyaa\Mcp\Bridge\AgentToolRegistryBridge;
  */
 final readonly class McpEndpoint
 {
+    /**
+     * @param ?EventDispatcherInterface $dispatcher     Optional — when absent the
+     *                                                  `waaseyaa.mcp.dispatch` event is silently
+     *                                                  not fired (best-effort audit semantics).
+     * @param ?AccountContextInterface  $accountContext Optional acting-account holder; when absent
+     *                                                  no context scoping happens (behavior
+     *                                                  identical to before the context existed).
+     */
     public function __construct(
         private McpAuthInterface $auth,
         private AgentToolRegistryInterface $agentRegistry,
+        private ?EventDispatcherInterface $dispatcher = null,
+        private ?AccountContextInterface $accountContext = null,
     ) {}
 
     /**
@@ -50,6 +64,25 @@ final readonly class McpEndpoint
         return $this->dispatch(
             $request->getContent(),
             $request->headers->get('Authorization'),
+        );
+    }
+
+    /**
+     * HTTP controller entry point. Wraps {@see self::handle()} in a Symfony
+     * {@see HttpResponse} so the kernel's controller dispatcher can send it
+     * (the dispatcher only understands HttpResponse / Inertia results — a bare
+     * {@see McpResponse} value object would otherwise be unrenderable).
+     */
+    public function serve(
+        AccountInterface $account,
+        HttpRequest $request,
+    ): HttpResponse {
+        $mcp = $this->handle($account, $request);
+
+        return new HttpResponse(
+            $mcp->body,
+            $mcp->statusCode,
+            ['Content-Type' => $mcp->contentType],
         );
     }
 
@@ -75,27 +108,57 @@ final readonly class McpEndpoint
         // so per-tool capability gates run against the correct identity.
         $bridge = new AgentToolRegistryBridge($this->agentRegistry, $authenticated);
 
-        // Parse JSON-RPC request.
+        // Scope the acting-account context to the bearer-auth account
+        // (research D1 writer 2, FR-002). The MCP account deliberately
+        // differs from any session account (see class docblock), so the
+        // prior value is captured and restored in `finally` — including
+        // when a routed handler throws.
+        $previousActor = $this->accountContext?->current();
+        $this->accountContext?->set($authenticated);
+
         try {
-            $request = \json_decode($body, true, 512, \JSON_THROW_ON_ERROR);
-        } catch (\JsonException) {
-            return $this->jsonRpcError(-32700, 'Parse error', null);
+            // Parse JSON-RPC request.
+            try {
+                $request = \json_decode($body, true, 512, \JSON_THROW_ON_ERROR);
+            } catch (\JsonException) {
+                return $this->jsonRpcError(-32700, 'Parse error', null);
+            }
+
+            if (!\is_array($request) || !isset($request['method'])) {
+                return $this->jsonRpcError(-32600, 'Invalid Request', $request['id'] ?? null);
+            }
+
+            $id = $request['id'] ?? null;
+            $params = $request['params'] ?? [];
+
+            // Fire the dispatch event exactly once per authenticated,
+            // well-formed request — post-auth, post-parse, pre-routing
+            // (research D5, contract clause 16). Params are carried RAW;
+            // the audit listener hashes them (clause 17).
+            try {
+                $this->dispatcher?->dispatch(
+                    new McpDispatchEvent(
+                        method: (string) $request['method'],
+                        params: \is_array($params) ? $params : [],
+                        accountUid: (int) $authenticated->id(),
+                    ),
+                    McpDispatchEvent::NAME,
+                );
+            } catch (\Throwable) {
+                // Best-effort: an audit/dispatcher failure must never alter
+                // the JSON-RPC response (contract clause 19).
+            }
+
+            return match ($request['method']) {
+                'initialize' => $this->handleInitialize($id),
+                'ping' => $this->handlePing($id),
+                'tools/list' => $this->handleToolsList($id, $bridge),
+                'tools/call' => $this->handleToolsCall($id, $params, $bridge),
+                default => $this->jsonRpcError(-32601, "Method not found: {$request['method']}", $id),
+            };
+        } finally {
+            $this->accountContext?->set($previousActor);
         }
-
-        if (!\is_array($request) || !isset($request['method'])) {
-            return $this->jsonRpcError(-32600, 'Invalid Request', $request['id'] ?? null);
-        }
-
-        $id = $request['id'] ?? null;
-        $params = $request['params'] ?? [];
-
-        return match ($request['method']) {
-            'initialize' => $this->handleInitialize($id),
-            'ping' => $this->handlePing($id),
-            'tools/list' => $this->handleToolsList($id, $bridge),
-            'tools/call' => $this->handleToolsCall($id, $params, $bridge),
-            default => $this->jsonRpcError(-32601, "Method not found: {$request['method']}", $id),
-        };
     }
 
     private function handleInitialize(mixed $id): McpResponse

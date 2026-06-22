@@ -9,11 +9,14 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\AI\Agent\AgentExecutor;
 use Waaseyaa\AI\Agent\Entity\AgentAuditLog;
 use Waaseyaa\AI\Agent\Entity\AgentRun;
+use Waaseyaa\AI\Agent\Enum\EventType;
 use Waaseyaa\AI\Agent\Enum\HitlMode;
 use Waaseyaa\AI\Agent\Enum\RunStatus;
+use Waaseyaa\AI\Agent\Provider\ClientErrorException;
 use Waaseyaa\AI\Agent\Provider\MessageRequest;
 use Waaseyaa\AI\Agent\Provider\MessageResponse;
 use Waaseyaa\AI\Agent\Provider\ProviderInterface;
@@ -24,6 +27,7 @@ use Waaseyaa\AI\Observability\Event\AgentRunProviderCallCompleted;
 use Waaseyaa\AI\Observability\Event\AgentRunStarted;
 use Waaseyaa\AI\Observability\Event\AgentRunTerminated;
 use Waaseyaa\AI\Observability\Event\AgentRunToolCallObserved;
+use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolInterface;
 use Waaseyaa\AI\Tools\AgentToolResult;
@@ -253,12 +257,214 @@ final class AgentExecutorEventDispatchTest extends TestCase
         self::assertSame(1, $iterations[1]->iterationIndex, 'Second iteration has index 1');
     }
 
+    #[Test]
+    public function toolCallObservedCarriesInitiatorAccountOnSuccessPath(): void
+    {
+        $run = $this->seedRun();
+        $provider = $this->toolUseThenEndTurnProvider('ok_tool');
+        $registry = $this->registryWith([$this->makeSucceedingTool('ok_tool')]);
+
+        $spy = new RecordingEventDispatcher();
+        $executor = $this->makeExecutor($registry, $spy);
+
+        $executor->executeRun(
+            $run,
+            $this->fakeAccount(42),
+            $provider,
+            messages: [['role' => 'user', 'content' => 'go']],
+            maxIterations: 5,
+        );
+
+        $observed = array_values(array_filter(
+            $spy->dispatched,
+            static fn(object $e): bool => $e instanceof AgentRunToolCallObserved,
+        ));
+
+        self::assertCount(1, $observed);
+        self::assertTrue($observed[0]->succeeded);
+        self::assertSame(42, $observed[0]->accountId, 'Success-path observed event must carry the initiator account (FR-005)');
+    }
+
+    #[Test]
+    public function toolCallObservedCarriesInitiatorAccountOnThrewPath(): void
+    {
+        $run = $this->seedRun();
+        $provider = $this->toolUseThenEndTurnProvider('boom_tool');
+        $registry = $this->registryWith([$this->makeThrowingTool('boom_tool')]);
+
+        $spy = new RecordingEventDispatcher();
+        $executor = $this->makeExecutor($registry, $spy);
+
+        $executor->executeRun(
+            $run,
+            $this->fakeAccount(42),
+            $provider,
+            messages: [['role' => 'user', 'content' => 'go']],
+            maxIterations: 5,
+        );
+
+        $observed = array_values(array_filter(
+            $spy->dispatched,
+            static fn(object $e): bool => $e instanceof AgentRunToolCallObserved,
+        ));
+
+        self::assertCount(1, $observed);
+        self::assertFalse($observed[0]->succeeded, 'Tool threw — observed event records failure');
+        self::assertSame(42, $observed[0]->accountId, 'Threw-path observed event must carry the initiator account too (FR-005)');
+    }
+
+    #[Test]
+    public function accountContextIsScopedToInitiatorAndRestoredAfterRun(): void
+    {
+        $run = $this->seedRun();
+        $provider = $this->endTurnProvider();
+        $registry = $this->registryWith([]);
+
+        $previousActor = $this->fakeAccount(9);
+        $context = new RecordingAccountContext($previousActor);
+        $initiator = $this->fakeAccount(42);
+
+        $executor = $this->makeExecutor($registry, new RecordingEventDispatcher(), $context);
+        $executor->executeRun(
+            $run,
+            $initiator,
+            $provider,
+            messages: [['role' => 'user', 'content' => 'go']],
+            maxIterations: 3,
+        );
+
+        // set(initiator) at run start, set(previous) after — restored to the
+        // PREVIOUS value (account 9), not blindly to null.
+        self::assertSame([$initiator, $previousActor], $context->setCalls);
+        self::assertSame($previousActor, $context->current());
+    }
+
+    #[Test]
+    public function accountContextIsRestoredWhenTheRunThrows(): void
+    {
+        $run = $this->seedRun();
+
+        // ClientErrorException is non-retryable and re-thrown out of
+        // executeRun — the throw path crosses the context scope boundary.
+        $provider = new class implements ProviderInterface {
+            public function sendMessage(MessageRequest $request): MessageResponse
+            {
+                throw new ClientErrorException('bad request');
+            }
+        };
+
+        $previousActor = $this->fakeAccount(9);
+        $context = new RecordingAccountContext($previousActor);
+        $initiator = $this->fakeAccount(42);
+
+        $executor = $this->makeExecutor($this->registryWith([]), new RecordingEventDispatcher(), $context);
+
+        try {
+            $executor->executeRun(
+                $run,
+                $initiator,
+                $provider,
+                messages: [['role' => 'user', 'content' => 'go']],
+                maxIterations: 3,
+            );
+            self::fail('ClientErrorException expected to propagate');
+        } catch (ClientErrorException) {
+            // expected
+        }
+
+        // The `finally` pin: a thrown run must not leak the initiator into
+        // the next job on the same worker (plan premortem "stale actor").
+        self::assertSame([$initiator, $previousActor], $context->setCalls);
+        self::assertSame($previousActor, $context->current());
+    }
+
+    #[Test]
+    public function executorWithoutAccountContextRunsWithoutError(): void
+    {
+        $run = $this->seedRun();
+        $provider = $this->endTurnProvider();
+
+        // Legacy construction: no accountContext param at all.
+        $executor = $this->makeExecutor($this->registryWith([]), new RecordingEventDispatcher());
+
+        $result = $executor->executeRun(
+            $run,
+            $this->fakeAccount(1),
+            $provider,
+            messages: [['role' => 'user', 'content' => 'go']],
+            maxIterations: 3,
+        );
+
+        self::assertTrue($result->success);
+    }
+
+    #[Test]
+    public function listValuedToolArgumentsAreAuditedAndDoNotCrashTheRun(): void
+    {
+        $run = $this->seedRun();
+
+        // A tool_use turn carrying a LIST-valued argument (the shape an
+        // entity.create `values.blocks` / `tags` produces), then end_turn.
+        $provider = new class implements ProviderInterface {
+            private int $call = 0;
+
+            public function sendMessage(MessageRequest $request): MessageResponse
+            {
+                $this->call++;
+                if ($this->call === 1) {
+                    return new MessageResponse(
+                        content: [[
+                            'type' => 'tool_use',
+                            'id' => 'tool-1',
+                            'name' => 'list_arg_tool',
+                            'input' => ['values' => ['blocks' => [['type' => 'prose']], 'tags' => ['a', 'b']]],
+                        ]],
+                        stopReason: 'tool_use',
+                        usage: ['input_tokens' => 5, 'output_tokens' => 2],
+                    );
+                }
+
+                return new MessageResponse(
+                    content: [['type' => 'text', 'text' => 'done']],
+                    stopReason: 'end_turn',
+                    usage: ['input_tokens' => 5, 'output_tokens' => 2],
+                );
+            }
+        };
+
+        $registry = $this->registryWith([$this->makeRealAuditTool('list_arg_tool')]);
+        $executor = $this->makeExecutor($registry, new RecordingEventDispatcher());
+
+        // Pre-#1637: argumentsForAudit() threw a TypeError on the integer list
+        // keys at the audit step — which sits OUTSIDE the execute() try/catch —
+        // so the run crashed and the tool_call audit row was never written.
+        $result = $executor->executeRun(
+            $run,
+            $this->fakeAccount(1),
+            $provider,
+            messages: [['role' => 'user', 'content' => 'go']],
+            maxIterations: 5,
+        );
+
+        self::assertTrue($result->success, 'a list-valued tool argument must not crash the run');
+
+        $logged = $this->auditRepository->findByRunId((string) $run->id());
+        $toolCalls = array_filter(
+            $logged,
+            static fn(AgentAuditLog $log): bool => $log->getEventType() === EventType::ToolCall,
+        );
+        self::assertNotEmpty($toolCalls, 'the tool_call audit row (written right after argumentsForAudit) must be present');
+    }
+
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
 
-    private function makeExecutor(ToolRegistryInterface $registry, EventDispatcherInterface $dispatcher): AgentExecutor
-    {
+    private function makeExecutor(
+        ToolRegistryInterface $registry,
+        EventDispatcherInterface $dispatcher,
+        ?AccountContextInterface $accountContext = null,
+    ): AgentExecutor {
         return new AgentExecutor(
             toolRegistry: $registry,
             runRepository: $this->runRepository,
@@ -268,6 +474,134 @@ final class AgentExecutorEventDispatchTest extends TestCase
             hitlTimeoutSeconds: 1,
             sleepMs: static fn(int $ms): null => null,
             eventDispatcher: $dispatcher,
+            accountContext: $accountContext,
+        );
+    }
+
+    /**
+     * Provider issuing one `tool_use` turn for the named tool, then an
+     * `end_turn` text turn.
+     */
+    private function toolUseThenEndTurnProvider(string $toolName): ProviderInterface
+    {
+        return new class ($toolName) implements ProviderInterface {
+            private int $call = 0;
+
+            public function __construct(private readonly string $toolName) {}
+
+            public function sendMessage(MessageRequest $request): MessageResponse
+            {
+                $this->call++;
+                if ($this->call === 1) {
+                    return new MessageResponse(
+                        content: [
+                            ['type' => 'tool_use', 'id' => 'tool-1', 'name' => $this->toolName, 'input' => []],
+                        ],
+                        stopReason: 'tool_use',
+                        usage: ['input_tokens' => 5, 'output_tokens' => 2],
+                    );
+                }
+
+                return new MessageResponse(
+                    content: [['type' => 'text', 'text' => 'finished']],
+                    stopReason: 'end_turn',
+                    usage: ['input_tokens' => 5, 'output_tokens' => 2],
+                );
+            }
+        };
+    }
+
+    private function endTurnProvider(): ProviderInterface
+    {
+        return new class implements ProviderInterface {
+            public function sendMessage(MessageRequest $request): MessageResponse
+            {
+                return new MessageResponse(
+                    content: [['type' => 'text', 'text' => 'done']],
+                    stopReason: 'end_turn',
+                    usage: ['input_tokens' => 1, 'output_tokens' => 1],
+                );
+            }
+        };
+    }
+
+    private function makeSucceedingTool(string $name): AgentTool
+    {
+        $impl = new class implements AgentToolInterface {
+            public function execute(array $arguments, AccountInterface $account): AgentToolResult
+            {
+                return AgentToolResult::success([['type' => 'text', 'text' => 'ok']]);
+            }
+
+            public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
+            {
+                return AgentToolResult::error('dry_run_not_supported');
+            }
+
+            public function argumentsForAudit(array $arguments): array
+            {
+                return $arguments;
+            }
+
+            public function inputSchema(): array
+            {
+                return ['type' => 'object', 'properties' => []];
+            }
+
+            public function description(): string
+            {
+                return 'Always-succeeding tool fixture.';
+            }
+        };
+
+        return new AgentTool(
+            name: $name,
+            capability: 'tool.test.' . $name,
+            destructive: false,
+            dryRunSupported: false,
+            category: 'test',
+            inputSchema: ['type' => 'object', 'properties' => []],
+            impl: $impl,
+        );
+    }
+
+    private function makeThrowingTool(string $name): AgentTool
+    {
+        $impl = new class implements AgentToolInterface {
+            public function execute(array $arguments, AccountInterface $account): AgentToolResult
+            {
+                throw new \RuntimeException('tool exploded');
+            }
+
+            public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
+            {
+                return AgentToolResult::error('dry_run_not_supported');
+            }
+
+            public function argumentsForAudit(array $arguments): array
+            {
+                return $arguments;
+            }
+
+            public function inputSchema(): array
+            {
+                return ['type' => 'object', 'properties' => []];
+            }
+
+            public function description(): string
+            {
+                return 'Always-throwing tool fixture.';
+            }
+        };
+
+        return new AgentTool(
+            name: $name,
+            capability: 'tool.test.' . $name,
+            destructive: false,
+            dryRunSupported: false,
+            category: 'test',
+            inputSchema: ['type' => 'object', 'properties' => []],
+            impl: $impl,
         );
     }
 
@@ -367,6 +701,41 @@ final class AgentExecutorEventDispatchTest extends TestCase
         );
     }
 
+    /**
+     * A tool whose impl uses the REAL {@see AbstractAgentTool::argumentsForAudit()}
+     * (not the pass-through fixtures), so a list-valued argument exercises the
+     * #1637 audit path through {@see AgentExecutor}.
+     */
+    private function makeRealAuditTool(string $name): AgentTool
+    {
+        $impl = new class extends AbstractAgentTool {
+            public function execute(array $arguments, AccountInterface $account): AgentToolResult
+            {
+                return AgentToolResult::text('ok');
+            }
+
+            public function inputSchema(): array
+            {
+                return ['type' => 'object', 'properties' => []];
+            }
+
+            public function description(): string
+            {
+                return 'Real-audit tool fixture.';
+            }
+        };
+
+        return new AgentTool(
+            name: $name,
+            capability: 'tool.test.' . $name,
+            destructive: false,
+            dryRunSupported: false,
+            category: 'test',
+            inputSchema: ['type' => 'object', 'properties' => []],
+            impl: $impl,
+        );
+    }
+
     private function registryWith(array $tools): ToolRegistryInterface
     {
         return new class ($tools) implements ToolRegistryInterface {
@@ -413,6 +782,30 @@ final class AgentExecutorEventDispatchTest extends TestCase
         $migration = require $migrationFile;
         \assert($migration instanceof Migration);
         $migration->up(new SchemaBuilder($this->database->getConnection()));
+    }
+}
+
+/**
+ * Recording {@see AccountContextInterface} stub: stores the live current
+ * value and the full sequence of {@see set()} calls so tests can pin the
+ * set-to-initiator / restore-to-previous discipline.
+ */
+final class RecordingAccountContext implements AccountContextInterface
+{
+    /** @var list<?AccountInterface> */
+    public array $setCalls = [];
+
+    public function __construct(private ?AccountInterface $current = null) {}
+
+    public function current(): ?AccountInterface
+    {
+        return $this->current;
+    }
+
+    public function set(?AccountInterface $account): void
+    {
+        $this->setCalls[] = $account;
+        $this->current = $account;
     }
 }
 

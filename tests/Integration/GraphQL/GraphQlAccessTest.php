@@ -13,8 +13,11 @@ final class GraphQlAccessTest extends GraphQlIntegrationTestBase
         $this->assertNoErrors($response);
         $data = $response['data']['articleList'];
 
-        // total=2 (count query is unfiltered).
-        $this->assertSame(2, $data['total']);
+        // #1702 (C-7): total is access-filtered and reconciles with items — the
+        // denied article (id=2) counts toward NEITHER. Previously total was the
+        // unfiltered count (2), leaking the restricted collection's cardinality
+        // even though the row never appeared in items.
+        $this->assertSame(1, $data['total']);
 
         // article2 (id=2) should be absent from items (silently filtered).
         $ids = array_column($data['items'], 'id');

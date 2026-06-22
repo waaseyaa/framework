@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Kernel;
 
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface as SymfonyContractEventDispatcherInterface;
+use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\Policy\ContentAdminAccessPolicy;
+use Waaseyaa\Access\Policy\PublishedContentAccessPolicy;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\Audit\EntityAuditLogger;
@@ -15,6 +19,7 @@ use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeLifecycleManager;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\EntityStorage\Backend\BackendRegistrarFactory;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\BackendResolver;
@@ -82,6 +87,16 @@ abstract class AbstractKernel
     private ?KnowledgeToolingExtensionRunner $knowledgeExtensionRunner = null;
     private bool $booted = false;
     protected LoggerInterface $logger;
+
+    /**
+     * The single per-kernel acting-account context (mission
+     * revision-audit-provenance-01KTWY5V WP01, research D1). Constructed
+     * lazily behind {@see accountContext()} — every exposure path (the
+     * repository factory closure, the kernel-services bus, the handler
+     * container, the HTTP middleware) MUST serve this same instance; a
+     * second construction site would silently fork the context.
+     */
+    private ?RequestAccountContext $accountContext = null;
 
     /**
      * Optional community context for tenancy-scoped entity types
@@ -181,7 +196,7 @@ abstract class AbstractKernel
 
     protected function bootDatabase(): void
     {
-        $this->database = new DatabaseBootstrapper()->boot($this->projectRoot, $this->config);
+        $this->database = new DatabaseBootstrapper()->boot($this->projectRoot, $this->config, $this->logger);
     }
 
     protected function bootEntityTypeManager(): void
@@ -192,6 +207,18 @@ abstract class AbstractKernel
         $this->fieldRegistry = $fieldRegistry;
         ContentEntityBase::setFieldRegistry($fieldRegistry);
 
+        // Issue #1643: save-time entity validation is ON by default for every
+        // kernel-built repository. One shared stateless EntityValidator is
+        // captured by the repository factory closure below. The boot-time env
+        // switch WAASEYAA_ENTITY_VALIDATION (0/false/off, case-insensitive)
+        // disables the wiring globally; the per-save `validate: false` flag
+        // remains the surgical escape hatch. Read once here — not per save,
+        // not per repository.
+        $raw = getenv('WAASEYAA_ENTITY_VALIDATION');
+        $validationEnabled = !\is_string($raw)
+            || !\in_array(strtolower($raw), ['0', 'false', 'off'], true);
+        $validator = $validationEnabled ? EntityValidator::createDefault() : null;
+
         $this->entityTypeManager = new EntityTypeManager(
             $dispatcher,
             function (EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry): SqlEntityStorage {
@@ -199,7 +226,7 @@ abstract class AbstractKernel
                 $schemaHandler->ensureTable();
                 return new SqlEntityStorage($definition, $database, $dispatcher, $fieldRegistry);
             },
-            function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry): EntityRepositoryInterface {
+            function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $validator): EntityRepositoryInterface {
                 $schemaHandler = new SqlSchemaHandler($definition, $database, $fieldRegistry, null, $this->logger);
                 $schemaHandler->ensureTable();
                 if ($definition->isRevisionable()) {
@@ -236,15 +263,27 @@ abstract class AbstractKernel
                     ? new RevisionableStorageDriver($resolver, $definition)
                     : null;
 
-                return new EntityRepository(
+                $repository = new EntityRepository(
                     $definition,
                     $driver,
                     $dispatcher,
                     $revisionDriver,
                     $database,
+                    // Issue #1643: shared default validator (null when the
+                    // WAASEYAA_ENTITY_VALIDATION env switch opts out — passing
+                    // null matches the constructor default, so disabled boots
+                    // construct repositories exactly as before this mission).
+                    validator: $validator,
                     fieldRegistry: $fieldRegistry,
                     logger: $this->logger,
                 );
+                // revision-audit-provenance-01KTWY5V WP01: forward seam — the
+                // kernel's shared acting-account context is attached once
+                // EntityRepository grows setAccountContext() (WP02 of this
+                // mission); a guarded no-op until then. See attachAccountContext().
+                $this->attachAccountContext($repository);
+
+                return $repository;
             },
             $fieldRegistry,
             $this->logger,
@@ -286,6 +325,39 @@ abstract class AbstractKernel
     public function setCommunityContext(?CommunityContextInterface $context): void
     {
         $this->communityContext = $context;
+    }
+
+    /**
+     * The kernel's request-scoped acting-account context (mission
+     * revision-audit-provenance-01KTWY5V FR-002).
+     *
+     * One instance per kernel: the repository factory closure, the
+     * kernel-services bus, the handler container, and the HTTP session
+     * middleware all share the object returned here. Public because tests
+     * and entry points may need it in addition to the HttpKernel subclass;
+     * the L1 import rides the Kernel/ cross-layer exemption.
+     */
+    public function accountContext(): AccountContextInterface
+    {
+        return $this->accountContext ??= new RequestAccountContext();
+    }
+
+    /**
+     * revision-audit-provenance-01KTWY5V WP01: forward seam — EntityRepository
+     * gains setAccountContext() in WP02 of this mission; until then this is a
+     * deliberate no-op (method_exists precedent: loadRevision() hydration).
+     *
+     * The parameter is typed `object` on purpose: EntityRepository is final
+     * and does not yet declare the method, so a precisely-typed variable
+     * would let PHPStan prove the method_exists() guard always-false and
+     * flag the seam. Do NOT replace this with a named `accountContext:`
+     * constructor argument — it will not compile until WP02 lands.
+     */
+    private function attachAccountContext(object $repository): void
+    {
+        if (method_exists($repository, 'setAccountContext')) {
+            $repository->setAccountContext($this->accountContext());
+        }
     }
 
     /**
@@ -360,7 +432,14 @@ abstract class AbstractKernel
 
     protected function compileManifest(): void
     {
-        $this->manifest = new ManifestBootstrapper()->boot($this->projectRoot);
+        // Dev mode compiles the manifest fresh each boot so newly added app
+        // entity types and access policies are discovered without
+        // `composer dump-autoload -o` or `optimize:manifest`. Production uses the
+        // compiled cache.
+        $this->manifest = new ManifestBootstrapper()->boot(
+            $this->projectRoot,
+            freshCompile: $this->isDevelopmentMode(),
+        );
     }
 
     protected function bootMigrations(): void
@@ -386,6 +465,12 @@ abstract class AbstractKernel
             $this->entityTypeManager,
             $this->database,
             $this->dispatcher,
+            $this->accountContext(),
+            // C-12: lazy access-handler accessor exposed to providers (e.g.
+            // AiToolsServiceProvider's tool registry). Lazy + isset-guarded
+            // because $this->accessHandler is populated later by
+            // discoverAccessPolicies(); it is read only at tool dispatch.
+            fn(): ?EntityAccessHandler => $this->accessHandler ?? null,
         );
     }
 
@@ -463,9 +548,24 @@ abstract class AbstractKernel
             $this->dispatcher,
             $this->logger,
             static fn() => $providers,
+            $this->accountContext(),
+            manifest: $this->manifest,
         );
         $resolver = new KernelPolicyDependencyResolver($kernelServices);
         $this->accessHandler = new AccessPolicyRegistry($this->logger, $resolver)->discover($this->manifest);
+
+        // Framework default: published content (entity types in the `content`
+        // group) is anonymously viewable with no hand-written per-type policy.
+        // Additive only (never Forbidden), so a specific policy's denial wins.
+        $this->accessHandler->addPolicy(new PublishedContentAccessPolicy($this->entityTypeManager));
+
+        // Framework default: an account holding `administer content` may fully
+        // manage any content-group entity (view/update/delete/create, drafts
+        // included) with no hand-written per-type policy — the per-group analogue
+        // of NodeAccessPolicy's `administer nodes` bypass. Additive (never
+        // Forbidden); gated strictly on `administer content`, so anonymous and
+        // the public/MCP read path keep published-view-only.
+        $this->accessHandler->addPolicy(new ContentAdminAccessPolicy($this->entityTypeManager));
     }
 
     /**
@@ -490,6 +590,8 @@ abstract class AbstractKernel
             $this->dispatcher,
             $this->logger,
             static fn() => $providers,
+            $this->accountContext(),
+            manifest: $this->manifest,
         );
         $resolver = new KernelPolicyDependencyResolver($kernelServices);
         new ScheduleEntryRegistry($this->logger, $resolver)
@@ -675,9 +777,10 @@ abstract class AbstractKernel
      *
      * Exposes the protected boot() for callers that need a fully-booted kernel
      * (providers, entity type manager, database, dispatcher) without dispatching
-     * a command — specifically CliApplication's provider-boot path.
+     * a command. The Symfony Console application factory uses this path before
+     * registering provider commands.
      *
-     * @internal Called by CliApplication to obtain booted providers and the handler container.
+     * @internal Called by ConsoleApplicationFactory to obtain booted providers and the handler container.
      */
     public function bootForCli(): void
     {
@@ -749,8 +852,9 @@ abstract class AbstractKernel
      *   2. Reflection-based auto-wiring — instantiates concrete handler classes
      *      whose constructor parameters are resolvable from the same container.
      *
-     * Used by CliApplication to resolve class-based command handlers at dispatch
-     * time. Must be called after bootForCli() / boot().
+     * Used by ConsoleApplicationFactory and handler-backed Symfony commands to
+     * resolve class-based handlers at dispatch time. Must be called after
+     * bootForCli() / boot().
      */
     public function buildHandlerContainer(): \Psr\Container\ContainerInterface
     {
@@ -767,7 +871,15 @@ abstract class AbstractKernel
             \Waaseyaa\Entity\EntityTypeManagerInterface::class =>
                 static fn(\Psr\Container\ContainerInterface $c) => $c->get(\Waaseyaa\Entity\EntityTypeManager::class),
 
+            // Role registry composed from every provider implementing
+            // ProvidesRolesInterface, so role-aware handlers (e.g.
+            // UserAssignRoleHandler) can stamp role permissions onto a user.
+            \Waaseyaa\User\RoleRepository::class =>
+                static fn(\Psr\Container\ContainerInterface $c) => \Waaseyaa\User\RoleRepository::fromProviders($providers),
+
             // Kernel-owned services not bound by any provider.
+            \Waaseyaa\Access\Context\AccountContextInterface::class =>
+                static fn(\Psr\Container\ContainerInterface $c) => $kernel->accountContext(),
             \Waaseyaa\Foundation\Diagnostic\BootDiagnosticReport::class =>
                 static fn(\Psr\Container\ContainerInterface $c) => $kernel->getBootReport(),
             \Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface::class =>
@@ -814,7 +926,17 @@ abstract class AbstractKernel
                         $this->cache[$id] = $instance;
 
                         return $instance;
-                    } catch (\Throwable) {
+                    } catch (\RuntimeException $e) {
+                        // Only a genuinely *unbound* id falls through to the next
+                        // provider / reflection auto-wiring. resolve() signals that
+                        // case with the canonical "No binding registered for …"
+                        // message (ServiceProvider::resolve()). Any other failure is
+                        // a real construction error (e.g. a factory dependency that
+                        // could not be built) — re-throw it so the true cause is not
+                        // masked as a misleading "No binding" NotFoundException.
+                        if (!str_starts_with($e->getMessage(), 'No binding registered for ')) {
+                            throw $e;
+                        }
                         // try next
                     }
                 }

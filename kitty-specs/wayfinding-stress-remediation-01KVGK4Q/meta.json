@@ -1,0 +1,33 @@
+{
+  "coordination_branch": "wayfinding-stress-remediation-01KVGK4Q",
+  "created_at": "2026-06-20T00:00:00.000000+00:00",
+  "friendly_name": "wayfinding-stress-remediation",
+  "is_flagship": false,
+  "mission_id": "01KVGK4QXM7T2B9YH3F6D8NCEZ",
+  "mission_number": null,
+  "mission_slug": "wayfinding-stress-remediation-01KVGK4Q",
+  "mission_type": "software-dev",
+  "parent_mission": "wayfinding-01KVGH5X",
+  "purpose_context": "Prioritized remediation of the alpha.233 Wayfinding end-to-end stress-test backlog (Codex report) plus cleanup-backlog CL-1..CL-5 and the flagged admin-table list-view bug. Ships ONLY the P0 set (write-tier auth override; SSE sessionToken exposure; db:init two-axis provisioning) as a finish-and-ship release gate; P1/P2 specified and held for go. UX-1 routed to its own admin-list fix mission; P1-5 routed to windows-runtime-ergonomics.",
+  "purpose_tldr": "wayfinding stress-test P0 remediation",
+  "roadmap_priority": "remediation",
+  "p0_status": {
+    "p0_1_write_tier_auth_override": "shipping (alpha.234)",
+    "p0_2_sse_session_token_exposure": "shipping (alpha.234)",
+    "p0_3_db_init_two_axis_provisioning": "shipping (alpha.234)"
+  },
+  "held_for_go": [
+    "P1-4 concurrency-safe translation revision-id allocation",
+    "P2-6 token->account config example",
+    "P2-7 packaged wayfinding test autoloading",
+    "P2-8 /api/mercure/subscribers 403 + FrankenPHP subscriber monitoring",
+    "P2-9 Dismiss control Enter-activation a11y confirmation",
+    "P2-10 quiet noisy MCP tool-resolution failures (folds CL-2)"
+  ],
+  "routed_out": {
+    "UX-1 admin-list body-dump": "own admin-list fix mission (SchemaList list-view column policy)",
+    "P1-5 bin/dev.sh PHP path on Windows/Git Bash": "windows-runtime-ergonomics-01KVGEPD (reopen)"
+  },
+  "slug": "wayfinding-stress-remediation-01KVGK4Q",
+  "target_branch": "main"
+}

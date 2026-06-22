@@ -15,7 +15,6 @@ Machine-readable source: `docs/public-surface-map.php`.
 | Element | Type | Purpose |
 |---------|------|---------|
 | `AssetManagerInterface` | interface | Resolves source asset paths to versioned/hashed production URLs via build manifests |
-| `BroadcasterInterface` | interface | Broadcasts messages to subscribed channels (SSE, WebSockets, Redis Pub/Sub, etc.) |
 | `HealthCheckerInterface` | interface | Runs boot, runtime, and ingestion health checks across subsystems |
 | `LoggerInterface` | interface | Structured logger with PSR-3-style severity levels (framework-internal, not psr/log) |
 | `HandlerInterface` | interface | Log handler that receives and writes formatted log records |
@@ -173,9 +172,6 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `SqlColumnQueryTranslator` | final class | Translates field-level query predicates to SQL for `SqlColumnBackend` (M-001, WP05) |
 | `TypeMapping` | final class | Maps `FieldDefinition` type strings to DBAL column types (M-001, WP05) |
 | `DefinitionValidator` | final class | Validates `FieldDefinition` objects at registration time; throws `UnsupportedQueryException` (M-001, WP06) |
-| `RevisionableSqlBlobStorage` | final class | Revision-aware storage using sql-blob backend (M-001, WP08) |
-| `RevisionableSqlColumnStorage` | final class | Revision-aware storage using sql-column backend (M-001, WP08) |
-| `RevisionPruner` | final class | Removes old entity revisions according to a pruning policy (M-001, WP08) |
 | `RevisionPruningPolicy` | final class | Immutable value object describing how many revisions to keep (M-001, WP08) |
 | `RevisionPruningReport` | final class | Result of a pruning run: counts of deleted and retained revisions (M-001, WP08) |
 | `RevisionTableBuilder` | final class | Creates the `{entity_type}_revision` schema table (M-001, WP07) |
@@ -186,7 +182,6 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `Waaseyaa\EntityStorage\Listing\TwoAxisFilterResolver` | final class | Resolves listing filters against two-axis storage: joins `<entity>__revision` to `<entity>__translation__revision` and applies langcode + revision-window selection (M-004, WP07) |
 | `Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy` | final class | Two-axis pruning policy value object; keeps the M-001 `RevisionPruningPolicy` surface intact while extending semantics to per-langcode revision counts (M-004, WP05) |
 | `SaveContext::withTranslations(array $langcodes): self` | method | Immutable copy carrying a `[langcode => values]` map for atomic multi-language revision writes; rejected if empty. Pairs with `withLangcode()` for single-language writes (M-004, WP03) |
-| `RevisionableEntityStorageInterface::listRevisions(RevisionableEntityInterface $entity): iterable` | method | Lists revisions for the entity. For two-axis types, yields revisions across all languages in monotonic `vid` order with independent per-language sequencing preserved in `langcode` metadata (M-004, WP04) |
 | `EntityTranslationException::historicalRevisionWrite(int $vid, string $langcode): self` | factory | Raised when a write targets a historical (non-tip) revision in a two-axis entity; stable `errorCode` `historical_revision_write` (M-004, WP04) |
 
 ### access
@@ -386,7 +381,6 @@ Charter §5.6 — listing-pipeline-v1 (M-007). Namespace `Waaseyaa\Listing\`.
 
 | Element | Type | Purpose |
 |---------|------|---------|
-| `JsonResponseTrait` | trait | Parses incoming JSON request bodies and builds JSON error responses |
 | `MutableTranslatableInterface` | interface | Extends `TranslatableInterface` with `addTranslation()` for explicit translation creation |
 | `CodifiedContextSessionStoreInterface` | interface | Read-only port for codified-context session rows consumed by `CodifiedContextController`; Telescope implements via adapter |
 
@@ -404,7 +398,6 @@ Charter §5.6 — listing-pipeline-v1 (M-007). Namespace `Waaseyaa\Listing\`.
 
 | Element | Type | Purpose |
 |---------|------|---------|
-| `AgentInterface` | interface | AI agent that executes CMS actions within the permission model with dry-run support |
 | `ToolRegistryInterface` | interface | Provides the set of tools available to an AI agent |
 | `ProviderInterface` | interface | AI model provider: sends messages and returns a structured response |
 | `StreamingProviderInterface` | interface | Provider variant that streams partial response chunks as they arrive |

@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "mission_slug": "live-entity-validation-key-protection-01KTWQT3",
+  "mission_id": "01KTWQT3NNRQDGER2BR699SNM2",
+  "mission_branch": "kitty/mission-live-entity-validation-key-protection-01KTWQT3",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01",
+        "WP02",
+        "WP03",
+        "WP04"
+      ],
+      "write_scope": [
+        "CHANGELOG.md",
+        "CLAUDE.md",
+        "docs/specs/ai-integration.md",
+        "docs/specs/entity-system.md",
+        "packages/ai-tools/src/Entity/EntityCreateTool.php",
+        "packages/ai-tools/src/Entity/EntityKeyGuard.php",
+        "packages/ai-tools/src/Entity/EntityUpdateTool.php",
+        "packages/ai-tools/tests/**",
+        "packages/entity-storage/src/Driver/SqlStorageDriver.php",
+        "packages/entity-storage/tests/**",
+        "packages/entity/src/Validation/EntityValidator.php",
+        "packages/entity/src/Validation/FieldDefinitionConstraintBuilder.php",
+        "packages/entity/tests/Unit/Validation/**",
+        "packages/foundation/src/Kernel/AbstractKernel.php",
+        "tests/Integration/Validation/**"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "tests"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-06-12T01:54:02.635005+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": [],
+  "collapse_report": {
+    "events": [
+      {
+        "wp_a": "WP02",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP02 depends on WP01"
+      },
+      {
+        "wp_a": "WP03",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP03 depends on WP01"
+      },
+      {
+        "wp_a": "WP04",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP04 depends on WP01"
+      }
+    ],
+    "total_merges": 3,
+    "independent_wps_collapsed": 0,
+    "by_rule": {
+      "dependency": 3
+    }
+  }
+}

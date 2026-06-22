@@ -132,11 +132,14 @@ final class JsonApiAccessIntegrationTest extends TestCase
         $controller = $this->buildController($anonymous);
         $doc = $controller->show('node', 1);
 
-        $this->assertSame(403, $doc->statusCode);
+        // FR-003 (#1649): a view-denied single read answers with the canonical
+        // not-found shape — never a 403 — so it cannot act as an existence oracle.
+        $this->assertSame(404, $doc->statusCode);
         $array = $doc->toArray();
         $this->assertArrayHasKey('errors', $array);
-        $this->assertSame('403', $array['errors'][0]['status']);
-        $this->assertSame('Forbidden', $array['errors'][0]['title']);
+        $this->assertSame('404', $array['errors'][0]['status']);
+        $this->assertSame('Not Found', $array['errors'][0]['title']);
+        $this->assertArrayNotHasKey('code', $array['errors'][0]);
     }
 
     #[Test]
@@ -327,7 +330,8 @@ final class JsonApiAccessIntegrationTest extends TestCase
         $controller = $this->buildController($user);
         $doc = $controller->show('node', $node->id());
 
-        $this->assertSame(403, $doc->statusCode);
+        // FR-003 (#1649): denied view reads return the not-found shape.
+        $this->assertSame(404, $doc->statusCode);
     }
 
     #[Test]

@@ -34,6 +34,7 @@ use Waaseyaa\Foundation\Log\Processor\RequestContextProcessor;
 use Waaseyaa\Foundation\Middleware\DebugHeaderMiddleware;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
+use Waaseyaa\Foundation\Middleware\SecurityHeadersMiddleware;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
@@ -193,6 +194,7 @@ final class HttpKernel extends AbstractKernel
                 dispatcher: $this->dispatcher,
                 logger: $this->logger,
                 providersAccessor: fn(): array => $this->providers,
+                manifest: $this->manifest,
             ),
             logger: $this->logger,
         );
@@ -327,6 +329,9 @@ final class HttpKernel extends AbstractKernel
                 $this->logger,
                 $this->sessionCookieOptions(),
                 is_array($this->config['trusted_proxies'] ?? null) ? $this->config['trusted_proxies'] : [],
+                // The kernel's single acting-account context — the middleware
+                // mirrors `_account` into it on every request (FR-002).
+                accountContext: $this->accountContext(),
             ),
             new CsrfMiddleware(),
             new AuthorizationMiddleware($accessChecker, $errorPageRenderer),
@@ -420,8 +425,20 @@ final class HttpKernel extends AbstractKernel
             }
         }
 
+        // Wire the SSE subscriber-tracking path so BroadcastRouter records each
+        // connection (the write side the monitor dashboard reads) AND can enforce
+        // the per-account concurrent-stream cap (#1704). Resolved identically to
+        // MercureMonitorServiceProvider's read side (same flag + path) so the two
+        // never diverge; null when the monitor is disabled, which also disables
+        // the cap.
+        $broadcastMonitorEnabled = $this->config['broadcasting']['monitor']['enabled'] ?? true;
+        $broadcastSubscribersPath = $broadcastMonitorEnabled === false
+            ? null
+            : ($this->config['broadcasting']['monitor']['subscribers_path']
+                ?? (($this->config['storage_path'] ?? './storage') . '/broadcast/subscribers.json'));
+
         $routers = array_merge($foundationRouters, $providerRouters, [
-            new HttpRouter\BroadcastRouter($this->logger),
+            new HttpRouter\BroadcastRouter($this->logger, $broadcastSubscribersPath),
         ]);
 
         $dispatcher = new ControllerDispatcher(
@@ -440,6 +457,21 @@ final class HttpKernel extends AbstractKernel
         // helper here to satisfy contract §1 (cookie on every text/html
         // response) once the actual Content-Type is known.
         CsrfMiddleware::attachCookieIfHtml($httpRequest, $finalResponse);
+
+        // Apply framing / MIME-sniffing security headers to the dispatched
+        // response (#1651). SecurityHeadersMiddleware never reaches the real
+        // response through the authorization pipeline (its inner handler is a
+        // stub 200), so — like the CSRF cookie above — the headers are applied
+        // here, post-dispatch. X-Frame-Options defaults to SAMEORIGIN (blocks
+        // cross-origin clickjacking, preserves same-origin previews) and is
+        // configurable via security_headers.frame_options; routes that must be
+        // embeddable cross-origin set the _frame_exempt request attribute to opt
+        // out. CSP/HSTS remain opt-in via the middleware constructor.
+        $frameOptions = is_array($this->config['security_headers'] ?? null)
+            && is_string($this->config['security_headers']['frame_options'] ?? null)
+            ? $this->config['security_headers']['frame_options']
+            : 'SAMEORIGIN';
+        SecurityHeadersMiddleware::applyResponseDefaults($httpRequest, $finalResponse, $frameOptions);
 
         return $finalResponse;
     }

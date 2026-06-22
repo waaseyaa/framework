@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Waaseyaa\AI\Tools;
 
 use Psr\Container\ContainerInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Tools\Catalogue\AttributeToolRegistry;
+use Waaseyaa\AI\Tools\Catalogue\AutowiringToolContainer;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
@@ -35,6 +37,13 @@ final class AiToolsServiceProvider extends ServiceProvider
                 manifest: $manifest,
                 container: $container,
                 logger: $logger,
+                // C-12: inject the kernel access handler so every stock entity
+                // tool enforces per-entity AccessPolicy. Lazy — resolved at
+                // hydration (after AbstractKernel::discoverAccessPolicies), and
+                // non-null here always means production wiring is requested, so
+                // the registry stamps fail-closed enforcement on each tool even
+                // when the handler itself transiently resolves to null.
+                accessHandlerResolver: fn(): ?EntityAccessHandler => $this->resolveAccessHandler(),
             );
         });
 
@@ -63,29 +72,11 @@ final class AiToolsServiceProvider extends ServiceProvider
             return $container;
         }
 
-        // Self-resolving fallback container: defers to $this->resolve() for
-        // bindings registered on this provider. Used during unit tests that
-        // do not boot the full kernel.
-        $provider = $this;
-
-        return new class ($provider) implements ContainerInterface {
-            public function __construct(private readonly ServiceProvider $provider) {}
-
-            public function get(string $id): object
-            {
-                return $this->provider->resolve($id);
-            }
-
-            public function has(string $id): bool
-            {
-                try {
-                    $this->provider->resolve($id);
-                    return true;
-                } catch (\Throwable) {
-                    return false;
-                }
-            }
-        };
+        // #[AsAgentTool] classes are not container-bound, so the registry needs a
+        // container that can autowire them: resolve from the kernel-services bus
+        // (core services + any provider binding), then reflection-instantiate the
+        // tool with its constructor deps. See AutowiringToolContainer.
+        return new AutowiringToolContainer($this->kernelServices, $this);
     }
 
     private function resolveLogger(): LoggerInterface
@@ -93,5 +84,18 @@ final class AiToolsServiceProvider extends ServiceProvider
         $logger = $this->kernelServices?->get(LoggerInterface::class);
 
         return $logger instanceof LoggerInterface ? $logger : new NullLogger();
+    }
+
+    /**
+     * Resolve the kernel's per-entity access handler from the kernel-services
+     * bus (exposed by {@see \Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistryKernelServices}
+     * after access-policy discovery). Returns null when the bus cannot supply
+     * one; the registry still stamps fail-closed enforcement in that case.
+     */
+    private function resolveAccessHandler(): ?EntityAccessHandler
+    {
+        $handler = $this->kernelServices?->get(EntityAccessHandler::class);
+
+        return $handler instanceof EntityAccessHandler ? $handler : null;
     }
 }

@@ -44,8 +44,9 @@ final class ThemeServiceProviderTest extends TestCase
 
         $this->assertArrayHasKey('nebula', $themes);
         $this->assertArrayHasKey('minimal', $themes);
-        $this->assertSame([$projectRoot . '/vendor/acme/nebula/templates'], $themes['nebula']->templateDirectories());
-        $this->assertSame([$projectRoot . '/vendor/acme/minimal/views'], $themes['minimal']->templateDirectories());
+        $normalizedRoot = str_replace('\\', '/', $projectRoot);
+        $this->assertSame([$normalizedRoot . '/vendor/acme/nebula/templates'], $themes['nebula']->templateDirectories());
+        $this->assertSame([$normalizedRoot . '/vendor/acme/minimal/views'], $themes['minimal']->templateDirectories());
 
         $this->removeDirectory($projectRoot);
     }

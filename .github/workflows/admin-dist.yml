@@ -21,7 +21,7 @@ jobs:
     name: Build admin SPA and open dist PR
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -33,22 +33,22 @@ jobs:
           cache: 'npm'
           cache-dependency-path: packages/admin/package-lock.json
 
-      - name: Install dependencies
-        run: cd packages/admin && npm ci
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
 
-      - name: Generate static Nuxt SPA
-        run: cd packages/admin && npm run generate
-
-      - name: Copy build output to admin-surface/dist
-        run: |
-          rm -rf packages/admin-surface/dist
-          cp -r packages/admin/.output/public packages/admin-surface/dist
+      # Single reproducible step (npm ci + generate + copy + freshness signature)
+      # so the committed dist and packages/admin-surface/dist.signature stay in
+      # lockstep with the admin source (D6 / check-admin-dist-fresh gate).
+      - name: Build admin SPA dist (+ freshness signature)
+        run: bin/build-admin-dist
 
       - name: Check for changes
         id: diff
         run: |
-          git add packages/admin-surface/dist/
-          if git diff --cached --quiet packages/admin-surface/dist/; then
+          git add packages/admin-surface/dist/ packages/admin-surface/dist.signature
+          if git diff --cached --quiet packages/admin-surface/dist/ packages/admin-surface/dist.signature; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"

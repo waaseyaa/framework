@@ -265,4 +265,24 @@ final class TwoFactorServiceTest extends TestCase
 
         $this->assertFalse($this->service->isEnabled($user));
     }
+
+    public function testVerifyRejectsReplayedTotpWithinWindow(): void
+    {
+        $user = User::make(['uid' => 1, 'name' => 'alice', 'mail' => 'alice@example.com']);
+        $setup = $this->service->setup($user);
+        $firstCode = $this->manager->getCurrentCode($setup->secret);
+        $this->service->enable($user, $setup->secret, $setup->recoveryCodes, $firstCode);
+
+        $current = $this->manager->getCurrentCode($setup->secret);
+
+        // First use of the code succeeds and consumes its time step.
+        $this->assertTrue($this->service->verify($user, $current));
+
+        // Immediate reuse of the same code (still within its validity window)
+        // must be rejected as a replay.
+        $this->assertFalse(
+            $this->service->verify($user, $current),
+            'a TOTP code must not be accepted twice within its validity window',
+        );
+    }
 }

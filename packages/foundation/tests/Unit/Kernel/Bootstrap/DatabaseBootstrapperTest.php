@@ -9,6 +9,9 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\LoggerTrait;
+use Waaseyaa\Foundation\Log\LogLevel;
 
 #[CoversClass(DatabaseBootstrapper::class)]
 final class DatabaseBootstrapperTest extends TestCase
@@ -150,5 +153,236 @@ final class DatabaseBootstrapperTest extends TestCase
 
         $this->assertInstanceOf(DatabaseInterface::class, $database);
         $this->assertFileExists($dbPath);
+    }
+
+    // ----- Mission request-surface-hardening (#1650) WP02: resolution matrix -----
+    // Contract `bearer-and-dbpath.md` §9–13 / data-model.md path resolution
+    // matrix. resolveDatabasePath() is a pure function of (configured value,
+    // projectRoot) — process CWD never participates.
+
+    #[Test]
+    public function relativeConfigValueResolvesAgainstProjectRoot(): void
+    {
+        $resolved = DatabaseBootstrapper::resolveDatabasePath('/proj', ['database' => 'storage/custom.sqlite']);
+
+        $this->assertSame('/proj/storage/custom.sqlite', $resolved);
+    }
+
+    #[Test]
+    public function relativeEnvValueResolvesAgainstProjectRoot(): void
+    {
+        putenv('WAASEYAA_DB=storage/env.sqlite');
+
+        try {
+            $resolved = DatabaseBootstrapper::resolveDatabasePath('/proj', []);
+            $this->assertSame('/proj/storage/env.sqlite', $resolved);
+        } finally {
+            putenv('WAASEYAA_DB');
+        }
+    }
+
+    #[Test]
+    public function dotSlashPrefixIsStrippedBeforeJoining(): void
+    {
+        $resolved = DatabaseBootstrapper::resolveDatabasePath('/proj', ['database' => './storage/dotted.sqlite']);
+
+        $this->assertSame('/proj/storage/dotted.sqlite', $resolved);
+    }
+
+    #[Test]
+    public function climbingRelativeConcatenatesOntoProjectRoot(): void
+    {
+        // Contract §12: climbing values resolve against the project root —
+        // concatenated, not collapsed.
+        $resolved = DatabaseBootstrapper::resolveDatabasePath('/proj', ['database' => '../shared/db.sqlite']);
+
+        $this->assertSame('/proj/../shared/db.sqlite', $resolved);
+    }
+
+    #[Test]
+    public function leadingSlashAbsoluteValuePassesThroughUntouched(): void
+    {
+        $resolved = DatabaseBootstrapper::resolveDatabasePath('/proj', ['database' => '/var/data/db.sqlite']);
+
+        $this->assertSame('/var/data/db.sqlite', $resolved);
+    }
+
+    #[Test]
+    public function driveLetterAbsoluteValuesPassThroughUntouched(): void
+    {
+        $backslash = DatabaseBootstrapper::resolveDatabasePath('/proj', ['database' => 'C:\\data\\db.sqlite']);
+        $forwardSlash = DatabaseBootstrapper::resolveDatabasePath('/proj', ['database' => 'c:/data/db.sqlite']);
+
+        $this->assertSame('C:\\data\\db.sqlite', $backslash);
+        $this->assertSame('c:/data/db.sqlite', $forwardSlash);
+    }
+
+    #[Test]
+    public function uncPathPassesThroughUntouched(): void
+    {
+        $resolved = DatabaseBootstrapper::resolveDatabasePath('/proj', ['database' => '\\\\server\\share\\db.sqlite']);
+
+        $this->assertSame('\\\\server\\share\\db.sqlite', $resolved);
+    }
+
+    #[Test]
+    public function memorySentinelPassesThroughUntouched(): void
+    {
+        $resolved = DatabaseBootstrapper::resolveDatabasePath('/proj', ['database' => ':memory:']);
+
+        $this->assertSame(':memory:', $resolved);
+    }
+
+    #[Test]
+    public function unsetDefaultIsByteIdenticalToPreMissionConcatenation(): void
+    {
+        // Acceptance scenario 5: the default is the same concatenation as
+        // before the mission, not routed through new logic.
+        $resolved = DatabaseBootstrapper::resolveDatabasePath('/proj', []);
+
+        $this->assertSame('/proj/storage/waaseyaa.sqlite', $resolved);
+    }
+
+    #[Test]
+    public function configValueTakesPrecedenceOverEnv(): void
+    {
+        putenv('WAASEYAA_DB=storage/env.sqlite');
+
+        try {
+            $resolved = DatabaseBootstrapper::resolveDatabasePath('/proj', ['database' => 'storage/cfg.sqlite']);
+            $this->assertSame('/proj/storage/cfg.sqlite', $resolved);
+        } finally {
+            putenv('WAASEYAA_DB');
+        }
+    }
+
+    #[Test]
+    public function bootResolvesRelativeEnvValueUnderProjectRoot(): void
+    {
+        $projectRoot = $this->tempDir . '/project';
+        mkdir($projectRoot, 0o755, recursive: true);
+        putenv('WAASEYAA_DB=storage/rel-env.sqlite');
+
+        try {
+            $database = new DatabaseBootstrapper()->boot($projectRoot, []);
+
+            $this->assertInstanceOf(DatabaseInterface::class, $database);
+            $this->assertFileExists($projectRoot . '/storage/rel-env.sqlite');
+            // CWD-relative location (the pre-fix behavior) must NOT be used.
+            $this->assertFileDoesNotExist((getcwd() ?: '.') . '/storage/rel-env.sqlite');
+        } finally {
+            putenv('WAASEYAA_DB');
+        }
+    }
+
+    #[Test]
+    public function bootResolvesRelativeConfigValueUnderProjectRoot(): void
+    {
+        $projectRoot = $this->tempDir . '/project';
+        mkdir($projectRoot, 0o755, recursive: true);
+
+        $database = new DatabaseBootstrapper()->boot($projectRoot, ['database' => 'storage/rel-cfg.sqlite']);
+
+        $this->assertInstanceOf(DatabaseInterface::class, $database);
+        $this->assertFileExists($projectRoot . '/storage/rel-cfg.sqlite');
+        $this->assertFileDoesNotExist((getcwd() ?: '.') . '/storage/rel-cfg.sqlite');
+    }
+
+    // ----- Mission request-surface-hardening (#1650) WP02: docroot warning -----
+    // Contract §17–19 / FR-008.
+
+    #[Test]
+    public function bootWarnsOnceWhenResolvedPathIsInsideDocroot(): void
+    {
+        $projectRoot = $this->tempDir . '/project';
+        mkdir($projectRoot, 0o755, recursive: true);
+        $spy = $this->spyLogger();
+
+        new DatabaseBootstrapper()->boot($projectRoot, ['database' => 'public/oops.sqlite'], $spy);
+
+        $this->assertCount(1, $spy->warnings);
+        $this->assertStringContainsString('public', $spy->warnings[0]);
+        $this->assertStringContainsString('WAASEYAA_DB', $spy->warnings[0]);
+    }
+
+    #[Test]
+    public function bootWarnsForWindowsSeparatedRelativeInsideDocroot(): void
+    {
+        // The containment normalizer is pure string logic — backslash forms
+        // must be detected on every platform.
+        $projectRoot = $this->tempDir . '/project';
+        mkdir($projectRoot . '/public', 0o755, recursive: true);
+        $spy = $this->spyLogger();
+
+        new DatabaseBootstrapper()->boot($projectRoot, ['database' => 'public\\win.sqlite'], $spy);
+
+        $this->assertCount(1, $spy->warnings);
+    }
+
+    #[Test]
+    public function bootDoesNotWarnForPathOutsideDocroot(): void
+    {
+        $projectRoot = $this->tempDir . '/project';
+        mkdir($projectRoot, 0o755, recursive: true);
+        $spy = $this->spyLogger();
+
+        new DatabaseBootstrapper()->boot($projectRoot, ['database' => 'storage/fine.sqlite'], $spy);
+
+        $this->assertSame([], $spy->warnings);
+    }
+
+    #[Test]
+    public function bootDoesNotWarnForPathClimbingBackOutOfDocroot(): void
+    {
+        $projectRoot = $this->tempDir . '/project';
+        mkdir($projectRoot, 0o755, recursive: true);
+        $spy = $this->spyLogger();
+
+        new DatabaseBootstrapper()->boot($projectRoot, ['database' => 'public/../storage/safe.sqlite'], $spy);
+
+        $this->assertSame([], $spy->warnings);
+    }
+
+    #[Test]
+    public function bootDoesNotWarnForMemoryDatabase(): void
+    {
+        $spy = $this->spyLogger();
+
+        new DatabaseBootstrapper()->boot($this->tempDir, ['database' => ':memory:'], $spy);
+
+        $this->assertSame([], $spy->warnings);
+    }
+
+    #[Test]
+    public function bootWithoutLoggerProceedsSilentlyForDocrootPath(): void
+    {
+        // Contract §19: a kernel constructed without a logger boots silently;
+        // the advisory never throws.
+        $projectRoot = $this->tempDir . '/project';
+        mkdir($projectRoot, 0o755, recursive: true);
+
+        $database = new DatabaseBootstrapper()->boot($projectRoot, ['database' => 'public/oops.sqlite']);
+
+        $this->assertInstanceOf(DatabaseInterface::class, $database);
+    }
+
+    /**
+     * @return LoggerInterface&object{warnings: list<string>}
+     */
+    private function spyLogger(): LoggerInterface
+    {
+        return new class implements LoggerInterface {
+            use LoggerTrait;
+
+            /** @var list<string> */
+            public array $warnings = [];
+
+            public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
+            {
+                if ($level === LogLevel::WARNING) {
+                    $this->warnings[] = (string) $message;
+                }
+            }
+        };
     }
 }

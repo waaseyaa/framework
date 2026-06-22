@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Audit\Listener;
 
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Entity\AuditEvent;
@@ -20,6 +21,11 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * POST_SAVE → entity.write (kind distinguishes create vs update via isNew).
  * POST_DELETE → entity.delete.
  *
+ * Actor source: the acting account from {@see AccountContextInterface}
+ * (account N / anonymous 0 / null when no acting context exists — CLI,
+ * queue, bootstrap). The saved entity's own `uid` field is NEVER consulted:
+ * a user-A session saving a node owned by user B records actor A (#1645).
+ *
  * Best-effort: exceptions are caught and logged; the primary request is
  * never disrupted (NFR-001).
  *
@@ -32,6 +38,7 @@ final class EntityLifecycleAuditListener implements EventSubscriberInterface
     public function __construct(
         private readonly AuditWriterInterface $writer,
         private readonly ?LoggerInterface $logger = null,
+        private readonly ?AccountContextInterface $accountContext = null,
     ) {}
 
     public static function getSubscribedEvents(): array
@@ -65,7 +72,7 @@ final class EntityLifecycleAuditListener implements EventSubscriberInterface
 
         try {
             $entity = $event->entity;
-            $accountUid = $this->resolveAccountUid($entity);
+            $accountUid = $this->resolveActorUid();
 
             $this->writer->record(new AuditEventDescriptor(
                 kind: AuditEventKind::EntityWrite,
@@ -101,7 +108,7 @@ final class EntityLifecycleAuditListener implements EventSubscriberInterface
 
         try {
             $entity = $event->entity;
-            $accountUid = $this->resolveAccountUid($entity);
+            $accountUid = $this->resolveActorUid();
 
             $this->writer->record(new AuditEventDescriptor(
                 kind: AuditEventKind::EntityDelete,
@@ -125,15 +132,15 @@ final class EntityLifecycleAuditListener implements EventSubscriberInterface
         }
     }
 
-    private function resolveAccountUid(\Waaseyaa\Entity\EntityInterface $entity): int
+    /**
+     * The acting account from the request-scoped context — NOT the saved
+     * entity's own `uid` field (the #1645 misattribution this replaced).
+     * Null when no acting context exists; never coerced to 0.
+     */
+    private function resolveActorUid(): ?int
     {
-        if ($entity instanceof \Waaseyaa\Entity\FieldableInterface) {
-            $uid = $entity->get('uid');
-            if ($uid !== null && $uid !== '') {
-                return (int) $uid;
-            }
-        }
+        $account = $this->accountContext?->current();
 
-        return 0;
+        return $account !== null ? (int) $account->id() : null;
     }
 }

@@ -130,7 +130,7 @@ Reserved ids are owned by the framework. The complete list lives in
 
 | Table | Source-of-truth descriptor | Purpose |
 |---|---|---|
-| `migration_id_map` | `Waaseyaa\Migration\Schema\MigrationIdMapSchema` | Maps `(migration_id, source_id_hash)` to `(destination_entity_type, destination_uuid, source_record_hash, run_id, written_at)`. Enables idempotency, lookup, and rollback. |
+| `migration_id_map` | `Waaseyaa\Migration\Schema\MigrationIdMapSchema` | Maps `(migration_id, source_id_hash)` to `(destination_entity_type, destination_uuid, source_record_hash, last_run_id, last_imported_at)`. Enables idempotency, lookup, and rollback. |
 
 The `migration_id_map` table layout is **frozen stable surface**. Future
 column changes require a charter amendment and a data migration of every
@@ -308,8 +308,8 @@ Columns (per `MigrationIdMapSchema`):
 | `destination_entity_type` | TEXT NOT NULL | Target entity type id. |
 | `destination_uuid` | TEXT NOT NULL | UUIDv7 of the persisted entity. |
 | `source_record_hash` | TEXT NOT NULL | Canonical hash of the destination values; used for change detection. |
-| `run_id` | TEXT NOT NULL | UUIDv7 of the run that wrote this row. |
-| `written_at` | TEXT NOT NULL | ISO 8601 UTC timestamp. |
+| `last_run_id` | TEXT NOT NULL | UUIDv7 of the run that most recently wrote this row. Refreshed on every re-import (`upsert()` UPDATE). |
+| `last_imported_at` | TEXT NOT NULL | ISO 8601 UTC timestamp of the most recent write. Refreshed on every re-import; NOT a creation timestamp. Sole ordering signal for the reverse rollback walk (FR-043). |
 
 Primary key: `(migration_id, source_id_hash)`. Unique index:
 `(destination_entity_type, destination_uuid)`.
@@ -425,9 +425,15 @@ source plugin, skipping records up to that cursor before resuming writes.
 
 ### 8.4 `import:rollback <id>`
 
-Walks `migration_id_map` in reverse insertion order. For each row, calls
+Walks `migration_id_map` in reverse last-imported order (`last_imported_at
+DESC`, tie-broken by `last_run_id DESC`). For each row, calls
 `DestinationPluginInterface::rollback()`, then removes the id-map row on
 success. A failed rollback halts the walk with the id-map intact.
+
+Note: this is *last-imported* order, not creation order — the stable-surface
+table (FR-025) has no immutable creation column, and `last_imported_at` is
+refreshed on every re-import. See FR-043 for why this is the correct
+contract for best-effort rollback.
 
 ### 8.5 `import:reset <id>`
 

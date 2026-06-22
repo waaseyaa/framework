@@ -6,7 +6,7 @@ namespace Waaseyaa\CLI\Command\Ai;
 
 use Waaseyaa\AI\Agent\Repository\AgentAuditLogRepository;
 use Waaseyaa\AI\Agent\Repository\AgentRunRepository;
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 
 /**
@@ -42,7 +42,7 @@ final class AiPurgeRunsCommand
         private readonly ?\Closure $now = null,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $retentionDays = $this->resolveRetentionDays($io);
         if ($retentionDays === null) {
@@ -77,7 +77,7 @@ final class AiPurgeRunsCommand
         return 0;
     }
 
-    private function resolveRetentionDays(CliIO $io): ?int
+    private function resolveRetentionDays(SymfonyCommandIO $io): ?int
     {
         $option = $io->option('retention-days');
         if ($option === null || $option === '' || $option === false) {

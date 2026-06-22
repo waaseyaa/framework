@@ -5,8 +5,9 @@
     "license": "GPL-2.0-or-later",
     "require": {
         "php": ">=8.5",
-        "waaseyaa/core": "^v0.1.0-alpha.177",
-        "waaseyaa/groups": "^v0.1.0-alpha.177"
+        "waaseyaa/core": "^0.1.0-alpha.210",
+        "waaseyaa/groups": "^0.1.0-alpha.210",
+        "waaseyaa/scheduler": "^0.1.0-alpha.210"
     },
     "autoload": {
         "psr-4": {

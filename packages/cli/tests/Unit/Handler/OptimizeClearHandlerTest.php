@@ -7,7 +7,7 @@ namespace Waaseyaa\CLI\Tests\Unit\Handler;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\OptimizeClearHandler;
 use Waaseyaa\CLI\Testing\CliTester;
 
@@ -70,7 +70,7 @@ final class OptimizeClearHandlerTest extends TestCase
     private function createTester(string $storagePath): CliTester
     {
         $handler = new OptimizeClearHandler(storagePath: $storagePath);
-        $definition = new CommandDefinition(
+        $definition = new HandlerCommand(
             name: 'optimize:clear',
             description: 'Remove all cached optimization artifacts',
             handler: \Closure::fromCallable([$handler, 'execute']),

@@ -1,0 +1,16 @@
+{
+  "coordination_branch": "kitty/mission-windows-runtime-ergonomics-01KVGEPD",
+  "created_at": "2026-06-19T00:00:00.000000+00:00",
+  "friendly_name": "windows runtime ergonomics",
+  "mission_id": "01KVGEPDPF5MCW1RJQ11XMVB5A",
+  "mission_number": null,
+  "mission_slug": "windows-runtime-ergonomics-01KVGEPD",
+  "mission_type": "software-dev",
+  "parent_mission": "wayfinding-01KVGH5X",
+  "roadmap_priority": "PROMOTED — shipped in alpha.229 (D1 + elevated D4: cross-platform composer dev → @php bin/dev)",
+  "enables": "wayfinding: a clean cross-platform patch/serve path is prerequisite to demoing a Wayfinding-capable app on Windows",
+  "purpose_context": "Deliver a clean, cross-platform `composer run dev` that just works with FrankenPHP: @php bin/dev resolves the binary by absolute path (FRANKENPHP_BIN → known locations → PATH) via FrankenPhpLocator and execs it in classic mode, never adding the FrankenPHP dir to PATH (so its bundled OpenSSL-less php.exe can't shadow system PHP). Folds in D1 caret guidance.",
+  "purpose_tldr": "windows runtime ergonomics",
+  "slug": "windows-runtime-ergonomics-01KVGEPD",
+  "target_branch": "main"
+}

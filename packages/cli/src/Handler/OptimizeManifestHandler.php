@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
 
 final class OptimizeManifestHandler
@@ -13,7 +13,7 @@ final class OptimizeManifestHandler
         private readonly PackageManifestCompiler $compiler,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $manifest = $this->compiler->compileAndCache();
 

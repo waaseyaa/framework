@@ -1,496 +1,422 @@
-#!/usr/bin/env bash
-# Hard-gate package-layers check. See CLAUDE.md "Layer Architecture".
-#
-# Output modes (M4 WP04 of mission `agent-output-package-01KS5VX1`):
-#
-#   --output=json    NDJSON envelope on stdout via Waaseyaa\AgentOutput\Formatter\PackageLayersFormatter
-#   WAASEYAA_OUTPUT=json    same effect via env var
-#
-# Default behaviour (no flag, no env var) is unchanged: pass/fail human text,
-# exit 0/1.
-set -uo pipefail
+#!/usr/bin/env php
+<?php
 
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-export ROOT_DIR
+declare(strict_types=1);
 
-OUTPUT_MODE="human"
-for arg in "$@"; do
-    case "$arg" in
-        --output=json) OUTPUT_MODE="json" ;;
-    esac
-done
-if [[ "${WAASEYAA_OUTPUT:-}" == "json" ]]; then
-    OUTPUT_MODE="json"
-fi
-export OUTPUT_MODE
+/*
+ * Hard-gate package-layers check. See CLAUDE.md "Layer Architecture".
+ *
+ * Output modes:
+ *   --output=json
+ *   WAASEYAA_OUTPUT=json
+ */
 
-FINDINGS_FILE="$(mktemp -t waaseyaa-check-package-layers-XXXXXX.json)"
-export FINDINGS_FILE
-trap 'rm -f "$FINDINGS_FILE"' EXIT
-
-set +e
-python3 - <<'PY'
-import json
-import os
-import pathlib
-import re
-import sys
-
-root = pathlib.Path(os.environ["ROOT_DIR"])
-output_mode = os.environ.get("OUTPUT_MODE", "human")
-findings_file = os.environ.get("FINDINGS_FILE", "")
-
-# Canonical layer index (0 = foundation). Must match CLAUDE.md "Layer Architecture".
-# waaseyaa/<short> maps to directory packages/<short>/
-LAYER_BY_SHORT = {
-    # 0 — Foundation
-    "foundation": 0,
-    "cache": 0,
-    "plugin": 0,
-    "typed-data": 0,
-    "database-legacy": 0,
-    "i18n": 0,
-    "queue": 0,
-    "scheduler": 0,
-    "state": 0,
-    "validation": 0,
-    "mail": 0,
-    "http-client": 0,
-    "ingestion": 0,
-    "error-handler": 0,
-    "geo": 0,
-    "mercure": 0,
-    "analytics": 0,
-    "oauth-provider": 0,
-    "agent-output": 0,
-    "page-builder": 0,
-    # 1 — Core data (testing ships entity fixtures; composer requires entity — see CLAUDE.md)
-    "entity": 1,
-    "entity-storage": 1,
-    "access": 1,
-    "audit": 1,
-    "user": 1,
-    "config": 1,
-    "field": 1,
-    "auth": 1,
-    "testing": 1,
-    "oidc": 1,
-    # 2 — Content types
-    "attachment": 2,
-    "node": 2,
-    "taxonomy": 2,
-    "media": 2,
-    "path": 2,
-    "menu": 2,
-    "note": 2,
-    "relationship": 2,
-    "groups": 2,
-    "engagement": 2,
-    # 3 — Services
-    "workflows": 3,
-    "search": 3,
-    "seo": 3,
-    "notification": 3,
-    "billing": 3,
-    "github": 3,
-    "northcloud": 3,
-    "structured-import": 3,
-    "migration": 3,
-    "listing": 3,
-    "messaging": 3,
-    # 4 — API
-    "api": 4,
-    "routing": 4,
-    "bimaaji": 4,
-    # 5 — AI
-    "ai-schema": 5,
-    "ai-agent": 5,
-    "ai-pipeline": 5,
-    "ai-tools": 5,
-    "ai-vector": 5,
-    "ai-observability": 5,
-    # 6 — Interfaces
-    # Note: packages/admin/ is a Nuxt SPA (no composer.json, no PHP source) —
-    # not part of the PHP layer graph. Its PHP host extension is waaseyaa/admin-surface.
-    "cli": 6,
-    "admin-surface": 6,
-    "graphql": 6,
-    "mcp": 6,
-    "ssr": 6,
-    "genealogy": 6,
-    "telescope": 6,
-    "deployer": 6,
-    "inertia": 6,
-    "debug": 6,
+$root = dirname(__DIR__);
+$outputMode = getenv('WAASEYAA_OUTPUT') === 'json' ? 'json' : 'human';
+foreach (array_slice($argv, 1) as $arg) {
+    if ($arg === '--output=json') {
+        $outputMode = 'json';
+    }
 }
 
-METAPACKAGES = frozenset({"cms", "core", "full"})
+$layerByShort = [
+    'foundation' => 0,
+    'cache' => 0,
+    'plugin' => 0,
+    'typed-data' => 0,
+    'database-legacy' => 0,
+    'i18n' => 0,
+    'queue' => 0,
+    'scheduler' => 0,
+    'state' => 0,
+    'validation' => 0,
+    'mail' => 0,
+    'http-client' => 0,
+    'ingestion' => 0,
+    'error-handler' => 0,
+    'geo' => 0,
+    'mercure' => 0,
+    'analytics' => 0,
+    'oauth-provider' => 0,
+    'agent-output' => 0,
+    'page-builder' => 0,
+    'entity' => 1,
+    'entity-storage' => 1,
+    'access' => 1,
+    'audit' => 1,
+    'user' => 1,
+    'config' => 1,
+    'field' => 1,
+    'auth' => 1,
+    'testing' => 1,
+    'oidc' => 1,
+    'attachment' => 2,
+    'node' => 2,
+    'taxonomy' => 2,
+    'media' => 2,
+    'path' => 2,
+    'menu' => 2,
+    'note' => 2,
+    'relationship' => 2,
+    'groups' => 2,
+    'engagement' => 2,
+    'workflows' => 3,
+    'search' => 3,
+    'seo' => 3,
+    'notification' => 3,
+    'billing' => 3,
+    'github' => 3,
+    'northcloud' => 3,
+    'structured-import' => 3,
+    'migration' => 3,
+    'listing' => 3,
+    'messaging' => 3,
+    'api' => 4,
+    'routing' => 4,
+    'bimaaji' => 4,
+    'wayfinding' => 4,
+    'ai-schema' => 5,
+    'ai-agent' => 5,
+    'ai-pipeline' => 5,
+    'ai-tools' => 5,
+    'ai-vector' => 5,
+    'ai-observability' => 5,
+    'cli' => 6,
+    'frankenphp' => 6,
+    'admin-surface' => 6,
+    'graphql' => 6,
+    'mcp' => 6,
+    'ssr' => 6,
+    'genealogy' => 6,
+    'telescope' => 6,
+    'deployer' => 6,
+    'inertia' => 6,
+    'debug' => 6,
+    'workspace' => 6,
+];
 
-WAASEYAA_NAME = re.compile(r"^waaseyaa/([a-z0-9-]+)$", re.I)
+$metapackages = ['cms' => true, 'core' => true, 'full' => true];
 
-# ---------------------------------------------------------------------------
-# Kernel exemption surface (mission #824 WP02 surface C)
-#
-# Two complementary mechanisms relax the file-level layer rule for
-# bootstrapper code that intentionally sees across layers.
-#
-# 1. KERNEL_EXEMPT_DIR_SUFFIXES — implicit dir-prefix exemption.
-#    Any PHP file whose path (relative to packages/) ends up under one of
-#    these suffixes is treated as kernel/bootstrapper code. This is the
-#    canonical exemption documented in CLAUDE.md "Layer Architecture".
-#
-# 2. KERNEL_EXEMPT_FILES — explicit named-file allowlist.
-#    Each entry maps a path (relative to packages/) to a one-line rationale.
-#    Use this for kernel-adjacent files that must live outside <pkg>/src/Kernel/
-#    (e.g. listeners, route registrars, diagnostics wired only from a kernel).
-#    Adding an entry is the deliberate way to land such files; future drift
-#    that does not earn an entry will fail the gate.
-# ---------------------------------------------------------------------------
+$kernelExemptFiles = array_fill_keys([
+    'foundation/src/Diagnostic/HealthChecker.php',
+    'foundation/src/Diagnostic/BootDiagnosticReport.php',
+    'foundation/src/Http/Router/BroadcastRouter.php',
+    'foundation/src/Http/Router/CodifiedContextApiRouter.php',
+    'foundation/src/Http/Router/EntityTypeLifecycleRouter.php',
+    'foundation/src/Http/Router/JsonApiRouter.php',
+    'foundation/src/Http/Router/SchemaRouter.php',
+    'foundation/src/Http/Router/SearchRouter.php',
+    'foundation/src/Http/Router/TranslationRouter.php',
+    'foundation/src/Http/Router/WorkflowDefinitionsApiRouter.php',
+    'foundation/src/Http/Router/WaaseyaaContext.php',
+    'foundation/src/Http/Inbound/ChannelInspector.php',
+    'foundation/src/Http/Inbound/EventStreamReadModel.php',
+    'foundation/src/Http/Inbound/SubscriberObserver.php',
+    'foundation/src/MercureMonitorServiceProvider.php',
+    'foundation/src/Kernel/EventListenerRegistrar.php',
+    'foundation/src/ServiceProvider/Capability/HasCommandsInterface.php',
+    'foundation/src/ServiceProvider/Capability/HasMiddlewareInterface.php',
+    'foundation/src/ServiceProvider/Capability/HasGraphqlMutationOverridesInterface.php',
+    'cache/src/Listener/ConfigCacheInvalidator.php',
+    'cache/src/Listener/EntityCacheInvalidator.php',
+    'cache/src/Listener/EntityCacheSubscriber.php',
+    'cache/src/CacheConfigResolver.php',
+], true);
 
-KERNEL_EXEMPT_DIR_SUFFIXES = ("/src/Kernel/",)
+$namespacePrefixToShort = [
+    'Foundation' => 'foundation',
+    'AgentOutput' => 'agent-output',
+    'Cache' => 'cache',
+    'Plugin' => 'plugin',
+    'TypedData' => 'typed-data',
+    'Database' => 'database-legacy',
+    'I18n' => 'i18n',
+    'Queue' => 'queue',
+    'Scheduler' => 'scheduler',
+    'State' => 'state',
+    'Validation' => 'validation',
+    'Mail' => 'mail',
+    'HttpClient' => 'http-client',
+    'Ingestion' => 'ingestion',
+    'ErrorHandler' => 'error-handler',
+    'Geo' => 'geo',
+    'Mercure' => 'mercure',
+    'Analytics' => 'analytics',
+    'Audit' => 'audit',
+    'OAuthProvider' => 'oauth-provider',
+    'Entity' => 'entity',
+    'EntityStorage' => 'entity-storage',
+    'Access' => 'access',
+    'User' => 'user',
+    'Config' => 'config',
+    'Field' => 'field',
+    'Auth' => 'auth',
+    'Testing' => 'testing',
+    'Oidc' => 'oidc',
+    'Node' => 'node',
+    'Taxonomy' => 'taxonomy',
+    'Media' => 'media',
+    'Path' => 'path',
+    'Menu' => 'menu',
+    'Note' => 'note',
+    'Relationship' => 'relationship',
+    'Groups' => 'groups',
+    'Engagement' => 'engagement',
+    'Messaging' => 'messaging',
+    'Workflows' => 'workflows',
+    'Search' => 'search',
+    'Seo' => 'seo',
+    'Notification' => 'notification',
+    'Billing' => 'billing',
+    'Github' => 'github',
+    'Northcloud' => 'northcloud',
+    'StructuredImport' => 'structured-import',
+    'Migration' => 'migration',
+    'Listing' => 'listing',
+    'Api' => 'api',
+    'Routing' => 'routing',
+    'Bimaaji' => 'bimaaji',
+    'Wayfinding' => 'wayfinding',
+    'Cli' => 'cli',
+    'FrankenPhp' => 'frankenphp',
+    'AdminSurface' => 'admin-surface',
+    'Graphql' => 'graphql',
+    'Mcp' => 'mcp',
+    'Ssr' => 'ssr',
+    'Genealogy' => 'genealogy',
+    'Telescope' => 'telescope',
+    'Deployer' => 'deployer',
+    'Inertia' => 'inertia',
+    'Debug' => 'debug',
+    'Workspace' => 'workspace',
+];
 
-KERNEL_EXEMPT_FILES = {
-    # foundation — kernel-adjacent diagnostics wired only from ConsoleKernel.
-    # Codified per mission #824 WP02 K6(c); HealthChecker is verified by
-    # mission #1257 WP02 / #1300.
-    "foundation/src/Diagnostic/HealthChecker.php":
-        "kernel-adjacent diagnostic wired only from ConsoleKernel; #1300 / mission 1257 K6(c)",
-    "foundation/src/Diagnostic/BootDiagnosticReport.php":
-        "kernel-adjacent diagnostic; companion to HealthChecker",
+$aiSubToShort = [
+    'Schema' => 'ai-schema',
+    'Agent' => 'ai-agent',
+    'Pipeline' => 'ai-pipeline',
+    'Tools' => 'ai-tools',
+    'Vector' => 'ai-vector',
+    'Observability' => 'ai-observability',
+];
 
-    # foundation — kernel-adjacent HTTP route registrars wired only from HttpKernel.
-    # Long-term home is L4 (waaseyaa/routing); kept here until relocation lands.
-    "foundation/src/Http/Router/BroadcastRouter.php":
-        "kernel-adjacent route registrar wired from HttpKernel",
-    "foundation/src/Http/Router/CodifiedContextApiRouter.php":
-        "kernel-adjacent route registrar wired from HttpKernel",
-    "foundation/src/Http/Router/EntityTypeLifecycleRouter.php":
-        "kernel-adjacent route registrar wired from HttpKernel",
-    "foundation/src/Http/Router/JsonApiRouter.php":
-        "kernel-adjacent route registrar wired from HttpKernel",
-    "foundation/src/Http/Router/SchemaRouter.php":
-        "kernel-adjacent route registrar wired from HttpKernel",
-    "foundation/src/Http/Router/SearchRouter.php":
-        "kernel-adjacent route registrar wired from HttpKernel",
-    "foundation/src/Http/Router/TranslationRouter.php":
-        "kernel-adjacent route registrar wired from HttpKernel",
-    "foundation/src/Http/Router/WorkflowDefinitionsApiRouter.php":
-        "kernel-adjacent route registrar wired from HttpKernel",
-    "foundation/src/Http/Router/WaaseyaaContext.php":
-        "kernel-adjacent route registrar wired from HttpKernel",
+$emit = static function (string $line = '') use ($outputMode): void {
+    if ($outputMode === 'human') {
+        echo $line . PHP_EOL;
+    }
+};
 
-    # foundation — M5D Mercure broadcast monitor read-model adapters (mission
-    # mercure-broadcast-monitor-m5d-01KSEFTD WP01). These implement api-layer
-    # (L4) interfaces per the CodifiedContext discipline: the contract lives in
-    # api, the adapter in foundation, bound by MercureMonitorServiceProvider.
-    # This is the same pattern as BroadcastRouter + the Http/Router exemptions.
-    # C-002: no Foundation types cross into api interfaces or DTOs.
-    "foundation/src/Http/Inbound/ChannelInspector.php":
-        "M5D monitor read-model adapter; implements api ChannelInspectorInterface; bound by MercureMonitorServiceProvider",
-    "foundation/src/Http/Inbound/EventStreamReadModel.php":
-        "M5D monitor read-model adapter; implements api EventStreamReadModelInterface; bound by MercureMonitorServiceProvider",
-    "foundation/src/Http/Inbound/SubscriberObserver.php":
-        "M5D monitor read-model adapter; implements api SubscriberObserverInterface; bound by MercureMonitorServiceProvider",
-    "foundation/src/MercureMonitorServiceProvider.php":
-        "M5D monitor service provider; binds three api interfaces to foundation adapters; kernel-boot wiring (#1415)",
+$emitError = static function (string $line = '') use ($outputMode): void {
+    if ($outputMode === 'human') {
+        fwrite(STDERR, $line . PHP_EOL);
+    }
+};
 
-    # foundation — kernel-boot listener wiring extracted from HttpKernel for testability.
-    # Already covered by the implicit /src/Kernel/ dir exemption; the explicit entry
-    # records architectural intent per mission #824 WP02 surface B (issue #827).
-    "foundation/src/Kernel/EventListenerRegistrar.php":
-        "kernel-boot listener wiring; pure dispatcher::addListener calls; single caller (HttpKernel)",
+$shortFromPackageName = static function (string $name): ?string {
+    return preg_match('/^waaseyaa\/([a-z0-9-]+)$/i', trim($name), $matches) === 1
+        ? strtolower($matches[1])
+        : null;
+};
 
-    # foundation — kernel-adjacent service-provider capability interfaces consumed
-    # only by ConsoleKernel/HttpKernel. They type-hint EntityTypeManager (L1) for
-    # hook signatures so the kernel can wire commands, middleware, and graphql
-    # mutation overrides through a typed contract rather than reflection. They are
-    # not reusable library code — every consumer is a kernel call site. Mission
-    # #824 WP03 surfaces D-F introduced these capability hooks; surfacing
-    # `composer verify` (WP09 surface A) requires the layer gate to pass cleanly.
-    "foundation/src/ServiceProvider/Capability/HasCommandsInterface.php":
-        "kernel-adjacent capability interface consumed only by ConsoleKernel; #824 WP03 surface E",
-    "foundation/src/ServiceProvider/Capability/HasMiddlewareInterface.php":
-        "kernel-adjacent capability interface consumed only by HttpKernel middleware pipeline; #824 WP03 surface D",
-    "foundation/src/ServiceProvider/Capability/HasGraphqlMutationOverridesInterface.php":
-        "kernel-adjacent capability interface consumed only by GraphQL bootstrap from kernel context; #824 WP03 surface F",
+$isKernelExempt = static function (string $relativeToPackages) use ($kernelExemptFiles): bool {
+    return str_contains('/' . $relativeToPackages, '/src/Kernel/')
+        || isset($kernelExemptFiles[$relativeToPackages]);
+};
 
-    # cache — event listeners wired by ServiceProvider; subscribe to higher-layer events.
-    "cache/src/Listener/ConfigCacheInvalidator.php":
-        "event listener; subscribes to L1 config events for cache invalidation",
-    "cache/src/Listener/EntityCacheInvalidator.php":
-        "event listener; subscribes to L1 entity events for cache invalidation",
-    "cache/src/Listener/EntityCacheSubscriber.php":
-        "event listener; subscribes to L1 entity events for cache invalidation",
+$shortForNamespace = static function (string $first, ?string $second) use ($namespacePrefixToShort, $aiSubToShort): ?string {
+    if ($first === 'AI') {
+        return $aiSubToShort[$second ?? ''] ?? null;
+    }
 
-    # cache — kernel-resolved cache key derivation; consumes AccountInterface.
-    "cache/src/CacheConfigResolver.php":
-        "kernel-resolved cache config; consumes AccountInterface for cache-key derivation",
+    return $namespacePrefixToShort[$first] ?? null;
+};
+
+$scanPhpImports = static function (string $packageDirectory, int $selfLayer) use (
+    $root,
+    $layerByShort,
+    $isKernelExempt,
+    $shortForNamespace,
+): array {
+    $src = $packageDirectory . DIRECTORY_SEPARATOR . 'src';
+    if (!is_dir($src)) {
+        return [];
+    }
+
+    $findings = [];
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($src, FilesystemIterator::SKIP_DOTS),
+    );
+
+    foreach ($iterator as $file) {
+        if (!$file instanceof SplFileInfo || $file->getExtension() !== 'php') {
+            continue;
+        }
+
+        $relative = str_replace('\\', '/', substr($file->getPathname(), strlen($root . DIRECTORY_SEPARATOR . 'packages' . DIRECTORY_SEPARATOR)));
+        if ($isKernelExempt($relative)) {
+            continue;
+        }
+
+        $text = @file_get_contents($file->getPathname());
+        if (!is_string($text)) {
+            continue;
+        }
+
+        preg_match_all(
+            '/^\s*use(?:\s+function|\s+const)?\s+Waaseyaa\\\\([A-Z][A-Za-z0-9]*)(?:\\\\([A-Z][A-Za-z0-9]*))?/m',
+            $text,
+            $matches,
+            PREG_SET_ORDER,
+        );
+
+        $seen = [];
+        foreach ($matches as $match) {
+            $short = $shortForNamespace($match[1], $match[2] ?? null);
+            if ($short === null || !isset($layerByShort[$short]) || isset($seen[$short])) {
+                continue;
+            }
+
+            $seen[$short] = true;
+            $depLayer = $layerByShort[$short];
+            if ($depLayer > $selfLayer) {
+                $findings[] = [$relative, $short, $depLayer];
+            }
+        }
+    }
+
+    return $findings;
+};
+
+$packagesDirectory = $root . DIRECTORY_SEPARATOR . 'packages';
+if (!is_dir($packagesDirectory)) {
+    $emitError('FAIL [PL000] packages/ not found');
+    if ($outputMode === 'json') {
+        echo json_encode(['packages_scanned' => 0, 'violations' => []], JSON_THROW_ON_ERROR) . PHP_EOL;
+    }
+    exit(1);
 }
 
+$errors = 0;
+$packagesScanned = 0;
+$violations = [];
+$sameLayerEdges = [];
+$packageDirectories = glob($packagesDirectory . DIRECTORY_SEPARATOR . '*', GLOB_ONLYDIR) ?: [];
+sort($packageDirectories);
 
-def short_from_package_name(name: str) -> str | None:
-    m = WAASEYAA_NAME.match(name.strip())
-    return m.group(1).lower() if m else None
+foreach ($packageDirectories as $packageDirectory) {
+    $manifest = $packageDirectory . DIRECTORY_SEPARATOR . 'composer.json';
+    if (!is_file($manifest)) {
+        continue;
+    }
 
+    $data = json_decode((string) file_get_contents($manifest), true, 512, JSON_THROW_ON_ERROR);
+    $packageShort = basename($packageDirectory);
+    if (($data['type'] ?? 'library') === 'metapackage' || isset($metapackages[$packageShort])) {
+        continue;
+    }
 
-def is_kernel_exempt(rel_to_packages: str) -> bool:
-    """Return True if a file (path relative to packages/) is kernel-exempt."""
-    norm = "/" + rel_to_packages
-    if any(suffix in norm for suffix in KERNEL_EXEMPT_DIR_SUFFIXES):
-        return True
-    if rel_to_packages in KERNEL_EXEMPT_FILES:
-        return True
-    return False
+    ++$packagesScanned;
+    $name = (string) ($data['name'] ?? '');
+    $short = $name !== '' ? $shortFromPackageName($name) : null;
+    if ($short === null) {
+        continue;
+    }
 
+    $relativeManifest = 'packages/' . $packageShort . '/composer.json';
+    if ($short !== $packageShort) {
+        ++$errors;
+        $emit("FAIL [PL001] {$relativeManifest}: name {$name} does not match directory {$packageShort}");
+        $violations[] = ['source' => $packageShort, 'target' => $name, 'edge' => 'manifest-name'];
+        continue;
+    }
 
-# ---------------------------------------------------------------------------
-# Namespace → package short mapping for PHP `use` import scanning.
-# Keep aligned with PSR-4 prefixes declared in each package's composer.json.
-# ---------------------------------------------------------------------------
+    if (!isset($layerByShort[$short])) {
+        ++$errors;
+        $emit("FAIL [PL002] {$relativeManifest}: package {$short} missing from bin/check-package-layers layer index");
+        $violations[] = ['source' => $short, 'target' => 'LAYER_BY_SHORT', 'edge' => 'missing-layer-entry'];
+        continue;
+    }
 
-NS_PREFIX_TO_SHORT = {
-    "Foundation": "foundation",
-    "AgentOutput": "agent-output",
-    "Cache": "cache",
-    "Plugin": "plugin",
-    "TypedData": "typed-data",
-    "Database": "database-legacy",
-    "I18n": "i18n",
-    "Queue": "queue",
-    "Scheduler": "scheduler",
-    "State": "state",
-    "Validation": "validation",
-    "Mail": "mail",
-    "HttpClient": "http-client",
-    "Ingestion": "ingestion",
-    "ErrorHandler": "error-handler",
-    "Geo": "geo",
-    "Mercure": "mercure",
-    "Analytics": "analytics",
-    "Audit": "audit",
-    "OAuthProvider": "oauth-provider",
-    "Entity": "entity",
-    "EntityStorage": "entity-storage",
-    "Access": "access",
-    "User": "user",
-    "Config": "config",
-    "Field": "field",
-    "Auth": "auth",
-    "Testing": "testing",
-    "Oidc": "oidc",
-    "Node": "node",
-    "Taxonomy": "taxonomy",
-    "Media": "media",
-    "Path": "path",
-    "Menu": "menu",
-    "Note": "note",
-    "Relationship": "relationship",
-    "Groups": "groups",
-    "Engagement": "engagement",
-    "Messaging": "messaging",
-    "Workflows": "workflows",
-    "Search": "search",
-    "Seo": "seo",
-    "Notification": "notification",
-    "Billing": "billing",
-    "Github": "github",
-    "Northcloud": "northcloud",
-    "Api": "api",
-    "Routing": "routing",
-    "Bimaaji": "bimaaji",
-    # AI sub-namespaces are disambiguated via the second segment below.
-    "Cli": "cli",
-    "Admin": "admin",
-    "AdminSurface": "admin-surface",
-    "Graphql": "graphql",
-    "Mcp": "mcp",
-    "Ssr": "ssr",
-    "Genealogy": "genealogy",
-    "Telescope": "telescope",
-    "Deployer": "deployer",
-    "Inertia": "inertia",
-    "Debug": "debug",
+    $selfLayer = $layerByShort[$short];
+    $requires = $data['require'] ?? [];
+    if (is_array($requires)) {
+        foreach ($requires as $depName => $_version) {
+            if (!is_string($depName)) {
+                continue;
+            }
+
+            $depShort = $shortFromPackageName($depName);
+            if ($depShort === null) {
+                continue;
+            }
+
+            if (!isset($layerByShort[$depShort])) {
+                ++$errors;
+                $emit("FAIL [PL003] {$relativeManifest} require: dependency {$depName} not in layer index");
+                $violations[] = ['source' => $short, 'target' => $depShort, 'edge' => 'require'];
+                continue;
+            }
+
+            $depLayer = $layerByShort[$depShort];
+            if ($depLayer === $selfLayer) {
+                $sameLayerEdges[$short][$depShort] = true;
+            }
+
+            if ($depLayer > $selfLayer) {
+                ++$errors;
+                $emit(
+                    "FAIL [PL004] {$relativeManifest} require: layer violation - "
+                    . "{$short} (layer {$selfLayer}) must not depend on {$depShort} (layer {$depLayer}).",
+                );
+                $violations[] = ['source' => $short, 'target' => $depShort, 'edge' => 'require'];
+            }
+        }
+    }
+
+    foreach ($scanPhpImports($packageDirectory, $selfLayer) as [$relative, $depShort, $depLayer]) {
+        ++$errors;
+        $emit(
+            "FAIL [PL005] packages/{$relative}: file-level layer violation - "
+            . "{$short} (layer {$selfLayer}) imports waaseyaa/{$depShort} (layer {$depLayer}).",
+        );
+        $violations[] = ['source' => $short, 'target' => $depShort, 'edge' => 'use'];
+    }
 }
 
-AI_SUB_TO_SHORT = {
-    "Schema": "ai-schema",
-    "Agent": "ai-agent",
-    "Pipeline": "ai-pipeline",
-    "Vector": "ai-vector",
-    "Observability": "ai-observability",
+$reportedCycles = [];
+foreach ($sameLayerEdges as $a => $deps) {
+    foreach (array_keys($deps) as $b) {
+        if (!isset($sameLayerEdges[$b][$a])) {
+            continue;
+        }
+
+        $pair = [$a, $b];
+        sort($pair);
+        $key = implode('<->', $pair);
+        if (isset($reportedCycles[$key])) {
+            continue;
+        }
+
+        $reportedCycles[$key] = true;
+        $emit(
+            "WARN [PL006] same-layer dependency cycle: {$pair[0]} <-> {$pair[1]} "
+            . "(layer {$layerByShort[$pair[0]]}). Accepted-but-visible.",
+        );
+    }
 }
 
-USE_RE = re.compile(
-    r"^\s*use(?:\s+function|\s+const)?\s+Waaseyaa\\([A-Z][A-Za-z0-9]*)(?:\\([A-Z][A-Za-z0-9]*))?",
-    re.M,
-)
+if ($outputMode === 'json') {
+    echo json_encode([
+        'packages_scanned' => $packagesScanned,
+        'violations' => $violations,
+    ], JSON_THROW_ON_ERROR) . PHP_EOL;
+    exit($errors > 0 ? 1 : 0);
+}
 
+if ($errors > 0) {
+    fwrite(STDERR, "\nPackage layer check failed with {$errors} error(s).\n");
+    exit(1);
+}
 
-def short_for_namespace(first: str, second: str | None) -> str | None:
-    if first == "AI":
-        return AI_SUB_TO_SHORT.get(second or "")
-    return NS_PREFIX_TO_SHORT.get(first)
-
-
-def scan_php_imports(pkg_dir: pathlib.Path, self_layer: int) -> list[tuple[str, str, int]]:
-    """Return list of (relative_path, dep_short, dep_layer) for cross-layer file-level imports."""
-    findings: list[tuple[str, str, int]] = []
-    src = pkg_dir / "src"
-    if not src.is_dir():
-        return findings
-    for php in src.rglob("*.php"):
-        # Normalize to POSIX separators so the kernel-exempt suffix/file
-        # allowlists (which use forward slashes) match on Windows too.
-        # Mirrors bin/check-composer-policy's .as_posix() convention. (#1600-era b5)
-        rel = php.relative_to(root / "packages").as_posix()
-        if is_kernel_exempt(rel):
-            continue
-        try:
-            text = php.read_text(errors="replace")
-        except OSError:
-            continue
-        seen: set[str] = set()
-        for m in USE_RE.finditer(text):
-            short = short_for_namespace(m.group(1), m.group(2))
-            if short is None or short not in LAYER_BY_SHORT:
-                continue
-            if short in seen:
-                continue
-            seen.add(short)
-            dep_layer = LAYER_BY_SHORT[short]
-            if dep_layer > self_layer:
-                findings.append((rel, short, dep_layer))
-    return findings
-
-
-# ---------------------------------------------------------------------------
-# Run checks.
-# ---------------------------------------------------------------------------
-
-def emit(line: str) -> None:
-    """Emit human-readable text; suppressed in JSON mode."""
-    if output_mode == "human":
-        print(line)
-
-
-def emit_err(line: str) -> None:
-    if output_mode == "human":
-        print(line, file=sys.stderr)
-
-
-errors = 0
-packages_scanned = 0
-violations: list[dict[str, str]] = []
-packages_dir = root / "packages"
-
-if not packages_dir.is_dir():
-    emit_err("FAIL [PL000] packages/ not found")
-    if output_mode == "json" and findings_file:
-        pathlib.Path(findings_file).write_text(json.dumps({"packages_scanned": 0, "violations": []}))
-    sys.exit(1)
-
-for pkg_dir in sorted(packages_dir.iterdir()):
-    if not pkg_dir.is_dir():
-        continue
-    manifest = pkg_dir / "composer.json"
-    if not manifest.is_file():
-        continue
-    data = json.loads(manifest.read_text())
-    pkg_type = data.get("type", "library")
-    if pkg_type == "metapackage" or pkg_dir.name in METAPACKAGES:
-        continue
-    packages_scanned += 1
-
-    name = data.get("name", "")
-    short = short_from_package_name(name) if name else None
-    if short is None:
-        continue
-    if short != pkg_dir.name:
-        errors += 1
-        emit(f"FAIL [PL001] {manifest.relative_to(root)}: name {name!r} does not match directory {pkg_dir.name!r}")
-        violations.append({"source": pkg_dir.name, "target": name, "edge": "manifest-name"})
-        continue
-
-    if short not in LAYER_BY_SHORT:
-        errors += 1
-        emit(
-            f"FAIL [PL002] {manifest.relative_to(root)}: package {short!r} missing from bin/check-package-layers LAYER_BY_SHORT — add layer and update CLAUDE.md"
-        )
-        violations.append({"source": short, "target": "LAYER_BY_SHORT", "edge": "missing-layer-entry"})
-        continue
-
-    layer_self = LAYER_BY_SHORT[short]
-
-    # ----- composer.json runtime require edges -----
-    # Runtime edges only: require-dev frequently pulls higher-layer packages for
-    # PHPUnit fixtures (e.g. media -> api). Composer policy still applies to dev.
-    for sec in ("require",):
-        section = data.get(sec, {})
-        if not isinstance(section, dict):
-            continue
-        for dep_name, _ver in section.items():
-            dep_short = short_from_package_name(dep_name)
-            if dep_short is None:
-                continue
-            if dep_short not in LAYER_BY_SHORT:
-                errors += 1
-                emit(
-                    f"FAIL [PL003] {manifest.relative_to(root)} {sec}: dependency {dep_name!r} (short={dep_short!r}) not in LAYER_BY_SHORT"
-                )
-                violations.append({"source": short, "target": dep_short, "edge": sec})
-                continue
-            layer_dep = LAYER_BY_SHORT[dep_short]
-            if layer_dep > layer_self:
-                errors += 1
-                emit(
-                    f"FAIL [PL004] {manifest.relative_to(root)} {sec}: layer violation — "
-                    f"{short} (layer {layer_self}) must not depend on {dep_short} (layer {layer_dep}). "
-                    f"See CLAUDE.md Layer Architecture and GitHub #315/#316."
-                )
-                violations.append({"source": short, "target": dep_short, "edge": sec})
-
-    # ----- PHP file-level `use` imports -----
-    for rel, dep_short, dep_layer in scan_php_imports(pkg_dir, layer_self):
-        errors += 1
-        emit(
-            f"FAIL [PL005] packages/{rel}: file-level layer violation — "
-            f"{short} (layer {layer_self}) imports waaseyaa/{dep_short} (layer {dep_layer}). "
-            f"If this file is kernel-adjacent, move it under {short}/src/Kernel/ or add an "
-            f"entry to KERNEL_EXEMPT_FILES in bin/check-package-layers with a one-line rationale."
-        )
-        violations.append({"source": short, "target": dep_short, "edge": "use"})
-
-# Write the structured findings to FINDINGS_FILE for the bash wrapper's PHP shim,
-# regardless of mode (the wrapper only reads it in JSON mode).
-if findings_file:
-    try:
-        pathlib.Path(findings_file).write_text(json.dumps({
-            "packages_scanned": packages_scanned,
-            "violations": violations,
-        }))
-    except OSError:
-        pass
-
-if output_mode == "human":
-    if errors:
-        print(f"\nPackage layer check failed with {errors} error(s).", file=sys.stderr)
-        sys.exit(1)
-    print("OK — package layer constraints (composer.json + PHP file-level) satisfied.")
-    sys.exit(0)
-
-# JSON mode: stay silent on stdout/stderr — the bash wrapper emits the envelope.
-sys.exit(1 if errors else 0)
-PY
-PYTHON_EXIT=$?
-set -e
-
-if [[ "$OUTPUT_MODE" == "json" ]]; then
-    php -d display_errors=stderr -r '
-require getenv("ROOT_DIR") . "/vendor/autoload.php";
-$raw = @file_get_contents(getenv("FINDINGS_FILE"));
-$findings = is_string($raw) && $raw !== "" ? json_decode($raw, true, 512, JSON_THROW_ON_ERROR) : ["packages_scanned" => 0, "violations" => []];
-echo (new Waaseyaa\AgentOutput\Formatter\PackageLayersFormatter())->format($findings);
-'
-fi
-
-exit "$PYTHON_EXIT"
+echo "OK - package layer constraints (composer.json + PHP file-level) satisfied.\n";
+exit(0);

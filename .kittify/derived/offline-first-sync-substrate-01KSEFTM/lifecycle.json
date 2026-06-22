@@ -1,0 +1,23 @@
+{
+  "abandoned_after_days": 30,
+  "active_wp_count": 1,
+  "age_days": 22,
+  "blocked_wp_count": 0,
+  "completion_pct": 65.0,
+  "event_count": 6,
+  "has_event_log": true,
+  "last_activity_at": "2026-05-25T18:38:52.229074+00:00",
+  "last_follow_up_at": null,
+  "last_transition_at": "2026-05-25T18:38:52.229074+00:00",
+  "mission_number": null,
+  "mission_slug": "offline-first-sync-substrate-01KSEFTM",
+  "mission_type": "software-dev",
+  "post_mission_events": [],
+  "reason": "Active work has gone stale and should be recovered before it resurfaces.",
+  "review_wp_count": 0,
+  "stale_after_days": 14,
+  "state": "stale",
+  "surface_state": null,
+  "terminal_wp_count": 1,
+  "total_wps": 2
+}

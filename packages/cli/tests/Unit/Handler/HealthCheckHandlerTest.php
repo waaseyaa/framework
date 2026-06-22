@@ -7,10 +7,10 @@ namespace Waaseyaa\CLI\Tests\Unit\Handler;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\HealthCheckHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Foundation\Diagnostic\DiagnosticCode;
 use Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface;
@@ -89,11 +89,11 @@ final class HealthCheckHandlerTest extends TestCase
     private function createTester(HealthCheckerInterface $checker): CliTester
     {
         $handler = new HealthCheckHandler($checker);
-        $definition = new CommandDefinition(
+        $definition = new HandlerCommand(
             name: 'health:check',
             description: 'Run all diagnostic health checks and report results',
             options: [
-                new OptionDefinition(name: 'json', mode: OptionMode::None, description: 'Output results as JSON'),
+                new HandlerOption(name: 'json', mode: HandlerOptionMode::None, description: 'Output results as JSON'),
             ],
             handler: \Closure::fromCallable([$handler, 'execute']),
         );

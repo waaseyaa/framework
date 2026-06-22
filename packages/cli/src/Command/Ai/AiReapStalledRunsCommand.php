@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Command\Ai;
 
 use Waaseyaa\AI\Agent\Reaper\StalledRunReaper;
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 
 /**
  * `bin/waaseyaa ai:reap-stalled-runs [--max-runtime-seconds=<int>]` —
@@ -29,7 +29,7 @@ final class AiReapStalledRunsCommand
         private readonly int $defaultMaxRuntimeSeconds = 600,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $maxRuntimeSeconds = $this->resolveMaxRuntimeSeconds($io);
         if ($maxRuntimeSeconds === null) {
@@ -48,7 +48,7 @@ final class AiReapStalledRunsCommand
         return 0;
     }
 
-    private function resolveMaxRuntimeSeconds(CliIO $io): ?int
+    private function resolveMaxRuntimeSeconds(SymfonyCommandIO $io): ?int
     {
         $option = $io->option('max-runtime-seconds');
         if ($option === null || $option === '' || $option === false) {

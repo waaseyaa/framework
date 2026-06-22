@@ -93,10 +93,6 @@ $errorCode` is therefore the canonical name on the stable surface (spec §6.5,
 
 | Symbol | Package | Notes |
 |---|---|---|
-| `RevisionableEntityStorageInterface` | `waaseyaa/entity-storage` | Mixed into per-type storage when entity type is revisionable |
-| `RevisionableSqlBlobStorage` | `waaseyaa/entity-storage` | Revision-aware sql-blob storage |
-| `RevisionableSqlColumnStorage` | `waaseyaa/entity-storage` | Revision-aware sql-column storage |
-| `RevisionPruner` | `waaseyaa/entity-storage` | Scaffold (disabled); marked `@api` for future wiring |
 | `RevisionPruningPolicy` | `waaseyaa/entity-storage` | Value object: retention rules for the pruner |
 | `RevisionPruningReport` | `waaseyaa/entity-storage` | Value object: outcome of a prune run |
 

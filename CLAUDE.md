@@ -1,7 +1,8 @@
 # Waaseyaa
 
 ## Project Structure
-- Monorepo: 62 PHP packages in `packages/`, 3 meta-packages (core, cms, full), 1 JS admin SPA (`packages/admin/`, no composer.json)
+- Monorepo: 62 PHP packages in `packages/`, 3 consumer-facing meta-packages (`core` = engine; `cms` = `core` + content types; `full` = batteries-included), 1 JS admin SPA (`packages/admin/`, no composer.json)
+- **Metapackage menu vs. `waaseyaa/framework`:** downstream consumers `composer require` one curated metapackage (`waaseyaa/core`/`cms`/`full`) — see `docs/roadmap/packagist-publishing-plan.md` and ADR-004 §8. The dev `skeleton/` instead requires `waaseyaa/framework` (the whole monorepo as one unit, ADR-004) because it is the framework's own reference app, not the canonical downstream install. The metapackage require-graphs are version-swept by `bin/sync-internal-versions`, split-mirrored by `split.yml`, and guarded by CI: `ci/core-only-boot` boots the kernel on `waaseyaa/core` alone (`tests/CoreOnlyBoot/boot.php`), `ci/packaged-form` runs a consumer that requires `waaseyaa/core` (`tests/PackagedForm/`), and `MetapackageSmokeTest` checks autoloadability of all three.
 - 7-layer architecture (Foundation → Core Data → Content Types → Services → API → AI → Interfaces)
 - Each package has its own `composer.json` with path repository references
 - Root `composer.json` uses `self.version` for all waaseyaa/* siblings — it is published to Packagist as `waaseyaa/framework`, so consumers receive the manifest verbatim. `self.version` resolves to `dev-main` locally (path repos) and to the exact tag version when crawled by Packagist (e.g. `0.1.0-alpha.170`), giving consumers exact-matching siblings without a release-time rewrite step. (#1382)
@@ -24,12 +25,13 @@ When working on files matching these patterns, retrieve the spec for deep contex
 |---|---|---|
 | `packages/entity/*`, `packages/entity-storage/*`, `packages/field/*` | `waaseyaa:entity-system` | `docs/specs/entity-system.md` |
 | `packages/field/src/Classification/*`, `packages/field/src/Entity/{ClassificationLabelDefinition,RetentionPolicy}.php`, `packages/admin/app/pages/classification/*` (classification labels, inheritance, clearance/hold access, retention jobs) | — | `docs/specs/classification-and-retention.md` |
-| `packages/entity-storage/src/{Schema/TranslationSchemaHandler,Schema/RevisionTableBuilder,Driver/RevisionableStorageDriver,Listing/TwoAxisFilterResolver,Revision/RevisionPruningPolicy,Exception/StorageMigrationException}.php`, `packages/access/src/Policy/RevisionPolicyComposition.php` (two-axis storage: revisionable × translatable) | — | `docs/specs/entity-storage-two-axis.md`, `docs/cookbook/translatable-revisionable-entities.md`, `docs/upgrade-notes/two-axis-storage.md`, `docs/specs/entity-storage-translatable-revisions.md` |
+| `packages/entity-storage/src/{Schema/TranslationSchemaHandler,Schema/RevisionTableBuilder,Driver/RevisionableStorageDriver,Listing/TwoAxisFilterResolver,Revision/RevisionPruningPolicy,Exception/StorageMigrationException}.php`, `packages/access/src/Policy/RevisionPolicyComposition.php` (two-axis storage: revisionable × translatable) | — | `docs/specs/revision-system-unified.md` (LIVE canonical — read first), `docs/specs/entity-storage-two-axis.md` (SUPERSEDED — M-004 `vid` model, retired alpha.196), `docs/cookbook/translatable-revisionable-entities.md`, `docs/upgrade-notes/two-axis-storage.md` |
 | `packages/config/*` (active store, runtime read API) | `waaseyaa:entity-system` | `docs/specs/entity-system.md` |
 | `packages/config/src/{Sync,Dependency,Audit,Backend}/*`, `packages/cli/src/Command/Config/*` (CMI: sync store, `config:*` CLI, `config.audit`) | — | `docs/specs/config-management.md`, `docs/cookbook/config-sync.md`, `docs/adr/018-configuration-management-sync.md` |
 | `packages/access/*`, `packages/user/src/Middleware/*` | `waaseyaa:access-control` | `docs/specs/access-control.md`, `docs/specs/field-access.md` |
 | `packages/auth/*` | `waaseyaa:access-control` | `docs/specs/access-control.md` |
 | `packages/api/*`, `packages/routing/*` | `waaseyaa:api-layer` | `docs/specs/api-layer.md`, `docs/specs/jsonapi.md` (cast-aware attributes) |
+| `packages/wayfinding/*` (flagship Wayfinding: anchor registry/catalog, beacon delivery, trails, MCP write tier) | — | `docs/specs/wayfinding.md`, `kitty-specs/wayfinding-01KVGH5X/spec.md` |
 | `packages/api/src/Controller/BroadcastStorage.php`, `packages/foundation/src/Http/Router/BroadcastRouter.php`, `packages/foundation/src/Kernel/EventListenerRegistrar.php` (SSE broadcasting) | — | `docs/specs/broadcasting.md` |
 | `packages/attachment/*`, `packages/structured-import/*`, `packages/field/src/Form/*`, `packages/field/src/Attribute/BundleTemplate.php`, `packages/field/src/Attribute/FieldTemplate.php`, `packages/field/src/BundleTemplateCompiler.php`, `packages/routing/src/EntityDeepLinkRouteBuilder.php`, `packages/api/src/Controller/FieldAutoSaveController.php` | — | `docs/specs/work-surface.md` |
 | `packages/admin/*` | `waaseyaa:admin-spa` | `docs/specs/admin-spa.md` |
@@ -60,6 +62,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/billing/*` | — | `packages/billing/README.md` |
 | `packages/github/*` | — | `packages/github/README.md` |
 | `packages/deployer/*` | — | `packages/deployer/README.md` |
+| `packages/frankenphp/*` (optional FrankenPHP dev runtime: `frankenphp:install` + `dev` commands; binary resolver/installer) | — | `packages/frankenphp/README.md`, `docs/specs/operations-playbooks.md` |
 | `packages/inertia/*` | — | `packages/inertia/README.md` |
 | `packages/engagement/*` | — | `packages/engagement/README.md` |
 | `packages/geo/*` | — | `packages/geo/README.md` |
@@ -73,7 +76,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/notification/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md` |
 | `packages/migration/*` | — | `docs/specs/migration-platform.md` |
 | `packages/listing/*` | — | `docs/specs/listing-pipeline-v1.md`, `docs/conventions/cache-tags-and-contexts.md`, `docs/cookbook/listing-first-cut.md` |
-| `packages/cms/*`, `packages/core/*`, `packages/full/*` | — (metapackages) | — |
+| `packages/cms/*`, `packages/core/*`, `packages/full/*` | — (consumer metapackages) | `docs/roadmap/packagist-publishing-plan.md`, `docs/adr/004-framework-package-collapse.md`, `tests/PackagedForm/README.md` |
 
 | Workflow, Spec Kitty, GitHub (PRs/issues), roadmap | — | `docs/specs/workflow.md`, `docs/specs/per-site-convergence-audit.md`, `docs/specs/v1.5-verification-gate-contract.md`, `docs/specs/v1.6-verification-gate-contract.md` |
 | `skills/waaseyaa/app-development/*` | — | — |
@@ -91,15 +94,15 @@ When the mapping is not obvious, search under `docs/specs/` (e.g. `rg -n "TopicO
 | 1 | Core Data | entity, entity-storage, access, audit, user, config, field, auth, oidc, testing |
 | 2 | Content Types | node, taxonomy, media, path, menu, note, relationship, groups, engagement |
 | 3 | Services | workflows, search, seo, notification, billing, github, migration, northcloud, listing, messaging |
-| 4 | API | api, bimaaji, routing |
+| 4 | API | api, bimaaji, routing, wayfinding |
 | 5 | AI | ai-agent, ai-observability, ai-pipeline, ai-schema, ai-vector |
-| 6 | Interfaces | cli, admin-surface, graphql, mcp, ssr, telescope, deployer, inertia, debug |
+| 6 | Interfaces | cli, frankenphp, admin-surface, graphql, mcp, ssr, telescope, deployer, inertia, debug, workspace |
 
-**Rule:** Packages can only import from their own layer or lower. Upward communication via DomainEvents.
+**Rule:** Packages can only import from their own layer or lower. *Behavioural* coupling across layers is decoupled via the Symfony event dispatcher: a higher layer dispatches a lifecycle event and a lower layer subscribes by string event name, so the higher layer never imports the lower-layer listener. Note this does **not** eliminate upward *type* imports — a lower-layer listener still `use`s the higher-layer event type it subscribes to (e.g. L0 `cache` listeners import L1 `Waaseyaa\Entity\Event\EntityEvent` / `EntityEvents`). Those upward type imports are permitted only via the explicit `KERNEL_EXEMPT_FILES` allowlist in `bin/check-package-layers` (each entry carries a one-line rationale). The framework-wide `DomainEvent` base (`packages/foundation/src/Event/DomainEvent.php`) is a serialization/audit envelope with two concrete subclasses (`EntitySaved`, `EntityDeleted`); it is **not** the type that lifecycle listeners consume — the live `EntityEvent`/`TranslationEvent` lifecycle events extend Symfony `Event` directly.
 
-**Enforcement:** `bin/check-package-layers` validates every `packages/*/composer.json` `require` edge `waaseyaa/*` against this table (metapackages `cms`, `core`, `full` skipped). Runtime `require` only — `require-dev` may pull test fixtures from higher layers. Use `bin/audit-require-dev-layers` for a warn-only audit report of upward dev-only edges. Historical GitHub **#315** (foundation → path) and **#316** (validation → entity) are closed at the manifest level; re-run scripts after editing internal dependencies.
+**Enforcement:** `bin/check-package-layers` enforces the rule on **two** surfaces: (1) every `packages/*/composer.json` runtime `require` edge `waaseyaa/*` against this table (metapackages `cms`, `core`, `full` skipped; runtime `require` only — `require-dev` may pull test fixtures from higher layers, see `bin/audit-require-dev-layers`); and (2) every PHP file-level `use Waaseyaa\…` import under `<pkg>/src/` (rule PL005), which is what catches upward imports that `composer.json` `suggest` (not `require`) would otherwise hide. File-level upward imports are allowed only when the file sits under `<pkg>/src/Kernel/` or is named in `KERNEL_EXEMPT_FILES` with a rationale — this is how the `cache` event-invalidation listeners legitimately import L1 entity/config event types. Historical GitHub **#315** (foundation → path) and **#316** (validation → entity) are closed at the manifest level; re-run scripts after editing internal dependencies or adding a cross-layer listener.
 
-**Exemption:** The `Kernel/` classes in Foundation (`AbstractKernel`, `HttpKernel`, `ConsoleKernel`) are application bootstrappers that wire all layers together. They intentionally import from all layers. This is acceptable because kernels are entry-point orchestrators, not reusable library code — no other package imports from them.
+**Exemption:** The `Kernel/` classes in Foundation (`AbstractKernel`, `HttpKernel`, `ConsoleKernel`) are application bootstrappers that wire all layers together. They intentionally import from all layers. This is acceptable because kernels are entry-point orchestrators, not reusable library code — no other package imports from them. The foundation `Http/Router/` built-in domain routers are the analogous **HTTP-substrate** exemption: they implement the L0-owned `DomainRouterInterface`, are wired only by `HttpKernel` (eagerly, so the JSON:API/SSE chain exists on a `core`-only install), and have no external importers — they are a permanent fixture, not pending relocation. See `bin/check-package-layers` `KERNEL_EXEMPT_FILES` and `docs/specs/infrastructure.md` "Kernel exemption surface".
 
 **Auth and OIDC HTTP routes:** Route registration (RouteBuilder / WaaseyaaRouter) for `waaseyaa/auth` and `waaseyaa/oidc` is implemented in `Waaseyaa\Routing\AuthOidcRouteServiceProvider` ([packages/routing](packages/routing)) so L1 auth/oidc packages do not `use` Layer 4 routing types. Service bindings stay in their respective L1 `ServiceProvider` classes; only route wiring is lifted to L4.
 
@@ -191,7 +194,7 @@ Install the CLI: `pip install spec-kitty-cli` or `uv tool install spec-kitty-cli
 
 **Workflow precedence:** **Spec Kitty** owns mission/work-package execution and structured review. **GitHub** owns merge mechanics, CI, releases, and optional issues. **`docs/specs/`** owns subsystem contracts — read from disk, update when behaviour changes.
 
-Design docs in `docs/plans/` are session artifacts (implementation history). Specs in `docs/specs/` are enduring architectural knowledge (kept current). When refactoring a subsystem, update its spec — run `tools/drift-detector.sh` to find stale specs.
+Design docs in `docs/history/plans/` are session artifacts (implementation history). Specs in `docs/specs/` are enduring architectural knowledge (kept current). When refactoring a subsystem, update its spec — run `tools/drift-detector.sh` to find stale specs.
 
 ## Commands
 
@@ -201,6 +204,10 @@ Design docs in `docs/plans/` are session artifacts (implementation history). Spe
 - `./vendor/bin/phpunit --testsuite Integration` — integration tests only
 - `./vendor/bin/phpunit --filter Phase10` — run tests matching a pattern
 - `./vendor/bin/phpunit packages/mail/tests/` — run a single package's tests
+
+**Platform — the suite is Linux-first; run it split, not as one process:**
+- Run the **split suites** (`--testsuite Unit`, then `--testsuite Integration`), not a bare `./vendor/bin/phpunit`: the whole suite as a single process OOMs at PHP's default 128 MB `memory_limit`. Raise `memory_limit` or run the two suites separately (CI runs them as separate jobs on Linux).
+- **Windows contributors:** the CLI snapshot tests pass on Windows because their fixtures (`*.stdout` / `*.stderr` / `*.exit`) are pinned to `eol=lf` in `.gitattributes` — with `core.autocrlf=true` they were otherwise checked out CRLF and ~72 `CliTester` snapshot assertions failed on the line endings alone. The *remaining* Windows failures are **POSIX-only by design** and are expected to fail off Linux: the release-tooling tests assume `bash`, `proc_open`, POSIX advisory file locks, and symlinks; the bin-script and OIDC-RSA tests assume a POSIX toolchain. `composer test` / `composer verify` are green on Linux and in CI. Treat a Windows-only failure in those areas as environmental — confirm it against a clean Linux run (or `git stash` + clean main) before assuming you introduced it.
 
 **Code quality:**
 - `composer cs-check` — check code style (dry-run PHP-CS-Fixer)
@@ -220,7 +227,7 @@ Design docs in `docs/plans/` are session artifacts (implementation history). Spe
 - Namespace pattern: `Waaseyaa\PackageName\` (e.g., `Waaseyaa\Entity\`, `Waaseyaa\AI\Schema\`)
 - Test namespace: `Waaseyaa\PackageName\Tests\Unit\` or `Waaseyaa\Tests\Integration\PhaseN\`
 - PHPUnit 10.5 attributes: `#[Test]`, `#[CoversClass(...)]`, `#[CoversNothing]` for integration tests
-- Symfony 7.x components (Console, EventDispatcher, Routing, Validator, Uid, Yaml, Messenger)
+- Symfony 7.x components (EventDispatcher, Routing, Validator, Uid, Yaml, Messenger, **Console**). NOTE: the CLI runtime is built on **Symfony Console** as of commit `614d88f47` — `Waaseyaa\CLI\WaaseyaaConsoleApplication` extends Symfony `Application` and `Waaseyaa\CLI\Command\HandlerCommand` extends Symfony `Command`, wired by `ConsoleApplicationFactory`. (The earlier hand-rolled native kernel — `CliApplication`/`CliKernel`/`CommandRegistry` — was removed in that migration.)
 - Named constructor parameters: `new EntityType(id: 'node', label: 'Content', ...)`
 - `final class` by default for concrete implementations
 - Admin SPA: Nuxt 3 + Vue 3 + TypeScript. Composables in `packages/admin/app/composables/`, i18n in `packages/admin/app/i18n/en.json`
@@ -310,12 +317,12 @@ Cross-cutting rules that affect work anywhere in the framework. Subsystem-specif
 
 **Database / DBAL:**
 - **`DatabaseInterface` vs `DBALDatabase`**: `DatabaseInterface` does NOT have `getConnection()`. If the DBAL `Connection` is needed, type-hint `DBALDatabase` directly. Prefer the query builder (`select()`, `insert()`, `delete()`) over raw DBAL when possible.
-- **DBAL quirks**: `fetchAssociative()` returns associative arrays (equivalent to `FETCH_ASSOC`); empty `IN`/`NOT IN` (`condition('id', [], 'IN')`) silently returns no results — guard with empty check; LIKE/NOT LIKE patterns must escape `%` and `_` in user input with `str_replace(['%', '_'], ['\\%', '\\_'], $value)` (`DBALSelect` appends `ESCAPE '\'`).
+- **DBAL quirks**: `fetchAssociative()` returns associative arrays (equivalent to `FETCH_ASSOC`); empty `IN`/`NOT IN` (`condition('id', [], 'IN')`) silently returns no results — guard with empty check; for LIKE/NOT LIKE the caller passes a complete pattern and owns wildcards — escape literal `%`/`_` in untrusted input with `str_replace(['%', '_'], ['\\%', '\\_'], $value)`. This is by design, not a footgun: `DBALSelect::condition()` binds the value as a parameter and appends `ESCAPE '\'` precisely so that backslash-escaping works; it intentionally does NOT auto-escape `$value` (that would forbid wildcards and double-escape callers like `SqlColumnQueryTranslator` CONTAINS/STARTS_WITH).
 - **`database-legacy` namespace is `Waaseyaa\Database`**: Despite the directory being `packages/database-legacy/`, the PHP namespace is `Waaseyaa\Database`, NOT `Waaseyaa\DatabaseLegacy`. Check `composer.json` autoload for the canonical namespace. See `docs/adr/007-database-legacy-package-naming.md`.
 
 **Layers, packages, namespaces:**
 - **Layer discipline for imports**: Foundation (layer 0) must never import from higher layers. When cross-layer attribute scanning is needed, use string constants instead of `::class` references (e.g., `private const POLICY_ATTRIBUTE = 'Waaseyaa\\Access\\Gate\\PolicyAttribute'`). `ReflectionClass::getAttributes()` accepts string class names.
-- **Avoid circular package deps**: Access owns `AccountInterface`; User owns `AnonymousUser`. Access must not depend on User. Middleware needing an account should type-hint `AccountInterface`, not concrete `AnonymousUser`.
+- **Avoid circular package deps**: Access owns `AccountInterface`; User owns `AnonymousUser`. Access must not depend on User. Middleware needing an account should type-hint `AccountInterface`, not concrete `AnonymousUser`. A few **same-layer** 2-cycles are accepted-but-bounded and deliberately not broken: `entity` ↔ `access` (L1 — `entity` imports exactly one reverse symbol, `Waaseyaa\Access\AccountInterface`, for `EntityQueryInterface::setAccount()`; extracting it to L0 is rejected because it is public surface — `docs/public-surface-map.php` — so a namespace move is semver-breaking across ~250 callsites), plus `foundation` ↔ `queue` (L0) and `ai-agent` ↔ `ai-observability` (L5). `bin/check-package-layers` emits these as **`WARN [PL006]`** (warn-only — the layer gate only *fails* on upward edges) so any *new* same-layer reverse edge becomes visible instead of growing silently.
 - **Never put classes that extend dev-only deps under `autoload`**: Any class under `src/` is reachable via PSR-4 in production consumer installs (`composer install --no-dev`). If such a class `extends PHPUnit\Framework\TestCase` or any dev-only symbol, a consumer's `PackageManifestCompiler` class scan will Reflection-load it, fail to resolve the parent, and crash kernel boot with "Application failed to boot." Fix: put test-helper base classes in a top-level `testing/` directory (sibling to `src/` and `tests/`) and register `"Waaseyaa\\Foo\\Testing\\": "testing/"` under `autoload-dev` only. Caught in `waaseyaa/graphql` alpha.106 → alpha.107 via a production outage on minoo.
 
 **HTTP, auth, request lifecycle:**
@@ -343,7 +350,7 @@ Cross-cutting rules that affect work anywhere in the framework. Subsystem-specif
 - Integration tests in `tests/Integration/PhaseN/` — one directory per implementation phase
 - GraphQL integration tests in `tests/Integration/GraphQL/` — full-stack tests with real SQLite via `DBALDatabase::createSqlite()`
 - Unit tests in `packages/*/tests/Unit/`
-- Use `CommandTester` from Symfony Console for CLI command tests
+- Use `CliTester` (`Waaseyaa\CLI\Testing\CliTester`, in `packages/cli/tests/Testing/`) for CLI command tests — `CliTester::for($definition, $container)->execute([...])`, then assert `getExitCode()` / `getStdout()`. `CliTester` wraps Symfony Console's `CommandTester` for you (the CLI now runs on Symfony Console), binding the container via `HandlerCommand::withContainer()` — prefer it over instantiating `CommandTester` directly.
 - Use `ArrayLoader` for Twig tests (no filesystem needed)
 - All storage can be in-memory: MemoryStorage (config), MemoryBackend (cache), InMemoryEntityStorage (entities), DBALDatabase::createSqlite() (SQL with :memory:)
 - Test cache file handling with corrupt files (`<?php throw new \RuntimeException("corrupt");`) and wrong return types (`<?php return "not an array";`) to verify recovery paths
@@ -359,6 +366,7 @@ Cross-cutting rules that affect work anywhere in the framework. Subsystem-specif
 - `LOG_LEVEL` — Minimum log level for default handler: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency` (default: `warning`)
 - `WAASEYAA_DB` — SQLite database path (default: `./storage/waaseyaa.sqlite`)
 - `WAASEYAA_CONFIG_DIR` — config sync directory (default: `./config/sync`)
+- `WAASEYAA_ENTITY_VALIDATION` — save-time entity validation toggle (default: enabled). Values `0`/`false`/`off` (case-insensitive) disable kernel-wired validation; read once at boot.
 
 ## Architectural Boundaries
 

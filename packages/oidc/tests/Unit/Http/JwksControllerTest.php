@@ -11,6 +11,7 @@ use RuntimeException;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Waaseyaa\Oidc\Http\JwksController;
 use Waaseyaa\Oidc\Keys\OidcKeyLoaderInterface;
+use Waaseyaa\Oidc\Keys\OpenSslKeyFactory;
 use Waaseyaa\Oidc\Keys\SigningKey;
 
 #[CoversClass(JwksController::class)]
@@ -109,17 +110,11 @@ final class JwksControllerTest extends TestCase
     #[Test]
     public function serveRaisesWhenKeyIsNotRsa(): void
     {
-        $ecResource = openssl_pkey_new([
-            'private_key_type' => OPENSSL_KEYTYPE_EC,
-            'curve_name' => 'prime256v1',
-        ]);
-        self::assertNotFalse($ecResource);
-        $details = openssl_pkey_get_details($ecResource);
-        self::assertIsArray($details);
+        $publicKeyPem = new OpenSslKeyFactory()->generateEcPublicKey();
 
         $controller = new JwksController(
             keyLoader: $this->loaderReturning([
-                new SigningKey(kid: 'ec-key', algorithm: 'RS256', publicKeyPem: $details['key']),
+                new SigningKey(kid: 'ec-key', algorithm: 'RS256', publicKeyPem: $publicKeyPem),
             ]),
         );
 
@@ -131,15 +126,9 @@ final class JwksControllerTest extends TestCase
 
     private function generateSigningKey(string $kid): SigningKey
     {
-        $resource = openssl_pkey_new([
-            'private_key_bits' => 2048,
-            'private_key_type' => OPENSSL_KEYTYPE_RSA,
-        ]);
-        self::assertNotFalse($resource);
-        $details = openssl_pkey_get_details($resource);
-        self::assertIsArray($details);
+        $keyPair = new OpenSslKeyFactory()->generateRsaKeyPair();
 
-        return new SigningKey(kid: $kid, algorithm: 'RS256', publicKeyPem: $details['key']);
+        return new SigningKey(kid: $kid, algorithm: 'RS256', publicKeyPem: $keyPair['public']);
     }
 
     /**

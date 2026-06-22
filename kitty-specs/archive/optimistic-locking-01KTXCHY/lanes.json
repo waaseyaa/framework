@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "mission_slug": "optimistic-locking-01KTXCHY",
+  "mission_id": "01KTXCHYH6C5HY7V447XP85RWT",
+  "mission_branch": "kitty/mission-optimistic-locking-01KTXCHY",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01",
+        "WP02",
+        "WP03"
+      ],
+      "write_scope": [
+        "CHANGELOG.md",
+        "docs/specs/ai-integration.md",
+        "docs/specs/api-layer.md",
+        "docs/specs/entity-system.md",
+        "docs/specs/revision-system-unified.md",
+        "packages/ai-tools/composer.json",
+        "packages/ai-tools/src/Entity/EntityListTool.php",
+        "packages/ai-tools/src/Entity/EntityReadTool.php",
+        "packages/ai-tools/src/Entity/EntityUpdateTool.php",
+        "packages/ai-tools/tests/Unit/Entity/EntityToolRevisionExposureTest.php",
+        "packages/ai-tools/tests/Unit/Entity/EntityUpdateToolConflictTest.php",
+        "packages/api/composer.json",
+        "packages/api/src/JsonApiController.php",
+        "packages/api/src/JsonApiError.php",
+        "packages/api/tests/Unit/JsonApiControllerConflictTest.php",
+        "packages/api/tests/Unit/JsonApiErrorTest.php",
+        "packages/entity-storage/src/EntityRepository.php",
+        "packages/entity-storage/src/Exception/RevisionConflictException.php",
+        "packages/entity-storage/src/SaveContext.php",
+        "packages/entity-storage/tests/Unit/EntityRepositoryOptimisticLockingTest.php",
+        "packages/entity-storage/tests/Unit/SaveContext/SaveContextExpectedRevisionTest.php",
+        "tests/Integration/AgentRun/DualWriterConflictTest.php",
+        "tests/Integration/Locking/**"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "artifact-rendering",
+        "legacy-cleanup"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-06-12T08:10:31.148450+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": [],
+  "collapse_report": {
+    "events": [
+      {
+        "wp_a": "WP02",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP02 depends on WP01"
+      },
+      {
+        "wp_a": "WP03",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP03 depends on WP01"
+      }
+    ],
+    "total_merges": 2,
+    "independent_wps_collapsed": 0,
+    "by_rule": {
+      "dependency": 2
+    }
+  }
+}

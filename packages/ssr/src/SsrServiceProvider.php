@@ -10,6 +10,7 @@ use Twig\Environment;
 use Waaseyaa\Access\ErrorPageRendererInterface;
 use Waaseyaa\Access\Gate\EntityAccessGate;
 use Waaseyaa\Cache\CacheBackendInterface;
+use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
@@ -20,10 +21,13 @@ use Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasRenderCacheListenersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Routing\RouteBuilder;
+use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\SSR\Flash\Flash;
 use Waaseyaa\SSR\Flash\FlashMessageService;
 use Waaseyaa\SSR\Http\Router\AppControllerRouter;
 use Waaseyaa\SSR\Http\Router\SsrRouter;
+use Waaseyaa\SSR\Http\SeoPublicController;
 use Waaseyaa\SSR\Twig\FlashTwigExtension;
 
 final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttpKernelInterface, HasHttpDomainRoutersInterface, HasRenderCacheListenersInterface, LanguagePathStripperInterface
@@ -67,6 +71,45 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
         if (self::$twigEnvironment !== null) {
             self::$twigEnvironment->addExtension(new FlashTwigExtension($flashService));
         }
+    }
+
+    /**
+     * Register the public, crawler-facing agent/SEO routes. Priority 10 keeps
+     * them ahead of the SSR `/{path}` render fallback (BuiltinRouteRegistrar).
+     */
+    public function routes(WaaseyaaRouter $router, EntityTypeManager $entityTypeManager): void
+    {
+        $controller = SeoPublicController::class;
+
+        $router->addRoute(
+            'seo.robots_txt',
+            RouteBuilder::create('/robots.txt')
+                ->controller($controller . '::robotsTxt')
+                ->methods('GET')
+                ->allowAll()
+                ->priority(10)
+                ->build(),
+        );
+
+        $router->addRoute(
+            'seo.sitemap_xml',
+            RouteBuilder::create('/sitemap.xml')
+                ->controller($controller . '::sitemapXml')
+                ->methods('GET')
+                ->allowAll()
+                ->priority(10)
+                ->build(),
+        );
+
+        $router->addRoute(
+            'seo.llms_txt',
+            RouteBuilder::create('/llms.txt')
+                ->controller($controller . '::llmsTxt')
+                ->methods('GET')
+                ->allowAll()
+                ->priority(10)
+                ->build(),
+        );
     }
 
     public function registerRenderCacheListeners(EventDispatcherInterface $dispatcher, ?CacheBackendInterface $renderCacheBackend): void
@@ -128,6 +171,7 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
             logger: $this->resolve(LoggerInterface::class),
             gate: new EntityAccessGate($kernel->getAccessHandler()),
             inertiaFullPageRenderer: $kernel->getInertiaFullPageRenderer(),
+            accessHandler: $kernel->getAccessHandler(),
         );
     }
 
@@ -170,5 +214,17 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
     public static function createTwigEnvironment(string $projectRoot, array $config = []): Environment
     {
         return ThemeServiceProvider::createTwigEnvironment($projectRoot, $config);
+    }
+
+    /**
+     * Wire a pre-built Twig environment so the SSR render path can use it under
+     * test, or reset it with null between tests. `createTwigEnvironment()` is a
+     * pure factory that never populated the static the renderer reads, so there
+     * was no wired test-render path; pair them:
+     * `SsrServiceProvider::setTwigEnvironment(SsrServiceProvider::createTwigEnvironment($root))`. (#1604)
+     */
+    public static function setTwigEnvironment(?Environment $env): void
+    {
+        self::$twigEnvironment = $env;
     }
 }

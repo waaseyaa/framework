@@ -20,6 +20,8 @@ use Waaseyaa\StructuredImport\UnmatchedRow;
  * Field name itself is an implicit alias after normalization.
  * Unmatched rows preserve the original (un-normalized) prompt and value text.
  * Errors from the parser propagate verbatim into ImportResult::$errors.
+ *
+ * @api
  */
 final class GfmTableImporter implements StructuredImporterInterface
 {

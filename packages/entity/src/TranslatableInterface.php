@@ -41,10 +41,16 @@ interface TranslatableInterface
     public function activeLangcode(): string;
 
     /**
-     * @deprecated Use activeLangcode() instead.
-     * @see activeLangcode()
+     * The active language code, with a lenient backward-compatibility fallback.
+     *
+     * Unlike {@see activeLangcode()} — which throws when an entity has no
+     * `default_langcode` — this returns the `langcode` value (or `'en'`) for
+     * entities that never set a default. The two are supported, distinct
+     * accessors: use activeLangcode() when a missing default should be an error,
+     * and language() when a lenient fallback is wanted (e.g. reading the langcode
+     * of a non-translatable entity that inherits this contract via
+     * ContentEntityBase).
      */
-    #[\Deprecated('Use activeLangcode() instead', since: '0.next')]
     public function language(): string;
 
     /**

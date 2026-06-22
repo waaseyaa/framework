@@ -9,9 +9,9 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Waaseyaa\CLI\Command\Config\ConfigStatusCommand;
-use Waaseyaa\CLI\CommandDefinition;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Config\Sync\ConfigDiffer;
 use Waaseyaa\Config\Sync\ConfigStatusReporter;
@@ -172,15 +172,15 @@ final class ConfigStatusCommandTest extends TestCase
         );
     }
 
-    private function commandDefinition(): CommandDefinition
+    private function commandDefinition(): HandlerCommand
     {
-        return new CommandDefinition(
+        return new HandlerCommand(
             name: 'config:status',
             description: 'Summarise drift between sync and active stores (FR-034).',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'format',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     description: 'Output format: plain (default) or json.',
                     default: 'plain',
                 ),

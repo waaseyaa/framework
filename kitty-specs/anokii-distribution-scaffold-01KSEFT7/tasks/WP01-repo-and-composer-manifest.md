@@ -29,12 +29,14 @@ shell_pid: '4190488'
 history: []
 authoritative_surface: composer.json
 execution_mode: code_change
+mission_id: 01KSEFT768GN09JZXHWMAMJNFR
 owned_files:
 - composer.json
 - LICENSE.txt
 - README.md
 - .gitignore
 tags: []
+wp_code: WP01
 ---
 
 # WP01 — GitHub repo creation + initial Composer manifest

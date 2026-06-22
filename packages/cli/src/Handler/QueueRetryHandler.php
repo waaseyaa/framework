@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Queue\FailedJobRepositoryInterface;
 use Waaseyaa\Queue\QueueInterface;
 
@@ -18,7 +18,7 @@ final class QueueRetryHandler
         private readonly QueueInterface $queue,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         /** @var string $id */
         $id = $io->argument('id');
@@ -47,7 +47,7 @@ final class QueueRetryHandler
         return 0;
     }
 
-    private function retryAll(CliIO $io): int
+    private function retryAll(SymfonyCommandIO $io): int
     {
         $all = $this->failedJobRepository->all();
         if ($all === []) {

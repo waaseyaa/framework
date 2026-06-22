@@ -30,6 +30,8 @@ use Waaseyaa\Database\DatabaseInterface;
  *   - UNIQUE on uuid
  *   - Composite on (parent_entity_type, parent_entity_id)
  *   - Composite on (parent_entity_type, parent_entity_id, is_active) — fast active lookup
+ *
+ * @api
  */
 final class AttachmentSchema
 {

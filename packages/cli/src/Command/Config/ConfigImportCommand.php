@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Command\Config;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Config\Sync\ConfigImportEntryResult;
 use Waaseyaa\Config\Sync\ConfigImporter;
 
@@ -37,7 +37,7 @@ final class ConfigImportCommand
         private readonly ConfigImporter $importer,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $dryRun = (bool) $io->option('dry-run');
         $deleteOrphans = (bool) $io->option('delete-orphans');

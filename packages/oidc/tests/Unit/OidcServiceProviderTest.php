@@ -12,6 +12,7 @@ use Waaseyaa\Oidc\Discovery\DiscoveryController;
 use Waaseyaa\Oidc\Entity\OidcClient;
 use Waaseyaa\Oidc\Jwks\JwksController;
 use Waaseyaa\Oidc\Keys\OidcKeyLoaderInterface;
+use Waaseyaa\Oidc\Keys\OpenSslKeyFactory;
 use Waaseyaa\Oidc\Keys\PemFileKeyLoader;
 use Waaseyaa\Oidc\OidcServiceProvider;
 
@@ -243,19 +244,12 @@ final class OidcServiceProviderTest extends TestCase
             $this->tmpDirs[] = $dir;
         }
 
-        $resource = openssl_pkey_new([
-            'private_key_bits' => 2048,
-            'private_key_type' => OPENSSL_KEYTYPE_RSA,
-        ]);
-        self::assertNotFalse($resource);
-        $details = openssl_pkey_get_details($resource);
-        self::assertIsArray($details);
-        openssl_pkey_export($resource, $privatePem);
+        $keyPair = new OpenSslKeyFactory()->generateRsaKeyPair();
 
         $publicPath = $dir . '/' . $kid . '.pub.pem';
         $privatePath = $dir . '/' . $kid . '.key.pem';
-        file_put_contents($publicPath, $details['key']);
-        file_put_contents($privatePath, $privatePem);
+        file_put_contents($publicPath, $keyPair['public']);
+        file_put_contents($privatePath, $keyPair['private']);
 
         return [$publicPath, $privatePath];
     }

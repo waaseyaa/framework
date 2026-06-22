@@ -1,5 +1,8 @@
 # MCP Endpoint
 
+<!-- Spec reviewed 2026-06-19 - Wayfinding Phase 5 (wayfinding-01KVGH5X): the authenticated MCP WRITE TIER. New SEPARATE route `/mcp/write` → `AuthenticatedMcpEndpoint::serve` (a thin controller composing an inner McpEndpoint configured for writes), so the public read-only `/mcp` is byte-identical and untouched (C-001). The inner endpoint uses (a) `WriteTierAuthInterface` — a marker auth bound by default to `BearerTokenAuth([])` (empty token map ⇒ every request fails closed 401 until an app re-binds it with its token→account map; NFR-002), distinct from the public `McpAuthInterface`=PublicAnonymousAuth binding so the two surfaces configure independently; and (b) `CapabilityScopedToolRegistry(fullRegistry, capabilities)` — the dual of `ReadOnlyToolRegistry`: it exposes ONLY tools whose capability is on an allowlist, destructive INCLUDED (default `['present guided content']`, override via `mcp.write_tier.capabilities`), so the tier surfaces exactly its own tools, never the whole destructive catalogue. Per-tool `AbstractAgentTool::requireCapability` remains the authorization layer. The wayfinding write tools themselves live in ai-agent (see ai-integration.md / wayfinding.md). See the "Authenticated write tier" section at the end of this spec. -->
+<!-- Spec reviewed 2026-06-12 - mission request-surface-hardening-01KTX7F2 WP03 (#1652): BearerTokenAuth::authenticate() hardened. (1) Constant-time comparison — the array lookup is replaced by a full hash_equals() scan over EVERY token-map entry with no early exit (whole-call timing independent of which entry matches); map keys are (string)-cast before comparison because PHP coerces purely numeric token strings to int array keys. (2) Blocked-account fail-closed check — a matched account exposing isActive() (duck-typed method_exists; AccountInterface has no status member, no mcp→user manifest edge) that returns false is rejected with null, byte-indistinguishable from an unknown token (same 401 JSON-RPC envelope; no blocked-vs-invalid oracle). Zero added queries (NFR-003): kernels and token maps are per-request, so the in-memory isActive() read reflects persisted state as of this request's boot. Accounts without isActive() authenticate as before — custom McpAuthInterface implementations own their account objects' liveness semantics. Prefix handling and getTokens() (admin fingerprinting) unchanged. Pinned by BearerTokenAuthHardeningTest; the pre-existing 7-test BearerTokenAuthTest matrix passes unchanged. -->
+<!-- Spec reviewed 2026-06-12 - mission revision-audit-provenance-01KTWY5V WP05: McpEndpoint gains two optional ctor params (?EventDispatcherInterface, ?AccountContextInterface, container-injected via McpServiceProvider's explicit binding); dispatch() scopes the acting-account context to the bearer-auth account post-auth/pre-parse with finally-restore, and fires Waaseyaa\Mcp\Event\McpDispatchEvent ('waaseyaa.mcp.dispatch': method, raw params, ?accountUid) exactly once per authenticated well-formed JSON-RPC request, post-parse pre-routing, best-effort; 401/parse-error fire nothing; event name pinned cross-package to McpDispatchAuditListener::EVENT_NAME (mcp does not require audit at runtime; new require-dev edge for the pin test). McpEndpoint Class section also updated to the real post-M3 two-required-dep signature. Independent of #1635/#1636. Refs #1645. -->
 <!-- Spec reviewed 2026-05-25 - per-record-ai-access-flagship-01KSEFT5 WP02: McpEntityFieldFilter wired into McpController and EntityTools.getEntity(). Forbidden fields are now replaced by the canonical redaction marker {accessRestricted: true, reason: "field_forbidden_for_account"} rather than omitted. JSON:API omits; MCP redacts — both compliant with open-by-default; MCP redacts to preserve audit lineage. FR-005, FR-006, FR-007 satisfied. McpJsonApiFieldParityTest guards this contract. -->
 <!-- Spec reviewed 2026-06-04 - PR #1614 incidental (clearing #1593 drift): the read-only admin surface gained `Waaseyaa\Mcp\Admin\RecentInvocationsQueryInterface` (M5C WP01 T003) — a narrow optional port (`recentForTool(string $toolName, int $limit): list<RecentInvocation>`) implemented by an ai-observability adapter when installed; `ToolRegistryReadModel` degrades to an empty recentInvocations list when absent, so packages/mcp keeps no hard compile-time dependency on waaseyaa/ai-observability. #1592/#1593 also Nuxt-prefixed the admin table component names so the tool tables render. No change to the /mcp JSON-RPC endpoint contract. -->
 <!-- Spec reviewed 2026-05-25 - mcp-endpoint-admin-m5c-01KSEFTB: read-only admin surface (tool registry, per-tool detail, server config) -->
@@ -39,7 +42,7 @@ Kernel-level failures before MCP dispatch are governed by the JSON-first HTTP er
 | `src/McpRouteProvider.php` | Registers `/mcp` and `/.well-known/mcp.json` routes |
 | `src/McpServerCard.php` | Generates the `/.well-known/mcp.json` server card |
 | `src/Auth/McpAuthInterface.php` | Pluggable authentication contract |
-| `src/Auth/BearerTokenAuth.php` | MVP auth: opaque bearer token to account mapping |
+| `src/Auth/BearerTokenAuth.php` | MVP auth: opaque bearer token to account mapping — constant-time full-scan comparison + blocked-account fail-closed check (#1652) |
 | `src/Bridge/ToolRegistryInterface.php` | Interface for accessing MCP tool definitions |
 | `src/Bridge/ToolExecutorInterface.php` | Interface for executing MCP tool calls |
 | `src/Cache/ReadCache.php` | Read-path cache: TTL, key generation, tag building, invalidation support |
@@ -59,11 +62,14 @@ This means MCP route ownership no longer depends on foundation fallback registra
 
 ## McpEndpoint Class
 
-`McpEndpoint` is the main HTTP handler. It is a `final readonly class` that receives three dependencies via constructor injection:
+`McpEndpoint` is the main HTTP handler. It is a `final readonly class` that receives two required and two optional dependencies via constructor injection (the required pair per M3 `bimaaji-mcp-bridge-01KS5VS8` WP03; the optional pair per mission `revision-audit-provenance-01KTWY5V`):
 
 - `McpAuthInterface $auth` -- authenticates the request.
-- `ToolRegistryInterface $registry` -- provides tool definitions.
-- `ToolExecutorInterface $executor` -- executes tool calls.
+- `Waaseyaa\AI\Tools\ToolRegistryInterface $agentRegistry` -- the framework-wide agent tool registry, wrapped per-request by `AgentToolRegistryBridge` with the auth-resolved account.
+- `?EventDispatcherInterface $dispatcher = null` (Symfony contracts) -- optional; fires the `waaseyaa.mcp.dispatch` event (see "Dispatch event seam" below). When absent, the event is silently not fired (best-effort audit semantics).
+- `?AccountContextInterface $accountContext = null` -- optional acting-account holder (`Waaseyaa\Access\Context\`); when absent, no context scoping happens (behavior identical to before the context existed).
+
+`McpServiceProvider` binds `McpEndpoint` explicitly so `AppControllerRouter`'s controller resolution injects the kernel-services event dispatcher and acting-account context; both degrade to null when the kernel bus cannot supply them.
 
 ### handle() Method
 
@@ -80,14 +86,51 @@ This follows the typed `AppControllerRouter` contract (see **`docs/specs/app-con
 
 The internal dispatch method processes requests in this order:
 
-1. **Authenticate** -- calls `$this->auth->authenticate($authorizationHeader)`. If null is returned, responds with HTTP 401 and a JSON-RPC error (code `-32001`, message "Unauthorized").
-2. **Parse JSON-RPC** -- decodes the body with `json_decode()`. On `JsonException`, returns parse error (code `-32700`). On missing `method` field, returns invalid request (code `-32600`).
-3. **Dispatch** -- matches the JSON-RPC method to an internal handler:
+1. **Authenticate** -- calls `$this->auth->authenticate($authorizationHeader)`. If null is returned, responds with HTTP 401 and a JSON-RPC error (code `-32001`, message "Unauthorized"). The 401 envelope is identical for every `null` cause — missing/malformed header, unknown token, or a token whose account is blocked (#1652) — so callers cannot distinguish a blocked token from an invalid one.
+2. **Scope the acting-account context** -- immediately after successful auth (before body parsing), the endpoint captures the prior `AccountContextInterface` value and sets the bearer-auth-resolved account. The prior value is restored in `finally` — including when a routed handler throws — because the MCP account deliberately differs from any session account. No-op when no context was injected.
+3. **Parse JSON-RPC** -- decodes the body with `json_decode()`. On `JsonException`, returns parse error (code `-32700`). On missing `method` field, returns invalid request (code `-32600`).
+4. **Fire the dispatch event** -- see "Dispatch event seam" below. Fires exactly once per authenticated, well-formed request, immediately before method routing.
+5. **Dispatch** -- matches the JSON-RPC method to an internal handler:
    - `initialize` -- returns protocol version (`2025-03-26`), capabilities, and server info.
    - `ping` -- returns an empty result.
-   - `tools/list` -- iterates `$registry->getTools()` and returns tool definitions.
-   - `tools/call` -- validates `params.name`, looks up the tool, and delegates to `$executor->execute()`.
+   - `tools/list` -- returns tool definitions via the per-request bridge.
+   - `tools/call` -- validates `params.name`, looks up the tool, and executes it via the per-request bridge.
    - Any other method returns a "Method not found" error (code `-32601`).
+
+### Dispatch event seam (`waaseyaa.mcp.dispatch`)
+
+Added by mission `revision-audit-provenance-01KTWY5V` (FR-007, #1645). The
+audit package's `McpDispatchAuditListener` had subscribed to the
+`waaseyaa.mcp.dispatch` event name since the OCAP substrate landed, but
+nothing fired it. `McpEndpoint::dispatch()` now does.
+
+**Event:** `Waaseyaa\Mcp\Event\McpDispatchEvent`, dispatched under
+`McpDispatchEvent::NAME = 'waaseyaa.mcp.dispatch'`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `method` | string | JSON-RPC method (`tools/call`, `tools/list`, `initialize`, `ping`, …) |
+| `params` | array | **Raw** JSON-RPC params — the audit listener stores only a SHA-256 hash; the privacy property lives in the listener, and the dispatch site must NOT pre-hash |
+| `accountUid` | `?int` | The bearer-auth-resolved account id |
+
+**Firing contract:**
+
+- Fires **exactly once per authenticated, well-formed JSON-RPC request** —
+  after `authenticate()` succeeds and the envelope parses with a `method`
+  key, **before** method routing. Every JSON-RPC method invocation is
+  covered (the listener's documented contract), including `tools/call`.
+- Unauthenticated (401) requests and parse-error / invalid-request bodies
+  fire **nothing**.
+- **Best-effort**: the dispatch is wrapped in try/catch — an audit or
+  dispatcher failure never alters the JSON-RPC response. An absent
+  dispatcher means the event is simply not fired.
+- **Name pinning**: `McpDispatchEvent::NAME ===
+  McpDispatchAuditListener::EVENT_NAME` is pinned by a cross-package test.
+  The string literal is intentionally duplicated — mcp must not require
+  audit at runtime (audit is a `require-dev` edge for the pin test only).
+- **Independence**: the seam fires as the endpoint exists today; it does not
+  depend on (nor fix) the #1635/#1636 transport bugs or #1640 OAuth — those
+  remain separate work.
 
 ### McpResponse
 
@@ -251,21 +294,24 @@ Takes the raw `Authorization` header value. Returns the authenticated `AccountIn
 
 ### BearerTokenAuth
 
-MVP implementation that maps opaque bearer tokens to user accounts:
+MVP implementation that maps opaque bearer tokens to user accounts, hardened by mission request-surface-hardening-01KTX7F2 (#1652, FR-005/FR-006):
 
 ```php
 final readonly class BearerTokenAuth implements McpAuthInterface
 {
-    /** @param array<string, AccountInterface> $tokens */
+    /** @param array<string|int, AccountInterface> $tokens */
     public function __construct(private array $tokens) {}
 }
 ```
 
-Behavior:
+Behavior (`authenticate()` decision order):
 - Returns `null` if the header is missing or empty.
-- Returns `null` if the header does not start with `Bearer ` (case-insensitive check).
-- Extracts the token (characters after `Bearer `) and looks it up in the `$tokens` map.
+- Returns `null` if the header does not start with `Bearer ` (case-insensitive check). These prefix checks run before any comparison, exactly as before #1652.
+- **Constant-time full scan (FR-005):** the token (characters after `Bearer `) is compared against **every** entry of the token map with `hash_equals()` — no early exit on match, one return after the loop. Per-comparison timing is `hash_equals`' constant-time guarantee; whole-call timing does not depend on *which* entry matches. Each map key is `(string)`-cast before comparison — PHP coerces purely numeric token strings to `int` array keys, and `hash_equals()` requires strings; a numeric token authenticates correctly (pinned by test).
+- **Blocked-account rejection, fail closed (FR-006):** when the matched account exposes `isActive()` (duck-typed `method_exists`) and it returns `false`, `authenticate()` returns `null`. The caller-visible outcome is identical to an unknown token — `McpEndpoint` emits the same 401 JSON-RPC envelope, so there is no blocked-vs-invalid oracle. `AccountInterface` has no status member and is deliberately not widened; the framework's `User` entity exposes `isActive(): bool` (the same liveness accessor the session login query's `status = 1` condition mirrors), and no `mcp → user` manifest edge is added (research D4). **An account object without an `isActive()` method authenticates as before** — custom `McpAuthInterface`/account implementations own the liveness semantics of their own account objects.
+- **Zero added queries (NFR-003):** the status read is an in-memory method call on the already-resolved account object. Kernels — and therefore token maps and their account objects — are constructed per request in every runtime, so the read reflects persisted state as of the current request's boot. No re-load, no cache, no new I/O.
 - Each token maps to a specific user account, so MCP tool calls respect entity access control.
+- `getTokens()` (the admin-fingerprinting accessor, `ServerConfigReadModel` contract) keeps returning the raw token→account map, unchanged.
 - No token expiry in MVP. OAuth 2.1 adapter replaces this later.
 
 ### Authentication Roadmap
@@ -771,4 +817,87 @@ packages/admin/tests/unit/composables/useMcpTools.test.ts
 packages/admin/tests/unit/composables/useMcpTool.test.ts
 packages/admin/tests/unit/composables/useMcpServerConfig.test.ts
 packages/admin/e2e/mcp-admin.spec.ts
+```
+
+## Authenticated write tier (Wayfinding Phase 5)
+
+The public `/mcp` endpoint is read-only: `PublicAnonymousAuth` resolves every
+request to an anonymous account, and `ReadOnlyToolRegistry` hides every
+`destructive: true` tool (the alpha.221 trio, constraint **C-001**). Wayfinding
+Phase 5 adds a **separate authenticated write tier** for write tools, without
+touching that surface (**FR-004**).
+
+### Route + controller
+
+`McpRouteProvider` registers a second route `POST /mcp/write` →
+`AuthenticatedMcpEndpoint::serve`. Like `/mcp` it is `allowAll()` + `csrfExempt()`
+at the HTTP layer; authentication is enforced *inside* the endpoint (fail-closed),
+not by the router. `AuthenticatedMcpEndpoint` is a thin, routable controller that
+composes an inner `McpEndpoint` — a route controller resolves to a single
+container binding, so a second differently-wired endpoint needs its own class.
+All JSON-RPC dispatch (auth, per-request bridge, capability gating, the
+`waaseyaa.mcp.dispatch` event) is the unchanged inner `McpEndpoint`.
+
+### Auth: `WriteTierAuthInterface`
+
+`WriteTierAuthInterface` (a marker extending `McpAuthInterface`) is the
+**application override point** for write-tier credentials. An app binds it in its
+OWN service provider to a `BearerTokenAuth` mapping `token → AccountInterface`
+(accounts holding the write capability); token→account mapping is
+application-specific. The marker keeps the write-tier credential binding
+**distinct** from the public `McpAuthInterface` (=`PublicAnonymousAuth`) binding,
+so the two surfaces configure independently and the public read tier is never
+affected.
+
+**Resolution precedence (alpha.234, mission `wayfinding-stress-remediation-01KVGK4Q`).**
+`McpServiceProvider` deliberately does **not** bind a package default for
+`WriteTierAuthInterface`. Instead, the `AuthenticatedMcpEndpoint` binding resolves
+it per-request via `resolveWriteTierAuth()`, which goes through the **cross-provider
+kernel-services bus** (`resolveOptional`) and falls back to a fail-closed
+`BearerTokenAuth([])` (empty token map → HTTP 401) only when no provider supplies
+one. This is the fix for the alpha.233 stress-test blocker: when the package bound
+its own default, `ServiceProvider::resolve()`'s own-bindings-first lookup made that
+default **shadow** an app override, so `/mcp/write` always 401'd regardless of what
+the app bound. Removing the package binding makes the app's binding the one the bus
+returns. The blast radius is confined to the write-tier auth path — no global
+binding-precedence change (the public read tier and every other binding are
+untouched). When no app binds it, the behaviour is unchanged: every `/mcp/write`
+request fails closed with HTTP 401.
+
+### Registry: `CapabilityScopedToolRegistry`
+
+The structural dual of `ReadOnlyToolRegistry`. Given a capability allowlist, it
+exposes only tools whose `capability` is listed — **destructive included** — and
+hides everything else (`get`/`has` behave as "unregistered", `all`/`tools/list`
+omit them). The write tier is wired with the allowlist from
+`mcp.write_tier.capabilities` (default `['present guided content']`), so it
+surfaces exactly the Wayfinding write tools and **not** the whole destructive
+catalogue (e.g. editorial write tools, whose capability is not on the allowlist,
+stay absent). Per-tool `AbstractAgentTool::requireCapability` is still the
+authorization layer (NFR-002): a token-authenticated caller lacking the
+capability gets a `forbidden` envelope.
+
+### Three-layer guarantee
+
+| Layer | Public `/mcp` (read-only) | `/mcp/write` (authenticated write tier) |
+|---|---|---|
+| Auth | `PublicAnonymousAuth` → anonymous, never 401 | `WriteTierAuthInterface`=`BearerTokenAuth` → 401 without a valid token |
+| Registry | `ReadOnlyToolRegistry` (hides all destructive) | `CapabilityScopedToolRegistry` (allowlisted capabilities, destructive incl.) |
+| Per-tool | `requireCapability` vs anonymous read caps | `requireCapability` vs the bearer-resolved account |
+
+The wayfinding write tools (`wayfinding_record_trail`, `wayfinding_rerecord_trail`,
+`wayfinding_get_trail`, `wayfinding_emit_beacon`) are `#[AsAgentTool]` adapters in
+`packages/ai-agent/src/Tool/Wayfinding/` — see `ai-integration.md` and
+`wayfinding.md`. Acceptance: `AuthenticatedMcpEndpointTest` +
+`CapabilityScopedToolRegistryTest` (mcp), and the tool tests (ai-agent).
+
+### Files (Phase 5)
+
+```
+packages/mcp/src/AuthenticatedMcpEndpoint.php
+packages/mcp/src/CapabilityScopedToolRegistry.php
+packages/mcp/src/Auth/WriteTierAuthInterface.php
+packages/mcp/src/McpRouteProvider.php          (adds /mcp/write)
+packages/mcp/src/McpServiceProvider.php         (write-tier wiring; resolveWriteTierAuth app-override seam)
+packages/mcp/src/Auth/BearerTokenAuth.php       (implements WriteTierAuthInterface)
 ```

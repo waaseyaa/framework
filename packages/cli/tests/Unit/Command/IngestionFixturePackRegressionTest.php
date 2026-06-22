@@ -134,7 +134,7 @@ final class IngestionFixturePackRegressionTest extends TestCase
 
         $provider = new BundleFixtureServiceProvider();
         $definition = null;
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'fixture:pack:refresh') {
                 $definition = $cmd;
                 break;
@@ -178,7 +178,7 @@ final class IngestionFixturePackRegressionTest extends TestCase
     {
         $provider = new IngestSearchSemanticServiceProvider();
         $definition = null;
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'ingest:run') {
                 $definition = $cmd;
                 break;

@@ -17,8 +17,6 @@ use Waaseyaa\AI\Agent\Message\RunAgent;
  * The handler reloads the row from the repository, so the message must
  * remain a thin envelope around the run id — anything else risks
  * stale-data bugs between dispatch and pickup.
- *
- * @api
  */
 #[CoversClass(RunAgent::class)]
 final class RunAgentTest extends TestCase

@@ -7,7 +7,7 @@ namespace Waaseyaa\CLI\Tests\Unit\Handler;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\ConfigImportHandler;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Config\ConfigImportResult;
@@ -62,7 +62,7 @@ final class ConfigImportHandlerTest extends TestCase
     private function createTester(ConfigManagerInterface $manager): CliTester
     {
         $handler = new ConfigImportHandler($manager);
-        $definition = new CommandDefinition(
+        $definition = new HandlerCommand(
             name: 'config:import',
             description: 'Import configuration from the sync directory',
             handler: \Closure::fromCallable([$handler, 'execute']),

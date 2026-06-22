@@ -66,13 +66,8 @@ final class MediaVersionStorageDriverTest extends TestCase
             public function deleteMany(array $entities): int { return 0; }
             public function findTranslations(EntityInterface $entity): array { return []; }
             public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int { throw new \RuntimeException('not implemented'); }
-            public function saveTranslationRevision(string $entityId, string $langcode, array $values, ?string $log = null): int { throw new \RuntimeException('not implemented'); }
-            public function saveTranslationRevisions(string $entityId, array $byLangcode, ?string $log = null): array { throw new \RuntimeException('not implemented'); }
             public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { throw new \RuntimeException('not implemented'); }
-            public function loadTranslationRevision(string $entityId, string $langcode, int $revisionId): ?EntityInterface { throw new \RuntimeException('not implemented'); }
-            public function loadTranslationTip(string $entityId, string $langcode): ?EntityInterface { throw new \RuntimeException('not implemented'); }
             public function listTranslationRevisions(string $entityId, string $langcode): array { throw new \RuntimeException('not implemented'); }
-            public function translationLangcodes(string $entityId): array { throw new \RuntimeException('not implemented'); }
         };
     }
 

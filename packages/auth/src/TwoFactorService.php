@@ -85,8 +85,12 @@ final class TwoFactorService
      * A successful recovery match consumes that code (removes it from the
      * user's stored list) and persists the updated user.
      *
-     * Returns false when 2FA is not enabled, the input is empty, or no
-     * stored code matches.
+     * TOTP codes are single-use within their validity window: the time step
+     * a code matches is recorded on the user, and any code whose matched
+     * step is at or below the last recorded step is rejected as a replay.
+     *
+     * Returns false when 2FA is not enabled, the input is empty, the code is
+     * a replay of an already-used TOTP step, or no stored code matches.
      */
     public function verify(User $user, string $code): bool
     {
@@ -95,7 +99,17 @@ final class TwoFactorService
             return false;
         }
 
-        if ($this->manager->verifyCode($secret, $code)) {
+        $matchedStep = $this->manager->verifyCodeStep($secret, $code);
+        if ($matchedStep !== null) {
+            $lastUsedStep = $user->getTwoFactorLastUsedStep();
+            if ($lastUsedStep !== null && $matchedStep <= $lastUsedStep) {
+                // Replay of a code from an already-consumed time step.
+                return false;
+            }
+
+            $user->setTwoFactorLastUsedStep($matchedStep);
+            $this->entityTypeManager->getStorage('user')->save($user);
+
             return true;
         }
 

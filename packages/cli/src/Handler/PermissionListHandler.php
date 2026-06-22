@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Handler;
 
 use Waaseyaa\Access\PermissionHandlerInterface;
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 
 /**
  * @api
@@ -16,7 +16,7 @@ final class PermissionListHandler
         private readonly PermissionHandlerInterface $permissionHandler,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $permissions = $this->permissionHandler->getPermissions();
 

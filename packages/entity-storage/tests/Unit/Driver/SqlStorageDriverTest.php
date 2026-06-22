@@ -644,4 +644,60 @@ final class SqlStorageDriverTest extends TestCase
 
         $this->assertNotSame($first, $second);
     }
+
+    #[Test]
+    public function updateNeverRewritesTheIdColumn(): void
+    {
+        // Pins the deliberate id-exclusion contract in SqlStorageDriver::write()
+        // (#1646, contracts/tool-refusal.md): row identity is immutable through
+        // the storage driver. A hydrated entity carrying a divergent id value
+        // must neither move the row nor create a second one when saved through
+        // the update path keyed on the stored row's identity.
+        $this->driver->write('test_entity', '1', [
+            'id' => 1,
+            'uuid' => 'pin-uuid-1',
+            'label' => 'Original',
+            'bundle' => 'article',
+            'langcode' => 'en',
+            '_data' => '{}',
+        ]);
+
+        // Hydrate the existing row into an entity and set a different id on it.
+        $row = $this->driver->read('test_entity', '1');
+        $this->assertNotNull($row);
+        $entity = new TestStorageEntity($row, 'test_entity', [
+            'id' => 'id',
+            'uuid' => 'uuid',
+            'bundle' => 'bundle',
+            'label' => 'label',
+            'langcode' => 'langcode',
+        ]);
+        $entity->set('id', 999);
+        $entity->set('label', 'Renamed');
+
+        // Update path: the write is keyed on the stored row's id ('1'), the
+        // values bag carries the divergent id (999) — exactly the shape the
+        // exclusion site guards against.
+        $this->driver->write('test_entity', '1', $entity->toArray());
+
+        // Storage state: the original row still exists under id 1, the rest of
+        // the update applied, and the divergent id was dropped (not rewritten).
+        $row1 = $this->driver->read('test_entity', '1');
+        $this->assertNotNull($row1);
+        $this->assertSame(1, (int) $row1['id']);
+        $this->assertSame('Renamed', $row1['label']);
+
+        // No row moved to or was created under the divergent id.
+        $this->assertNull($this->driver->read('test_entity', '999'));
+
+        // No second row appeared — assert directly against the table.
+        $result = $this->database->select('test_entity')
+            ->fields('test_entity', ['id'])
+            ->execute();
+        $ids = [];
+        foreach ($result as $idRow) {
+            $ids[] = (int) $idRow['id'];
+        }
+        $this->assertSame([1], $ids);
+    }
 }

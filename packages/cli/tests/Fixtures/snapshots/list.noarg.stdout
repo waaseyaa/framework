@@ -104,6 +104,7 @@ Available commands:
   type:disable           Disable a registered content type (does not delete it)
   type:enable            Re-enable a previously disabled content type
  user
+  user:assign-role       Assign a registered role to a user and stamp its permissions onto the account
   user:create            Create a new user account
   user:role              Add or remove a role from a user
  waaseyaa

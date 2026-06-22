@@ -19,6 +19,14 @@ import {
  * `admin_surface.*` routes and PHP `AdminSurfaceRoutePaths`.
  */
 export class AdminSurfaceTransportAdapter implements TransportAdapter {
+  /**
+   * In-flight GET requests keyed by `type:id`, so concurrent reads of the same
+   * record share a single network request. Entries are cleared on settle (no
+   * persistent cache), so a read issued after the previous one resolves — e.g.
+   * a refetch after a save — still hits the server.
+   */
+  private readonly inflightGets = new Map<string, Promise<EntityResource>>()
+
   constructor(
     /** Same normalization as the admin plugin (`normalizeAppBaseURL(app.baseURL)`). */
     private readonly normalizedAppBase: string,
@@ -50,11 +58,22 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
   }
 
   async get(type: string, id: string): Promise<EntityResource> {
-    const entity = await this.request<SurfaceEntity>(
+    // Collapse concurrent identical reads. The entity detail page mounts a
+    // viewer/form and a workflow-history widget in the same tick, all needing
+    // the same record — without this they fire duplicate GETs.
+    const key = `${type}:${id}`
+    const inflight = this.inflightGets.get(key)
+    if (inflight !== undefined) return inflight
+
+    const promise = this.request<SurfaceEntity>(
       this.surfaceUrl('admin_surface.get', { type, id }),
       { method: 'GET' },
     )
-    return this.normalizeEntity(entity)
+      .then((entity) => this.normalizeEntity(entity))
+      .finally(() => this.inflightGets.delete(key))
+
+    this.inflightGets.set(key, promise)
+    return promise
   }
 
   async create(type: string, attributes: Record<string, any>): Promise<EntityResource> {

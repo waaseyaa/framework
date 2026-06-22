@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Command\Import;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Migration\Discovery\MigrationRegistry;
 use Waaseyaa\Migration\Exception\MigrationConcurrencyException;
 use Waaseyaa\Migration\MigrationIdMap;
@@ -55,7 +55,7 @@ final class ImportRollbackCommand
         private readonly \Closure $lockFactory,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $migrationId = $io->argument('migration_id');
         if (!\is_string($migrationId) || $migrationId === '') {
@@ -103,7 +103,7 @@ final class ImportRollbackCommand
         }
     }
 
-    private function renderReport(CliIO $io, RollbackReport $report): void
+    private function renderReport(SymfonyCommandIO $io, RollbackReport $report): void
     {
         $io->writeln($report->summaryLine());
 

@@ -17,9 +17,9 @@ use Waaseyaa\AI\Agent\Enum\RunStatus;
 use Waaseyaa\AI\Agent\Repository\AgentAuditLogRepository;
 use Waaseyaa\AI\Agent\Repository\AgentRunRepository;
 use Waaseyaa\CLI\Command\Ai\AiPurgeRunsCommand;
-use Waaseyaa\CLI\CommandDefinition;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
@@ -255,15 +255,15 @@ final class AiPurgeRunsCommandTest extends TestCase
         );
     }
 
-    private function commandDefinition(): CommandDefinition
+    private function commandDefinition(): HandlerCommand
     {
-        return new CommandDefinition(
+        return new HandlerCommand(
             name: 'ai:purge-runs',
             description: 'Purge old AgentRun + AgentAuditLog rows (FR-006).',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'retention-days',
-                    mode: OptionMode::Required,
+                    mode: HandlerOptionMode::Required,
                     default: '',
                 ),
             ],

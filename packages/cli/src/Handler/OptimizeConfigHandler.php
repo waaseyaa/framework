@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Config\Cache\ConfigCacheCompiler;
 
 final class OptimizeConfigHandler
@@ -13,7 +13,7 @@ final class OptimizeConfigHandler
         private readonly ConfigCacheCompiler $compiler,
     ) {}
 
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $data = $this->compiler->compileAndCache();
 

@@ -6,6 +6,9 @@ namespace Waaseyaa\User\Tests\Unit;
 
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\Validation\EntityTypeValidationConstraints;
+use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\User\User;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
@@ -303,6 +306,25 @@ final class UserTest extends TestCase
 
         $user->setActive(true);
         $this->assertTrue($user->isActive());
+    }
+
+    public function testSetActiveResultValidatesUnderDerivedBooleanConstraints(): void
+    {
+        // #1655: setActive() writes 0/1 by design ($status has deliberately
+        // NO bool cast — "status stays 0/1 in storage and in get()/validate()").
+        // The constraints derived from User's own field definitions must accept
+        // what the framework's own accessor produces; alpha.204's Type('bool')
+        // rejected it and broke every save after setActive().
+        $constraints = EntityTypeValidationConstraints::forEntityType(EntityType::fromClass(User::class));
+        $validator = EntityValidator::createDefault();
+
+        $user = User::make(['name' => 'pat', 'mail' => 'pat@example.com']);
+
+        $user->setActive(true);
+        $this->assertCount(0, $validator->validate($user, $constraints));
+
+        $user->setActive(false);
+        $this->assertCount(0, $validator->validate($user, $constraints));
     }
 
     // -----------------------------------------------------------------

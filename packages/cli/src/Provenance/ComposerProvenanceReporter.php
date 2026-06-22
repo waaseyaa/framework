@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Provenance;
 
-use Waaseyaa\CLI\Io\CliOutput;
-use Waaseyaa\CLI\Io\StreamCliOutput;
-
 /**
  * Inspects composer.json / composer.lock for waaseyaa/* provenance (path SHA, versions, drift).
  * @api
@@ -33,7 +30,7 @@ final class ComposerProvenanceReporter
         if ($json) {
             fwrite(STDOUT, json_encode($report->toArray(), JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . "\n");
         } else {
-            self::printHuman($report, new StreamCliOutput(STDOUT));
+            self::printHuman($report);
         }
 
         if ($reportOnly) {
@@ -286,36 +283,42 @@ final class ComposerProvenanceReporter
     }
 
     /**
-     * Print a human-readable provenance report using native CliIO.
+     * Print a human-readable provenance report.
+     *
+     * @param null|\Closure(string): void $writeLine
      */
-    public static function printHuman(ProvenanceReport $report, CliOutput $out): void
+    public static function printHuman(ProvenanceReport $report, ?\Closure $writeLine = null): void
     {
-        $out->writeln('Waaseyaa framework provenance');
-        $out->writeln('Project root: ' . $report->projectRootDisplay());
-        $out->writeln('');
+        $out = $writeLine ?? static function (string $line): void {
+            fwrite(STDOUT, $line . "\n");
+        };
+
+        $out('Waaseyaa framework provenance');
+        $out('Project root: ' . $report->projectRootDisplay());
+        $out('');
 
         if ($report->goldenSha !== null) {
-            $out->writeln('Golden SHA: ' . $report->goldenSha);
+            $out('Golden SHA: ' . $report->goldenSha);
         } else {
-            $out->writeln('Golden SHA: (not set — WAASEYAA_GOLDEN_SHA or .waaseyaa-golden-sha)');
+            $out('Golden SHA: (not set — WAASEYAA_GOLDEN_SHA or .waaseyaa-golden-sha)');
         }
 
         if ($report->pathMonorepoHead !== null) {
-            $out->writeln('Path monorepo HEAD: ' . $report->pathMonorepoHead);
+            $out('Path monorepo HEAD: ' . $report->pathMonorepoHead);
         } elseif ($report->hasPathInstalls()) {
-            $out->writeln('Path monorepo HEAD: (unresolved — run from project with path deps and git available)');
+            $out('Path monorepo HEAD: (unresolved — run from project with path deps and git available)');
         } else {
-            $out->writeln('Path monorepo HEAD: (no path installs in lockfile)');
+            $out('Path monorepo HEAD: (no path installs in lockfile)');
         }
 
-        $out->writeln('');
-        $out->writeln('composer.json waaseyaa/* constraint patterns: ' . count($report->uniqueConstraints));
+        $out('');
+        $out('composer.json waaseyaa/* constraint patterns: ' . count($report->uniqueConstraints));
         foreach ($report->uniqueConstraints as $c) {
-            $out->writeln('  - ' . $c);
+            $out('  - ' . $c);
         }
 
-        $out->writeln('');
-        $out->writeln('Resolved waaseyaa/* (composer.lock):');
+        $out('');
+        $out('Resolved waaseyaa/* (composer.lock):');
         foreach ($report->packages as $p) {
             $line = sprintf(
                 '  %-28s %-18s %s',
@@ -326,16 +329,16 @@ final class ComposerProvenanceReporter
             if ($p->gitHead !== null) {
                 $line .= ' head=' . $p->gitHead;
             }
-            $out->writeln($line);
+            $out($line);
         }
 
-        $out->writeln('');
-        $out->writeln('Drift summary:');
+        $out('');
+        $out('Drift summary:');
         if ($report->driftMessages === []) {
-            $out->writeln('  (none)');
+            $out('  (none)');
         } else {
             foreach ($report->driftMessages as $m) {
-                $out->writeln('  - ' . $m);
+                $out('  - ' . $m);
             }
         }
     }

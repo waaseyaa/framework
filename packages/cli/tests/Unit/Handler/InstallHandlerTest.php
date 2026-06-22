@@ -7,10 +7,10 @@ namespace Waaseyaa\CLI\Tests\Unit\Handler;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\InstallHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Config\ConfigManagerInterface;
 use Waaseyaa\Config\StorageInterface;
@@ -21,16 +21,16 @@ use Waaseyaa\Entity\Storage\EntityStorageInterface;
 #[CoversClass(InstallHandler::class)]
 final class InstallHandlerTest extends TestCase
 {
-    private function makeDefinition(InstallHandler $handler): CommandDefinition
+    private function makeDefinition(InstallHandler $handler): HandlerCommand
     {
-        return new CommandDefinition(
+        return new HandlerCommand(
             name: 'install',
             description: 'Install Waaseyaa with initial configuration',
             options: [
-                new OptionDefinition(name: 'site-name', mode: OptionMode::Required, description: 'The name of the site', default: 'Waaseyaa'),
-                new OptionDefinition(name: 'site-mail', mode: OptionMode::Required, description: 'Site email address', default: 'admin@example.com'),
-                new OptionDefinition(name: 'admin-email', mode: OptionMode::Required, description: 'Admin user email', default: 'admin@example.com'),
-                new OptionDefinition(name: 'admin-password', mode: OptionMode::Required, description: 'Admin user password'),
+                new HandlerOption(name: 'site-name', mode: HandlerOptionMode::Required, description: 'The name of the site', default: 'Waaseyaa'),
+                new HandlerOption(name: 'site-mail', mode: HandlerOptionMode::Required, description: 'Site email address', default: 'admin@example.com'),
+                new HandlerOption(name: 'admin-email', mode: HandlerOptionMode::Required, description: 'Admin user email', default: 'admin@example.com'),
+                new HandlerOption(name: 'admin-password', mode: HandlerOptionMode::Required, description: 'Admin user password'),
             ],
             handler: \Closure::fromCallable([$handler, 'execute']),
         );

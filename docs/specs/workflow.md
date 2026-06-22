@@ -119,16 +119,25 @@ The workflow:
 
 1. Validates semver shape (same regex as the legacy script).
 2. Guards `v1.0*` tags against missing `release-approvals/v1.0.approved` (same gate `split.yml` runs after the fact — fails earlier).
-3. Verifies the tag does not already exist (locally or on origin).
-4. Verifies `CHANGELOG.md` has a `[Unreleased]` section with content.
-5. Mutates the changelog: renames `[Unreleased]` → `[X.Y.Z] - YYYY-MM-DD`, inserts fresh `[Unreleased]`.
-6. Commits as `github-actions[bot]`, tags annotated, pushes commit + tag using `SPLIT_GITHUB_TOKEN`.
+3. **Gate 1: requires green CI on the release base.** `bin/wait-for-green-ci` polls the Actions API for a completed, successful `ci.yml` run at main HEAD. A red base fails the cut before anything is mutated.
+4. Verifies the tag does not already exist (locally or on origin).
+5. Verifies `CHANGELOG.md` has a `[Unreleased]` section with content.
+6. Mutates the changelog: renames `[Unreleased]` → `[X.Y.Z] - YYYY-MM-DD`, inserts fresh `[Unreleased]`; syncs internal `waaseyaa/*` constraints; stamps `VERSION`.
+7. Commits as `github-actions[bot]` and pushes the release commit to a throwaway gate branch (`release-cut/<version>`) — **not** to main.
+8. **Gate 2: requires green CI on the exact commit being tagged.** Dispatches `ci.yml` on the gate branch (it has a `workflow_dispatch` trigger for this) and waits for a green conclusion at the release commit's SHA.
+9. Only then creates the annotated tag and pushes main fast-forward + tag in one **atomic** push using `SPLIT_GITHUB_TOKEN`. The gate branch is deleted either way.
+
+**A tag cannot exist without green Linux CI at that exact SHA.** This is the systemic fix from the alpha.200–202 red-at-tag post-mortem: red jobs (the alpha.200 b1 interface stub, the alpha.202 integration-test misses, the three-release-red `ci/skeleton-create-project` job) can no longer ride into a tagged release, and there is no "the fix will go out in the next cut" path — the cut simply refuses.
+
+Failure recovery is clean by construction: if either gate fails, main is untouched and no tag exists. Fix main (normal commits, normal CI), then re-run the cut with the same version. If the final atomic push is rejected because main advanced during the gate, nothing was tagged — re-run the cut.
 
 The push must use the `SPLIT_GITHUB_TOKEN` PAT, not the default `GITHUB_TOKEN`, because tag pushes by `GITHUB_TOKEN` do **not** trigger downstream workflows — and `split.yml` + `packagist-update.yml` are exactly what we need to fire.
 
-`scripts/release.sh` is preserved as a fallback for emergency local releases (offline, broken Actions runners) but is no longer the canonical path. The interactive `Create GitHub release? [y/N]` prompt in the script is redundant — `split.yml`'s `publish-github-release` job creates the GitHub Release on every tag.
+**Local gate runs are advisory only.** Pre-cut checks that matter run Linux-side in CI; a green local run (especially on Windows) proves nothing about the release — Windows masked both the `packages/`-scoped grep miss and platform-conditional test failures during the alpha.200–202 cuts, and local git hooks may not even be installed (`core.hooksPath` is unset on fresh clones). Never treat a local `composer verify`/phpunit pass as authorization to cut; the Actions API is the authority, and `bin/wait-for-green-ci` is how every release path consults it.
 
-Filed as #1385 after the alpha.171 cut for #1382 surfaced the manual-release friction.
+The legacy `scripts/release.sh` local-release script has been **removed** (alpha.234) — the `Cut Release` workflow is the only supported path. It could not CI-prove the exact release commit the way the workflow's gate branch does (it only enforced Gate 1 on the base via `bin/wait-for-green-ci`), and a local cut on Windows was an active footgun. There is no local fallback: cut releases through CI.
+
+Filed as #1385 after the alpha.171 cut for #1382 surfaced the manual-release friction; CI gates added after the alpha.200–202 red-at-tag incident (2026-06-10).
 
 ## Release Tag Parity
 

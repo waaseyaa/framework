@@ -21,7 +21,7 @@ use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
 /**
  * Full lifecycle integration test matching the spec's example scenario.
  *
- * @see docs/superpowers/specs/2026-03-21-revision-lifecycle-design.md Section F
+ * @see docs/history/superpowers/specs/2026-03-21-revision-lifecycle-design.md Section F
  */
 #[CoversNothing]
 final class RevisionLifecycleIntegrationTest extends TestCase

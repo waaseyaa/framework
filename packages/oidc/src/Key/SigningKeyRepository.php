@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\Oidc\Key;
 
 use DateTimeImmutable;
-use RuntimeException;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Oidc\Keys\OpenSslKeyFactory;
 use Waaseyaa\Oidc\Keys\SigningKey;
 
 /**
@@ -15,6 +15,13 @@ use Waaseyaa\Oidc\Keys\SigningKey;
  * Rotation policy: keep current (rotated_out_at IS NULL) + one previous.
  * Older keys are pruned atomically on each rotate() call.
  * Auto-bootstraps a first key on empty table so cold-start auth requests succeed.
+ *
+ * Secrets at rest: the RSA private key PEM is stored unencrypted in
+ * `private_key_pem` and must remain plaintext at signing time (IdTokenMinter),
+ * so confidentiality relies on the database trust boundary. KMS/app-key
+ * encryption is tracked hardening (audit D-13) deferred because it requires
+ * encryption-key bootstrap and rotation; see packages/oidc/README.md
+ * "Secrets at rest".
  *
  * @api
  */
@@ -109,30 +116,9 @@ final class SigningKeyRepository
             [$nowTs],
         );
 
-        // Generate new RS256 keypair
-        $resource = openssl_pkey_new([
-            'private_key_bits' => 2048,
-            'private_key_type' => OPENSSL_KEYTYPE_RSA,
-        ]);
-
-        if ($resource === false) {
-            throw new RuntimeException('Failed to generate RSA keypair: ' . openssl_error_string());
-        }
-
-        $privateKeyPem = '';
-        if (!openssl_pkey_export($resource, $privateKeyPem)) {
-            throw new RuntimeException('Failed to export private key PEM: ' . openssl_error_string());
-        }
-
-        $details = openssl_pkey_get_details($resource);
-        if ($details === false) {
-            throw new RuntimeException('Failed to get public key details.');
-        }
-
-        $publicKeyPem = (string) ($details['key'] ?? '');
-        if ($publicKeyPem === '') {
-            throw new RuntimeException('Empty public key PEM.');
-        }
+        $keyPair = new OpenSslKeyFactory()->generateRsaKeyPair();
+        $privateKeyPem = $keyPair['private'];
+        $publicKeyPem = $keyPair['public'];
 
         $kid = $this->uuid();
 

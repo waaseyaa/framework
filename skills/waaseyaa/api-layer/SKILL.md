@@ -360,5 +360,5 @@ assert(is_bool($result['notModified']));
 
 - `docs/specs/api-layer.md` -- Full API layer specification with interface signatures, value objects, and detailed behavior documentation
 - `CLAUDE.md` -- Project-wide gotchas including paired nullables, LIKE escaping, access result semantics, and JSON symmetry
-- `docs/plans/2026-03-01-admin-spa-completion.md` -- Admin SPA completion plan including autocomplete search (CONTAINS/STARTS_WITH) and SSE broadcasting
-- `docs/plans/2026-02-28-aurora-architecture-v2-design.md` -- Architecture v2 design with API evolution plans
+- `docs/history/plans/2026-03-01-admin-spa-completion.md` -- Admin SPA completion plan including autocomplete search (CONTAINS/STARTS_WITH) and SSE broadcasting
+- `docs/history/plans/2026-02-28-aurora-architecture-v2-design.md` -- Architecture v2 design with API evolution plans

@@ -10,10 +10,6 @@ use Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
 use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Foundation\Discovery\PackageManifest;
-use Waaseyaa\Foundation\Kernel\Bootstrap\AccessPolicyRegistry;
-use Waaseyaa\Foundation\Kernel\Bootstrap\KernelPolicyDependencyResolver;
-use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
@@ -197,27 +193,21 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
             ->build());
     }
 
+    /**
+     * Use the kernel's already-built access handler — the same in-memory handler
+     * the SSR/MCP/JSON:API paths use, carrying the framework defaults
+     * (PublishedContentAccessPolicy, ContentAdminAccessPolicy) and every
+     * discovered per-type policy. In dev it is fresh-compiled per request, so the
+     * admin surface tracks newly added types/policies with no `optimize:manifest`.
+     *
+     * Returns null only if the kernel-services bus is unavailable or has not yet
+     * built the handler; the host fails closed in that case (denies + filters
+     * everything) rather than serving entities unchecked.
+     */
     private function discoverAccessHandler(): ?EntityAccessHandler
     {
-        $path = $this->projectRoot . '/storage/framework/packages.php';
-        if (!is_file($path)) {
-            return null;
-        }
+        $handler = $this->kernelServices?->get(EntityAccessHandler::class);
 
-        try {
-            /** @var array<string, mixed> $data */
-            $data = require $path;
-            $manifest = PackageManifest::fromArray($data);
-        } catch (\Throwable) {
-            return null;
-        }
-
-        $resolver = $this->kernelServices !== null
-            ? new KernelPolicyDependencyResolver($this->kernelServices)
-            : null;
-
-        $registry = new AccessPolicyRegistry(new NullLogger(), $resolver);
-
-        return $registry->discover($manifest);
+        return $handler instanceof EntityAccessHandler ? $handler : null;
     }
 }

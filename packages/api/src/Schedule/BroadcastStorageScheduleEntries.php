@@ -44,7 +44,10 @@ final class BroadcastStorageScheduleEntries implements ScheduleEntriesInterface
     public function register(ScheduleInterface $schedule): array
     {
         if ($this->broadcastStorage === null) {
-            $this->logger->warning(
+            // Unbound BroadcastStorage is the normal state for apps that do not opt
+            // into SSE broadcasting, so this is debug (not warning) to avoid noise on
+            // every schedule discovery. Apps that DO want pruning bind it. (#1603)
+            $this->logger->debug(
                 'BroadcastStorageScheduleEntries: BroadcastStorage not bound; '
                 . 'broadcast_log_prune task will not be registered. '
                 . 'Bind Waaseyaa\\Api\\Controller\\BroadcastStorage in a ServiceProvider to enable pruning.',

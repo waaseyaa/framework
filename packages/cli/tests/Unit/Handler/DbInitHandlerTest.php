@@ -8,10 +8,10 @@ use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\CLI\CommandDefinition;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\DbInitHandler;
-use Waaseyaa\CLI\OptionDefinition;
-use Waaseyaa\CLI\OptionMode;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 
 #[CoversClass(DbInitHandler::class)]
@@ -42,8 +42,9 @@ final class DbInitHandlerTest extends TestCase
         $dbPath = $this->projectRoot . '/storage/waaseyaa.sqlite';
         $this->assertFileDoesNotExist($dbPath);
 
+        // Migration mechanics only — schema sync is exercised separately below.
         $tester = $this->createTester();
-        $tester->execute([]);
+        $tester->executeMap(['--no-sync-schema' => true]);
 
         $this->assertSame(0, $tester->getExitCode());
         $this->assertFileExists($dbPath);
@@ -52,21 +53,55 @@ final class DbInitHandlerTest extends TestCase
 
         $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $dbPath]);
         $this->assertTrue($connection->createSchemaManager()->tablesExist(['waaseyaa_migrations']));
+        $connection->close();
     }
 
     #[Test]
     public function rerunOnInitializedDatabaseIsIdempotent(): void
     {
-        // First run.
-        $this->createTester()->execute([]);
+        // First run (migrations only — schema sync is exercised separately).
+        $this->createTester()->executeMap(['--no-sync-schema' => true]);
 
         // Second run.
         $tester = $this->createTester();
-        $tester->execute([]);
+        $tester->executeMap(['--no-sync-schema' => true]);
 
         $this->assertSame(0, $tester->getExitCode());
         $this->assertStringContainsString('Database already present', $tester->getStdout());
         $this->assertStringContainsString('No pending migrations', $tester->getStdout());
+    }
+
+    // ----- P0-3 (wayfinding-stress-remediation-01KVGK4Q): a fresh db:init must
+    // provision entity-storage schema BY DEFAULT, not just migration tables.
+    // The schema-creation result for the trail's two-axis shape is proven in
+    // entity-storage (TwoAxisSchemaSyncProvisionTest); here we prove the db:init
+    // WIRING: schema sync runs by default and is skipped only by --no-sync-schema.
+
+    #[Test]
+    public function noSyncSchemaRunsMigrationsOnlyAndSucceeds(): void
+    {
+        $tester = $this->createTester();
+        $tester->executeMap(['--no-sync-schema' => true]);
+
+        $this->assertSame(0, $tester->getExitCode());
+        $this->assertStringContainsString('Database ready', $tester->getStdout());
+        $this->assertStringNotContainsString('Schema sync', $tester->getStdout());
+    }
+
+    #[Test]
+    public function schemaSyncRunsByDefault(): void
+    {
+        // The default path runs schema sync, which boots a console kernel to
+        // enumerate registered entity types. This minimal project root registers
+        // no content types, so that boot is rejected by the kernel's
+        // content-type guard — which is exactly the evidence that schema sync IS
+        // attempted by default (the --no-sync-schema run above skips it and
+        // succeeds). A real app boots cleanly and provisions every entity table.
+        $tester = $this->createTester();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('No content types are registered');
+        $tester->execute([]);
     }
 
     #[Test]
@@ -103,7 +138,7 @@ final class DbInitHandlerTest extends TestCase
     #[Test]
     public function dryRunOnInitializedDatabaseReportsPending(): void
     {
-        $this->createTester()->execute([]);
+        $this->createTester()->executeMap(['--no-sync-schema' => true]);
 
         $tester = $this->createTester();
         $tester->executeMap(['--dry-run' => true]);
@@ -157,17 +192,81 @@ final class DbInitHandlerTest extends TestCase
         }
     }
 
+    // ----- Mission request-surface-hardening (#1650) WP02: path parity -----
+    // db:init must resolve through the kernel's canonical resolver: relative
+    // config values absolutize against the project root (verbatim before),
+    // and Windows absolutes pass through (only `/`-prefixed before).
+
+    #[Test]
+    public function dryRunResolvesRelativeConfigValueAgainstProjectRoot(): void
+    {
+        file_put_contents(
+            $this->projectRoot . '/config/waaseyaa.php',
+            "<?php return ['environment' => 'production', 'database' => './storage/rel.sqlite'];\n",
+        );
+
+        $tester = $this->createTester();
+        $tester->executeMap(['--dry-run' => true]);
+
+        $this->assertSame(0, $tester->getExitCode());
+        $this->assertStringContainsString(
+            'Database path: ' . $this->projectRoot . '/storage/rel.sqlite',
+            $tester->getStdout(),
+        );
+    }
+
+    #[Test]
+    public function dryRunLeavesWindowsDriveLetterConfigValueUntouched(): void
+    {
+        file_put_contents(
+            $this->projectRoot . '/config/waaseyaa.php',
+            "<?php return ['environment' => 'production', 'database' => 'C:\\\\data\\\\win.sqlite'];\n",
+        );
+
+        $tester = $this->createTester();
+        $tester->executeMap(['--dry-run' => true]);
+
+        $this->assertStringContainsString('Database path: C:\\data\\win.sqlite', $tester->getStdout());
+    }
+
+    #[Test]
+    public function dryRunResolvesClimbingEnvValueAgainstProjectRoot(): void
+    {
+        file_put_contents(
+            $this->projectRoot . '/config/waaseyaa.php',
+            "<?php return ['environment' => 'production'];\n",
+        );
+        putenv('WAASEYAA_DB=../escape.sqlite');
+
+        try {
+            $tester = $this->createTester();
+            $tester->executeMap(['--dry-run' => true]);
+
+            $this->assertStringContainsString(
+                'Database path: ' . $this->projectRoot . '/../escape.sqlite',
+                $tester->getStdout(),
+            );
+        } finally {
+            putenv('WAASEYAA_DB');
+        }
+    }
+
     private function createTester(): CliTester
     {
         $handler = new DbInitHandler(projectRoot: $this->projectRoot);
-        $definition = new CommandDefinition(
+        $definition = new HandlerCommand(
             name: 'db:init',
             description: 'Initialize the database on first deploy and apply pending migrations.',
             options: [
-                new OptionDefinition(
+                new HandlerOption(
                     name: 'dry-run',
-                    mode: OptionMode::None,
+                    mode: HandlerOptionMode::None,
                     description: 'Show what would happen without creating files or running migrations.',
+                ),
+                new HandlerOption(
+                    name: 'no-sync-schema',
+                    mode: HandlerOptionMode::None,
+                    description: 'Skip entity-schema materialization and run migrations only.',
                 ),
             ],
             handler: \Closure::fromCallable([$handler, 'execute']),
@@ -190,9 +289,14 @@ final class DbInitHandlerTest extends TestCase
             new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
             \RecursiveIteratorIterator::CHILD_FIRST,
         );
+        // Best-effort cleanup: the default-sync test boots a ConsoleKernel whose
+        // services hold SQLite handles freed only by the GC cycle collector, so
+        // on Windows the WAL/SHM files can still be locked at teardown. The leak
+        // is process-local and harmless (POSIX unlink-open-file just works on the
+        // Linux CI). Don't let temp-dir cleanup fail the test.
         foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
+            $item->isDir() ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
         }
-        rmdir($dir);
+        @rmdir($dir);
     }
 }

@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "mission_slug": "request-surface-hardening-01KTX7F2",
+  "mission_id": "01KTX7F2490VAKTFP9PSHCJXVB",
+  "mission_branch": "kitty/mission-request-surface-hardening-01KTX7F2",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01",
+        "WP02",
+        "WP03"
+      ],
+      "write_scope": [
+        "CHANGELOG.md",
+        "docs/specs/api-layer.md",
+        "docs/specs/infrastructure.md",
+        "docs/specs/mcp-endpoint.md",
+        "packages/api/src/ApiDiscoveryController.php",
+        "packages/api/src/Http/Router/DiscoveryRouter.php",
+        "packages/api/src/JsonApiController.php",
+        "packages/api/tests/Unit/ApiDiscoveryControllerTest.php",
+        "packages/api/tests/Unit/Http/Router/DiscoveryRouterTest.php",
+        "packages/api/tests/Unit/JsonApiControllerAccessControlTest.php",
+        "packages/api/tests/Unit/JsonApiControllerDeniedNotFoundTest.php",
+        "packages/cli/src/Handler/AboutHandler.php",
+        "packages/cli/src/Handler/DbInitHandler.php",
+        "packages/cli/src/Handler/HealthReportHandler.php",
+        "packages/cli/tests/Unit/Handler/AboutHandlerTest.php",
+        "packages/cli/tests/Unit/Handler/DbInitHandlerTest.php",
+        "packages/cli/tests/Unit/Handler/HealthReportHandlerTest.php",
+        "packages/entity/src/EntityType.php",
+        "packages/entity/tests/Unit/EntityTypeDiscoverableTest.php",
+        "packages/foundation/src/Kernel/AbstractKernel.php",
+        "packages/foundation/src/Kernel/Bootstrap/DatabaseBootstrapper.php",
+        "packages/foundation/tests/Unit/Kernel/Bootstrap/DatabaseBootstrapperTest.php",
+        "packages/mcp/src/Auth/BearerTokenAuth.php",
+        "packages/mcp/tests/Unit/Auth/BearerTokenAuthHardeningTest.php",
+        "packages/mcp/tests/Unit/Auth/BearerTokenAuthTest.php",
+        "tests/Integration/DbPath/DbPathResolutionTest.php",
+        "tests/Integration/Phase7/ApiDiscoveryIntegrationTest.php"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "tests"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-06-12T06:41:51.458717+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": [],
+  "collapse_report": {
+    "events": [
+      {
+        "wp_a": "WP02",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP02 depends on WP01"
+      },
+      {
+        "wp_a": "WP03",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP03 depends on WP01"
+      }
+    ],
+    "total_merges": 2,
+    "independent_wps_collapsed": 0,
+    "by_rule": {
+      "dependency": 2
+    }
+  }
+}

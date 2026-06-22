@@ -1,5 +1,9 @@
 # Access Control
 
+<!-- Spec reviewed 2026-06-15 - B-1 (security): UserAccessPolicy now implements FieldAccessPolicyInterface — roles/permissions/status/email_verified are Forbidden on 'edit' without 'administer users' (even on one's own account), and pass/two_factor_secret/two_factor_recovery_codes_hash are Forbidden on the generic field surface, closing a JSON:API write path where an authenticated user editing their own account could set privileged fields. The field-access mechanism (FieldAccessPolicyInterface, open-by-default; see field-access.md) is unchanged — this is an entity policy that uses it. Pinned by UserAccessPolicyTest. -->
+
+<!-- Spec reviewed 2026-06-12 - #1655 companion: User::email_verified #[Field] declared required: false — the NotNull inference from the non-nullable bool property was inert before save-time validation went live (alpha.204) and no write path supplies the field; account contracts otherwise unchanged. -->
+<!-- Spec reviewed 2026-06-12 - mission revision-audit-provenance-01KTWY5V WP05: new request-scoped acting-account context — Waaseyaa\Access\Context\AccountContextInterface + RequestAccountContext (three-state actor model: account N / anonymous 0 / null = no acting context, never coerced). One kernel-shared instance (AbstractKernel::accountContext()) exposed via the kernel-services bus, the handler container, the repository factory (EntityRepository::setAccountContext) and HttpKernel's SessionMiddleware wiring; writers are SessionMiddleware (unconditional per-request overwrite, incl. bearer-auth accounts), McpEndpoint and AgentExecutor (set/restore in finally); readers are entity-storage revision_author resolution (SaveContext::withActorUid override wins) and the audit listeners. SessionMiddleware constructor gained ?AccountContextInterface. Refs #1644, #1645. -->
 <!-- Spec reviewed 2026-06-04 - PR #1614: the local dev-fallback admin account (`Waaseyaa\User\DevAdminAccount`) is gated by `HttpKernel::shouldUseDevFallbackAccount()` — a development `APP_ENV` plus the explicit `auth.dev_fallback_account` opt-in are the real gates, with the `cli-server` SAPI check kept only as a secondary safety belt so the FrankenPHP worker runtime can also use it. No change to the access-decision pipeline, policies, or field-access semantics. -->
 <!-- Spec reviewed 2026-05-20 - updated for M-B container-resolved registry (PolicyDependencyResolverInterface), fail-closed CI gate (bin/check-getquery-bindings), and WP05 retro regression tests. -->
 <!-- Spec reviewed 2026-05-20 - post-#1525 sweep caught two more #1495 misses: SitemapGenerator::collectFromEntityTypes() (sitemap generation is anonymous-served by definition; same shape as PathAliasResolver) and UserBlockService::isBlocked() (block-relationship existence is an integrity primitive; same shape as RelationshipValidator). Both opt out via accessCheck(false) with C-004 inline references; audit doc updated. No change to access pipeline, gate logic, or access semantics. -->
@@ -95,6 +99,8 @@ interface AccountInterface
 ```
 
 **Critical:** `AccountInterface` lives in the `access` package, not `user`. The `User` entity and `AnonymousUser` live in `packages/user/`. Access must never depend on User to avoid circular package dependencies. Middleware needing an account should type-hint `AccountInterface`, not concrete `AnonymousUser`.
+
+**Accepted same-layer cycle (`access` ↔ `entity`):** `access` depends on `entity` for the core contracts it authorizes over (`EntityInterface` and siblings — 8 files / 11 imports). `entity` depends back on `access` for exactly **one** reverse symbol: `Waaseyaa\Access\AccountInterface`, imported only by `EntityQueryInterface::setAccount(?AccountInterface)` so a query can carry the requesting account for access-aware filtering. This 2-cycle is **accepted and deliberately not broken**: extracting `AccountInterface` to a Layer-0 package would be the textbook fix, but `AccountInterface` is public surface (`docs/public-surface-map.php`), so a namespace move is semver-breaking across ~250 callsites — net-negative against a one-symbol, query-time binding. The package-layer gate fails only on *upward* edges; this same-layer edge (and the framework's two other accepted same-layer 2-cycles, `foundation` ↔ `queue` and `ai-agent` ↔ `ai-observability`) is surfaced as a warn-only **`WARN [PL006]`** by `bin/check-package-layers` so a *new* reverse edge becomes visible rather than growing silently.
 
 ## Access Result Semantics
 
@@ -427,6 +433,18 @@ Permissions are declared in `composer.json` under `extra.waaseyaa.permissions` a
 }
 ```
 
+## Roles
+
+**Files:** `packages/user/src/Role.php`, `packages/user/src/RoleRepository.php`
+**Namespace:** `Waaseyaa\User`
+
+A role groups a set of permissions under a single machine name. `Role` is a `final readonly` value object with four fields: `id` (machine name), `label` (human-readable), `permissions` (string[], the permissions the role grants), and `weight` (ordering). Roles are contributed by service providers implementing `Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface` and collected into `RoleRepository`, an id-keyed registry built via `RoleRepository::fromProviders($providers)` (later providers win on duplicate ids). See `docs/specs/package-discovery.md` for the discovery contract.
+
+Two CLI commands attach roles to a user, and they differ in what they write:
+
+- `user:role <user_id> <role>` only appends the role string to the user's `roles` array. Because `User::hasPermission()` reads the flat `permissions` array (and only the `administrator` role is special-cased), a non-administrator role added this way grants **no** permissions.
+- `user:assign-role <user_id> <role> [--remove]` resolves the role from `RoleRepository` and recomputes the user's flat `permissions` as the **union** of the permissions of every registry-known role the user holds after the change, so multiple roles compose. Roles not present in the registry keep their string membership but contribute no permissions. `--remove` drops the role and recomputes the union without it.
+
 ## Enforcement Layers
 
 Access enforcement runs at four distinct layers. Each layer is independent — the request must pass every applicable check.
@@ -438,7 +456,9 @@ Access enforcement runs at four distinct layers. Each layer is independent — t
 | 3 | **Entity (query) — NEW (mission `sql-entity-query-access-checking-01KRYP15`, #1495)** | `SqlEntityQuery::execute()` runs `EntityAccessHandler::check($entity, 'view', $account)` for every candidate row | Same `AccessPolicyInterface` pipeline as layer 2, applied per-row at query time | Cardinality and rows returned by entity queries (count + list) |
 | 4 | **Field** | `EntityAccessHandler::filterFields(EntityInterface, fieldNames, $operation, AccountInterface)` invoked by `ResourceSerializer` | `FieldAccessPolicyInterface::fieldAccess()` policies | Individual fields on an entity — open-by-default (only `Forbidden` removes) |
 
-Layer 2 uses **deny-by-default** semantics (`$result->isAllowed()`); layer 4 uses **open-by-default** semantics (`!$result->isForbidden()`). Layer 3 inherits layer 2's `view`-policy decisions but filters rather than throws — `Allowed` and `Neutral` both admit a row, `Forbidden` drops it. This asymmetry is intentional (see `docs/specs/field-access.md`).
+Layer 2 (entity handler / controllers) and the serializers are the **deny-by-default** enforcement points (`$result->isAllowed()`): they are wired with the composed `EntityAccessHandler` (all discovered policies) by `HttpKernel`, and they re-filter every result — both the page items and the totals. JSON:API uses `JsonApiController::accessFilteredTotal` for the total and `isAllowed()` for items; GraphQL uses `GraphQlAccessGuard::canView` for items and, since #1702 (audit C-7), `EntityResolver::resolveList` recomputes its `total` with that same `canView()` predicate across all matching rows (previously the GraphQL `total` was the open-by-default storage `COUNT`, leaking restricted-collection cardinality). The ai-vector `SearchController`, `GenericAdminSurfaceHost`, and the ai-tools entity tools likewise re-filter. Layer 4 (field) is **open-by-default** (`!$result->isForbidden()`).
+
+Layer 3 (query) is an **unfiltered candidate window**, not an independent enforcement point. Its per-row survivor test admits `Allowed` *and* `Neutral` (only `Forbidden` drops a row), and — critically — **production storage is constructed without an access handler** (`EntityStorageFactory` and `AbstractKernel` build `SqlEntityStorage` with `accessHandler: null`; the WP03 end-to-end wiring was deferred and is not active), so `SqlEntityQuery::getQuery()` falls back to an empty handler and every candidate resolves to `Neutral` → the query returns the whole candidate set. Deny-by-default is therefore applied by the Layer-2/serializer consumers that read those candidates, never by the query layer itself. See `docs/specs/field-access.md` for the field-level asymmetry.
 
 ### Layer 3 contract details
 
@@ -446,9 +466,11 @@ Layer 2 uses **deny-by-default** semantics (`$result->isAllowed()`); layer 4 use
 - **Account binding:** Call `$query->setAccount($account)` before `execute()` to bind the request's authenticated account. `EntityQueryInterface::setAccount(?AccountInterface): static` is required on every implementation.
 - **Fail-closed:** When `accessCheck(true)` is active and no account is bound, `execute()` throws `Waaseyaa\EntityStorage\Exception\MissingQueryAccountException`. This is the v1 default — the query layer cannot silently leak rows.
 - **System-context opt-out:** `$query->accessCheck(false)` preserves the pre-mission behaviour (no per-row filter, no account required). Every remaining call site is audited at [`docs/security/sql-entity-query-access-check-bypass-audit.md`](../security/sql-entity-query-access-check-bypass-audit.md); new bypasses MUST update that document.
-- **Filter semantics:** Per-row, `EntityAccessHandler::check($entity, 'view', $account)` is consulted. `Allowed` + `Neutral` admit the row; `Forbidden` drops it. This matches the entity-handler's `isAllowed()` semantics for layer 2 — under the entity handler's `orIf()` combinator, `Neutral` and `Allowed` are produced when no policy or some policy declined to deny, and the query layer treats both as "do not drop".
+- **Filter semantics:** Per-row, `EntityAccessHandler::check($entity, 'view', $account)` is consulted; `Allowed` + `Neutral` admit the row, `Forbidden` drops it. **In production the handler is empty** (see above — the storage is built without it), so every row is `Neutral` and the query is a pass-through candidate window. Even if a real handler were wired here, `Neutral` would still admit (this is open-by-default at the query layer by construction). The authoritative deny-by-default decision is the consumer's re-filter via `isAllowed()`.
 
 The `view`-operation symmetry between layers 2 and 3 is deliberate: a row's visibility in a list and its visibility on a detail page are governed by the same policy code, so consumers cannot construct a query that returns rows they could not otherwise load individually.
+
+- **Regression-pinned (audit C-6 — reclassified, accurate rationale):** the candidate-window invariant (`Neutral` admits a row) is locked by `packages/entity-storage/tests/Unit/SqlEntityQueryNeutralAdmitsRowTest.php`, and the production reality (storage built without a handler ⇒ access-checked queries are a pass-through) is pinned by the `productionStorageWithoutHandlerIsPassThrough` case in that same test. Audit C-6 recommended flipping the survivor test to `isAllowed()` (deny-by-default). That is **not a safe standalone change** for two reasons: (1) because production storage does not wire the handler (above), the empty-handler query would resolve every row to `Neutral` and `isAllowed()` would **drop all of them** — every access-checked list/count would return empty; and (2) it is **unnecessary** — deny-by-default is already enforced at the Layer-2/serializer layer for both items and totals, so the candidate-window pass-through leaks nothing through any production consumer. The earlier "would hide legitimately-visible `Neutral` rows for the genealogy pedigree/family services" rationale was **incorrect**: genealogy's authenticated edges resolve to `Allowed` (via `GenealogyRelationshipAccessPolicy` + `orIf`), and a flip would *empty* the query, not hide `Neutral` rows. A genuine query-layer deny-by-default would require **completing the WP03 wiring** (construct `SqlEntityStorage` with the composed handler in `EntityStorageFactory`/`AbstractKernel`) **and** adding allowing `view` policies for the Neutral-reliant entity types (`group`, `group_type`, `trace`, `classification_label_definition`, `retention_policy`, and the orphaned-parent `attachment` case) so admins/legitimate viewers do not lose them — tracked as future work, not a one-line flip.
 
 ## Authorization Pipeline
 
@@ -474,6 +496,7 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         ?LoggerInterface $logger = null,
         private readonly ?array $sessionCookieOptions = null,
         private readonly array $trustedProxies = [],
+        private readonly ?AccountContextInterface $accountContext = null,
     ) {}
 
     public function process(Request $request, HttpHandlerInterface $next): Response
@@ -485,10 +508,13 @@ Behavior:
 2. Loads User entity via `$this->userStorage->load($uid)`.
 3. Falls back to `AnonymousUser` if: no UID in session, load fails, or loaded entity is not `AccountInterface`.
 4. Sets `$request->attributes->set('_account', $account)`.
-5. Calls `$next->handle($request)`.
-6. Creates `NativeSession` with `$trustedProxies` so session cookie secure flag respects proxy trust.
+5. Mirrors the same account into the acting-account context (`$this->accountContext?->set($account)`) — unconditionally, on every request, including `AnonymousUser` (id 0). When `BearerAuthMiddleware` (higher priority) already resolved an authenticated `_account`, that account is mirrored instead. See "Acting-account context" below.
+6. Calls `$next->handle($request)`.
+7. Creates `NativeSession` with `$trustedProxies` so session cookie secure flag respects proxy trust.
 
 **Trusted proxy guard:** Both `NativeSession::isSecureConnection()` and `SessionMiddleware::isHttpsRequest()` only trust `X-Forwarded-Proto` when `REMOTE_ADDR` matches a configured trusted proxy IP. The header comparison is case-insensitive (`HTTPS`, `Https`, `https` all match). Both methods return `false` early when `REMOTE_ADDR` is empty or missing, preventing accidental matches against empty-string entries in the trusted list. Without trusted proxies configured, the header is ignored. Only exact IP addresses are supported (no CIDR notation). Configure via `'trusted_proxies' => ['127.0.0.1']` in `config/waaseyaa.php`.
+
+**Secure-by-default session cookies (audit C-8):** `SessionMiddleware::applySessionCookieIni()` applies hardened defaults on **every** request — `httponly=true`, `samesite='Lax'`, `use_strict_mode=true` (session-fixation protection), and `secure='auto'` (the Secure flag is set when the request is HTTPS-detected via the trusted-proxy guard above) — even with no `config['session']['cookie']` block configured. Any key supplied under `config['session']['cookie']` overrides the matching default (explicit config always wins). This closes the previous insecure-by-default gap where a stock install ran with PHP's bare cookie ini (no HttpOnly/SameSite/strict-mode).
 
 Does not handle login/logout. Only resolves "who is making this request."
 
@@ -534,6 +560,96 @@ Requires SessionMiddleware to run first. Enforced by middleware priority orderin
 ```
 
 Content-Type: `application/vnd.api+json`.
+
+## Acting-account context (`AccountContextInterface`)
+
+**Files:** `packages/access/src/Context/AccountContextInterface.php`,
+`packages/access/src/Context/RequestAccountContext.php`
+**Namespace:** `Waaseyaa\Access\Context`
+**Mission:** `revision-audit-provenance-01KTWY5V` (FR-002, #1644/#1645)
+
+A request-scoped holder for the **acting account** — the account in whose
+name the current operation runs. It exists so deep, non-HTTP-aware
+subsystems (entity storage's `revision_author` recording, the audit
+listeners' actor attribution) can read "who is acting" without the
+`_account` request attribute being threaded through every call signature.
+
+```php
+interface AccountContextInterface
+{
+    /** The acting account, or null when no acting context exists. */
+    public function current(): ?AccountInterface;
+
+    /** Set (or clear with null) the acting account for the current request/run scope. */
+    public function set(?AccountInterface $account): void;
+}
+```
+
+### Three-state model
+
+| State | `current()` | Meaning | Example contexts |
+|---|---|---|---|
+| Account N | account with `id() >= 1` (incl. `PHP_INT_MAX` dev fallback) | a real authenticated account is acting | web session, MCP bearer token, agent run initiator |
+| Anonymous | account with `id() === 0` (`AnonymousUser`) | an anonymous web actor is acting — anonymous IS an actor | unauthenticated HTTP request |
+| None | `null` | no acting context exists | CLI batch, queue worker, system bootstrap |
+
+Consumers must never collapse the last two: `0` means "the anonymous account
+did it", `null` means "nobody was in scope". No reader or writer may coerce
+`null → 0`.
+
+### Writer table (scoping discipline)
+
+`RequestAccountContext` is a deliberately dumb holder — it stores exactly
+what it is given. The set/restore discipline lives at the writer sites:
+
+| Writer | Scope | Discipline |
+|---|---|---|
+| `SessionMiddleware` (`packages/user`) | per HTTP request | HTTP requests are the outermost scope: **unconditional overwrite** on every request, never restores. Mirrors whatever lands in `_account` (authenticated N, `AnonymousUser` 0, dev fallback, or a bearer-auth-resolved account from `BearerAuthMiddleware`) |
+| `McpEndpoint` (`packages/mcp`) | per MCP request | sets the bearer-auth-resolved account after `authenticate()` succeeds; captures the prior value and **restores it in `finally`** (the MCP account deliberately differs from any session account) |
+| `AgentExecutor` (`packages/ai-agent`) | per agent run | sets the run's `$initiatorAccount` for the duration of the run (including queue-driven runs with no HTTP request); **restores the prior value in `finally`** so a thrown run never leaks the initiator into the next job on a long-lived worker, and nested scopes unwind correctly |
+| *(nothing)* | CLI / queue / bootstrap | nothing sets the context; readers get `null` |
+
+### Single kernel-shared instance and resolution
+
+The kernel constructs **exactly one** `RequestAccountContext` per process
+(`AbstractKernel::accountContext()`, lazily) and serves that same instance on
+every exposure path — a second construction site would silently fork the
+context. Resolution paths:
+
+- **Kernel-services bus** — service providers resolve
+  `AccountContextInterface::class` via `resolveOptional()` /
+  `safeResolve()` (this is how `AuditServiceProvider` injects it into the
+  audit listeners and `AiAgentServiceProvider` into `AgentExecutor`).
+  Bare-provider construction without a kernel resolves null; consumers then
+  read null actors — the correct degraded behavior.
+- **Handler container** — `AbstractKernel::buildHandlerContainer()` binds
+  `AccountContextInterface::class` to the kernel instance for
+  controller-side resolution (e.g. `McpServiceProvider`'s explicit
+  `McpEndpoint` binding).
+- **Repository factory** — the kernel attaches the instance to every
+  `EntityRepository` it builds (`setAccountContext()`), where it is the
+  ambient source for `revision_author` resolution.
+- **HTTP middleware** — `HttpKernel` passes the instance to
+  `SessionMiddleware`'s constructor.
+
+### Readers and the `SaveContext::withActorUid()` override
+
+- **Entity storage** (`packages/entity-storage`): `EntityRepository`
+  resolves the revision author once per revision-creating operation as
+  `SaveContext override → AccountContextInterface::current()?->id() → null`.
+  `SaveContext::withActorUid(?int)` is the explicit per-save override and
+  **wins over the ambient context** — including `withActorUid(null)`, which
+  forces a NULL author inside an authenticated request (system-attributed
+  maintenance writes). A context that never called `withActorUid()` defers
+  to this holder. Full contract: `docs/specs/revision-system-unified.md` §4a.
+- **Audit listeners** (`packages/audit`): `EntityLifecycleAuditListener`
+  reads it as the sole actor source; `AgentToolAuditListener` and
+  `PublishPointerAuditListener` use it as the fallback behind their events'
+  carried actor. Full catalogue: `docs/specs/ocap-audit-log.md`.
+
+There is no configuration surface: attribution has no opt-out switch by
+design (nullable columns and additive events make recording non-breaking);
+the per-save `withActorUid()` override is the only knob.
 
 ## CSRF Protection
 
@@ -634,6 +750,8 @@ All user-facing responses from `ForgotPasswordController` and `RegisterControlle
 
 Replaces `PasswordResetTokenRepository` (which used raw PDO). Uses `DatabaseInterface` (DBAL). Tokens are 64-char hex strings hashed with HMAC-SHA256 using `auth.token_secret` from config. Plain tokens are never persisted.
 
+**Schema bootstrap — idempotent and race-safe.** `ensureSchema()` provisions the `auth_tokens` table and is resolved on the **request hot path** (`AuthServiceProvider` registers it during route registration). Under FrankenPHP classic `php-server` (the `composer run dev` runtime) the kernel boots afresh per request across many worker threads, so `ensureSchema()` runs on every request and can run concurrently on a cold DB. It therefore keeps an existence guard *and* tolerates a concurrent create: if `createTable()` throws (the race-loser's "table auth_tokens already exists"), it rethrows only when a fresh re-check shows the table genuinely absent. A bare `CREATE TABLE` behind a non-atomic check is a TOCTOU bug that 500s `/api/broadcast` (alpha.238). The cleanup-backlog (CL-11) tracks moving this provisioning off the request path into `db:init`/`migrate`; see `docs/specs/operations-playbooks.md` "Two runtimes, two launchers" for the per-request-boot invariant.
+
 **Token types and default TTLs:**
 
 | Type | Default TTL | Notes |
@@ -676,6 +794,9 @@ packages/access/src/
     PermissionHandlerInterface.php   - Permission registry contract
     Attribute/
         AccessPolicy.php             - Plugin discovery attribute
+    Context/
+        AccountContextInterface.php  - Request-scoped acting-account holder contract (see "Acting-account context")
+        RequestAccountContext.php    - Default mutable holder (one instance per kernel)
     Gate/
         GateInterface.php            - Gate contract (allows/denies/authorize)
         Gate.php                     - Gate implementation with policy resolution

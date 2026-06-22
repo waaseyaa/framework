@@ -7,10 +7,14 @@ namespace Waaseyaa\Entity;
 /**
  * Immutable value object carrying per-revision metadata.
  *
- * Stored in the `<entity>__revision` table as `revision_created_at`,
- * `revision_author`, and `revision_log`. All three fields are nullable
- * because revision metadata may not be present on historical rows that
- * were migrated from a non-revision-aware schema.
+ * Stored in the live revision tables — `<entity>_revision` and, for two-axis
+ * (revisionable + translatable) types, `<entity>__translation__revision` — as
+ * the `revision_created`, `revision_author`, and `revision_log` columns,
+ * hydrated by `EntityRepository::loadRevision()` and the translation-revision
+ * loads (mission revision-audit-provenance-01KTWY5V, FR-009). Author and log
+ * are nullable: `revision_author` is SQL NULL on every row created without an
+ * acting context (including all pre-mission rows), and `0` if and only if the
+ * anonymous account acted — null is never coerced to 0.
  *
  * @api
  */

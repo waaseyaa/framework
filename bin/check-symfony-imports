@@ -1,145 +1,171 @@
-#!/usr/bin/env bash
-#
-# check-symfony-imports — enforce the Path R-narrow Symfony-import boundary
-# ratified in mission #1107 (C-005 (b)). Fails when a `use Symfony\…` line
-# appears outside the framework allowlist.
-#
-# Usage:
-#   bin/check-symfony-imports                # check all packages
-#   bin/check-symfony-imports --list-stale   # also report legacy_files
-#                                            #   entries that no longer have
-#                                            #   any Symfony imports (stale)
-#
-# Exit codes:
-#   0 — clean
-#   1 — one or more disallowed `use Symfony\…` imports found
-#   2 — stale legacy_files entries found (only with --list-stale)
+#!/usr/bin/env php
+<?php
 
-set -euo pipefail
+declare(strict_types=1);
 
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-export ROOT_DIR
-export LIST_STALE="${1:-}"
+/*
+ * Enforce the Path R-narrow Symfony-import boundary ratified in mission #1107
+ * (C-005 (b)). Fails when a `use Symfony\...` line appears outside the
+ * framework allowlist.
+ *
+ * Usage:
+ *   php bin/check-symfony-imports
+ *   php bin/check-symfony-imports --list-stale
+ */
 
-python3 - <<'PY'
-import json
-import os
-import pathlib
-import re
-import sys
+$root = dirname(__DIR__);
+$listStale = ($argv[1] ?? '') === '--list-stale';
+$configPath = $root . DIRECTORY_SEPARATOR . '.symfony-import-allowlist.json';
 
-root = pathlib.Path(os.environ["ROOT_DIR"])
-list_stale = os.environ.get("LIST_STALE") == "--list-stale"
-
-config_path = root / ".symfony-import-allowlist.json"
-if not config_path.exists():
-    print(f"ERROR: missing {config_path.relative_to(root)}", file=sys.stderr)
-    sys.exit(1)
-
-with config_path.open() as f:
-    config = json.load(f)
-
-allowed_dirs = [
-    (root / d).resolve() for d in config.get("allowed_directories", [])
-]
-legacy_files = {
-    (root / f).resolve() for f in config.get("legacy_files", [])
+if (!is_file($configPath)) {
+    fwrite(STDERR, "ERROR: missing .symfony-import-allowlist.json\n");
+    exit(1);
 }
 
-# Matches `use Symfony\...`, `use function Symfony\...`, `use const Symfony\...`.
-# Ignores leading whitespace (e.g. nested namespace blocks).
-SYMFONY_USE_RE = re.compile(r"^\s*use\s+(?:function\s+|const\s+)?Symfony\\")
+$config = json_decode((string) file_get_contents($configPath), true, 512, JSON_THROW_ON_ERROR);
+$normalize = static function (string $path) use ($root): string {
+    $absolute = str_starts_with($path, $root) ? $path : $root . DIRECTORY_SEPARATOR . $path;
+    $real = realpath($absolute);
 
-def is_in_allowed_dir(file_path: pathlib.Path) -> bool:
-    for allowed in allowed_dirs:
-        try:
-            file_path.relative_to(allowed)
-            return True
-        except ValueError:
-            continue
-    return False
+    return str_replace('\\', '/', $real !== false ? $real : $absolute);
+};
 
-def has_symfony_import(file_path: pathlib.Path) -> bool:
-    try:
-        with file_path.open(encoding="utf-8", errors="replace") as f:
-            for line in f:
-                if SYMFONY_USE_RE.match(line):
-                    return True
-    except OSError:
-        pass
-    return False
+$allowedDirectories = array_map($normalize, $config['allowed_directories'] ?? []);
+$legacyFiles = array_fill_keys(
+    array_map($normalize, $config['legacy_files'] ?? []),
+    true,
+);
 
-# Scan `packages/*/src/**/*.php` — application src trees only. Tests are
-# implicitly allowed (the boundary is for shipping code, not test scaffolding).
-violations: list[tuple[pathlib.Path, int, str]] = []
-seen_legacy_files: set[pathlib.Path] = set()
+$isInAllowedDirectory = static function (string $file) use ($allowedDirectories): bool {
+    foreach ($allowedDirectories as $directory) {
+        if (str_starts_with($file . '/', rtrim($directory, '/') . '/')) {
+            return true;
+        }
+    }
 
-for php_file in sorted(root.glob("packages/*/src/**/*.php")):
-    resolved = php_file.resolve()
+    return false;
+};
 
-    if is_in_allowed_dir(resolved):
-        continue
+$hasSymfonyImport = static function (string $file): bool {
+    $handle = @fopen($file, 'rb');
+    if ($handle === false) {
+        return false;
+    }
 
-    # Find the first offending line for diagnostic output.
-    first_match: tuple[int, str] | None = None
-    try:
-        with php_file.open(encoding="utf-8", errors="replace") as f:
-            for lineno, line in enumerate(f, start=1):
-                if SYMFONY_USE_RE.match(line):
-                    first_match = (lineno, line.rstrip())
-                    break
-    except OSError:
-        continue
+    try {
+        while (($line = fgets($handle)) !== false) {
+            if (preg_match('/^\s*use\s+(?:function\s+|const\s+)?Symfony\\\\/', $line) === 1) {
+                return true;
+            }
+        }
+    } finally {
+        fclose($handle);
+    }
 
-    if first_match is None:
-        continue
+    return false;
+};
 
-    if resolved in legacy_files:
-        seen_legacy_files.add(resolved)
-        continue
+$packageRoots = glob($root . DIRECTORY_SEPARATOR . 'packages' . DIRECTORY_SEPARATOR . '*' . DIRECTORY_SEPARATOR . 'src', GLOB_ONLYDIR) ?: [];
+$violations = [];
+$seenLegacyFiles = [];
 
-    relative = php_file.relative_to(root)
-    violations.append((relative, first_match[0], first_match[1]))
+foreach ($packageRoots as $packageSrc) {
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($packageSrc, FilesystemIterator::SKIP_DOTS),
+    );
 
-if violations:
-    print("Disallowed Symfony imports outside the allowlist:")
-    print()
-    for rel, lineno, text in violations:
-        print(f"  {rel}:{lineno}: {text}")
-    print()
-    print(f"{len(violations)} violation(s) found.")
-    print()
-    print("Resolve by either:")
-    print("  - Replacing the import with the equivalent Waaseyaa surface")
-    print("    (e.g. `Waaseyaa\\Foundation\\Http\\Request` for the HTTP type).")
-    print("  - Adding the file to `legacy_files` in")
-    print("    `.symfony-import-allowlist.json` if the import is genuinely")
-    print("    unavoidable. Document why in the PR description.")
-    sys.exit(1)
+    foreach ($iterator as $file) {
+        if (!$file instanceof SplFileInfo || $file->getExtension() !== 'php') {
+            continue;
+        }
 
-if list_stale:
-    stale = sorted(legacy_files - seen_legacy_files)
-    # Filter to legacy entries that still exist on disk — files that were
-    # deleted are reported separately so they don't get conflated with
-    # successfully-refactored entries.
-    deleted = [p for p in stale if not p.exists()]
-    refactored = [p for p in stale if p.exists() and not has_symfony_import(p)]
+        $path = str_replace('\\', '/', $file->getPathname());
+        if ($isInAllowedDirectory($path)) {
+            continue;
+        }
 
-    if deleted:
-        print("Stale legacy_files entries (file no longer exists):")
-        for p in deleted:
-            print(f"  {p.relative_to(root)}")
-        print()
+        $handle = @fopen($file->getPathname(), 'rb');
+        if ($handle === false) {
+            continue;
+        }
 
-    if refactored:
-        print("Stale legacy_files entries (file no longer has Symfony imports):")
-        for p in refactored:
-            print(f"  {p.relative_to(root)}")
-        print()
-        print("Remove these entries from `.symfony-import-allowlist.json`.")
+        $match = null;
+        $lineNumber = 0;
+        try {
+            while (($line = fgets($handle)) !== false) {
+                ++$lineNumber;
+                if (preg_match('/^\s*use\s+(?:function\s+|const\s+)?Symfony\\\\/', $line) === 1) {
+                    $match = [$lineNumber, rtrim($line)];
+                    break;
+                }
+            }
+        } finally {
+            fclose($handle);
+        }
 
-    if deleted or refactored:
-        sys.exit(2)
+        if ($match === null) {
+            continue;
+        }
 
-print("OK — Symfony-import boundary clean.")
-PY
+        $normalized = $normalize($file->getPathname());
+        if (isset($legacyFiles[$normalized])) {
+            $seenLegacyFiles[$normalized] = true;
+            continue;
+        }
+
+        $relative = str_replace('\\', '/', substr($file->getPathname(), strlen($root) + 1));
+        $violations[] = [$relative, $match[0], $match[1]];
+    }
+}
+
+if ($violations !== []) {
+    echo "Disallowed Symfony imports outside the allowlist:\n\n";
+    foreach ($violations as [$relative, $lineNumber, $line]) {
+        echo "  {$relative}:{$lineNumber}: {$line}\n";
+    }
+    echo "\n" . count($violations) . " violation(s) found.\n\n";
+    echo "Resolve by either:\n";
+    echo "  - Replacing the import with the equivalent Waaseyaa surface.\n";
+    echo "  - Adding the file to `legacy_files` in `.symfony-import-allowlist.json`\n";
+    echo "    when the import is genuinely unavoidable.\n";
+    exit(1);
+}
+
+if ($listStale) {
+    $deleted = [];
+    $refactored = [];
+
+    foreach (array_keys($legacyFiles) as $legacyFile) {
+        if (!is_file($legacyFile)) {
+            $deleted[] = $legacyFile;
+            continue;
+        }
+
+        if (!isset($seenLegacyFiles[$legacyFile]) && !$hasSymfonyImport($legacyFile)) {
+            $refactored[] = $legacyFile;
+        }
+    }
+
+    if ($deleted !== []) {
+        echo "Stale legacy_files entries (file no longer exists):\n";
+        foreach ($deleted as $file) {
+            echo '  ' . str_replace('\\', '/', substr($file, strlen($root) + 1)) . "\n";
+        }
+        echo "\n";
+    }
+
+    if ($refactored !== []) {
+        echo "Stale legacy_files entries (file no longer has Symfony imports):\n";
+        foreach ($refactored as $file) {
+            echo '  ' . str_replace('\\', '/', substr($file, strlen($root) + 1)) . "\n";
+        }
+        echo "\nRemove these entries from `.symfony-import-allowlist.json`.\n";
+    }
+
+    if ($deleted !== [] || $refactored !== []) {
+        exit(2);
+    }
+}
+
+echo "OK - Symfony-import boundary clean.\n";
+exit(0);

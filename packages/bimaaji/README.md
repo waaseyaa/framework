@@ -109,5 +109,5 @@ in #1387/#1464) should:
 ## Where to read more
 
 - **Doctrine spec:** [docs/specs/bimaaji.md](../../docs/specs/bimaaji.md) — design rationale, FRs/NFRs, invariants, file map.
-- **Design history:** [docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md](../../docs/plans/2026-05-21-ai-ecosystem-beta-tightening.md) — the 5-mission cluster that promoted bimaaji from "scaffolding" to "shipped."
+- **Design history:** [docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md](../../docs/history/plans/2026-05-21-ai-ecosystem-beta-tightening.md) — the 5-mission cluster that promoted bimaaji from "scaffolding" to "shipped."
 - **Roadmap context:** [GitHub Milestone #67](https://github.com/waaseyaa/framework/milestone/67) (Track 2: Bimaaji & agentic).

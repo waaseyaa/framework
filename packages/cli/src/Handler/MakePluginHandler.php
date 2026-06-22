@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
-use Waaseyaa\CLI\CliIO;
 use Waaseyaa\CLI\Command\Make\AbstractMakeHandler;
+use Waaseyaa\CLI\Command\SymfonyCommandIO;
 
 /**
  * @api
  */
 final class MakePluginHandler extends AbstractMakeHandler
 {
-    public function execute(CliIO $io): int
+    public function execute(SymfonyCommandIO $io): int
     {
         $name = (string) $io->argument('name');
         $className = str_replace('_', '', ucwords($name, '_'));

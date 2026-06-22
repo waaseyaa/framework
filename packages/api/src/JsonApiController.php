@@ -7,10 +7,16 @@ namespace Waaseyaa\Api;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Query\PaginationLinks;
+use Waaseyaa\Api\Query\ParsedQuery;
 use Waaseyaa\Api\Query\QueryApplier;
 use Waaseyaa\Api\Query\QueryParser;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\FieldableInterface;
+use Waaseyaa\Entity\Validation\EntityValidationException;
+use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
+use Waaseyaa\EntityStorage\SaveContext;
 
 /**
  * Handles JSON:API CRUD operations.
@@ -20,6 +26,14 @@ use Waaseyaa\Entity\FieldableInterface;
  */
 final class JsonApiController
 {
+    /**
+     * Credential keys that must never be queryable, even when stored as a raw `_data` key
+     * with no FieldDefinition. Mirrors {@see ResourceSerializer::ALWAYS_INTERNAL_FIELDS}.
+     *
+     * @var list<string>
+     */
+    private const ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
+
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly ResourceSerializer $serializer,
@@ -46,6 +60,17 @@ final class JsonApiController
         // Parse query parameters.
         $parser = new QueryParser();
         $parsedQuery = $parser->parse($query);
+
+        // Reject filtering/sorting on internal/credential fields. Without this, an anonymous
+        // collection request can filter on a secret field (pass, two_factor_secret, etc.) and
+        // use match/no-match as a value-enumeration oracle even though the field is never
+        // serialised. We mirror the serializer's internal-field policy rather than impose a
+        // full field allowlist, because entities legitimately filter on undeclared _data fields.
+        $internalFieldError = $this->rejectInternalQueryFields($parsedQuery, $entityTypeId);
+        if ($internalFieldError !== null) {
+            return $internalFieldError;
+        }
+
         $applier = new QueryApplier();
 
         // Count total matching entities (before pagination). Bind the request's
@@ -78,14 +103,22 @@ final class JsonApiController
         $ids = $entityQuery->execute();
         $entities = $ids !== [] ? $storage->loadMultiple($ids) : [];
 
-        // Filter by view access if an access handler is available.
+        // Filter the current page by view access if an access handler is
+        // available. Entity-level access is deny-by-default (isAllowed): a
+        // Neutral row is not visible. This mirrors show() (single read).
         if ($this->accessHandler !== null && $this->account !== null) {
             $entities = array_filter(
                 $entities,
                 fn($entity) => $this->accessHandler->check($entity, 'view', $this->account)->isAllowed(),
             );
-            // Recount after access filtering so meta.total matches the visible set.
-            $total = count($entities);
+            // meta.total must reflect the access-filtered total ACROSS all
+            // pages, not the size of the current page. The storage COUNT alone
+            // is the wrong source here: the query layer drops only Forbidden
+            // rows (open-by-default), whereas the collection contract is
+            // deny-by-default (isAllowed), so Neutral rows would inflate it.
+            // Recompute the true total by re-running the filter set without
+            // pagination and counting rows this account may actually view.
+            $total = $this->accessFilteredTotal($storage, $parsedQuery);
         }
 
         $resources = $this->serializer->serializeCollection($entities, $this->accessHandler, $this->account);
@@ -122,6 +155,49 @@ final class JsonApiController
     }
 
     /**
+     * Count, across all pages, the rows matching the query's filters that the
+     * current account may view under deny-by-default entity-level semantics.
+     *
+     * This applies the SAME `isAllowed()` predicate as the per-page filter in
+     * {@see index()} (and as {@see show()}), so meta.total is consistent with
+     * the data the consumer receives over successive pages — never the page
+     * size, never the open-by-default storage COUNT. Filters only: sorts and
+     * pagination are intentionally omitted.
+     *
+     * Only invoked when both an access handler and an account are bound; the
+     * system / no-account path keeps the storage COUNT computed in index().
+     *
+     * @param \Waaseyaa\Entity\Storage\EntityStorageInterface $storage
+     */
+    private function accessFilteredTotal(
+        \Waaseyaa\Entity\Storage\EntityStorageInterface $storage,
+        ParsedQuery $parsedQuery,
+    ): int {
+        \assert($this->accessHandler !== null && $this->account !== null);
+
+        $idQuery = $storage->getQuery();
+        $idQuery->setAccount($this->account);
+        // Filters only — no sort, no range — so we span the whole match set.
+        foreach ($parsedQuery->filters as $filter) {
+            $idQuery->condition($filter->field, $filter->value, $filter->operator);
+        }
+
+        $ids = $idQuery->execute();
+        if ($ids === []) {
+            return 0;
+        }
+
+        $total = 0;
+        foreach ($storage->loadMultiple($ids) as $entity) {
+            if ($this->accessHandler->check($entity, 'view', $this->account)->isAllowed()) {
+                $total++;
+            }
+        }
+
+        return $total;
+    }
+
+    /**
      * GET single — retrieve a specific entity.
      *
      * @param string               $entityTypeId The entity type.
@@ -139,18 +215,15 @@ final class JsonApiController
         $entity = $this->loadByIdOrUuid($entityTypeId, $id);
 
         if ($entity === null) {
-            return $this->errorDocument(
-                JsonApiError::notFound("Entity of type '{$entityTypeId}' with ID '{$id}' not found."),
-            );
+            return $this->notFoundDocument($entityTypeId, $id);
         }
 
-        // Check view access.
+        // Check view access. A denied view returns the same not-found document
+        // as a missing entity so the response cannot act as an existence oracle.
         if ($this->accessHandler !== null && $this->account !== null) {
             $access = $this->accessHandler->check($entity, 'view', $this->account);
             if (!$access->isAllowed()) {
-                return $this->errorDocument(
-                    JsonApiError::forbidden("Access denied for viewing entity '{$id}'."),
-                );
+                return $this->notFoundDocument($entityTypeId, $id);
             }
         }
 
@@ -357,6 +430,32 @@ final class JsonApiController
             );
         }
 
+        // optimistic-locking-01KTXCHY FR-006: the PATCH body's resource-object
+        // meta is the expectation seam (headers do not reach this controller —
+        // research D4; If-Match is explicitly NOT this contract).
+        $expectedRevisionId = null;
+        $meta = $data['data']['meta'] ?? null;
+        if (is_array($meta) && array_key_exists('expected_revision_id', $meta)) {
+            $candidate = $meta['expected_revision_id'];
+            if (!is_int($candidate) || $candidate < 1) {
+                return $this->errorDocument(
+                    JsonApiError::badRequest('data.meta.expected_revision_id must be a positive integer.'),
+                );
+            }
+            // Friendly screen for types the storage layer would reject anyway
+            // (single-axis revisionable only); the storage \LogicException
+            // remains the invariant backstop in saveWithExpectation().
+            $definition = $this->entityTypeManager->getDefinition($entityTypeId);
+            if (!$definition->isRevisionable() || $definition->isTranslatable()) {
+                return $this->errorDocument(
+                    JsonApiError::unprocessable(
+                        "Entity type '{$entityTypeId}' does not support revision expectations.",
+                    ),
+                );
+            }
+            $expectedRevisionId = $candidate;
+        }
+
         // Check update access.
         if ($this->accessHandler !== null && $this->account !== null) {
             $access = $this->accessHandler->check($entity, 'update', $this->account);
@@ -395,7 +494,14 @@ final class JsonApiController
             $entity->set($field, $value);
         }
 
-        $storage->save($entity);
+        if ($expectedRevisionId !== null) {
+            $failure = $this->saveWithExpectation($entityTypeId, $entity, $expectedRevisionId);
+            if ($failure !== null) {
+                return $failure;
+            }
+        } else {
+            $storage->save($entity);
+        }
 
         $resource = $this->serializer->serialize($entity, $this->accessHandler, $this->account);
 
@@ -403,6 +509,62 @@ final class JsonApiController
             $resource,
             links: ['self' => "/api/{$entityTypeId}/{$resource->id}"],
         );
+    }
+
+    /**
+     * Persist an expectation-stated PATCH through the revision-aware
+     * repository pipeline (optimistic-locking-01KTXCHY, contract
+     * conflict-surfaces.md §11 — a revision is cut and the repository
+     * lifecycle events fire; the no-expectation path is untouched).
+     *
+     * Conflict payloads name the REAL entity id ({@see RevisionConflictException::$entityId}),
+     * not the request locator, so uuid-routed PATCHes stay honest (contract §15).
+     *
+     * @return ?JsonApiDocument An error document on conflict / validation /
+     *                          unsupported expectation; null when the save succeeded.
+     */
+    private function saveWithExpectation(
+        string $entityTypeId,
+        EntityInterface $entity,
+        int $expectedRevisionId,
+    ): ?JsonApiDocument {
+        $repository = $this->entityTypeManager->getRepository($entityTypeId);
+        if (!$repository instanceof EntityRepository) {
+            // Only the concrete EntityRepository carries a SaveContext: a
+            // stated expectation against any other implementation is refused,
+            // never silently saved plain (FR-007 at the surface).
+            return $this->errorDocument(
+                JsonApiError::unprocessable(
+                    "Entity type '{$entityTypeId}' does not support revision expectations.",
+                ),
+            );
+        }
+
+        try {
+            $repository->save($entity, context: SaveContext::default()->withExpectedRevisionId($expectedRevisionId));
+        } catch (RevisionConflictException $e) {
+            return $this->errorDocument(JsonApiError::conflict(
+                "Entity of type '{$entityTypeId}' with ID '{$e->entityId}' was modified: "
+                    . "expected revision {$e->expectedRevisionId}, current revision is "
+                    . ($e->currentRevisionId === null ? 'none' : (string) $e->currentRevisionId) . '.',
+                code: 'REVISION_CONFLICT',
+                meta: [
+                    'expected_revision_id' => $e->expectedRevisionId,
+                    'current_revision_id' => $e->currentRevisionId,
+                ],
+            ));
+        } catch (EntityValidationException $e) {
+            return $this->errorDocument(JsonApiError::unprocessable(
+                "Validation failed for entity of type '{$entityTypeId}': {$e->getMessage()}",
+            ));
+        } catch (\LogicException $e) {
+            // The storage rejection matrix is the invariant backstop: a stated
+            // expectation the pipeline cannot honor is a 4xx caller error,
+            // never a 500 (contract §10).
+            return $this->errorDocument(JsonApiError::unprocessable($e->getMessage()));
+        }
+
+        return null;
     }
 
     /**
@@ -477,11 +639,59 @@ final class JsonApiController
     }
 
     /**
+     * Reject a collection query that filters or sorts on an internal/credential field.
+     *
+     * A field is rejected when it is in {@see self::ALWAYS_INTERNAL_FIELDS} (credential keys,
+     * caught even when stored as an undeclared `_data` key) or its FieldDefinition sets
+     * `settings['internal'] => true`. Returns an error document to short-circuit `index()`,
+     * or null when every filter/sort field is permitted.
+     */
+    private function rejectInternalQueryFields(ParsedQuery $parsedQuery, string $entityTypeId): ?JsonApiDocument
+    {
+        $fieldDefinitions = $this->entityTypeManager->resolveFieldDefinitions($entityTypeId);
+
+        $isInternal = static function (string $field) use ($fieldDefinitions): bool {
+            if (in_array($field, self::ALWAYS_INTERNAL_FIELDS, true)) {
+                return true;
+            }
+            $definition = $fieldDefinitions[$field] ?? null;
+
+            return $definition !== null && $definition->getSetting('internal') === true;
+        };
+
+        foreach ($parsedQuery->filters as $filter) {
+            if ($isInternal($filter->field)) {
+                return $this->errorDocument(JsonApiError::badRequest("Cannot filter by field '{$filter->field}'."));
+            }
+        }
+
+        foreach ($parsedQuery->sorts as $sort) {
+            if ($isInternal($sort->field)) {
+                return $this->errorDocument(JsonApiError::badRequest("Cannot sort by field '{$sort->field}'."));
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Create an error document from a single error.
      */
     private function errorDocument(JsonApiError $error): JsonApiDocument
     {
         return JsonApiDocument::fromErrors([$error], statusCode: (int) $error->status);
+    }
+
+    /**
+     * Canonical single-read 404. Used for BOTH a nonexistent id and a
+     * view-denied entity — byte-identical on purpose (FR-003 / NFR-002,
+     * mission request-surface-hardening-01KTX7F2). Do not fork the message.
+     */
+    private function notFoundDocument(string $entityTypeId, int|string $id): JsonApiDocument
+    {
+        return $this->errorDocument(
+            JsonApiError::notFound("Entity of type '{$entityTypeId}' with ID '{$id}' not found."),
+        );
     }
 
     /**

@@ -1,5 +1,9 @@
 # Entity System
 
+<!-- Spec reviewed 2026-06-21 - issue #1706 (revision-id allocation race, P1-4): VERIFIED + closed. RevisionableStorageDriver allocates revision ids via getNextRevisionId/getNextLangcodeRevisionId = MAX(revision_id)+1, which is NOT atomic — two concurrent writers for the same key can read the same MAX. The composite PRIMARY KEY (entity_id, revision_id) [and (entity_id, langcode, revision_id) for the two-axis translation revision table] is the integrity backstop: it makes assigning the SAME revision id twice structurally impossible (a concurrent duplicate is rejected by the DB, never silently stored), so the held P1-4 concern ("can two concurrent inserts be assigned the same revision id?") does NOT hold. The residual was liveness: the losing writer's INSERT raised the unique-constraint violation to the caller. Fix: both writeDefaultRevision and writePerLangcodeRevision now wrap allocate-and-insert in a bounded retry (MAX_REVISION_ALLOCATION_ATTEMPTS = 5) that catches the unique-constraint violation, re-reads MAX, and retries the next id; a genuine persistent conflict still surfaces after the bound. Single-threaded the loop runs once (behavior unchanged). Acceptance: RevisionIdAllocationRaceTest (a concurrent-steal decorator proves the duplicate is rejected AND the loser advances to the next id; proven to fail against the pre-retry code). Optimistic locking (SaveContext expectedRevisionId / RevisionConflictException, #1647) is a separate, higher seam and is unchanged. -->
+<!-- Spec reviewed 2026-06-12 - hotfixes #1653/#1654/#1655 (post-alpha.207 adoption fixes): (1) SqlSchemaHandler::ensureRevisionAuthorColumn() now issues a targeted guarded ALTER TABLE ADD COLUMN instead of DBALSchema::addField() — whole-schema introspection broke getRepository() on databases containing FTS5 virtual tables (typeless shadow-table columns crash DBAL 4.4's SQLite column parser); behavior otherwise identical, fieldExists guard retained. (2) The optimistic-locking pre-check accepts ContentEntityBase revisionables via a getRevisionId duck-check fallback — the legacy RevisionableInterface instanceof gate alone made expectations unusable on the common base class (instanceof RevisionableInterface remains a deliberate behavioral signal elsewhere: migration setNewRevision, revision-log capture). (3) FieldDefinitionConstraintBuilder's boolean arm derives Choice([true, false, 0, 1]) instead of Type('bool') — the framework's own boolean convention stores 0/1 through get()/validate (see User.php status comment; User::setActive() writes ints), and Type('bool') rejected it; companion: User::email_verified declared required: false (the NotNull inference from the non-nullable property predates live validation and no write path supplies the field). -->
+<!-- Spec reviewed 2026-06-12 - mission optimistic-locking-01KTXCHY WP03 (#1647): repository save-contract addendum — SaveContext::withExpectedRevisionId() optimistic-locking expectation on the save pipeline (conflict check after validation, before preSave/events; RevisionConflictException vs the LogicException rejection family; no-expectation saves byte-identical), RevisionConflictException added to the entity-storage exception inventory, full mechanics delegated to revision-system-unified.md §3b. ALSO clears the standing Mission 3 drift flag: EntityType `discoverable: bool = true` flag cross-referenced (one-liner under EntityTypeInterface; api-layer.md stays canonical for discovery, mission request-surface-hardening-01KTX7F2 #1649). -->
+<!-- Spec reviewed 2026-06-12 - mission live-entity-validation-key-protection-01KTWQT3 (#1643, alpha.204): save-time validation is now kernel-wired and ON by default for every kernel-built repository (shared EntityValidator::createDefault()); boot-time opt-out via WAASEYAA_ENTITY_VALIDATION=0|false|off, per-call opt-out via save(..., validate: false). FieldDefinitionConstraintBuilder gains the Range arm (numeric min/max settings on integer/float fields) and now appends per-field declared FieldDefinition::getConstraints() after the derived list. The previous "validates only when an EntityValidator is injected" caveat is resolved — injection is the default. See "Field definitions -> constraints" below for the three-layer constraint source table and the pre-persistence/saveMany-rollback guarantees. -->
 <!-- Spec reviewed 2026-06-04 - PR #1614 (page-builder + real content types): per-bundle typed fields land. `EntityTypeManagerInterface` gains `resolveFieldDefinitions(entityTypeId, ?bundle)` as the single bundle-aware field-resolution path (class `#[Field]` attributes + registry core fields + registry bundle fields), plus `addBundleFields()` which auto-materializes a per-bundle subtable (e.g. `node__page`) with real typed columns. New `Waaseyaa\EntityStorage\Bundle\BundleSubtableGateway` is the single bundle-persistence implementation used by BOTH `EntityRepository` (the migration/canonical write path) and `SqlEntityStorage` (the `getStorage()` admin/API path); `SqlEntityStorage`'s inline partition/upsert/read was removed so the two paths cannot drift. `SqlSchemaHandler` column derivation covers entity_reference (varchar UUID) / json / datetime / date / email. Core entity contracts (entity keys, `_data` blob, save/load lifecycle) are unchanged. -->
 <!-- Spec reviewed 2026-05-19 - mission sql-entity-query-access-checking-01KRYP15 (#1495): `EntityQueryInterface` gains `setAccount(?AccountInterface): static`. `SqlEntityQuery::execute()` now runs per-row access filtering via `EntityAccessHandler::check($entity, 'view', $account)` and drops `forbidden` rows; `accessCheck(true)` is the default (the v0.1.0 stub was a no-op). Missing-account + check-enabled throws the new `Waaseyaa\EntityStorage\Exception\MissingQueryAccountException` — fail-closed. `accessCheck(false)` remains as the audited system-context bypass; `SqlEntityStorage::loadByKey()` uses it as a system-context identity primitive. `SqlEntityStorage::getQuery()` wires `withAccessHandler($accessHandler)` (optional 8th constructor param, nullable) and `withEntityLoader(loadMultiple)` so the filter is live end-to-end. Full enforcement-layer description lives in `docs/specs/access-control.md`; entity-system contracts (entity keys, `_data` blob, save/load lifecycle) are unchanged. -->
 <!-- Spec reviewed 2026-05-13c - issue #1457 fix: pure test-fixture refactor (no spec-level behavioural change). `TranslatableArticleFixture` / `SqlColumnTranslatableArticleFixture` extracted from inside `SqlBlobTranslatableTest.php` / `SqlColumnTranslatableTest.php` to their own PSR-4 files under `packages/entity-storage/tests/Backend/`. The classes were previously not discoverable by composer's PSR-4 autoloader (no matching file path under the `Waaseyaa\EntityStorage\Tests\` namespace map), so `is_subclass_of($class, TranslatableInterface::class)` in `EntityType::__construct()` returned false when the parent test file had not yet been loaded as a side-effect — causing 17 `ci/unit-tests` errors on `main` after M-006 added cross-test fixture references. Entity-system pipeline, storage layout, and translatable contract are unchanged. -->
@@ -7,6 +11,9 @@
 <!-- Spec reviewed 2026-05-13 - M-002 migration-platform-v1 (squash d92f82f): purely additive — `SaveContext` gains `isImport` readonly bool (default false) and `asImport()` factory. No change to existing SaveContext callers; default-false preserves baseline event payloads bit-identical. Used by `Waaseyaa\Migration\Plugin\Destination\EntityDestination` to signal migration writes via dispatched BeforeSave/AfterSave events (mission-internal — not §5.8 stable surface). Long-term: consider widening `EntityRepository::save()` to accept SaveContext so destinations don't need to self-dispatch coordinator events. -->
 <!-- Spec reviewed 2026-05-10 - WP05 php-8.5 upgrade: @PHP8x5Migration cs-fixer pass — EntityRepository, SqlEntityStorage, FileStorage touched by octal_notation + new_expression_parentheses rules only; no semantic change to entity pipeline, storage, or lifecycle hooks. -->
 <!-- Spec reviewed 2026-05-10 - WP03 php-8.5 upgrade: EntityRepositoryInterface::find/findMany/findBy/loadRevision/rollback gained #[\NoDiscard] — no change to repository semantics, storage pipeline, or entity lifecycle. -->
+<!-- Spec reviewed 2026-06-09 - alpha.200/201 framework-hygiene: EntityRepositoryInterface gained the two-axis translation surface (saveTranslation / loadTranslation / listTranslationRevisions), promoted from the concrete EntityRepository — alpha.200 briefly carried all 8 two-axis methods; alpha.201 narrowed the interface to the 3 consumers actually call, the per-revision API (saveTranslationRevision(s)/loadTranslationRevision/loadTranslationTip/translationLangcodes) stays on the concrete. EntityRepository.php also dropped a useless `(int)` cast in listRevisions (getRevisionIds already returns int[]). No change to repository semantics, storage pipeline, or entity lifecycle. The interface code block below is an illustrative subset by design (omits the translation + published-revision surface); two-axis storage is specified in docs/specs/revision-system-unified.md (the live canonical; entity-storage-two-axis.md is the superseded M-004 vid model). -->
+<!-- Spec reviewed 2026-06-09 - alpha.201 doc-drift: RevisionableEntityTrait usage docblock corrected `'revision' => 'vid'` -> `'revision' => 'revision_id'` (doc-comment only; the live revision key is revision_id). No semantic change to the trait, repository, or entity lifecycle. -->
+<!-- Spec reviewed 2026-06-09 - alpha.202 fork fix: TranslatableInterface::language() un-deprecated (removed #[\Deprecated] + the unresolved 'since: 0.next' placeholder). language() and activeLangcode() are distinct, supported accessors — language() returns a `langcode`/'en' fallback for entities without `default_langcode`, activeLangcode() throws. No schema, storage-pipeline, or entity-lifecycle change. -->
 <!-- Spec reviewed 2026-05-04 - issue #1376 (deferred WP07-A from mission #1257): EntityTypeManager constructor gained an 8th optional parameter `?\Closure $bundleSubtableExistsProbe = null` with signature `fn(string $entityTypeId, string $bundle): bool`. After a successful `addBundleFields()` registration, when a probe is configured and reports the per-bundle subtable absent, the manager emits a once-per-(entity_type_id, bundle) `[BUNDLE_SUBTABLE_MISSING]` notice via the injected logger. Probe failures are caught and logged at info — registration is never failed over an advisory check. AbstractKernel wires the probe with `$database->schema()->tableExists(SqlSchemaHandler::resolveSubtableName($entityTypeId, $bundle))`. Pre-existing callers (tests, bare bootstraps) that omit the probe stay silent. Companion to the load-side notice that landed in WP06 (SqlEntityStorage::mergeBundleSubtableRow); together they cover both registration-time and runtime detection of missing subtables. -->
 <!-- Spec reviewed 2026-05-13 - M-006 entity-storage-translations-v1 (squash 0f7e1809a): substantial additive surface for single-axis translations. EntityRepository gains findTranslations() (single SQL query, NFR-005) and optional ?LanguageManagerInterface + readActiveLanguage flag (C-004). Matching findTranslations() on EntityRepositoryInterface + EntityStorageDriverInterface. SaveContext::withLangcode(string) + langcodeRequired() guard in EntityStorageCoordinator. CoordinatorLifecycleDispatcher dispatches 6 new PRE/POST_TRANSLATION_* events with langcode payload. EntitySchemaSync routes translatable entity types to either widened sql-blob PK or sibling sql-column __translation table via new TranslationSchemaHandler + SqlColumnTranslationHydrator. SqlStorageDriver + InMemoryStorageDriver gain matching translation read/write paths. Non-translatable entity types preserve baseline behavior bit-identical (NFR-001 invariant). Full canonical surface and design rationale: docs/specs/entity-storage-translations-v1.md. M-006 is BETA-GATE per stability-charter §3.2 criterion 9 (now SATISFIED). -->
 <!-- Spec reviewed 2026-05-03b - autoload hygiene: `FieldAttributeRule` (a PHPStan rule that imports `PHPStan\Rules\Rule`) moved out of `packages/entity/src/PhpStan/` into `packages/entity/testing/PhpStan/`, registered under autoload-dev only. `PackageManifestCompiler::scanClasses()` no longer reflectively touches the file in production consumer installs that lack PHPStan, so kernel boot stays clean. Same fix pattern as the alpha.106 → alpha.107 graphql incident on minoo. Surfaced by skeleton-smoke (#1315) against alpha.167 immediately after the #1375 split-for-write fix landed. -->
@@ -369,6 +376,8 @@ interface EntityTypeInterface
 }
 ```
 
+`EntityType` additionally carries `discoverable: bool = true` (+ `isDiscoverable()` accessor; `EntityTypeInterface` deliberately not widened — read duck-typed) — visibility in the `GET /api` discovery index only (see api-layer.md, mission request-surface-hardening-01KTX7F2, #1649); not an access control.
+
 ### EntityTypeManagerInterface
 
 File: `packages/entity/src/EntityTypeManagerInterface.php`
@@ -389,6 +398,19 @@ interface EntityTypeManagerInterface
 `getStorage()` returns the legacy `EntityStorageInterface` implementation (typically `SqlEntityStorage`) created via the optional storage factory.
 
 `getRepository()` returns `EntityRepositoryInterface` (the driver-backed repository with hydration, validation hooks, and transactional batch APIs). The kernel registers a repository factory alongside the storage factory so consumers can wrap `EntityTypeManager::getRepository($entityTypeId)` in thin domain repositories without manually assembling `SqlStorageDriver`, `RevisionableStorageDriver`, and `EntityRepository` dependencies.
+
+#### Two save engines (intentional; canonical = EntityRepository)
+
+The framework exposes **two entry points that both persist entities in production**, at different abstraction levels over a *shared* substrate — this duplication is intentional and tracked, not accidental:
+
+| Accessor | Class | Adds | Production write callers |
+|----------|-------|------|--------------------------|
+| `getRepository()` | `EntityRepository` | revisions, optimistic locking (`SaveContext`), save-time validation, two-axis translation, language fallback, `saveMany()`/`UnitOfWork` | `ai-*`, `media`, `attachment`, the optimistic-locking branch of `JsonApiController` |
+| `getStorage()` | `SqlEntityStorage` | lower-level `EntityStorageInterface`; **also owns `getQuery()`** (the `EntityQuery` surface) | `auth`, `api` (`JsonApiController`, `OidcClientController`, `TranslationController`, `FieldAutoSaveController`), `graphql`, `mcp` |
+
+**They do not drift on the persistence-critical seam.** Bundle-field partitioning routes through the single shared `BundleSubtableGateway` in both engines (each carries the comment *"Shared implementation with EntityRepository, so the two persistence paths cannot drift"* — `SqlEntityStorage::save()` and `EntityRepository::doSave()`), and the `_data`/column split is shared by construction. The engines diverge only in the *additive* higher-level features above, which `getStorage()` callers do not invoke.
+
+**Canonical path for new code: `EntityRepository` (`getRepository()`)** — it is the pipeline mandated by `.claude/rules/entity-storage-invariant.md` and the only path that carries events + revisions + validation + locking. Use `getStorage()` only when you need the lower-level `EntityStorageInterface` or `getQuery()`. There is **no** `StorageRepositoryAdapter` — earlier rule files named one, but convergence onto a single engine (making `SqlEntityStorage` a thin facade over `EntityRepository`, or extracting a shared core) is a **deferred future item**, intentionally not attempted while both accessors back the live production write path.
 
 `registerEntityType()` and `registerCoreEntityType()` accept an optional registrant class so the registry can emit provenance-aware collision errors. When an entity type id is registered twice with the same class, the manager throws `EntityTypeRegistrationCollisionException` with the duplicate-registration message contract. When the same id is registered with a different class, the manager throws the shadow-collision variant naming the canonical and conflicting classes.
 
@@ -496,7 +518,7 @@ interface EntityRepositoryInterface
 }
 ```
 
-`save()` accepts `bool $validate = true`. When true and an `EntityValidator` is injected, validates against the merged map from `EntityTypeValidationConstraints::forEntityType()` (field definitions + `getConstraints()`, see “Field definitions → constraints” below) before persisting. Throws `EntityValidationException` on failure.
+`save()` accepts `bool $validate = true`. When true and an `EntityValidator` is configured, validates against the merged map from `EntityTypeValidationConstraints::forEntityType()` (field definitions + `getConstraints()`, see “Field definitions → constraints” below) before persisting. Throws `EntityValidationException` on failure. **Since alpha.204 (#1643) a validator is configured by default**: the kernel wires one shared `EntityValidator::createDefault()` into every repository it builds, so validation runs framework-wide unless opted out (boot-time `WAASEYAA_ENTITY_VALIDATION=0|false|off`, or per-call `validate: false`).
 
 `saveMany()`/`deleteMany()` wrap all operations in a `UnitOfWork` transaction. Events are buffered and dispatched only after successful commit. Requires `$database` to be non-null (throws `\LogicException` otherwise).
 
@@ -674,7 +696,7 @@ The CLI scaffold at `packages/cli/stubs/provider-domain.stub` still emits `new E
 
 The `EntityRepository::save()` pipeline (used for all high-level persistence):
 
-1. Validates entity against the combined constraint map (`EntityTypeValidationConstraints::forEntityType()`) if `$validate === true` and `EntityValidator` is injected
+1. Validates entity against the combined constraint map (`EntityTypeValidationConstraints::forEntityType()`) if `$validate === true` and an `EntityValidator` is configured (the kernel default since alpha.204; throws `EntityValidationException` here, before any storage write)
 2. Calls `$entity->preSave($isNew)` lifecycle hook (if entity extends `EntityBase`)
 3. Dispatches `EntityEvents::PRE_SAVE` event (via `EntityEventFactoryInterface`)
 4. Writes to storage driver via `$driver->write()`, which returns the effective id of the persisted row (the backend-assigned pk for empty-id inserts, the caller-supplied id otherwise)
@@ -683,6 +705,24 @@ The `EntityRepository::save()` pipeline (used for all high-level persistence):
 7. Dispatches `EntityEvents::POST_SAVE` event
 8. Calls `$entity->postSave($isNew)` lifecycle hook (if entity extends `EntityBase`)
 9. Returns `EntityConstants::SAVED_NEW` (1) or `SAVED_UPDATED` (2)
+
+**Optimistic locking (#1647, mission optimistic-locking-01KTXCHY).** The save
+accepts an optional expectation via `SaveContext::withExpectedRevisionId(int $n)`
+("I am updating the entity as of revision `n`"). When stated, a conflict check
+runs between step 1 (validation — which still wins: an invalid + conflicted
+save reports `EntityValidationException`) and step 2: a head mismatch throws
+`RevisionConflictException` **before any write, hook, or lifecycle event**, and
+a guarded pointer-claim UPDATE inside the write transaction closes the race —
+exactly one of any set of concurrent saves stating the same expectation
+commits. Honored only on revision-creating saves of single-axis revisionable
+types; a stated expectation anywhere else (new entity, non-revisionable type,
+two-axis type, non-revision-creating save, no `DatabaseInterface`, no revision
+driver) throws `\LogicException` — a caller programming error, distinct by type
+from the `RevisionConflictException` data race; callers may rely on the
+distinction. **No expectation = byte-identical legacy behavior** (every
+conflict branch skipped, zero added queries). Full mechanics, the rejection
+matrix, and null-current semantics: `docs/specs/revision-system-unified.md`
+§3b.
 
 ### Save (via SqlEntityStorage — low-level)
 
@@ -747,6 +787,8 @@ Unset detection for the `create` role uses the raw `toArray()` bag (not cast-awa
 
 Table name derived from `$entityType->id()` (e.g., entity type `'node'` maps to table `node`).
 
+**Known tech-debt — size / decomposition (audit D-21, tracked).** This class is ~1560 LOC and intentionally co-locates four distinct storage models behind one `EntityStorageInterface`: (1) flat non-translatable (`save()`/`load()` → `insertBaseRow()`/`updateBaseRow()`), (2) `_data`-blob translatable (`saveTranslatable()`/`loadTranslatable()` + `insert/updateTranslatableEntity()`), (3) SQL-column translatable (`saveSqlColumnTranslatable()`/`loadSqlColumnTranslatable()` + the `*SqlColumnTranslation*` helpers), and (4) per-bundle subtable merge (`bundleGateway()` + `mergeBundleSubtableRow()`/`mergeBundleSubtableRowsBatch()`). The column/`_data` split helper (`splitForStorage()`) is already shared across the non-translatable path and partly mirrored by `getDataStoredCoreFieldNames()`. The intended decomposition is to extract the translatable save/load paths (models 2–3) into a `TranslatableSqlPersister` collaborator and have both it and `SqlEntityStorage` consume one shared column/`_data` split helper. This is deferred, not abandoned: the extraction touches the framework's most correctness- and security-sensitive write paths — per-langcode translatable persistence (FR-021/FR-024), the deliberately-open `_data` mass-assignment write boundary (see below; pinned by `SqlEntityStorageDataBlobMassAssignmentTest`), and the transactional bundle-subtable upsert/rollback — so it is sequenced as its own change behind full regression coverage rather than folded into an unrelated remediation pass.
+
 ### _data JSON Blob
 
 `SqlSchemaHandler::buildTableSpec()` adds a `_data TEXT NOT NULL DEFAULT '{}'` column to every entity table.
@@ -759,6 +801,8 @@ Table name derived from `$entityType->id()` (e.g., entity type `'node'` maps to 
 `SqlEntityStorage::mapRowToEntity()`:
 - If `$row['_data']` exists, `json_decode()` it and merge back into `$row`
 - Remove the `_data` key from the row before entity creation
+
+**Security - mass-assignment and the write boundary (intentional).** `splitForStorage()` persists every value key it receives, including keys with no registered `FieldDefinition` (they land in `_data`). This is deliberate: the open `_data` blob is the documented home for extension fields, `mergeCoreFields` overlays, and ad-hoc attributes, and the framework's own security-critical User fields (`pass` the password hash, `roles`, `permissions`) are stored as unregistered `_data` keys (see `packages/user/src/User.php`). A registered-field allowlist at this boundary is explicitly rejected: it would silently drop `pass`, `roles`, and `permissions` on every User save (breaking authentication and authorization) plus `node.body` and any host `_data` overlay, while providing no real protection, because `splitForStorage()` is identity-blind (it receives no `AccountInterface`) and cannot distinguish a legitimate admin role assignment from an attacker. Which actor may write which field is an authorization decision, enforced one layer up where the account is known: per-field `FieldAccessPolicyInterface::fieldAccess()` (for example `UserAccessPolicy` forbids `roles`, `permissions`, `status`, `email_verified` for non-admins and `pass` plus two-factor material for everyone), evaluated by `EntityAccessHandler::checkFieldAccess()` and called on every submitted attribute by the JSON:API write path (`JsonApiController` create and update), `FieldAutoSaveController`, and `TranslationController`. The write boundary stays a pure persistence primitive; the request surface owns mass-assignment defense. Regression coverage: `packages/entity-storage/tests/Unit/SqlEntityStorageDataBlobMassAssignmentTest.php`.
 
 ### Per-Bundle Subtables (Bundle-Scoped Storage)
 
@@ -863,7 +907,7 @@ Higher-level layer that handles:
 - Entity hydration (`hydrate()` method with `_data` merge and constructor adaptation)
 - Language fallback via `setFallbackChain(string[] $chain)` (default: `['en']`)
 - Event dispatch via `EntityEventFactoryInterface` (defaults to `DefaultEntityEventFactory`)
-- Pre-save validation via `EntityValidator` (when injected and `validate: true`) using `EntityTypeValidationConstraints::forEntityType()` (derived from field definitions plus manual `getConstraints()` per-field override)
+- Pre-save validation via `EntityValidator` (injected by default by the kernel since alpha.204, `validate: true`) using `EntityTypeValidationConstraints::forEntityType()` (derived from field definitions, plus per-field declared constraints appended, plus manual `getConstraints()` per-field override)
 - Entity lifecycle hooks (`preSave`, `postSave`, `preDelete`, `postDelete` on `EntityBase`)
 - Batch operations via `saveMany()`/`deleteMany()` with `UnitOfWork` transaction wrapping
 - Batch reads via `findMany(array $ids, ...)` delegating to `EntityStorageDriverInterface::readMultiple()`
@@ -1235,9 +1279,15 @@ final class EntityValidator
 {
     public function __construct(private readonly ValidatorInterface $validator);
 
+    public static function createDefault(): self;   // wraps Validation::createValidator(); stateless, shareable
+
     public function validate(EntityInterface $entity, array $constraints = []): ConstraintViolationListInterface;
 }
 ```
+
+**Kernel wiring (default-on since alpha.204, #1643).** `AbstractKernel` builds ONE shared `EntityValidator::createDefault()` at boot and passes it (`validator:`) to every `EntityRepository` its repository factory constructs. The decision is made once, at boot, from the environment: `WAASEYAA_ENTITY_VALIDATION` set to `0`, `false`, or `off` (case-insensitive) disables the wiring — repositories are then built without a validator, byte-identical to pre-alpha.204 behavior. Unset or any other value means enforcement ON. The per-call escape hatch `save($entity, validate: false)` / `saveMany($entities, validate: false)` is independent of the env switch and is the sanctioned bypass for writes that are invalid by design (migrations, schema bootstrap, fixture seeding).
+
+**Pre-persistence guarantee.** When validation fails, `EntityValidationException` is thrown BEFORE any storage write — base table, bundle subtable, translation table, and revision table are all untouched; existing rows are unchanged. The exception's violation list is complete (all violations across all fields, not first-failure), and each violation exposes the field name via `propertyPath` (prefix = field name), a human-readable message, and the invalid value. For a given entity state and definition set the violation list content is deterministic across runs; consumers may rely on field-name presence, not list ordering, at this layer. **saveMany rollback:** a validation failure inside the `saveMany()` batch aborts the `UnitOfWork` transaction — entities saved earlier in the same batch are rolled back, and the thrown exception identifies the failing entity's violations. Entity types whose resolved constraint map is empty save with zero validation overhead beyond map resolution. (Mission contract: `kitty-specs/live-entity-validation-key-protection-01KTWQT3/contracts/validation-error.md`.)
 
 Validates entity field values against per-field Symfony Validator constraints. `$constraints` is keyed by field name. Values are always read with `EntityInterface::get($field)` so Symfony sees **cast-aware domain types** when the entity defines `$casts` (e.g. `Type(BackedEnum::class)` constraints). Do not use `toArray()` slices here — storage scalars would bypass casts (#1181 ST-6). `FieldableInterface` adds field metadata only; `get()`/`set()` are part of the core `EntityInterface` contract. Violations are remapped to include the field path.
 
@@ -1255,11 +1305,19 @@ final class EntityValidationException extends \RuntimeException
 
 Thrown by `EntityRepository::save()` when validation fails. The `$violations` property provides programmatic access to all constraint violations.
 
-#### Field definitions → constraints (#1182)
+#### Field definitions → constraints (#1182, #1643)
+
+For a field `F` on entity type `T`, three constraint sources compose with fixed precedence:
+
+| Layer | Source | Semantics |
+|---|---|---|
+| 1. Derived | Field settings → `FieldDefinitionConstraintBuilder` | required → NotBlank/NotNull; min/max_length → Length; email → Email; allowed_values/enum → Choice; scalar type → Type; numeric `min`/`max` settings → Range |
+| 2. Declared per-field | `FieldDefinition::getConstraints()` (`Constraint[]`) | **Appended** after the derived list (tightens, never replaces); a non-`Constraint` entry throws `InvalidArgumentException` |
+| 3. Manual per-type | `EntityType::getConstraints()` (field → constraints map) | **Replaces** layers 1+2 entirely for that field; manual-only fields are included, derived-only fields keep builder output |
 
 File: `packages/entity/src/Validation/FieldDefinitionConstraintBuilder.php`
 
-Maps `EntityType::getFieldDefinitions()` metadata to per-field Symfony `Constraint` lists (same key shape as `getConstraints()`). Supported keys on each field array:
+Maps `EntityType::getFieldDefinitions()` metadata to per-field Symfony `Constraint` lists (same key shape as `getConstraints()`) — layers 1 and 2 above. Supported keys on each field array:
 
 | Metadata | Symfony constraints | Notes |
 |----------|---------------------|--------|
@@ -1270,17 +1328,20 @@ Maps `EntityType::getFieldDefinitions()` metadata to per-field Symfony `Constrai
 | `allowed_values` / `allowedValues` | `Choice` | Non-empty list only. |
 | `enum_class` / `enumClass` (`BackedEnum`) | `Choice` on backing values | PHP enum class name. |
 | `type` scalar | `Type` | `bool`, `int`, `float`, `string` (incl. `email`/`text`/`slug`), `array`/`json`. Omitted for `entity_reference` and `timestamp` (storage shape varies). |
+| `min` / `max` settings on `integer` / `int` / `float` / `double` | `Range` | Derived when `min` and/or `max` is numeric — both, either, or neither may be present (mirrors the Length shape). (#1643) |
+
+Per-field declared constraints (`FieldDefinition::getConstraints()`, object-shaped definitions; array-shaped definitions carry `constraints` through `normalizeDefinition()`) are appended after the derived list for the same field.
 
 File: `packages/entity/src/Validation/EntityTypeValidationConstraints.php`
 
-`EntityTypeValidationConstraints::forEntityType(EntityTypeInterface)` builds the map used by `EntityRepository::doSave()` when a validator is configured:
+`EntityTypeValidationConstraints::forEntityType(EntityTypeInterface)` builds the map used by `EntityRepository::doSave()` when a validator is configured (the default — see “Kernel wiring” above):
 
-1. Derive constraints from `getFieldDefinitions()` via `FieldDefinitionConstraintBuilder::build()`.
-2. Merge `getConstraints()`: **for each field name present in `getConstraints()`, the manual value replaces the derived list entirely** for that field. Manual-only fields are included. Derived-only fields keep builder output.
+1. Derive constraints from `getFieldDefinitions()` via `FieldDefinitionConstraintBuilder::build()` (layers 1+2).
+2. Merge `getConstraints()`: **for each field name present in `getConstraints()`, the manual value replaces the derived list entirely** for that field (layer 3).
 
-Opt-out: `EntityRepository::save($entity, validate: false)` (and `saveMany`) skips validation entirely; there is no separate flag for “manual only.”
+Opt-outs: boot-time `WAASEYAA_ENTITY_VALIDATION=0|false|off` builds repositories without a validator; per-call `EntityRepository::save($entity, validate: false)` (and `saveMany`) skips validation for that call. There is no separate flag for “manual only.”
 
-Invalid data raises `EntityValidationException` with property paths equal to field names (plus nested paths when a constraint reports a sub-path), unchanged from `EntityValidator` behavior.
+Invalid data raises `EntityValidationException` with property paths equal to field names (plus nested paths when a constraint reports a sub-path), thrown before any storage write — see “Pre-persistence guarantee” above.
 
 #### Entity fixture values for tests and seeds (#1186)
 
@@ -1518,6 +1579,8 @@ Class: `class FieldItemList implements FieldItemListInterface, \IteratorAggregat
 
 Contains `FieldItemInterface[]` items. Supports `__get($name)` to access first item's property value (e.g., `$list->value`).
 
+**Not wired into the entity value path:** entity field values flow through `EntityBase::get()`/`set()` over the `$values` bag (plus optional `ValueCaster`), **not** through `FieldItemList`. The object layer (`FieldItemList`, `FieldItemBase` and subclasses) is `@api` forward-scaffolding; only the **static** facet of `FieldItemBase` (`defaultSettings()`/`schema()`/`schemaFor()`/`jsonSchemaFor()`) is live, consumed by `FieldTypeManager` for storage + JSON-Schema generation. No production code constructs a `FieldItemList`/`FieldItemBase` instance; object-layer integration into the value path is future work.
+
 ### FieldTypeManager
 
 File: `packages/field/src/FieldTypeManager.php`
@@ -1593,6 +1656,7 @@ final class FieldType extends WaaseyaaPlugin
 - `SqlSchemaHandler.php` -- base-table creation, per-bundle subtable creation (`ensureBundleSubtable()`), FK+CASCADE wiring, schema management
 - `Exception/BundleAmbiguousFieldException.php` -- thrown when a query references a field shared across multiple bundles without a bundle filter
 - `Exception/UnknownFieldException.php` -- thrown when a field resolves against neither core nor any registered bundle
+- `Exception/RevisionConflictException.php` -- thrown when a save stating a revision expectation (`SaveContext::withExpectedRevisionId()`) finds the head moved; carries entityTypeId/entityId/expectedRevisionId/currentRevisionId + `errorCode: 'REVISION_CONFLICT'` (#1647 — see revision-system-unified.md §3b)
 - `EntitySchemaSync.php` -- batch wrapper that calls `SqlSchemaHandler::ensureTable()` for a list of entity types
 - `EntityStorageFactory.php` -- factory that creates/caches SqlEntityStorage
 - `EntityRepository.php` -- high-level repository with language fallback
@@ -1799,11 +1863,11 @@ a `getPrimaryStorageBackend()` in their `EntityType`. The entity class implement
 carrying revision id, author, timestamp, and log message. `RevisionTableBuilder`
 creates the `{entity_type}_revision` table.
 
-Revisionable storage is provided by `RevisionableSqlBlobStorage` and
-`RevisionableSqlColumnStorage`, both implementing
-`RevisionableEntityStorageInterface`. `RevisionPruner` removes old revisions
-according to a `RevisionPruningPolicy`; results are returned as
-`RevisionPruningReport`. `RevisionAccessRouter` (in `waaseyaa/access`) maps
+The legacy `vid`-keyed revisionable storage stack — `RevisionableSqlBlobStorage`,
+`RevisionableSqlColumnStorage`, `RevisionableEntityStorageInterface`, and
+`RevisionPruner` — was **removed in alpha.196**. See
+`docs/specs/revision-system-unified.md` for the current revisionable storage
+model. `RevisionAccessRouter` (in `waaseyaa/access`) maps
 `GateInterface::VIEW_REVISION` operations to the revision access policy.
 
 ### Storage migration CLI (WP10)
@@ -1843,7 +1907,7 @@ type-mapping table.
 - **Entity types without a `uuid` key are config entities**: `SqlEntityStorage::save()` requires explicit non-empty string IDs for entities whose `EntityType` keys lack `'uuid' => 'uuid'`. Content entities with auto-increment IDs must include the `uuid` key even if they don't use UUIDs.
 - **`entity_reference` field definitions need `target_entity_type_id`**: `EntityTypeBuilder` looks for `target_entity_type_id` or `targetEntityTypeId`, not `target`. Wrong key causes silent fallback to String type with no reference resolution.
 - **`EntityBase` lifecycle hooks**: `preSave(bool $isNew)`, `postSave(bool $isNew)`, `preDelete()`, `postDelete()` are no-op by default. Override in subclasses. Order: `preSave()` → PRE_SAVE event → persist → POST_SAVE event → `postSave()`.
-- **`EntityRepository` auto-validation**: When `EntityValidator` is injected, `save()` validates against `EntityType::getConstraints()` and throws `EntityValidationException`. Pass `validate: false` to bypass for migrations/bulk imports. `saveMany()` also respects this.
+- **`EntityRepository` auto-validation**: An `EntityValidator` is injected by default into every kernel-built repository (alpha.204, #1643) — `save()` validates against the merged three-layer constraint map (`EntityTypeValidationConstraints::forEntityType()`) and throws `EntityValidationException` before any storage write. Pass `validate: false` to bypass for migrations/bulk imports (`saveMany()` also respects this), or set `WAASEYAA_ENTITY_VALIDATION=0|false|off` to disable the kernel wiring globally at boot.
 - **`saveMany()`/`deleteMany()` use UnitOfWork**: Batch operations wrap all writes in a single transaction. Events are buffered and dispatched only after successful commit. Requires `$database` to be non-null (throws `LogicException` otherwise).
 - **`_data` JSON blob**: `SqlSchemaHandler` adds a `_data` TEXT column. `SqlEntityStorage::splitForStorage()` puts non-schema values into it as JSON; `mapRowToEntity()` merges them back on load. Adding fields to an entity that aren't declared as columns means they live in `_data` and won't be queryable in SQL.
 - **`EntityEvent` uses public properties**: `$event->entity` and `$event->originalEntity` are public readonly — no getter methods. Common mistake: `$event->getEntity()`.

@@ -18,10 +18,10 @@ use Waaseyaa\Entity\Storage\EntityStorageInterface;
 #[CoversClass(UserCreateHandler::class)]
 final class UserCreateHandlerTest extends TestCase
 {
-    private function makeDefinition(): \Waaseyaa\CLI\CommandDefinition
+    private function makeDefinition(): \Waaseyaa\CLI\Command\HandlerCommand
     {
         $provider = new UserPermissionServiceProvider();
-        foreach ($provider->nativeCommands() as $cmd) {
+        foreach ($provider->consoleCommands() as $cmd) {
             if ($cmd->name === 'user:create') {
                 return $cmd;
             }

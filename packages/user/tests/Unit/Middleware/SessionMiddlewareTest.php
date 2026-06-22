@@ -11,6 +11,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\User\AnonymousUser;
@@ -354,6 +355,119 @@ final class SessionMiddlewareTest extends TestCase
     }
 
     #[Test]
+    public function mirrors_resolved_account_into_account_context(): void
+    {
+        $user = new User(['uid' => 42, 'name' => 'admin', 'permissions' => ['access content']]);
+
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage->expects($this->once())
+            ->method('load')
+            ->with(42)
+            ->willReturn($user);
+
+        $context = new RequestAccountContext();
+        $middleware = new SessionMiddleware($storage, accountContext: $context);
+        $request = Request::create('/test');
+        $request->attributes->set('_session', ['waaseyaa_uid' => 42]);
+
+        $capturedAccount = null;
+        $next = new class($capturedAccount) implements HttpHandlerInterface {
+            public function __construct(private ?AccountInterface &$ref) {}
+
+            public function handle(Request $request): Response
+            {
+                $this->ref = $request->attributes->get('_account');
+                return new Response('ok');
+            }
+        };
+
+        $middleware->process($request, $next);
+
+        // Both surfaces agree: the `_account` attribute and the context hold
+        // the same object.
+        $this->assertSame($user, $capturedAccount);
+        $this->assertSame($user, $context->current());
+    }
+
+    #[Test]
+    public function mirrors_anonymous_fallback_into_account_context(): void
+    {
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage->expects($this->never())->method('load');
+
+        $context = new RequestAccountContext();
+        $middleware = new SessionMiddleware($storage, accountContext: $context);
+        $request = Request::create('/test');
+
+        $next = new class implements HttpHandlerInterface {
+            public function handle(Request $request): Response
+            {
+                return new Response('ok');
+            }
+        };
+
+        $middleware->process($request, $next);
+
+        // Anonymous (id 0) is an actor — the context holds it, not null.
+        $this->assertInstanceOf(AnonymousUser::class, $context->current());
+        $this->assertSame(0, $context->current()->id());
+    }
+
+    #[Test]
+    public function mirrors_preset_authenticated_account_into_account_context(): void
+    {
+        $existing = new User(['uid' => 88, 'name' => 'token-user']);
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage->expects($this->never())->method('load');
+
+        $context = new RequestAccountContext();
+        $middleware = new SessionMiddleware($storage, accountContext: $context);
+        $request = Request::create('/test');
+        $request->attributes->set('_account', $existing);
+
+        $next = new class implements HttpHandlerInterface {
+            public function handle(Request $request): Response
+            {
+                return new Response('ok');
+            }
+        };
+
+        $middleware->process($request, $next);
+
+        // The early-return branch (BearerAuthMiddleware already resolved an
+        // account) must mirror the pre-set account too.
+        $this->assertSame($existing, $context->current());
+    }
+
+    #[Test]
+    public function works_without_account_context_param(): void
+    {
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage->expects($this->never())->method('load');
+
+        // Legacy construction — no context param. The `?->` guard means no
+        // error, and `_account` behavior is unchanged.
+        $middleware = new SessionMiddleware($storage);
+        $request = Request::create('/test');
+
+        $capturedAccount = null;
+        $next = new class($capturedAccount) implements HttpHandlerInterface {
+            public function __construct(private ?AccountInterface &$ref) {}
+
+            public function handle(Request $request): Response
+            {
+                $this->ref = $request->attributes->get('_account');
+                return new Response('ok');
+            }
+        };
+
+        $response = $middleware->process($request, $next);
+
+        $this->assertSame('ok', $response->getContent());
+        $this->assertInstanceOf(AnonymousUser::class, $capturedAccount);
+    }
+
+    #[Test]
     #[RunInSeparateProcess]
     public function applies_session_cookie_ini_when_configured(): void
     {
@@ -447,6 +561,90 @@ final class SessionMiddlewareTest extends TestCase
                 ini_restore('session.cookie_secure');
             }
             unset($_SERVER['HTTP_X_FORWARDED_PROTO'], $_SERVER['REMOTE_ADDR']);
+        }
+    }
+
+    #[Test]
+    #[RunInSeparateProcess]
+    public function applies_secure_session_cookie_defaults_when_unconfigured(): void
+    {
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $keys = [
+            'session.cookie_httponly',
+            'session.cookie_samesite',
+            'session.use_strict_mode',
+        ];
+        $saved = [];
+        foreach ($keys as $key) {
+            $saved[$key] = ini_get($key);
+        }
+
+        try {
+            // Prove the starting state is insecure so the assertions are meaningful.
+            ini_set('session.cookie_httponly', '0');
+            ini_set('session.cookie_samesite', '');
+            ini_set('session.use_strict_mode', '0');
+
+            // No fourth arg => $sessionCookieOptions is null (default config).
+            $middleware = new SessionMiddleware($storage);
+            $method = new \ReflectionMethod(SessionMiddleware::class, 'applySessionCookieIni');
+            $method->invoke($middleware);
+
+            $this->assertSame('1', ini_get('session.cookie_httponly'), 'HttpOnly must be on by default');
+            $this->assertSame('Lax', ini_get('session.cookie_samesite'), 'SameSite must default to Lax');
+            $this->assertSame('1', ini_get('session.use_strict_mode'), 'Strict session-id mode must be on by default');
+        } finally {
+            foreach ($saved as $key => $value) {
+                if ($value !== false && $value !== '') {
+                    ini_set($key, $value);
+                } else {
+                    ini_restore($key);
+                }
+            }
+        }
+    }
+
+    /**
+     * Overridability: explicit config wins over the hardened defaults, while
+     * un-overridden keys still receive their secure default.
+     */
+    #[Test]
+    #[RunInSeparateProcess]
+    public function explicit_session_cookie_options_override_secure_defaults(): void
+    {
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $keys = [
+            'session.cookie_httponly',
+            'session.cookie_samesite',
+            'session.use_strict_mode',
+        ];
+        $saved = [];
+        foreach ($keys as $key) {
+            $saved[$key] = ini_get($key);
+        }
+
+        try {
+            ini_set('session.use_strict_mode', '0');
+
+            $middleware = new SessionMiddleware($storage, null, null, [
+                'httponly' => false,
+                'samesite' => 'Strict',
+                // use_strict_mode intentionally omitted -> default (true) applies.
+            ]);
+            $method = new \ReflectionMethod(SessionMiddleware::class, 'applySessionCookieIni');
+            $method->invoke($middleware);
+
+            $this->assertSame('0', ini_get('session.cookie_httponly'), 'explicit httponly=false must override the default');
+            $this->assertSame('Strict', ini_get('session.cookie_samesite'), 'explicit samesite must override the Lax default');
+            $this->assertSame('1', ini_get('session.use_strict_mode'), 'omitted key must still receive its secure default');
+        } finally {
+            foreach ($saved as $key => $value) {
+                if ($value !== false && $value !== '') {
+                    ini_set($key, $value);
+                } else {
+                    ini_restore($key);
+                }
+            }
         }
     }
 }

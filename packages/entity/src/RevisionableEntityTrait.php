@@ -31,7 +31,7 @@ namespace Waaseyaa\Entity;
  *     public function __construct(array $values = [])
  *     {
  *         parent::__construct($values, 'teaching', [
- *             'id' => 'tid', 'uuid' => 'uuid', 'revision' => 'vid',
+ *             'id' => 'id', 'uuid' => 'uuid', 'revision' => 'revision_id',
  *         ]);
  *     }
  * }

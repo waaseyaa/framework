@@ -42,20 +42,25 @@
         },
         {
             "type": "path",
+            "url": "../seo"
+        },
+        {
+            "type": "path",
             "url": "../foundation"
         }
     ],
     "require": {
         "php": ">=8.5",
         "symfony/html-sanitizer": "^8.0",
-        "waaseyaa/api": "^0.1.0-alpha.200",
-        "waaseyaa/access": "^0.1.0-alpha.200",
-        "waaseyaa/cache": "^0.1.0-alpha.200",
-        "waaseyaa/config": "^0.1.0-alpha.200",
-        "waaseyaa/entity": "^0.1.0-alpha.200",
-        "waaseyaa/field": "^0.1.0-alpha.200",
-        "waaseyaa/foundation": "^0.1.0-alpha.200",
-        "waaseyaa/routing": "^0.1.0-alpha.200",
+        "waaseyaa/api": "^0.1.0-alpha.245",
+        "waaseyaa/access": "^0.1.0-alpha.245",
+        "waaseyaa/cache": "^0.1.0-alpha.245",
+        "waaseyaa/config": "^0.1.0-alpha.245",
+        "waaseyaa/entity": "^0.1.0-alpha.245",
+        "waaseyaa/field": "^0.1.0-alpha.245",
+        "waaseyaa/foundation": "^0.1.0-alpha.245",
+        "waaseyaa/routing": "^0.1.0-alpha.245",
+        "waaseyaa/seo": "^0.1.0-alpha.245",
         "twig/twig": "^3.0"
     },
     "require-dev": {

@@ -114,7 +114,15 @@
         },
         {
             "type": "path",
+            "url": "packages/workspace"
+        },
+        {
+            "type": "path",
             "url": "packages/api"
+        },
+        {
+            "type": "path",
+            "url": "packages/wayfinding"
         },
         {
             "type": "path",
@@ -167,6 +175,10 @@
         {
             "type": "path",
             "url": "packages/foundation"
+        },
+        {
+            "type": "path",
+            "url": "packages/frankenphp"
         },
         {
             "type": "path",
@@ -291,8 +303,11 @@
     ],
     "require": {
         "php": ">=8.5",
+        "ext-pdo_sqlite": "*",
         "ext-sodium": "*",
+        "ext-sqlite3": "*",
         "dragonmantank/cron-expression": "^3.0",
+        "symfony/console": "^8.0",
         "symfony/dotenv": "^8.0",
         "symfony/html-sanitizer": "^8.0",
         "waaseyaa/access": "self.version",
@@ -321,7 +336,7 @@
         "waaseyaa/error-handler": "self.version",
         "waaseyaa/field": "self.version",
         "waaseyaa/foundation": "self.version",
-        "waaseyaa/genealogy": "self.version",
+        "waaseyaa/frankenphp": "self.version",
         "waaseyaa/geo": "self.version",
         "waaseyaa/github": "self.version",
         "waaseyaa/graphql": "self.version",
@@ -360,6 +375,7 @@
         "waaseyaa/typed-data": "self.version",
         "waaseyaa/user": "self.version",
         "waaseyaa/validation": "self.version",
+        "waaseyaa/wayfinding": "self.version",
         "waaseyaa/workflows": "self.version"
     },
     "require-dev": {
@@ -371,11 +387,14 @@
         "sendgrid/sendgrid": "^8.1",
         "shipmonk/composer-dependency-analyser": "^1.8",
         "shipmonk/dead-code-detector": "^1.1",
+        "waaseyaa/genealogy": "self.version",
         "waaseyaa/testing": "self.version"
     },
     "autoload-dev": {
         "psr-4": {
             "Waaseyaa\\Tools\\PHPStan\\": "tools/phpstan/",
+            "Waaseyaa\\CLI\\Io\\": "packages/cli/tests/Io/",
+            "Waaseyaa\\CLI\\Testing\\": "packages/cli/tests/Testing/",
             "Waaseyaa\\Cache\\Tests\\": "packages/cache/tests/",
             "Waaseyaa\\CLI\\Tests\\": "packages/cli/tests/",
             "Waaseyaa\\Config\\Tests\\": "packages/config/tests/",
@@ -387,8 +406,11 @@
             "Waaseyaa\\Entity\\Tests\\": "packages/entity/tests/",
             "Waaseyaa\\Field\\Tests\\": "packages/field/tests/",
             "Waaseyaa\\Foundation\\Tests\\": "packages/foundation/tests/",
+            "Waaseyaa\\FrankenPhp\\Tests\\": "packages/frankenphp/tests/",
             "Waaseyaa\\Geo\\Tests\\": "packages/geo/tests/",
             "Waaseyaa\\Genealogy\\Tests\\": "packages/genealogy/tests/",
+            "Waaseyaa\\Workspace\\": "packages/workspace/src/",
+            "Waaseyaa\\Workspace\\Tests\\": "packages/workspace/tests/",
             "Waaseyaa\\GitHub\\Tests\\": "packages/github/tests/",
             "Waaseyaa\\I18n\\Tests\\": "packages/i18n/tests/",
             "Waaseyaa\\Listing\\Tests\\": "packages/listing/tests/",
@@ -399,6 +421,7 @@
             "Waaseyaa\\ErrorHandler\\Tests\\": "packages/error-handler/tests/",
             "Waaseyaa\\Access\\Tests\\": "packages/access/tests/",
             "Waaseyaa\\Api\\Tests\\": "packages/api/tests/",
+            "Waaseyaa\\Wayfinding\\Tests\\": "packages/wayfinding/tests/",
             "Waaseyaa\\Attachment\\Tests\\": "packages/attachment/tests/",
             "Waaseyaa\\StructuredImport\\Tests\\": "packages/structured-import/tests/",
             "Waaseyaa\\Queue\\Tests\\": "packages/queue/tests/",
@@ -442,17 +465,19 @@
             "Waaseyaa\\OAuthProvider\\Tests\\": "packages/oauth-provider/tests/",
             "Waaseyaa\\Oidc\\Tests\\": "packages/oidc/tests/",
             "Waaseyaa\\Engagement\\Tests\\": "packages/engagement/tests/",
+            "Waaseyaa\\Deployer\\Tests\\": "packages/deployer/tests/",
             "Waaseyaa\\Tests\\": "tests/"
         }
     },
     "scripts": {
-        "check-composer-policy": "bash bin/check-composer-policy",
+        "check-composer-policy": "php bin/check-composer-policy",
+        "check-distribution-extensions": "php bin/check-distribution-extensions",
         "check-openapi": "bash bin/check-openapi",
         "check-external-consumers": "php bin/check-external-consumers ai-agent-orphans",
         "check-ingestion-defaults": "bash bin/check-ingestion-defaults",
         "check-no-secrets": "bash bin/check-no-secrets",
-        "check-package-layers": "bash bin/check-package-layers",
-        "check-symfony-imports": "bash bin/check-symfony-imports",
+        "check-package-layers": "php bin/check-package-layers",
+        "check-symfony-imports": "php bin/check-symfony-imports",
         "cs-check": "php-cs-fixer fix --dry-run --diff",
         "cs-fix": "php-cs-fixer fix",
         "dev": [
@@ -468,31 +493,39 @@
             "PHP_CLI_SERVER_WORKERS=4 bin/waaseyaa serve"
         ],
         "phpstan": "phpstan analyse --memory-limit=512M",
+        "check-phpstan-paths": "bash bin/check-phpstan-paths",
         "check-admin-coercion-patterns": "bash bin/check-admin-coercion-patterns",
-        "check-dead-code": "bash bin/check-dead-code",
+        "check-admin-coercion-self-test": "bash bin/check-admin-coercion-patterns --self-test",
+        "check-dead-code": "php bin/check-dead-code",
         "check-getquery-bindings": "php bin/check-getquery-bindings",
-        "test": "phpunit --no-coverage",
+        "check-admin-dist-fresh": "php bin/check-admin-dist-fresh",
+        "test": "php -d memory_limit=512M vendor/bin/phpunit --no-coverage",
         "verify": [
             "@cs-check",
             "@phpstan",
+            "@check-phpstan-paths",
             "@check-composer-policy",
             "@check-package-layers",
+            "@check-distribution-extensions",
             "@check-no-secrets",
             "@check-ingestion-defaults",
             "@check-symfony-imports",
             "@check-dead-code",
             "@check-getquery-bindings",
-            "@check-external-consumers",
             "@check-admin-coercion-patterns",
+            "@check-admin-coercion-self-test",
+            "@check-admin-dist-fresh",
             "@check-openapi",
             "@test"
         ]
     },
     "scripts-descriptions": {
         "check-admin-coercion-patterns": "Prevent regression of the useAdminConfig() migration (mission M-F). Fails when raw string-compare coercion patterns (=== '1', === '0') appear in packages/admin/app/**/*.{ts,vue} outside of configCoercion.ts, test files, or lines marked with // allow-coercion: <reason>.",
+        "check-admin-coercion-self-test": "Meta-test for the admin coercion gate (audit D-5). Runs bin/check-admin-coercion-patterns --self-test: plants a synthetic violator and asserts the scanner exits non-zero, proving the gate is not a silent no-op. Wired into verify and the ci/verify-gates job so the self-test actually runs in CI.",
         "check-dead-code": "Fail-on-new dead-code gate (Phase 4 of the dead-code cleanup audit). Runs phpstan-dead-code.neon with shipmonk's detector; pre-existing baseline entries are suppressed, only NEW findings fail. See docs/audits/2026-05-17-dead-code-baseline-audit.md and bin/check-dead-code header for how to handle a new finding.",
         "check-getquery-bindings": "Fail-on-new gate for unbound getQuery()->execute() callsites. Baseline at tools/getquery-bindings-baseline.txt. New callsites fail CI; add to baseline with mandatory exemption comment if legitimately exempt. See CLAUDE.md \u00a7 CI gates.",
-        "check-openapi": "Validate packages/api/openapi.yaml against OpenAPI 3.1.0 spec via @stoplight/spectral-cli. Requires Node.js + npx; exits 0 with SKIP notice when npx is unavailable (CI-safe). Wired as a hard gate in verify per NFR-004 (WP02, mission agent-executor-v1-1-audit-followups-01KS3S5M).",
+        "check-admin-dist-fresh": "Admin dist freshness gate (D6). Fails when packages/admin/app source changes without rebuilding the committed packages/admin-surface/dist bundle, by comparing a line-ending-normalised content signature (packages/admin-surface/dist.signature) against a freshly computed one. Rebuild + refresh with bin/build-admin-dist. Prevents shipping a stale prebuilt admin SPA (e.g. the alpha.226 Edit-feedback feature that never reached the served bundle).",
+        "check-openapi": "Spectral-lint the hand-maintained agent-run sub-spec packages/api/openapi.yaml (3 SSE endpoints + pending_approval shape) for YAML/OpenAPI structural validity. Syntax/shape lint of that one file only — does NOT check route parity against live routes. Requires Node.js + npx; exits 0 with SKIP notice when npx is unavailable (CI-safe). Wired as a hard gate in verify per NFR-004 (WP02, mission agent-executor-v1-1-audit-followups-01KS3S5M).",
         "check-symfony-imports": "Enforce the Path R-narrow Symfony-import boundary (mission #1107 C-005 (b)). Fails when `use Symfony\\\u2026` appears outside the framework allowlist. Allowlist lives in .symfony-import-allowlist.json \u2014 see docs/specs/api-layer.md \u00a7Symfony Import Boundary.",
         "dev": "Start the PHP dev server (delegates to dev:php). For the admin SPA, run `composer dev:admin` in a second terminal \u2014 see docs/specs/operations-playbooks.md.",
         "dev:admin": "Start the Nuxt admin SPA dev server. NUXT_BACKEND_URL points at the PHP server (default :8080); set APP_PORT to override.",

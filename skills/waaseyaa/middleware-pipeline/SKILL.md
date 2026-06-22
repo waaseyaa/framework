@@ -287,5 +287,5 @@ Unit tests use `#[CoversClass(TargetClass::class)]`. Integration tests use `#[Co
 ## Related Specs
 
 - `docs/specs/middleware-pipeline.md` -- full specification with interface signatures and file reference
-- `docs/plans/2026-03-01-laravel-integration-layer-design.md` -- original design document for middleware pipelines
-- `docs/plans/2026-03-01-authorization-wiring-design.md` -- design for Session + Authorization middleware wiring
+- `docs/history/plans/2026-03-01-laravel-integration-layer-design.md` -- original design document for middleware pipelines
+- `docs/history/plans/2026-03-01-authorization-wiring-design.md` -- design for Session + Authorization middleware wiring

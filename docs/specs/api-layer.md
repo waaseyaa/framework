@@ -1,6 +1,12 @@
 # API Layer
 
+<!-- Spec reviewed 2026-06-21 - issue #1704 (CL-12): `MercureMonitorController::events()` SSE stream is now BOUNDED. It previously looped on `while (connection_aborted() === 0)` with no time-budget cap — the same missed-disconnect worker-pin class BroadcastRouter fixed (a never-surfaced disconnect under FrankenPHP worker mode pinned the worker indefinitely). The stream now: releases the PHP session lock (`session_write_close()`), clears `ignore_user_abort(false)`, re-probes the abort signal immediately after each event/keepalive write, and exits on disconnect OR a per-connection time budget (new `DEFAULT_MAX_DURATION_SEC` = 30s) — whichever comes first. New optional ctor params (`maxDurationSec`/`keepaliveIntervalSec`/`pollIntervalUs`/`clock`/`abortSignal`, all defaulted) make the bound injectable; the continuation rule is the pure static `MercureMonitorController::streamShouldContinue(abortStatus, elapsedSec, maxDurationSec)`. Frame shape (id/event/data, 15s keepalive, channels) and the null-stream `disabled` frame are unchanged. Acceptance: MercureMonitorControllerTest. -->
+<!-- Spec reviewed 2026-06-15 - B-3 (security): JsonApiController::index() now returns 400 for a collection query that filters or sorts on an internal field (FieldDefinition settings['internal'] => true) or an ALWAYS_INTERNAL_FIELDS credential key (pass/password/password_hash), via rejectInternalQueryFields() applied before BOTH the count and main queries. This mirrors the response-side internal-field policy (see "Filters internal/credential fields") onto the query side, closing a value-enumeration oracle where an anonymous collection request could filter on a never-serialised field and read match/no-match. Filtering/sorting on ordinary non-internal fields is unchanged. Pinned by JsonApiControllerInternalFieldQueryTest. -->
+
+<!-- Spec reviewed 2026-06-12 - mission optimistic-locking-01KTXCHY WP03 (#1647): new "Conditional update — optimistic locking" section under the JSON:API controller. PATCH accepts `data.meta.expected_revision_id` (positive integer; invalid → 400, non-single-axis-revisionable type → 422; If-Match explicitly NOT supported — headers don't reach the controller; additive follow-up may map it onto the same SaveContext seam). Stale expectation → 409 `code: REVISION_CONFLICT` with `meta {expected_revision_id, current_revision_id}` (`current_revision_id` null = no readable head); the codeless data.id-vs-uuid 409 keeps its shape — `code` is the discriminator. An expectation-stated PATCH persists through the revision-aware repository pipeline (cuts a revision, dispatches repository lifecycle events; repository EntityValidationException and the storage LogicException rejection backstop both map to 422); a no-expectation PATCH is byte-identical to before. JsonApiError gains the additive `meta` ctor member (emitted only when non-empty) and `conflict()` gains optional code/meta passthrough — class snippet updated. `revision_id` on reads of revisionable types is now documented LOAD-BEARING (FR-008, pinned by JsonApiControllerConflictTest) — removing/renaming it is a consumer break. -->
+<!-- Spec reviewed 2026-06-12 - mission request-surface-hardening-01KTX7F2 WP03 (#1649): two consumer-visible hardening changes. (1) Discovery filtering — `ApiDiscoveryController` gains an optional `?AccountInterface $account = null` ctor param (passed by `DiscoveryRouter::handle()` from `WaaseyaaContext::fromRequest($request)->account`, the `_account` attribute); per-type links are emitted only when `$account?->isAuthenticated() === true` (anonymous/absent account → envelope only, zero type links), and definitions whose duck-typed `isDiscoverable()` returns false are absent for EVERY caller (the new `EntityType` `discoverable: bool = true` flag; `EntityTypeInterface` deliberately not widened). Route stays `_public`/allowAll. No categorical per-type view check exists in the access API — authenticated-only is the documented fallback (research D1), NOT per-account type filtering. (2) Denied-as-404 — `JsonApiController::show()` returns the canonical not-found document for a view-denied entity, byte-identical to the missing-id response for the same probe (single private `notFoundDocument()` factory, no `code` member, no debug variant; NFR-002 pinned by `JsonApiControllerDeniedNotFoundTest`). Mutations keep genuine 403s (FR-004). Known boundary: `/api/entity-types`, `/api/openapi.json`, `/api/schema/{entity_type}` still enumerate anonymously — see "Adjacent enumeration surfaces". -->
 <!-- Spec reviewed 2026-06-04 - PR #1614 (real content types): schema + serialization become bundle-aware. `SchemaController::show(string $entityTypeId, ?string $bundle = null)` scopes the emitted JSON Schema to a content type's bundle via `EntityTypeManagerInterface::resolveFieldDefinitions`, building the prototype entity with the bundle key, so a bundled entity (e.g. a node of bundle `page`) exposes its per-bundle fields (`body`, `blocks`) and not just the shared core fields; `SchemaRouter` threads an optional `?bundle` query param. `ResourceSerializer` filters/casts attributes through the same bundle-aware `resolveFieldDefinitions($entityTypeId, $entity->bundle())`. The admin AdminSurface schema action (`GenericAdminSurfaceHost::handleSchema`) resolves the bundle from the payload `bundle` or from the entity named by `id` and calls the same controller, so the admin edit form, JSON:API, and GraphQL all read through one bundle-aware path. -->
+<!-- Spec reviewed 2026-06-09 - alpha.201 #1603: BroadcastStorageScheduleEntries downgraded its "BroadcastStorage not bound" log from warning to debug (unbound is the normal state for apps that do not opt into SSE broadcasting). Log-level only — no change to the API/broadcasting contract, routes, or schedule-registration behaviour. -->
 <!-- Spec reviewed 2026-05-28 - M5C WP01 (mcp-endpoint-admin-01KSEFTL) MCP-admin REST surface: BuiltinRouteRegistrar gains three `_role: admin` routes — GET /api/mcp/tools, GET /api/mcp/tools/{name}, GET /api/mcp/server-config — all dispatched by `McpAdminApiRouter` (supports() matches `_controller` containing `McpAdminController::`) to `McpAdminController` actions `tools`, `tool`, `serverConfig`. Controller deps `ToolRegistryReadModelInterface` and `ServerConfigReadModelInterface` (both `packages/api/src/McpAdmin/`) are nullable: when the bindings are absent the controller returns empty-shape JSON (`{data:{rows:[]}}` / `{data:{tool:null}}` / `{data:{config:null}}`) rather than crashing. The bindings are registered in `packages/mcp/src/McpServiceProvider.php` (Layer 6) via `$this->resolve(...)` / `$this->resolveOptional(...)` — the previous `$this->make(...)` form was retired (no such method on the L0 ServiceProvider base; it crashed boot on installs that exercised the MCP-admin surface). Concrete implementations live in `packages/mcp/src/Admin/{ToolRegistryReadModel,ServerConfigReadModel}.php`. Per-tool detail uses `ToolDetail` (name, summary, description, category, requiredCapabilities, inputSchema JSON Schema 2020-12, recentInvocations list); registry-index rows use `ToolRegistryRow` (name, summary, category, requiredCapabilities). Server-config snapshot uses `ServerConfigSnapshot` (transport `streamable-http|sse`, protocolVersion, registeredClients, serverCapabilities) and per-client `RegisteredClient` (clientId, addedAt, lastSeenAt, tokenFingerprint). `RecentInvocation` carries traceUuid, invokedAt, account, outcome `ok|error`, errorMessage, latencyMs and may be redacted to `_redacted:true` when an `EntityAccessHandler` + `AccountInterface` are wired and the account lacks `ai_observability.view_traces`. NFR-003: no plaintext bearer token ever appears in any response — `tokenFingerprint` is the 16-char lowercase-hex SHA-256 prefix. -->
 <!-- Spec reviewed 2026-05-25 - mission ocap-audit-log-substrate-01KSEFTF WP03: JSON:API audit query endpoint `GET /api/audit/events` (admin-only, filterable by kind/account/entity/date-range, page[limit] max 500, default 50, ordered by created_at DESC). New `AuditQueryReadModelInterface` + `AuditEventResource` + `AuditQueryDto` (api-local DTOs); `ApiAuditQueryAdapter implements AuditQueryReadModelInterface` bridges L0 `AuditQueryInterface` into L4 DTOs (api→audit = downward = allowed). `AuditQueryController` is null-safe: null read model → empty `{data:[], meta:{total:0}}` (dead-code guard FR-013). `AuditApiRouter implements DomainRouterInterface` mirrors WorkflowGuardsApiRouter shape. `ApiServiceProvider::register()` adds `singleton(AuditQueryReadModelInterface::class, ApiAuditQueryAdapter(...))` wired via string-based resolution (waaseyaa/audit in require-dev, C-002). `ApiServiceProvider::httpDomainRouters()` gains an `AuditApiRouter` block via `resolveOptional`. Route registered in `BuiltinRouteRegistrar` (WP01). Refs gap-matrix-A3, DIR-004. -->
 <!-- Spec reviewed 2026-05-25 - M4A-5 Phase 1 (#1470) read-only workflow guards: new WorkflowGuardsController + WorkflowGuardsApiRouter follow the same DomainRouterInterface shape. ApiServiceProvider gains a fourth resolveOptional() block for AuthoringRoleMatrix. GET /api/workflow-definitions/{workflow_id}/guards returns {data: [{bundle, transition, required_roles}, ...]} or 404 JSON:API error envelope when the workflow id isn't in the registry. Closure-based workflow registry mirrors WorkflowDefinitionsController (M4A-1). Phase 2 (edit) deferred to #1579 (M4A-5b). -->
@@ -144,6 +150,17 @@ Both controller deps are nullable (`?ToolRegistryReadModelInterface = null`, `?S
 | `src/RouteMatch.php` | `Waaseyaa\Routing` | Value object for matched route (name, route, parameters) |
 | `src/AccessChecker.php` (in `waaseyaa/access`, not routing) | `Waaseyaa\Access` | Route-level access checking via route options. Owned by the access package; routing depends on access (mission #824 WP05 surface A). |
 | `src/AuthOidcRouteServiceProvider.php` | `Waaseyaa\Routing` | Registers `/api/auth/*`, `/api/user/me`, and OIDC discovery/authorize/token routes; depends on `waaseyaa/auth` and `waaseyaa/oidc` for controllers only. `api.user.me` is registered with `->priority(10)` (#1532) so it beats `JsonApiRouteProvider`'s `/api/user/{id}` catch-all — without the bump, `me` was treated as a literal entity id and returned 404. |
+
+### Route precedence and the SSR `render.page` fallback (#1632)
+
+Route resolution order is governed by `WaaseyaaRouter::sortRoutesByPriority()`, **not** by registration order. The router sorts the whole collection by `RouteBuilder::priority()` (the `_waaseyaa_priority` option, **default 0**) descending, using each route's original registration index only as a tiebreaker among equal priorities. The first matching route (by `Symfony\Component\Routing\Matcher\UrlMatcher` order) wins.
+
+`BuiltinRouteRegistrar` registers the SSR fallback `public.page` (`/{path}` → `render.page`, with `path` constrained to exclude `api/…`) at **default priority 0**, after the provider route loop. Consequently:
+
+- A default-priority (0) app `/{alias}` route registered by a provider sorts ahead of `public.page` *only* because it has a lower registration index — a fragile tiebreaker that can be lost if any route re-sorts the collection or competes at the same priority.
+- To make an app catch-all **deterministically** outrank the SSR `render.page` fallback, give it an explicit `->priority(>=1)`. This is the same mechanism used by `api.user.me ->priority(10)` (#1532) to beat `JsonApiRouteProvider`'s `/api/user/{id}` catch-all.
+
+The framework intentionally leaves the fallback at priority 0 (changing the default would silently reorder existing apps); apps opt into precedence explicitly. See the inline comments at the `public.page` registration in `packages/foundation/src/Kernel/BuiltinRouteRegistrar.php`.
 | `src/OidcHttpRoutes.php` | `Waaseyaa\Routing` | OIDC path table (discovery, jwks, optional authorize/token) used by `AuthOidcRouteServiceProvider` |
 | `src/Attribute/GateAttribute.php` | `Waaseyaa\Routing\Attribute` | PHP attribute for gate-based access control on controller methods |
 | `src/ParamConverter/EntityParamConverter.php` | `Waaseyaa\Routing\ParamConverter` | Converts route parameter IDs to loaded entity objects |
@@ -209,7 +226,9 @@ final readonly class JsonApiError
         public string $status,
         public string $title,
         public string $detail = '',
+        public string $code = '',
         public array $source = [],
+        public array $meta = [],   // additive (#1647) — JSON:API error-object `meta`
     ) {}
 
     public function toArray(): array;
@@ -219,10 +238,17 @@ final readonly class JsonApiError
     public static function forbidden(string $detail = ''): self;     // 403
     public static function unprocessable(string $detail = '', array $source = []): self;  // 422
     public static function badRequest(string $detail = ''): self;    // 400
-    public static function conflict(string $detail = ''): self;      // 409
+    public static function conflict(string $detail = '', string $code = '', array $meta = []): self;  // 409
     public static function internalError(string $detail = ''): self; // 500
 }
 ```
+
+The `meta` member (added by #1647, mission optimistic-locking-01KTXCHY) is a
+trailing ctor param emitted by `toArray()` **only when non-empty**, so every
+pre-existing error response is byte-identical. `conflict()` gained optional
+`code`/`meta` passthrough the same way: the pre-existing `data.id`-vs-uuid 409
+keeps its codeless shape, and `code` is the machine-readable discriminator
+between the two 409s (see "Conditional update" below).
 
 ## JSON:API Controller
 
@@ -262,9 +288,9 @@ The `$accessHandler` and `$account` follow the **paired nullable** pattern: both
 
 **`show(string $entityTypeId, int|string $id, array $query = []): JsonApiDocument`**
 
-1. Loads entity by ID or UUID via `loadByIdOrUuid()`.
-2. Checks view access. Returns 403 if denied.
-3. Serializes via `$serializer->serialize()`.
+1. Loads entity by ID or UUID via `loadByIdOrUuid()`. A missing entity returns the canonical not-found document.
+2. Checks view access (`EntityAccessHandler::check($entity, 'view', $account)` — the check still runs; the result's reason is never surfaced). **A denied view returns the same canonical not-found document as a missing id** — byte-identical body for the same `(entityTypeId, id)` probe: status `'404'`, title `'Not Found'`, detail `"Entity of type '<type>' with ID '<id>' not found."`, **no `code` member** (the old `403` + `code: FORBIDDEN` shape is gone — #1649). Both branches call one private `notFoundDocument(string $entityTypeId, int|string $id)` factory, so the bytes cannot drift apart; the pin test `JsonApiControllerDeniedNotFoundTest` asserts `json_encode` equality of the two documents plus equal status codes (NFR-002). The denied entity is **never serialized**. There is no debug/development variant — the 404 is uniform in all environments (mission request-surface-hardening research D3). Headers are identical by construction: both documents exit through the single `jsonApiResponse()` emitter in `JsonApiRouter`.
+3. Serializes via `$serializer->serialize()` (allowed entities unchanged).
 4. Applies sparse fieldsets if `fields[type]` is in the query (`SparseFieldsetApplicator`, same as `index()`).
 5. Returns `JsonApiDocument::fromResource()`.
 
@@ -279,16 +305,95 @@ The `$accessHandler` and `$account` follow the **paired nullable** pattern: both
 **`update(string $entityTypeId, int|string $id, array $data): JsonApiDocument`**
 
 1. Loads entity, validates `data.type` and optional `data.id` (409 Conflict if UUID mismatch).
-2. Checks update access at entity level.
-3. Checks field edit access for each submitted attribute.
-4. Applies updates via `$entity->set($field, $value)` (requires `FieldableInterface`).
-5. Saves and returns updated resource.
+2. Parses the optional `data.meta.expected_revision_id` expectation (see "Conditional update" below): invalid value → 400; type not single-axis revisionable → 422. Both screens are type-level (definition reads only) — no entity state is revealed before the access check.
+3. Checks update access at entity level.
+4. Checks field edit access for each submitted attribute.
+5. Applies updates via `$entity->set($field, $value)` (requires `FieldableInterface`).
+6. Saves — **without** an expectation through the legacy `getStorage()->save()` path (byte-identical to pre-#1647); **with** an expectation through `getRepository()->save($entity, context: SaveContext::default()->withExpectedRevisionId($n))` — and returns the updated resource.
 
 **`destroy(string $entityTypeId, int|string $id): JsonApiDocument`**
 
 1. Loads entity, checks delete access.
 2. Deletes via `$storage->delete([$entity])`.
 3. Returns `JsonApiDocument::empty(meta: ['deleted' => true], statusCode: 204)`.
+
+### Denial responses per operation (#1649, FR-003/FR-004)
+
+| Operation | Denied check | Response |
+|---|---|---|
+| GET single (`show`) | `view` not allowed | **404 not-found shape (changed — C-001)** |
+| GET single, id does not exist | — | 404 not-found shape (unchanged; byte-identical to the denied case) |
+| GET collection (`index`) | row-level filter | 200 with filtered `data[]` (unchanged; #1605 out of scope) |
+| POST (`store`) | `createAccess` not allowed | 403 forbidden (unchanged) |
+| PATCH (`update`) | `update` not allowed | 403 forbidden (unchanged) |
+| DELETE (`destroy`) | `delete` not allowed | 403 forbidden (unchanged) |
+| Field edit (store/update paths) | field forbidden | 403 forbidden (unchanged) |
+
+FR-003's scope is deliberately the single read only — there is no blanket 404-ing of the API. Residual, accepted: a mutation (PATCH/DELETE) against a view-denied-but-existing entity still 403s, signalling existence to *authenticated* callers only (all mutation routes carry `requireAuthentication()`). An unknown entity type on any operation keeps its pre-existing distinct 404 (`"Unknown entity type: <type>."`) — it reveals only that a *type* is unregistered, which the discovery surface governs.
+
+### Conditional update — optimistic locking (#1647, FR-006/FR-008)
+
+Mission `optimistic-locking-01KTXCHY`. Canonical contract:
+`kitty-specs/optimistic-locking-01KTXCHY/contracts/conflict-surfaces.md`. The
+controller translates the storage contract (`revision-system-unified.md` §3b);
+it implements no conflict check of its own.
+
+**Request seam — resource-object meta, not `If-Match`.** The expectation rides
+the PATCH body:
+
+```json
+{ "data": { "type": "<type>", "attributes": { "...": "..." },
+            "meta": { "expected_revision_id": 5 } } }
+```
+
+Headers do not reach `JsonApiController` (`WaaseyaaContext` carries
+`account/parsedBody/query/method` — no headers), so `If-Match`/ETag is
+**explicitly not part of this contract**. A future additive change may map
+`If-Match` onto the same `SaveContext` seam without altering the body seam.
+
+**Request-state table:**
+
+| Request state | Response |
+|---|---|
+| `expected_revision_id` absent (or no `data.meta` at all) | byte-identical legacy update path (`getStorage()->save()`) — same checks, same responses, same events, zero added queries |
+| present, not a positive integer | 400 `Bad Request` |
+| present, type not single-axis revisionable | 422 `Unprocessable Entity` (controller screen; the storage `\LogicException` rejection matrix remains the invariant backstop, also mapped to 422 — never a 500) |
+| present, head moved | **409** — body below |
+| present, head matches | update applies through `getRepository()->save(…, context:)` — the revision-aware repository pipeline; 200 with the updated resource (attributes include the new `revision_id`) |
+| present, repository validation fails | 422 (`EntityValidationException` mapped) |
+
+**Stated plainly: an expectation-stated PATCH on a revisionable type cuts a new
+revision and dispatches the repository lifecycle events** — opting in to a
+conflict-checkable write opts in to the standard persistence pipeline. The
+no-expectation path is untouched.
+
+**409 body** (the `meta` member is the new additive `JsonApiError` field):
+
+```json
+{ "errors": [ { "status": "409", "title": "Conflict",
+    "code": "REVISION_CONFLICT",
+    "detail": "Entity of type '<type>' with ID '<id>' was modified: expected revision 5, current revision is 6.",
+    "meta": { "expected_revision_id": 5, "current_revision_id": 6 } } ] }
+```
+
+`current_revision_id` is `null` when no readable head exists (the row vanished
+concurrently, or a pre-backfill row carries no revision pointer). Deterministic
+and assertable: the two revision ids plus static identity, no timestamps
+(NFR-003). **409 catalogue:** this controller now emits two 409 shapes — the
+pre-existing codeless `data.id`-vs-uuid mismatch and this one; `code:
+'REVISION_CONFLICT'` is the machine-readable discriminator. **Locator
+honesty:** uuid-routed PATCHes resolve to the real entity id before the save;
+the conflict payload names the real id, not the request locator.
+
+**`revision_id` is a load-bearing read attribute (FR-008).** `GET
+/api/{type}/{id}` (and collection reads) emit `revision_id` as an attribute on
+revisionable types — the serializer excludes only the id/uuid keys, so the
+base row's pointer column rides `toArray()`. This was previously incidental;
+it is now pinned by test (`JsonApiControllerConflictTest`) and documented
+load-bearing: **removing or renaming it is a consumer break** — it is the
+value expectation-forming clients read. The conflict body's
+`meta.current_revision_id` is itself a read: the re-read-and-retry loop can
+skip a round-trip.
 
 ### ID Resolution
 
@@ -590,9 +695,14 @@ if ($this->accessHandler !== null && $this->account !== null) {
 ```
 
 This means:
-- The SQL query runs with `accessCheck(false)` -- no access checks in the database layer.
-- Entities are loaded, then filtered by view access in PHP.
-- The `total` count in pagination meta reflects the **unfiltered** count (from the count query, also with `accessCheck(false)`). This means `total` may be higher than the number of resources returned.
+- On the authenticated path the SQL query binds the request account via `setAccount($this->account)`, so the storage layer performs per-row access checking (open-by-default: it drops only `Forbidden` rows). `accessCheck(false)` is used only on the system / no-account path.
+- Entities for the current page are loaded, then re-filtered by view access in PHP with `isAllowed()` (deny-by-default entity-level semantics — a `Neutral` row is not visible), mirroring `show()`.
+- `meta.total` reflects the **access-filtered total of matching rows the current account may view ACROSS ALL PAGES** — computed via `accessFilteredTotal()` using the same `isAllowed()` predicate as the per-page filter — **not** the size of the current page (audit C-26: the previous `$total = count($entities)` recount collapsed it to page size on the authenticated path) and **not** the open-by-default storage `COUNT` (which would inflate it with `Neutral` rows). On a paginated collection `count($data) <= meta.limit` while `meta.total` may be larger, and `meta.total` is page-invariant for a fixed query + account.
+
+<!-- Spec reviewed 2026-06-21 - issue #1702 (audit C-7): the GraphQL list resolver now matches the REST `meta.total` contract above. `GraphQL\Resolver\EntityResolver::resolveList()` previously took `total` from the open-by-default storage `COUNT` (admits `Allowed` AND `Neutral`) while `items` were deny-by-default via `GraphQlAccessGuard::canView()` — so a restricted collection's `total` leaked its full cardinality (Neutral/policy-less rows inflated it) even though those rows never appeared in `items`. `resolveList()` now recomputes `total` across ALL matching rows (filters only, no pagination) with the SAME `guard->canView()` predicate as the per-item filter, so `total` and `items` reconcile and `total` is page-invariant. The query-layer survivor test (Layer 3) is unchanged and remains the open-by-default candidate window (see access-control.md "Layer 3 contract details"); deny-by-default stays a serializer/consumer concern. Acceptance: EntityResolverTest (`resolveListFiltersOutDeniedEntities`, `resolveListTotalReconcilesAcrossPagesWithAccessFilteredItems`). -->
+
+
+**Empty `data` is access-filtering, not missing data.** When a restrictive view policy is registered for the entity type and filters out *every* matched row, `index()` returns HTTP **200** with `data: []` and `meta.total: 0` -- there is no logger on this controller and no error/warning is emitted, by design (an authenticated principal seeing nothing they may view is a normal authorization outcome, not a fault). Consumers debugging an unexpectedly empty collection should therefore not assume the rows are absent: check whether a registered `AccessPolicy` denied `view` for the current account before concluding the data does not exist. A genuinely empty table and a fully access-filtered table are indistinguishable on the wire by intent (no enumeration oracle). To tell them apart during development, re-issue the query in a system context (no account bound, `accessCheck(false)`) or inspect the policy directly.
 
 Access result semantics differ by level:
 - **Entity level**: uses `isAllowed()` -- deny unless explicitly granted.
@@ -770,6 +880,7 @@ final class ApiDiscoveryController
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly string $basePath = '/api',
+        private readonly ?AccountInterface $account = null,
     ) {}
 
     /**
@@ -779,22 +890,43 @@ final class ApiDiscoveryController
 }
 ```
 
-Returns a JSON:API-style discovery document listing every registered entity type's collection endpoint. The response contract is:
+Returns a JSON:API-style discovery document. Since mission request-surface-hardening-01KTX7F2 (#1649) the per-type links are **account-dependent**; the envelope is caller-independent. The response contract is:
 
 | Key | Shape | Notes |
 |-----|-------|-------|
-| `meta.api` | `'waaseyaa'` (string) | Constant identifier for the API surface. |
-| `meta.version` | `'1.0'` (string) | Discovery contract version, not the framework version. |
-| `links.self` | `string` | The configured `$basePath` (defaults to `/api`). |
-| `links.{entity_type_id}` | `array{href: string, meta: array{type: string}}` | One entry per `EntityTypeManagerInterface::getDefinitions()` entry. `href` is `{basePath}/{entity_type_id}`; `meta.type` echoes the entity type id for client convenience. |
+| `meta.api` | `'waaseyaa'` (string) | Constant identifier for the API surface. Present for every caller. |
+| `meta.version` | `'1.0'` (string) | Discovery contract version, not the framework version. Present for every caller. |
+| `links.self` | `string` | The configured `$basePath` (defaults to `/api`). Present for every caller. |
+| `links.{entity_type_id}` | `array{href: string, meta: array{type: string}}` | **Authenticated callers only.** One entry per *discoverable* `EntityTypeManagerInterface::getDefinitions()` entry. `href` is `{basePath}/{entity_type_id}`; `meta.type` echoes the entity type id for client convenience. |
 
-Invariants enforced by the integration test:
-- `links.self` is always present.
+Visibility decision per type:
+
+```
+listed(type, account) = isDiscoverableDuckTyped(type)   // false → hidden from EVERYONE, admin included
+                      ∧ account !== null
+                      ∧ account->isAuthenticated()      // anonymous/absent → zero type links (fail closed)
+```
+
+- **Authenticated-only default (research D1):** no categorical per-type view check exists in the access API (`AccessPolicyInterface::access()` requires a concrete entity; `createAccess()` is create-only), so per-account/per-type granularity is **not implementable today** — this is the spec's documented fallback, not per-account type filtering. Any authenticated account sees every discoverable type, gated types included. An anonymous account (`AnonymousUser`, id 0), a null account, or a controller constructed without an account yields zero type links; no type id appears anywhere in the response body (SC-001).
+- **`discoverable` flag (FR-002):** `EntityType` carries an additive `discoverable: bool = true` ctor param + `isDiscoverable(): bool` accessor (+ `fromClass()` passthrough). The controller reads it duck-typed (`method_exists($definition, 'isDiscoverable') && !$definition->isDiscoverable()` → skip) — `EntityTypeInterface` is deliberately **not** widened (seven anonymous-class test implementors outside the mission surface; research D2); definitions without the method are discoverable. The flag is **visibility, not authorization**: CRUD routes for non-discoverable types keep registering and keep enforcing entity access unchanged.
+- **Cost bound (NFR-001):** one `isAuthenticated()` call per request, at most one accessor read per registered type — no access-policy invocation, no row loading, no queries.
+- **Route access unchanged:** `api.discovery` stays `allowAll()` (`_public`) — the endpoint answers all callers; only the per-type links vary.
+
+Invariants enforced by the integration test (`tests/Integration/Phase7/ApiDiscoveryIntegrationTest.php`):
+- `links.self` is always present, for every caller.
 - `links.{type}.href` always equals the collection path served by `api.{type}.index`.
-- The entry set in `links` (excluding `self`) is exactly the set of registered entity type ids — no more, no less.
-- When zero entity types are registered, `links` collapses to `['self' => $basePath]`.
+- For an **authenticated** caller, the entry set in `links` (excluding `self`) is exactly the set of registered *discoverable* entity type ids — no more, no less.
+- For an **anonymous** caller, `links` collapses to `['self' => $basePath]` regardless of registered types.
+- When zero entity types are registered, `links` collapses to `['self' => $basePath]` for every caller.
+- The route shape (`_public`, path, methods) is unchanged.
 
-The route is dispatched by `JsonApiRouteProvider`'s `api.discovery` registration. At runtime, `DiscoveryRouter` (the `HttpDomainRouter` registered through `ApiServiceProvider::httpDomainRouters()`) recognises the controller string `Waaseyaa\Api\ApiDiscoveryController::discover` via `str_contains($controller, 'ApiDiscoveryController')`, instantiates the controller with the booted `EntityTypeManager`, and wraps the discover payload in a `jsonapi.version` envelope before returning a JSON:API response.
+The route is dispatched by `JsonApiRouteProvider`'s `api.discovery` registration. At runtime, `DiscoveryRouter` (the `HttpDomainRouter` registered through `ApiServiceProvider::httpDomainRouters()`) recognises the controller string `Waaseyaa\Api\ApiDiscoveryController::discover` via `str_contains($controller, 'ApiDiscoveryController')`, instantiates the controller with the booted `EntityTypeManager` **and the request account** — `WaaseyaaContext::fromRequest($request)->account`, i.e. the `_account` attribute set by `SessionMiddleware`; no other account source is consulted — and wraps the discover payload in a `jsonapi.version` envelope before returning a JSON:API response.
+
+#### Adjacent enumeration surfaces (known boundary, out of #1649's scope)
+
+`/api/entity-types`, `/api/openapi.json`, and `/api/schema/{entity_type}` (registered option-less by foundation's `BuiltinRouteRegistrar`; `AccessChecker` returns neutral for option-less routes) remain anonymous-reachable and still enumerate entity type ids. The #1649 hardening covers the `GET /api` discovery index only — these adjacent surfaces are the documented residual boundary on SC-001, flagged in the mission plan's risks for a follow-up issue. Do not assume anonymous type-id secrecy until that follow-up lands.
+
+**Schema field-access caveat (D-16).** `GET /api/schema/{entity_type}` filters field visibility (`x-access-restricted`, view-denied removal) by running `SchemaPresenter::present()` against a *prototype* entity — `SchemaController::show()` constructs a bare `new $class([...])` carrying only the requested bundle key, with no field values. The rendered field set therefore reflects only **static, type/bundle-level** `FieldAccessPolicy` decisions; instance-level gates (owner-only fields, row-state/workflow gates) cannot be evaluated and are not represented. Consumers (admin SPA, agents) must treat the schema's field visibility as a static contract, not a per-record access oracle — actual per-record field access is enforced separately at the JSON:API serializer boundary.
 
 ## Translation Sub-Resource
 

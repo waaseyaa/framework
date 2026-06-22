@@ -5,7 +5,9 @@ declare(strict_types=1);
 /**
  * CSRF integration test runner.
  *
- * Accepts a JSON-encoded request descriptor via --json <value> argument.
+ * Accepts a JSON-encoded request descriptor via --json <value> or
+ * --json-file <path>. The file form is preferred by integration tests because
+ * it avoids platform-specific shell quoting limits for request bodies.
  * Supports session persistence across subprocess calls via a shared session
  * save path, enabling multi-request CSRF token round-trips in tests.
  *
@@ -34,12 +36,26 @@ declare(strict_types=1);
 
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 
-if (!isset($argv[1]) || $argv[1] !== '--json' || !isset($argv[2])) {
-    fwrite(STDERR, "Usage: php csrf_kernel_runner.php --json '<json>'\n");
+if (!isset($argv[1], $argv[2]) || !in_array($argv[1], ['--json', '--json-file'], true)) {
+    fwrite(STDERR, "Usage: php csrf_kernel_runner.php --json '<json>'|--json-file <path>\n");
     exit(1);
 }
 
-$desc = json_decode($argv[2], true);
+$json = (string) $argv[2];
+if ($argv[1] === '--json-file') {
+    if (!is_file($json)) {
+        fwrite(STDERR, "csrf_kernel_runner: JSON file does not exist\n");
+        exit(1);
+    }
+    $contents = file_get_contents($json);
+    if ($contents === false) {
+        fwrite(STDERR, "csrf_kernel_runner: failed to read JSON file\n");
+        exit(1);
+    }
+    $json = $contents;
+}
+
+$desc = json_decode($json, true);
 if (!is_array($desc)) {
     fwrite(STDERR, "csrf_kernel_runner: invalid JSON input\n");
     exit(1);

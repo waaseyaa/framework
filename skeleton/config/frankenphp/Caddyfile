@@ -1,0 +1,36 @@
+# FrankenPHP worker-mode config for Waaseyaa — the committed config the NATIVE
+# concurrent runtime is launched with. This is the Symfony/Laravel/Drupal
+# convention: the framework never wraps the runtime binary; you run it directly
+# against this file. Run from the PROJECT ROOT:
+#
+#     PHP_INI_SCAN_DIR="$PWD/config/frankenphp" frankenphp run --config config/frankenphp/Caddyfile
+#
+# PHP_INI_SCAN_DIR merges the sibling php.ini (SSE / error settings) ON TOP of the
+# FrankenPHP binary's own bundled php.ini. Do NOT use PHPRC here: PHPRC *replaces*
+# the bundled ini, and on shared-extension builds (e.g. the official Windows
+# release) that bundled ini is what loads pdo_sqlite/sqlite3 — replacing it strands
+# the SQLite driver and every request 500s with "could not find driver". The
+# committed php.ini deliberately does not enable the extensions itself; see its
+# comments. SQLite works because the runtime's own ini already provides it.
+#
+# `waaseyaa serve` is the plain single-worker php -S dev server and does NOT use
+# this file — it is not for the admin SPA's concurrent SSE or for production.
+
+{
+	# Worker mode: boot public/index.php ONCE and keep it warm, then loop on
+	# frankenphp_handle_request() (the runtime adapter in public/index.php).
+	# Requests are served concurrently across threads, so the admin SPA's
+	# long-lived /api/broadcast SSE stream pins one thread while the rest stay
+	# responsive.
+	frankenphp {
+		worker ./public/index.php
+	}
+}
+
+# Default to :8080 (Waaseyaa's default dev port) over plain HTTP. Override with
+# the SERVER_NAME env var — e.g. SERVER_NAME=example.com for an auto-HTTPS
+# production bind.
+{$SERVER_NAME::8080} {
+	root ./public
+	php_server
+}

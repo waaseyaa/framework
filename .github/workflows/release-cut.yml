@@ -12,6 +12,19 @@ name: Cut Release
 # `gh release create` prompt — `.github/workflows/split.yml` already
 # creates the GitHub Release in its `publish-github-release` job.
 #
+# RELEASE GATE (alpha.200–202 red-at-tag post-mortem): a tag cannot be
+# created unless the CI workflow is green on the EXACT commit being tagged.
+# Two gates enforce this:
+#   Gate 1 — the release base (main HEAD) must already have green CI;
+#   Gate 2 — the release commit itself is pushed to a throwaway branch
+#            (release-cut/<version>), ci.yml is dispatched on it, and the
+#            tag is only created after that run concludes green. Main is
+#            then fast-forwarded to the gated SHA and the tag pushed in one
+#            atomic push.
+# Failure recovery is clean by construction: if either gate fails, main is
+# untouched and no tag exists — fix the problem and re-run the cut with the
+# same version. The gate branch is deleted on the way out either way.
+#
 # Push uses SPLIT_GITHUB_TOKEN (the existing PAT used by split.yml to fan
 # out to per-package repos). This is required because tags pushed by the
 # default `GITHUB_TOKEN` do NOT trigger downstream workflows
@@ -74,7 +87,7 @@ jobs:
             fi
           fi
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: main
@@ -90,6 +103,14 @@ jobs:
             echo "::error::UNAUTHORIZED_V1_TAG: release-approvals/v1.0.approved missing on main."
             exit 1
           fi
+
+      - name: "Gate 1/2: require green CI on the release base (main HEAD)"
+        # Fail fast before mutating anything if main is red — this is how the
+        # b1 interface stub and the integration-test misses rode into tagged
+        # releases (alpha.201/202). Waits out an in-flight run.
+        env:
+          GH_TOKEN: ${{ secrets.SPLIT_GITHUB_TOKEN }}
+        run: bash bin/wait-for-green-ci "$(git rev-parse HEAD)" 1800
 
       - name: Verify monorepo release shape
         run: bash bin/check-monorepo-release-shape HEAD
@@ -175,10 +196,10 @@ jobs:
             echo "RELEASE_TAG_MSG_EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Commit, tag, and push
+      - name: Commit release and push the gate branch
+        id: relcommit
         env:
           VERSION: ${{ inputs.version }}
-          TAG_MSG: ${{ steps.changelog.outputs.tag_msg }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -191,11 +212,46 @@ jobs:
           # violations. See incident: alpha.178 cut on 2026-05-14.
           git add CHANGELOG.md VERSION packages/*/composer.json
           git commit -m "chore: release ${VERSION}"
+          # The release commit goes to a throwaway gate branch FIRST. Main is
+          # only fast-forwarded after Gate 2 proves CI green on this exact SHA.
+          git push --force origin "HEAD:refs/heads/release-cut/${VERSION}"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: "Gate 2/2: require green CI on the exact commit being tagged"
+        env:
+          GH_TOKEN: ${{ secrets.SPLIT_GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+          RELEASE_SHA: ${{ steps.relcommit.outputs.sha }}
+        run: |
+          # ci.yml only auto-runs on pushes to main, so dispatch it on the
+          # gate branch explicitly (ci.yml has a workflow_dispatch trigger
+          # for exactly this).
+          gh workflow run ci.yml --ref "release-cut/${VERSION}"
+          bash bin/wait-for-green-ci "$RELEASE_SHA" 2700
+
+      - name: Tag the gated commit and fast-forward main (atomic)
+        env:
+          VERSION: ${{ inputs.version }}
+          TAG_MSG: ${{ steps.changelog.outputs.tag_msg }}
+        run: |
           git tag -a "$VERSION" -m "Release ${VERSION}
 
           ${TAG_MSG}"
-          git push origin main "$VERSION"
-          echo "::notice::Pushed main + tag $VERSION to origin."
+          # Atomic: main fast-forward + tag land together or not at all. A
+          # non-FF rejection means main advanced while the gate ran — nothing
+          # is tagged; re-run the cut against the new main.
+          if ! git push --atomic origin "HEAD:refs/heads/main" "refs/tags/${VERSION}"; then
+            echo "::error::Atomic push of main + tag rejected (main likely advanced during the gate)."
+            echo "::error::No tag was created and main is untouched. Re-run the cut."
+            exit 1
+          fi
+          echo "::notice::Pushed main + tag $VERSION to origin (CI-gated at $(git rev-parse HEAD))."
+
+      - name: Clean up gate branch
+        if: always()
+        env:
+          VERSION: ${{ inputs.version }}
+        run: git push origin --delete "refs/heads/release-cut/${VERSION}" || true
 
       - name: Summarize next steps
         env:

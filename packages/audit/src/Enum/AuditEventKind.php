@@ -7,8 +7,10 @@ namespace Waaseyaa\Audit\Enum;
 /**
  * Canonical vocabulary of audit event kinds.
  *
- * 17 cases (originally 14, extended by `versioned-blob-media-abstraction-01KSEFTJ`
- * per the §Out-of-band downstream-amendment principle — additive, no removal).
+ * 19 cases (originally 14, extended additively by
+ * `versioned-blob-media-abstraction-01KSEFTJ` (+3) and
+ * `revision-audit-provenance-01KTWY5V` (+2) per the §Out-of-band
+ * downstream-amendment principle — additive, no removal).
  *
  * The {@see \Waaseyaa\Audit\Contract\AuditEventDescriptor} rejects
  * kinds outside this enum at construction time (FR-004).
@@ -39,4 +41,10 @@ enum AuditEventKind: string
     case MediaVersionRead    = 'media.version.read';
     /** A blob deduplication hit occurred on write (content-addressed match). */
     case MediaVersionDedupHit = 'media.version.dedup_hit';
+
+    // --- Added by revision-audit-provenance-01KTWY5V (FR-006) ---
+    /** The published-revision pointer moved to a revision (publish operation). */
+    case RevisionPublish = 'revision.publish';
+    /** The current-revision pointer moved back to a prior revision (revert operation). */
+    case RevisionRevert = 'revision.revert';
 }

@@ -39,21 +39,24 @@ the same release.
 
 ### `EntityRepositoryInterface` gained the two-axis translation surface (Waaseyaa\Entity)
 
-`Waaseyaa\Entity\Repository\EntityRepositoryInterface` gained 8 methods promoted
-from the concrete `EntityRepository` (added to the concrete in alpha.196–198):
-
-- `saveTranslation`, `saveTranslationRevision`, `saveTranslationRevisions`
-- `loadTranslation`, `loadTranslationRevision`, `loadTranslationTip`
-- `listTranslationRevisions`, `translationLangcodes`
+`Waaseyaa\Entity\Repository\EntityRepositoryInterface` gained 3 two-axis methods
+promoted from the concrete `EntityRepository` (added to the concrete in
+alpha.196–198): `saveTranslation`, `loadTranslation`, `listTranslationRevisions`.
 
 - **Consumers** no longer need to narrow with `instanceof EntityRepository` to
   reach the two-axis (revisionable × translatable) translation API — call it on
   the interface. The methods are valid only on a two-axis entity type and throw
   on a single-axis type (unchanged behavior).
-- **Third-party implementers of `EntityRepositoryInterface`** must add these 8
+- **Third-party implementers of `EntityRepositoryInterface`** must add these 3
   methods. Single-axis implementations may throw (e.g. `BadMethodCallException`),
   mirroring the concrete repository's `assertTwoAxis()` guard. Per `DIR-003`, no
   compatibility shim is provided — implementers update in the same release.
+
+The lower-level per-revision API (`saveTranslationRevision`/`saveTranslationRevisions`,
+`loadTranslationRevision`, `loadTranslationTip`, `translationLangcodes`) stays on the
+concrete `EntityRepository` only and is intentionally not part of the interface
+contract until a consumer needs it there. (alpha.200 briefly carried all 8 on the
+interface; alpha.201 narrowed it to the 3 consumers actually call.)
 
 ## 2026-04-27 - Attribute-first entity definition (M1)
 
@@ -166,7 +169,7 @@ Remove the duplicate `entityType()` registration from your consumer provider ins
 
 If your app still has shadow classes or imports that assume consumer-owned group types, use the reconciliation ADR as the migration path:
 
-- [`docs/superpowers/specs/2026-04-19-groups-reconciliation-adr.md`](docs/superpowers/specs/2026-04-19-groups-reconciliation-adr.md)
+- [`docs/history/superpowers/specs/2026-04-19-groups-reconciliation-adr.md`](docs/history/superpowers/specs/2026-04-19-groups-reconciliation-adr.md)
 
 That ADR is the concrete path for the Minoo-shaped cleanup. Minoo `main` no longer carries live duplicate `group` / `group_type` registration in `AppServiceProvider`; the remaining migration case is shadow-class residue and call sites that still import those shadows. Later arc phases handle the `HasCommunityInterface` and `GroupType` key reconciliation that make those shadows removable.
 

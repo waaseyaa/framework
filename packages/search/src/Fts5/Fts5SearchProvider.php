@@ -21,12 +21,40 @@ final class Fts5SearchProvider implements SearchProviderInterface
     private const ALLOWED_SORT_COLUMNS = ['created_at', 'quality_score', 'entity_type', 'content_type'];
     private readonly LoggerInterface $logger;
 
+    /**
+     * Cached positive result of the FTS5 schema-existence probe. Since
+     * {@see Fts5SearchIndexer::ensureSchema()} is now lazy (created on first
+     * write, not at boot — audit D-35), a read on a never-written index must
+     * not hit "no such table". We cache only the `true` result (the schema
+     * never disappears once created) and re-probe while absent so a write that
+     * lands later in the same process is picked up.
+     */
+    private bool $schemaReady = false;
+
     public function __construct(
         private readonly DatabaseInterface $database,
         private readonly SearchIndexerInterface $indexer,
         ?LoggerInterface $logger = null,
+        private readonly float $titleWeight = 1.0,
+        private readonly float $bodyWeight = 1.0,
     ) {
         $this->logger = $logger ?? new NullLogger();
+    }
+
+    /**
+     * Cheap existence probe for the FTS5 schema, so a read on a never-written
+     * (lazily-initialised) index degrades to empty instead of erroring.
+     */
+    private function schemaExists(): bool
+    {
+        if ($this->schemaReady) {
+            return true;
+        }
+        $rows = iterator_to_array($this->database->query(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'search_index'",
+        ));
+
+        return $this->schemaReady = $rows !== [];
     }
 
     public function search(SearchRequest $request): SearchResult
@@ -35,6 +63,13 @@ final class Fts5SearchProvider implements SearchProviderInterface
 
         $query = $this->escapeQuery($request->query);
         if ($query === '') {
+            return SearchResult::empty();
+        }
+
+        // D-35: schema is created lazily on first write. A search against an
+        // index that has never been written returns empty rather than throwing
+        // "no such table: search_index".
+        if (!$this->schemaExists()) {
             return SearchResult::empty();
         }
 
@@ -66,15 +101,17 @@ final class Fts5SearchProvider implements SearchProviderInterface
         $totalPages = (int) ceil($totalHits / $request->pageSize);
         $offset = ($request->page - 1) * $request->pageSize;
 
-        // Sort
-        $orderBy = 'si.rank';
+        // Sort. Relevance uses the FTS5 bm25 rank, optionally re-weighted so a
+        // title-column match outranks a body-only match (see rankExpression()).
+        $rankExpr = $this->rankExpression();
+        $orderBy = $rankExpr;
         if ($request->filters->sortField !== 'relevance' && in_array($request->filters->sortField, self::ALLOWED_SORT_COLUMNS, true)) {
             $direction = strtoupper($request->filters->sortOrder) === 'ASC' ? 'ASC' : 'DESC';
             $orderBy = "m.{$request->filters->sortField} $direction";
         }
 
         // Fetch page
-        $sql = "SELECT m.*, si.title, snippet(search_index, 2, '<b>', '</b>', '…', 32) as highlight, si.rank FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE $whereSQL ORDER BY $orderBy LIMIT :limit OFFSET :offset";
+        $sql = "SELECT m.*, si.title, snippet(search_index, 2, '<b>', '</b>', '…', 32) as highlight, $rankExpr as rank FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE $whereSQL ORDER BY $orderBy LIMIT :limit OFFSET :offset";
         $params['limit'] = $request->pageSize;
         $params['offset'] = $offset;
 
@@ -108,8 +145,11 @@ final class Fts5SearchProvider implements SearchProviderInterface
             $this->logger->warning('Search index contains stale documents. Run search:reindex to rebuild.');
         }
 
-        // Facets — run on the full filtered result set (not just the page)
-        $facets = $this->buildFacets($whereSQL, $params);
+        // Facets — run on the full filtered result set (not just the page).
+        // Gated behind SearchRequest::$includeFacets (default true) so callers
+        // that never render facets skip three unbounded GROUP BY scans, one of
+        // which is a json_each(m.topics) cross-join (audit D-36).
+        $facets = $request->includeFacets ? $this->buildFacets($whereSQL, $params) : [];
 
         $tookMs = (int) ((hrtime(true) - $startTime) / 1_000_000);
 
@@ -140,6 +180,42 @@ final class Fts5SearchProvider implements SearchProviderInterface
         $quoted = array_map(fn(string $term): string => '"' . str_replace('"', '""', $term) . '"', $terms);
 
         return implode(' ', $quoted);
+    }
+
+    /**
+     * The relevance ORDER BY / score expression. With the default per-column
+     * weights (1.0/1.0) this is FTS5's built-in `rank` (bm25 with equal column
+     * weights) — byte-identical to prior behaviour, so existing consumers are
+     * unaffected. When a caller passes non-default weights, the bm25()
+     * auxiliary function applies them per column so a title-column match
+     * outranks a body-only match. The FTS5 search_index table has three
+     * columns in declaration order (document_id UNINDEXED, title, body), and
+     * bm25() takes one weight per column, so the UNINDEXED document_id is
+     * pinned to 0.0 (it never contributes a match anyway).
+     */
+    private function rankExpression(): string
+    {
+        if ($this->titleWeight === 1.0 && $this->bodyWeight === 1.0) {
+            return 'si.rank';
+        }
+
+        return sprintf(
+            'bm25(search_index, 0.0, %s, %s)',
+            $this->weightLiteral($this->titleWeight),
+            $this->weightLiteral($this->bodyWeight),
+        );
+    }
+
+    /**
+     * A locale-independent fixed-point literal for inlining into the bm25()
+     * call. The weights are floats from the constructor (never user input), and
+     * FTS5 auxiliary-function arguments cannot be bound parameters, so they are
+     * formatted as a plain decimal — no exponent form, no locale separators
+     * that SQLite would reject.
+     */
+    private function weightLiteral(float $weight): string
+    {
+        return number_format($weight, 6, '.', '');
     }
 
     private function applyFilters(SearchFilters $filters, array &$whereClauses, array &$params): void

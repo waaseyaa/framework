@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Provider;
 
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\Oidc\RotateSigningKeyCommand;
-use Waaseyaa\CLI\CommandDefinition;
-use Waaseyaa\Foundation\ServiceProvider\Capability\HasNativeCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 /**
@@ -18,7 +18,7 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
  *
  * @api
  */
-final class OidcServiceProvider extends ServiceProvider implements HasNativeCommandsInterface
+final class OidcServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
 {
     public function register(): void
     {
@@ -26,9 +26,9 @@ final class OidcServiceProvider extends ServiceProvider implements HasNativeComm
         // OidcServiceProvider (waaseyaa/oidc) registers SigningKeyRepository.
     }
 
-    public function nativeCommands(): iterable
+    public function consoleCommands(): iterable
     {
-        yield new CommandDefinition(
+        yield new HandlerCommand(
             name: 'oidc:rotate-signing-key',
             description: 'Generate a new RS256 signing keypair and rotate out the current key (WP04).',
             handler: [RotateSigningKeyCommand::class, 'execute'],
