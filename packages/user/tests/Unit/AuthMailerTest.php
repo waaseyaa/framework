@@ -58,6 +58,31 @@ final class AuthMailerTest extends TestCase
     }
 
     #[Test]
+    public function is_unconfigured_and_sends_nothing_without_a_twig_renderer(): void
+    {
+        // When no Twig renderer is available (e.g. SSR is not installed, so the
+        // user package cannot — and must not — reach up to it for one), the
+        // mailer is simply unconfigured and silently sends nothing rather than
+        // fataling on a missing renderer.
+        $mailer = new AuthMailer(
+            mailer: $this->mailer,
+            authEmailConfigured: true,
+            twig: null,
+            baseUrl: 'https://example.com',
+            appName: 'TestApp',
+        );
+
+        self::assertFalse($mailer->isConfigured());
+
+        $user = $this->createMock(FieldableInterface::class);
+        $mailer->sendPasswordReset($user, 'abc123');
+        $mailer->sendEmailVerification($user, 'def456');
+        $mailer->sendWelcome($user);
+
+        self::assertSame([], $this->sentEnvelopes);
+    }
+
+    #[Test]
     public function sends_password_reset_email(): void
     {
         $user = $this->createMock(FieldableInterface::class);

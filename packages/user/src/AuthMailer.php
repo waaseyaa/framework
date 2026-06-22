@@ -11,22 +11,30 @@ use Waaseyaa\Mail\MailerInterface;
 
 class AuthMailer
 {
+    /**
+     * @param ?Environment $twig Template engine for rendering the mail bodies.
+     *        Nullable so the Layer-1 user package does not have to reach up to
+     *        the Layer-6 SSR package to obtain one: the service provider passes
+     *        whatever `Twig\Environment` is registered in the container (SSR
+     *        registers it), or null when no SSR/Twig is installed. With no
+     *        renderer, auth email is simply not configured — {@see isConfigured()}.
+     */
     public function __construct(
         private readonly MailerInterface $mailer,
         private readonly bool $authEmailConfigured,
-        private readonly Environment $twig,
+        private readonly ?Environment $twig,
         private readonly string $baseUrl,
         private readonly string $appName,
     ) {}
 
     public function isConfigured(): bool
     {
-        return $this->authEmailConfigured;
+        return $this->authEmailConfigured && $this->twig !== null;
     }
 
     public function sendPasswordReset(FieldableInterface $user, string $token): void
     {
-        if (!$this->authEmailConfigured) {
+        if (!$this->authEmailConfigured || $this->twig === null) {
             return;
         }
 
@@ -49,7 +57,7 @@ class AuthMailer
 
     public function sendEmailVerification(FieldableInterface $user, string $token): void
     {
-        if (!$this->authEmailConfigured) {
+        if (!$this->authEmailConfigured || $this->twig === null) {
             return;
         }
 
@@ -72,7 +80,7 @@ class AuthMailer
 
     public function sendWelcome(FieldableInterface $user): void
     {
-        if (!$this->authEmailConfigured) {
+        if (!$this->authEmailConfigured || $this->twig === null) {
             return;
         }
 
