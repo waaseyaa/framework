@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\EntityStorage;
 
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\DateTime\EntityClockInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
@@ -31,12 +32,20 @@ final class EntityStorageFactory
     /** @var array<string, EntityStorageCoordinator> */
     private array $coordinators = [];
 
+    /**
+     * @param ?\Closure(): ?EntityAccessHandler $accessHandlerResolver Lazy
+     *        resolver for the access handler, threaded into each storage so
+     *        getQuery() is fail-closed (issue #1714). Resolved at query time so
+     *        a handler built after the storage is still seen. Null leaves
+     *        getQuery() unfiltered — only valid for system-context callers.
+     */
     public function __construct(
         private readonly DatabaseInterface $database,
         private readonly EventDispatcherInterface $eventDispatcher,
         private readonly ?EntityEventFactoryInterface $eventFactory = null,
         private readonly ?EntityClockInterface $clock = null,
         private readonly ?BackendRegistrar $backendRegistrar = null,
+        private readonly ?\Closure $accessHandlerResolver = null,
     ) {}
 
     /**
@@ -55,6 +64,7 @@ final class EntityStorageFactory
                 $this->eventDispatcher,
                 eventFactory: $this->eventFactory,
                 clock: $this->clock,
+                accessHandlerResolver: $this->accessHandlerResolver,
             );
         }
 
