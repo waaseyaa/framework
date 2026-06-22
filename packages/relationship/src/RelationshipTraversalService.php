@@ -13,6 +13,14 @@ use Waaseyaa\Entity\EntityValues;
  */
 final class RelationshipTraversalService
 {
+    /**
+     * @param ?VisibilityFilterInterface $visibilityFilter Decides whether a
+     *        related entity is publicly visible when `browse()` runs in
+     *        `published`/`unpublished` mode. When null, related entities are
+     *        treated as **non-public** (fail-closed), so an unwired caller
+     *        leaks nothing — callers that surface related labels/paths to
+     *        end users (the discovery API, SSR node pages) MUST pass a filter.
+     */
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly DatabaseInterface $database,
@@ -682,7 +690,10 @@ final class RelationshipTraversalService
      */
     private function isEntityPublic(string $entityType, array $values): bool
     {
-        return $this->visibilityFilter?->isEntityPublic($entityType, $values) ?? true;
+        // Fail closed: with no visibility filter wired we cannot prove the
+        // related entity is public, so it is treated as non-public and its
+        // label/path is withheld from published/unpublished browse results.
+        return $this->visibilityFilter?->isEntityPublic($entityType, $values) ?? false;
     }
 
     private function normalizeDirection(mixed $direction): string

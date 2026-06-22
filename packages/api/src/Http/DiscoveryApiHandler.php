@@ -14,6 +14,7 @@ use Waaseyaa\Foundation\Cache\DiscoveryCachePrimitives;
 use Waaseyaa\Relationship\RelationshipDiscoveryService;
 use Waaseyaa\Relationship\RelationshipTraversalService;
 use Waaseyaa\Workflows\WorkflowVisibility;
+use Waaseyaa\Workflows\WorkflowVisibilityFilter;
 
 /**
  * Handles discovery API endpoint logic: topic hubs, clusters,
@@ -195,7 +196,14 @@ final class DiscoveryApiHandler
     public function createDiscoveryService(): RelationshipDiscoveryService
     {
         return new RelationshipDiscoveryService(
-            new RelationshipTraversalService($this->entityTypeManager, $this->database),
+            // Pass the visibility filter so related entities are gated on
+            // publication state — without it the traversal service fails closed
+            // and would withhold every related label/path.
+            new RelationshipTraversalService(
+                $this->entityTypeManager,
+                $this->database,
+                new WorkflowVisibilityFilter(),
+            ),
         );
     }
 

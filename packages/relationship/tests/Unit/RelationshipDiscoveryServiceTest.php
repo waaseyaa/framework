@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Relationship\Tests\Unit;
 
 require_once __DIR__ . '/../../src/Relationship.php';
+require_once __DIR__ . '/../../src/VisibilityFilterInterface.php';
 require_once __DIR__ . '/../../src/RelationshipTraversalService.php';
 require_once __DIR__ . '/../../src/RelationshipDiscoveryService.php';
 
@@ -20,10 +21,27 @@ use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Relationship\Relationship;
 use Waaseyaa\Relationship\RelationshipDiscoveryService;
 use Waaseyaa\Relationship\RelationshipTraversalService;
+use Waaseyaa\Relationship\VisibilityFilterInterface;
 
 #[CoversClass(RelationshipDiscoveryService::class)]
 final class RelationshipDiscoveryServiceTest extends TestCase
 {
+    /**
+     * These tests cover discovery shaping (ordering, pagination, faceting),
+     * not visibility filtering, so they wire an all-public filter. The
+     * traversal service now fails closed without one (per-result visibility
+     * enforcement is covered by RelationshipTraversalServiceTest).
+     */
+    private function allPublicVisibilityFilter(): VisibilityFilterInterface
+    {
+        return new class implements VisibilityFilterInterface {
+            public function isEntityPublic(string $entityType, array $values): bool
+            {
+                return true;
+            }
+        };
+    }
+
     #[Test]
     public function topicHubReturnsDeterministicPaginatedItemsAndFacets(): void
     {
@@ -95,7 +113,9 @@ final class RelationshipDiscoveryServiceTest extends TestCase
             'taxonomy_term' => $termStorage,
         ]);
 
-        $service = new RelationshipDiscoveryService(new RelationshipTraversalService($manager, $database));
+        $service = new RelationshipDiscoveryService(
+            new RelationshipTraversalService($manager, $database, $this->allPublicVisibilityFilter()),
+        );
 
         $hub = $service->topicHub('node', 1, ['offset' => 1, 'limit' => 2, 'status' => 'published']);
 
@@ -182,7 +202,9 @@ final class RelationshipDiscoveryServiceTest extends TestCase
             'taxonomy_term' => $termStorage,
         ]);
 
-        $service = new RelationshipDiscoveryService(new RelationshipTraversalService($manager, $database));
+        $service = new RelationshipDiscoveryService(
+            new RelationshipTraversalService($manager, $database, $this->allPublicVisibilityFilter()),
+        );
         $clusterPage = $service->clusterPage('node', 1, ['status' => 'published', 'limit' => 1, 'offset' => 0]);
 
         $this->assertSame(3, $clusterPage['page']['total']);
@@ -254,7 +276,9 @@ final class RelationshipDiscoveryServiceTest extends TestCase
             'node' => $nodeStorage,
         ]);
 
-        $service = new RelationshipDiscoveryService(new RelationshipTraversalService($manager, $database));
+        $service = new RelationshipDiscoveryService(
+            new RelationshipTraversalService($manager, $database, $this->allPublicVisibilityFilter()),
+        );
         $timeline = $service->timeline('node', 1, [
             'direction' => 'both',
             'from' => 130,
@@ -316,7 +340,9 @@ final class RelationshipDiscoveryServiceTest extends TestCase
             'node' => $nodeStorage,
         ]);
 
-        $service = new RelationshipDiscoveryService(new RelationshipTraversalService($manager, $database));
+        $service = new RelationshipDiscoveryService(
+            new RelationshipTraversalService($manager, $database, $this->allPublicVisibilityFilter()),
+        );
         $timeline = $service->timeline('node', 1, ['direction' => 'outbound', 'status' => 'published']);
 
         $this->assertSame(2, $timeline['page']['total']);
@@ -370,7 +396,9 @@ final class RelationshipDiscoveryServiceTest extends TestCase
             'node' => $nodeStorage,
         ]);
 
-        $service = new RelationshipDiscoveryService(new RelationshipTraversalService($manager, $database));
+        $service = new RelationshipDiscoveryService(
+            new RelationshipTraversalService($manager, $database, $this->allPublicVisibilityFilter()),
+        );
         $endpointPage = $service->endpointPage('node', 1, ['status' => 'published']);
 
         $this->assertSame('node', $endpointPage['endpoint']['type']);

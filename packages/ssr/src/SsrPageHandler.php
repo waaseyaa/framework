@@ -31,6 +31,7 @@ use Waaseyaa\SSR\Http\AppController\AppControllerArgumentResolver;
 use Waaseyaa\SSR\Http\AppController\AppControllerMethodInvoker;
 use Waaseyaa\SSR\Http\AppController\AppInvocationContext;
 use Waaseyaa\Workflows\EditorialVisibilityResolver;
+use Waaseyaa\Workflows\WorkflowVisibilityFilter;
 
 /**
  * Handles SSR page rendering: language negotiation, path alias resolution,
@@ -556,7 +557,14 @@ final class SsrPageHandler
 
         try {
             $discovery = new RelationshipDiscoveryService(
-                new RelationshipTraversalService($this->entityTypeManager, $this->database),
+                // Pass the visibility filter so related entities are gated on
+                // publication state — without it the traversal service fails
+                // closed and would withhold every related label/path.
+                new RelationshipTraversalService(
+                    $this->entityTypeManager,
+                    $this->database,
+                    new WorkflowVisibilityFilter(),
+                ),
             );
             $entityType = $entity->getEntityTypeId();
             $entityId = (string) $entity->id();

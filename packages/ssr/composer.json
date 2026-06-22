@@ -46,6 +46,10 @@
         },
         {
             "type": "path",
+            "url": "../workflows"
+        },
+        {
+            "type": "path",
             "url": "../foundation"
         }
     ],
@@ -61,6 +65,7 @@
         "waaseyaa/foundation": "^0.1.0-alpha.245",
         "waaseyaa/routing": "^0.1.0-alpha.245",
         "waaseyaa/seo": "^0.1.0-alpha.245",
+        "waaseyaa/workflows": "^0.1.0-alpha.245",
         "twig/twig": "^3.0"
     },
     "require-dev": {
