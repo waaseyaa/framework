@@ -41,9 +41,11 @@
         "php": ">=8.5",
         "waaseyaa/access": "^0.1.0-alpha.245",
         "waaseyaa/audit": "^0.1.0-alpha.245",
+        "waaseyaa/cache": "^0.1.0-alpha.245",
         "waaseyaa/entity": "^0.1.0-alpha.245",
         "waaseyaa/foundation": "^0.1.0-alpha.245",
         "waaseyaa/plugin": "^0.1.0-alpha.245",
+        "waaseyaa/scheduler": "^0.1.0-alpha.245",
         "waaseyaa/typed-data": "^0.1.0-alpha.245"
     },
     "require-dev": {
