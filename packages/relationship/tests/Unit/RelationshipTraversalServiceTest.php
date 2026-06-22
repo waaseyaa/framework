@@ -82,6 +82,56 @@ final class RelationshipTraversalServiceTest extends TestCase
         $this->assertSame('3', $result['outbound'][0]['related_entity_id']);
     }
 
+    public function testBrowsePublishedFailsClosedWithoutVisibilityFilter(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $this->createRelationshipTable($database);
+
+        // A published relationship pointing at an unpublished (draft) node.
+        $this->insertRelationship($database, 1, 'node', '1', 'node', '2', 1);
+
+        $relationshipStorage = new TraversalRelationshipStorage([
+            1 => new Relationship([
+                'rid' => 1,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '2',
+                'directionality' => 'directed',
+                'status' => 1,
+            ]),
+        ]);
+        $nodeStorage = new TraversalEntityStorage([
+            '2' => new TraversalTestEntity('node', 'article', 2, 'Draft Node', [
+                'nid' => 2,
+                'type' => 'article',
+                'status' => 0,
+                'workflow_state' => 'draft',
+            ]),
+        ]);
+        $manager = new TraversalEntityTypeManager([
+            'relationship' => $relationshipStorage,
+            'node' => $nodeStorage,
+        ]);
+
+        // No visibility filter wired — the service cannot prove the related
+        // node is public, so it must withhold the edge (fail-closed) rather
+        // than leaking the draft node's label/path. Pre-fix this returned the
+        // edge (isEntityPublic() defaulted to true).
+        $service = new RelationshipTraversalService($manager, $database);
+
+        $result = $service->browse('node', 1, ['status' => 'published']);
+
+        $this->assertSame(0, $result['counts']['total'], 'Unwired visibility filter must fail closed');
+        $this->assertSame([], $result['outbound']);
+        $relatedIds = array_map(
+            static fn(array $edge): string => $edge['related_entity_id'],
+            $result['outbound'],
+        );
+        $this->assertNotContains('2', $relatedIds, 'Draft node leaked through unfiltered traversal');
+    }
+
     public function testBrowseAllIncludesMixedStateEndpointsDeterministically(): void
     {
         $database = DBALDatabase::createSqlite();
