@@ -108,6 +108,46 @@ final class GitHubOAuthProviderTest extends TestCase
         self::assertTrue($profile->emailVerified);
     }
 
+    public function testGetUserProfileThrowsOnErrorResponseInsteadOfDegenerateIdentity(): void
+    {
+        // A 401 from the user endpoint returns an error body with no id/login.
+        // The pre-fix code coerced this into a profile with an empty providerId
+        // (a wrong/empty identity); it must now fail loudly.
+        $errorBody = json_encode(['message' => 'Bad credentials']);
+
+        $this->httpClient
+            ->method('get')
+            ->willReturn(new HttpResponse(401, (string) $errorBody));
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Bad credentials');
+
+        $this->provider->getUserProfile('gho_revoked');
+    }
+
+    public function testGetUserProfileToleratesFailedEmailsLookup(): void
+    {
+        // A token without the user:email scope: the user call succeeds, the
+        // emails call 403s. The login must still succeed, just without a
+        // verified email — the error body must not be read as email data.
+        $userBody = json_encode(['id' => 7, 'login' => 'noemail', 'name' => 'No Email']);
+        $emailsErrorBody = json_encode(['message' => 'Requires user:email scope']);
+
+        $this->httpClient
+            ->expects(self::exactly(2))
+            ->method('get')
+            ->willReturnOnConsecutiveCalls(
+                new HttpResponse(200, (string) $userBody),
+                new HttpResponse(403, (string) $emailsErrorBody),
+            );
+
+        $profile = $this->provider->getUserProfile('gho_noemail');
+
+        self::assertSame('7', $profile->providerId);
+        self::assertSame('', $profile->email);
+        self::assertFalse($profile->emailVerified);
+    }
+
     public function testGetUserProfileFallsBackToLoginWhenNameIsNull(): void
     {
         $userBody = json_encode([
