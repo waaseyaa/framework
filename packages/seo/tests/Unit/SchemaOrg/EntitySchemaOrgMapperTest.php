@@ -84,4 +84,27 @@ final class EntitySchemaOrgMapperTest extends TestCase
         // Slashes in URLs are not escaped (readability).
         self::assertStringContainsString('https://x.test/hi', $tag);
     }
+
+    #[Test]
+    public function script_tag_does_not_allow_closing_tag_breakout(): void
+    {
+        // A hostile entity label (reachable via SsrPageHandler, which renders
+        // $entity->label() into the JSON-LD `name`) must not be able to close
+        // the <script> element and inject markup into the page.
+        $mapper = new EntitySchemaOrgMapper();
+        $tag = $mapper->toScriptTag($mapper->map(
+            $this->entity('node', 'article', '</script><img src=x onerror=alert(1)>'),
+            'https://x.test/hi',
+        ));
+
+        // The only `</script>` in the output must be the genuine closing tag.
+        self::assertSame(1, substr_count($tag, '</script>'));
+        // The raw `<` / `>` from the label must be hex-escaped in the JSON body.
+        self::assertStringNotContainsString('<img', $tag);
+        self::assertStringContainsString('<', $tag);
+        // Round-trips back to the original label once parsed.
+        $json = substr($tag, \strlen('<script type="application/ld+json">'), -\strlen('</script>'));
+        $decoded = json_decode($json, true, 512, \JSON_THROW_ON_ERROR);
+        self::assertSame('</script><img src=x onerror=alert(1)>', $decoded['name']);
+    }
 }
