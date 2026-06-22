@@ -19,9 +19,9 @@
     ],
     "require": {
         "php": ">=8.5",
-        "waaseyaa/foundation": "^0.1.0-alpha.246",
-        "waaseyaa/user": "^0.1.0-alpha.246",
-        "waaseyaa/mail": "^0.1.0-alpha.246"
+        "waaseyaa/foundation": "^0.1.0-alpha.247",
+        "waaseyaa/user": "^0.1.0-alpha.247",
+        "waaseyaa/mail": "^0.1.0-alpha.247"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
