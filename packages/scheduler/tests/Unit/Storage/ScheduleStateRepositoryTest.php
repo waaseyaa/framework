@@ -7,7 +7,14 @@ namespace Waaseyaa\Scheduler\Tests\Unit\Storage;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\DeleteInterface;
+use Waaseyaa\Database\InsertInterface;
+use Waaseyaa\Database\SchemaInterface;
+use Waaseyaa\Database\SelectInterface;
+use Waaseyaa\Database\TransactionInterface;
+use Waaseyaa\Database\UpdateInterface;
 use Waaseyaa\Scheduler\Storage\ScheduleStateRepository;
 
 #[CoversClass(ScheduleStateRepository::class)]
@@ -69,5 +76,84 @@ final class ScheduleStateRepositoryTest extends TestCase
     public function getState_returns_null_for_unknown_task(): void
     {
         self::assertNull($this->repository->getState('nonexistent'));
+    }
+
+    #[Test]
+    public function recordRun_does_not_emit_sqlite_only_insert_or_replace(): void
+    {
+        // `INSERT OR REPLACE` is SQLite-only syntax that throws a syntax error
+        // on MySQL/Postgres. The upsert must go through the portable query
+        // builders, so no raw `INSERT OR REPLACE` statement is issued.
+        $recorder = new RecordingDatabase($this->database);
+        $repository = new ScheduleStateRepository($recorder);
+
+        $repository->recordRun('portable_task', 'success');   // insert path
+        $repository->recordRun('portable_task', 'failure');   // update path
+
+        foreach ($recorder->rawQueries as $sql) {
+            self::assertDoesNotMatchRegularExpression(
+                '/INSERT\s+OR\s+REPLACE/i',
+                $sql,
+                'recordRun() must not emit SQLite-only INSERT OR REPLACE.',
+            );
+        }
+
+        // The portable upsert still produces exactly one, up-to-date row.
+        self::assertSame('failure', $repository->getState('portable_task')['last_result']);
+    }
+}
+
+/**
+ * Wraps a real database, delegating every operation, but recording the SQL of
+ * any raw {@see DatabaseInterface::query()} call so a test can assert no
+ * vendor-specific statement is emitted.
+ */
+final class RecordingDatabase implements DatabaseInterface
+{
+    /** @var list<string> */
+    public array $rawQueries = [];
+
+    public function __construct(private readonly DatabaseInterface $inner) {}
+
+    public function query(string $sql, array $args = []): \Traversable
+    {
+        $this->rawQueries[] = $sql;
+
+        return $this->inner->query($sql, $args);
+    }
+
+    public function select(string $table, string $alias = ''): SelectInterface
+    {
+        return $this->inner->select($table, $alias);
+    }
+
+    public function insert(string $table): InsertInterface
+    {
+        return $this->inner->insert($table);
+    }
+
+    public function update(string $table): UpdateInterface
+    {
+        return $this->inner->update($table);
+    }
+
+    public function delete(string $table): DeleteInterface
+    {
+        return $this->inner->delete($table);
+    }
+
+    public function schema(): SchemaInterface
+    {
+        return $this->inner->schema();
+    }
+
+    public function transaction(string $name = ''): TransactionInterface
+    {
+        return $this->inner->transaction($name);
+    }
+
+    public function quoteIdentifier(string $identifier): string
+    {
+        return $this->inner->quoteIdentifier($identifier);
     }
 }

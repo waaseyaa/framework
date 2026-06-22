@@ -16,38 +16,51 @@ final class SchedulerServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $driver = $this->config['queue']['driver'] ?? 'sync';
-
         $this->singleton(ScheduleInterface::class, fn(): Schedule => new Schedule());
 
-        $this->singleton(LockInterface::class, match ($driver) {
-            'database' => fn(): DatabaseLock => new DatabaseLock(
-                $this->resolve(DatabaseInterface::class),
-            ),
-            default => fn(): InMemoryLock => new InMemoryLock(),
+        // Cross-host mutual exclusion needs a SHARED store. Use the durable
+        // database lock whenever a DatabaseInterface is available — regardless
+        // of the queue driver, which has nothing to do with scheduler locking.
+        // Only a database-less install falls back to the per-process in-memory
+        // lock (which, by construction, cannot guard against other hosts).
+        // Resolved lazily so the database binding (registered by a lower-layer
+        // provider) is present by the time the lock is first used.
+        $this->singleton(LockInterface::class, function (): LockInterface {
+            $database = $this->resolveOptional(DatabaseInterface::class);
+
+            return $database instanceof DatabaseInterface
+                ? new DatabaseLock($database)
+                : new InMemoryLock();
         });
 
         // Bind ScheduleStateRepository as a first-class container service so
         // the admin scheduler dashboard (M4B WP02 — Layer 4 ApiServiceProvider)
-        // can resolve it without duplicating the repository instance. Only
-        // available when a real DatabaseInterface is in the container; sync /
-        // in-memory installs don't get a state row to read from.
-        if ($driver === 'database') {
-            $this->singleton(
-                ScheduleStateRepository::class,
-                fn(): ScheduleStateRepository => new ScheduleStateRepository(
-                    $this->resolve(DatabaseInterface::class),
-                ),
-            );
-        }
+        // can resolve it without duplicating the repository instance. It needs
+        // a real DatabaseInterface; without one, resolution throws and the
+        // dashboard's resolveOptional() degrades to "no state" as before.
+        $this->singleton(
+            ScheduleStateRepository::class,
+            function (): ScheduleStateRepository {
+                $database = $this->resolveOptional(DatabaseInterface::class);
+                if (!$database instanceof DatabaseInterface) {
+                    throw new \RuntimeException(
+                        'ScheduleStateRepository requires a DatabaseInterface; none is bound.',
+                    );
+                }
 
-        $this->singleton(ScheduleRunner::class, fn(): ScheduleRunner => new ScheduleRunner(
-            $this->resolve(ScheduleInterface::class),
-            $this->resolve(QueueInterface::class),
-            $this->resolve(LockInterface::class),
-            $driver === 'database'
-                ? $this->resolve(ScheduleStateRepository::class)
-                : null,
-        ));
+                return new ScheduleStateRepository($database);
+            },
+        );
+
+        $this->singleton(ScheduleRunner::class, function (): ScheduleRunner {
+            $hasDatabase = $this->resolveOptional(DatabaseInterface::class) instanceof DatabaseInterface;
+
+            return new ScheduleRunner(
+                $this->resolve(ScheduleInterface::class),
+                $this->resolve(QueueInterface::class),
+                $this->resolve(LockInterface::class),
+                $hasDatabase ? $this->resolve(ScheduleStateRepository::class) : null,
+            );
+        });
     }
 }
