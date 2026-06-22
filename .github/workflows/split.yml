@@ -156,7 +156,22 @@ jobs:
           SHA=$(splitsh-lite --prefix="${LOCAL_PREFIX}")
           git remote add split "${REMOTE_URL}" 2>/dev/null || true
           git push split "${SHA}:refs/heads/main" --force
-          git push split "${SHA}:refs/tags/${TAG_NAME}" --force
+          # Forward-only: push the release tag NON-FORCE. Packagist treats tag
+          # versions as immutable; force-moving a tag would diverge git from
+          # Packagist (the old dist stays published). If the split repo already
+          # has this tag at a DIFFERENT sha, that is a re-tag attempt — fail
+          # loudly (RETAG_BLOCKED). Re-pushing the SAME sha is an idempotent
+          # no-op (safe on re-runs). Recover a bad release by cutting
+          # alpha.N+1, never by re-tagging. See docs/VERSIONING.md §8.
+          if ! git push split "${SHA}:refs/tags/${TAG_NAME}"; then
+            existing="$(git ls-remote --tags split "refs/tags/${TAG_NAME}" | awk '{print $1}')"
+            if [ -n "${existing}" ] && [ "${existing}" != "${SHA}" ]; then
+              echo "::error::RETAG_BLOCKED: ${REMOTE_REPO} already has tag ${TAG_NAME} at ${existing}; refusing to move it to ${SHA}. Releases are forward-only — cut alpha.N+1 instead of re-tagging."
+            else
+              echo "::error::Tag push of ${TAG_NAME} to ${REMOTE_REPO} failed."
+            fi
+            exit 1
+          fi
 
   verify-monorepo-main-intact:
     name: Verify monorepo main still points at the tagged commit
@@ -234,3 +249,57 @@ jobs:
           name: ${{ github.ref_name }}
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+
+  # Single-crawl publish (WP01, audit §1). Packagist's GitHub auto-update PUSH
+  # webhooks are DISABLED on the monorepo + every split repo (they fired once
+  # per pushed ref -> 2-3 crawls/republishes per release). Instead we trigger
+  # EXACTLY ONE idempotent update-package POST per package, AFTER split + tag
+  # parity + require parity succeed. This is the only crawl trigger, so each
+  # package is published once per release. Requires repo secrets
+  # PACKAGIST_USERNAME + PACKAGIST_TOKEN.
+  publish-packagist:
+    name: Publish to Packagist (one crawl per package)
+    needs: [split, verify-monorepo-main-intact, verify-tag-parity, verify-require-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Discover waaseyaa/* packages
+        id: scan
+        run: |
+          {
+            for f in packages/*/composer.json; do jq -r '.name // empty' "$f"; done
+            jq -r '.name // empty' composer.json
+          } | grep '^waaseyaa/' | sort -u > /tmp/pkgs.txt
+          echo "Discovered $(wc -l < /tmp/pkgs.txt) package(s)."
+
+      - name: Trigger exactly one Packagist crawl per package
+        env:
+          PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
+          PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          if [ -z "${PACKAGIST_USERNAME}" ] || [ -z "${PACKAGIST_TOKEN}" ]; then
+            echo "::error::PACKAGIST_USERNAME / PACKAGIST_TOKEN secret not set."
+            echo "::error::The Packagist push webhooks are disabled by design (single-crawl model),"
+            echo "::error::so without these secrets nothing publishes. Configure them, then re-run."
+            exit 1
+          fi
+          rc=0
+          while IFS= read -r pkg; do
+            [ -z "${pkg}" ] && continue
+            # waaseyaa/<x> is registered on Packagist at github.com/<owner>/<x>
+            # (each split package's own repo; the monorepo for waaseyaa/framework).
+            repo_url="https://github.com/${REPO_OWNER}/${pkg#waaseyaa/}"
+            code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' -X POST \
+              "https://packagist.org/api/update-package?username=${PACKAGIST_USERNAME}&apiToken=${PACKAGIST_TOKEN}" \
+              -H 'Content-Type: application/json' \
+              -d "{\"repository\":{\"url\":\"${repo_url}\"}}" || echo "000")
+            if [ "${code}" = "200" ] || [ "${code}" = "202" ]; then
+              echo "::notice::${pkg}: update-package accepted (HTTP ${code})."
+            else
+              echo "::error::${pkg}: update-package failed (HTTP ${code}): $(cat /tmp/resp.json 2>/dev/null)"
+              rc=1
+            fi
+          done < /tmp/pkgs.txt
+          exit "${rc}"

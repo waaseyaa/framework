@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# check-release-publish-shape
+# ---------------------------
+# WP01 (framework-cleanup-alpha245): assert the release pipeline produces
+# EXACTLY ONE Packagist crawl per package per release, and that releases are
+# forward-only.
+#
+# Background (audit alpha.245, §1): Packagist was driven by GitHub auto-update
+# PUSH webhooks on the monorepo + every split repo. A release pushes multiple
+# refs per repo (gate-branch create + main + tag + gate-branch delete on the
+# monorepo; main + tag on each split repo), and GitHub fires one webhook per
+# ref, so the just-cut version was crawled/published 2-3x. split.yml also
+# force-pushed the tag, so a re-run could silently MOVE a tag while Packagist
+# kept the immutable original (git/Packagist divergence).
+#
+# The fix this gate enforces:
+#   1. The split TAG push is NOT --force (a re-tag attempt fails loudly).
+#   2. A re-tag / SHA-mismatch guard exists on the split tag push.
+#   3. Publishing is a single idempotent POST to Packagist's update-package API
+#      (one crawl per package), NOT the per-ref push webhook.
+#   4. That publish step is GATED on split + tag-parity + require-parity success.
+#   5. VERSIONING.md documents forward-only recovery (bump to alpha.N+1, never
+#      a re-tag) and that the push webhooks are disabled in favour of the POST.
+#
+# Exit non-zero if any invariant is violated. This is the WP01 failing-first
+# test: it FAILS against pre-fix workflows and PASSES after the fix.
+
+set -uo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SPLIT="${ROOT_DIR}/.github/workflows/split.yml"
+PKG="${ROOT_DIR}/.github/workflows/packagist-update.yml"
+VER="${ROOT_DIR}/docs/VERSIONING.md"
+
+fail=0
+pass() { printf 'OK   %s\n' "$1"; }
+bad()  { printf 'FAIL %s\n' "$1"; fail=1; }
+
+for f in "$SPLIT" "$PKG" "$VER"; do
+  [ -f "$f" ] || { echo "FAIL [RP100] missing file: $f"; exit 1; }
+done
+
+# 1. The split TAG push must NOT be --force.
+if grep -Eq 'push[^#]*refs/tags/[^#]*--force' "$SPLIT"; then
+  bad "[RP101] split.yml force-pushes the release tag (refs/tags/... --force) — a re-tag would silently move it; Packagist keeps the immutable original."
+else
+  pass "[RP101] split.yml tag push is non-force."
+fi
+
+# 2. A re-tag / SHA-mismatch guard must exist on the split tag push.
+if grep -q 'RETAG_BLOCKED' "$SPLIT"; then
+  pass "[RP102] split.yml has a re-tag / SHA-mismatch guard (RETAG_BLOCKED)."
+else
+  bad "[RP102] split.yml has no re-tag / SHA-mismatch guard on the tag push."
+fi
+
+# 3. Publishing must use a single idempotent update-package POST (not webhooks).
+if grep -Eq 'api/update-package' "$SPLIT" "$PKG"; then
+  pass "[RP103] release pipeline POSTs to Packagist update-package (explicit single crawl)."
+else
+  bad "[RP103] no Packagist update-package POST — publishing still relies on per-ref push webhooks (multi-crawl)."
+fi
+
+# 4. The publish step must be gated on split + parity success.
+pp_block="$(sed -n '/^  publish-packagist:/,/^  [A-Za-z0-9_-]*:/p' "$SPLIT")"
+if [ -n "${pp_block}" ] \
+  && printf '%s\n' "${pp_block}" | grep -q 'verify-tag-parity' \
+  && printf '%s\n' "${pp_block}" | grep -q 'verify-require-parity' \
+  && printf '%s\n' "${pp_block}" | grep -q 'split'; then
+  pass "[RP104] publish-packagist is gated on split + tag-parity + require-parity."
+else
+  bad "[RP104] the Packagist publish step is not gated on split + tag-parity + require-parity."
+fi
+
+# 5. VERSIONING.md documents forward-only recovery + webhook-off publish model.
+if grep -Eqi 'forward-only' "$VER" && grep -Eqi 'update-package|webhook' "$VER"; then
+  pass "[RP105] VERSIONING.md documents forward-only recovery and the single-crawl publish model."
+else
+  bad "[RP105] VERSIONING.md does not document forward-only recovery + the single-crawl publish model."
+fi
+
+if [ "$fail" -ne 0 ]; then
+  echo ""
+  echo "release-publish-shape: VIOLATIONS FOUND (see FAIL lines above)."
+  exit 1
+fi
+echo ""
+echo "release-publish-shape: OK — exactly-once publish + forward-only invariants hold."
