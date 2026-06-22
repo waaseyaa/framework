@@ -344,6 +344,7 @@ return [
     'Waaseyaa\Search\SearchIndexerInterface' => 'public',
     'Waaseyaa\Search\BatchSearchIndexerInterface' => 'public',
     'Waaseyaa\Search\SearchIndexableInterface' => 'public',
+    'Waaseyaa\Search\Access\SearchAccessChecker' => 'public',
     'Waaseyaa\Notification\NotificationInterface' => 'public',
     'Waaseyaa\Notification\NotifiableInterface' => 'public',
     'Waaseyaa\Notification\NotifiableTrait' => 'public',
