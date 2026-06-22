@@ -74,6 +74,40 @@ final class PurgeJobTest extends TestCase
     }
 
     #[Test]
+    public function never_purges_legal_hold_labelled_entities_even_when_a_policy_matches(): void
+    {
+        // A misconfigured purge policy whose glob matches `hold-*` labels must
+        // NOT delete legal-hold content — the hold guard overrides the match.
+        $held = $this->makeEntity('node', 1, [
+            'uuid' => 'u-held',
+            'classification_label' => 'hold-legal',
+            'created_at' => '2000-01-01 00:00:00',
+        ]);
+
+        $nodeStorage = $this->makeStorage('node', [1 => $held]);
+        $policyStorage = $this->makeStorage('retention_policy', [
+            10 => $this->makePolicy(10, [
+                'action' => RetentionPolicy::ACTION_PURGE,
+                'trigger_kind' => RetentionPolicy::TRIGGER_AGE_BASED,
+                'applies_to' => ['hold-*'],
+                'trigger_value' => 'P30D',
+                'exemptions' => [],
+            ]),
+        ]);
+
+        $etm = $this->makeEntityTypeManager([
+            'retention_policy' => $policyStorage,
+            'node' => $nodeStorage,
+        ]);
+        $audit = $this->recordingAuditWriter();
+
+        (new PurgeJob($etm, $audit))->run();
+
+        self::assertArrayHasKey(1, $nodeStorage->all(), 'legal-hold entity must never be purged');
+        self::assertSame([], $audit->recorded);
+    }
+
+    #[Test]
     public function honours_exemptions(): void
     {
         $exempt = $this->makeEntity('node', 1, [
