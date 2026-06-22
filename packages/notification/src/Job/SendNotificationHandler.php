@@ -8,7 +8,6 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Notification\ChannelInterface;
 use Waaseyaa\Notification\NotifiableInterface;
-use Waaseyaa\Notification\NotificationInterface;
 use Waaseyaa\Queue\Handler\HandlerInterface;
 
 /**
@@ -40,7 +39,11 @@ final class SendNotificationHandler implements HandlerInterface
     {
         /** @var SendNotificationJob $message */
         $notifiable = $this->buildNotifiable($message);
-        $notification = $this->buildNotification($message);
+        // Use the real notification carried by the job (round-tripped through
+        // the queue's serialize/unserialize), so channel-specific renderers
+        // toMail()/toDatabase() are present and invoked — not silently dropped
+        // by a flattened via()+toArray() stand-in.
+        $notification = $message->notification;
 
         foreach ($message->channels as $channelName) {
             if (!isset($this->channels[$channelName])) {
@@ -80,26 +83,6 @@ final class SendNotificationHandler implements HandlerInterface
             public function getNotifiableType(): string
             {
                 return $this->type;
-            }
-        };
-    }
-
-    private function buildNotification(SendNotificationJob $job): NotificationInterface
-    {
-        return new class ($job->channels, $job->notificationData) implements NotificationInterface {
-            public function __construct(
-                private readonly array $channels,
-                private readonly array $data,
-            ) {}
-
-            public function via(NotifiableInterface $notifiable): array
-            {
-                return $this->channels;
-            }
-
-            public function toArray(NotifiableInterface $notifiable): array
-            {
-                return $this->data;
             }
         };
     }

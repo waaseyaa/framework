@@ -74,8 +74,7 @@ final class NotificationDispatcher
         $this->queue->dispatch(new Job\SendNotificationJob(
             notifiableType: $notifiable->getNotifiableType(),
             notifiableId: $notifiable->getNotifiableId(),
-            notificationClass: $notification::class,
-            notificationData: $notification->toArray($notifiable),
+            notification: $notification,
             channels: $notification->via($notifiable),
         ));
     }
