@@ -21,11 +21,37 @@ final class ScheduleStateRepository
     {
         $now = date('Y-m-d\TH:i:sP');
 
-        // Atomic upsert — task_name is PRIMARY KEY
-        $this->database->query(
-            'INSERT OR REPLACE INTO ' . self::TABLE . ' (task_name, last_run_at, last_result) VALUES (?, ?, ?)',
-            [$taskName, $now, $result],
-        );
+        // Portable upsert (task_name is the PRIMARY KEY). The previous
+        // `INSERT OR REPLACE` is SQLite-only syntax and throws a syntax error on
+        // MySQL/Postgres. Use the platform-agnostic query builders inside a
+        // transaction: UPDATE first (the common case — the task already has a
+        // state row), and INSERT only when no row was affected. The scheduler
+        // serialises runs of a given task behind its overlap lock, so there is a
+        // single writer per task_name and no insert/insert race in practice.
+        $transaction = $this->database->transaction();
+
+        try {
+            $affected = $this->database->update(self::TABLE)
+                ->fields(['last_run_at' => $now, 'last_result' => $result])
+                ->condition('task_name', $taskName)
+                ->execute();
+
+            if ($affected === 0) {
+                $this->database->insert(self::TABLE)
+                    ->values([
+                        'task_name' => $taskName,
+                        'last_run_at' => $now,
+                        'last_result' => $result,
+                    ])
+                    ->execute();
+            }
+
+            $transaction->commit();
+        } catch (\Throwable $e) {
+            $transaction->rollBack();
+
+            throw $e;
+        }
     }
 
     /**
