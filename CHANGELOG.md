@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Messaging now actually enforces participant-only access — the README/spec guarantee was unbacked by code (audit #31, WP14).** The README and `docs/specs/messaging.md` promise "only participants can read or post," but **no `AccessPolicy`/`#[PolicyAttribute]` existed** for the thread entities, so nothing enforced it. New `MessagingAccessPolicy` (implements `AccessPolicyInterface` + `FieldAccessPolicyInterface`, `#[PolicyAttribute(['message_thread','thread_message','thread_participant'])]`) enforces it: **reads** are gated by `access('view')` (a `message_thread`/`thread_message`/`thread_participant` is viewable only by a participant of its thread — `JsonApiController::index()/show()` already filter on `view`), and **posts/edits** by `fieldAccess('edit')` returning **Forbidden** unless the account is a participant of the message's `thread_id` (`store()` runs the field-edit check on the constructed message, which carries `thread_id` — the only create-time hook that sees the target thread). Creating a new thread is open to any authenticated account; `administer content` bypasses. Participation is resolved with an `accessCheck(false)` system query against `thread_participant`; the `EntityTypeManager` is injected by the kernel's policy dependency resolver (nullable → fail-closed standalone). `messaging` now declares its `waaseyaa/access` dependency. Acceptance: `MessagingAccessPolicyTest::{a_participant_can_read_a_thread_message_but_an_outsider_cannot, an_outsider_cannot_post_to_a_thread}` (both verified to fail with no policy registered, the pre-fix state).
+
 ## [0.1.0-alpha.247] - 2026-06-22
 
 ### Fixed
