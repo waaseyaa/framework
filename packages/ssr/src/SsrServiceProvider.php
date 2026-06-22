@@ -54,6 +54,20 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
                 }
             };
         });
+
+        // Expose the Twig environment as a container service so lower layers
+        // (e.g. the user package's AuthMailer) can render templates without
+        // statically reaching up into this Layer-6 provider. Resolved lazily;
+        // throws when no environment is available so a caller's resolveOptional()
+        // degrades to null rather than receiving a non-object.
+        $this->singleton(Environment::class, function (): Environment {
+            $twig = self::getTwigEnvironment();
+            if ($twig === null) {
+                throw new \RuntimeException('SSR Twig environment is not available.');
+            }
+
+            return $twig;
+        });
     }
 
     public function boot(): void
