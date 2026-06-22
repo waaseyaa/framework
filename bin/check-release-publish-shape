@@ -30,13 +30,14 @@ set -uo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SPLIT="${ROOT_DIR}/.github/workflows/split.yml"
 PKG="${ROOT_DIR}/.github/workflows/packagist-update.yml"
+SYNC="${ROOT_DIR}/.github/workflows/sync-skeleton.yml"
 VER="${ROOT_DIR}/docs/VERSIONING.md"
 
 fail=0
 pass() { printf 'OK   %s\n' "$1"; }
 bad()  { printf 'FAIL %s\n' "$1"; fail=1; }
 
-for f in "$SPLIT" "$PKG" "$VER"; do
+for f in "$SPLIT" "$PKG" "$SYNC" "$VER"; do
   [ -f "$f" ] || { echo "FAIL [RP100] missing file: $f"; exit 1; }
 done
 
@@ -77,6 +78,33 @@ if grep -Eqi 'forward-only' "$VER" && grep -Eqi 'update-package|webhook' "$VER";
   pass "[RP105] VERSIONING.md documents forward-only recovery and the single-crawl publish model."
 else
   bad "[RP105] VERSIONING.md does not document forward-only recovery + the single-crawl publish model."
+fi
+
+# 6. No repo may be a publish target of more than one workflow. split.yml's
+#    subtree-split matrix (`remote:` targets) and sync-skeleton.yml's target
+#    repo must be DISJOINT. A repo owned by two workflows races to push the
+#    same tag at release time — the second loses to RETAG_BLOCKED and the whole
+#    publish stage (parity + Packagist) is skipped. This caught the alpha.246
+#    skeleton collision: split.yml fanned `skeleton -> waaseyaa` while
+#    sync-skeleton.yml already owns waaseyaa/waaseyaa.
+split_targets="$(grep -oE "remote: *'[a-z0-9_-]+'" "$SPLIT" | sed -E "s/remote: *'([a-z0-9_-]+)'/\1/" | sort -u)"
+sync_targets="$(grep -oE 'repository: *waaseyaa/[a-z0-9_-]+' "$SYNC" | sed -E 's#repository: *waaseyaa/##' | sort -u)"
+dual_owned="$(comm -12 <(printf '%s\n' "$split_targets") <(printf '%s\n' "$sync_targets") | grep -v '^$' || true)"
+if [ -z "$dual_owned" ]; then
+  pass "[RP106] no repo is a publish target of more than one workflow (split.yml ∩ sync-skeleton.yml = ∅)."
+else
+  bad "[RP106] repo(s) targeted by BOTH split.yml and sync-skeleton.yml (dual-owner → RETAG_BLOCKED at release): $(printf '%s' "$dual_owned" | tr '\n' ' ')"
+fi
+
+# 7. The skeleton repo (waaseyaa/waaseyaa) is published ONLY by sync-skeleton.yml
+#    once split.yml no longer fans it out. split.yml's publish-packagist crawls
+#    only packages/* + the root (never the skeleton), and the push webhooks are
+#    off — so sync-skeleton.yml MUST trigger the skeleton's single Packagist
+#    crawl itself, or the skeleton silently stops publishing (the gap WP01 left).
+if grep -Eq 'api/update-package' "$SYNC"; then
+  pass "[RP107] sync-skeleton.yml triggers the skeleton's Packagist crawl (single owner publishes it)."
+else
+  bad "[RP107] sync-skeleton.yml does not POST a Packagist crawl for waaseyaa/waaseyaa — its publish is dropped."
 fi
 
 if [ "$fail" -ne 0 ]; then

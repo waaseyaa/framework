@@ -67,3 +67,31 @@ jobs:
           # Always tag to match the framework release
           git tag "${TAG_NAME}" -f
           git push origin main --tags --force
+
+      - name: Publish skeleton to Packagist (one crawl)
+        # sync-skeleton.yml is the SOLE owner of waaseyaa/waaseyaa: split.yml's
+        # publish-packagist enumerates only packages/* + the root (never the
+        # skeleton), and the Packagist push webhooks are disabled (single-crawl
+        # model). So this workflow must trigger the skeleton's own single
+        # idempotent update-package POST, or the skeleton silently stops
+        # publishing. Mirrors split.yml's publish-packagist crawl shape.
+        env:
+          PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
+          PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}
+        run: |
+          if [ -z "${PACKAGIST_USERNAME}" ] || [ -z "${PACKAGIST_TOKEN}" ]; then
+            echo "::error::PACKAGIST_USERNAME / PACKAGIST_TOKEN secret not set."
+            echo "::error::The Packagist push webhooks are disabled (single-crawl model),"
+            echo "::error::so without these secrets the skeleton does not publish. Configure them, then re-run."
+            exit 1
+          fi
+          code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' -X POST \
+            "https://packagist.org/api/update-package?username=${PACKAGIST_USERNAME}&apiToken=${PACKAGIST_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            -d '{"repository":{"url":"https://github.com/waaseyaa/waaseyaa"}}' || echo "000")
+          if [ "${code}" = "200" ] || [ "${code}" = "202" ]; then
+            echo "::notice::waaseyaa/waaseyaa: update-package accepted (HTTP ${code})."
+          else
+            echo "::error::waaseyaa/waaseyaa: update-package failed (HTTP ${code}): $(cat /tmp/resp.json 2>/dev/null)"
+            exit 1
+          fi
