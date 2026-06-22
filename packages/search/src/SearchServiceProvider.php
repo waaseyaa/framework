@@ -5,9 +5,14 @@ declare(strict_types=1);
 namespace Waaseyaa\Search;
 
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
+use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Search\Access\EntitySearchAccessChecker;
+use Waaseyaa\Search\Access\SearchAccessChecker;
 use Waaseyaa\Search\EventSubscriber\SearchIndexSubscriber;
 use Waaseyaa\Search\Fts5\Fts5SearchIndexer;
 use Waaseyaa\Search\Fts5\Fts5SearchProvider;
@@ -27,10 +32,19 @@ final class SearchServiceProvider extends ServiceProvider
             return new Fts5SearchIndexer($database);
         });
 
+        $this->singleton(SearchAccessChecker::class, function (): SearchAccessChecker {
+            return new EntitySearchAccessChecker(
+                $this->resolve(EntityTypeManagerInterface::class),
+                $this->resolve(EntityAccessHandler::class),
+                $this->resolve(AccountContextInterface::class),
+            );
+        });
+
         $this->singleton(SearchProviderInterface::class, function (): SearchProviderInterface {
             return new Fts5SearchProvider(
                 $this->getSearchDatabase(),
                 $this->resolve(SearchIndexerInterface::class),
+                accessChecker: $this->resolve(SearchAccessChecker::class),
             );
         });
     }

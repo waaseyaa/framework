@@ -7,6 +7,7 @@ namespace Waaseyaa\Search\Fts5;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Search\Access\SearchAccessChecker;
 use Waaseyaa\Search\FacetBucket;
 use Waaseyaa\Search\SearchFacet;
 use Waaseyaa\Search\SearchFilters;
@@ -31,12 +32,20 @@ final class Fts5SearchProvider implements SearchProviderInterface
      */
     private bool $schemaReady = false;
 
+    /**
+     * @param ?SearchAccessChecker $accessChecker When set, every candidate hit
+     *        is filtered through it so the read path enforces per-document
+     *        access. When null (e.g. a doc-only index in a minimal setup) no
+     *        filtering is applied — the canonical {@see \Waaseyaa\Search\SearchServiceProvider}
+     *        wiring always supplies one.
+     */
     public function __construct(
         private readonly DatabaseInterface $database,
         private readonly SearchIndexerInterface $indexer,
         ?LoggerInterface $logger = null,
         private readonly float $titleWeight = 1.0,
         private readonly float $bodyWeight = 1.0,
+        private readonly ?SearchAccessChecker $accessChecker = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -81,7 +90,13 @@ final class Fts5SearchProvider implements SearchProviderInterface
 
         $whereSQL = implode(' AND ', $whereClauses);
 
-        // Count total hits
+        // Count total hits. NOTE: this count is taken in SQL before the
+        // per-document access filter below runs (access policies are PHP, not
+        // expressible in SQL), so totalHits/totalPages are an upper bound when
+        // a checker is wired — a page may return fewer hits than pageSize, and
+        // the count may include documents the caller cannot view. Forbidden
+        // documents are never returned in `hits`; the count is not used as a
+        // security boundary.
         $countSQL = "SELECT COUNT(*) as cnt FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE $whereSQL";
         $countRows = iterator_to_array($this->database->query($countSQL, $params));
         $totalHits = (int) ($countRows[0]['cnt'] ?? 0);
@@ -120,6 +135,15 @@ final class Fts5SearchProvider implements SearchProviderInterface
         $currentVersion = $this->indexer->getSchemaVersion();
 
         foreach ($this->database->query($sql, $params) as $row) {
+            // Per-document access enforcement: the index is populated
+            // automatically on entity save, so it can hold documents the acting
+            // account may not view. Drop those before they reach the caller.
+            if ($this->accessChecker !== null
+                && !$this->accessChecker->canView((string) $row['document_id'], (string) ($row['entity_type'] ?? ''))
+            ) {
+                continue;
+            }
+
             if ($row['schema_version'] !== $currentVersion) {
                 $staleDetected = true;
             }
