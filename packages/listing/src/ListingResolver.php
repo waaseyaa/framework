@@ -182,6 +182,25 @@ final class ListingResolver
             $contexts[] = ContextNames::LANGUAGE_CONTENT;
         }
 
+        // Cross-user cache safety: whenever the per-row access gate actually
+        // runs (i.e. the fast path is NOT taken), the result is filtered to the
+        // acting account and therefore varies per user. `effectiveContexts()`
+        // only adds `user.roles` for non-default access ops, so the default
+        // `view` path — which still runs the gate unless a policy opted into
+        // the listing fast path — would otherwise cache one user's filtered
+        // result under a key shared by everyone (role/owner data leak). Bind
+        // the key to both the acting account id (covers owner-dependent access)
+        // and its roles (covers role-dependent access). Policies that are truly
+        // user-independent opt out via SUPPORTS_LISTING_FAST_PATH.
+        if (!$this->canUseAccessFastPath($def)) {
+            if (!in_array(ContextNames::USER_ID, $contexts, true)) {
+                $contexts[] = ContextNames::USER_ID;
+            }
+            if (!in_array(ContextNames::USER_ROLES, $contexts, true)) {
+                $contexts[] = ContextNames::USER_ROLES;
+            }
+        }
+
         sort($contexts, SORT_STRING);
 
         /** @var list<non-empty-string> $unique */

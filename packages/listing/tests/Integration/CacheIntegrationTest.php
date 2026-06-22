@@ -335,6 +335,36 @@ final class CacheIntegrationTest extends TestCase
     }
 
     #[Test]
+    public function defaultViewCacheKeyIsPerUserWhenAccessGateRuns(): void
+    {
+        $driver = new InMemoryStorageDriver();
+        $this->seedThreeRows($driver);
+        $cache = new MemoryBackend();
+
+        // Default access ops ('view'). AllowAllArticlePolicy does NOT opt into
+        // the listing fast path, so the per-row access gate runs — the result
+        // is account-dependent and must not be cached under a key shared by
+        // every user. Two accounts must produce different cache keys.
+        $def = new ListingDefinition(id: 'view_per_user', entityType: 'article', pageSize: 20);
+
+        $resolverUserA = $this->buildResolver($driver, $cache, new ListingCacheKeyBuilder(), accountId: 1);
+        $resolverUserB = $this->buildResolver($driver, $cache, new ListingCacheKeyBuilder(), accountId: 2);
+
+        $a = $resolverUserA->resolve($def);
+        // Mutate state between resolves — a shared cache key would mask this
+        // and serve account 1's cached rows to account 2.
+        $driver->write('article', '4', ['id' => '4', 'title' => 'd', 'status' => 1, 'weight' => 40]);
+        $b = $resolverUserB->resolve($def);
+
+        self::assertSame(['1', '2', '3'], $this->ids($a));
+        self::assertSame(
+            ['1', '2', '3', '4'],
+            $this->ids($b),
+            'A default-view listing whose access gate runs must key its cache per user; account 2 must not receive account 1\'s cached result.',
+        );
+    }
+
+    #[Test]
     public function cacheKeyChangesWithExposedFilterValues(): void
     {
         $driver = new InMemoryStorageDriver();
