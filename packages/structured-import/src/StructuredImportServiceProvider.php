@@ -4,29 +4,36 @@ declare(strict_types=1);
 
 namespace Waaseyaa\StructuredImport;
 
+use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\StructuredImport\Gfm\GfmTableImporter;
 use Waaseyaa\StructuredImport\Gfm\GfmTableParser;
+use Waaseyaa\StructuredImport\Gfm\PromptNormalizer;
 
 /**
  * Service provider for the StructuredImport package.
  *
- * Registers the GfmTableParser as a singleton. The StructuredImporterInterface
- * is forward-bound to GfmTableImporter (a string class name) — that class ships
- * in WP09. PHP containers resolve the binding lazily, so no boot-time failure
- * occurs while GfmTableImporter does not yet exist on disk.
+ * Binds {@see StructuredImporterInterface} to {@see GfmTableImporter} via a
+ * closure that supplies the importer's three constructor dependencies. The
+ * previous binding registered the class *name* as a string, which the kernel
+ * resolver instantiates with `new $concrete()` (zero args) — fataling with a
+ * TypeError the moment the binding was resolved, because the importer requires
+ * a field-definition registry, a table parser and a prompt normalizer.
  */
 final class StructuredImportServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->singleton(GfmTableParser::class, fn() => new GfmTableParser());
+        $this->singleton(GfmTableParser::class, fn(): GfmTableParser => new GfmTableParser());
+        $this->singleton(PromptNormalizer::class, fn(): PromptNormalizer => new PromptNormalizer());
 
-        // Forward-bind interface → implementation. Class name is a string so
-        // the autoloader is not invoked until the binding is first resolved
-        // (which will not occur until WP09 lands and callers request the interface).
         $this->bind(
             StructuredImporterInterface::class,
-            'Waaseyaa\\StructuredImport\\Gfm\\GfmTableImporter',
+            fn(): StructuredImporterInterface => new GfmTableImporter(
+                $this->resolve(FieldDefinitionRegistryInterface::class),
+                $this->resolve(GfmTableParser::class),
+                $this->resolve(PromptNormalizer::class),
+            ),
         );
     }
 }

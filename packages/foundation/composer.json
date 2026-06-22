@@ -22,6 +22,8 @@
         "symfony/http-foundation": "^7.0",
         "symfony/messenger": "^7.0",
         "symfony/uid": "^7.0",
+        "waaseyaa/cache": "^0.1.0-alpha.245",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.245",
         "waaseyaa/queue": "^0.1.0-alpha.245"
     },
     "require-dev": {
