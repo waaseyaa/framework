@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.246] - 2026-06-22
+
 ### Fixed
 
 - **Classification retention can no longer purge legal-hold content, and the configured role→clearance mapping is now honoured (audit #18/#19, WP13).** Two `field`/classification defects: (1) **`PurgeJob` could delete legal-hold entities.** Its class doc claimed a `hold-*` label is "never a `purge` target by construction" — but nothing enforced it, so a misconfigured purge policy whose `applies_to` glob matched `hold-*` (e.g. `hold-*` or `*`) deleted legal-hold content. A hard guard now skips any `hold-*`-labelled entity regardless of policy match, so the invariant cannot be configured away. (2) **`classification.role_clearance` was silently ignored.** `FieldServiceProvider` bound `new RoleBasedClearanceChecker()` with **no argument**, so the host's role→clearance override never reached the checker and clearance was permanently the stock default. The binding now passes the configured mapping (falling back to `DEFAULT_ROLE_CLEARANCE` when absent). Acceptance: `PurgeJobTest::never_purges_legal_hold_labelled_entities_even_when_a_policy_matches` + `FieldServiceProviderClearanceConfigTest::honours_the_classification_role_clearance_override` (both verified to fail against the pre-fix code).
