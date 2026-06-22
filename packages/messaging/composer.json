@@ -6,6 +6,10 @@
     "repositories": [
         {
             "type": "path",
+            "url": "../access"
+        },
+        {
+            "type": "path",
             "url": "../entity"
         },
         {
@@ -19,6 +23,7 @@
     ],
     "require": {
         "php": ">=8.5",
+        "waaseyaa/access": "^0.1.0-alpha.247",
         "waaseyaa/entity": "^0.1.0-alpha.247",
         "waaseyaa/foundation": "^0.1.0-alpha.247"
     },

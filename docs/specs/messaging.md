@@ -1,5 +1,6 @@
 # Messaging — L3 Chat Substrate
 
+<!-- Spec reviewed 2026-06-22 - WP14 (alpha245 security, audit #31): the participant-only access guarantee (only participants can read or post) is now BACKED BY CODE. MessagingAccessPolicy (implements AccessPolicyInterface + FieldAccessPolicyInterface, #[PolicyAttribute(['message_thread','thread_message','thread_participant'])], EntityTypeManager injected by the policy dependency resolver) enforces: read via access('view') participant-only; post/modify via fieldAccess('edit') Forbidden-unless-participant (store() runs the field-edit check on the constructed message, which carries thread_id — the only create-time hook that sees the target thread; createAccess() does not); thread creation via createAccess() for any authenticated account. Admins (administer content) bypass. Participation is checked with an accessCheck(false) system query against thread_participant. Spec text was already accurate; this records that the enforcing code now exists. Acceptance: MessagingAccessPolicyTest. -->
 <!-- Spec reviewed 2026-05-25 - l2-content-types-consolidation-01KSEFTX - WP03 - messaging L3 graduation -->
 
 **Package:** `waaseyaa/messaging`  
