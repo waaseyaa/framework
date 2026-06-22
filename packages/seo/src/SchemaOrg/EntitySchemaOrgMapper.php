@@ -89,7 +89,13 @@ final class EntitySchemaOrgMapper
      */
     public function toScriptTag(array $node): string
     {
-        $json = json_encode($node, \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE | \JSON_THROW_ON_ERROR);
+        // JSON_HEX_TAG|JSON_HEX_AMP hex-escape `<`, `>`, `&` so hostile entity
+        // data (e.g. a `</script>` in a label) cannot break out of the
+        // `<script>` element and inject markup.
+        $json = json_encode(
+            $node,
+            \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE | \JSON_HEX_TAG | \JSON_HEX_AMP | \JSON_THROW_ON_ERROR,
+        );
 
         return '<script type="application/ld+json">' . $json . '</script>';
     }

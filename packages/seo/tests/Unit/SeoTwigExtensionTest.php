@@ -44,4 +44,19 @@ final class SeoTwigExtensionTest extends TestCase
         $this->assertStringContainsString('application/ld+json', $out);
         $this->assertStringContainsString('"name":"N"', $out);
     }
+
+    #[Test]
+    public function seo_json_ld_script_escapes_closing_tag_breakout(): void
+    {
+        $twig = new Environment(new ArrayLoader([
+            'j' => '{{ seo_json_ld_script({ "@type": "Thing", "name": name }) }}',
+        ]));
+        $twig->addExtension(new SeoTwigExtension(new MetaTagBuilder()));
+
+        $out = $twig->render('j', ['name' => '</script><img src=x onerror=alert(1)>']);
+
+        // Only the genuine closing tag may appear; the label must not break out.
+        $this->assertSame(1, substr_count($out, '</script>'));
+        $this->assertStringNotContainsString('<img', $out);
+    }
 }
