@@ -95,21 +95,37 @@ final class GitHubOAuthProvider implements OAuthProviderInterface
         $userResponse = $this->httpClient->get(self::USER_URL, $headers);
         $userData = $userResponse->json();
 
-        $emailsResponse = $this->httpClient->get(self::EMAILS_URL, $headers);
-        $emailsData = $emailsResponse->json();
+        // The user endpoint is the identity source. A 401/403/429/5xx returns an
+        // error body with no `id`/`login`, which would otherwise be coerced into
+        // a degenerate, empty-providerId profile (a wrong/empty identity). Fail
+        // loudly instead — mirroring exchangeCode()'s isSuccess() check.
+        if (!$userResponse->isSuccess()) {
+            $message = $userData['message'] ?? 'GitHub user profile request failed';
+            throw new \RuntimeException((string) $message);
+        }
+        if (!isset($userData['id']) || (string) $userData['id'] === '') {
+            throw new \RuntimeException('GitHub user profile response is missing an account id.');
+        }
 
+        // Email is best-effort: a token without the `user:email` scope (or a
+        // transient error on this secondary call) yields an unverified/empty
+        // email, NOT a failed login. Only read the body on success so an error
+        // payload is never mistaken for email data.
         $email = '';
         $emailVerified = false;
-        foreach ($emailsData as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-            $primary = $entry['primary'] ?? false;
-            $verified = $entry['verified'] ?? false;
-            if ($primary === true && $verified === true && isset($entry['email'])) {
-                $email = (string) $entry['email'];
-                $emailVerified = true;
-                break;
+        $emailsResponse = $this->httpClient->get(self::EMAILS_URL, $headers);
+        if ($emailsResponse->isSuccess()) {
+            foreach ($emailsResponse->json() as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                $primary = $entry['primary'] ?? false;
+                $verified = $entry['verified'] ?? false;
+                if ($primary === true && $verified === true && isset($entry['email'])) {
+                    $email = (string) $entry['email'];
+                    $emailVerified = true;
+                    break;
+                }
             }
         }
 
