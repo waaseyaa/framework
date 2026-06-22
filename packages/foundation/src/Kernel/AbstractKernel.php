@@ -224,7 +224,18 @@ abstract class AbstractKernel
             function (EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry): SqlEntityStorage {
                 $schemaHandler = new SqlSchemaHandler($definition, $database, $fieldRegistry, null, $this->logger);
                 $schemaHandler->ensureTable();
-                return new SqlEntityStorage($definition, $database, $dispatcher, $fieldRegistry);
+                // Thread the kernel's access handler lazily so getQuery() is
+                // fail-closed (issue #1714). $this->accessHandler is populated by
+                // discoverAccessPolicies() during boot; storage is built on first
+                // use and cached, so resolve at query time (?? null mirrors the
+                // tool-dispatch accessor pattern below).
+                return new SqlEntityStorage(
+                    $definition,
+                    $database,
+                    $dispatcher,
+                    $fieldRegistry,
+                    accessHandlerResolver: fn(): ?EntityAccessHandler => $this->accessHandler ?? null,
+                );
             },
             function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $validator): EntityRepositoryInterface {
                 $schemaHandler = new SqlSchemaHandler($definition, $database, $fieldRegistry, null, $this->logger);

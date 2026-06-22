@@ -66,6 +66,18 @@ final class SqlEntityStorage implements EntityStorageInterface
 
     private readonly ?EntityAccessHandler $accessHandler;
 
+    /**
+     * Lazy resolver for the access handler, used when the handler is built
+     * after storage (the kernel populates its EntityAccessHandler during boot,
+     * while storage instances are created on first use — sometimes mid-boot and
+     * cached). Resolving at {@see getQuery()} time rather than construction time
+     * guarantees getQuery() sees the real, policy-laden handler at runtime even
+     * for a storage that was built before discovery completed.
+     *
+     * @var ?\Closure(): ?EntityAccessHandler
+     */
+    private readonly ?\Closure $accessHandlerResolver;
+
     public function __construct(
         private readonly EntityTypeInterface $entityType,
         private readonly DatabaseInterface $database,
@@ -76,6 +88,7 @@ final class SqlEntityStorage implements EntityStorageInterface
         ?SqlEntityQueryResultCache $queryResultCache = null,
         ?EntityClockInterface $clock = null,
         ?EntityAccessHandler $accessHandler = null,
+        ?\Closure $accessHandlerResolver = null,
     ) {
         $this->tableName = $this->entityType->id();
         $keys = $this->entityType->getKeys();
@@ -88,6 +101,7 @@ final class SqlEntityStorage implements EntityStorageInterface
         $this->clock = $clock ?? new UtcEntityClock();
         $this->fieldRegistry = $fieldRegistry;
         $this->accessHandler = $accessHandler;
+        $this->accessHandlerResolver = $accessHandlerResolver;
     }
 
     public function create(array $values = []): EntityInterface
@@ -1176,12 +1190,16 @@ final class SqlEntityStorage implements EntityStorageInterface
             $this->fieldRegistry,
         );
 
-        // Mission sql-entity-query-access-checking-01KRYP15 WP03: light the
-        // end-to-end filter. WP02 added these setters but deferred the wiring
-        // to WP03 so the slow-path filter only activates after the consumer
-        // sweep lands in the same PR.
-        if ($this->accessHandler !== null) {
-            $query = $query->withAccessHandler($this->accessHandler);
+        // Wire the real access handler so getQuery() is fail-closed. Resolve it
+        // lazily here (not at construction): the kernel builds its handler
+        // during boot via discoverAccessPolicies(), but storage may be created
+        // and cached earlier, so a build-time snapshot could pin an empty
+        // handler. An explicit handler wins; otherwise the resolver supplies the
+        // kernel's handler at query time (issue #1714).
+        $handler = $this->accessHandler
+            ?? ($this->accessHandlerResolver !== null ? ($this->accessHandlerResolver)() : null);
+        if ($handler !== null) {
+            $query = $query->withAccessHandler($handler);
         }
 
         return $query->withEntityLoader(
