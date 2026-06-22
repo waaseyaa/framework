@@ -33,7 +33,7 @@ jobs:
     name: Public-surface-map parity check
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 

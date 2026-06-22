@@ -10,12 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout framework
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: framework
 
       - name: Checkout skeleton
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: waaseyaa/waaseyaa
           token: ${{ secrets.SPLIT_GITHUB_TOKEN }}

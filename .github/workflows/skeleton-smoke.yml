@@ -61,7 +61,7 @@ jobs:
           echo "constraint=$constraint" >> "$GITHUB_OUTPUT"
 
       - name: Checkout framework (smoke script only)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: framework
 
