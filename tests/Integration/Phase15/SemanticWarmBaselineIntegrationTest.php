@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\Phase15;
 
+require_once __DIR__ . '/../../../packages/relationship/src/VisibilityFilterInterface.php';
 require_once __DIR__ . '/../../../packages/relationship/src/RelationshipTraversalService.php';
 require_once __DIR__ . '/../../../packages/relationship/src/RelationshipDiscoveryService.php';
 require_once __DIR__ . '/../../../packages/relationship/src/Relationship.php';
 require_once __DIR__ . '/../../../packages/relationship/src/RelationshipSchemaManager.php';
+require_once __DIR__ . '/../../../packages/workflows/src/WorkflowVisibilityFilter.php';
 
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
@@ -34,6 +36,7 @@ use Waaseyaa\Relationship\RelationshipDiscoveryService;
 use Waaseyaa\Relationship\RelationshipSchemaManager;
 use Waaseyaa\Relationship\RelationshipTraversalService;
 use Waaseyaa\Tests\Support\WorkflowFixturePack;
+use Waaseyaa\Workflows\WorkflowVisibilityFilter;
 
 #[CoversNothing]
 final class SemanticWarmBaselineIntegrationTest extends TestCase
@@ -152,7 +155,11 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
         );
 
         $anchorId = (string) $this->nodeIdsByFixtureKey['anchor_water'];
-        $traversal = new RelationshipTraversalService($this->entityTypeManager, $this->database);
+        $traversal = new RelationshipTraversalService(
+            $this->entityTypeManager,
+            $this->database,
+            new WorkflowVisibilityFilter(),
+        );
         $discovery = new RelationshipDiscoveryService($traversal);
 
         $ssrNavigationStarted = hrtime(true);
