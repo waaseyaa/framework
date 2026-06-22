@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The project skeleton (`waaseyaa/waaseyaa`) is published by exactly one workflow again, fixing a release-pipeline collision that skipped the entire Packagist publish stage.** On the alpha.246 cut, both `split.yml` (a `{ local: 'skeleton', remote: 'waaseyaa' }` subtree-split matrix entry) and `sync-skeleton.yml` targeted the same `waaseyaa/waaseyaa` repo and raced to push the release tag. `sync-skeleton.yml` won; `split.yml`'s push hit the new forward-only `RETAG_BLOCKED` guard (working as designed), failing that `split` job — which `needs:`-gated and **skipped** `verify-tag-parity`, `verify-require-parity`, `publish-packagist`, and the GitHub Release, so **no package reached Packagist**. The skeleton is now owned solely by `sync-skeleton.yml` (it already rsyncs the tree, pins `waaseyaa/framework`, validates, and tags); the redundant `split.yml` entry is removed. Separately, `sync-skeleton.yml` now triggers the skeleton's own single idempotent `update-package` Packagist crawl — `split.yml`'s `publish-packagist` only enumerates `packages/*` + the root (never the skeleton) and the push webhooks are disabled, a gap WP01 left when it deleted the skeleton's webhook without adding it to the single-crawl publisher. Two new invariants in `bin/check-release-publish-shape` (CI-gated) prevent regressions: **RP106** fails if any repo is a publish target of more than one workflow, **RP107** fails if `sync-skeleton.yml` does not trigger the skeleton's Packagist crawl (both verified to fail against the pre-fix config).
+
 ## [0.1.0-alpha.246] - 2026-06-22
 
 ### Fixed

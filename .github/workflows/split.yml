@@ -97,8 +97,13 @@ jobs:
           - { local: 'packages/cms', remote: 'cms' }
           - { local: 'packages/core', remote: 'core' }
           - { local: 'packages/full', remote: 'full' }
-          # Project skeleton
-          - { local: 'skeleton', remote: 'waaseyaa' }
+          # NOTE: the project skeleton (waaseyaa/waaseyaa) is intentionally NOT
+          # split here. It is owned solely by sync-skeleton.yml, which rsyncs
+          # the skeleton tree, pins waaseyaa/framework to the release tag, tags
+          # and publishes it. A subtree-split entry here produced a different
+          # SHA and an unpinned manifest, then collided with sync-skeleton's tag
+          # (RETAG_BLOCKED) and skipped the entire publish stage (alpha.246).
+          # The RP106 guard in bin/check-release-publish-shape enforces this.
 
     steps:
       - uses: actions/checkout@v7
