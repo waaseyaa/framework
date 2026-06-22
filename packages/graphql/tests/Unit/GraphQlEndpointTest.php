@@ -164,4 +164,49 @@ final class GraphQlEndpointTest extends TestCase
         self::assertSame('Query', $result['body']['data']['__schema']['queryType']['name']);
         self::assertArrayNotHasKey('errors', $result['body']);
     }
+
+    // --- WP03: GraphQL-over-HTTP GET is query-only (CSRF: no mutations via GET) ---
+
+    #[Test]
+    public function getMutationIsRejectedAndNotExecuted(): void
+    {
+        // A state-changing mutation reached over GET (`GET /graphql?query=mutation{...}`)
+        // is a CSRF vector: a cross-site <img>/<script> drive-by carries the victim's
+        // session cookie on a GET. The mutation must be rejected before execution.
+        $result = $this->endpoint->handle(
+            'GET',
+            '',
+            ['query' => 'mutation { deletePage(id: "1") { deleted } }'],
+        );
+
+        self::assertSame(405, $result['statusCode'], 'GET mutation must be rejected (405), not executed.');
+        self::assertArrayNotHasKey('data', $result['body'], 'The mutation must not execute on GET.');
+        self::assertNotEmpty($result['body']['errors']);
+        self::assertStringContainsString('GET', $result['body']['errors'][0]['message']);
+    }
+
+    #[Test]
+    public function postMutationIsStillAllowed(): void
+    {
+        // The fix is GET-only: POST mutations remain reachable (no BC break).
+        // (No storage is wired, so the resolver may error — but the request is
+        // PROCESSED as a mutation, i.e. not blocked with 405 by the GET guard.)
+        $result = $this->endpoint->handle(
+            'POST',
+            json_encode(['query' => 'mutation { deletePage(id: "1") { deleted } }']),
+        );
+
+        self::assertNotSame(405, $result['statusCode'], 'POST mutations must not be blocked by the GET guard.');
+        self::assertSame(200, $result['statusCode']);
+    }
+
+    #[Test]
+    public function getQueryIsStillAllowed(): void
+    {
+        // Queries over GET are legitimate (cacheable) and must keep working.
+        $result = $this->endpoint->handle('GET', '', ['query' => '{ __typename }']);
+
+        self::assertSame(200, $result['statusCode']);
+        self::assertSame('Query', $result['body']['data']['__typename']);
+    }
 }

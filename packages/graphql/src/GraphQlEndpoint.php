@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Waaseyaa\GraphQL;
 
 use GraphQL\Error\DebugFlag;
+use GraphQL\Error\SyntaxError;
 use GraphQL\GraphQL;
+use GraphQL\Language\AST\OperationDefinitionNode;
+use GraphQL\Language\Parser;
 use GraphQL\Validator\DocumentValidator;
 use GraphQL\Validator\Rules\DisableIntrospection;
 use Waaseyaa\Access\AccountInterface;
@@ -83,6 +86,17 @@ final class GraphQlEndpoint
             ];
         }
 
+        // GraphQL-over-HTTP: GET is query-only. A mutation reached over GET
+        // (`GET /graphql?query=mutation{...}`) is a CSRF vector — a cross-site
+        // GET carries the victim's session cookie with no preflight. Reject the
+        // mutation before it executes; mutations must use POST.
+        if ($method === 'GET' && $this->selectsMutation($query, $operationName)) {
+            return [
+                'statusCode' => 405,
+                'body' => ['errors' => [['message' => 'Mutations are not allowed over GET; use POST.']]],
+            ];
+        }
+
         $guard = new GraphQlAccessGuard($this->accessHandler, $this->account);
         // New ReferenceLoader per request — buffers entity_reference IDs for DataLoader-style batching.
         $referenceLoader = new ReferenceLoader(
@@ -134,6 +148,42 @@ final class GraphQlEndpoint
                 'body' => ['errors' => [['message' => 'Internal server error']]],
             ];
         }
+    }
+
+    /**
+     * Whether the operation that would execute for this request is a mutation.
+     *
+     * Used to enforce the GraphQL-over-HTTP rule that GET is query-only. An
+     * unparseable query selects no executable operation, so the normal
+     * execution path is left to surface the syntax error.
+     */
+    private function selectsMutation(string $query, ?string $operationName): bool
+    {
+        try {
+            $document = Parser::parse($query, ['noLocation' => true]);
+        } catch (SyntaxError) {
+            return false;
+        }
+
+        foreach ($document->definitions as $definition) {
+            if (!$definition instanceof OperationDefinitionNode || $definition->operation !== 'mutation') {
+                continue;
+            }
+
+            // With an explicit operationName only the named operation executes.
+            if ($operationName !== null && $operationName !== '') {
+                if (($definition->name->value ?? null) === $operationName) {
+                    return true;
+                }
+                continue;
+            }
+
+            // No operationName: a lone mutation would execute; conservatively
+            // reject any mutation operation present in the document.
+            return true;
+        }
+
+        return false;
     }
 
     /**

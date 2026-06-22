@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **GraphQL mutations can no longer run over HTTP GET — CSRF (audit #23, WP03).** `/graphql` was registered `GET,POST` + `allowAll()` + `csrfExempt()`, and `GraphQlEndpoint` executed the GET `query` param including mutations, so `GET /graphql?query=mutation{...}` ran state-changing operations carrying the victim's session cookie (GET is a simple cross-site request, no preflight). Per the GraphQL-over-HTTP spec, GET is now query-only: `GraphQlEndpoint::handle()` returns `405` for a mutation selected over GET before it executes (`selectsMutation()` honours `operationName`). POST mutations and GET queries are unchanged. Acceptance: `GraphQlEndpointTest::{getMutationIsRejectedAndNotExecuted, postMutationIsStillAllowed, getQueryIsStillAllowed}`.
+
 ## [0.1.0-alpha.245] - 2026-06-21
 
 ### Added
