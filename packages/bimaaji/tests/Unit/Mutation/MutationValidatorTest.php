@@ -11,10 +11,48 @@ use Waaseyaa\Bimaaji\Graph\ApplicationGraph;
 use Waaseyaa\Bimaaji\Graph\GraphSection;
 use Waaseyaa\Bimaaji\Mutation\MutationRequest;
 use Waaseyaa\Bimaaji\Mutation\MutationValidator;
+use Waaseyaa\Bimaaji\Policy\SovereigntyGuardrails;
+use Waaseyaa\Foundation\Sovereignty\SovereigntyProfile;
 
 #[CoversClass(MutationValidator::class)]
 final class MutationValidatorTest extends TestCase
 {
+    #[Test]
+    public function it_gates_sovereignty_sensitive_operations_through_the_guardrails(): void
+    {
+        // On managed hosting (NorthOps), deleting an entity type is forbidden by
+        // the sovereignty guardrails. The entity EXISTS, so the structural check
+        // passes — only the guardrail blocks it. Pre-fix the validator never ran
+        // the guardrails, so this returned success (the live bypass).
+        $graph = $this->buildGraph(['node' => ['fields' => ['title' => []]]]);
+        $validator = new MutationValidator(
+            $graph,
+            SovereigntyGuardrails::withDefaultRules(SovereigntyProfile::NorthOps),
+        );
+
+        $result = $validator->validate(new MutationRequest('delete_entity_type', 'node'));
+
+        $this->assertFalse($result->isSuccess(), 'delete_entity_type must be blocked on managed hosting.');
+        $this->assertContains('SOVEREIGNTY_VIOLATION', $result->errors);
+    }
+
+    #[Test]
+    public function it_allows_sovereignty_sensitive_operations_on_a_permissive_profile(): void
+    {
+        // On a self-hosted/local profile the same operation is permitted (the
+        // guardrail's denied profile does not match), so structural validation
+        // alone decides.
+        $graph = $this->buildGraph(['node' => ['fields' => ['title' => []]]]);
+        $validator = new MutationValidator(
+            $graph,
+            SovereigntyGuardrails::withDefaultRules(SovereigntyProfile::Local),
+        );
+
+        $result = $validator->validate(new MutationRequest('delete_entity_type', 'node'));
+
+        $this->assertTrue($result->isSuccess());
+    }
+
     #[Test]
     public function it_accepts_valid_entity_type_and_field(): void
     {

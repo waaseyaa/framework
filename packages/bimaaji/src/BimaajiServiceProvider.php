@@ -173,6 +173,7 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
             MutationValidator::class,
             fn(): MutationValidator => new MutationValidator(
                 $this->resolve(ApplicationGraphGenerator::class)->generate(),
+                $this->resolve(SovereigntyGuardrails::class),
             ),
         );
 
