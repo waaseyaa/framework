@@ -7,6 +7,8 @@ packages/*/composer.lock
 # project); ignore artifacts from running composer inside skeleton/ locally.
 skeleton/composer.lock
 skeleton/vendor/
+mcp/node_modules/
+tools/spec-retrieval/node_modules/
 
 # IDE
 .idea/
@@ -124,6 +126,10 @@ phpstan-tests/
 /waaseyaa_idmap_*
 /playwright-transform-cache-*/
 /newsletter-test-*
+# PHP dev-server session scratch (sess_<32 hex>) written under session.save_path
+/sess_[a-f0-9]*
+# NotificationMonitor test working dirs (hash-suffixed, regenerated per run)
+/waaseyaa_monitor_test_*/
 # Media test scratch (`img` + 22-char hex/alnum suffix). 15-char floor avoids
 # matching real `img*.{js,css,svg,...}` source files, all of which contain `.`
 # or `-` before the suffix.
