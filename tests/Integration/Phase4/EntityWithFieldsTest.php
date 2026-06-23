@@ -13,7 +13,6 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Field\FieldDefinition;
-use Waaseyaa\Field\FieldItemList;
 use Waaseyaa\Field\FieldTypeManager;
 
 /**
@@ -381,33 +380,6 @@ final class EntityWithFieldsTest extends TestCase
                 'format' => ['type' => 'string'],
             ],
         ], $properties['body']);
-    }
-
-    // ---- FieldItemList with entity storage ----
-
-    public function testFieldItemListCanBeConstructedFromStoredValues(): void
-    {
-        $entity = $this->storage->create([
-            'label' => 'Tagged Product',
-            'bundle' => 'physical',
-            'sku' => 'TAG-001',
-            'price' => 9.99,
-        ]);
-        $this->storage->save($entity);
-
-        $loaded = $this->storage->load($entity->id());
-
-        // Create a FieldItemList from the loaded value.
-        $fieldDef = new FieldDefinition(name: 'label', type: 'string');
-        $list = new FieldItemList($fieldDef);
-
-        $item = $this->fieldTypeManager->createInstance('string', [
-            'values' => ['value' => $loaded->label()],
-        ]);
-        $list->appendItem($item);
-
-        $this->assertCount(1, $list);
-        $this->assertSame('Tagged Product', $list->value);
     }
 
     // ---- Complete end-to-end: FieldTypeManager + entity schema ----

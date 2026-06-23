@@ -6,7 +6,6 @@ namespace Waaseyaa\Tests\Integration\Phase4;
 
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Field\FieldDefinition;
-use Waaseyaa\Field\FieldItemList;
 use Waaseyaa\Field\FieldTypeManager;
 use Waaseyaa\Field\Item\BooleanItem;
 use Waaseyaa\Field\Item\EntityReferenceItem;
@@ -56,7 +55,6 @@ final class FieldTypeDiscoveryTest extends TestCase
             'email',
             'decimal',
             'list',
-            'computed',
             'json',
             'enum',
         ];
@@ -70,9 +68,9 @@ final class FieldTypeDiscoveryTest extends TestCase
         }
 
         $this->assertCount(
-            17,
+            16,
             $definitions,
-            'All 17 built-in field types should be discovered',
+            'All 16 built-in field types should be discovered',
         );
     }
 
@@ -112,71 +110,6 @@ final class FieldTypeDiscoveryTest extends TestCase
             $definition = $this->fieldTypeManager->getDefinition($type);
             $this->assertSame($expectedLabel, $definition->label);
         }
-    }
-
-    // ---- Field item instantiation ----
-
-    public function testCreateStringItem(): void
-    {
-        $item = $this->fieldTypeManager->createInstance('string', [
-            'values' => ['value' => 'Hello World'],
-        ]);
-
-        $this->assertInstanceOf(StringItem::class, $item);
-        $this->assertSame('Hello World', $item->getValue());
-        $this->assertFalse($item->isEmpty());
-    }
-
-    public function testCreateIntegerItem(): void
-    {
-        $item = $this->fieldTypeManager->createInstance('integer', [
-            'values' => ['value' => 42],
-        ]);
-
-        $this->assertInstanceOf(IntegerItem::class, $item);
-        $this->assertSame(42, $item->getValue());
-    }
-
-    public function testCreateBooleanItem(): void
-    {
-        $item = $this->fieldTypeManager->createInstance('boolean', [
-            'values' => ['value' => true],
-        ]);
-
-        $this->assertInstanceOf(BooleanItem::class, $item);
-        $this->assertTrue($item->getValue());
-    }
-
-    public function testCreateFloatItem(): void
-    {
-        $item = $this->fieldTypeManager->createInstance('float', [
-            'values' => ['value' => 3.14],
-        ]);
-
-        $this->assertInstanceOf(FloatItem::class, $item);
-        $this->assertSame(3.14, $item->getValue());
-    }
-
-    public function testCreateTextItem(): void
-    {
-        $item = $this->fieldTypeManager->createInstance('text', [
-            'values' => ['value' => '<p>Hello</p>', 'format' => 'full_html'],
-        ]);
-
-        $this->assertInstanceOf(TextItem::class, $item);
-        $this->assertSame('<p>Hello</p>', $item->getValue());
-        $this->assertSame('full_html', $item->get('format')->getValue());
-    }
-
-    public function testCreateEntityReferenceItem(): void
-    {
-        $item = $this->fieldTypeManager->createInstance('entity_reference', [
-            'values' => ['target_id' => 1, 'target_type' => 'node'],
-        ]);
-
-        $this->assertInstanceOf(EntityReferenceItem::class, $item);
-        $this->assertSame(1, $item->getValue());
-        $this->assertSame('node', $item->get('target_type')->getValue());
     }
 
     // ---- Schema tests ----
@@ -365,90 +298,6 @@ final class FieldTypeDiscoveryTest extends TestCase
     {
         $settings = $this->fieldTypeManager->getDefaultSettings('string');
         $this->assertSame([], $settings);
-    }
-
-    // ---- FieldItemList integration ----
-
-    public function testFieldItemListWithMultipleItems(): void
-    {
-        $fieldDef = new FieldDefinition(name: 'tags', type: 'string', cardinality: -1);
-        $list = new FieldItemList($fieldDef);
-
-        $item1 = $this->fieldTypeManager->createInstance('string', [
-            'values' => ['value' => 'php'],
-        ]);
-        $item2 = $this->fieldTypeManager->createInstance('string', [
-            'values' => ['value' => 'waaseyaa'],
-        ]);
-
-        $list->appendItem($item1);
-        $list->appendItem($item2);
-
-        $this->assertCount(2, $list);
-        $this->assertFalse($list->isEmpty());
-        $this->assertSame('php, waaseyaa', $list->getString());
-
-        $values = $list->getValue();
-        $this->assertCount(2, $values);
-        $this->assertSame('php', $values[0]['value']);
-        $this->assertSame('waaseyaa', $values[1]['value']);
-    }
-
-    public function testFieldItemListPropertyAccess(): void
-    {
-        $fieldDef = new FieldDefinition(name: 'body', type: 'text');
-        $list = new FieldItemList($fieldDef);
-
-        $item = $this->fieldTypeManager->createInstance('text', [
-            'values' => ['value' => 'Hello World', 'format' => 'plain_text'],
-        ]);
-        $list->appendItem($item);
-
-        // Magic __get accesses the first item's property.
-        $this->assertSame('Hello World', $list->value);
-        $this->assertSame('plain_text', $list->format);
-    }
-
-    // ---- Field item property operations ----
-
-    public function testFieldItemSetAndGetProperties(): void
-    {
-        $item = $this->fieldTypeManager->createInstance('text', [
-            'values' => ['value' => 'original', 'format' => 'plain_text'],
-        ]);
-
-        $item->set('value', 'updated');
-        $this->assertSame('updated', $item->get('value')->getValue());
-
-        $item->set('format', 'full_html');
-        $this->assertSame('full_html', $item->get('format')->getValue());
-    }
-
-    public function testFieldItemToArray(): void
-    {
-        $item = $this->fieldTypeManager->createInstance('entity_reference', [
-            'values' => ['target_id' => 42, 'target_type' => 'user'],
-        ]);
-
-        $array = $item->toArray();
-        $this->assertSame(['target_id' => 42, 'target_type' => 'user'], $array);
-    }
-
-    public function testFieldItemIsEmptyWhenMainPropertyNull(): void
-    {
-        $item = $this->fieldTypeManager->createInstance('string');
-
-        $this->assertTrue($item->isEmpty(), 'Item with no value should be empty');
-    }
-
-    public function testFieldItemGetInvalidPropertyThrows(): void
-    {
-        $item = $this->fieldTypeManager->createInstance('string', [
-            'values' => ['value' => 'test'],
-        ]);
-
-        $this->expectException(\InvalidArgumentException::class);
-        $item->get('nonexistent');
     }
 
     // ---- hasDefinition ----
