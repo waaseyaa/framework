@@ -224,6 +224,63 @@ final class JsonApiAccessIntegrationTest extends TestCase
     }
 
     #[Test]
+    public function authorCannotReassignAuthorshipOfOwnNodeViaUpdate(): void
+    {
+        // An author may edit their own node's content, but must not mutate the
+        // system field `uid` (authorship) on an existing node — that requires
+        // `administer nodes`. Before NodeAccessPolicy gained field-level access,
+        // this PATCH succeeded (mass-assignment).
+        $node = $this->seedPublishedNode('Own Article', 5, 'article');
+        $user = new User([
+            'uid' => 5,
+            'name' => 'author',
+            'permissions' => ['access content', 'edit own article content'],
+            'roles' => ['authenticated'],
+        ]);
+
+        $controller = $this->buildController($user);
+        $doc = $controller->update('node', $node->id(), [
+            'data' => [
+                'type' => 'node',
+                'id' => $node->uuid(),
+                'attributes' => [
+                    'uid' => 99,
+                ],
+            ],
+        ]);
+
+        $this->assertSame(403, $doc->statusCode);
+    }
+
+    #[Test]
+    public function authorCannotChangeBundleOfOwnNodeViaUpdate(): void
+    {
+        // `type` is the readOnly bundle; a non-admin must not change it on an
+        // existing node (it can move the node to a bundle with different field
+        // access / visibility rules).
+        $node = $this->seedPublishedNode('Own Article', 5, 'article');
+        $user = new User([
+            'uid' => 5,
+            'name' => 'author',
+            'permissions' => ['access content', 'edit own article content'],
+            'roles' => ['authenticated'],
+        ]);
+
+        $controller = $this->buildController($user);
+        $doc = $controller->update('node', $node->id(), [
+            'data' => [
+                'type' => 'node',
+                'id' => $node->uuid(),
+                'attributes' => [
+                    'type' => 'page',
+                ],
+            ],
+        ]);
+
+        $this->assertSame(403, $doc->statusCode);
+    }
+
+    #[Test]
     public function userCannotUpdateOtherUsersNodes(): void
     {
         $node = $this->seedPublishedNode('Other Author Article', 99, 'article');
