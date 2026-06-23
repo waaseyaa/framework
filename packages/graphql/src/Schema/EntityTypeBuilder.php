@@ -19,6 +19,13 @@ use Waaseyaa\GraphQL\Resolver\ReferenceLoader;
  */
 final class EntityTypeBuilder
 {
+    /**
+     * Field names that are NEVER emitted in the output schema, regardless of
+     * whether the entity declares them with `settings['internal' => true]`.
+     * Mirrors ResourceSerializer::ALWAYS_INTERNAL_FIELDS — defense in depth for
+     * entities that store credential material in raw `_data` keys.
+     */
+    private const ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
     public function __construct(
         private readonly TypeRegistry $registry,
         private readonly FieldTypeMapper $fieldTypeMapper,
@@ -121,6 +128,15 @@ final class EntityTypeBuilder
         foreach ($fieldDefs as $fieldName => $def) {
             // Skip entity keys already handled above (id, uuid)
             if (in_array($fieldName, $skipFields, true)) {
+                continue;
+            }
+
+            // Schema-level drop: credential-named fields and fields marked
+            // `settings['internal' => true]` must never appear in the output
+            // schema — they are neither queryable nor disclosed by introspection.
+            // Mirrors the predicate in ResourceSerializer::filterInternalFields().
+            if (in_array($fieldName, self::ALWAYS_INTERNAL_FIELDS, true)
+                || $def->getSetting('internal') === true) {
                 continue;
             }
 
