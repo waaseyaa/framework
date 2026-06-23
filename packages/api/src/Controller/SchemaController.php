@@ -26,10 +26,12 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * field policy, not instance-level decisions (owner-only fields, row-state gates).
  * Callers must not treat the rendered field set as a per-record access oracle.
  *
- * Route exposure: this endpoint (and /api/openapi.json) is registered option-less
- * by foundation's BuiltinRouteRegistrar and is intentionally anonymous-reachable —
- * see docs/specs/api-layer.md "Adjacent enumeration surfaces". Do not add auth here
- * without retiring that documented boundary.
+ * Route exposure: this endpoint (and /api/openapi.json) is registered by
+ * foundation's BuiltinRouteRegistrar with requireAuthentication() — it is the
+ * self-description of an auth-gated API and the prototype-filter caveat above
+ * means it over-discloses instance-gated field definitions, so an anonymous
+ * caller is 401'd. See docs/specs/api-layer.md "Schema self-description surface
+ * requires authentication"; pinned by tests/Integration/SchemaSurfaceRequiresAuthTest.
  */
 final class SchemaController
 {
