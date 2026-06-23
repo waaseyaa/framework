@@ -106,6 +106,35 @@ final class LlmsTxtGeneratorTest extends TestCase
         self::assertCount(1, $topics);
     }
 
+    #[Test]
+    public function collect_topics_filters_to_published_for_status_bearing_types(): void
+    {
+        // A public llms.txt must only advertise PUBLISHED content. A type that
+        // declares a `status` field must have condition('status', 1) applied so
+        // unpublished/draft URLs are not enumerated for anonymous crawlers.
+        $query = $this->createMock(EntityQueryInterface::class);
+        $query->method('accessCheck')->willReturnSelf();
+        $query->method('range')->willReturnSelf();
+        $query->method('execute')->willReturn([1]);
+        $query->expects(self::once())->method('condition')->with('status', 1)->willReturnSelf();
+
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage->method('getQuery')->willReturn($query);
+
+        $def = $this->createStub(\Waaseyaa\Entity\EntityTypeInterface::class);
+        $def->method('getFieldDefinitions')->willReturn(['status' => true, 'title' => true]);
+
+        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager->method('getDefinitions')->willReturn(['node' => $def]);
+        $manager->method('getStorage')->willReturn($storage);
+
+        new LlmsTxtGenerator()->collectTopics(
+            $manager,
+            static fn(string $type): array => ['title' => 'Articles', 'summary' => ''],
+            static fn(string $type, int|string $id, string $label): array => ['title' => "n{$id}", 'url' => "/n/{$id}.md"],
+        );
+    }
+
     /**
      * @param array<string, list<int|string>> $typeIds
      */

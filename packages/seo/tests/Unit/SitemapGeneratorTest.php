@@ -135,6 +135,52 @@ final class SitemapGeneratorTest extends TestCase
     }
 
     #[Test]
+    public function collect_filters_to_published_for_status_bearing_types(): void
+    {
+        // A public sitemap must not advertise unpublished/draft content. For
+        // entity types that declare a `status` (published) field, the
+        // enumeration query must add condition('status', 1) so anonymous
+        // crawlers only see published URLs. (The accessCheck(false) bypass is
+        // retained for URL-generation performance per C-004.)
+        $statusQuery = new StubEntityQuery([1, 2]);
+        $statuslessQuery = new StubEntityQuery([3]);
+
+        $nodeStorage = $this->createStub(EntityStorageInterface::class);
+        $nodeStorage->method('getQuery')->willReturn($statusQuery);
+        $taxStorage = $this->createStub(EntityStorageInterface::class);
+        $taxStorage->method('getQuery')->willReturn($statuslessQuery);
+
+        $nodeDef = $this->createStub(EntityTypeInterface::class);
+        $nodeDef->method('getFieldDefinitions')->willReturn(['status' => true, 'title' => true]);
+        $vocabDef = $this->createStub(EntityTypeInterface::class);
+        $vocabDef->method('getFieldDefinitions')->willReturn(['name' => true]); // no status field
+
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
+        $etm->method('getDefinitions')->willReturn(['node' => $nodeDef, 'vocab' => $vocabDef]);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getStorage')->willReturnMap([
+            ['node', $nodeStorage],
+            ['vocab', $taxStorage],
+        ]);
+
+        (new SitemapGenerator())->collectFromEntityTypes(
+            $etm,
+            static fn (string $type, int|string $id): string => 'https://example.com/' . $type . '/' . $id,
+        );
+
+        $this->assertSame(
+            [['status', 1, '=']],
+            $statusQuery->conditions,
+            'status-bearing types must be filtered to published (status = 1)',
+        );
+        $this->assertSame(
+            [],
+            $statuslessQuery->conditions,
+            'types without a status field must not get a published filter',
+        );
+    }
+
+    #[Test]
     public function collect_disables_access_check_per_entity_type(): void
     {
         // Sitemap generation enumerates public URLs for crawlers and runs

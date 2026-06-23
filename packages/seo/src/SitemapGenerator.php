@@ -71,7 +71,7 @@ final class SitemapGenerator
         $include = $includeEntityTypes !== null ? array_flip($includeEntityTypes) : null;
         $out = [];
 
-        foreach (array_keys($entityTypeManager->getDefinitions()) as $entityTypeId) {
+        foreach ($entityTypeManager->getDefinitions() as $entityTypeId => $definition) {
             if (isset($exclude[$entityTypeId])) {
                 continue;
             }
@@ -97,7 +97,19 @@ final class SitemapGenerator
             // PathAliasResolver — entity-level access is enforced when the caller
             // subsequently loads the entity to render its page.
             // See docs/security/sql-entity-query-access-check-bypass-audit.md (C-004).
-            $ids = $entityTypeManager->getStorage($entityTypeId)->getQuery()->accessCheck(false)->range(0, $limit)->execute();
+            $query = $entityTypeManager->getStorage($entityTypeId)->getQuery()->accessCheck(false);
+
+            // ...but a *public* sitemap must still only advertise PUBLISHED content:
+            // the accessCheck(false) bypass is for URL-generation performance, not a
+            // licence to leak unpublished/draft URLs to anonymous crawlers (C-004's
+            // own rationale is "public URLs"). Entity types that declare a `status`
+            // (published) field are filtered to published rows; types with no
+            // published concept are listed as-is.
+            if (array_key_exists('status', $definition->getFieldDefinitions())) {
+                $query->condition('status', 1);
+            }
+
+            $ids = $query->range(0, $limit)->execute();
             $changefreqRaw = $typeOpts['changefreq'] ?? null;
             $changefreq = is_string($changefreqRaw) && $changefreqRaw !== '' ? $changefreqRaw : null;
             $priority = null;

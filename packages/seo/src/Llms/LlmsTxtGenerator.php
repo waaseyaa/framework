@@ -92,18 +92,27 @@ final class LlmsTxtGenerator
     ): array {
         $topics = [];
 
-        foreach (array_keys($entityTypeManager->getDefinitions()) as $entityTypeId) {
+        foreach ($entityTypeManager->getDefinitions() as $entityTypeId => $definition) {
             $meta = $describeType($entityTypeId);
             if ($meta === null) {
                 continue;
             }
 
-            $ids = $entityTypeManager
+            $query = $entityTypeManager
                 ->getStorage($entityTypeId)
                 ->getQuery()
-                ->accessCheck(false)
-                ->range(0, max(0, $maxPerType))
-                ->execute();
+                ->accessCheck(false);
+
+            // A public llms.txt must only advertise PUBLISHED content — the
+            // accessCheck(false) bypass (C-004) is for URL generation, not a
+            // licence to leak unpublished/draft URLs to anonymous crawlers.
+            // Types declaring a `status` (published) field are filtered to
+            // published rows; types with no published concept are listed as-is.
+            if (array_key_exists('status', $definition->getFieldDefinitions())) {
+                $query->condition('status', 1);
+            }
+
+            $ids = $query->range(0, max(0, $maxPerType))->execute();
 
             $links = [];
             foreach ($ids as $id) {
