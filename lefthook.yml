@@ -9,7 +9,7 @@ pre-push:
   parallel: true
   commands:
     composer-policy:
-      run: bash bin/check-composer-policy
+      run: php bin/check-composer-policy
     spec-drift:
       run: bash tools/drift-detector.sh origin/main
     phpstan:
