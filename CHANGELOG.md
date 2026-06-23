@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Unpublished taxonomy terms no longer leak to general readers — `TermAccessPolicy` ignored the term's published status (audit Medium, live-HTTP reachable).** `Term` carries a `status` (Published) boolean (`Term::isPublished()`), but `TermAccessPolicy::checkViewAccess()` gated `view` purely on the `access content` permission and never consulted `status` — so an **unpublished** term was viewable by any account with `access content` (including anonymous, on the `view`-gated read surfaces: JSON:API `taxonomy_term` collections, controllers). `checkViewAccess()` now mirrors `NodeAccessPolicy`'s published/unpublished split: a published term stays viewable with `access content`; an **unpublished** term is viewable only by an editor of its vocabulary (`edit terms in {vid}`) or an `administer taxonomy` admin (absent `status` still defaults to published, matching `Term::isPublished()`). Acceptance: `TermAccessPolicyTest::{testViewOfUnpublishedTermIsDeniedToAccessContentOnly, testViewOfUnpublishedTermAllowedForVocabularyEditor, testViewOfPublishedTermStillAllowedWithAccessContent}` (the leak case verified to return `allowed` against the pre-fix code).
+
 ## [0.1.0-alpha.248] - 2026-06-23
 
 ### Fixed
