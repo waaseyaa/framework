@@ -4,6 +4,6 @@
 
 Input validation for Waaseyaa applications.
 
-Wraps Symfony Validator with Waaseyaa conventions for validating request data, entity field values, and configuration inputs. Provides a `ValidatorInterface` and constraint set aligned with the typed-data layer.
+Builds on Symfony Validator (`symfony/validator`) with a set of Waaseyaa-specific constraints for validating request data, entity field values, and configuration inputs. The package ships **constraints + a factory**, not a wrapper validator: there is no `ValidatorInterface`/`ValidationResult`/`ValidationViolation` here — you run the constraints through Symfony's own `Validator` (which returns Symfony `ConstraintViolation`s).
 
-Key classes: `ValidatorInterface`, `ValidationResult`, `ValidationViolation`.
+Key classes: `ConstraintFactory`, and the constraint set under `Constraint/` — `AllowedValues`, `EntityExists`, `NotEmpty`, `SafeMarkup`, `UniqueField` (each with its paired `*Validator`).
