@@ -88,7 +88,17 @@ abstract class GraphQlIntegrationTestBase extends TestCase
         foreach ($types as $id => $type) {
             $schemaHandler = new SqlSchemaHandler($type, $this->database);
             $schemaHandler->ensureTable();
-            $this->storages[$id] = new SqlEntityStorage($type, $this->database, $eventDispatcher);
+            // Wire the access handler into getQuery() the way production does
+            // (AbstractKernel / EntityStorageFactory, issue #1714). Lazily, since
+            // $this->accessHandler is built below after seeding. Without this the
+            // query layer falls back to an empty handler and — under deny-by-default
+            // (audit C-6) — denies every row before the resolver's guard runs.
+            $this->storages[$id] = new SqlEntityStorage(
+                $type,
+                $this->database,
+                $eventDispatcher,
+                accessHandlerResolver: fn(): ?EntityAccessHandler => $this->accessHandler ?? null,
+            );
         }
 
         $storages = $this->storages;

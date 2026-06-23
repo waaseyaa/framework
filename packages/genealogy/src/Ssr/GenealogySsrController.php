@@ -65,11 +65,20 @@ final class GenealogySsrController
             return new Response('Not Found', 404);
         }
 
+        // Gather the relationship TOPOLOGY in system context (no account ⇒
+        // accessCheck(false)), then conceal per-person via the gate in
+        // neighborSlots(). The concealment is name-level: a relative the viewer
+        // cannot see renders as a redacted placeholder ("Private living relative"
+        // / "Private ancestor"), never by name and never with a loadable id. We
+        // must NOT pass the account into the id-gathering query: under
+        // deny-by-default (audit C-6) the wired relationship policy drops every
+        // edge with a non-viewable endpoint, which would make living/private
+        // relatives vanish entirely instead of showing the intended placeholder.
         $html = $this->twig->render('genealogy_person.html.twig', [
             'person' => $person,
-            'parent_neighbors' => $this->pedigree->neighborSlots($this->pedigree->parentPersonIds($id, $account), $account, $this->gate),
-            'child_neighbors' => $this->pedigree->neighborSlots($this->pedigree->childPersonIds($id, $account), $account, $this->gate),
-            'spouse_neighbors' => $this->pedigree->neighborSlots($this->pedigree->spousePersonIds($id, $account), $account, $this->gate),
+            'parent_neighbors' => $this->pedigree->neighborSlots($this->pedigree->parentPersonIds($id), $account, $this->gate),
+            'child_neighbors' => $this->pedigree->neighborSlots($this->pedigree->childPersonIds($id), $account, $this->gate),
+            'spouse_neighbors' => $this->pedigree->neighborSlots($this->pedigree->spousePersonIds($id), $account, $this->gate),
         ]);
 
         return new Response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
@@ -93,7 +102,8 @@ final class GenealogySsrController
 
         $html = $this->twig->render('genealogy_family.html.twig', [
             'family' => $family,
-            'member_neighbors' => $this->pedigree->neighborSlots($this->familyService->memberPersonIds($id, $account), $account, $this->gate),
+            // Topology in system context; per-person gate concealment (see person()).
+            'member_neighbors' => $this->pedigree->neighborSlots($this->familyService->memberPersonIds($id), $account, $this->gate),
         ]);
 
         return new Response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);

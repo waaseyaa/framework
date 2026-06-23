@@ -24,6 +24,7 @@ use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Genealogy\Access\GenealogyContentAccessPolicy;
+use Waaseyaa\Genealogy\Access\GenealogyRelationshipAccessPolicy;
 use Waaseyaa\Genealogy\Entity\GenealogyFamily;
 use Waaseyaa\Genealogy\Entity\GenealogyPerson;
 use Waaseyaa\Genealogy\Entity\GenealogyTree;
@@ -56,6 +57,8 @@ final class GenealogySsrConcealmentTest extends TestCase
 
     private GenealogySsrController $controller;
 
+    private EntityAccessHandler $accessHandler;
+
     protected function setUp(): void
     {
         $this->manager = $this->makeManager();
@@ -63,6 +66,18 @@ final class GenealogySsrConcealmentTest extends TestCase
         // The policy resolves a person/family's owning tree via the late-bound
         // EntityTypeManager. Bind the real manager so the published-tree gate is exercised.
         GenealogyBootstrap::bind($this->manager, null);
+
+        // Compose the real genealogy policies the way GenealogyServiceProvider does
+        // in production: person/family visibility (content policy) plus edge
+        // visibility (relationship policy, which inherits its endpoints' view
+        // access through this same handler). The storage resolver below threads
+        // it into getQuery(), so the access-checked pedigree relationship queries
+        // enforce deny-by-default (audit C-6) — deceased-endpoint edges resolve
+        // Allowed and survive; living-endpoint edges resolve Forbidden and are
+        // concealed. Without it the query layer would deny every edge (empty
+        // fallback) and the chart would render no ancestors at all.
+        $this->accessHandler = new EntityAccessHandler([new GenealogyContentAccessPolicy()]);
+        $this->accessHandler->addPolicy(new GenealogyRelationshipAccessPolicy($this->manager, $this->accessHandler));
 
         $pedigree = new GenealogyPedigreeService($this->manager);
         $familyService = new GenealogyFamilyService($this->manager);
@@ -226,7 +241,16 @@ final class GenealogySsrConcealmentTest extends TestCase
             function (EntityTypeInterface $definition) use ($database, $dispatcher, $registry): SqlEntityStorage {
                 (new SqlSchemaHandler($definition, $database, $registry))->ensureTable();
 
-                return new SqlEntityStorage($definition, $database, $dispatcher, $registry);
+                // Thread the composed access handler into getQuery() as
+                // production does (#1714); lazily, since $this->accessHandler is
+                // built in setUp() after the manager exists.
+                return new SqlEntityStorage(
+                    $definition,
+                    $database,
+                    $dispatcher,
+                    $registry,
+                    accessHandlerResolver: fn(): ?EntityAccessHandler => $this->accessHandler ?? null,
+                );
             },
             fieldRegistry: $registry,
         );
@@ -266,9 +290,7 @@ final class GenealogySsrConcealmentTest extends TestCase
      */
     private function makeGate(): GateInterface
     {
-        $handler = new EntityAccessHandler([new GenealogyContentAccessPolicy()]);
-
-        return new EntityAccessGate($handler);
+        return new EntityAccessGate($this->accessHandler);
     }
 
     private function makeTwig(): Environment

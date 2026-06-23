@@ -301,13 +301,13 @@ final class SqlEntityQueryAccessCheckTest extends TestCase
     }
 
     #[Test]
-    public function executeWithoutBoundLoaderReturnsCandidateIdsAsTransitionalFallback(): void
+    public function executeWithEmptyHandlerDeniesEveryCandidateFailClosed(): void
     {
-        // Pre-WP03 transitional path: when access check is enabled and an
-        // account is bound but no entity loader has been wired in yet, the
-        // query returns candidate IDs unfiltered. This preserves
-        // functionality for the consumer sweep window without silently
-        // locking callers out.
+        // Deny-by-default (audit C-6): when access checking is enabled and an
+        // account is bound but only an empty handler is wired, every candidate
+        // resolves to Neutral and is dropped. The query layer fails closed —
+        // it does NOT pass candidate IDs through unfiltered. (Pre-C-6 this
+        // returned all candidate IDs open-by-default.)
         $accountA = $this->makeAccount(1);
         $this->seedRows([
             ['title' => 'a1', 'owner_id' => 1],
@@ -319,7 +319,7 @@ final class SqlEntityQueryAccessCheckTest extends TestCase
             ->setAccount($accountA)
             ->execute();
 
-        $this->assertCount(2, $ids);
+        $this->assertCount(0, $ids, 'empty handler + deny-by-default drops every candidate (fail-closed)');
     }
 
     /**

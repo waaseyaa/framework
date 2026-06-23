@@ -53,16 +53,21 @@ final class EntityStorageFactoryAccessWiringTest extends TestCase
     }
 
     #[Test]
-    public function unwired_factory_storage_is_fail_open_documenting_the_pre_fix_gap(): void
+    public function unwired_factory_storage_is_fail_closed(): void
     {
+        // Deny-by-default (audit C-6): with no resolver wired, getQuery() falls
+        // back to an empty handler whose every check is Neutral — and Neutral is
+        // not Allowed, so an access-checked query DENIES every candidate. The
+        // misconfiguration fails closed (returns nothing) rather than leaking the
+        // unfiltered set. Before C-6 this was fail-OPEN (every row passed).
         [$db, $entityType] = $this->schema();
-        $factory = new EntityStorageFactory($db, new EventDispatcher()); // no resolver = pre-fix wiring
+        $factory = new EntityStorageFactory($db, new EventDispatcher()); // no resolver
         $storage = $factory->getStorage($entityType);
         $this->seed($storage, [['title' => 'mine', 'owner_id' => 1], ['title' => 'theirs', 'owner_id' => 2]]);
 
         $ids = $storage->getQuery()->setAccount($this->account(1))->execute();
 
-        self::assertCount(2, $ids, 'with no handler wired, the empty handler lets every row pass (the bug)');
+        self::assertCount(0, $ids, 'with no handler wired, deny-by-default drops every row (fail-closed)');
     }
 
     /** @return array{0: DBALDatabase, 1: EntityType} */

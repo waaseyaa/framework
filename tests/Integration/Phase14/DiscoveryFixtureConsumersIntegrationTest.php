@@ -57,7 +57,15 @@ final class DiscoveryFixtureConsumersIntegrationTest extends TestCase
             function (EntityType $definition) use ($dispatcher): SqlEntityStorage {
                 $schema = new SqlSchemaHandler($definition, $this->database);
                 $schema->ensureTable();
-                return new SqlEntityStorage($definition, $this->database, $dispatcher);
+                // Wire the access handler into getQuery() as production does
+                // (#1714); under deny-by-default (C-6) an unwired query layer
+                // denies every candidate before the consumer's filter runs.
+                return new SqlEntityStorage(
+                    $definition,
+                    $this->database,
+                    $dispatcher,
+                    accessHandlerResolver: fn(): ?EntityAccessHandler => $this->accessHandler ?? null,
+                );
             },
         );
 
