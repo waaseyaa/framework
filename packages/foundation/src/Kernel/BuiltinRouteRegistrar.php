@@ -28,10 +28,22 @@ final class BuiltinRouteRegistrar
 
     public function register(WaaseyaaRouter $router): void
     {
+        // The schema self-description surface requires authentication: it
+        // enumerates every registered entity type plus its attribute/field
+        // schema, and computes field-access against a value-less prototype
+        // entity — disclosing the DEFINITIONS of instance-state-gated fields
+        // (e.g. classification-gated) that a real row would deny. These routes
+        // are the self-description of an API whose data routes are already
+        // auth-gated (#1649 auth-gated the /api discovery index for the same
+        // reason), so a public schema surface is inconsistent and over-discloses.
+        // SCOPE: only these two REST routes. The public read-only /mcp surface
+        // and the /.well-known/waaseyaa-anchors.json catalog are intentionally
+        // anonymous (registered by other providers) and stay public.
         $router->addRoute(
             'api.schema.show',
             RouteBuilder::create('/api/schema/{entity_type}')
                 ->controller('Waaseyaa\\Api\\Controller\\SchemaController::show')
+                ->requireAuthentication()
                 ->methods('GET')
                 ->build(),
         );
@@ -40,6 +52,7 @@ final class BuiltinRouteRegistrar
             'api.openapi',
             RouteBuilder::create('/api/openapi.json')
                 ->controller('openapi')
+                ->requireAuthentication()
                 ->methods('GET')
                 ->build(),
         );
