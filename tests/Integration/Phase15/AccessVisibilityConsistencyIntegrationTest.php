@@ -27,7 +27,6 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
-use Waaseyaa\Mcp\McpController;
 use Waaseyaa\Relationship\Relationship;
 use Waaseyaa\Relationship\RelationshipSchemaManager;
 use Waaseyaa\Relationship\RelationshipTraversalService;
@@ -37,7 +36,7 @@ use Waaseyaa\Workflows\WorkflowVisibilityFilter;
 final class AccessVisibilityConsistencyIntegrationTest extends TestCase
 {
     #[Test]
-    public function reviewStateIsHiddenAcrossSearchMcpAndRelationshipBrowseEvenWhenStatusIsTruthy(): void
+    public function reviewStateIsHiddenAcrossSearchAndRelationshipBrowseEvenWhenStatusIsTruthy(): void
     {
         $database = DBALDatabase::createSqlite();
         $dispatcher = new EventDispatcher();
@@ -129,31 +128,6 @@ final class AccessVisibilityConsistencyIntegrationTest extends TestCase
         $searchPayload = $search->search('Confidential', 'node', 10)->toArray();
         $this->assertSame('keyword', $searchPayload['meta']['mode']);
         $this->assertCount(0, $searchPayload['data']);
-
-        $mcp = new McpController(
-            entityTypeManager: $manager,
-            serializer: $serializer,
-            accessHandler: $accessHandler,
-            account: $account,
-            embeddingStorage: $embeddingStorage,
-            embeddingProvider: null,
-        );
-        $rpc = $mcp->handleRpc([
-            'jsonrpc' => '2.0',
-            'id' => 90,
-            'method' => 'tools/call',
-            'params' => [
-                'name' => 'ai_discover',
-                'arguments' => [
-                    'query' => 'Confidential',
-                    'type' => 'node',
-                    'anchor_type' => 'node',
-                    'anchor_id' => (string) $anchor->id(),
-                ],
-            ],
-        ]);
-        $payload = json_decode((string) $rpc['result']['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR);
-        $this->assertSame(0, $payload['meta']['count']);
 
         $traversal = new RelationshipTraversalService($manager, $database, new WorkflowVisibilityFilter());
         $browse = $traversal->browse('node', (string) $anchor->id(), ['status' => 'published']);

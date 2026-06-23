@@ -511,7 +511,6 @@ return [
     'Waaseyaa\CLI\Command\Make\AbstractMakeHandler' => 'internal',
     'Waaseyaa\CLI\Command\HandlerArgumentMode' => 'public',
     'Waaseyaa\CLI\Command\HandlerOptionMode' => 'public',
-    'Waaseyaa\Mcp\Tools\McpTool' => 'internal',
     'Waaseyaa\SSR\Http\AppController\AppControllerArgumentResolver' => 'public',
     'Waaseyaa\SSR\Http\AppController\AppParameterKind' => 'public',
 

@@ -28,7 +28,6 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
-use Waaseyaa\Mcp\McpController;
 use Waaseyaa\Relationship\Relationship;
 use Waaseyaa\Relationship\RelationshipDiscoveryService;
 use Waaseyaa\Relationship\RelationshipSchemaManager;
@@ -103,7 +102,7 @@ final class DiscoveryFixtureConsumersIntegrationTest extends TestCase
     }
 
     #[Test]
-    public function sharedDiscoveryFixturesDriveSearchRelationshipAndMcpConsumers(): void
+    public function sharedDiscoveryFixturesDriveSearchAndRelationshipConsumers(): void
     {
         $search = new SearchController(
             entityTypeManager: $this->entityTypeManager,
@@ -151,66 +150,6 @@ final class DiscoveryFixtureConsumersIntegrationTest extends TestCase
         ]);
         $this->assertSame(4, $timeline['page']['total']);
         $this->assertNotEmpty($timeline['items']);
-
-        $mcp = new McpController(
-            entityTypeManager: $this->entityTypeManager,
-            serializer: $this->serializer,
-            accessHandler: $this->accessHandler,
-            account: $this->account,
-            embeddingStorage: $this->embeddingStorage,
-            embeddingProvider: null,
-        );
-        $rpc = $mcp->handleRpc([
-            'jsonrpc' => '2.0',
-            'id' => 77,
-            'method' => 'tools/call',
-            'params' => [
-                'name' => 'ai_discover',
-                'arguments' => [
-                    'query' => 'water',
-                    'type' => 'node',
-                    'limit' => 10,
-                    'anchor_type' => 'node',
-                    'anchor_id' => (string) $anchorId,
-                ],
-            ],
-        ]);
-        $payload = json_decode((string) $rpc['result']['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR);
-        $this->assertSame('v1.0', $payload['meta']['contract_version']);
-        $this->assertSame(4, $payload['data']['graph_context']['counts']['total']);
-        $this->assertNotEmpty($payload['data']['recommendations']);
-        $this->assertSame('published_only', $payload['data']['recommendations'][0]['explanation']['visibility_contract']);
-    }
-
-    #[Test]
-    public function sharedDiscoveryFixturesEnforceNonPublicAnchorErrors(): void
-    {
-        $mcp = new McpController(
-            entityTypeManager: $this->entityTypeManager,
-            serializer: $this->serializer,
-            accessHandler: $this->accessHandler,
-            account: $this->account,
-            embeddingStorage: $this->embeddingStorage,
-            embeddingProvider: null,
-        );
-        $draftId = $this->nodeIdsByFixtureKey['governance_draft'];
-        $rpc = $mcp->handleRpc([
-            'jsonrpc' => '2.0',
-            'id' => 88,
-            'method' => 'tools/call',
-            'params' => [
-                'name' => 'ai_discover',
-                'arguments' => [
-                    'query' => 'governance',
-                    'type' => 'node',
-                    'anchor_type' => 'node',
-                    'anchor_id' => (string) $draftId,
-                ],
-            ],
-        ]);
-
-        $this->assertSame(-32000, $rpc['error']['code']);
-        $this->assertStringContainsString('not visible', $rpc['error']['message']);
     }
 
     private function seedFixtureCorpus(): void

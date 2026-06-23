@@ -30,7 +30,6 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
-use Waaseyaa\Mcp\McpController;
 use Waaseyaa\Relationship\Relationship;
 use Waaseyaa\Relationship\RelationshipDiscoveryService;
 use Waaseyaa\Relationship\RelationshipSchemaManager;
@@ -145,15 +144,6 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
             account: $this->account,
         )->search('water', 'node', 10)->toArray();
 
-        $mcp = new McpController(
-            entityTypeManager: $this->entityTypeManager,
-            serializer: $this->serializer,
-            accessHandler: $this->accessHandler,
-            account: $this->account,
-            embeddingStorage: $this->embeddingStorage,
-            embeddingProvider: $provider,
-        );
-
         $anchorId = (string) $this->nodeIdsByFixtureKey['anchor_water'];
         $traversal = new RelationshipTraversalService(
             $this->entityTypeManager,
@@ -175,26 +165,6 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
             'limit' => 20,
         ]);
         $discoveryDurationMs = $this->durationMs($discoveryStarted);
-
-        $mcpStarted = hrtime(true);
-        $mcpResult = $mcp->handleRpc([
-            'jsonrpc' => '2.0',
-            'id' => 400,
-            'method' => 'tools/call',
-            'params' => [
-                'name' => 'ai_discover',
-                'arguments' => [
-                    'query' => 'water',
-                    'type' => 'node',
-                    'limit' => 10,
-                    'anchor_type' => 'node',
-                    'anchor_id' => $anchorId,
-                ],
-            ],
-        ]);
-        $mcpDurationMs = $this->durationMs($mcpStarted);
-
-        $mcpPayload = json_decode((string) $mcpResult['result']['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR);
 
         $snapshot = [
             'warm' => [
@@ -226,13 +196,6 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
                 'count' => (int) ($topicHub['page']['count'] ?? 0),
                 'first_item_relationship_type' => (string) ($topicHub['items'][0]['relationship_type'] ?? ''),
             ],
-            'mcp_ai_discover' => [
-                'count' => count($mcpPayload['data']['recommendations'] ?? []),
-                'titles' => $this->recommendationTitles($mcpPayload['data']['recommendations'] ?? []),
-                'mode' => $mcpPayload['meta']['mode'] ?? null,
-                'contract_version' => $mcpPayload['meta']['contract_version'] ?? null,
-                'graph_total' => $mcpPayload['data']['graph_context']['counts']['total'] ?? null,
-            ],
         ];
 
         $snapshotHash = sha1((string) json_encode($snapshot, JSON_THROW_ON_ERROR));
@@ -253,7 +216,6 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
             'semantic_search' => $semanticSearchDurationMs,
             'ssr_navigation' => $ssrNavigationDurationMs,
             'discovery_hub' => $discoveryDurationMs,
-            'mcp_ai_discover' => $mcpDurationMs,
         ];
 
         foreach ($durations as $surface => $durationMs) {
@@ -314,24 +276,6 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
         return $titles;
     }
 
-    /**
-     * @param array<int, array<string, mixed>> $recommendations
-     * @return list<string>
-     */
-    private function recommendationTitles(array $recommendations): array
-    {
-        $titles = [];
-        foreach ($recommendations as $row) {
-            $entity = is_array($row['entity'] ?? null) ? $row['entity'] : [];
-            $attributes = is_array($entity['attributes'] ?? null) ? $entity['attributes'] : [];
-            if (is_string($attributes['title'] ?? null)) {
-                $titles[] = $attributes['title'];
-            }
-        }
-
-        return $titles;
-    }
-
     private function durationMs(int $startedAt): float
     {
         return round((hrtime(true) - $startedAt) / 1_000_000, 3);
@@ -346,8 +290,7 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
      *     warm: float|int,
      *     semantic_search: float|int,
      *     ssr_navigation: float|int,
-     *     discovery_hub: float|int,
-     *     mcp_ai_discover: float|int
+     *     discovery_hub: float|int
      *   }
      * }
      */

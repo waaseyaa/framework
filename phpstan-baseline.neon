@@ -985,48 +985,6 @@ parameters:
 			path: packages/i18n/src/Translator.php
 
 		-
-			message: '#^Class Waaseyaa\\Workflows\\WorkflowVisibility does not have a constructor and must be instantiated without any parameters\.$#'
-			identifier: new.noConstructor
-			count: 1
-			path: packages/mcp/src/McpController.php
-
-		-
-			message: '#^Call to function is_array\(\) with array\<string, mixed\> will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: packages/mcp/src/Rpc/ToolIntrospector.php
-
-		-
-			message: '#^Casting to int something that''s already int\.$#'
-			identifier: cast.useless
-			count: 2
-			path: packages/mcp/src/Tools/DiscoveryTools.php
-
-		-
-			message: '#^Casting to bool something that''s already bool\.$#'
-			identifier: cast.useless
-			count: 1
-			path: packages/mcp/src/Tools/TraversalTools.php
-
-		-
-			message: '#^Casting to int something that''s already int\.$#'
-			identifier: cast.useless
-			count: 1
-			path: packages/mcp/src/Tools/TraversalTools.php
-
-		-
-			message: '#^Offset ''inverse'' on array\{relationship\: Waaseyaa\\Entity\\EntityInterface, related_entity_type\: string, related_entity_id\: string, direction\: string, inverse\: bool\} on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: packages/mcp/src/Tools/TraversalTools.php
-
-		-
-			message: '#^Offset ''total'' on array\{outbound\: int, inbound\: int, total\: int\} on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: packages/mcp/src/Tools/TraversalTools.php
-
-		-
 			message: '#^Call to function is_string\(\) with string will always evaluate to true\.$#'
 			identifier: function.alreadyNarrowedType
 			count: 1

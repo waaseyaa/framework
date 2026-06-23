@@ -85,12 +85,6 @@ parameters:
 			path: packages/foundation/src/Tenant/TenantMiddleware.php
 
 		-
-			message: '#^Unused Waaseyaa\\Mcp\\McpController\:\:handleRpc$#'
-			identifier: shipmonk.deadMethod
-			count: 1
-			path: packages/mcp/src/McpController.php
-
-		-
 			message: '#^Property Waaseyaa\\Testing\\Traits\\InteractsWithApi\:\:\$requestHeaders is never read$#'
 			identifier: shipmonk.deadProperty.neverRead
 			count: 1
