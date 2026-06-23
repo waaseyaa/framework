@@ -29,6 +29,8 @@ use Waaseyaa\Listing\Sort;
 use Waaseyaa\Listing\Tests\Contract\Fixtures\AllowAllArticlePolicy;
 use Waaseyaa\Listing\Tests\Contract\Fixtures\ArticleEntity;
 use Waaseyaa\Listing\Tests\Contract\Fixtures\DenyEvenIdsArticlePolicy;
+use Waaseyaa\Listing\Tests\Contract\Fixtures\FastPathArticlePolicy;
+use Waaseyaa\Listing\Tests\Contract\Fixtures\SpyStorageDriver;
 use Waaseyaa\Listing\Tests\Contract\Fixtures\TranslatableArticleEntity;
 
 /**
@@ -644,6 +646,70 @@ abstract class ListingResolverContract extends TestCase
 
         // Sentinel — do not fail. Just record the budget.
         self::assertLessThan(5.0, $elapsed, 'access fast-path benchmark sentinel');
+    }
+
+    // ------------------------------------------------------------------
+    // C-28 — pagination pushdown guard (the fast path must push LIMIT + SQL COUNT)
+    // ------------------------------------------------------------------
+
+    #[Test]
+    public function fastPathPushesSqlCountAndBoundedFindBy(): void
+    {
+        $inner = $this->createDriver();
+        $rows = [];
+        for ($i = 1; $i <= 50; $i++) {
+            $rows[] = ['id' => (string) $i, 'title' => 't' . $i, 'status' => 1, 'weight' => $i];
+        }
+        $this->seed($inner, 'article', $rows);
+
+        // A fast-path-opted-in policy + a paged, exact-total listing engages the
+        // pushdown branch (resolvePushedPage): SQL count() for the total, bounded
+        // findBy() for the page window — not full hydration + array_slice/count.
+        $spy = new SpyStorageDriver($inner);
+        $resolver = $this->buildResolver($spy, gate: new Gate([new FastPathArticlePolicy()]));
+        $def = new ListingDefinition(id: 'pushed', entityType: 'article', pageSize: 10);
+
+        $result = $resolver->resolve($def);
+
+        self::assertGreaterThan(0, $spy->countCalls, 'fast path must issue a SQL count(), not count() over hydrated rows (C-28).');
+        self::assertNotEmpty($spy->findByLimits);
+        self::assertNotContains(
+            null,
+            $spy->findByLimits,
+            'fast path must push a LIMIT to findBy(), not hydrate the whole result set (C-28).',
+        );
+        // Correctness is preserved: total from the SQL count, page bounded to pageSize.
+        self::assertSame(50, $result->pagination->totalRows);
+        self::assertCount(10, $this->materialise($result));
+    }
+
+    #[Test]
+    public function perRowPolicyDoesNotUseTheFastPath(): void
+    {
+        // A policy that has NOT opted into the fast path keeps the always-correct
+        // per-row access loop: full hydration (unbounded findBy), and the total is
+        // count() over the access-filtered survivors — no SQL count() pushdown.
+        // This pins the contrast so the fast path can't silently become the only
+        // path (which would skip per-row access filtering).
+        $inner = $this->createDriver();
+        $rows = [];
+        for ($i = 1; $i <= 50; $i++) {
+            $rows[] = ['id' => (string) $i, 'title' => 't' . $i, 'status' => 1, 'weight' => $i];
+        }
+        $this->seed($inner, 'article', $rows);
+
+        $spy = new SpyStorageDriver($inner);
+        $resolver = $this->buildResolver($spy, gate: new Gate([new AllowAllArticlePolicy()]));
+        $def = new ListingDefinition(id: 'per_row', entityType: 'article', pageSize: 10);
+
+        $resolver->resolve($def);
+
+        self::assertSame(0, $spy->countCalls, 'a non-opted-in policy must not use the SQL-count fast path.');
+        self::assertContains(
+            null,
+            $spy->findByLimits,
+            'a non-opted-in policy must hydrate the full set (unbounded findBy) so the per-row access loop can run.',
+        );
     }
 
     // ------------------------------------------------------------------
