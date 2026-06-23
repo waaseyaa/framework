@@ -318,6 +318,10 @@ return [
     'Waaseyaa\Field\FieldFormatterInterface' => 'public',
     'Waaseyaa\Field\FieldTypeManagerInterface' => 'public',
     'Waaseyaa\Field\FieldItemBase' => 'public',
+    // Transitional static-seam base (audit C-24 train 1). Internal for now —
+    // field-type plugins still extend FieldItemBase; train 2 reparents them onto
+    // this and removes FieldItemBase, at which point it becomes the public base.
+    'Waaseyaa\Field\AbstractFieldType' => 'internal',
     'Waaseyaa\Field\Item\LabeledCase' => 'public',
     'Waaseyaa\Field\ViewModeConfigInterface' => 'public',
     // Classification labels: clearance/hold access, label registry, parent resolution.
