@@ -18,7 +18,13 @@ final class GraphQlRoleBasedAccessTest extends GraphQlIntegrationTestBase
     {
         parent::setUp();
 
-        $roleHandler = new EntityAccessHandler([new RoleBasedPolicy()]);
+        // Share one role handler between the query layer (storage getQuery(),
+        // wired lazily by the parent harness resolver) and the GraphQL guard —
+        // mirrors production, where the kernel composes a single handler. Under
+        // deny-by-default (audit C-6) the query layer must enforce the same
+        // policies the endpoint does, or it would deny rows the guard allows.
+        $this->accessHandler = new EntityAccessHandler([new RoleBasedPolicy()]);
+        $roleHandler = $this->accessHandler;
 
         $this->adminEndpoint = new GraphQlEndpoint(
             $this->entityTypeManager,

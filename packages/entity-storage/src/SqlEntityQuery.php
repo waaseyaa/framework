@@ -33,10 +33,12 @@ use Waaseyaa\Field\FieldStorage;
  *
  * Access checking is enabled by default (see {@see accessCheck()}). When
  * enabled, `execute()` hydrates each candidate row, runs
- * `EntityAccessHandler::check($entity, 'view', $account)`, and drops rows
- * whose result is Forbidden. Callers MUST bind an account via
- * {@see setAccount()} before execution; otherwise
- * {@see MissingQueryAccountException} is thrown (fail-closed).
+ * `EntityAccessHandler::check($entity, 'view', $account)`, and keeps only rows
+ * whose result is Allowed (deny-by-default — a Neutral "no policy opined"
+ * result drops the row, matching the entity gate and every serializing
+ * consumer; audit C-6). Callers MUST bind an account via {@see setAccount()}
+ * before execution; otherwise {@see MissingQueryAccountException} is thrown
+ * (fail-closed).
  */
 final class SqlEntityQuery implements EntityQueryInterface
 {
@@ -77,9 +79,10 @@ final class SqlEntityQuery implements EntityQueryInterface
     /**
      * When true (the default), {@see execute()} runs an
      * `EntityAccessHandler::check($entity, 'view', $account)` per candidate row
-     * and drops rows whose result is Forbidden. When false, the candidate IDs
-     * are returned without hydration — a fast bypass path reserved for system
-     * contexts (background jobs, index warmers) per FR-004 / C-004.
+     * and keeps only rows whose result is Allowed (deny-by-default; audit C-6).
+     * When false, the candidate IDs are returned without hydration — a fast
+     * bypass path reserved for system contexts (background jobs, index warmers)
+     * per FR-004 / C-004.
      */
     private bool $accessCheckEnabled = true;
 
@@ -87,11 +90,14 @@ final class SqlEntityQuery implements EntityQueryInterface
      * Lazy-resolved {@see EntityAccessHandler} consulted by {@see execute()}
      * when access checking is enabled. The query has no constructor-injected
      * DI container; the handler is injected via {@see withAccessHandler()}
-     * (used by `SqlEntityStorage::getQuery()` wiring in WP03 / by test
-     * harnesses), or — as a safe fallback — lazy-instantiated as an empty
-     * handler that returns Neutral for every entity. Neutral is not Forbidden,
-     * so the fallback acts as an open-by-default pass-through and does not
-     * silently lock callers out before WP03 wires real policies in.
+     * (used by `SqlEntityStorage::getQuery()` wiring per #1714 / by test
+     * harnesses), or — as a fail-closed fallback — lazy-instantiated as an
+     * empty handler that returns Neutral for every entity. Under deny-by-default
+     * (audit C-6) Neutral is not Allowed, so the empty fallback drops every row:
+     * an access-checked query against an unwired/misconfigured handler returns
+     * nothing rather than leaking the unfiltered candidate set. Production wires
+     * the real composed handler at boot, so this fallback is reached only by
+     * direct construction or a missing resolver.
      */
     private ?EntityAccessHandler $accessHandler = null;
 
@@ -338,10 +344,10 @@ final class SqlEntityQuery implements EntityQueryInterface
      * single factory site is `SqlEntityStorage::getQuery()` and we do not
      * want to thread access wiring through every storage subclass). Instead,
      * the production binding flows through {@see withAccessHandler()} (wired
-     * by WP03's `getQuery()` update). Until WP03 lands, callers that have
-     * not bound a handler get an empty handler whose `check()` returns
-     * Neutral for every entity — a pass-through that does not block
-     * legitimate queries while the consumer sweep is in flight.
+     * by `getQuery()` per #1714). A caller that has not bound a handler gets an
+     * empty handler whose `check()` returns Neutral for every entity; under
+     * deny-by-default (audit C-6) Neutral is not Allowed, so such a query
+     * returns nothing — fail-closed, never an unfiltered leak.
      */
     private function resolveAccessHandler(): EntityAccessHandler
     {
@@ -373,13 +379,16 @@ final class SqlEntityQuery implements EntityQueryInterface
             ? ($this->entityLoader)($candidateIds)
             : [];
 
-        // Without a hydrator, we cannot run a per-row entity check. This is
-        // the pre-WP03 transitional path: behave as a pass-through so that
-        // callers which have not yet been wired up by WP03 keep returning
-        // candidate IDs. The throw on missing account in execute() still
-        // enforces fail-closed at the contract level.
+        // Deny-by-default (audit C-6): an access-checked query must PROVE each
+        // row is viewable before returning it. When no hydrator is wired (or it
+        // yields nothing) we cannot run the per-row check, so we cannot prove
+        // any candidate is allowed — fail closed and drop the whole window
+        // rather than leaking it unfiltered. Post-#1714, production always binds
+        // the loader via SqlEntityStorage::getQuery(); this guards the
+        // direct-construction / misconfiguration path that previously passed
+        // candidate IDs through open-by-default.
         if ($entities === []) {
-            return $this->isCount ? [\count($candidateIds)] : $candidateIds;
+            return $this->isCount ? [0] : [];
         }
 
         $handler = $this->resolveAccessHandler();
@@ -399,7 +408,7 @@ final class SqlEntityQuery implements EntityQueryInterface
                 continue;
             }
 
-            if (!$handler->check($entity, 'view', $account)->isForbidden()) {
+            if ($handler->check($entity, 'view', $account)->isAllowed()) {
                 $survivors[] = $id;
             }
         }

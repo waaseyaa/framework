@@ -161,7 +161,13 @@ final class GenealogyPedigreeService
         GateInterface $gate,
         int $maxGenerations = 8,
     ): array {
-        $levels = $this->ancestorGenerations($personId, $maxGenerations, $account);
+        // Gather the ancestor TOPOLOGY in system context (null account ⇒
+        // accessCheck(false)); concealment is applied per-person below via the
+        // gate. Threading the account here would, under deny-by-default (audit
+        // C-6) with the wired relationship policy, drop every edge touching a
+        // non-viewable ancestor — collapsing the redacted-placeholder rows the
+        // SSR chart is meant to show into nothing.
+        $levels = $this->ancestorGenerations($personId, $maxGenerations, null);
         $out = [];
         foreach ($levels as $i => $idsAtLevel) {
             if ($i === 0) {
