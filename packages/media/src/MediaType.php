@@ -10,13 +10,25 @@ use Waaseyaa\Entity\ConfigEntityBase;
  * Defines a media type configuration entity.
  *
  * Media types define the different kinds of media (image, video, file, etc.)
- * that can be created. Each media type is associated with a media source
- * plugin that handles the specific media handling logic.
+ * that can be created.
+ *
+ * NOTE (claim-vs-code): `$source`/`$sourceConfiguration` are stored as METADATA
+ * only. The media source-plugin system they describe — a `MediaSourceInterface`,
+ * a plugin registry, and a resolver that maps a media entity to its file
+ * location — is NOT implemented in this package today: nothing consults `$source`
+ * to handle media, resolve a file URI, or generate thumbnails/derivatives. These
+ * fields exist for forward compatibility; building the substrate (and an
+ * authorized media download, reusing the attachment `PrivateFileStore` from
+ * #1761) is tracked as a future feature in #1762. Do not rely on source-plugin
+ * resolution until then.
  */
 final class MediaType extends ConfigEntityBase
 {
     /**
-     * The media source plugin ID (e.g. 'file', 'image', 'oembed').
+     * The intended media source plugin ID (e.g. 'file', 'image', 'oembed').
+     *
+     * Metadata only — no source-plugin system consumes this yet (see the class
+     * docblock + #1762).
      */
     protected string $source = '';
 
