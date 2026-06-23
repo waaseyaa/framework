@@ -100,6 +100,52 @@ final class EntityRendererTest extends TestCase
         $this->assertSame('<p>Body</p>', $bag['fields']['body']['formatted']);
         $this->assertSame('Yes', $bag['fields']['status']['formatted']);
     }
+
+    #[Test]
+    public function drops_internal_and_credential_fields_from_default_display(): void
+    {
+        // Entity type with a normal field, an internal:true field, and a bare 'password' key.
+        // The 'internal' key in the array definition is not a standard FieldDefinition argument,
+        // so TestEntityType::stub / EntityType::getFieldDefinitions() folds it into settings[],
+        // making getSetting('internal') === true.
+        $definition = TestEntityType::stub(
+            id: 'node',
+            class: RendererTestEntity::class,
+            keys: ['id' => 'id', 'label' => 'title'],
+            label: 'Node',
+            fieldDefinitions: [
+                'body'          => ['type' => 'text_long'],
+                'secret_token'  => ['type' => 'string', 'internal' => true],
+            ],
+        );
+
+        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager->method('getDefinition')->with('node')->willReturn($definition);
+
+        // Use empty view-mode config so the renderer falls through to buildDefaultDisplay(),
+        // which includes every scalar value not in entityKeys. All three candidate fields
+        // (body, secret_token, password) are scalars, so without the internal-field guard
+        // all three would appear in the output.
+        $renderer = new EntityRenderer($manager, new FieldFormatterRegistry(), new ArrayViewModeConfig());
+        $entity = new RendererTestEntity('node', [
+            'id'           => 1,
+            'title'        => 'Article title',
+            'body'         => 'Some content',
+            'secret_token' => 'tok_supersecret',
+            'password'     => 'hashed$2y$10$...',
+        ]);
+
+        $bag = $renderer->render($entity, 'full');
+
+        // The normal field must be present.
+        $this->assertArrayHasKey('body', $bag['fields'], 'Normal field "body" must appear in rendered output.');
+
+        // The internal:true field must be dropped.
+        $this->assertArrayNotHasKey('secret_token', $bag['fields'], 'Field with settings[internal=>true] must be dropped from rendered output.');
+
+        // The always-internal credential field must be dropped even without a FieldDefinition.
+        $this->assertArrayNotHasKey('password', $bag['fields'], 'Field named "password" must always be dropped from rendered output.');
+    }
 }
 
 final readonly class RendererTestEntity implements EntityInterface

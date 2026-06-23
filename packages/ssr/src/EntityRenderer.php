@@ -12,6 +12,13 @@ use Waaseyaa\Field\ViewModeConfigInterface;
 
 final class EntityRenderer
 {
+    /**
+     * Field names that are NEVER rendered, regardless of whether the entity
+     * declares them as `#[Field(... internal: true)]`. Defense in depth for
+     * entities that store credential material in raw `_data` keys.
+     */
+    private const ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
+
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly FieldFormatterRegistry $formatterRegistry,
@@ -55,6 +62,11 @@ final class EntityRenderer
 
         $fields = [];
         foreach ($display as $fieldName => $item) {
+            if (in_array($fieldName, self::ALWAYS_INTERNAL_FIELDS, true)
+                || (isset($fieldDefinitions[$fieldName]) && $fieldDefinitions[$fieldName]->getSetting('internal') === true)) {
+                continue;
+            }
+
             $raw = $values[$fieldName] ?? null;
             $fieldType = isset($fieldDefinitions[$fieldName]) ? $fieldDefinitions[$fieldName]->getType() : 'string';
             $formatterType = (string) ($item['formatter'] ?? $fieldType);
