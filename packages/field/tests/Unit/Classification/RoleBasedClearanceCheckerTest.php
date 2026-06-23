@@ -104,7 +104,7 @@ final class RoleBasedClearanceCheckerTest extends TestCase
      */
     private function account(array $roles): AccountInterface
     {
-        return new class($roles) implements AccountInterface {
+        return new class ($roles) implements AccountInterface {
             /** @param list<string> $roles */
             public function __construct(private readonly array $roles) {}
 

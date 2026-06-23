@@ -26,7 +26,7 @@ interface FieldTypeInterface extends PluginInspectionInterface
      *
      * Allows field-type plugins to vary their JSON Schema by field definition
      * (e.g. enum types reading `settings.enum_class`). Default implementation
-     * on FieldItemBase preserves the framework's pre-existing per-type schema
+     * on AbstractFieldType preserves the framework's pre-existing per-type schema
      * mapping so existing field types are unaffected.
      */
     public static function jsonSchemaFor(FieldDefinitionInterface $def): array;
@@ -35,7 +35,7 @@ interface FieldTypeInterface extends PluginInspectionInterface
      * Per-definition storage column shape.
      *
      * Allows field-type plugins to vary their storage schema by field
-     * definition. Default implementation on FieldItemBase delegates to the
+     * definition. Default implementation on AbstractFieldType delegates to the
      * static schema() method so existing field types are unaffected.
      *
      * @return array<string, array{type: string, description?: string}>

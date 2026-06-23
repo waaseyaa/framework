@@ -39,16 +39,4 @@ final class JsonItemTest extends TestCase
 
         $this->assertSame(['type' => 'object'], $schema);
     }
-
-    #[Test]
-    public function propertyDefinitionsReturnValueAsString(): void
-    {
-        $this->assertSame(['value' => 'string'], JsonItem::propertyDefinitions());
-    }
-
-    #[Test]
-    public function mainPropertyNameReturnsValue(): void
-    {
-        $this->assertSame('value', JsonItem::mainPropertyName());
-    }
 }

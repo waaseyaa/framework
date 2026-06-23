@@ -775,24 +775,6 @@ parameters:
 			path: packages/entity/src/EntityTypeManager.php
 
 		-
-			message: '#^Method Waaseyaa\\Field\\FieldItemBase\:\:getProperties\(\) should return array\<string, Waaseyaa\\TypedData\\DataDefinitionInterface\> but returns array\<Waaseyaa\\Field\\PropertyValue\>\.$#'
-			identifier: return.type
-			count: 1
-			path: packages/field/src/FieldItemBase.php
-
-		-
-			message: '#^Parameter \#1 \$name of class Waaseyaa\\Field\\PropertyValue constructor expects string, \(int\|string\) given\.$#'
-			identifier: argument.type
-			count: 1
-			path: packages/field/src/FieldItemBase.php
-
-		-
-			message: '#^Call to an undefined method Waaseyaa\\TypedData\\TypedDataInterface\:\:get\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: packages/field/src/FieldItemList.php
-
-		-
 			message: '#^Casting to string something that''s already string\.$#'
 			identifier: cast.useless
 			count: 5

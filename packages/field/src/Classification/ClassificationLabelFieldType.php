@@ -6,9 +6,9 @@ namespace Waaseyaa\Field\Classification;
 
 use Symfony\Component\Validator\ConstraintViolationList;
 use Symfony\Component\Validator\ConstraintViolationListInterface;
+use Waaseyaa\Field\AbstractFieldType;
 use Waaseyaa\Field\Attribute\FieldType;
 use Waaseyaa\Field\FieldDefinitionInterface;
-use Waaseyaa\Field\FieldItemBase;
 
 /**
  * Field type for entity classification labels.
@@ -34,27 +34,8 @@ use Waaseyaa\Field\FieldItemBase;
     category: 'classification',
     defaultCardinality: 1,
 )]
-final class ClassificationLabelFieldType extends FieldItemBase
+final class ClassificationLabelFieldType extends AbstractFieldType
 {
-    // ---------------------------------------------------------------------------
-    // Property definitions
-    // ---------------------------------------------------------------------------
-
-    /** @return array<string, string> */
-    public static function propertyDefinitions(): array
-    {
-        return [
-            'classification_label' => 'string',
-            'classification_inherited_from' => 'string',
-            'classification_overridden_at' => 'string',
-        ];
-    }
-
-    public static function mainPropertyName(): string
-    {
-        return 'classification_label';
-    }
-
     // ---------------------------------------------------------------------------
     // FieldTypeInterface
     // ---------------------------------------------------------------------------

@@ -7,20 +7,20 @@ namespace Waaseyaa\Field;
 use Waaseyaa\Plugin\PluginBase;
 
 /**
- * Non-instance base for field-type plugins: hosts the live, static "field-type
+ * @api
+ *
+ * The base class for field-type plugins. It hosts the static "field-type
  * descriptor" seam — `schema()`/`jsonSchema()`/`defaultSettings()`/`defaultValue()`
  * and their per-definition variants — that `FieldTypeManager` resolves by calling
- * `$class::method()` (it never instantiates a field-type plugin).
+ * `$class::method()` (it never instantiates a field-type plugin). A concrete field
+ * type is a `#[FieldType]`-annotated `final class` extending this and implementing
+ * `schema()` + `jsonSchema()`.
  *
- * Extracted off {@see FieldItemBase} (audit C-24, train 1) so the live static seam
- * no longer lives on the dead Field-API item/value-object layer (the ComplexData /
- * TypedData instance methods, `validate()` no-op, `PropertyValue`). `FieldItemBase`
- * now `extends` this, so the seam is single-sourced and behaviour is unchanged;
- * train 2 reparents the field-type plugins directly onto this base and removes the
- * dead instance layer (and the tests that exercise it) together.
- *
- * @internal Transitional base; promotes to the field-type plugin parent in C-24
- *   train 2. Concrete plugins provide `schema()`/`jsonSchema()`.
+ * Introduced by audit C-24 to replace `FieldItemBase`, whose dead Field-API
+ * item/value-object layer (the `ComplexData`/`TypedData` instance methods, the
+ * `validate()` no-op, `PropertyValue`) was instantiated nowhere in production and
+ * has been removed (train 2). Custom field types must `extends AbstractFieldType`
+ * instead of the removed `FieldItemBase`.
  */
 abstract class AbstractFieldType extends PluginBase implements FieldTypeInterface
 {

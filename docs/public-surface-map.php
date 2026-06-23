@@ -310,18 +310,16 @@ return [
     'Waaseyaa\CLI\Command\Config\ConfigStatusCommand' => 'public',
     'Waaseyaa\CLI\Command\Config\ConfigValidateCommand' => 'public',
     'Waaseyaa\CLI\Command\Config\ConfigResetCommand' => 'public',
-    'Waaseyaa\Field\FieldItemInterface' => 'public',
-    'Waaseyaa\Field\FieldItemListInterface' => 'public',
     'Waaseyaa\Field\FieldDefinitionInterface' => 'public',
     'Waaseyaa\Field\FieldStorage' => 'public',
     'Waaseyaa\Field\FieldTypeInterface' => 'public',
     'Waaseyaa\Field\FieldFormatterInterface' => 'public',
     'Waaseyaa\Field\FieldTypeManagerInterface' => 'public',
-    'Waaseyaa\Field\FieldItemBase' => 'public',
-    // Transitional static-seam base (audit C-24 train 1). Internal for now —
-    // field-type plugins still extend FieldItemBase; train 2 reparents them onto
-    // this and removes FieldItemBase, at which point it becomes the public base.
-    'Waaseyaa\Field\AbstractFieldType' => 'internal',
+    // The public base for field-type plugins: hosts the static descriptor seam
+    // (schema/jsonSchema/defaultSettings/...). Custom field types extend this.
+    // (C-24 train 2: replaced FieldItemBase, whose dead instance/value-object
+    // layer — FieldItemInterface/FieldItemListInterface/PropertyValue — was removed.)
+    'Waaseyaa\Field\AbstractFieldType' => 'public',
     'Waaseyaa\Field\Item\LabeledCase' => 'public',
     'Waaseyaa\Field\ViewModeConfigInterface' => 'public',
     // Classification labels: clearance/hold access, label registry, parent resolution.
@@ -332,7 +330,6 @@ return [
     // Layer 1: Core Data — internal
     'Waaseyaa\EntityStorage\Hydration\EntityInstantiator' => 'internal',
     'Waaseyaa\Access\ErrorPageRendererInterface' => 'internal',
-    'Waaseyaa\Field\ComputedFieldInterface' => 'internal',
     'Waaseyaa\Auth\Token\AuthTokenRepositoryInterface' => 'internal',
     'Waaseyaa\Auth\RateLimiterInterface' => 'internal',
 

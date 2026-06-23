@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Field\Item;
 
+use Waaseyaa\Field\AbstractFieldType;
 use Waaseyaa\Field\Attribute\FieldType;
-use Waaseyaa\Field\FieldItemBase;
 
 #[FieldType(
     id: 'float',
@@ -17,20 +17,8 @@ use Waaseyaa\Field\FieldItemBase;
 /**
  * @api
  */
-final class FloatItem extends FieldItemBase
+final class FloatItem extends AbstractFieldType
 {
-    public static function propertyDefinitions(): array
-    {
-        return [
-            'value' => 'float',
-        ];
-    }
-
-    public static function mainPropertyName(): string
-    {
-        return 'value';
-    }
-
     public static function schema(): array
     {
         return [

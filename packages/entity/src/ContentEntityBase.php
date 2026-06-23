@@ -17,10 +17,10 @@ use Waaseyaa\Field\FieldDefinitionInterface;
  * Content entities are fieldable: they support dynamic fields that can be
  * added and removed through configuration. Field values live in the values array
  * in storage-canonical form; optional {@see EntityBase::$casts} on subclasses make
- * {@see get()} / {@see set()} cast-aware. The waaseyaa/field FieldItemList/FieldItemBase
- * object layer exists but is not wired into this value path; entity values are
- * read/written as plain $values via EntityBase::get()/set() (with optional ValueCaster).
- * Object-layer integration is future work.
+ * {@see get()} / {@see set()} cast-aware. Entity values are read/written as plain
+ * $values via EntityBase::get()/set() (with optional ValueCaster); there is no field
+ * item-object layer in this value path (the dead Drupal-lineage FieldItemList/
+ * FieldItemBase object layer was removed in audit C-24).
  *
  * Unlike Drupal, a ContentEntityBase object represents ONE language at a time.
  * getTranslation() returns a separate entity object for the requested language.

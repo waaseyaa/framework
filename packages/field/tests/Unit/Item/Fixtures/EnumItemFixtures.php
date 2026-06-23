@@ -45,9 +45,7 @@ enum LabeledStringEnum: string implements LabeledCase
  * PHP allows declaring an enum with no cases as long as it's backed and
  * the implementation never tries to instantiate one.
  */
-enum EmptyEnum: string
-{
-}
+enum EmptyEnum: string {}
 
 /** Unit (non-backed) enum used to exercise the NotABackedEnum error variant. */
 enum UnitEnum
@@ -56,6 +54,4 @@ enum UnitEnum
 }
 
 /** Plain class — not an enum at all — for the NotABackedEnum error variant. */
-final class NotAnEnum
-{
-}
+final class NotAnEnum {}

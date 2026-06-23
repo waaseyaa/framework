@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Field\Item;
 
+use Waaseyaa\Field\AbstractFieldType;
 use Waaseyaa\Field\Attribute\FieldType;
-use Waaseyaa\Field\FieldItemBase;
 
 #[FieldType(
     id: 'image',
@@ -17,26 +17,8 @@ use Waaseyaa\Field\FieldItemBase;
 /**
  * @api
  */
-final class ImageItem extends FieldItemBase
+final class ImageItem extends AbstractFieldType
 {
-    public static function propertyDefinitions(): array
-    {
-        return [
-            'uri' => 'string',
-            'filename' => 'string',
-            'mime_type' => 'string',
-            'size' => 'integer',
-            'alt' => 'string',
-            'width' => 'integer',
-            'height' => 'integer',
-        ];
-    }
-
-    public static function mainPropertyName(): string
-    {
-        return 'uri';
-    }
-
     public static function schema(): array
     {
         return [

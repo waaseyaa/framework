@@ -138,7 +138,7 @@ final class FieldDefinitionBootValidationTest extends TestCase
     public function translatable_field_via_builder_on_non_translatable_entity_type_throws(): void
     {
         $entityType = $this->makeNonTranslatableEntityType();
-        $field = (new FieldDefinition(name: 'summary', type: 'text'))->translatable();
+        $field = new FieldDefinition(name: 'summary', type: 'text')->translatable();
 
         $this->expectException(InvalidFieldDefinitionException::class);
 
@@ -195,7 +195,7 @@ final class FieldDefinitionBootValidationTest extends TestCase
     #[Test]
     public function entity_type_get_field_definitions_validates_translatable_fields(): void
     {
-        $translatableField = (new FieldDefinition(name: 'title', type: 'string'))->translatable();
+        $translatableField = new FieldDefinition(name: 'title', type: 'string')->translatable();
 
         $entityType = new EntityType(
             id: 'setting',

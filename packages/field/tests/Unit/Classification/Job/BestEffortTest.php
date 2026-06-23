@@ -56,7 +56,7 @@ final class BestEffortTest extends TestCase
         // Fail on the SECOND audit write (the 'confidential' policy iteration).
         $audit = $this->throwingAuditWriterOnCall(2);
 
-        (new PurgeJob($etm, $audit))->run();
+        new PurgeJob($etm, $audit)->run();
 
         // All three entities were deleted: deletion precedes the audit write,
         // and the third policy still ran despite the second's failure.

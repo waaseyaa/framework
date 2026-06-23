@@ -9,7 +9,7 @@ namespace Waaseyaa\Field\Form;
  *
  * Produced by FormDescriptorBuilder::build() for each field in a bundle.
  * The `value` property holds whatever EntityInterface::get() returned for
- * the field — typically a FieldItemListInterface or null for unset fields.
+ * the field — the raw stored value (storage-canonical form) or null for unset fields.
  * Consumers (template layer, Vue components) are responsible for extracting
  * scalar values from the field item list; this object is markup-free.
  *

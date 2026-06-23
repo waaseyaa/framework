@@ -55,7 +55,7 @@ final class PurgeJobTest extends TestCase
         ]);
         $audit = $this->recordingAuditWriter();
 
-        (new PurgeJob($etm, $audit))->run();
+        new PurgeJob($etm, $audit)->run();
 
         // Only the old, internal-labelled, non-exempt entity is deleted.
         self::assertArrayNotHasKey(1, $nodeStorage->all());
@@ -101,7 +101,7 @@ final class PurgeJobTest extends TestCase
         ]);
         $audit = $this->recordingAuditWriter();
 
-        (new PurgeJob($etm, $audit))->run();
+        new PurgeJob($etm, $audit)->run();
 
         self::assertArrayHasKey(1, $nodeStorage->all(), 'legal-hold entity must never be purged');
         self::assertSame([], $audit->recorded);
@@ -133,7 +133,7 @@ final class PurgeJobTest extends TestCase
         ]);
         $audit = $this->recordingAuditWriter();
 
-        (new PurgeJob($etm, $audit))->run();
+        new PurgeJob($etm, $audit)->run();
 
         self::assertArrayHasKey(1, $nodeStorage->all(), 'exempt entity must survive');
         self::assertSame([], $audit->recorded);
@@ -164,7 +164,7 @@ final class PurgeJobTest extends TestCase
             'node' => $nodeStorage,
         ]);
 
-        (new PurgeJob($etm, $this->recordingAuditWriter()))->run();
+        new PurgeJob($etm, $this->recordingAuditWriter())->run();
 
         self::assertArrayNotHasKey(1, $nodeStorage->all());
     }
@@ -194,7 +194,7 @@ final class PurgeJobTest extends TestCase
             'node' => $nodeStorage,
         ]);
 
-        (new PurgeJob($etm, $this->recordingAuditWriter()))->run();
+        new PurgeJob($etm, $this->recordingAuditWriter())->run();
 
         self::assertArrayHasKey(1, $nodeStorage->all(), 'event-based policies are not purged by the age sweep');
     }

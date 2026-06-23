@@ -12,7 +12,7 @@ use Waaseyaa\Field\FieldTypeManager;
 /**
  * Behaviour-preserving guard for the C-24 train-1 de-entanglement: the live
  * field-type "descriptor" static seam (`defaultSettings`/`schema`/`jsonSchemaFor`/
- * `schemaFor`) was moved off the dead `FieldItemBase` instance layer onto
+ * `schemaFor`) was moved off the (now-removed) dead FieldItemBase instance layer onto
  * {@see AbstractFieldType}. `FieldTypeManager` resolves every field-type plugin
  * through that seam by calling `$class::method()` (it never instantiates a
  * plugin), so this asserts that EVERY discovered field type still resolves
