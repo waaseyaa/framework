@@ -7,22 +7,63 @@ namespace Waaseyaa\Node;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Access\Gate\PolicyAttribute;
 use Waaseyaa\Entity\EntityInterface;
 
 /**
  * Access policy for node entities.
  *
- * Checks permissions for viewing, updating, deleting, and creating nodes
- * based on the node type (bundle) and the relationship between the account
- * and the node author.
+ * Entity-level: checks permissions for viewing, updating, deleting, and
+ * creating nodes based on the node type (bundle) and the relationship between
+ * the account and the node author.
+ *
+ * Field-level (open-by-default, Forbidden restricts): node's system/identity
+ * fields — `uid` (authorship), `type` (the readOnly bundle), and the
+ * `created`/`changed` timestamps — are edit-forbidden for everyone except an
+ * `administer nodes` admin. Without this gate the JSON:API / agent write paths
+ * (which run `checkFieldAccess('edit')` open-by-default) let any account that
+ * passes the entity `update` check — e.g. an author with `edit own {type}
+ * content` — reassign authorship, change the bundle, or forge timestamps via
+ * `PATCH /api/node/{id}`. The editorial booleans `status`/`promote`/`sticky`
+ * are intentionally NOT gated here (a separate permission-model decision).
  */
 #[PolicyAttribute(entityType: 'node')]
-final class NodeAccessPolicy implements AccessPolicyInterface
+final class NodeAccessPolicy implements AccessPolicyInterface, FieldAccessPolicyInterface
 {
+    /**
+     * System/identity fields that only an `administer nodes` admin may edit.
+     *
+     * @var list<string>
+     */
+    private const ADMIN_ONLY_EDIT_FIELDS = ['uid', 'type', 'created', 'changed'];
+
     public function appliesTo(string $entityTypeId): bool
     {
         return $entityTypeId === 'node';
+    }
+
+    public function fieldAccess(EntityInterface $entity, string $fieldName, string $operation, AccountInterface $account): AccessResult
+    {
+        // This gate restricts writes only; view of these fields is unaffected.
+        if ($operation !== 'edit') {
+            return AccessResult::neutral('Node field gate restricts edit only.');
+        }
+
+        if ($account->hasPermission('administer nodes')) {
+            return AccessResult::neutral('Admin may edit any node field.');
+        }
+
+        // These fields are settable at CREATE (authoring a new node — `type` is
+        // the required bundle, `uid`/`created` are authorship/timestamp) but
+        // immutable on UPDATE of an existing node for non-admins: that is the
+        // escalation (reassigning authorship, changing the readOnly bundle, or
+        // forging timestamps on content that already exists).
+        if (!$entity->isNew() && \in_array($fieldName, self::ADMIN_ONLY_EDIT_FIELDS, true)) {
+            return AccessResult::forbidden(\sprintf("Field '%s' on an existing node is editable only with 'administer nodes'.", $fieldName));
+        }
+
+        return AccessResult::neutral("No field-edit opinion on '$fieldName'.");
     }
 
     public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
