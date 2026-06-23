@@ -211,6 +211,23 @@ abstract class AbstractAgentTool implements AgentToolInterface
     }
 
     /**
+     * Whether per-entity access enforcement is active (a handler is attached or
+     * enforcement was stamped via {@see markAccessEnforced()}).
+     *
+     * Enumeration tools that must first LOAD an entity before they can gate it
+     * (e.g. a vector/search hit carries only a type+id, not a hydrated entity)
+     * use this to choose the fail-closed branch when a candidate entity cannot
+     * be loaded: under enforcement a load/wiring gap must DROP the hit rather
+     * than disclose it, while capability-only mode keeps prior behavior (no gate
+     * was ever applied there). Tools that already hold the entity should call
+     * {@see canViewEntity()} directly — it folds this decision in.
+     */
+    protected function isAccessEnforced(): bool
+    {
+        return $this->accessHandler !== null || $this->accessEnforced;
+    }
+
+    /**
      * Drop fields the account may not view, so a tool's serialized output never
      * leaks a `FieldAccessPolicyInterface`-forbidden field. Open-by-default:
      * fields with no field policy stay (only explicit Forbidden is dropped),
