@@ -100,6 +100,21 @@ final class BuiltinRouteRegistrar
                 ->build(),
         );
 
+        // Authorized download of a private attachment's bytes. Option-less by
+        // design: the attachment package's AttachmentDownloadRouter (matched via
+        // the 'attachment.download' controller string) is the enforcement point —
+        // it runs the deny-by-default `view` check (delegated to the parent
+        // entity) before streaming, and 404s on deny. Registered here (not in the
+        // L2 attachment package) because route registration needs routing (L4),
+        // exactly as `media.upload` above.
+        $router->addRoute(
+            'attachment.download',
+            RouteBuilder::create('/attachment/{id}/download')
+                ->controller('attachment.download')
+                ->methods('GET')
+                ->build(),
+        );
+
         $router->addRoute(
             'api.search',
             RouteBuilder::create('/api/search')
