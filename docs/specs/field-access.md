@@ -1,5 +1,7 @@
 # Field-Level Access
 
+<!-- Spec reviewed 2026-06-23 - schema-surface auth (audit): no field-access semantics change. The REST schema surface that RENDERS field-access decisions — GET /api/schema/{entity_type} (and /api/openapi.json) — now requires authentication (BuiltinRouteRegistrar requireAuthentication()), because it computed field visibility against a value-less prototype entity and over-disclosed instance-state-gated field DEFINITIONS to anonymous (no row values; the JSON:API serializer still enforces per-record field access). The open-by-default field-access mechanism documented here is unchanged. Substantive contract: docs/specs/api-layer.md "Schema self-description surface requires authentication". -->
+
 Field-level access control allows policies to restrict which fields a user can view or edit on entities. It is a companion to entity-level access, sharing the same handler and discovery infrastructure but with intentionally different semantics.
 
 ## Overview
