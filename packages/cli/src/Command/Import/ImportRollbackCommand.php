@@ -18,8 +18,11 @@ use Waaseyaa\Migration\Runner\RollbackWalker;
  *
  * Destructive operation: requires `--confirm` to proceed. Without it, the
  * command prints a count and a hint and exits 0 (no-op preview). With it,
- * the {@see RollbackWalker} walks the id-map in reverse-creation order
- * (FR-043), asks the destination plugin to delete each entity (FR-041),
+ * the {@see RollbackWalker} walks the id-map in reverse last-imported order
+ * (FR-043 — `last_imported_at DESC`, tie-broken by `last_run_id DESC`; the
+ * id-map carries no immutable creation-order column, and `upsert()` refreshes
+ * `last_imported_at` on every re-import), asks the destination plugin to delete
+ * each entity (FR-041),
  * and drops the id-map row on success.
  *
  * Best-effort semantics (FR-044): per-record failures are captured in
@@ -36,7 +39,7 @@ use Waaseyaa\Migration\Runner\RollbackWalker;
  * @api
  *
  * @spec FR-035 — `import:rollback` entry point
- * @spec FR-043 — reverse-creation walk
+ * @spec FR-043 — reverse last-imported walk
  * @spec FR-044 — best-effort per-record rollback
  * @spec FR-061 — per-migration concurrency lock
  */
