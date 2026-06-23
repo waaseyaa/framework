@@ -35,7 +35,11 @@ final class NodeAccessPolicy implements AccessPolicyInterface
         assert($entity instanceof Node);
 
         $type = $entity->getType();
-        $isOwner = $account->id() === $entity->getAuthorId();
+        // An unauthenticated account is never an owner: the anonymous account's
+        // id() is 0, which would otherwise equal an authorless node's
+        // getAuthorId() ((int) (null) = 0), making anonymous the "owner" of every
+        // authorless node and granting it any 'own'-scoped permission it was given.
+        $isOwner = $account->isAuthenticated() && $account->id() === $entity->getAuthorId();
 
         return match ($operation) {
             'view' => $this->viewAccess($entity, $account, $isOwner),

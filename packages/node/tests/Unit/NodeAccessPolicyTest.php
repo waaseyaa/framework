@@ -84,6 +84,31 @@ final class NodeAccessPolicyTest extends TestCase
         $this->assertTrue($result->isAllowed());
     }
 
+    public function testAnonymousIsNotOwnerOfAuthorlessUnpublishedNode(): void
+    {
+        // Authorless node: getAuthorId() = (int) (null) = 0, which equals the
+        // anonymous account's id() = 0. Pre-fix `$account->id() === getAuthorId()`
+        // made anonymous the "owner", so an anon granted 'view own unpublished
+        // content' could read every authorless draft. An unauthenticated account
+        // must never be considered an owner.
+        $node = new Node(['nid' => 1, 'type' => 'article', 'status' => 0]); // no uid
+        $account = $this->createAccount(0, ['access content', 'view own unpublished content']);
+
+        $result = $this->policy->access($node, 'view', $account);
+        $this->assertTrue($result->isNeutral(), 'anonymous must not be owner of an authorless node');
+    }
+
+    public function testAnonymousCannotEditAuthorlessNodeViaOwnPermission(): void
+    {
+        // Same degenerate ownership for the mutating path: anon granted
+        // 'edit own article content' must not be able to edit an authorless node.
+        $node = new Node(['nid' => 1, 'type' => 'article', 'status' => 1]); // no uid
+        $account = $this->createAccount(0, ['edit own article content']);
+
+        $result = $this->policy->access($node, 'update', $account);
+        $this->assertTrue($result->isNeutral(), 'anonymous must not edit an authorless node as "owner"');
+    }
+
     public function testViewUnpublishedNodeAsAuthorWithoutPermission(): void
     {
         $node = new Node(['nid' => 1, 'type' => 'article', 'status' => 0, 'uid' => 5]);
@@ -296,6 +321,8 @@ final class NodeAccessPolicyTest extends TestCase
     {
         $account = $this->createMock(AccountInterface::class);
         $account->method('id')->willReturn($id);
+        // Account id 0 is the anonymous account (not authenticated).
+        $account->method('isAuthenticated')->willReturn($id !== 0);
         $account->method('hasPermission')->willReturnCallback(
             fn(string $permission): bool => \in_array($permission, $permissions, true),
         );
