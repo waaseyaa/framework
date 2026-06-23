@@ -43,9 +43,16 @@ $handler = static function () use ($projectRoot): void {
         $kernel = new HttpKernel($projectRoot);
         $response = $kernel->handle();
     } catch (\Throwable $e) {
+        // Never leak the raw boot-failure message to the client outside debug —
+        // it can carry a DB DSN, file paths, or other internals. Mirrors the
+        // framework HttpKernel's debug-gated boot-failure rendering.
         $payload = json_encode([
             'jsonapi' => ['version' => '1.1'],
-            'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => $e->getMessage()]],
+            'errors' => [[
+                'status' => '500',
+                'title' => 'Internal Server Error',
+                'detail' => \App\Http\BootFailureResponder::detail($e, getenv('APP_DEBUG')),
+            ]],
         ], JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
         $response = new Response($payload, 500, ['Content-Type' => 'application/vnd.api+json']);
     }
