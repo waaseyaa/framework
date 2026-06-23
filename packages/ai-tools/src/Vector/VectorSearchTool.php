@@ -8,6 +8,8 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
+use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
 
 /**
  * Semantic search via {@see \Waaseyaa\AI\Vector\VectorStoreInterface}
@@ -33,6 +35,7 @@ final class VectorSearchTool extends AbstractAgentTool
      * @param \Closure(): ?object $vectorStorageResolver Returns EmbeddingStorageInterface|null
      */
     public function __construct(
+        private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly \Closure $embeddingProviderResolver,
         private readonly \Closure $vectorStorageResolver,
     ) {}
@@ -90,10 +93,113 @@ final class VectorSearchTool extends AbstractAgentTool
             return AgentToolResult::error(sprintf('vector.search: %s', $e->getMessage()));
         }
 
+        $filtered = $this->applyAccessGate(is_array($results) ? $results : [], $account);
+
         return AgentToolResult::success(
-            content: [['type' => 'json', 'data' => ['results' => is_array($results) ? $results : []]]],
+            content: [['type' => 'json', 'data' => ['results' => $filtered]]],
             summary: sprintf('Vector search for "%s"', $query),
         );
+    }
+
+    /**
+     * Apply the per-entity `view` gate (and field-access filter) to each raw
+     * similarity hit, so this tool never discloses an entity id / metadata for
+     * an entity the initiating account may not view — the same contract
+     * EntityReadTool/EntityListTool/EntitySearchTool honor, which this tool was
+     * missing. A vector hit carries only a type+id (+ metadata), not a hydrated
+     * entity, so the gate must first LOAD the backing entity before it can be
+     * checked.
+     *
+     * Drop rules:
+     *  - hit whose backing (type,id) cannot be determined, or whose entity no
+     *    longer loads (stale embedding): dropped under enforcement (a hit that
+     *    cannot be gated must never be disclosed); in capability-only mode the
+     *    raw hit is preserved unchanged (no gate was ever applied there).
+     *  - hit the account may not `view`: always dropped.
+     * Surviving hits are reshaped to `{entity_type, id, score, metadata}` with
+     * metadata run through {@see applyFieldAccessFilter()} — and the raw
+     * embedding vector is no longer echoed back.
+     *
+     * @param array<int, mixed> $results
+     * @return list<array<string, mixed>|object>
+     */
+    private function applyAccessGate(array $results, AccountInterface $account): array
+    {
+        $enforced = $this->isAccessEnforced();
+        $filtered = [];
+        foreach ($results as $result) {
+            $ref = $this->describeResult($result);
+            if ($ref === null) {
+                if ($enforced) {
+                    continue;
+                }
+                $filtered[] = $result;
+                continue;
+            }
+            [$entityTypeId, $entityId, $metadata, $score] = $ref;
+
+            $entity = $this->loadEntity($entityTypeId, (string) $entityId);
+            if ($entity === null) {
+                if ($enforced) {
+                    continue;
+                }
+                $filtered[] = $result;
+                continue;
+            }
+            if (!$this->canViewEntity($entity, $account)) {
+                continue;
+            }
+
+            $filtered[] = [
+                'entity_type' => $entityTypeId,
+                'id' => $entityId,
+                'score' => $score,
+                'metadata' => $this->applyFieldAccessFilter($entity, $metadata, $account),
+            ];
+        }
+
+        return $filtered;
+    }
+
+    /**
+     * Duck-type the (entityTypeId, entityId, metadata, score) out of a similarity
+     * hit without importing the L5 `SimilarityResult`/`EntityEmbedding` value
+     * objects (this tool keeps a clean Layer-5 dependency envelope). Returns null
+     * when the hit's backing entity type+id cannot be determined.
+     *
+     * @return array{0: string, 1: int|string, 2: array<string, mixed>, 3: float}|null
+     */
+    private function describeResult(mixed $result): ?array
+    {
+        if (!is_object($result) || !isset($result->embedding) || !is_object($result->embedding)) {
+            return null;
+        }
+        $embedding = $result->embedding;
+        $type = $embedding->entityTypeId ?? null;
+        $id = $embedding->entityId ?? null;
+        if (!is_string($type) || $type === '' || (!is_string($id) && !is_int($id)) || $id === '') {
+            return null;
+        }
+        $metadata = isset($embedding->metadata) && is_array($embedding->metadata) ? $embedding->metadata : [];
+        $score = (isset($result->score) && (is_float($result->score) || is_int($result->score))) ? (float) $result->score : 0.0;
+
+        return [$type, $id, $metadata, $score];
+    }
+
+    /**
+     * Load the entity backing a hit. Returns null for an unknown type or a hit
+     * that no longer resolves (the caller fails closed under enforcement).
+     */
+    private function loadEntity(string $entityTypeId, string $entityId): ?EntityInterface
+    {
+        if (!$this->entityTypeManager->hasDefinition($entityTypeId)) {
+            return null;
+        }
+        try {
+            return $this->entityTypeManager->getRepository($entityTypeId)->find($entityId);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
