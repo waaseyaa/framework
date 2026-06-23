@@ -20,6 +20,16 @@ use Waaseyaa\Search\SearchResult;
 final class Fts5SearchProvider implements SearchProviderInterface
 {
     private const ALLOWED_SORT_COLUMNS = ['created_at', 'quality_score', 'entity_type', 'content_type'];
+
+    /**
+     * Maximum number of candidate rows examined when deriving access-filtered
+     * totalHits and facets (the checker path). Limits entity loads for broad
+     * anonymous queries. When the candidate set exceeds this cap the filtered
+     * count is conservative (under-count of the window), never an over-count,
+     * so the existence oracle stays closed.
+     */
+    private const MAX_ACCESS_SCAN = 1000;
+
     private readonly LoggerInterface $logger;
 
     /**
@@ -90,16 +100,29 @@ final class Fts5SearchProvider implements SearchProviderInterface
 
         $whereSQL = implode(' AND ', $whereClauses);
 
-        // Count total hits. NOTE: this count is taken in SQL before the
-        // per-document access filter below runs (access policies are PHP, not
-        // expressible in SQL), so totalHits/totalPages are an upper bound when
-        // a checker is wired — a page may return fewer hits than pageSize, and
-        // the count may include documents the caller cannot view. Forbidden
-        // documents are never returned in `hits`; the count is not used as a
-        // security boundary.
-        $countSQL = "SELECT COUNT(*) as cnt FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE $whereSQL";
-        $countRows = iterator_to_array($this->database->query($countSQL, $params));
-        $totalHits = (int) ($countRows[0]['cnt'] ?? 0);
+        // Count total hits and build facets.
+        //
+        // When no access checker is wired (doc-only index, no filtering anywhere)
+        // use the fast SQL COUNT + buildFacets() path unchanged — no behaviour or
+        // performance change.
+        //
+        // When a checker is wired, totalHits and facets must reflect only the
+        // documents the acting account may view. We derive both from a single
+        // bounded PHP scan (accessFilteredCountAndFacets) instead of raw SQL, so
+        // the count/facet oracle is closed for anonymous visitors on entity-backed
+        // restricted documents (WP03 / §2.2).
+        if ($this->accessChecker !== null) {
+            [$totalHits, $facets] = $this->accessFilteredCountAndFacets(
+                $whereSQL,
+                $params,
+                $request->includeFacets,
+            );
+        } else {
+            $countSQL = "SELECT COUNT(*) as cnt FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE $whereSQL";
+            $countRows = iterator_to_array($this->database->query($countSQL, $params));
+            $totalHits = (int) ($countRows[0]['cnt'] ?? 0);
+            $facets = null; // deferred to SQL buildFacets below
+        }
 
         if ($totalHits === 0) {
             $tookMs = (int) ((hrtime(true) - $startTime) / 1_000_000);
@@ -169,11 +192,14 @@ final class Fts5SearchProvider implements SearchProviderInterface
             $this->logger->warning('Search index contains stale documents. Run search:reindex to rebuild.');
         }
 
-        // Facets — run on the full filtered result set (not just the page).
-        // Gated behind SearchRequest::$includeFacets (default true) so callers
-        // that never render facets skip three unbounded GROUP BY scans, one of
-        // which is a json_each(m.topics) cross-join (audit D-36).
-        $facets = $request->includeFacets ? $this->buildFacets($whereSQL, $params) : [];
+        // Facets — when the access checker path ran, $facets is already built
+        // from the PHP scan. For the no-checker (fast SQL) path, $facets is null
+        // and we run the three GROUP BY queries here, gated behind includeFacets
+        // (audit D-36: skips the json_each cross-join for callers that never
+        // render facets).
+        if ($facets === null) {
+            $facets = $request->includeFacets ? $this->buildFacets($whereSQL, $params) : [];
+        }
 
         $tookMs = (int) ((hrtime(true) - $startTime) / 1_000_000);
 
@@ -273,6 +299,101 @@ final class Fts5SearchProvider implements SearchProviderInterface
             }
             $whereClauses[] = 'EXISTS (SELECT 1 FROM json_each(m.topics) WHERE value IN (' . implode(', ', $placeholders) . '))';
         }
+    }
+
+    /**
+     * Derives access-filtered totalHits and (optionally) facets from a single
+     * bounded PHP scan over the full candidate set when an access checker is
+     * wired. This closes the count/facet metadata oracle for anonymous visitors
+     * on entity-backed restricted documents (WP03 / §2.2).
+     *
+     * The scan is bounded by MAX_ACCESS_SCAN to prevent unbounded entity loads
+     * on broad anonymous queries. When capped, totalHits is a conservative
+     * under-count (never an over-count), so the oracle stays closed.
+     *
+     * @param array<string,mixed> $params
+     * @return array{0:int,1:SearchFacet[]}
+     */
+    private function accessFilteredCountAndFacets(string $whereSQL, array $params, bool $buildFacets): array
+    {
+        // Remove pagination params — this is the full-set scan.
+        unset($params['limit'], $params['offset']);
+
+        $candidateSQL = "SELECT m.document_id, m.entity_type, m.content_type, m.source_name, m.topics FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE $whereSQL LIMIT :scanCap";
+        $params['scanCap'] = self::MAX_ACCESS_SCAN;
+
+        $totalHits = 0;
+        $contentTypeCounts = [];
+        $sourceNameCounts = [];
+        $topicCounts = [];
+
+        foreach ($this->database->query($candidateSQL, $params) as $row) {
+            $documentId = (string) $row['document_id'];
+            $entityType = (string) ($row['entity_type'] ?? '');
+
+            if (!$this->accessChecker->canView($documentId, $entityType)) {
+                continue;
+            }
+
+            ++$totalHits;
+
+            if (!$buildFacets) {
+                continue;
+            }
+
+            $contentType = (string) ($row['content_type'] ?? '');
+            if ($contentType !== '') {
+                $contentTypeCounts[$contentType] = ($contentTypeCounts[$contentType] ?? 0) + 1;
+            }
+
+            $sourceName = (string) ($row['source_name'] ?? '');
+            if ($sourceName !== '') {
+                $sourceNameCounts[$sourceName] = ($sourceNameCounts[$sourceName] ?? 0) + 1;
+            }
+
+            $topics = json_decode((string) ($row['topics'] ?? '[]'), true, 512, JSON_THROW_ON_ERROR);
+            if (is_array($topics)) {
+                foreach ($topics as $topic) {
+                    $topic = (string) $topic;
+                    $topicCounts[$topic] = ($topicCounts[$topic] ?? 0) + 1;
+                }
+            }
+        }
+
+        if (!$buildFacets) {
+            return [$totalHits, []];
+        }
+
+        $facets = [];
+
+        if ($contentTypeCounts !== []) {
+            arsort($contentTypeCounts);
+            $buckets = [];
+            foreach ($contentTypeCounts as $key => $count) {
+                $buckets[] = new FacetBucket($key, $count);
+            }
+            $facets[] = new SearchFacet('content_type', $buckets);
+        }
+
+        if ($sourceNameCounts !== []) {
+            arsort($sourceNameCounts);
+            $buckets = [];
+            foreach ($sourceNameCounts as $key => $count) {
+                $buckets[] = new FacetBucket($key, $count);
+            }
+            $facets[] = new SearchFacet('source_name', $buckets);
+        }
+
+        if ($topicCounts !== []) {
+            arsort($topicCounts);
+            $buckets = [];
+            foreach ($topicCounts as $key => $count) {
+                $buckets[] = new FacetBucket($key, $count);
+            }
+            $facets[] = new SearchFacet('topics', $buckets);
+        }
+
+        return [$totalHits, $facets];
     }
 
     /**
