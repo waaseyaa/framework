@@ -12,9 +12,17 @@ Server-side Inertia.js v3 protocol adapter. A controller returns
 Inertia page object. `InertiaMiddleware` reads the `X-Inertia-*` headers to tell an
 initial full-page load (HTML via `RootTemplateRenderer`) from an XHR navigation (JSON
 page object), and returns `409` + `X-Inertia-Location` on an asset-version mismatch.
-`OptionalProp` / `PropResolver` defer expensive props so partial reloads (`only` /
-`except`) recompute only requested keys. Implements the foundation contracts
-`InertiaPageResultInterface` and `InertiaFullPageRendererInterface`.
+Implements the foundation contracts `InertiaPageResultInterface` and
+`InertiaFullPageRendererInterface`.
+
+> **Partial reloads are not yet wired (experimental).** `OptionalProp` and
+> `PropResolver` are provided as standalone building blocks for deferring expensive
+> props (`PropResolver::resolve($props, $only, $except)`), but nothing in this package
+> invokes them: `InertiaMiddleware` reads only `X-Inertia` / `X-Inertia-Version` (not
+> the `X-Inertia-Partial-Data` partial-reload header), and `InertiaResponse` carries the
+> full prop set unchanged. So a partial reload currently returns **all** props, not just
+> the requested keys. Honoring `only` / `except` automatically is unbuilt — call
+> `PropResolver` directly in a controller if you need it today.
 
 ## Install
 
