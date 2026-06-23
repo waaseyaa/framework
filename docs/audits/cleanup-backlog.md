@@ -161,3 +161,52 @@ this loop — clear `ignore_user_abort()` at stream start, re-probe the abort st
 write, and add a bounded time-budget cap mirroring `BroadcastRouter::streamShouldContinue()`.
 **Risk:** low (admin-only debug endpoint, gated by the monitor role) but unbounded. Source:
 `packages/api/src/Controller/MercureMonitorController.php:80-155`.
+
+### CL-13 — media/attachment: file BYTES have no authorized download path (SCOPED, flagged before diving)
+**Found:** 2026-06-23 (Track A grounding). **Entity-row access policies protect the record,
+not the bytes.** `MediaAccessPolicy` and attachment's `ParentDelegatedAccessPolicy` gate the
+entity row, but the file contents are not access-checked on any serving path. Grounding the
+"add an authorized download + private scheme" fix revealed it is **larger than a contained
+change** — three structural gaps, none a clean drop-in:
+
+1. **The framework ships NO byte-serving at all.** Uploads write bytes to
+   `MediaRouter::resolveFilesRootDir()` = `config['files_root']` or `<projectRoot>/storage/files`
+   (`packages/media/src/Http/Router/MediaRouter.php:147,95`), already **outside** the web root,
+   and return a `/files/<name>` URL (`:221-234`). But nothing in the framework or the skeleton
+   serves `/files/` — `skeleton/public/` contains only `index.php` (no symlink, no Caddyfile, no
+   route, no static handler; repo-wide grep finds no `/files` route). So the `public://` scheme +
+   `/files/` URL is a **convention a consuming app must wire** (e.g. symlink `public/files →
+   storage/files`), which is precisely what would make bytes world-readable. There is no existing
+   public-byte-serving in-framework to migrate — but also no safe authorized path to serve from.
+2. **No file→entity→policy linkage.** The upload endpoint creates a `File` metadata sidecar
+   (`LocalFileRepository`, which stores only `.meta.json`, not bytes) carrying `ownerId` = the
+   *uploader user id* — NOT a link to the `media`/`attachment` ENTITY whose `AccessPolicy` would
+   gate it. The `media` entity is a generic `ContentEntityBase` with no explicit file-uri field;
+   attachment stores `storage_uri` in its `_data` blob. So "serve bytes under the SAME policy
+   gating the owning entity" cannot be done without first **modeling the ownership link** (which
+   entity owns this file) and a per-entity-type file-uri resolution (media field vs attachment
+   `_data`).
+3. **No public-vs-private classification.** Every upload is `public://`; there is no `private://`
+   notion, no per-upload private flag, and no policy deciding which assets (avatars vs. sensitive
+   docs) are public.
+
+**Proposed approach (deliberate, not yet implemented):** (a) add a `private://` scheme that
+`LocalFileRepository`/`MediaRouter` route to a `storage/files/private/` tree never exposed under
+the public `/files/` prefix; (b) add an **entity-keyed** authorized download controller
+(`GET /media/{id}/download`, `GET /attachment/{id}/download`) that loads the entity, runs
+`EntityAccessHandler::check($entity, 'view', $account)->isAllowed()` (deny-by-default,
+fail-closed, 404-on-deny to avoid an existence oracle — mirroring `JsonApiController`), resolves
+the entity's file uri, and streams bytes via `StreamedResponse`; (c) let uploads opt into
+`private://`; (d) leave legitimately-public assets (avatars) on `public://`, unaffected.
+**Tradeoffs / decisions needed before diving:** the file↔entity ownership model (today `File`
+is decoupled from the entity, and `File.ownerId` is the uploader, a weaker notion than the
+entity's view policy); whether to cover `attachment` (different storage shape) in the same pass;
+whether to keep the `public://`+`/files/` convention or document it as "host must serve, and must
+NOT serve `private://`". **No existing-URL breakage / no storage migration** for current public
+files (they're already outside the web root and unserved in-framework), so the change is additive
+— but it is **new capability spanning an ownership model + two entity types + a serve controller**,
+not a one-route gate. **Risk:** medium (new authorized-download surface; getting the deny-by-default
++ existence-oracle semantics right; per-entity-type file resolution). Source:
+`packages/media/src/Http/Router/MediaRouter.php`, `packages/media/src/LocalFileRepository.php`,
+`packages/attachment/src/Schema/AttachmentSchema.php`. **Note:** not a claim-vs-code defect — no
+README/spec promises gated downloads — so this is a latent design gap, not a false guarantee.
