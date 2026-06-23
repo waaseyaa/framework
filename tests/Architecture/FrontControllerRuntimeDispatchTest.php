@@ -101,6 +101,34 @@ final class FrontControllerRuntimeDispatchTest extends TestCase
     }
 
     #[Test]
+    public function noFrontControllerLeaksTheRawBootFailureMessage(): void
+    {
+        // A catastrophic boot failure (around new HttpKernel() / handle()) must
+        // NOT return the raw exception message to the client unconditionally — it
+        // can carry a DB DSN, file paths, or other internals. Every copy must gate
+        // the detail behind APP_DEBUG: golden/skeleton/stub via
+        // App\Http\BootFailureResponder::detail(...); the framework-repo dev copy
+        // via an inline filter_var(APP_DEBUG, FILTER_VALIDATE_BOOLEAN) ternary.
+        // Pre-fix, the make:public stub and the repo front controller emitted
+        // `'detail' => $e->getMessage()` directly (audit Medium; the stub leaked
+        // into every freshly scaffolded app).
+        foreach (self::allFrontControllers() as $relative) {
+            $source = self::read($relative);
+
+            $this->assertStringNotContainsString(
+                "'detail' => \$e->getMessage()",
+                $source,
+                "{$relative} leaks the raw boot-failure exception message to the client (must be debug-gated).",
+            );
+            $this->assertStringContainsString(
+                'APP_DEBUG',
+                $source,
+                "{$relative} must gate the boot-failure detail behind APP_DEBUG.",
+            );
+        }
+    }
+
+    #[Test]
     public function skeletonStubAndGoldenStayByteIdentical(): void
     {
         $golden = self::read(self::GOLDEN);

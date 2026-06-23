@@ -42,9 +42,23 @@ $handler = static function () use ($projectRoot): void {
         $kernel = new HttpKernel($projectRoot);
         $response = $kernel->handle();
     } catch (\Throwable $e) {
+        // Never leak the raw boot-failure message to the client outside debug —
+        // it can carry a DB DSN, file paths, or other internals. The scaffolded
+        // skeleton front controller delegates this to App\Http\BootFailureResponder;
+        // this framework-repo dev copy inlines the same debug-gate because the repo
+        // root has no App\ namespace. Mirrors the framework HttpKernel's own
+        // debug-gated boot-failure rendering.
+        $appDebug = getenv('APP_DEBUG');
+        $detail = filter_var(($appDebug === false) ? '' : $appDebug, FILTER_VALIDATE_BOOLEAN)
+            ? $e->getMessage()
+            : 'The server encountered an internal error and could not complete your request.';
         $payload = json_encode([
             'jsonapi' => ['version' => '1.1'],
-            'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => $e->getMessage()]],
+            'errors' => [[
+                'status' => '500',
+                'title' => 'Internal Server Error',
+                'detail' => $detail,
+            ]],
         ], JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
         $response = new Response($payload, 500, ['Content-Type' => 'application/vnd.api+json']);
     }
