@@ -73,13 +73,7 @@ Machine-readable source: `docs/public-surface-map.php`.
 
 | Element | Type | Purpose |
 |---------|------|---------|
-| `TypedDataInterface` | interface | Typed wrapper around a scalar or complex value with validation and string casting |
-| `DataDefinitionInterface` | interface | Describes a typed data property: type, label, required, read-only, constraints |
-| `ComplexDataInterface` | interface | Typed data with named properties (traversable, get/set by name) |
-| `ListInterface` | interface | Ordered, typed list of `TypedDataInterface` items |
-| `PrimitiveInterface` | interface | Typed scalar value with cast accessor |
-| `TypedDataManagerInterface` | interface | Creates typed data definitions and instances by data type name |
-| `CastTokenMapper` | final class | Maps entity `$casts` tokens to `TypedDataManager` data type names (#1185) |
+| `DataDefinitionInterface` | interface | Describes a typed data property: type, label, required, read-only, constraints (extended by `FieldDefinitionInterface`) |
 | `CoercionException` | final class | Thrown when entity-parity primitive/JSON-array coercion fails (#1185) |
 | `EntityCastCoercion` | final class | Storage ↔ domain coercion for `int`/`float`/`bool`/`string`/`array` casts (#1185) |
 

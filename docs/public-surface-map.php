@@ -94,13 +94,13 @@ return [
     'Waaseyaa\Plugin\PluginInspectionInterface' => 'public',
     'Waaseyaa\Plugin\PluginManagerInterface' => 'public',
     'Waaseyaa\Plugin\PluginBase' => 'public',
-    'Waaseyaa\TypedData\TypedDataInterface' => 'public',
+    // Field-definition contract (extended by waaseyaa/field's FieldDefinitionInterface)
+    // and the entity-cast coercion seam (consumed by ValueCaster). The TypedData
+    // instance type-system (TypedDataInterface/ComplexDataInterface/ListInterface/
+    // PrimitiveInterface/TypedDataManager + Type\* + CastTokenMapper + concrete
+    // DataDefinition) was removed in audit C-24 train 3 — it was the dead Field-API
+    // item layer's ancestry and had no production consumers once that layer went.
     'Waaseyaa\TypedData\DataDefinitionInterface' => 'public',
-    'Waaseyaa\TypedData\ComplexDataInterface' => 'public',
-    'Waaseyaa\TypedData\ListInterface' => 'public',
-    'Waaseyaa\TypedData\PrimitiveInterface' => 'public',
-    'Waaseyaa\TypedData\TypedDataManagerInterface' => 'public',
-    'Waaseyaa\TypedData\CastTokenMapper' => 'public',
     'Waaseyaa\TypedData\Coercion\CoercionException' => 'public',
     'Waaseyaa\TypedData\Coercion\EntityCastCoercion' => 'public',
     'Waaseyaa\I18n\LanguageManagerInterface' => 'public',

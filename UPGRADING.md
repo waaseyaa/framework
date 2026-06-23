@@ -48,6 +48,34 @@ no shim (pre-1.0-alpha): update the parent class. If you relied on the `computed
 field type or `ComputedFieldInterface`, note it had no production wiring (its
 `compute()` had zero callers); compute derived values in your application code.
 
+### TypedData instance type-system removed (Waaseyaa\TypedData)
+
+The TypedData instance type-system — the ancestry of the field item layer
+removed above — had no production consumers once that layer was gone, and is
+removed (audit C-24, train 3). The following types are **gone**:
+
+- `Waaseyaa\TypedData\TypedDataInterface`, `ComplexDataInterface`,
+  `ListInterface`, `PrimitiveInterface`, `TypedDataManagerInterface`
+- `Waaseyaa\TypedData\TypedDataManager` and the six
+  `Waaseyaa\TypedData\Type\{Boolean,Float,Integer,List,Map,String}Data`
+- `Waaseyaa\TypedData\CastTokenMapper` (no production caller — `ValueCaster`
+  never used it)
+- the **concrete** `Waaseyaa\TypedData\DataDefinition` (created only by the
+  removed `TypedDataManager`)
+
+**Kept and unchanged** — the live half of the package:
+
+- `Waaseyaa\TypedData\DataDefinitionInterface` — the field-definition contract,
+  extended by `Waaseyaa\Field\FieldDefinitionInterface`.
+- `Waaseyaa\TypedData\Coercion\EntityCastCoercion` and
+  `Waaseyaa\TypedData\Coercion\CoercionException` — the entity-cast coercion
+  seam consumed by `Waaseyaa\Entity\Cast\ValueCaster`. Entity `$casts` behaviour
+  is unchanged.
+
+If you constructed `TypedDataManager` or the `Type\*Data` value objects directly
+(no framework path did), there is no shim (pre-1.0-alpha). The `DataDefinition`
+*interface* remains; only the standalone concrete value object is gone.
+
 ### `FieldDefinition` constructor parameters added (Waaseyaa\Field)
 
 `Waaseyaa\Field\FieldDefinition::__construct` gained two trailing optional
