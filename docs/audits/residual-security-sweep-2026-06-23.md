@@ -44,15 +44,16 @@ code).
 
 These are framework-owned and reachable; each warrants its own failing-first PR.
 
-### 2.1 `VectorSearchTool` returns results with no per-entity view filter — **[agent-reported]**
-- Evidence: `ai-tools/src/Vector/VectorSearchTool.php:60-97` checks only
-  `requireCapability('tool.vector.search')`, then returns `$storage->search(...)`
+### 2.1 `VectorSearchTool` returns results with no per-entity view filter — **FIXED, PR #1771 (merged)**
+- Evidence (pre-fix): `ai-tools/src/Vector/VectorSearchTool.php:60-97` checked only
+  `requireCapability('tool.vector.search')`, then returned `$storage->search(...)`
   raw (entity ids + metadata) with no `canViewEntity` filter.
 - Reachability: NOT in the anon allowlist (so not anon-reachable), but reachable
   by any authenticated initiator granted `tool.vector.search` without `view` on
   the matched entities. Same class as #1768.
-- Recommendation: apply `canViewEntity()` + `applyFieldAccessFilter()` per result
-  (mirror #1768). Low risk.
+- Resolution: applied `canViewEntity()` + per-entity field-access filter per
+  result (mirrors #1768). Shipped failing-first as **PR #1771**, squash-merged to
+  `main` (merge commit `0a05f2e9d`, 2026-06-23). **[confirmed]**
 
 ### 2.2 Search `totalHits`/`totalPages`/facets leak access-restricted counts + metadata — **[agent-reported]**
 - Evidence: `search/src/Fts5/Fts5SearchProvider.php:100-102` computes `totalHits`

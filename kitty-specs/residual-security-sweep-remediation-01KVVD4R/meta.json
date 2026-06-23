@@ -1,0 +1,13 @@
+{
+  "coordination_branch": "kitty/mission-residual-security-sweep-remediation-01KVVD4R",
+  "created_at": "2026-06-23T23:30:43.274912+00:00",
+  "friendly_name": "residual security sweep remediation",
+  "mission_id": "01KVVD4RE9GBAGVBBSZAR0VVNM",
+  "mission_number": null,
+  "mission_slug": "residual-security-sweep-remediation-01KVVD4R",
+  "mission_type": "software-dev",
+  "purpose_context": "This mission advances residual security sweep remediation on main so stakeholders can track the work from mission creation onward.",
+  "purpose_tldr": "residual security sweep remediation",
+  "slug": "residual-security-sweep-remediation-01KVVD4R",
+  "target_branch": "main"
+}
