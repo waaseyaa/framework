@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Field\Item;
 
+use Waaseyaa\Field\AbstractFieldType;
 use Waaseyaa\Field\Attribute\FieldType;
 use Waaseyaa\Field\FieldDefinitionInterface;
-use Waaseyaa\Field\FieldItemBase;
 
 /**
  * Field-type plugin for backed PHP enums.
@@ -25,7 +25,7 @@ use Waaseyaa\Field\FieldItemBase;
  * @api
  */
 #[FieldType(id: 'enum', label: 'Enum')]
-final class EnumItem extends FieldItemBase
+final class EnumItem extends AbstractFieldType
 {
     /**
      * Memoization cache for `\ReflectionEnum`, keyed by enum FQCN.
@@ -36,18 +36,6 @@ final class EnumItem extends FieldItemBase
      * @var array<class-string, \ReflectionEnum>
      */
     private static array $reflectionCache = [];
-
-    public static function propertyDefinitions(): array
-    {
-        return [
-            'value' => 'string',
-        ];
-    }
-
-    public static function mainPropertyName(): string
-    {
-        return 'value';
-    }
 
     public static function defaultSettings(): array
     {

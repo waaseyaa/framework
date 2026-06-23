@@ -169,7 +169,7 @@ final class FieldDefinitionRegistryTest extends TestCase
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage(
-            'Field "status" on entity type "group" bundle "business" collides with core field "status" on entity type "group".'
+            'Field "status" on entity type "group" bundle "business" collides with core field "status" on entity type "group".',
         );
 
         $registry->registerBundleFields('group', 'business', ['status' => $bundleStatus]);

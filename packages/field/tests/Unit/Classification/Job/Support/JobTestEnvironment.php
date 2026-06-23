@@ -33,7 +33,7 @@ trait JobTestEnvironment
      */
     private function makeEntityTypeManager(array $storages): EntityTypeManager
     {
-        return new class(new EventDispatcher(), $storages) extends EntityTypeManager {
+        return new class (new EventDispatcher(), $storages) extends EntityTypeManager {
             /** @param array<string, FakeStorage> $storages */
             public function __construct(
                 EventDispatcher $dispatcher,

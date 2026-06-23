@@ -108,7 +108,7 @@ final class ClassificationFieldAccessPolicyTest extends TestCase
 
         self::assertTrue(
             $result->isForbidden(),
-            "Hold-override (C-004 / FR-013) failed: admin without "
+            'Hold-override (C-004 / FR-013) failed: admin without '
             . "'legal-hold-bypass' permission must be forbidden from reading "
             . "'hold-legal' entities. Got {$result->status->name}: '{$result->reason}'.",
         );
@@ -232,7 +232,7 @@ final class ClassificationFieldAccessPolicyTest extends TestCase
      */
     private function labelRegistry(array $labels): ClassificationLabelRegistryInterface
     {
-        return new class($labels) implements ClassificationLabelRegistryInterface {
+        return new class ($labels) implements ClassificationLabelRegistryInterface {
             /** @param array<string, int> $labels */
             public function __construct(private readonly array $labels) {}
 
@@ -261,7 +261,7 @@ final class ClassificationFieldAccessPolicyTest extends TestCase
      */
     private function clearanceChecker(array $roleLevels): ClassificationClearanceCheckerInterface
     {
-        return new class($roleLevels) implements ClassificationClearanceCheckerInterface {
+        return new class ($roleLevels) implements ClassificationClearanceCheckerInterface {
             /** @param array<string, int> $roleLevels */
             public function __construct(private readonly array $roleLevels) {}
 
@@ -286,7 +286,7 @@ final class ClassificationFieldAccessPolicyTest extends TestCase
      */
     private function account(array $roles, array $permissions = []): AccountInterface
     {
-        return new class($roles, $permissions) implements AccountInterface {
+        return new class ($roles, $permissions) implements AccountInterface {
             /**
              * @param list<string>        $roles
              * @param array<string, true> $permissions
@@ -326,7 +326,7 @@ final class ClassificationFieldAccessPolicyTest extends TestCase
             $values['classification_label'] = $labelId;
         }
 
-        return new class($values) extends ContentEntityBase {
+        return new class ($values) extends ContentEntityBase {
             /**
              * @param array<string, mixed>  $values
              * @param array<string, string> $entityKeys

@@ -118,7 +118,7 @@ final class BundleTemplateCompilerTest extends TestCase
         $compiler = new BundleTemplateCompiler($registry);
 
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches("/Duplicate prompt alias/");
+        $this->expectExceptionMessageMatches('/Duplicate prompt alias/');
 
         $compiler->compile([DuplicateAliasTemplate::class]);
     }

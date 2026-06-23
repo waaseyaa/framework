@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Field\Tests\Unit;
 
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Field\FieldTypeManager;
 use Waaseyaa\Field\FieldTypeManagerInterface;
 use Waaseyaa\Field\Item\BooleanItem;
@@ -13,7 +14,6 @@ use Waaseyaa\Field\Item\IntegerItem;
 use Waaseyaa\Field\Item\StringItem;
 use Waaseyaa\Field\Item\TextItem;
 use Waaseyaa\Plugin\PluginManagerInterface;
-use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \Waaseyaa\Field\FieldTypeManager

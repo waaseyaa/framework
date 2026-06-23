@@ -2,6 +2,52 @@
 
 ## Unreleased
 
+### Field-API item/value-object layer removed — custom field types extend `AbstractFieldType` (Waaseyaa\Field)
+
+The dead Drupal-lineage field item-object layer was removed (audit C-24). The
+following types are **gone**:
+
+- `Waaseyaa\Field\FieldItemBase` (the old field-type plugin base)
+- `Waaseyaa\Field\FieldItemInterface`, `Waaseyaa\Field\FieldItemListInterface`
+- `Waaseyaa\Field\FieldItemList`, `Waaseyaa\Field\PropertyValue`
+- `Waaseyaa\Field\ComputedFieldInterface` and the `computed` field type
+  (`Waaseyaa\Field\Item\ComputedItem`)
+
+**If you have a custom field type**, change its parent class from `FieldItemBase`
+to the new public base `Waaseyaa\Field\AbstractFieldType`:
+
+```php
+// Before:
+use Waaseyaa\Field\FieldItemBase;
+#[FieldType(id: 'my_type', /* … */)]
+final class MyTypeItem extends FieldItemBase
+{
+    public static function schema(): array { /* … */ }
+    public static function jsonSchema(): array { /* … */ }
+    // propertyDefinitions()/mainPropertyName() — no longer needed; remove them.
+}
+
+// After:
+use Waaseyaa\Field\AbstractFieldType;
+#[FieldType(id: 'my_type', /* … */)]
+final class MyTypeItem extends AbstractFieldType
+{
+    public static function schema(): array { /* … */ }
+    public static function jsonSchema(): array { /* … */ }
+}
+```
+
+The static descriptor seam (`schema`, `jsonSchema`, `defaultSettings`,
+`defaultValue`, `jsonSchemaFor`, `schemaFor`) and `FieldTypeInterface` are
+unchanged — `FieldTypeManager` resolution is identical. The removed instance
+methods (`get`/`set`/`getValue`/`getProperties`/`toArray`/`isEmpty`/`validate`/
+`getString`) and the static `propertyDefinitions()`/`mainPropertyName()` were
+instantiated/called nowhere in production; entity field values flow through the
+`_data`/`$values` path on `ContentEntityBase`, not an item-object layer. There is
+no shim (pre-1.0-alpha): update the parent class. If you relied on the `computed`
+field type or `ComputedFieldInterface`, note it had no production wiring (its
+`compute()` had zero callers); compute derived values in your application code.
+
 ### `FieldDefinition` constructor parameters added (Waaseyaa\Field)
 
 `Waaseyaa\Field\FieldDefinition::__construct` gained two trailing optional

@@ -50,7 +50,7 @@ final class RedactJobTest extends TestCase
         ]);
         $audit = $this->recordingAuditWriter();
 
-        (new RedactJob($etm, $audit))->run();
+        new RedactJob($etm, $audit)->run();
 
         // PII fields nulled.
         self::assertNull($person->get('ssn'));
@@ -96,7 +96,7 @@ final class RedactJobTest extends TestCase
         ]);
         $audit = $this->recordingAuditWriter();
 
-        (new RedactJob($etm, $audit))->run();
+        new RedactJob($etm, $audit)->run();
 
         self::assertSame('sensitive', $plain->get('body'), 'no PII metadata → nothing redacted');
         self::assertSame([], $audit->recorded);
@@ -130,7 +130,7 @@ final class RedactJobTest extends TestCase
         ]);
         $audit = $this->recordingAuditWriter();
 
-        (new RedactJob($etm, $audit))->run();
+        new RedactJob($etm, $audit)->run();
 
         self::assertSame('123-45-6789', $person->get('ssn'), 'exempt entity is not redacted');
         self::assertSame([], $audit->recorded);

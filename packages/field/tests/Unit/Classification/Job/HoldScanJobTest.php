@@ -50,7 +50,7 @@ final class HoldScanJobTest extends TestCase
         ]);
         $audit = $this->recordingAuditWriter();
 
-        (new HoldScanJob($etm, $audit))->run();
+        new HoldScanJob($etm, $audit)->run();
 
         $conflicts = array_values(array_filter(
             $audit->recorded,
@@ -96,7 +96,7 @@ final class HoldScanJobTest extends TestCase
         ]);
         $audit = $this->recordingAuditWriter();
 
-        (new HoldScanJob($etm, $audit))->run();
+        new HoldScanJob($etm, $audit)->run();
 
         self::assertSame([], $audit->recorded, 'no overlapping purge policy → no conflict');
     }
@@ -125,7 +125,7 @@ final class HoldScanJobTest extends TestCase
         ]);
         $audit = $this->recordingAuditWriter();
 
-        (new HoldScanJob($etm, $audit))->run();
+        new HoldScanJob($etm, $audit)->run();
 
         self::assertSame([], $audit->recorded);
     }

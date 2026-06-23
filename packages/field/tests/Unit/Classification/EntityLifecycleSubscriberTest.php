@@ -11,7 +11,6 @@ use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\Event\EntityEvent;
-use Waaseyaa\Field\Classification\ClassificationDecision;
 use Waaseyaa\Field\Classification\ClassificationParentResolverInterface;
 use Waaseyaa\Field\Classification\EntityLifecycleSubscriber;
 use Waaseyaa\Field\Classification\LabelInheritanceResolver;
@@ -30,7 +29,7 @@ final class EntityLifecycleSubscriberTest extends TestCase
         string $uuid = 'entity-uuid-001',
         bool $isNew = true,
     ): EntityInterface {
-        return new class($entityTypeId, $fields, $uuid, $isNew) implements EntityInterface {
+        return new class ($entityTypeId, $fields, $uuid, $isNew) implements EntityInterface {
             /** @var array<string, mixed> */
             public array $fields;
 
@@ -43,17 +42,51 @@ final class EntityLifecycleSubscriberTest extends TestCase
                 $this->fields = $fields;
             }
 
-            public function id(): int|string|null { return 1; }
-            public function uuid(): string { return $this->uuid; }
-            public function getEntityTypeId(): string { return $this->entityTypeId; }
-            public function bundle(): string { return $this->entityTypeId; }
-            public function language(): string { return 'en'; }
-            public function get(string $name): mixed { return $this->fields[$name] ?? null; }
-            public function set(string $name, mixed $value): static { $this->fields[$name] = $value; return $this; }
-            public function isNew(): bool { return $this->new; }
-            public function label(): string { return ''; }
-            public function toArray(): array { return $this->fields; }
-            public function getCastSpecForField(string $field): string|array|null { return null; }
+            public function id(): int|string|null
+            {
+                return 1;
+            }
+            public function uuid(): string
+            {
+                return $this->uuid;
+            }
+            public function getEntityTypeId(): string
+            {
+                return $this->entityTypeId;
+            }
+            public function bundle(): string
+            {
+                return $this->entityTypeId;
+            }
+            public function language(): string
+            {
+                return 'en';
+            }
+            public function get(string $name): mixed
+            {
+                return $this->fields[$name] ?? null;
+            }
+            public function set(string $name, mixed $value): static
+            {
+                $this->fields[$name] = $value;
+                return $this;
+            }
+            public function isNew(): bool
+            {
+                return $this->new;
+            }
+            public function label(): string
+            {
+                return '';
+            }
+            public function toArray(): array
+            {
+                return $this->fields;
+            }
+            public function getCastSpecForField(string $field): string|array|null
+            {
+                return null;
+            }
             public function enforceIsNew(): void {}
         };
     }
@@ -70,7 +103,10 @@ final class EntityLifecycleSubscriberTest extends TestCase
         $auditWriter = new class implements AuditWriterInterface {
             /** @var list<AuditEventDescriptor> */
             public array $recorded = [];
-            public function record(AuditEventDescriptor $descriptor): void { $this->recorded[] = $descriptor; }
+            public function record(AuditEventDescriptor $descriptor): void
+            {
+                $this->recorded[] = $descriptor;
+            }
         };
 
         $resolver = new LabelInheritanceResolver();
@@ -92,7 +128,10 @@ final class EntityLifecycleSubscriberTest extends TestCase
         $auditWriter = new class implements AuditWriterInterface {
             /** @var list<AuditEventDescriptor> */
             public array $recorded = [];
-            public function record(AuditEventDescriptor $descriptor): void { $this->recorded[] = $descriptor; }
+            public function record(AuditEventDescriptor $descriptor): void
+            {
+                $this->recorded[] = $descriptor;
+            }
         };
 
         $resolver = new LabelInheritanceResolver();
@@ -116,7 +155,10 @@ final class EntityLifecycleSubscriberTest extends TestCase
         $auditWriter = new class implements AuditWriterInterface {
             /** @var list<AuditEventDescriptor> */
             public array $recorded = [];
-            public function record(AuditEventDescriptor $descriptor): void { $this->recorded[] = $descriptor; }
+            public function record(AuditEventDescriptor $descriptor): void
+            {
+                $this->recorded[] = $descriptor;
+            }
         };
 
         $resolver = new LabelInheritanceResolver();
@@ -134,16 +176,25 @@ final class EntityLifecycleSubscriberTest extends TestCase
         $parent = $this->makeEntity('node', ['classification_label' => 'restricted'], 'parent-uuid-001');
         $child = $this->makeEntity('node', []);
 
-        $parentResolver = new class($parent) implements ClassificationParentResolverInterface {
+        $parentResolver = new class ($parent) implements ClassificationParentResolverInterface {
             public function __construct(private EntityInterface $parent) {}
-            public function getSupportedEntityTypeId(): string { return 'node'; }
-            public function resolveParent(EntityInterface $entity): ?EntityInterface { return $this->parent; }
+            public function getSupportedEntityTypeId(): string
+            {
+                return 'node';
+            }
+            public function resolveParent(EntityInterface $entity): ?EntityInterface
+            {
+                return $this->parent;
+            }
         };
 
         $auditWriter = new class implements AuditWriterInterface {
             /** @var list<AuditEventDescriptor> */
             public array $recorded = [];
-            public function record(AuditEventDescriptor $descriptor): void { $this->recorded[] = $descriptor; }
+            public function record(AuditEventDescriptor $descriptor): void
+            {
+                $this->recorded[] = $descriptor;
+            }
         };
 
         $resolver = new LabelInheritanceResolver();
@@ -168,7 +219,8 @@ final class EntityLifecycleSubscriberTest extends TestCase
         $original = $this->makeEntity('node', ['classification_label' => 'public']);
 
         $auditWriter = new class implements AuditWriterInterface {
-            public function record(AuditEventDescriptor $descriptor): void {
+            public function record(AuditEventDescriptor $descriptor): void
+            {
                 throw new \RuntimeException('audit backend offline');
             }
         };

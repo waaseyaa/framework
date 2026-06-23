@@ -15,12 +15,12 @@ use Waaseyaa\Field\FieldTypeManager;
  * The pre-refactor implementation was a hardcoded match in
  * FieldDefinition::toJsonSchema(); that mapping is now reachable via two
  * paths: (1) the manager-less fallback inside FieldDefinition, and (2)
- * FieldItemBase::jsonSchemaFor() called via FieldTypeManager. This test
+ * AbstractFieldType::jsonSchemaFor() called via FieldTypeManager. This test
  * exercises both paths and asserts the same expected literal arrays for
  * every legacy id.
  *
  * @covers \Waaseyaa\Field\FieldDefinition::toJsonSchema
- * @covers \Waaseyaa\Field\FieldItemBase::jsonSchemaFor
+ * @covers \Waaseyaa\Field\AbstractFieldType::jsonSchemaFor
  * @covers \Waaseyaa\Field\FieldTypeManager::jsonSchemaFor
  */
 final class FieldDefinitionJsonSchemaRegressionTest extends TestCase

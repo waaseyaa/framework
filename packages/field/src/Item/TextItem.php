@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Field\Item;
 
+use Waaseyaa\Field\AbstractFieldType;
 use Waaseyaa\Field\Attribute\FieldType;
-use Waaseyaa\Field\FieldItemBase;
 
 #[FieldType(
     id: 'text',
@@ -17,21 +17,8 @@ use Waaseyaa\Field\FieldItemBase;
 /**
  * @api
  */
-final class TextItem extends FieldItemBase
+final class TextItem extends AbstractFieldType
 {
-    public static function propertyDefinitions(): array
-    {
-        return [
-            'value' => 'string',
-            'format' => 'string',
-        ];
-    }
-
-    public static function mainPropertyName(): string
-    {
-        return 'value';
-    }
-
     public static function schema(): array
     {
         return [

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Field\Item;
 
+use Waaseyaa\Field\AbstractFieldType;
 use Waaseyaa\Field\Attribute\FieldType;
-use Waaseyaa\Field\FieldItemBase;
 
 #[FieldType(
     id: 'integer',
@@ -17,20 +17,8 @@ use Waaseyaa\Field\FieldItemBase;
 /**
  * @api
  */
-final class IntegerItem extends FieldItemBase
+final class IntegerItem extends AbstractFieldType
 {
-    public static function propertyDefinitions(): array
-    {
-        return [
-            'value' => 'integer',
-        ];
-    }
-
-    public static function mainPropertyName(): string
-    {
-        return 'value';
-    }
-
     public static function schema(): array
     {
         return [

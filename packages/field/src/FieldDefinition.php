@@ -122,7 +122,7 @@ final readonly class FieldDefinition implements FieldDefinitionInterface, \Array
      * Fallback JSON Schema mapping used when no FieldTypeManager has been
      * threaded through construction.
      *
-     * Mirrors FieldItemBase::jsonSchemaFor() exactly so manager-less
+     * Mirrors AbstractFieldType::jsonSchemaFor() exactly so manager-less
      * construction (unit tests, ad-hoc callers) and manager-driven
      * construction emit bit-identical output for every existing field type.
      * EnumItem (WP02) only takes effect when a manager is present.

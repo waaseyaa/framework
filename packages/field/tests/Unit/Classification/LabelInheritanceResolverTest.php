@@ -26,24 +26,58 @@ final class LabelInheritanceResolverTest extends TestCase
         array $fields = [],
         string $uuid = 'entity-uuid-001',
     ): EntityInterface {
-        return new class($entityTypeId, $fields, $uuid) implements EntityInterface {
+        return new class ($entityTypeId, $fields, $uuid) implements EntityInterface {
             public function __construct(
                 private string $entityTypeId,
                 private array $fields,
                 private string $uuid,
             ) {}
 
-            public function id(): int|string|null { return 1; }
-            public function uuid(): string { return $this->uuid; }
-            public function getEntityTypeId(): string { return $this->entityTypeId; }
-            public function bundle(): string { return $this->entityTypeId; }
-            public function language(): string { return 'en'; }
-            public function get(string $name): mixed { return $this->fields[$name] ?? null; }
-            public function set(string $name, mixed $value): static { $this->fields[$name] = $value; return $this; }
-            public function isNew(): bool { return false; }
-            public function label(): string { return ''; }
-            public function toArray(): array { return $this->fields; }
-            public function getCastSpecForField(string $field): string|array|null { return null; }
+            public function id(): int|string|null
+            {
+                return 1;
+            }
+            public function uuid(): string
+            {
+                return $this->uuid;
+            }
+            public function getEntityTypeId(): string
+            {
+                return $this->entityTypeId;
+            }
+            public function bundle(): string
+            {
+                return $this->entityTypeId;
+            }
+            public function language(): string
+            {
+                return 'en';
+            }
+            public function get(string $name): mixed
+            {
+                return $this->fields[$name] ?? null;
+            }
+            public function set(string $name, mixed $value): static
+            {
+                $this->fields[$name] = $value;
+                return $this;
+            }
+            public function isNew(): bool
+            {
+                return false;
+            }
+            public function label(): string
+            {
+                return '';
+            }
+            public function toArray(): array
+            {
+                return $this->fields;
+            }
+            public function getCastSpecForField(string $field): string|array|null
+            {
+                return null;
+            }
             public function enforceIsNew(): void {}
         };
     }
@@ -92,10 +126,16 @@ final class LabelInheritanceResolverTest extends TestCase
         $parent = $this->makeEntity('node', ['classification_label' => 'internal'], 'parent-uuid-abc');
         $child = $this->makeEntity('node', []);
 
-        $parentResolver = new class($parent) implements ClassificationParentResolverInterface {
+        $parentResolver = new class ($parent) implements ClassificationParentResolverInterface {
             public function __construct(private EntityInterface $parent) {}
-            public function getSupportedEntityTypeId(): string { return 'node'; }
-            public function resolveParent(EntityInterface $entity): ?EntityInterface { return $this->parent; }
+            public function getSupportedEntityTypeId(): string
+            {
+                return 'node';
+            }
+            public function resolveParent(EntityInterface $entity): ?EntityInterface
+            {
+                return $this->parent;
+            }
         };
 
         $resolver = $this->makeResolver();
@@ -114,10 +154,16 @@ final class LabelInheritanceResolverTest extends TestCase
         $parent = $this->makeEntity('node', ['classification_label' => null], 'parent-uuid-xyz');
         $child = $this->makeEntity('node', []);
 
-        $parentResolver = new class($parent) implements ClassificationParentResolverInterface {
+        $parentResolver = new class ($parent) implements ClassificationParentResolverInterface {
             public function __construct(private EntityInterface $parent) {}
-            public function getSupportedEntityTypeId(): string { return 'node'; }
-            public function resolveParent(EntityInterface $entity): ?EntityInterface { return $this->parent; }
+            public function getSupportedEntityTypeId(): string
+            {
+                return 'node';
+            }
+            public function resolveParent(EntityInterface $entity): ?EntityInterface
+            {
+                return $this->parent;
+            }
         };
 
         $resolver = $this->makeResolver();
@@ -147,8 +193,14 @@ final class LabelInheritanceResolverTest extends TestCase
         $entity = $this->makeEntity('node', []);
 
         $parentResolver = new class implements ClassificationParentResolverInterface {
-            public function getSupportedEntityTypeId(): string { return 'node'; }
-            public function resolveParent(EntityInterface $entity): ?EntityInterface { return null; }
+            public function getSupportedEntityTypeId(): string
+            {
+                return 'node';
+            }
+            public function resolveParent(EntityInterface $entity): ?EntityInterface
+            {
+                return null;
+            }
         };
 
         $resolver = $this->makeResolver();

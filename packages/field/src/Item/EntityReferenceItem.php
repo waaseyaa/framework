@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Field\Item;
 
+use Waaseyaa\Field\AbstractFieldType;
 use Waaseyaa\Field\Attribute\FieldType;
-use Waaseyaa\Field\FieldItemBase;
 
 #[FieldType(
     id: 'entity_reference',
@@ -17,21 +17,8 @@ use Waaseyaa\Field\FieldItemBase;
 /**
  * @api
  */
-final class EntityReferenceItem extends FieldItemBase
+final class EntityReferenceItem extends AbstractFieldType
 {
-    public static function propertyDefinitions(): array
-    {
-        return [
-            'target_id' => 'integer',
-            'target_type' => 'string',
-        ];
-    }
-
-    public static function mainPropertyName(): string
-    {
-        return 'target_id';
-    }
-
     public static function schema(): array
     {
         return [
