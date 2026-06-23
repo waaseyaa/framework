@@ -7,13 +7,19 @@ namespace Waaseyaa\Field;
 use Symfony\Component\Validator\ConstraintViolationList;
 use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Waaseyaa\Plugin\Definition\PluginDefinition;
-use Waaseyaa\Plugin\PluginBase;
 use Waaseyaa\TypedData\DataDefinitionInterface;
 
 /**
  * @api
+ *
+ * The dead Field-API item/value-object layer (audit C-24). Instance methods
+ * (`get()`/`set()`/`getValue()`/`validate()` no-op/`PropertyValue`/IteratorAggregate)
+ * are instantiated nowhere in production — field-type plugins reach this class only
+ * for the static descriptor seam, now hosted by {@see AbstractFieldType} which this
+ * extends. Train 2 reparents the plugins onto `AbstractFieldType` and removes this
+ * instance layer.
  */
-abstract class FieldItemBase extends PluginBase implements FieldItemInterface, FieldTypeInterface, \IteratorAggregate
+abstract class FieldItemBase extends AbstractFieldType implements FieldItemInterface, \IteratorAggregate
 {
     /** @var array<string, mixed> */
     protected array $values = [];
@@ -161,68 +167,8 @@ abstract class FieldItemBase extends PluginBase implements FieldItemInterface, F
         return new \ArrayIterator($this->getProperties());
     }
 
-    // FieldTypeInterface static methods have defaults that subclasses override
-
-    public static function defaultSettings(): array
-    {
-        return [];
-    }
-
-    public static function defaultValue(): mixed
-    {
-        return null;
-    }
-
-    /**
-     * Default per-definition JSON Schema.
-     *
-     * Reproduces the legacy per-type mapping that previously lived as a
-     * hardcoded match in FieldDefinition::toJsonSchema(). Field types that
-     * need per-definition variation (e.g. EnumItem reading
-     * settings.enum_class) override this method. Field types that are happy
-     * with the legacy mapping (string, integer, boolean, float, text,
-     * entity_reference) get bit-identical behavior with zero overrides.
-     *
-     * Note: this intentionally returns the legacy mapping rather than
-     * delegating to static::jsonSchema(). The latter is the richer per-type
-     * schema (e.g. StringItem::jsonSchema() includes maxLength) but
-     * FieldDefinition::toJsonSchema() has historically emitted a minimal
-     * shape; preserving that emission contract is mandated by WP01's
-     * regression test.
-     */
-    public static function jsonSchemaFor(FieldDefinitionInterface $def): array
-    {
-        return match ($def->getType()) {
-            'string' => ['type' => 'string'],
-            'integer' => ['type' => 'integer'],
-            'boolean' => ['type' => 'boolean'],
-            'float' => ['type' => 'number'],
-            'text' => [
-                'type' => 'object',
-                'properties' => [
-                    'value' => ['type' => 'string'],
-                    'format' => ['type' => 'string'],
-                ],
-            ],
-            'entity_reference' => [
-                'type' => 'object',
-                'properties' => [
-                    'target_id' => ['type' => 'integer'],
-                    'target_type' => ['type' => 'string'],
-                ],
-            ],
-            default => ['type' => 'string'],
-        };
-    }
-
-    /**
-     * Default per-definition storage schema. Delegates to the static
-     * schema() method, preserving behavior for every existing field type.
-     *
-     * @return array<string, array{type: string, description?: string}>
-     */
-    public static function schemaFor(FieldDefinitionInterface $def): array
-    {
-        return static::schema();
-    }
+    // The static field-type descriptor seam (defaultSettings / defaultValue /
+    // jsonSchemaFor / schemaFor) now lives on AbstractFieldType (C-24 train 1);
+    // it is inherited here unchanged. schema() / jsonSchema() remain abstract on
+    // FieldTypeInterface and are provided by each concrete field-type plugin.
 }
