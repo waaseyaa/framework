@@ -13,12 +13,21 @@ use Waaseyaa\Entity\Storage\EntityQueryInterface;
 final class StubEntityQuery implements EntityQueryInterface
 {
     /**
+     * Records each condition() call as [field, value, operator], in call order.
+     *
+     * @var list<array{0: string, 1: mixed, 2: string}>
+     */
+    public array $conditions = [];
+
+    /**
      * @param list<int|string> $ids
      */
     public function __construct(private array $ids) {}
 
     public function condition(string $field, mixed $value, string $operator = '='): static
     {
+        $this->conditions[] = [$field, $value, $operator];
+
         return $this;
     }
 
