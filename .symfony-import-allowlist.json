@@ -27,6 +27,7 @@
     "packages/ai-observability/src/Listener/ToolCallListener.php",
     "packages/ai-observability/src/ObservabilityServiceProvider.php",
     "packages/ai-observability/src/Recorder/TraceRecorder.php",
+    "packages/attachment/src/Http/AttachmentDownloadRouter.php",
     "packages/audit/src/Listener/AgentToolAuditListener.php",
     "packages/audit/src/Listener/ApiRequestAuditListener.php",
     "packages/audit/src/Listener/BroadcastAuditListener.php",
