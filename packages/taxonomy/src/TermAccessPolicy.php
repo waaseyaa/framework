@@ -38,7 +38,7 @@ final class TermAccessPolicy implements AccessPolicyInterface
         }
 
         return match ($operation) {
-            'view' => $this->checkViewAccess($account),
+            'view' => $this->checkViewAccess($entity, $account),
             'update' => $this->checkEditAccess($entity, $account),
             'delete' => $this->checkDeleteAccess($entity, $account),
             default => AccessResult::neutral("No opinion for operation '{$operation}'."),
@@ -63,14 +63,34 @@ final class TermAccessPolicy implements AccessPolicyInterface
 
     /**
      * Check view access for a taxonomy term.
+     *
+     * Published terms are viewable with 'access content' (the public reading
+     * permission). Unpublished terms are hidden from general readers — only an
+     * editor of the term's vocabulary (or an `administer taxonomy` admin, handled
+     * in {@see access()}) may view them. This mirrors NodeAccessPolicy's
+     * published/unpublished split so unpublished terms do not leak via the
+     * `view`-gated read surfaces (JSON:API collections, controllers).
      */
-    private function checkViewAccess(AccountInterface $account): AccessResult
+    private function checkViewAccess(EntityInterface $entity, AccountInterface $account): AccessResult
     {
-        if ($account->hasPermission('access content')) {
-            return AccessResult::allowed('User has "access content" permission.');
+        // Absent status defaults to published — mirrors Term::isPublished().
+        $published = (bool) ($entity->get('status') ?? true);
+
+        if ($published) {
+            if ($account->hasPermission('access content')) {
+                return AccessResult::allowed('Published term and user has "access content" permission.');
+            }
+
+            return AccessResult::neutral('User lacks "access content" permission.');
         }
 
-        return AccessResult::neutral('User lacks "access content" permission.');
+        // Unpublished term: visible only to an editor of its vocabulary.
+        $vid = $entity->bundle();
+        if ($account->hasPermission("edit terms in {$vid}")) {
+            return AccessResult::allowed("Editor with \"edit terms in {$vid}\" may view its unpublished terms.");
+        }
+
+        return AccessResult::neutral('User cannot view this unpublished term.');
     }
 
     /**

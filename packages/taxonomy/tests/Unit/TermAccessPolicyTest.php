@@ -36,11 +36,15 @@ class TermAccessPolicyTest extends TestCase
         return $account;
     }
 
-    private function createTermEntity(string $vocabularyId = 'tags'): EntityInterface
+    private function createTermEntity(string $vocabularyId = 'tags', ?bool $published = null): EntityInterface
     {
         $entity = $this->createMock(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn('taxonomy_term');
         $entity->method('bundle')->willReturn($vocabularyId);
+        // Mirror Term::isPublished() — absent status defaults to published (true).
+        $entity->method('get')->willReturnCallback(
+            static fn(string $field): mixed => $field === 'status' ? $published : null,
+        );
 
         return $entity;
     }
@@ -98,6 +102,40 @@ class TermAccessPolicyTest extends TestCase
         $result = $this->policy->access($entity, 'view', $account);
 
         $this->assertTrue($result->isAllowed());
+    }
+
+    // --- Unpublished-term view (security: must not leak unpublished terms) ---
+
+    public function testViewOfUnpublishedTermIsDeniedToAccessContentOnly(): void
+    {
+        // An unpublished term must NOT be viewable by an anonymous/regular account
+        // that holds only 'access content' — pre-fix this returned allowed (leak).
+        $entity = $this->createTermEntity('tags', published: false);
+        $account = $this->createAccount(['access content']);
+
+        $result = $this->policy->access($entity, 'view', $account);
+
+        $this->assertTrue($result->isNeutral(), 'unpublished term must not be viewable with only access content');
+    }
+
+    public function testViewOfUnpublishedTermAllowedForVocabularyEditor(): void
+    {
+        $entity = $this->createTermEntity('tags', published: false);
+        $account = $this->createAccount(['access content', 'edit terms in tags']);
+
+        $result = $this->policy->access($entity, 'view', $account);
+
+        $this->assertTrue($result->isAllowed(), 'an editor of the vocabulary may view its unpublished terms');
+    }
+
+    public function testViewOfPublishedTermStillAllowedWithAccessContent(): void
+    {
+        $entity = $this->createTermEntity('tags', published: true);
+        $account = $this->createAccount(['access content']);
+
+        $result = $this->policy->access($entity, 'view', $account);
+
+        $this->assertTrue($result->isAllowed(), 'published terms remain viewable with access content');
     }
 
     // ---------------------------------------------------------------
