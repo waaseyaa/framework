@@ -1,6 +1,7 @@
 # MCP Endpoint
 
-<!-- Spec reviewed 2026-06-22 - framework-cleanup-alpha245-01KVQSN8 WP17/WP18: the legacy McpController stack (McpController + Tools/ + Rpc/ + Cache/) was removed (#1738, closing #1642) — it was never HTTP-routed (live /mcp = McpEndpoint over the Bridge\ + ai-tools #[AsAgentTool] registry, unchanged). This spec's dead-stack documentation is retracted: the McpController Class / Tool Classes / RPC Support / Read-Path Cache sections, the first-party "Discovery Blend Tool Contract" (ai_discover/editorial_*/traverse_* — those tools went away with the stack), the Source-Files + File-Reference dead entries, and the "Legacy … remain" note. SEPARATELY (audit claim-mismatch, WP18): the "Serializer redaction shape" section (FR-006/FR-007/C-003) advertised an MCP field-redaction marker (McpEntityFieldFilter + {accessRestricted,…} + EntityTools::setFieldFilter() wiring + McpJsonApiFieldParityTest guard) that exists NOWHERE in code (the filter file was already absent pre-WP17); it is retracted to NOT IMPLEMENTED — MCP and JSON:API currently handle forbidden fields identically, with no audit-lineage marker. -->
+<!-- Spec reviewed 2026-06-22 - framework-cleanup-alpha245-01KVQSN8 WP17/WP18: the legacy McpController stack (McpController + Tools/ + Rpc/ + Cache/) was removed (#1738, closing #1642) — it was never HTTP-routed (live /mcp = McpEndpoint over the Bridge\ + ai-tools #[AsAgentTool] registry, unchanged). This spec's dead-stack documentation is retracted: the McpController Class / Tool Classes / RPC Support / Read-Path Cache sections, the first-party "Discovery Blend Tool Contract" (ai_discover/editorial_*/traverse_* — those tools went away with the stack), the Source-Files + File-Reference dead entries, and the "Legacy … remain" note. SEPARATELY (audit claim-mismatch, WP18): the "Serializer redaction shape" section (FR-006/FR-007/C-003) advertised an MCP field-redaction marker (McpEntityFieldFilter + {accessRestricted,…} + EntityTools::setFieldFilter() wiring + McpJsonApiFieldParityTest guard) that exists NOWHERE in code (the filter file was already absent pre-WP17). Probed against live code: the only missing piece is the marker SHAPE — field access IS enforced (EntityReadTool drops FieldAccessPolicyInterface-forbidden field values via EntityAccessHandler::filterFields, fail-closed via AttributeToolRegistry::markAccessEnforced, proven by EntityReadToolFieldFilterTest), so /mcp omits forbidden fields exactly like JSON:API. No data leak; the marker is post-beta polish, not a security fix. -->
+<!-- Spec reviewed 2026-06-22b - field-redaction finding settled with a probe (WP18): confirmed /mcp does NOT return field values a caller may not see (EntityReadToolFieldFilterTest::never_leaks_field_access_forbidden_fields); retraction stands, marker shape deferred to post-beta. -->
 <!-- Spec reviewed 2026-06-19 - Wayfinding Phase 5 (wayfinding-01KVGH5X): the authenticated MCP WRITE TIER. New SEPARATE route `/mcp/write` → `AuthenticatedMcpEndpoint::serve` (a thin controller composing an inner McpEndpoint configured for writes), so the public read-only `/mcp` is byte-identical and untouched (C-001). The inner endpoint uses (a) `WriteTierAuthInterface` — a marker auth bound by default to `BearerTokenAuth([])` (empty token map ⇒ every request fails closed 401 until an app re-binds it with its token→account map; NFR-002), distinct from the public `McpAuthInterface`=PublicAnonymousAuth binding so the two surfaces configure independently; and (b) `CapabilityScopedToolRegistry(fullRegistry, capabilities)` — the dual of `ReadOnlyToolRegistry`: it exposes ONLY tools whose capability is on an allowlist, destructive INCLUDED (default `['present guided content']`, override via `mcp.write_tier.capabilities`), so the tier surfaces exactly its own tools, never the whole destructive catalogue. Per-tool `AbstractAgentTool::requireCapability` remains the authorization layer. The wayfinding write tools themselves live in ai-agent (see ai-integration.md / wayfinding.md). See the "Authenticated write tier" section at the end of this spec. -->
 <!-- Spec reviewed 2026-06-12 - mission request-surface-hardening-01KTX7F2 WP03 (#1652): BearerTokenAuth::authenticate() hardened. (1) Constant-time comparison — the array lookup is replaced by a full hash_equals() scan over EVERY token-map entry with no early exit (whole-call timing independent of which entry matches); map keys are (string)-cast before comparison because PHP coerces purely numeric token strings to int array keys. (2) Blocked-account fail-closed check — a matched account exposing isActive() (duck-typed method_exists; AccountInterface has no status member, no mcp→user manifest edge) that returns false is rejected with null, byte-indistinguishable from an unknown token (same 401 JSON-RPC envelope; no blocked-vs-invalid oracle). Zero added queries (NFR-003): kernels and token maps are per-request, so the in-memory isActive() read reflects persisted state as of this request's boot. Accounts without isActive() authenticate as before — custom McpAuthInterface implementations own their account objects' liveness semantics. Prefix handling and getTokens() (admin fingerprinting) unchanged. Pinned by BearerTokenAuthHardeningTest; the pre-existing 7-test BearerTokenAuthTest matrix passes unchanged. -->
 <!-- Spec reviewed 2026-06-12 - mission revision-audit-provenance-01KTWY5V WP05: McpEndpoint gains two optional ctor params (?EventDispatcherInterface, ?AccountContextInterface, container-injected via McpServiceProvider's explicit binding); dispatch() scopes the acting-account context to the bearer-auth account post-auth/pre-parse with finally-restore, and fires Waaseyaa\Mcp\Event\McpDispatchEvent ('waaseyaa.mcp.dispatch': method, raw params, ?accountUid) exactly once per authenticated well-formed JSON-RPC request, post-parse pre-routing, best-effort; 401/parse-error fire nothing; event name pinned cross-package to McpDispatchAuditListener::EVENT_NAME (mcp does not require audit at runtime; new require-dev edge for the pin test). McpEndpoint Class section also updated to the real post-M3 two-required-dep signature. Independent of #1635/#1636. Refs #1645. -->
@@ -560,22 +561,33 @@ closing #1642) — see the "Legacy `McpController` stack — REMOVED" note earli
 in this spec. `/mcp` is served by `McpEndpoint` over the `Bridge\` + ai-tools
 `#[AsAgentTool]` registry.
 
-## Serializer redaction shape (M-A5, FR-006, C-003) — NOT IMPLEMENTED
+## Serializer redaction shape (M-A5, FR-006, C-003) — marker shape NOT IMPLEMENTED (field access IS enforced)
 
-> **Retraction (WP18).** This section described an MCP-specific field-level
-> redaction marker that **does not exist in code**. `McpEntityFieldFilter`
-> (`packages/mcp/src/Serializer/McpEntityFieldFilter.php`), the
-> `{accessRestricted, reason}` marker, the `EntityTools::setFieldFilter()`
-> wiring, and the `McpJsonApiFieldParityTest` guard the contract cited are all
-> **absent** — the filter file was already gone before WP17, and its only
-> documented wiring was through the now-removed `McpController`/`EntityTools`
-> stack. There is currently **no MCP-vs-JSON:API asymmetry**: the live `/mcp`
-> endpoint serializes entities through the same path as JSON:API
-> (`AgentExecutor::executeTool()` → entity serialization), so a field a
-> `FieldAccessPolicyInterface` forbids is handled identically on both surfaces;
-> there is no `accessRestricted` audit-lineage marker. FR-006/FR-007/C-003 as
-> written are **aspirational, not guaranteed.** Re-establishing an MCP redaction
-> marker (if desired) is unbuilt future work, not a current contract.
+> **Settled (WP18, probed against live code).** **The flagship `/mcp` surface does
+> not leak field values a caller may not see.** Field-level access *is* enforced:
+> `EntityReadTool` (the live `entity.read` tool the `/mcp` bridge dispatches to)
+> drops every field a `FieldAccessPolicyInterface` forbids via
+> `EntityAccessHandler::filterFields($entity, …, 'view', $account)`
+> (`applyFieldAccessFilter()` → `array_intersect_key`), after first dropping
+> credential keys and `internal` fields. Enforcement is **fail-closed**:
+> `AttributeToolRegistry` (the registry the live endpoint uses) stamps
+> `markAccessEnforced()` on **every** hydrated tool, so even if the kernel handler
+> transiently resolves to null the read is **denied** rather than served unfiltered.
+> Proven by `EntityReadToolFieldFilterTest::never_leaks_field_access_forbidden_fields`
+> (a forbidden `secret_note` value is absent from the `entity.read` result).
+>
+> What was **never built** is only the documented *marker shape*:
+> `McpEntityFieldFilter` (`packages/mcp/src/Serializer/McpEntityFieldFilter.php`),
+> the `{ "accessRestricted": true, "reason": … }` substitution, the
+> `EntityTools::setFieldFilter()` wiring, and the `McpJsonApiFieldParityTest`
+> guard are all **absent** (the filter file predated WP17 and was already gone;
+> its only wiring was the now-removed `McpController`/`EntityTools` stack). So
+> there is **no MCP-vs-JSON:API asymmetry**: `/mcp` *omits* a forbidden field
+> exactly as JSON:API does, rather than substituting the marker. FR-006/FR-007/C-003
+> as written (the asymmetric, audit-lineage marker contract) are therefore
+> **aspirational, not guaranteed** — but this is a **cosmetic/audit-lineage gap,
+> not a data leak.** Re-establishing the marker is **post-beta polish**, not a
+> security fix.
 
 ### See also
 
