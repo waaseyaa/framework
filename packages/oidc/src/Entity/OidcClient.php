@@ -63,7 +63,7 @@ final class OidcClient extends ContentEntityBase implements HydratableFromStorag
     #[Field(label: 'Confidential', description: 'Whether the client authenticates with a secret.', settings: ['weight' => 5])]
     public bool $is_confidential = false;
 
-    #[Field(label: 'Client secret hash', description: 'Hashed client secret. Never exposed through the API.', settings: ['weight' => 6], readOnly: true)]
+    #[Field(label: 'Client secret hash', description: 'Hashed client secret. Never exposed through the API.', settings: ['weight' => 6, 'internal' => true], readOnly: true)]
     public ?string $client_secret_hash = null;
 
     /**
