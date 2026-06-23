@@ -72,19 +72,19 @@
     "require": {
         "php": ">=8.5",
         "symfony/console": "^8.0",
-        "waaseyaa/access": "^0.1.0-alpha.247",
-        "waaseyaa/ai-agent": "^0.1.0-alpha.247",
-        "waaseyaa/audit": "^0.1.0-alpha.247",
-        "waaseyaa/cache": "^0.1.0-alpha.247",
-        "waaseyaa/config": "^0.1.0-alpha.247",
-        "waaseyaa/entity": "^0.1.0-alpha.247",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.247",
-        "waaseyaa/http-client": "^0.1.0-alpha.247",
-        "waaseyaa/migration": "^0.1.0-alpha.247",
-        "waaseyaa/northcloud": "^0.1.0-alpha.247",
-        "waaseyaa/queue": "^0.1.0-alpha.247",
-        "waaseyaa/scheduler": "^0.1.0-alpha.247",
-        "waaseyaa/user": "^0.1.0-alpha.247"
+        "waaseyaa/access": "^0.1.0-alpha.248",
+        "waaseyaa/ai-agent": "^0.1.0-alpha.248",
+        "waaseyaa/audit": "^0.1.0-alpha.248",
+        "waaseyaa/cache": "^0.1.0-alpha.248",
+        "waaseyaa/config": "^0.1.0-alpha.248",
+        "waaseyaa/entity": "^0.1.0-alpha.248",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.248",
+        "waaseyaa/http-client": "^0.1.0-alpha.248",
+        "waaseyaa/migration": "^0.1.0-alpha.248",
+        "waaseyaa/northcloud": "^0.1.0-alpha.248",
+        "waaseyaa/queue": "^0.1.0-alpha.248",
+        "waaseyaa/scheduler": "^0.1.0-alpha.248",
+        "waaseyaa/user": "^0.1.0-alpha.248"
     },
     "suggest": {
         "ext-pcntl": "Required for clean SIGINT handling in --watch mode"

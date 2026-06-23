@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.248] - 2026-06-23
+
 ### Fixed
 
 - **Entity `getQuery()` is now fail-closed in production wiring — the kernel/factory built storage with no access handler, so the per-row filter passed everything (issue #1714).** `SqlEntityQuery`'s post-SQL filter drops only **Forbidden** rows, and `resolveAccessHandler()` falls back to an **empty** `EntityAccessHandler` when none was wired — whose `check()` returns Neutral for every row, so nothing was dropped. Both production build sites (`AbstractKernel`'s storage closure and `EntityStorageFactory`) constructed `SqlEntityStorage` with `accessHandler = null`, so `getQuery()` was **fail-open** despite its fail-closed docblock. `SqlEntityStorage` now accepts a lazy `accessHandlerResolver` closure and resolves the handler at **`getQuery()` time** (an explicitly-passed handler still wins): `AbstractKernel` threads `fn() => $this->accessHandler ?? null`, so a storage built and cached **mid-boot** (before `discoverAccessPolicies()` populates the handler) still wires the real, policy-laden handler at query time. `EntityStorageFactory` gains the same optional resolver. The `accessCheck(false)` system-context bypass and the missing-account fail-closed throw are unchanged, and callers that already wired a handler explicitly are unaffected. Acceptance: `EntityStorageFactoryAccessWiringTest::{factory_wired_storage_getQuery_filters_forbidden_rows, unwired_factory_storage_is_fail_open_documenting_the_pre_fix_gap}` (the wired case verified to leak the forbidden row against the pre-fix resolution); the kernel-booting integration suite (962) confirms the WP05/WP06 access paths are unaffected. Closes #1714.
