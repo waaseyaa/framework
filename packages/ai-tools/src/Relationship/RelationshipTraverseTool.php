@@ -99,10 +99,20 @@ final class RelationshipTraverseTool extends AbstractAgentTool
 
         $edges = [];
         foreach ($rows as $row) {
+            // Per-entity 'view' gate: never enumerate a relationship the caller
+            // may not see. This tool is in the DEFAULT anonymous MCP read
+            // allowlist, so an unauthenticated caller reaches it — it must apply
+            // the same gate EntityReadTool/EntityListTool/EntitySearchTool apply
+            // (fails closed when enforcement is required but no handler is wired).
+            if (!$this->canViewEntity($row, $account)) {
+                continue;
+            }
+
             $values = method_exists($row, 'getValues') ? $row->getValues() : [];
+            $values = is_array($values) ? $this->applyFieldAccessFilter($row, $values, $account) : [];
             $edges[] = [
                 'id' => $row->id(),
-                'values' => is_array($values) ? $values : [],
+                'values' => $values,
             ];
         }
 
