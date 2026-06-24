@@ -70,35 +70,47 @@ final readonly class RevocationController
 
         $now = new DateTimeImmutable();
 
-        $this->revokeToken($token, $hint, $now);
+        $this->revokeToken($token, $hint, $credClientId, $now);
 
         return $this->ok();
     }
 
-    private function revokeToken(string $token, ?string $hint, DateTimeImmutable $now): void
+    private function revokeToken(string $token, ?string $hint, string $authClientId, DateTimeImmutable $now): void
     {
         if ($hint === 'refresh_token') {
-            $this->tryRevokeRefresh($token, $now);
+            $this->tryRevokeRefresh($token, $authClientId, $now);
 
             return;
         }
 
         if ($hint === 'access_token') {
-            $this->tryRevokeAccess($token, $now);
+            $this->tryRevokeAccess($token, $authClientId, $now);
 
             return;
         }
 
         // No hint: try refresh first, then access
-        if (!$this->tryRevokeRefresh($token, $now)) {
-            $this->tryRevokeAccess($token, $now);
+        if (!$this->tryRevokeRefresh($token, $authClientId, $now)) {
+            $this->tryRevokeAccess($token, $authClientId, $now);
         }
     }
 
-    private function tryRevokeRefresh(string $token, DateTimeImmutable $now): bool
+    /**
+     * Attempt to revoke a refresh token.
+     *
+     * Returns false if the token does not exist or belongs to a different client.
+     * A foreign token is silently ignored (RFC 7009 §2.2 — no enumeration oracle).
+     */
+    private function tryRevokeRefresh(string $token, string $authClientId, DateTimeImmutable $now): bool
     {
         $record = $this->refreshTokenIssuer->findByToken($token);
         if ($record === null) {
+            return false;
+        }
+
+        // RFC 7009 §2.1: only revoke if the token was issued to the authenticating client.
+        // A foreign token returns false silently — same 200 response, no oracle leak.
+        if ($record->clientId !== $authClientId) {
             return false;
         }
 
@@ -108,14 +120,22 @@ final readonly class RevocationController
         return true;
     }
 
-    private function tryRevokeAccess(string $tokenValue, DateTimeImmutable $now): bool
+    /**
+     * Attempt to revoke an access token.
+     *
+     * Returns false if the token does not exist or belongs to a different client.
+     * A foreign token is silently ignored (RFC 7009 §2.2 — no enumeration oracle).
+     */
+    private function tryRevokeAccess(string $tokenValue, string $authClientId, DateTimeImmutable $now): bool
     {
-        // The opaque access token value is stored in oidc_refresh_token.token? No —
-        // access tokens are stored as opaque values in AccessTokenIssuer.
-        // We need to look up by the opaque token value. Since AccessTokenIssuer
-        // stores jti as PK but uses an opaque token value, we expose findByOpaqueToken.
         $row = $this->accessTokenIssuer->findByOpaqueToken($tokenValue);
         if ($row === null) {
+            return false;
+        }
+
+        // RFC 7009 §2.1: only revoke if the token was issued to the authenticating client.
+        // A foreign token returns false silently — same 200 response, no oracle leak.
+        if ((string) $row['client_id'] !== $authClientId) {
             return false;
         }
 
