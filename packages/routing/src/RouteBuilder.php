@@ -123,6 +123,21 @@ final class RouteBuilder
     }
 
     /**
+     * Require that the user passes a Gate ability check for this route.
+     *
+     * Sets the `_gate` route option that {@see \Waaseyaa\Access\AccessChecker}
+     * enforces at request time (deny unless the Gate grants the ability).
+     *
+     * @param string $ability The gate ability, e.g. 'config.export'.
+     * @param mixed  $subject Optional subject passed to the gate (e.g. an entity type).
+     */
+    public function gate(string $ability, mixed $subject = null): self
+    {
+        $this->options['_gate'] = ['ability' => $ability, 'subject' => $subject];
+        return $this;
+    }
+
+    /**
      * Require that the user has a specific permission.
      */
     public function requirePermission(string $permission): self
