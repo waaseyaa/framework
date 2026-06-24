@@ -11,6 +11,7 @@ use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Gate\PolicyAttribute;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Path\PathAlias;
 use Waaseyaa\Path\PathAliasAccessPolicy;
 
 #[CoversClass(PathAliasAccessPolicy::class)]
@@ -101,6 +102,39 @@ final class PathAliasAccessPolicyTest extends TestCase
 
         $noPerm = $this->makeAccount([]);
         $this->assertFalse($this->policy->createAccess('path_alias', 'default', $noPerm)->isAllowed());
+    }
+
+    #[Test]
+    public function anon_cannot_view_an_unpublished_path_alias(): void
+    {
+        $alias = new PathAlias(['path' => '/node/1', 'alias' => '/about', 'status' => false]);
+        $account = $this->makeAnonymousAccount();
+
+        $result = $this->policy->access($alias, 'view', $account);
+
+        $this->assertFalse($result->isAllowed(), 'Unpublished alias must NOT be viewable by anonymous users.');
+    }
+
+    #[Test]
+    public function anon_can_view_a_published_path_alias(): void
+    {
+        $alias = new PathAlias(['path' => '/node/1', 'alias' => '/about', 'status' => true]);
+        $account = $this->makeAnonymousAccount();
+
+        $result = $this->policy->access($alias, 'view', $account);
+
+        $this->assertTrue($result->isAllowed(), 'Published alias must be viewable by anonymous users.');
+    }
+
+    #[Test]
+    public function admin_can_view_an_unpublished_path_alias(): void
+    {
+        $alias = new PathAlias(['path' => '/node/1', 'alias' => '/about', 'status' => false]);
+        $account = $this->makeAccount(['administer url aliases']);
+
+        $result = $this->policy->access($alias, 'view', $account);
+
+        $this->assertTrue($result->isAllowed(), 'Admin with administer url aliases must be able to view unpublished aliases.');
     }
 
     // -----------------------------------------------------------------------
