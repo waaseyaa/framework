@@ -40,9 +40,12 @@ code).
 
 ---
 
-## 2. Reachable, fix-recommended (not yet done)
+## 2. Reachable, fix-recommended — ALL FIXED (failing-first PRs, merged)
 
-These are framework-owned and reachable; each warrants its own failing-first PR.
+These are framework-owned and reachable; each shipped as its own failing-first
+PR, squash-merged to `main` (residual-security-sweep-remediation mission,
+2026-06-23): §2.1 #1771, §2.2 #1774, §2.3 #1772, §2.4 #1773, §2.5 #1775,
+§2.6 #1776, §2.7 #1777, §2.8 #1778. The §3.4 footgun was also resolved (#1779).
 
 ### 2.1 `VectorSearchTool` returns results with no per-entity view filter — **FIXED, PR #1771 (merged)**
 - Evidence (pre-fix): `ai-tools/src/Vector/VectorSearchTool.php:60-97` checked only
@@ -55,7 +58,12 @@ These are framework-owned and reachable; each warrants its own failing-first PR.
   result (mirrors #1768). Shipped failing-first as **PR #1771**, squash-merged to
   `main` (merge commit `0a05f2e9d`, 2026-06-23). **[confirmed]**
 
-### 2.2 Search `totalHits`/`totalPages`/facets leak access-restricted counts + metadata — **[agent-reported]**
+### 2.2 Search `totalHits`/`totalPages`/facets leak access-restricted counts + metadata — **FIXED, PR #1774 (merged)**
+- Resolution: when an access checker is wired, `totalHits` + facets are now
+  derived from a bounded (`MAX_ACCESS_SCAN`) per-document access-filtered scan
+  instead of raw SQL `COUNT`/`GROUP BY`; the fast SQL path is preserved for
+  doc-only indexes. Reachability confirmed via the public `search()` Twig
+  function (anon account context). Failing-first verified.
 - Evidence: `search/src/Fts5/Fts5SearchProvider.php:100-102` computes `totalHits`
   via raw `COUNT(*)` with no access predicate; `buildFacets()` (`:281-318`)
   aggregates `content_type`/`source_name`/`topics` over the unfiltered `WHERE`.
@@ -68,7 +76,10 @@ These are framework-owned and reachable; each warrants its own failing-first PR.
 - Recommendation: filter the count + facet aggregation through the same access
   predicate as the hit loop, or document + cap. Medium effort.
 
-### 2.3 GraphQL emits `internal: true` fields (no internal-field stripping) — **[agent-reported]**
+### 2.3 GraphQL emits `internal: true` fields (no internal-field stripping) — **FIXED, PR #1772 (merged)**
+- Resolution: `EntityTypeBuilder::buildOutputFields()` now drops `internal:true`
+  + `ALWAYS_INTERNAL_FIELDS` credential keys at the SCHEMA level (unqueryable
+  AND uninspectable), mirroring `ResourceSerializer`. Failing-first verified.
 - Evidence: every other surface drops internal fields
   (`api/src/ResourceSerializer.php:33,189`, ai-tools `EntityReadTool.php:167`),
   but `graphql/src/Schema/EntityTypeBuilder.php:90-149` emits every field and the
@@ -80,7 +91,11 @@ These are framework-owned and reachable; each warrants its own failing-first PR.
 - Recommendation: add an internal-field drop + `ALWAYS_INTERNAL_FIELDS` backstop
   in the GraphQL output builder/resolvers, matching the REST serializer. Medium.
 
-### 2.4 SSR `EntityRenderer` emits all fields with no internal-drop / field filter — **[agent-reported]**
+### 2.4 SSR `EntityRenderer` emits all fields with no internal-drop / field filter — **FIXED, PR #1773 (merged)**
+- Resolution: `EntityRenderer::render()` now drops `internal:true` +
+  credential-named fields (both explicit + default display), bringing SSR to
+  parity with its JSON:API/MCP/GraphQL siblings. Defense-in-depth (no live
+  credential leak today). Failing-first verified.
 - Evidence: `ssr/src/EntityRenderer.php:33-78,111-133` formats every field;
   `entity.html.twig` prints `field.formatted|raw`; no account/access/internal
   check. The stock content route only resolves `content`-group types (User not
@@ -88,12 +103,19 @@ These are framework-owned and reachable; each warrants its own failing-first PR.
   vs its JSON:API/MCP siblings (a content entity with an `internal:true` field
   leaks). Defense-in-depth fix recommended.
 
-### 2.5 `PathAlias` view ignores its own `status` flag — **[agent-reported]**, low
+### 2.5 `PathAlias` view ignores its own `status` flag — **FIXED, PR #1775 (merged)**, low
+- Resolution: `PathAliasAccessPolicy` now gates non-admin `view` on
+  `PathAlias::isPublished()`; unpublished aliases are no longer publicly
+  viewable. Admins + published aliases unchanged. Failing-first verified.
 - Evidence: `path/src/PathAliasAccessPolicy.php:27-28` returns `allowed` for
   `view` to everyone with no status check, though `PathAlias` carries a `status`
   ("active") field. Leaks inactive internal path mappings. Low sensitivity.
 
-### 2.6 Media upload silent overwrite/clobber under predictable public name — **[agent-reported]**, low
+### 2.6 Media upload silent overwrite/clobber under predictable public name — **FIXED, PR #1776 (merged)**, low
+- Resolution: the upload path now wires the hardened
+  `UploadHandler::generateSafeFilename()` (random `_<8 hex>` suffix); the
+  redundant deterministic `sanitizeUploadFilename()` was removed. No clobber,
+  no predictable URL. Failing-first verified.
 - Evidence: `media/src/Http/MediaRouter.php:84-98` builds the dest from the
   client filename (traversal blocked, base name preserved) and `move()`s with no
   uniqueness check; the hardened `UploadHandler::generateSafeFilename()`
@@ -101,13 +123,21 @@ These are framework-owned and reachable; each warrants its own failing-first PR.
   uploads overwrite; SVG is allowed → predictable `/files/<name>.svg`. Low-priv
   authenticated; integrity/stored-XSS-file concern, not private-byte disclosure.
 
-### 2.7 `/oidc/revoke` not bound to the authenticating client (RFC 7009) — **[confirmed via agent]**, low
+### 2.7 `/oidc/revoke` not bound to the authenticating client (RFC 7009) — **FIXED, PR #1777 (merged)**, low
+- Resolution: revocation now refuses (silent 200 no-op, no enumeration oracle)
+  unless the token's `client_id` matches the authenticated client. RFC 7009
+  §2.1 conformance. Failing-first verified.
 - Evidence: `oidc/src/Revoke/RevocationController.php:78-129` revokes any token
   matching the submitted value without checking `record->clientId ===
   authenticated client`. Denial-only, attacker needs the high-entropy token
   value; spec-conformance gap, not escalation/disclosure.
 
-### 2.8 `llms.txt` emits unescaped URL/summary/title — **[agent-reported]**, low
+### 2.8 `llms.txt` emits unescaped URL/summary/title — **FIXED, PR #1778 (merged)**, low
+- Resolution: `LlmsTxtGenerator::generate()` now collapses CR/LF/control chars
+  to spaces in all text fields (no forged `##`/link lines) and skips link URLs
+  that carry a non-http(s) scheme or control/whitespace (relative URLs still
+  allowed — contract preserved). Failing-first verified (review caught and
+  corrected an initially over-aggressive URL gate that dropped relative URLs).
 - Evidence: `seo/src/Llms/LlmsTxtGenerator.php:54-64` emits entity-derived
   `summary`/`title`/URL raw; `escape()` only strips `[`/`]`. Agent-facing
   `text/plain` (link/content spoofing, not browser XSS). Harden: validate URL
@@ -159,6 +189,13 @@ recommended; not a confirmed live framework hole.
   correct the docblock. (b) is the smaller honest fix if the attribute path was
   never finished; (a) is a small feature. Recommend (a)'s `RouteBuilder::gate()`
   setter (the enforcement already works) + docblock correction.
+- **RESOLVED, PR #1779 (merged).** Took the contained part of (a) plus (b):
+  added the real `RouteBuilder::gate(ability, subject)` setter (sets the `_gate`
+  option `AccessChecker::checkGate()` already enforces — proven by an
+  end-to-end failing-first test that denies without the ability, allows with
+  it), and corrected + `@deprecated` the `GateAttribute` docblock so the false
+  auto-enforcement `@api` claim is gone. A controller-attribute route scanner
+  was deliberately NOT built (that was the "substantial infra" to avoid).
 
 ---
 
@@ -233,13 +270,22 @@ recommended; not a confirmed live framework hole.
 
 ## 6. Honest conclusion
 
-The reachable surface is **substantially but not fully exhausted.** Two genuine
-reachable defects were found and fixed (#1768, #1769). The §2 items are real and
-fix-recommended but lower-severity or non-anon; the §3 items are capability
-footguns whose live reachability depends on app wiring; the §4 items are design/
-product decisions. The cryptographic, token-lifecycle, MCP-allowlist, and
-agent-tool access surfaces are solid, and the previously-merged fixes all hold.
-The remaining §2 fixes plus the §3/§4 decisions are the honest tail — none are
-critical anon-reachable data-disclosure holes of the #1768 class, but the sweep
-was **not** a rubber stamp: it surfaced eight new reachable/footgun items and two
-design contradictions that should be triaged rather than assumed absent.
+The reachable surface is now **worked down.** The two anon-reachable defects
+from the prior pass were fixed first (#1768, #1769); the
+residual-security-sweep-remediation mission (2026-06-23) then closed **all of
+§2** — §2.1 #1771, §2.3 #1772, §2.4 #1773, §2.2 #1774, §2.5 #1775, §2.6 #1776,
+§2.7 #1777, §2.8 #1778 — and resolved the §3.4 `#[GateAttribute]` false-promise
+footgun (#1779), each as its own failing-first, gate-passing, squash-merged PR
+(Opus-reviewed). The cryptographic, token-lifecycle, MCP-allowlist, and
+agent-tool access surfaces remain solid, and every previously-merged fix holds.
+
+**What remains (awaiting Russell — out of scope for this mission):** the §3.1–3.3
+capability footguns (`EntityParamConverter` IDOR primitive, auth-less
+`EntityDeepLinkRouteBuilder` default, `http-client` SSRF) whose live reachability
+depends on consuming-app wiring; the §4 design/product decisions (relationship
+`group:'content'`; node `status`/`promote`/`sticky` self-publish gating; admin
+`SurfaceQuery` field oracle; billing pre-activation hardening); and the held
+items (C-22, OCAP-at-DB, media substrate #1762). None of the remaining items are
+critical anon-reachable data-disclosure holes of the #1768 class — they are
+design calls and wiring-dependent footguns that warrant a decision, not a
+unilateral framework change.
