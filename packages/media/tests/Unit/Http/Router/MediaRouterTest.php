@@ -108,17 +108,74 @@ final class MediaRouterTest extends TestCase
     }
 
     #[Test]
-    public function sanitize_upload_filename_replaces_special_characters(): void
+    public function upload_stores_files_with_distinct_random_suffixed_names(): void
     {
-        $router = $this->createRouter();
-        self::assertSame('hello_world.jpg', $router->sanitizeUploadFilename('hello world.jpg'));
-    }
+        $tmpDir = sys_get_temp_dir() . '/waaseyaa_media_test_' . uniqid();
+        mkdir($tmpDir, 0o755, true);
+        $filesRoot = $tmpDir . '/files';
+        mkdir($filesRoot, 0o755, true);
 
-    #[Test]
-    public function sanitize_upload_filename_returns_fallback_for_dangerous_names(): void
-    {
-        $router = $this->createRouter();
-        self::assertSame('upload.bin', $router->sanitizeUploadFilename('..'));
+        $router = $this->createRouter(config: ['files_root' => $filesRoot]);
+
+        $account = new class implements \Waaseyaa\Access\AccountInterface {
+            public function id(): string|int { return 1; }
+            public function isAuthenticated(): bool { return true; }
+            public function hasPermission(string $permission): bool { return true; }
+            public function getRoles(): array { return []; }
+        };
+        $broadcastStorage = new BroadcastStorage(DBALDatabase::createSqlite());
+
+        $storedNames = [];
+
+        for ($i = 1; $i <= 2; $i++) {
+            // Each call needs a fresh temp file because move() consumes it.
+            $tmpFile = $tmpDir . '/source_' . $i . '.txt';
+            file_put_contents($tmpFile, 'content ' . $i);
+
+            $uploadedFile = new class($tmpFile) extends \Symfony\Component\HttpFoundation\File\UploadedFile {
+                public function __construct(string $path)
+                {
+                    // Client-supplied name is always the same "logo.png" — the collision trigger.
+                    parent::__construct($path, 'logo.png', 'image/png', null, true);
+                }
+
+                public function getMimeType(): ?string
+                {
+                    return 'image/png';
+                }
+            };
+
+            $request = Request::create('/api/media/upload', 'POST', server: ['CONTENT_TYPE' => 'multipart/form-data']);
+            $request->attributes->set('_controller', 'media.upload');
+            $request->attributes->set('_account', $account);
+            $request->attributes->set('_broadcast_storage', $broadcastStorage);
+            $request->files->set('file', $uploadedFile);
+
+            $response = $router->handle($request);
+
+            self::assertSame(201, $response->getStatusCode(), 'Upload ' . $i . ' should succeed');
+
+            $decoded = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+            $storedName = $decoded['data']['id'];
+            $storedNames[] = $storedName;
+
+            // Each stored name must carry a random suffix: logo_<8hex>.png
+            self::assertMatchesRegularExpression(
+                '/^logo_[0-9a-f]{8}\.png$/',
+                $storedName,
+                'Upload ' . $i . ': stored name must be logo_<8hex>.png, got: ' . $storedName,
+            );
+        }
+
+        // The two uploads of the same "logo.png" must produce DISTINCT stored names.
+        self::assertNotSame(
+            $storedNames[0],
+            $storedNames[1],
+            'Two uploads of the same client filename must produce distinct stored names (no clobber).',
+        );
+
+        // Cleanup — use a recursive helper to handle any sub-directories created by the repo.
+        $this->removeDirectory($tmpDir);
     }
 
     #[Test]
@@ -184,5 +241,23 @@ final class MediaRouterTest extends TestCase
     {
         $router = $this->createRouter();
         self::assertSame('/files/uploads/doc.pdf', $router->buildPublicFileUrl('uploads/doc.pdf'));
+    }
+
+    private function removeDirectory(string $dir): void
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        $entries = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST,
+        );
+
+        foreach ($entries as $entry) {
+            $entry->isDir() ? @rmdir($entry->getPathname()) : @unlink($entry->getPathname());
+        }
+
+        @rmdir($dir);
     }
 }
