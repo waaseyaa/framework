@@ -25,7 +25,9 @@ final class PathAliasAccessPolicy implements AccessPolicyInterface
         }
 
         return match ($operation) {
-            'view' => AccessResult::allowed('Path aliases are publicly viewable.'),
+            'view' => ($entity instanceof PathAlias && !$entity->isPublished())
+                ? AccessResult::neutral('Unpublished path aliases are not publicly viewable.')
+                : AccessResult::allowed('Published path aliases are publicly viewable.'),
             default => AccessResult::neutral("No permission for '$operation' on path aliases."),
         };
     }
