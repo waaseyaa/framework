@@ -28,4 +28,10 @@ pre-push:
           echo "phpunit skipped: local PHP $(php -r 'echo PHP_VERSION;') < required 8.5; CI matrix is authoritative."
           exit 0
         fi
+        # Fast stale-vendor pre-check: a local vendor/ out of sync with
+        # composer.lock/composer.json makes the Unit suite fail with hundreds of
+        # cryptic "Class ... not found" errors that look like test drift. Fail
+        # fast here with one actionable line so the full-Unit hook is never
+        # bypassed with --no-verify over a stale checkout. Local-dev only.
+        php bin/check-vendor-fresh || exit 1
         php -d memory_limit=512M ./vendor/bin/phpunit --testsuite Unit --no-progress --no-coverage
