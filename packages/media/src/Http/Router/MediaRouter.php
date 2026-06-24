@@ -12,6 +12,7 @@ use Waaseyaa\Foundation\Http\Router\DomainRouterInterface;
 use Waaseyaa\Foundation\Http\Router\WaaseyaaContext;
 use Waaseyaa\Media\File;
 use Waaseyaa\Media\LocalFileRepository;
+use Waaseyaa\Media\UploadHandler;
 
 final class MediaRouter implements DomainRouterInterface
 {
@@ -81,8 +82,8 @@ final class MediaRouter implements DomainRouterInterface
             ]);
         }
 
-        $safeName = $this->sanitizeUploadFilename($uploadedFile->getClientOriginalName());
         $filesRoot = $this->resolveFilesRootDir();
+        $safeName = new UploadHandler($filesRoot)->generateSafeFilename($uploadedFile->getClientOriginalName());
 
         if (!is_dir($filesRoot) && !@mkdir($filesRoot, 0o755, true) && !is_dir($filesRoot)) {
             return $this->uploadStorageFailureResponse();
@@ -205,17 +206,6 @@ final class MediaRouter implements DomainRouterInterface
         }
 
         return false;
-    }
-
-    public function sanitizeUploadFilename(string $name): string
-    {
-        $basename = basename($name);
-        $clean = preg_replace('/[^A-Za-z0-9._-]/', '_', $basename);
-        if (!is_string($clean) || $clean === '' || $clean === '.' || $clean === '..') {
-            return 'upload.bin';
-        }
-
-        return $clean;
     }
 
     public function buildPublicFileUrl(string $uri): string

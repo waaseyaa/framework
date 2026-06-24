@@ -352,14 +352,6 @@ final class HttpKernelTest extends TestCase
     }
 
     #[Test]
-    public function sanitizes_uploaded_filename(): void
-    {
-        $router = $this->createMediaRouter();
-        $this->assertSame('my_photo_.jpg', $router->sanitizeUploadFilename('my photo?.jpg'));
-        $this->assertSame('upload.bin', $router->sanitizeUploadFilename('../../'));
-    }
-
-    #[Test]
     public function resolves_render_cache_max_age_from_config_or_default(): void
     {
         $resolver = new CacheConfigResolver(['ssr' => ['cache_max_age' => 600]]);
