@@ -106,6 +106,108 @@ final class LlmsTxtGeneratorTest extends TestCase
         self::assertCount(1, $topics);
     }
 
+    // --- Injection hardening tests (§2.8 residual-security-sweep) ---
+
+    #[Test]
+    public function topic_title_with_embedded_newline_does_not_forge_a_new_heading_line(): void
+    {
+        // A title containing "\n## Injected" must NOT produce a standalone `## Injected` line.
+        $md = new LlmsTxtGenerator()->generate('My Site', null, [
+            new LlmsTopic('node', "News\n## Injected", '', [
+                ['title' => 'A', 'url' => 'https://example.test/a.md'],
+            ]),
+        ]);
+
+        $lines = explode("\n", $md);
+        foreach ($lines as $line) {
+            self::assertDoesNotMatchRegularExpression('/^## Injected/', $line, 'Newline in topic title forged a heading line');
+        }
+        // The sanitized value should appear — collapsed to a single ## line.
+        self::assertStringContainsString('## News', $md);
+    }
+
+    #[Test]
+    public function topic_summary_with_embedded_newline_does_not_forge_a_link_line(): void
+    {
+        // A summary containing "\n- [evil](http://evil.test)" must NOT produce a standalone link.
+        $md = new LlmsTxtGenerator()->generate('My Site', null, [
+            new LlmsTopic('node', 'Articles', "ok\n- [evil](http://evil.test)", [
+                ['title' => 'A', 'url' => 'https://example.test/a.md'],
+            ]),
+        ]);
+
+        $lines = explode("\n", $md);
+        foreach ($lines as $line) {
+            self::assertDoesNotMatchRegularExpression('/^- \[evil\]/', $line, 'Newline in topic summary forged a link line');
+        }
+    }
+
+    #[Test]
+    public function site_summary_with_embedded_newline_is_collapsed_to_one_blockquote_line(): void
+    {
+        $md = new LlmsTxtGenerator()->generate('My Site', "First line\nSecond line", []);
+
+        // There must be exactly one line starting with '>' — the second line must not appear standalone.
+        $quotedLines = array_filter(explode("\n", $md), static fn(string $line): bool => str_starts_with($line, '>'));
+        self::assertCount(1, array_values($quotedLines), 'Site summary newline forged a second blockquote line');
+    }
+
+    #[Test]
+    public function link_with_javascript_scheme_is_skipped(): void
+    {
+        $md = new LlmsTxtGenerator()->generate('My Site', null, [
+            new LlmsTopic('node', 'Articles', '', [
+                ['title' => 'Safe', 'url' => 'https://example.test/page'],
+                ['title' => 'Evil', 'url' => 'javascript:alert(1)'],
+            ]),
+        ]);
+
+        self::assertStringContainsString('https://example.test/page', $md);
+        self::assertStringNotContainsString('javascript:', $md);
+    }
+
+    #[Test]
+    public function link_with_data_scheme_is_skipped(): void
+    {
+        $md = new LlmsTxtGenerator()->generate('My Site', null, [
+            new LlmsTopic('node', 'Articles', '', [
+                ['title' => 'Safe', 'url' => 'https://example.test/page'],
+                ['title' => 'Evil', 'url' => 'data:text/html,<script>alert(1)</script>'],
+            ]),
+        ]);
+
+        self::assertStringContainsString('https://example.test/page', $md);
+        self::assertStringNotContainsString('data:text/html', $md);
+    }
+
+    #[Test]
+    public function link_with_relative_url_is_present(): void
+    {
+        // The generator is routing-agnostic — a site-relative path (no scheme)
+        // produced by the caller's buildLink callback is a valid llms.txt link
+        // and must NOT be dropped by the scheme gate. Pins the relative-URL
+        // contract so the injection hardening cannot silently re-break it.
+        $md = new LlmsTxtGenerator()->generate('My Site', null, [
+            new LlmsTopic('node', 'Articles', '', [
+                ['title' => 'First', 'url' => '/articles/first.md'],
+            ]),
+        ]);
+
+        self::assertStringContainsString('- [First](/articles/first.md)', $md);
+    }
+
+    #[Test]
+    public function link_with_safe_https_url_is_present_byte_identical(): void
+    {
+        $md = new LlmsTxtGenerator()->generate('My Site', null, [
+            new LlmsTopic('node', 'Articles', '', [
+                ['title' => 'Page', 'url' => 'https://example.test/a?b=c#d'],
+            ]),
+        ]);
+
+        self::assertStringContainsString('- [Page](https://example.test/a?b=c#d)', $md);
+    }
+
     #[Test]
     public function collect_topics_filters_to_published_for_status_bearing_types(): void
     {

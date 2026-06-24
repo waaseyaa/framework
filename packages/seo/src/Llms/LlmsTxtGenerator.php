@@ -38,12 +38,16 @@ final class LlmsTxtGenerator
      */
     public function generate(string $siteTitle, ?string $siteSummary, iterable $topics): string
     {
-        $title = trim($siteTitle) !== '' ? trim($siteTitle) : 'Site';
+        $rawTitle = $this->sanitizeText($siteTitle);
+        $title = $rawTitle !== '' ? $rawTitle : 'Site';
         $lines = ['# ' . $title, ''];
 
-        if ($siteSummary !== null && trim($siteSummary) !== '') {
-            $lines[] = '> ' . trim($siteSummary);
-            $lines[] = '';
+        if ($siteSummary !== null) {
+            $cleanSummary = $this->sanitizeText($siteSummary);
+            if ($cleanSummary !== '') {
+                $lines[] = '> ' . $cleanSummary;
+                $lines[] = '';
+            }
         }
 
         foreach ($topics as $topic) {
@@ -51,15 +55,17 @@ final class LlmsTxtGenerator
                 continue;
             }
 
-            $lines[] = '## ' . $topic->title;
-            if ($topic->summary !== '') {
-                $lines[] = $topic->summary;
+            $lines[] = '## ' . $this->sanitizeText($topic->title);
+            $cleanSummary = $this->sanitizeText($topic->summary);
+            if ($cleanSummary !== '') {
+                $lines[] = $cleanSummary;
             }
             foreach ($topic->links as $link) {
-                if ($link['url'] === '') {
+                if (!$this->isSafeLinkUrl($link['url'])) {
                     continue;
                 }
-                $linkTitle = $link['title'] !== '' ? $link['title'] : $link['url'];
+                $rawLinkTitle = $this->sanitizeText($link['title']);
+                $linkTitle = $rawLinkTitle !== '' ? $rawLinkTitle : $link['url'];
                 $lines[] = '- [' . $this->escape($linkTitle) . '](' . $link['url'] . ')';
             }
             $lines[] = '';
@@ -136,6 +142,48 @@ final class LlmsTxtGenerator
         }
 
         return $topics;
+    }
+
+    /**
+     * Collapse CR/LF/tab/other control characters to spaces so an entity-derived
+     * value cannot forge llms.txt line structure (new ## sections / - link lines).
+     */
+    private function sanitizeText(string $text): string
+    {
+        $collapsed = preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $text);
+
+        return trim($collapsed ?? $text);
+    }
+
+    /**
+     * Reject link URLs that would break llms.txt structure or carry an unsafe
+     * scheme.
+     *
+     * The generator is routing-agnostic: the caller's `buildLink` callback may
+     * legitimately produce site-relative paths (e.g. `/articles/first.md`), so a
+     * relative URL (no scheme) is allowed. Only an explicit, non-http(s) scheme
+     * (javascript:, data:, file:, vbscript:, …) is rejected. Control characters
+     * and whitespace are always rejected — they would break the ](url) markdown
+     * syntax or inject new lines.
+     */
+    private function isSafeLinkUrl(string $url): bool
+    {
+        if ($url === '') {
+            return false;
+        }
+        // Reject control chars / whitespace — they would break the ](url) markdown or inject lines.
+        if (preg_match('/[\x00-\x20\x7F]/', $url) === 1) {
+            return false;
+        }
+        $scheme = parse_url($url, PHP_URL_SCHEME);
+        // Relative URL (no scheme) is allowed; an explicit scheme must be http/https
+        // (blocks javascript:/data:/file:/vbscript: etc.).
+        if ($scheme === null || $scheme === false) {
+            return true;
+        }
+        $scheme = strtolower($scheme);
+
+        return $scheme === 'http' || $scheme === 'https';
     }
 
     private function escape(string $text): string
