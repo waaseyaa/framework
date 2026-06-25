@@ -108,14 +108,34 @@ final class LanguageManager implements LanguageManagerInterface
                 }
             }
         } else {
-            // Auto-derive parent from regional variant: "fr-CA" -> "fr".
+            // Auto-derive the parent langcode.
+            //
+            // A BCP 47 singleton subtag (a single-character subtag such as "x"
+            // for private use, or an extension singleton like "u"/"t") plus
+            // everything that follows it form one unit. Strip that whole
+            // section in a single step so "oj-x-sagamok" -> "oj" (not "oj-x")
+            // and "oj-x-a-b" -> "oj". Otherwise fall back to stripping a single
+            // trailing subtag for regional variants: "fr-CA" -> "fr".
             $parts = explode('-', $langcode);
-            if (\count($parts) > 1) {
+            $parent = null;
+
+            $singletonIndex = null;
+            foreach ($parts as $index => $part) {
+                if (\strlen($part) === 1) {
+                    $singletonIndex = $index;
+                    break;
+                }
+            }
+
+            if ($singletonIndex !== null) {
+                $parent = implode('-', \array_slice($parts, 0, $singletonIndex));
+            } elseif (\count($parts) > 1) {
                 array_pop($parts);
                 $parent = implode('-', $parts);
-                if (!\in_array($parent, $chain, true)) {
-                    $chain[] = $parent;
-                }
+            }
+
+            if ($parent !== null && $parent !== '' && !\in_array($parent, $chain, true)) {
+                $chain[] = $parent;
             }
         }
 

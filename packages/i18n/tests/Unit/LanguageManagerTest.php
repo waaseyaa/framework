@@ -163,6 +163,47 @@ final class LanguageManagerTest extends TestCase
     }
 
     #[Test]
+    public function it_strips_a_bcp47_private_use_section_in_full(): void
+    {
+        // "oj-x-sagamok" must resolve to "oj" -> "en", not "oj-x" -> "en":
+        // the "-x-" singleton and everything after it form one private-use
+        // section that is stripped as a unit.
+        $oj = new Language(id: 'oj', label: 'Ojibwe', weight: 1);
+        $manager = new LanguageManager([$this->english, $oj]);
+
+        $chain = $manager->getFallbackChain('oj-x-sagamok');
+
+        $this->assertSame(['oj-x-sagamok', 'oj', 'en'], $chain);
+    }
+
+    #[Test]
+    public function it_strips_a_multi_subtag_private_use_section_in_full(): void
+    {
+        // Everything after the "-x-" singleton is dropped in one step.
+        $oj = new Language(id: 'oj', label: 'Ojibwe', weight: 1);
+        $manager = new LanguageManager([$this->english, $oj]);
+
+        $chain = $manager->getFallbackChain('oj-x-a-b');
+
+        $this->assertSame(['oj-x-a-b', 'oj', 'en'], $chain);
+    }
+
+    #[Test]
+    public function custom_fallback_map_overrides_private_use_auto_derivation(): void
+    {
+        // A custom fallbackMap entry wins over the singleton auto-derivation.
+        $oj = new Language(id: 'oj', label: 'Ojibwe', weight: 1);
+        $manager = new LanguageManager(
+            languages: [$this->english, $oj, $this->french],
+            fallbackMap: ['oj-x-sagamok' => ['fr', 'en']],
+        );
+
+        $chain = $manager->getFallbackChain('oj-x-sagamok');
+
+        $this->assertSame(['oj-x-sagamok', 'fr', 'en'], $chain);
+    }
+
+    #[Test]
     public function fallback_chain_for_default_language_returns_only_itself(): void
     {
         $manager = new LanguageManager([$this->english, $this->french]);
