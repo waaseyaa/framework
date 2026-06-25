@@ -51,11 +51,11 @@
     ],
     "require": {
         "php": ">=8.5",
-        "waaseyaa/entity": "^0.1.0-alpha.248",
-        "waaseyaa/access": "^0.1.0-alpha.248",
-        "waaseyaa/i18n": "^0.1.0-alpha.248",
-        "waaseyaa/auth": "^0.1.0-alpha.248",
-        "waaseyaa/oidc": "^0.1.0-alpha.248",
+        "waaseyaa/entity": "^0.1.0-alpha.249",
+        "waaseyaa/access": "^0.1.0-alpha.249",
+        "waaseyaa/i18n": "^0.1.0-alpha.249",
+        "waaseyaa/auth": "^0.1.0-alpha.249",
+        "waaseyaa/oidc": "^0.1.0-alpha.249",
         "symfony/routing": "^7.0"
     },
     "require-dev": {
