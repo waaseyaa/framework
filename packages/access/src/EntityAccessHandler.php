@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Access;
 
 use Waaseyaa\Access\Attribute\AccessPolicy;
+use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Entity\EntityInterface;
 
 /**
@@ -30,7 +31,10 @@ class EntityAccessHandler
      * Operations recognized by the handler. 'translate' is the M-006 addition
      * that falls through to 'update' when no policy opines.
      */
-    public const array RECOGNIZED_OPERATIONS = ['view', 'update', 'delete', 'translate'];
+    public const array RECOGNIZED_OPERATIONS = [GateInterface::VIEW, GateInterface::UPDATE, GateInterface::DELETE, self::OPERATION_TRANSLATE];
+
+    /** Translate operation identifier — no GateInterface constant; kept local. */
+    private const string OPERATION_TRANSLATE = 'translate';
     /**
      * @var AccessPolicyInterface[]
      */
@@ -112,8 +116,8 @@ class EntityAccessHandler
         // operation is 'translate', re-check 'update'. translate ⊆ update by default.
         // Explicit Forbidden on translate is already short-circuited above and never
         // reaches this branch, so it is honored over the update fallback.
-        if ($operation === 'translate' && $result->isNeutral()) {
-            return $this->check($entity, 'update', $account, $context);
+        if ($operation === self::OPERATION_TRANSLATE && $result->isNeutral()) {
+            return $this->check($entity, GateInterface::UPDATE, $account, $context);
         }
 
         return $result;

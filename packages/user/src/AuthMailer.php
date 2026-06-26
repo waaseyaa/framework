@@ -40,7 +40,7 @@ class AuthMailer
 
         $vars = [
             'user_name' => $user->get('name'),
-            'reset_url' => $this->baseUrl . '/reset-password?token=' . $token,
+            'reset_url' => $this->baseUrl . '/reset-password?token=' . rawurlencode($token),
         ];
 
         $html = $this->twig->render('email/password-reset.html.twig', $vars);
@@ -63,7 +63,7 @@ class AuthMailer
 
         $vars = [
             'user_name' => $user->get('name'),
-            'verify_url' => $this->baseUrl . '/verify-email?token=' . $token,
+            'verify_url' => $this->baseUrl . '/verify-email?token=' . rawurlencode($token),
         ];
 
         $html = $this->twig->render('email/email-verification.html.twig', $vars);

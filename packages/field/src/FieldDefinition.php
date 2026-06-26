@@ -122,34 +122,14 @@ final readonly class FieldDefinition implements FieldDefinitionInterface, \Array
      * Fallback JSON Schema mapping used when no FieldTypeManager has been
      * threaded through construction.
      *
-     * Mirrors AbstractFieldType::jsonSchemaFor() exactly so manager-less
+     * Delegates to {@see AbstractFieldType::jsonSchemaFor()} so manager-less
      * construction (unit tests, ad-hoc callers) and manager-driven
      * construction emit bit-identical output for every existing field type.
      * EnumItem (WP02) only takes effect when a manager is present.
      */
     private function legacyJsonSchema(): array
     {
-        return match ($this->type) {
-            'string' => ['type' => 'string'],
-            'integer' => ['type' => 'integer'],
-            'boolean' => ['type' => 'boolean'],
-            'float' => ['type' => 'number'],
-            'text' => [
-                'type' => 'object',
-                'properties' => [
-                    'value' => ['type' => 'string'],
-                    'format' => ['type' => 'string'],
-                ],
-            ],
-            'entity_reference' => [
-                'type' => 'object',
-                'properties' => [
-                    'target_id' => ['type' => 'integer'],
-                    'target_type' => ['type' => 'string'],
-                ],
-            ],
-            default => ['type' => 'string'],
-        };
+        return AbstractFieldType::jsonSchemaFor($this);
     }
 
     // DataDefinitionInterface methods
@@ -220,28 +200,7 @@ final readonly class FieldDefinition implements FieldDefinitionInterface, \Array
      */
     public function storedIn(string $backendId): self
     {
-        return new self(
-            name: $this->name,
-            type: $this->type,
-            cardinality: $this->cardinality,
-            settings: $this->settings,
-            targetEntityTypeId: $this->targetEntityTypeId,
-            targetBundle: $this->targetBundle,
-            translatable: $this->translatable,
-            revisionable: $this->revisionable,
-            defaultValue: $this->defaultValue,
-            label: $this->label,
-            description: $this->description,
-            required: $this->required,
-            readOnly: $this->readOnly,
-            constraints: $this->constraints,
-            stored: $this->stored,
-            fieldTypeManager: $this->fieldTypeManager,
-            group: $this->group,
-            promptAliases: $this->promptAliases,
-            backendId: $backendId,
-            fieldIndexed: $this->fieldIndexed,
-        );
+        return $this->with(['backendId' => $backendId]);
     }
 
     /**
@@ -263,28 +222,7 @@ final readonly class FieldDefinition implements FieldDefinitionInterface, \Array
      */
     public function indexed(): self
     {
-        return new self(
-            name: $this->name,
-            type: $this->type,
-            cardinality: $this->cardinality,
-            settings: $this->settings,
-            targetEntityTypeId: $this->targetEntityTypeId,
-            targetBundle: $this->targetBundle,
-            translatable: $this->translatable,
-            revisionable: $this->revisionable,
-            defaultValue: $this->defaultValue,
-            label: $this->label,
-            description: $this->description,
-            required: $this->required,
-            readOnly: $this->readOnly,
-            constraints: $this->constraints,
-            stored: $this->stored,
-            fieldTypeManager: $this->fieldTypeManager,
-            group: $this->group,
-            promptAliases: $this->promptAliases,
-            backendId: $this->backendId,
-            fieldIndexed: true,
-        );
+        return $this->with(['fieldIndexed' => true]);
     }
 
     /**
@@ -306,27 +244,41 @@ final readonly class FieldDefinition implements FieldDefinitionInterface, \Array
      */
     public function translatable(bool $value = true): self
     {
+        return $this->with(['translatable' => $value]);
+    }
+
+    /**
+     * Construct a new instance re-using all current property values, except
+     * those named in $overrides.
+     *
+     * Adding a new constructor parameter requires threading it through this
+     * method once — all three withers then get it for free.
+     *
+     * @param array<string, mixed> $overrides Named constructor arguments to override.
+     */
+    private function with(array $overrides): self
+    {
         return new self(
-            name: $this->name,
-            type: $this->type,
-            cardinality: $this->cardinality,
-            settings: $this->settings,
-            targetEntityTypeId: $this->targetEntityTypeId,
-            targetBundle: $this->targetBundle,
-            translatable: $value,
-            revisionable: $this->revisionable,
-            defaultValue: $this->defaultValue,
-            label: $this->label,
-            description: $this->description,
-            required: $this->required,
-            readOnly: $this->readOnly,
-            constraints: $this->constraints,
-            stored: $this->stored,
-            fieldTypeManager: $this->fieldTypeManager,
-            group: $this->group,
-            promptAliases: $this->promptAliases,
-            backendId: $this->backendId,
-            fieldIndexed: $this->fieldIndexed,
+            name: $overrides['name'] ?? $this->name,
+            type: $overrides['type'] ?? $this->type,
+            cardinality: $overrides['cardinality'] ?? $this->cardinality,
+            settings: $overrides['settings'] ?? $this->settings,
+            targetEntityTypeId: $overrides['targetEntityTypeId'] ?? $this->targetEntityTypeId,
+            targetBundle: array_key_exists('targetBundle', $overrides) ? $overrides['targetBundle'] : $this->targetBundle,
+            translatable: $overrides['translatable'] ?? $this->translatable,
+            revisionable: $overrides['revisionable'] ?? $this->revisionable,
+            defaultValue: array_key_exists('defaultValue', $overrides) ? $overrides['defaultValue'] : $this->defaultValue,
+            label: $overrides['label'] ?? $this->label,
+            description: $overrides['description'] ?? $this->description,
+            required: $overrides['required'] ?? $this->required,
+            readOnly: $overrides['readOnly'] ?? $this->readOnly,
+            constraints: $overrides['constraints'] ?? $this->constraints,
+            stored: $overrides['stored'] ?? $this->stored,
+            fieldTypeManager: array_key_exists('fieldTypeManager', $overrides) ? $overrides['fieldTypeManager'] : $this->fieldTypeManager,
+            group: $overrides['group'] ?? $this->group,
+            promptAliases: $overrides['promptAliases'] ?? $this->promptAliases,
+            backendId: array_key_exists('backendId', $overrides) ? $overrides['backendId'] : $this->backendId,
+            fieldIndexed: $overrides['fieldIndexed'] ?? $this->fieldIndexed,
         );
     }
 

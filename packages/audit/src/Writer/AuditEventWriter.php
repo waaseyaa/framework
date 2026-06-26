@@ -28,10 +28,14 @@ use Waaseyaa\Foundation\Log\NullLogger;
  */
 final class AuditEventWriter implements AuditWriterInterface
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly DatabaseInterface $database,
-        private readonly ?LoggerInterface $logger = null,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function record(AuditEventDescriptor $descriptor): void
     {
@@ -61,7 +65,7 @@ final class AuditEventWriter implements AuditWriterInterface
                 'created_at'     => new \DateTimeImmutable()->format('Y-m-d H:i:s'),
             ])->execute();
         } catch (\Throwable $e) {
-            ($this->logger ?? new NullLogger())->warning('audit.write_failed', [
+            $this->logger->warning('audit.write_failed', [
                 'listener' => self::class,
                 'error'    => $e->getMessage(),
                 'kind'     => $descriptor->kind->value,
