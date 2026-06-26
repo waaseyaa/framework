@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Revision timestamps are now written through the injected clock seam (UTC, deterministic) instead of server-local `date()` (audit `L1-entity-storage.md` m4).** `RevisionableStorageDriver::writeDefaultRevision()` / `writePerLangcodeRevision()` stamped `revision_created` with `date('Y-m-d H:i:s')`, which used the server's local timezone and was not controllable in tests — the same revision could record a different wall-clock value on differently-configured hosts, and the value was not clock-testable. The driver now takes an optional `Waaseyaa\Entity\DateTime\EntityClockInterface` (defaulting to `UtcEntityClock`, matching the base-table `SqlEntityStorage` path), so `revision_created` is always UTC and a fixed clock yields a deterministic value. The stored string format (`Y-m-d H:i:s`) is unchanged; the only behavioural change is UTC instead of server-local. The kernel construction site (`AbstractKernel`) is unaffected — the new parameter defaults to the same UTC clock. Acceptance: `RevisionableStorageDriverClockTest::write_revision_uses_injected_clock_for_revision_created`.
+
 ## [0.1.0-alpha.249] - 2026-06-25
 
 ### Removed

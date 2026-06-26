@@ -6,6 +6,8 @@ namespace Waaseyaa\EntityStorage\Driver;
 
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Entity\DateTime\EntityClockInterface;
+use Waaseyaa\Entity\DateTime\UtcEntityClock;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\EntityStorage\Connection\ConnectionResolverInterface;
 
@@ -51,6 +53,8 @@ final class RevisionableStorageDriver
 
     private readonly string $translationRevisionTable;
 
+    private readonly EntityClockInterface $clock;
+
     /**
      * In-process per-`(entity_id, langcode)` current-revision pointer (FR-007).
      *
@@ -66,9 +70,11 @@ final class RevisionableStorageDriver
     public function __construct(
         private readonly ConnectionResolverInterface $connectionResolver,
         private readonly EntityTypeInterface $entityType,
+        ?EntityClockInterface $clock = null,
     ) {
         $this->revisionTable = $this->entityType->id() . '_revision';
         $this->translationRevisionTable = $this->entityType->id() . '__translation__revision';
+        $this->clock = $clock ?? new UtcEntityClock();
     }
 
     /**
@@ -337,7 +343,7 @@ final class RevisionableStorageDriver
             $row = [
                 'entity_id'        => $entityId,
                 'revision_id'      => $revisionId,
-                'revision_created' => date('Y-m-d H:i:s'),
+                'revision_created' => $this->clock->now()->format('Y-m-d H:i:s'),
                 'revision_log'     => $log,
                 // Resolved acting account (FR-001). SQL NULL when no actor was in
                 // scope; 0 if and only if the anonymous account acted.
@@ -410,7 +416,7 @@ final class RevisionableStorageDriver
                 'entity_id'        => $entityId,
                 'langcode'         => $langcode,
                 'revision_id'      => $revisionId,
-                'revision_created' => date('Y-m-d H:i:s'),
+                'revision_created' => $this->clock->now()->format('Y-m-d H:i:s'),
                 'revision_log'     => $log,
                 // Resolved acting account (FR-001) — same semantics as the
                 // single-axis path: NULL = no actor, 0 = anonymous.
