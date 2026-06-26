@@ -29,15 +29,35 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
 /**
- * SQL-based entity storage implementation.
+ * SQL-backed entity storage driver.
  *
- * Stores entities in SQL tables using the waaseyaa/database-legacy package.
- * Supports CRUD operations and dispatches entity lifecycle events.
+ * Persists entities through the {@see DatabaseInterface} query builder
+ * (waaseyaa/database-legacy) and dispatches the entity lifecycle events on
+ * {@see EntityEvents}. Implements the full {@see EntityStorageInterface} CRUD
+ * surface: create, load, loadByKey, loadMultiple, save, delete and getQuery.
  *
- * For v0.1.0:
- * - Flat table schema (all fields in one table)
- * - No revision support
- * - No translation support
+ * Schema model:
+ * - A flat base table keyed by the entity's id key. Core fields map to real
+ *   columns; the remaining field values are folded into a single JSON `_data`
+ *   blob (see {@see splitForStorage()}).
+ * - Optional per-bundle subtables, merged into the loaded row on read via the
+ *   {@see BundleSubtableGateway} (see {@see mergeBundleSubtableRow()}).
+ *
+ * Translation (two strategies, selected per entity type):
+ * - Default "sql-blob" strategy keeps per-langcode field values inside the base
+ *   row's `_data` blob via {@see TranslationSchemaHandler}.
+ * - Optional "sql-column" strategy stores translations in a dedicated
+ *   translation table with real columns (see {@see saveSqlColumnTranslatable()}
+ *   / {@see loadSqlColumnTranslatable()}), hydrated by
+ *   {@see SqlColumnTranslationHydrator}.
+ *
+ * Cross-cutting: created/changed timestamps are populated through the injected
+ * {@see EntityClockInterface}; reads run through an access-aware
+ * {@see EntityQueryInterface} (optional {@see EntityAccessHandler}); list
+ * queries are served from {@see SqlEntityQueryResultCache}.
+ *
+ * Revisions are out of scope for this class — revisionable entities are handled
+ * by the RevisionableStorageDriver, not here.
  */
 final class SqlEntityStorage implements EntityStorageInterface
 {
