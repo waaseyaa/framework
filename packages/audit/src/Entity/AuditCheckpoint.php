@@ -117,6 +117,17 @@ final class AuditCheckpoint extends ContentEntityBase
         return (bool) ($this->get('is_genesis') ?? false);
     }
 
+    /**
+     * True when the segment covered by this checkpoint has been sanctioned-pruned
+     * (WP4: audit:prune at checkpoint boundaries). A pruned checkpoint retains
+     * its chain link so the verifier can continue walking the chain; only the
+     * audit_event rows in the segment are deleted.
+     */
+    public function isPruned(): bool
+    {
+        return (bool) ($this->get('pruned') ?? false);
+    }
+
     public function getCreatedAt(): string
     {
         return (string) ($this->get('created_at') ?? '');

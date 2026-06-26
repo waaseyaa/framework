@@ -147,9 +147,18 @@ final class AuditEventSchemaHandler
                 signature TEXT NOT NULL DEFAULT \'\',
                 hash_version VARCHAR(16) NOT NULL DEFAULT \'v1\',
                 is_genesis INTEGER NOT NULL DEFAULT 0,
+                pruned INTEGER NOT NULL DEFAULT 0,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
             )',
         );
+
+        // Additive migration (WP4): pre-WP4 installs have no `pruned` column.
+        // DEFAULT 0 means "not pruned" — safe for all existing checkpoints.
+        if (!$this->database->schema()->fieldExists('audit_checkpoint', 'pruned')) {
+            $conn->executeStatement(
+                'ALTER TABLE audit_checkpoint ADD COLUMN pruned INTEGER NOT NULL DEFAULT 0',
+            );
+        }
 
         $conn->executeStatement(
             'CREATE UNIQUE INDEX IF NOT EXISTS audit_checkpoint_uuid ON audit_checkpoint (uuid)',
