@@ -13,12 +13,14 @@ use Waaseyaa\Database\DBALDatabase;
 #[CoversClass(DatabaseRateLimiter::class)]
 final class DatabaseRateLimiterTest extends TestCase
 {
+    private DBALDatabase $db;
+
     private DatabaseRateLimiter $limiter;
 
     protected function setUp(): void
     {
-        $db = DBALDatabase::createSqlite();
-        $this->limiter = new DatabaseRateLimiter($db);
+        $this->db = DBALDatabase::createSqlite();
+        $this->limiter = new DatabaseRateLimiter($this->db);
     }
 
     #[Test]
@@ -98,5 +100,31 @@ final class DatabaseRateLimiterTest extends TestCase
 
         $limiter2 = new DatabaseRateLimiter($db);
         $this->assertSame(2, $limiter2->attempts('login:alice'));
+    }
+
+    #[Test]
+    public function counts_every_hit_exactly(): void
+    {
+        for ($i = 0; $i < 25; $i++) {
+            $this->limiter->hit('exact:key', 60);
+        }
+
+        $this->assertSame(25, $this->limiter->attempts('exact:key'));
+    }
+
+    #[Test]
+    public function schema_uses_no_reserved_word_columns(): void
+    {
+        $this->limiter->hit('k', 60); // triggers ensureTable()
+
+        $columns = [];
+        foreach ($this->db->query('PRAGMA table_info(rate_limits)') as $row) {
+            $columns[] = $row['name'];
+        }
+
+        sort($columns);
+        $this->assertSame(['bucket_key', 'hits', 'reset_at'], $columns);
+        $this->assertNotContains('key', $columns, 'reserved word "key" must not be a column');
+        $this->assertNotContains('count', $columns, 'reserved word "count" must not be a column');
     }
 }
