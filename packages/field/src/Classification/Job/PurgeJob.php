@@ -43,13 +43,16 @@ final class PurgeJob
     private const array SELF_TYPES = ['retention_policy', 'classification_label_definition'];
 
     private readonly LoggerInterface $logger;
+    private readonly RetentionScanner $scanner;
 
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
         private readonly AuditWriterInterface $auditWriter,
         ?LoggerInterface $logger = null,
+        ?RetentionScanner $scanner = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        $this->scanner = $scanner ?? new RetentionScanner($entityTypeManager);
     }
 
     public function run(): void
@@ -118,7 +121,7 @@ final class PurgeJob
                 continue;
             }
 
-            foreach ($this->findAgeEligible($entityTypeId, $cutoffString) as $entity) {
+            foreach ($this->scanner->scan($entityTypeId, $cutoffString, RetentionScanner::labelCondition($policy)) as $entity) {
                 $labelId = (string) ($entity->get('classification_label') ?? '');
                 if ($labelId === '' || !$policy->matchesLabel($labelId)) {
                     continue;
@@ -149,37 +152,6 @@ final class PurgeJob
         }
 
         return $deleted;
-    }
-
-    /**
-     * Query a single entity type for classification-labelled entities older
-     * than the cutoff. Returns an empty list (rather than throwing) for types
-     * that do not carry the `classification_label` field.
-     *
-     * @return list<EntityInterface>
-     */
-    private function findAgeEligible(string $entityTypeId, string $cutoffString): array
-    {
-        try {
-            $storage = $this->entityTypeManager->getStorage($entityTypeId);
-            // System retention sweep: no user account in scope. accessCheck(false)
-            // is the intentional opt-out (see CLAUDE.md §"Unbound getQuery() gate").
-            $ids = $storage->getQuery()
-                ->accessCheck(false)
-                ->exists('classification_label')
-                ->condition('created_at', $cutoffString, '<')
-                ->execute();
-
-            if ($ids === []) {
-                return [];
-            }
-
-            return array_values($storage->loadMultiple($ids));
-        } catch (\Throwable) {
-            // Entity type lacks a classification_label / created_at column —
-            // not a participant in classification. Skip silently.
-            return [];
-        }
     }
 
     private function recordPurge(RetentionPolicy $policy, string $entityTypeId, string $uuid, string $labelId): void
