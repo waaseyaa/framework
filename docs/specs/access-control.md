@@ -520,6 +520,8 @@ Behavior:
 
 Does not handle login/logout. Only resolves "who is making this request."
 
+**Session lifecycle on login/logout (`AuthManager`).** `AuthManager::login()` calls `session_regenerate_id(true)` to defeat session fixation (a fresh id is issued the moment privileges change). Symmetrically, `AuthManager::logout()` clears **all** session data (`$_SESSION = []`, not just the uid) and then, when a session is active, rotates and destroys the underlying session (`session_regenerate_id(true)` + `session_destroy()`) so the pre-logout session id can never be reused. Both operations are guarded on `session_status() === PHP_SESSION_ACTIVE` because the session is started by the bootstrap, not by `AuthManager` (and is inactive in CLI/tests).
+
 Lives in the `user` package because it depends on `User`, `AnonymousUser`, and entity storage.
 
 ### AuthorizationMiddleware

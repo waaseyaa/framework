@@ -39,11 +39,22 @@ final class AuthManager
     }
 
     /**
-     * Log out by clearing the session user.
+     * Log out by clearing and destroying the session.
+     *
+     * Clears all session data, then rotates + destroys the underlying session so
+     * the pre-logout session id cannot be reused — symmetric with login()'s
+     * session_regenerate_id(true). Guarded on PHP_SESSION_ACTIVE because the
+     * session is started by the bootstrap (not here) and is inactive in CLI/tests.
      */
     public function logout(): void
     {
-        unset($_SESSION['waaseyaa_uid']);
+        // Clear all session data (not just the uid).
+        $_SESSION = [];
+
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_regenerate_id(true);
+            session_destroy();
+        }
     }
 
     /**

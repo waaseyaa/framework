@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\Auth\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Auth\AuthManager;
 use Waaseyaa\User\User;
@@ -66,13 +68,39 @@ final class AuthManagerTest extends TestCase
         $this->assertSame($user->id(), $_SESSION['waaseyaa_uid']);
     }
 
-    public function testLogoutClearsSession(): void
+    public function testLogoutClearsAllSessionData(): void
     {
         $_SESSION = ['waaseyaa_uid' => '123', 'other' => 'data'];
 
         $this->auth->logout();
 
-        $this->assertArrayNotHasKey('waaseyaa_uid', $_SESSION);
+        $this->assertSame([], $_SESSION, 'logout() must clear all session data, not just the uid');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testLogoutDestroysActiveSession(): void
+    {
+        if (session_status() === PHP_SESSION_DISABLED) {
+            $this->markTestSkipped('Sessions are disabled in this SAPI.');
+        }
+        session_save_path(sys_get_temp_dir());
+        if (@session_start() === false) {
+            $this->markTestSkipped('Could not start a session in this environment.');
+        }
+
+        $_SESSION['waaseyaa_uid'] = '123';
+        $_SESSION['other'] = 'data';
+        $originalId = session_id();
+        $this->assertNotSame('', $originalId);
+
+        (new AuthManager())->logout();
+
+        // All session data cleared.
+        $this->assertSame([], $_SESSION);
+        // The pre-logout session id was regenerated (and the old session destroyed),
+        // so it is no longer the active id.
+        $this->assertNotSame($originalId, session_id());
     }
 
     public function testIsAuthenticatedReturnsTrueWhenSessionHasUid(): void
