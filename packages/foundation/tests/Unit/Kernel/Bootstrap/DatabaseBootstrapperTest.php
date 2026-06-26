@@ -366,6 +366,45 @@ final class DatabaseBootstrapperTest extends TestCase
         $this->assertInstanceOf(DatabaseInterface::class, $database);
     }
 
+    #[Test]
+    public function bootThrowsWhenParentDirectoryCannotBeCreated(): void
+    {
+        // Simulate an uncreatable parent by placing the database path under a
+        // regular FILE — mkdir will fail with ENOTDIR because a path component
+        // is not a directory. This works even as root (it is not a permission
+        // trick; the filesystem rejects the operation structurally).
+        $file = tempnam(sys_get_temp_dir(), 'wsdb');
+        if ($file === false) {
+            self::markTestSkipped('tempnam() failed — cannot proceed');
+        }
+
+        try {
+            // $file is a regular file; asking for $file/sub/db.sqlite means
+            // dirname() is $file/sub, which cannot be mkdir'd.
+            $dbPath = $file . '/sub/db.sqlite';
+
+            $this->expectException(\RuntimeException::class);
+            $this->expectExceptionMessageMatches('/Failed to create the database directory/');
+
+            // Suppress the E_WARNING that mkdir() emits on ENOTDIR — this is the
+            // OS-level signal that mkdir failed; our production code converts it to
+            // a RuntimeException, which is what this test asserts.
+            set_error_handler(static fn() => true, \E_WARNING);
+            try {
+                new DatabaseBootstrapper()->boot(
+                    sys_get_temp_dir(),
+                    ['database' => $dbPath, 'environment' => 'dev'],
+                );
+            } finally {
+                restore_error_handler();
+            }
+        } finally {
+            if (file_exists($file)) {
+                unlink($file);
+            }
+        }
+    }
+
     /**
      * @return LoggerInterface&object{warnings: list<string>}
      */
