@@ -6,6 +6,7 @@ namespace Waaseyaa\EntityStorage\Backend;
 
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeInterface;
+use Waaseyaa\EntityStorage\Schema\ColumnSpecMap;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
@@ -180,22 +181,8 @@ final class SqlColumnSchemaBuilder
      */
     private function buildColumnSpec(string $fieldType, array $settings): array
     {
-        $type = strtolower($fieldType);
-
         // Map §8.2 field type → Waaseyaa abstract type understood by DBALSchema.
-        $abstractType = match ($type) {
-            'string'                  => 'varchar',
-            'text'                    => 'text',
-            'int', 'integer'          => 'int',
-            'bigint'                  => 'int',    // DBALSchema maps to integer; Doctrine emits BIGINT via its own type resolution
-            'bool', 'boolean'         => 'boolean',
-            'datetime'                => 'text',   // ISO 8601 TEXT per §8.2
-            'json'                    => 'text',   // TEXT in SQLite, JSONB semantics via app layer
-            'uuid'                    => 'varchar',
-            'float'                   => 'float',
-            'decimal', 'numeric'      => 'text',   // lossless TEXT per §8.2 (SQLite); Postgres gets NUMERIC via Doctrine
-            default                   => 'text',
-        };
+        $abstractType = ColumnSpecMap::abstractTypeFor($fieldType);
 
         $spec = [
             'type'     => $abstractType,

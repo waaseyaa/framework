@@ -344,21 +344,7 @@ final class RevisionTableBuilder
      */
     private function columnSpecForType(string $fieldType, array $settings): array
     {
-        $type = strtolower($fieldType);
-
-        $abstractType = match ($type) {
-            'string'             => 'varchar',
-            'text'               => 'text',
-            'int', 'integer'     => 'int',
-            'bigint'             => 'int',
-            'bool', 'boolean'    => 'boolean',
-            'datetime'           => 'text',
-            'json'               => 'text',
-            'uuid'               => 'varchar',
-            'float'              => 'float',
-            'decimal', 'numeric' => 'text',
-            default              => 'text',
-        };
+        $abstractType = ColumnSpecMap::abstractTypeFor($fieldType);
 
         $spec = [
             'type'     => $abstractType,
