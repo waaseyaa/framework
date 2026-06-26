@@ -24,22 +24,30 @@ final class DatabaseRateLimiter implements RateLimiterInterface
         $this->ensureTable();
         $this->pruneExpired();
 
-        $row = $this->fetchRow($key);
-
-        if ($row === null) {
+        // Ensure a row exists for this key (starts at 0; tolerate a concurrent insert).
+        try {
             $this->database->insert(self::TABLE)
                 ->values([
-                    'key' => $key,
-                    'count' => 1,
+                    'bucket_key' => $key,
+                    'hits' => 0,
                     'reset_at' => time() + $decaySeconds,
                 ])
                 ->execute();
-        } else {
-            $this->database->update(self::TABLE)
-                ->fields(['count' => (int) $row['count'] + 1])
-                ->condition('key', $key)
-                ->execute();
+        } catch (\Throwable $e) {
+            // A concurrent hit() (or a prior hit in this window) already inserted the
+            // key — benign; the atomic increment below still counts this hit. Only a
+            // genuinely-absent row after the failure is a real error.
+            if ($this->fetchRow($key) === null) {
+                throw $e;
+            }
         }
+
+        // Atomic increment — no read-modify-write, so concurrent hits never undercount.
+        $col = $this->database->quoteIdentifier('hits');
+        $sql = 'UPDATE ' . $this->database->quoteIdentifier(self::TABLE)
+            . ' SET ' . $col . ' = ' . $col . ' + 1'
+            . ' WHERE ' . $this->database->quoteIdentifier('bucket_key') . ' = ?';
+        $this->database->query($sql, [$key]);
     }
 
     public function tooManyAttempts(string $key, int $maxAttempts): bool
@@ -54,7 +62,7 @@ final class DatabaseRateLimiter implements RateLimiterInterface
 
         $row = $this->fetchRow($key);
 
-        return $row !== null ? (int) $row['count'] : 0;
+        return $row !== null ? (int) $row['hits'] : 0;
     }
 
     public function remaining(string $key, int $maxAttempts): int
@@ -67,7 +75,7 @@ final class DatabaseRateLimiter implements RateLimiterInterface
         $this->ensureTable();
 
         $this->database->delete(self::TABLE)
-            ->condition('key', $key)
+            ->condition('bucket_key', $key)
             ->execute();
     }
 
@@ -76,7 +84,7 @@ final class DatabaseRateLimiter implements RateLimiterInterface
      */
     private function fetchRow(string $key): ?array
     {
-        foreach ($this->database->select(self::TABLE)->condition('key', $key)->execute() as $row) {
+        foreach ($this->database->select(self::TABLE)->condition('bucket_key', $key)->execute() as $row) {
             return $row;
         }
 
@@ -96,13 +104,24 @@ final class DatabaseRateLimiter implements RateLimiterInterface
             return;
         }
 
-        $this->database->query(<<<'SQL'
-                CREATE TABLE IF NOT EXISTS rate_limits (
-                    key TEXT PRIMARY KEY,
-                    count INTEGER NOT NULL DEFAULT 0,
-                    reset_at INTEGER NOT NULL
-                )
-            SQL);
+        $schema = $this->database->schema();
+        if (!$schema->tableExists(self::TABLE)) {
+            try {
+                $schema->createTable(self::TABLE, [
+                    'fields' => [
+                        'bucket_key' => ['type' => 'text', 'not null' => true],
+                        'hits' => ['type' => 'integer', 'not null' => true],
+                        'reset_at' => ['type' => 'integer', 'not null' => true],
+                    ],
+                    'primary key' => ['bucket_key'],
+                ]);
+            } catch (\Throwable $e) {
+                // A concurrent boot created the table between our check and create.
+                if (!$this->database->schema()->tableExists(self::TABLE)) {
+                    throw $e;
+                }
+            }
+        }
 
         $this->tableCreated = true;
     }
