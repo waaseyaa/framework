@@ -202,8 +202,28 @@ when intact and non-zero on tamper, and emits an `audit.verify` self-audit event
 forged checkpoints — what the append-only decorator cannot *prevent* against a
 party with raw DB access.
 
-**Still to land:** checkpoint-boundary-aware `audit:prune` (so a sanctioned prune
-is distinguishable from a malicious gap).
+**Prune reconciliation — checkpoint-aware `audit:prune` (WP4):** retention pruning
+must not look like tampering. `audit_checkpoint` gains a `pruned` flag. `audit:prune`
+deletes in two disjoint populations: **sealed** rows (covered by a non-genesis
+checkpoint) are pruned only at WHOLE checkpoint-segment boundaries — it computes a
+`horizon` = the highest `segment_end_id` whose entire segment is older than the
+cutoff, deletes `audit_event WHERE id <= horizon`, and marks those checkpoints
+`pruned=1` (`--kind` does NOT apply to sealed rows; whole-segment deletion is
+required for chain integrity); **unsealed-tail** rows (`id > MAX(segment_end_id)`)
+keep the legacy `created_at`(+`--kind`) deletion (no chain yet). The
+`audit.retention_pruned` self-audit records `sealed_pruned_through_id`,
+`pruned_checkpoint_hash`, and `unsealed_deleted_count`. `audit:verify` treats a
+`pruned=1` checkpoint as a valid anchor: it still verifies the checkpoint's chain
+link **and recomputes its `checkpoint_hash`** (a forged pruned checkpoint is still
+caught), but skips the row-level checks (the rows are legitimately gone) and
+advances the chain from the retained `segment_hash`, so the surviving chain still
+validates across the prune boundary. A row deleted from a sealed segment **without**
+the `pruned` flag still fails verification (`row_count`/`chain_link`) — that is what
+distinguishes a sanctioned prune from a malicious gap.
+
+**v1 complete.** Remaining hardening is tracked separately: the external-sink
+cross-check at verify time, and the fail-open write-path marker+metric (the latter
+filed as its own follow-up; see design `§1`/`§10.4`).
 
 ---
 

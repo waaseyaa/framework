@@ -50,6 +50,7 @@ final class AuditChainVerifier
                     'prev_checkpoint_hash',
                     'checkpoint_hash',
                     'is_genesis',
+                    'pruned',
                 ])
                 ->orderBy('segment_end_id', 'ASC')
                 ->execute(),
@@ -111,8 +112,10 @@ final class AuditChainVerifier
             $segStartId = (int) $checkpoint['segment_start_id'];
             $segEndId   = (int) $checkpoint['segment_end_id'];
             $rowCount   = (int) $checkpoint['row_count'];
+            $isPruned   = (bool) ($checkpoint['pruned'] ?? false);
 
-            // 3a: checkpoint chain link.
+            // 3a: checkpoint chain link — checked for BOTH pruned and normal segments.
+            // A forged pruned checkpoint (with a wrong chain link) is still caught here.
             if ((string) $checkpoint['prev_checkpoint_hash'] !== $prevCheckpointHash) {
                 $this->logger->warning('audit.verify.checkpoint_chain_mismatch', [
                     'segment_start_id' => $segStartId,
@@ -133,7 +136,51 @@ final class AuditChainVerifier
                 );
             }
 
-            // 3b: load the segment's rows.
+            // 3a2: recompute checkpoint_hash for pruned segments as well — a
+            // forged pruned checkpoint that alters segment_hash or checkpoint_hash
+            // is detected here before we skip row-level checks.
+            if ($isPruned) {
+                $recomputedPruned = AuditCheckpointHasher::checkpointHash(
+                    $segStartId,
+                    $segEndId,
+                    $rowCount,
+                    (string) $checkpoint['segment_hash'],
+                    (string) $checkpoint['prev_checkpoint_hash'],
+                );
+
+                if ($recomputedPruned !== (string) $checkpoint['checkpoint_hash']) {
+                    $this->logger->warning('audit.verify.checkpoint_hash_mismatch', [
+                        'segment_end_id' => $segEndId,
+                        'stored'         => $checkpoint['checkpoint_hash'],
+                        'computed'       => $recomputedPruned,
+                        'pruned'         => true,
+                    ]);
+
+                    return AuditVerificationResult::broken(
+                        $segEndId,
+                        'checkpoint_hash',
+                        sprintf(
+                            'Pruned checkpoint hash mismatch at segment_end_id %d: recomputed hash does not match stored value',
+                            $segEndId,
+                        ),
+                        $segmentsVerified,
+                        $rowsVerified,
+                        $this->countUnsealedRows($lastSealedId),
+                    );
+                }
+
+                // Pruned segment: rows are legitimately gone — skip row-level checks.
+                // Advance the chain anchors so the NEXT segment's first row still
+                // chains correctly (its prev_hash == this segment's segment_hash).
+                $prevCheckpointHash = (string) $checkpoint['checkpoint_hash'];
+                $prevSegmentHash    = (string) $checkpoint['segment_hash'];
+                $lastSealedId       = $segEndId;
+                ++$segmentsVerified;
+
+                continue;
+            }
+
+            // 3b: load the segment's rows (normal — not pruned).
             $rows = iterator_to_array(
                 $this->database
                     ->select('audit_event')
