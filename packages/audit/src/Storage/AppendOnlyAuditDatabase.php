@@ -68,9 +68,14 @@ final class AppendOnlyAuditDatabase implements DatabaseInterface
     /**
      * Tables on which UPDATE and DELETE are forbidden through this decorator.
      *
+     * `audit_checkpoint` joins `audit_event` so that the tamper-evidence chain
+     * rows are protected by the same structural guard. The checkpoint builder
+     * (WP2) and prune command write through the RAW DatabaseInterface, not
+     * this decorator — the same discrimination already used for audit_event.
+     *
      * @var list<string>
      */
-    private const APPEND_ONLY_TABLES = ['audit_event'];
+    private const APPEND_ONLY_TABLES = ['audit_event', 'audit_checkpoint'];
 
     /**
      * SQL verbs that mutate rows or schema — forbidden against append-only
