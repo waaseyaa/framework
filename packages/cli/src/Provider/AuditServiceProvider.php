@@ -6,6 +6,8 @@ namespace Waaseyaa\CLI\Provider;
 
 use Waaseyaa\Audit\Contract\AuditQueryInterface;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
+use Waaseyaa\Audit\Integrity\AuditCheckpointBuilder;
+use Waaseyaa\CLI\Command\Audit\CheckpointCommand;
 use Waaseyaa\CLI\Command\Audit\PruneCommand;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
@@ -19,6 +21,8 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
  *
  *  - `audit:prune` (FR-013, FR-014) — delete audit events older than a
  *    given ISO-8601 duration, with optional kind filter and --dry-run.
+ *  - `audit:checkpoint` (WP2) — seal the next batch of unsealed audit_event
+ *    rows into a tamper-evidence checkpoint.
  *
  * @api
  */
@@ -37,6 +41,16 @@ final class AuditServiceProvider extends ServiceProvider implements ProvidesCons
                 $db = $this->resolve(DatabaseInterface::class);
 
                 return new PruneCommand($query, $writer, $db);
+            },
+        );
+
+        $this->singleton(
+            CheckpointCommand::class,
+            function (): CheckpointCommand {
+                /** @var AuditCheckpointBuilder $builder */
+                $builder = $this->resolve(AuditCheckpointBuilder::class);
+
+                return new CheckpointCommand($builder);
             },
         );
     }
@@ -71,6 +85,13 @@ final class AuditServiceProvider extends ServiceProvider implements ProvidesCons
                 ),
             ],
             handler: [PruneCommand::class, 'execute'],
+        );
+
+        yield new HandlerCommand(
+            name: 'audit:checkpoint',
+            description: 'Seal the next batch of unsealed audit_event rows into a tamper-evidence checkpoint (WP2). Exports the checkpoint via the configured CheckpointSink.',
+            options: [],
+            handler: [CheckpointCommand::class, 'execute'],
         );
     }
 }
