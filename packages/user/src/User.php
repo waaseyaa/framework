@@ -174,11 +174,13 @@ final class User extends ContentEntityBase implements AccountInterface, Hydratab
     /**
      * {@inheritdoc}
      *
-     * A user is authenticated when its uid is not 0 (anonymous).
+     * A user is authenticated when it is a persisted record (not new) with a non-zero uid.
      */
     public function isAuthenticated(): bool
     {
-        return $this->id() !== 0;
+        // Authenticated means a persisted user with a real uid — an unsaved
+        // (isNew) user, or a uid of 0, is not authenticated.
+        return !$this->isNew() && $this->id() > 0;
     }
 
     // -----------------------------------------------------------------
@@ -391,6 +393,6 @@ final class User extends ContentEntityBase implements AccountInterface, Hydratab
      */
     public function setEmailVerified(bool $verified): static
     {
-        return $this->set('email_verified', $verified ? 1 : 0);
+        return $this->set('email_verified', $verified);
     }
 }
