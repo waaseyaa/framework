@@ -40,13 +40,16 @@ final class RedactJob
     private const array SELF_TYPES = ['retention_policy', 'classification_label_definition'];
 
     private readonly LoggerInterface $logger;
+    private readonly RetentionScanner $scanner;
 
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
         private readonly AuditWriterInterface $auditWriter,
         ?LoggerInterface $logger = null,
+        ?RetentionScanner $scanner = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        $this->scanner = $scanner ?? new RetentionScanner($entityTypeManager);
     }
 
     public function run(): void
@@ -103,7 +106,7 @@ final class RedactJob
                 continue;
             }
 
-            foreach ($this->findLabelled($entityTypeId) as $entity) {
+            foreach ($this->scanner->scan($entityTypeId, null, RetentionScanner::labelCondition($policy)) as $entity) {
                 $labelId = (string) ($entity->get('classification_label') ?? '');
                 if ($labelId === '' || !$policy->matchesLabel($labelId)) {
                     continue;
@@ -132,32 +135,6 @@ final class RedactJob
         }
 
         return $redacted;
-    }
-
-    /**
-     * Query a single entity type for classification-labelled entities.
-     *
-     * @return list<EntityInterface>
-     */
-    private function findLabelled(string $entityTypeId): array
-    {
-        try {
-            $storage = $this->entityTypeManager->getStorage($entityTypeId);
-            // System retention sweep: no user account in scope. accessCheck(false)
-            // is the intentional opt-out (see CLAUDE.md §"Unbound getQuery() gate").
-            $ids = $storage->getQuery()
-                ->accessCheck(false)
-                ->exists('classification_label')
-                ->execute();
-
-            if ($ids === []) {
-                return [];
-            }
-
-            return array_values($storage->loadMultiple($ids));
-        } catch (\Throwable) {
-            return [];
-        }
     }
 
     /**

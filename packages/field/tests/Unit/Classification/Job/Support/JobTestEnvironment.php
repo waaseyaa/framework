@@ -317,7 +317,8 @@ final class FakeStorage implements EntityStorageInterface
 
 /**
  * In-memory EntityQueryInterface that filters a fixed entity list by the
- * conditions / exists clauses accumulated through the fluent API.
+ * conditions / exists clauses accumulated through the fluent API, then applies
+ * sort and range so the scanner's keyset-batching logic works correctly.
  */
 final class FakeQuery implements EntityQueryInterface
 {
@@ -326,6 +327,11 @@ final class FakeQuery implements EntityQueryInterface
 
     /** @var list<string> */
     private array $existsFields = [];
+
+    private ?string $sortField = null;
+    private string $sortDirection = 'ASC';
+    private int $rangeOffset = 0;
+    private ?int $rangeLimit = null;
 
     /**
      * @param list<EntityInterface> $entities
@@ -353,11 +359,17 @@ final class FakeQuery implements EntityQueryInterface
 
     public function sort(string $field, string $direction = 'ASC'): static
     {
+        $this->sortField = $field;
+        $this->sortDirection = strtoupper($direction);
+
         return $this;
     }
 
     public function range(int $offset, int $limit): static
     {
+        $this->rangeOffset = $offset;
+        $this->rangeLimit = $limit;
+
         return $this;
     }
 
@@ -379,11 +391,38 @@ final class FakeQuery implements EntityQueryInterface
     /** @return array<int|string> */
     public function execute(): array
     {
-        $ids = [];
+        // 1. Filter.
+        $filtered = [];
         foreach ($this->entities as $entity) {
             if (!$this->matches($entity)) {
                 continue;
             }
+            $filtered[] = $entity;
+        }
+
+        // 2. Sort by field ASC/DESC when requested.
+        if ($this->sortField !== null) {
+            $sortField = $this->sortField;
+            $dir = $this->sortDirection;
+            usort($filtered, static function (EntityInterface $a, EntityInterface $b) use ($sortField, $dir): int {
+                $va = $a->get($sortField);
+                $vb = $b->get($sortField);
+                $cmp = is_numeric($va) && is_numeric($vb)
+                    ? ((float) $va <=> (float) $vb)
+                    : ((string) ($va ?? '') <=> (string) ($vb ?? ''));
+
+                return $dir === 'DESC' ? -$cmp : $cmp;
+            });
+        }
+
+        // 3. Apply range (offset + limit) when requested.
+        if ($this->rangeLimit !== null) {
+            $filtered = array_slice($filtered, $this->rangeOffset, $this->rangeLimit);
+        }
+
+        // 4. Collect ids.
+        $ids = [];
+        foreach ($filtered as $entity) {
             $id = $entity->id();
             if ($id !== null) {
                 $ids[] = $id;
@@ -416,10 +455,28 @@ final class FakeQuery implements EntityQueryInterface
         return match ($op) {
             '=' => $actual === $expected,
             '!=' => $actual !== $expected,
-            '<' => $actual !== null && (string) $actual < (string) $expected,
-            '>' => $actual !== null && (string) $actual > (string) $expected,
-            '<=' => $actual !== null && (string) $actual <= (string) $expected,
-            '>=' => $actual !== null && (string) $actual >= (string) $expected,
+            'IN' => is_array($expected) && in_array($actual, $expected, strict: true),
+            'STARTS_WITH' => $actual !== null && str_starts_with((string) $actual, (string) $expected),
+            'IS NOT NULL' => $actual !== null,
+            '<', '>', '<=', '>=' => $this->compareOrdered($actual, $expected, $op),
+            default => false,
+        };
+    }
+
+    private function compareOrdered(mixed $actual, mixed $expected, string $op): bool
+    {
+        if ($actual === null) {
+            return false;
+        }
+        $cmp = is_numeric($actual) && is_numeric($expected)
+            ? ((float) $actual <=> (float) $expected)
+            : ((string) $actual <=> (string) $expected);
+
+        return match ($op) {
+            '<' => $cmp < 0,
+            '>' => $cmp > 0,
+            '<=' => $cmp <= 0,
+            '>=' => $cmp >= 0,
             default => false,
         };
     }
