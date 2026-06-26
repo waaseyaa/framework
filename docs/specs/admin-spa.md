@@ -87,6 +87,8 @@ Static assets (`_nuxt/*.js`, `_nuxt/*.css`, fonts, images) are served from the s
 
 **CI automation:** The `.github/workflows/admin-dist.yml` workflow runs `nuxt generate` when `packages/admin/` changes on `main`, commits the output to `packages/admin-surface/dist/`, and opens a PR. After merge, the next tag distributes the assets via the splitsh-lite pipeline to Packagist.
 
+**Freshness gate (blocking):** `bin/check-admin-dist-fresh` (D6) compares a line-ending-normalised content signature of the admin SPA source set (`packages/admin/app/**`, plus `package.json`, `package-lock.json`, `nuxt.config.ts`, `app.config.ts`) against the committed `packages/admin-surface/dist.signature`, written by `bin/build-admin-dist` whenever the bundle is rebuilt. It fails when the source advanced without a rebuild — including a dependabot bump to the admin lockfile — so a stale committed bundle can never be tagged into a release. The gate runs in `composer verify` **and** in the blocking `ci/verify-gates` CI job, so staleness fails the PR rather than depending on the out-of-band `admin-dist.yml` fix-up workflow to catch it after merge. Rebuild + re-sign with `bin/build-admin-dist` and commit `packages/admin-surface/dist/` together with `packages/admin-surface/dist.signature`.
+
 ### Dev fallback account (auto-login for local development)
 
 When running `composer run dev` (PHP built-in server), the framework can auto-authenticate as a `DevAdminAccount` with admin privileges — no login required.

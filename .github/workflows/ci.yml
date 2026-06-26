@@ -304,6 +304,7 @@ jobs:
     # of verify). Wired here after confirming each green at HEAD. Run via the `composer
     # <script>` aliases so this job stays byte-identical to what `composer verify` enforces.
     # (check-phpstan-paths — the PHPStan coverage invariant — was added for audit C-19.)
+    # (check-admin-dist-fresh — the D6 admin-SPA-dist freshness gate — was added here so a stale committed admin dist fails the PR in blocking CI, not only via the out-of-band admin-dist.yml fix-up workflow.)
     #
     # check-external-consumers is intentionally NOT here: it is a mission-scoped pre-deletion
     # tripwire (WP01 ai-tools migration, key 'ai-agent-orphans'), not a permanent invariant —
@@ -357,6 +358,7 @@ jobs:
           run_gate check-getquery-bindings
           run_gate check-admin-coercion-patterns
           run_gate check-admin-coercion-self-test
+          run_gate check-admin-dist-fresh
           run_gate check-openapi
           exit "$fail"
 
