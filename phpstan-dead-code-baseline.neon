@@ -12,6 +12,17 @@ parameters:
 			count: 1
 			path: packages/auth/src/RateLimiterInterface.php
 
+		# W3-2: the in-memory RateLimiter is now @internal (was @api, which had
+		# suppressed all its methods). remaining() must exist to satisfy
+		# RateLimiterInterface (whose remaining() is itself baselined above as
+		# intentional unused surface); it has no production caller — the bound
+		# limiter is DatabaseRateLimiter and remaining() is unused framework-wide.
+		-
+			message: '#^Unused Waaseyaa\\Auth\\RateLimiter\:\:remaining$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: packages/auth/src/RateLimiter.php
+
 		-
 			message: '#^Unused Waaseyaa\\Auth\\Token\\AuthTokenRepositoryInterface\:\:pruneExpired$#'
 			identifier: shipmonk.deadMethod

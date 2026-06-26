@@ -93,17 +93,4 @@ final class TwoFactorManagerTest extends TestCase
         }
     }
 
-    public function testVerifyRecoveryCodeMatchesValidCode(): void
-    {
-        $codes = $this->twoFactor->generateRecoveryCodes();
-
-        $this->assertTrue($this->twoFactor->verifyRecoveryCode($codes[0], $codes));
-    }
-
-    public function testVerifyRecoveryCodeRejectsInvalidCode(): void
-    {
-        $codes = $this->twoFactor->generateRecoveryCodes();
-
-        $this->assertFalse($this->twoFactor->verifyRecoveryCode('XXXXX-XXXXX', $codes));
-    }
 }

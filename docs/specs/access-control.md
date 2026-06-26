@@ -732,7 +732,7 @@ All auth controllers accept an optional `?LoggerInterface $logger` (defaults to 
 
 ### Rate Limiting
 
-All auth endpoints apply rate limiting via `RateLimiterInterface` keyed on IP or user identity. Two implementations exist: `RateLimiter` (in-memory, resets per process) and `DatabaseRateLimiter` (SQLite-backed via `DatabaseInterface`, persists across restarts). `AuthServiceProvider` registers `DatabaseRateLimiter` by default, resolving `DatabaseInterface` from the container. `HttpKernel` also injects a `DatabaseRateLimiter` into `ControllerDispatcher` for the login endpoint. The in-memory `RateLimiter` remains as a fallback when no `RateLimiterInterface` is injected (e.g., in tests):
+All auth endpoints apply rate limiting via `RateLimiterInterface` keyed on IP or user identity. Two implementations exist: `RateLimiter` (in-memory, resets per process — marked `@internal`, see below) and `DatabaseRateLimiter` (SQLite-backed via `DatabaseInterface`, persists across restarts). `AuthServiceProvider` registers `DatabaseRateLimiter` by default, resolving `DatabaseInterface` from the container. `HttpKernel` also injects a `DatabaseRateLimiter` into `ControllerDispatcher` for the login endpoint. The in-memory `RateLimiter` is `@internal` (not part of the public surface): its per-instance state resets every request under the boot-per-request runtime, so it does **not** throttle across requests and must never be the bound limiter in production — it is retained only as a test / non-boot-per-request fallback when no `RateLimiterInterface` is injected:
 
 | Endpoint | Limit |
 |----------|-------|
@@ -884,7 +884,7 @@ When a user enables 2FA, `LoginController` short-circuits after password verific
 Surface:
 
 - `Waaseyaa\Auth\TwoFactorService` — orchestrator. `setup(User)`, `enable(User, secret, plaintextCodes, firstCode)`, `verify(User, code)`, `disable(User)`, `isEnabled(User)`. All persistence goes through `EntityTypeManagerInterface`.
-- `Waaseyaa\Auth\TwoFactorManager` — primitive layer (RFC 6238 TOTP + recovery generation/verification).
+- `Waaseyaa\Auth\TwoFactorManager` — primitive layer (RFC 6238 TOTP verification + recovery-code *generation*). Recovery-code **verification** is not done here: codes are stored Argon2id-hashed and verified via `password_verify` in `TwoFactorService`. (The former plaintext-compare `verifyRecoveryCode()` helper was removed as a dead, misleading footgun; the TOTP `getCurrentCode()` helper is `@internal`, test/diagnostic only.)
 - `Waaseyaa\Auth\TwoFactorSetupResult` — readonly value object carrying secret + QR URI + plaintext recovery codes for one-time display.
 - Controllers: `SetupTwoFactorController`, `EnableTwoFactorController`, `VerifyTwoFactorController`, `DisableTwoFactorController` (`packages/auth/src/Controller/`).
 - Routes registered in `Waaseyaa\Routing\AuthOidcRouteServiceProvider`:
