@@ -17,10 +17,16 @@ use Waaseyaa\Database\UpdateInterface;
  *
  * Decorates a real {@see DatabaseInterface} and refuses any `UPDATE` or `DELETE`
  * targeting the `audit_event` table, throwing {@see \LogicException}. Inserts,
- * reads, schema operations, and all access to other tables pass through
- * untouched. This is the structural guarantee behind the append-only invariant
- * (FR-003): the {@see \Waaseyaa\Audit\Writer\AuditEventWriter} is wired with this
- * decorator, so the only mutation it can express is an append.
+ * reads, and all access to other tables pass through untouched. This is the
+ * structural guarantee behind the append-only invariant (FR-003): the
+ * {@see \Waaseyaa\Audit\Writer\AuditEventWriter} is wired with this decorator,
+ * so the only mutation it can express is an append.
+ *
+ * Schema access is wrapped by {@see AppendOnlySchema}: destructive DDL (DROP
+ * TABLE, DROP COLUMN, DROP INDEX) on append-only tables is refused with the
+ * same {@see \LogicException}. Additive DDL (ADD COLUMN, ADD INDEX, etc.) and
+ * all operations targeting non-append-only tables pass through to the inner
+ * schema unchanged — legitimate audit-table migrations remain possible.
  *
  * Raw SQL is guarded too (FR-008, #1648): {@see query()} normalizes the SQL —
  * removing single-quoted string literals and SQL comments, and UNQUOTING
@@ -104,7 +110,7 @@ final class AppendOnlyAuditDatabase implements DatabaseInterface
 
     public function schema(): SchemaInterface
     {
-        return $this->inner->schema();
+        return new AppendOnlySchema($this->inner->schema(), self::APPEND_ONLY_TABLES);
     }
 
     public function transaction(string $name = ''): TransactionInterface

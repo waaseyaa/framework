@@ -13,6 +13,7 @@ use Waaseyaa\Audit\Enum\AuditEventKind;
 use Waaseyaa\Audit\Query\AuditEventQuery;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
 use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
+use Waaseyaa\Audit\Storage\AppendOnlySchema;
 use Waaseyaa\Audit\Writer\AuditEventWriter;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
@@ -27,6 +28,7 @@ use Waaseyaa\Database\DBALDatabase;
  * test exercises to prove retention is not collateral damage of the guard.
  */
 #[CoversClass(AppendOnlyAuditDatabase::class)]
+#[CoversClass(AppendOnlySchema::class)]
 final class AuditImmutabilityTest extends TestCase
 {
     private DatabaseInterface $raw;
@@ -169,5 +171,73 @@ final class AuditImmutabilityTest extends TestCase
         $this->assertCount(1, $rows);
         $this->assertSame(AuditEventKind::EntityWrite->value, $rows[0]['event_kind']);
         $this->assertSame(7, (int) $rows[0]['account_uid']);
+    }
+
+    // ------------------------------------------------------------------
+    // W2-2: AppendOnlySchema — schema() DDL guard (FR-003 extension).
+    // ------------------------------------------------------------------
+
+    #[Test]
+    public function schema_drop_table_on_audit_event_is_refused(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('append-only');
+
+        $this->auditDb->schema()->dropTable('audit_event');
+    }
+
+    #[Test]
+    public function schema_drop_field_on_audit_event_is_refused(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('append-only');
+
+        $this->auditDb->schema()->dropField('audit_event', 'event_kind');
+    }
+
+    #[Test]
+    public function schema_drop_index_on_audit_event_is_refused(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('append-only');
+
+        $this->auditDb->schema()->dropIndex('audit_event', 'audit_event_account_uid');
+    }
+
+    #[Test]
+    public function schema_drop_table_on_non_append_only_table_passes_through(): void
+    {
+        // Create a throwaway table then immediately drop it — verifies the guard
+        // does not interfere with non-audit-event tables.
+        $this->auditDb->schema()->createTable('w2_2_tmp', [
+            'fields' => [
+                'id' => ['type' => 'serial', 'not null' => true],
+            ],
+            'primary key' => ['id'],
+        ]);
+
+        $this->assertTrue($this->auditDb->schema()->tableExists('w2_2_tmp'));
+
+        // Must not throw — guard only applies to append-only tables.
+        $this->auditDb->schema()->dropTable('w2_2_tmp');
+
+        $this->assertFalse($this->auditDb->schema()->tableExists('w2_2_tmp'));
+    }
+
+    #[Test]
+    public function schema_add_field_on_audit_event_is_not_blocked(): void
+    {
+        // Additive DDL on audit_event must not be blocked — legitimate
+        // migrations extend the table while the append-only guard only
+        // refuses destructive operations.
+        $this->assertFalse($this->auditDb->schema()->fieldExists('audit_event', 'w2_2_extra'));
+
+        // Must not throw a LogicException — additive DDL passes through.
+        $this->auditDb->schema()->addField('audit_event', 'w2_2_extra', [
+            'type' => 'text',
+            'not null' => false,
+        ]);
+
+        $this->assertTrue($this->auditDb->schema()->fieldExists('audit_event', 'w2_2_extra'));
     }
 }

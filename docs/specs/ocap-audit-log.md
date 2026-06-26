@@ -48,7 +48,8 @@ L1 packages/audit
   AuditRetentionPolicy         ← typed read model over a retention-policy row (NOT a registered entity)
   AuditEventQuery              ← DatabaseInterface-backed read impl
   AuditEventWriter             ← insert-only raw DatabaseInterface impl (via AppendOnlyAuditDatabase)
-  AppendOnlyAuditDatabase      ← DatabaseInterface decorator; throws on UPDATE/DELETE of audit_event
+  AppendOnlyAuditDatabase      ← DatabaseInterface decorator; throws on UPDATE/DELETE of audit_event, on destructive raw SQL (DROP/ALTER/TRUNCATE…audit_event via query()), and — through AppendOnlySchema — on destructive schema DDL (dropTable/dropField/dropIndex) of audit_event
+  AppendOnlySchema             ← SchemaInterface decorator returned by AppendOnlyAuditDatabase::schema(); refuses destructive DDL on append-only tables, passes additive DDL + non-append-only tables through
 
 L4 packages/api
   AuditQueryReadModelInterface ← api-local read-model interface (@api)
