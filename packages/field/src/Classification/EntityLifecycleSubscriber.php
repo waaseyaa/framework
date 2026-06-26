@@ -30,11 +30,15 @@ use Waaseyaa\Foundation\Log\NullLogger;
  */
 final class EntityLifecycleSubscriber implements EventSubscriberInterface
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly LabelInheritanceResolver $resolver,
         private readonly AuditWriterInterface $auditWriter,
-        private readonly ?LoggerInterface $logger = null,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public static function getSubscribedEvents(): array
     {
@@ -106,7 +110,7 @@ final class EntityLifecycleSubscriber implements EventSubscriberInterface
                 ],
             ));
         } catch (\Throwable $e) {
-            ($this->logger ?? new NullLogger())->warning('classification.lifecycle_failed', [
+            $this->logger->warning('classification.lifecycle_failed', [
                 'listener' => self::class,
                 'error' => $e->getMessage(),
             ]);

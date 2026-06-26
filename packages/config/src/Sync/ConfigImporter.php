@@ -173,9 +173,11 @@ final class ConfigImporter
         $ref = $file->ref();
 
         if ($dryRun) {
-            // Stub diff renderer (WP05 owns the canonical implementation):
-            // surface the would-be apply as STATUS_UPDATED. The CLI prefixes
-            // each line with `[dry-run]` so operators can distinguish.
+            // Dry-run reports a conservative STATUS_UPDATED for every
+            // would-apply entry. The CLI prefixes each output line with
+            // `[dry-run]` so operators can distinguish. Per-entry
+            // created/updated/unchanged diffing via ConfigDiffer is a
+            // deliberate follow-up not yet wired into this path.
             return new ConfigImportEntryResult(
                 ref: $ref,
                 status: ConfigImportEntryResult::STATUS_UPDATED,

@@ -115,10 +115,11 @@ final class ConfigSyncRepository
             ));
         }
 
-        // fsync the file contents before rename so a crash between write and
-        // rename does not leave a half-written sync file. PHP exposes this
-        // via `fopen` + `fflush` + `stream_meta_data`; we use the simpler
-        // approach of opening for sync and closing.
+        // Flush PHP's userspace write buffer to the OS before the rename.
+        // Note: fflush() is NOT fsync(2) — it does not guarantee durability
+        // across a power loss. The atomicity guarantee comes from the
+        // temp-then-rename pattern: a crash between write and rename leaves
+        // the original target untouched, never a partially-written file.
         $handle = @fopen($temp, 'rb');
         if ($handle !== false) {
             @fflush($handle);
