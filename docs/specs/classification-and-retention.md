@@ -99,6 +99,13 @@ e.g. `nation-*`), `action` (`purge` | `redact` | `hold-flag`), `trigger_kind`
 All jobs are best-effort per policy iteration (NFR-004): a single failing policy
 never aborts the sweep. System sweeps query with `accessCheck(false)`.
 
+**Scan scale (L1-field.md M1).** The retention sweeps run on a cron over the whole
+site, so they must not load every labelled row into memory. The `classification_label`
+column is **indexed** (migration `2026_05_25_000005_index_classification_label`, which
+adds `CREATE INDEX IF NOT EXISTS` on every table that has the column — additive,
+idempotent; it covers tables present when it runs, not entity tables created later by
+runtime schema sync). The bounded-iteration scan that uses this index lands in WP2.
+
 ## JSON:API + admin
 
 `/api/classification/policies[/{id}]` — index/show gate `governance-viewer,admin`;
