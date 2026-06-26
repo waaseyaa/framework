@@ -26,6 +26,10 @@
         },
         {
             "type": "path",
+            "url": "../field"
+        },
+        {
+            "type": "path",
             "url": "../foundation"
         },
         {
@@ -38,6 +42,7 @@
         "waaseyaa/access": "^0.1.0-alpha.249",
         "waaseyaa/cache": "^0.1.0-alpha.249",
         "waaseyaa/config": "^0.1.0-alpha.249",
+        "waaseyaa/field": "^0.1.0-alpha.249",
         "waaseyaa/foundation": "^0.1.0-alpha.249",
         "waaseyaa/plugin": "^0.1.0-alpha.249",
         "waaseyaa/typed-data": "^0.1.0-alpha.249",
