@@ -390,16 +390,12 @@ final class TranslationSchemaHandler
     private function deriveValueColumnSpec(FieldDefinitionInterface $field): array
     {
         $settings = $field->getSettings();
-        $typeKey = strtolower($field->getType());
 
-        $spec = match ($typeKey) {
-            'string', 'uuid' => ['type' => 'varchar', 'length' => (int) ($settings['length'] ?? 255)],
-            'text', 'datetime', 'json', 'decimal', 'numeric' => ['type' => 'text'],
-            'int', 'integer', 'bigint' => ['type' => 'int'],
-            'bool', 'boolean' => ['type' => 'boolean'],
-            'float' => ['type' => 'float'],
-            default => ['type' => 'text'],
-        };
+        $abstractType = ColumnSpecMap::abstractTypeFor($field->getType());
+        $spec = ['type' => $abstractType];
+        if ($abstractType === 'varchar') {
+            $spec['length'] = (int) ($settings['length'] ?? 255);
+        }
 
         $spec['not null'] = (bool) ($settings['not_null'] ?? false);
         if (\array_key_exists('default', $settings)) {
