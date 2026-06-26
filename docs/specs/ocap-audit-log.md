@@ -166,10 +166,26 @@ hot-path serialization on the writer.
   are attested as "predates chaining", never given false assurance. Idempotent
   (guarded on a zero-rows check).
 
-**Operational pieces (subsequent WPs):** the checkpoint builder (scheduled,
-exports each checkpoint to a pluggable external `CheckpointSink` — the
-load-bearing anchor), `audit:verify`, and checkpoint-boundary-aware `audit:prune`
-are documented as they land.
+**Checkpoint builder (WP2):** `AuditCheckpointBuilder` seals all currently-unsealed
+rows (`id > MAX(segment_end_id)`) into one new checkpoint via the **raw**
+`DatabaseInterface` (it writes `row_hash`/`prev_hash` and inserts the checkpoint —
+both forbidden through the decorator, exactly like `audit:prune`). It builds a
+*continuous* row chain (the first unsealed row's `prev_hash` = the prior segment's
+`segment_hash`, anchored at `GENESIS_HASH` for the first real segment), sets
+`segment_hash` = the last `row_hash` (chain head), and chains checkpoints via
+`prev_checkpoint_hash`. A partial seal interrupted by a crash is **idempotently
+re-derived** next run (the high-water mark comes from the last *checkpoint*, not
+from row state). It runs on a schedule (`AuditCheckpointScheduleEntries`, default
+`*/15 * * * *`) and on demand via `bin/waaseyaa audit:checkpoint`. Each sealed
+checkpoint is exported through a pluggable **`CheckpointSink`** — the
+**load-bearing anchor**. The default `FileCheckpointSink` appends NDJSON locally
+(+ optional stdout), but this is only as trustworthy as the host: **real
+tamper-evidence requires configuring an off-box / WORM / external append-only
+sink** (a host able to edit `audit_event` can also edit a local file). Optional
+HMAC over `checkpoint_hash` is supported (`audit.checkpoint_hmac_key`); asymmetric/
+KMS signing is deferred.
+
+**Still to land:** `audit:verify` and checkpoint-boundary-aware `audit:prune`.
 
 ---
 

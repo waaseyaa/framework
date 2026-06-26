@@ -498,6 +498,9 @@ return [
     'Waaseyaa\Audit\Contract\AuditQueryInterface' => 'public',
     'Waaseyaa\Audit\Contract\AuditWriterInterface' => 'public',
     'Waaseyaa\Audit\Enum\AuditEventKind' => 'public',
+    // Tamper-evidence: checkpoint export sink is a public extension point —
+    // operators implement it to ship checkpoints to an off-box / WORM sink.
+    'Waaseyaa\Audit\Integrity\CheckpointSink' => 'public',
 
     // Layer 3: Services — public (single-entity-work-surface-01KQ7M1P)
     'Waaseyaa\StructuredImport\StructuredImporterInterface' => 'public',

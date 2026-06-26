@@ -7,6 +7,9 @@ namespace Waaseyaa\Audit;
 use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Audit\Contract\AuditQueryInterface;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
+use Waaseyaa\Audit\Integrity\AuditCheckpointBuilder;
+use Waaseyaa\Audit\Integrity\CheckpointSink;
+use Waaseyaa\Audit\Integrity\FileCheckpointSink;
 use Waaseyaa\Audit\Listener\AgentToolAuditListener;
 use Waaseyaa\Audit\Listener\ApiRequestAuditListener;
 use Waaseyaa\Audit\Listener\BroadcastAuditListener;
@@ -14,6 +17,7 @@ use Waaseyaa\Audit\Listener\EntityLifecycleAuditListener;
 use Waaseyaa\Audit\Listener\McpDispatchAuditListener;
 use Waaseyaa\Audit\Listener\PublishPointerAuditListener;
 use Waaseyaa\Audit\Query\AuditEventQuery;
+use Waaseyaa\Audit\Schedule\AuditCheckpointScheduleEntries;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
 use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
 use Waaseyaa\Audit\Writer\AuditEventWriter;
@@ -67,6 +71,39 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
         $this->singleton(AuditQueryInterface::class, function (): AuditQueryInterface {
             return new AuditEventQuery(
                 database: $this->resolve(DatabaseInterface::class),
+            );
+        });
+
+        $this->singleton(CheckpointSink::class, function (): CheckpointSink {
+            $logger = $this->resolveOptional(LoggerInterface::class);
+            $filePath = $this->config['audit']['checkpoint_file'] ?? (rtrim($this->projectRoot, '/') . '/storage/audit/checkpoints.jsonl');
+
+            return new FileCheckpointSink(
+                filePath: $filePath,
+                echoStdout: false,
+                logger: $logger instanceof LoggerInterface ? $logger : null,
+            );
+        });
+
+        $this->singleton(AuditCheckpointBuilder::class, function (): AuditCheckpointBuilder {
+            $logger = $this->resolveOptional(LoggerInterface::class);
+
+            return new AuditCheckpointBuilder(
+                database: $this->resolve(DatabaseInterface::class),
+                sink: $this->resolve(CheckpointSink::class),
+                logger: $logger instanceof LoggerInterface ? $logger : null,
+                hmacKey: $this->config['audit']['checkpoint_hmac_key'] ?? null,
+            );
+        });
+
+        $this->singleton(AuditCheckpointScheduleEntries::class, function (): AuditCheckpointScheduleEntries {
+            $logger = $this->resolveOptional(LoggerInterface::class);
+            $builder = $this->resolveOptional(AuditCheckpointBuilder::class);
+
+            return new AuditCheckpointScheduleEntries(
+                builder: $builder instanceof AuditCheckpointBuilder ? $builder : null,
+                config: $this->config,
+                logger: $logger instanceof LoggerInterface ? $logger : null,
             );
         });
     }
