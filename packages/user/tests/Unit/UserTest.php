@@ -282,6 +282,30 @@ final class UserTest extends TestCase
         $this->assertFalse($user->isAuthenticated());
     }
 
+    // W3-5 contract: isAuthenticated requires a persisted identity (not just id != 0).
+
+    public function testIsAuthenticatedFalseForUnsavedUserWithNoUid(): void
+    {
+        // A freshly constructed user with no uid is isNew() and must not be authenticated.
+        $user = new User([]);
+        $this->assertTrue($user->isNew());
+        $this->assertFalse($user->isAuthenticated());
+    }
+
+    public function testIsAuthenticatedTrueForUserWithUid(): void
+    {
+        // A user constructed with a uid is treated as persisted (not new) by the constructor.
+        $user = new User(['uid' => 42]);
+        $this->assertTrue($user->isAuthenticated());
+    }
+
+    public function testIsAuthenticatedFalseForUidZero(): void
+    {
+        // uid 0 is the anonymous user — never authenticated.
+        $user = new User(['uid' => 0]);
+        $this->assertFalse($user->isAuthenticated());
+    }
+
     // -----------------------------------------------------------------
     // Active / blocked status
     // -----------------------------------------------------------------
@@ -325,6 +349,53 @@ final class UserTest extends TestCase
 
         $user->setActive(false);
         $this->assertCount(0, $validator->validate($user, $constraints));
+    }
+
+    // W3-5 contract: status stays int 0/1 in storage (get()), not bool.
+
+    public function testSetActiveTrueStoresIntOne(): void
+    {
+        $user = new User();
+        $user->setActive(true);
+        $this->assertTrue($user->isActive());
+        $this->assertSame(1, $user->get('status'));
+    }
+
+    public function testSetActiveFalseStoresIntZero(): void
+    {
+        $user = new User();
+        $user->setActive(false);
+        $this->assertFalse($user->isActive());
+        $this->assertSame(0, $user->get('status'));
+    }
+
+    // -----------------------------------------------------------------
+    // Email verification
+    // -----------------------------------------------------------------
+
+    public function testSetEmailVerifiedTrueRoundTrips(): void
+    {
+        $user = new User();
+        $user->setEmailVerified(true);
+        $this->assertTrue($user->isEmailVerified());
+    }
+
+    public function testSetEmailVerifiedFalseRoundTrips(): void
+    {
+        $user = new User();
+        $user->setEmailVerified(false);
+        $this->assertFalse($user->isEmailVerified());
+    }
+
+    // W3-5 contract: email_verified setter stores a real bool (cast + property + setter agree).
+
+    public function testSetEmailVerifiedStoresBoolNotInt(): void
+    {
+        // The bool cast and bool property declaration mean the stored value
+        // must be a native bool, not int 1.
+        $user = new User();
+        $user->setEmailVerified(true);
+        $this->assertSame(true, $user->get('email_verified'));
     }
 
     // -----------------------------------------------------------------
