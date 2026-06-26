@@ -87,6 +87,7 @@ final class BuiltinRouteRegistrar
             'api.broadcast',
             RouteBuilder::create('/api/broadcast')
                 ->controller('broadcast')
+                ->requireAuthentication()
                 ->methods('GET')
                 ->build(),
         );

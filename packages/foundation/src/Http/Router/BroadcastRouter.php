@@ -77,6 +77,43 @@ final class BroadcastRouter implements DomainRouterInterface
         private readonly int $retryAfterSec = self::DEFAULT_RETRY_AFTER_SEC,
     ) {}
 
+    /** Channels that require privileged (admin) authorization to subscribe to. */
+    private const array PRIVILEGED_CHANNELS = ['admin'];
+
+    /** Whether a channel requires privileged authorization to subscribe to. */
+    public static function isPrivilegedChannel(string $channel): bool
+    {
+        return in_array($channel, self::PRIVILEGED_CHANNELS, true);
+    }
+
+    /**
+     * Whether the subscribing account may receive privileged channels (e.g. the
+     * site-wide `admin` entity-lifecycle feed). Duck-typed against the account
+     * object set on the request as `_account` so this Layer-0 router does not
+     * import the Layer-1 AccountInterface. An admin is recognised by the canonical
+     * site-admin permission OR the canonical admin role (`administrator`, with
+     * `admin` accepted too for route-option parity).
+     */
+    private static function accountMayAccessPrivilegedChannels(mixed $account): bool
+    {
+        if (!is_object($account)) {
+            return false;
+        }
+        if (method_exists($account, 'isAuthenticated') && $account->isAuthenticated() !== true) {
+            return false;
+        }
+        if (method_exists($account, 'hasPermission') && $account->hasPermission('administer site') === true) {
+            return true;
+        }
+        if (method_exists($account, 'getRoles')) {
+            $roles = $account->getRoles();
+            if (is_array($roles) && (in_array('administrator', $roles, true) || in_array('admin', $roles, true))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Loop-continuation predicate for the SSE stream: keep streaming only while
      * the client is connected AND the per-connection time budget remains. Pure
@@ -98,13 +135,24 @@ final class BroadcastRouter implements DomainRouterInterface
     {
         $ctx = WaaseyaaContext::fromRequest($request);
         $broadcastStorage = $ctx->broadcastStorage;
+
+        // Resolve the account from the request attribute set by SessionMiddleware.
+        // Falls back to accountId=0 (anonymous) when no account is present.
+        // Done here (before resolveSubscriberChannels) so the per-channel ACL can
+        // use it to gate privileged channels (Layer-2 enforcement).
+        $account = $request->attributes->get('_account');
+        $mayAccessPrivileged = self::accountMayAccessPrivilegedChannels($account);
+
         // Strip any client-supplied private `session:*` channel and auto-subscribe
         // this connection to its OWN session channel (derived server-side). A
         // client can therefore never receive another session's private messages,
         // regardless of the channels it requests (Wayfinding NFR-001).
+        // Privileged channels (e.g. `admin`) are also filtered here: accounts that
+        // do not satisfy the admin predicate have them stripped and will not be
+        // defaulted onto them.
         $requested = self::parseChannels($ctx->query['channels'] ?? 'admin');
         $ownSessionChannel = self::ownSessionChannel($request);
-        $channels = self::resolveSubscriberChannels($requested, $ownSessionChannel);
+        $channels = self::resolveSubscriberChannels($requested, $ownSessionChannel, $mayAccessPrivileged);
         $sessionToken = $ownSessionChannel === null
             ? null
             : substr($ownSessionChannel, strlen(SessionChannel::PREFIX));
@@ -117,9 +165,6 @@ final class BroadcastRouter implements DomainRouterInterface
         $connectedSince = microtime(true);
         $connectionId = substr(hash('sha256', $connectedSince . ':' . getmypid()), 0, 16);
 
-        // Resolve the account from the request attribute set by SessionMiddleware.
-        // Falls back to accountId=0 (anonymous) when no account is present.
-        $account = $request->attributes->get('_account');
         $accountId = 0;
         $accountLabel = null;
         if (is_object($account) && method_exists($account, 'id')) {
@@ -518,24 +563,33 @@ final class BroadcastRouter implements DomainRouterInterface
      * Resolve the channel set a connection actually subscribes to.
      *
      * Client-supplied private channels (the reserved `session:` namespace) are
-     * DROPPED — a client may not name another session's private channel. Public
-     * channels are kept (defaulting to `admin` when none remain), and the
-     * connection's OWN server-derived session channel is appended. This is the
-     * server-side enforcement of session isolation (Wayfinding NFR-001). Pure and
-     * static so the isolation contract is unit-testable without a live socket.
+     * DROPPED — a client may not name another session's private channel. Privileged
+     * channels (e.g. `admin`) are also filtered: they are kept only when
+     * `$mayAccessPrivileged` is true. The `admin` default is applied only when the
+     * account may access privileged channels, so an unauthorized caller is never
+     * silently placed onto a privileged channel. Non-privileged public channels are
+     * kept for everyone. The connection's OWN server-derived session channel is
+     * appended at the end. This is the server-side enforcement of session isolation
+     * (Wayfinding NFR-001) and per-channel ACL. Pure and static so both contracts
+     * are unit-testable without a live socket.
      *
-     * @param list<string> $requested        channels the client asked for
-     * @param string|null  $ownSessionChannel this connection's own private channel, or null when no session
+     * @param list<string> $requested          channels the client asked for
+     * @param string|null  $ownSessionChannel  this connection's own private channel, or null when no session
+     * @param bool         $mayAccessPrivileged whether the account may receive privileged channels
      * @return list<string>
      */
-    public static function resolveSubscriberChannels(array $requested, ?string $ownSessionChannel): array
+    public static function resolveSubscriberChannels(array $requested, ?string $ownSessionChannel, bool $mayAccessPrivileged = false): array
     {
         $public = array_values(array_filter(
             $requested,
-            static fn(string $ch): bool => !SessionChannel::isReserved($ch),
+            static fn(string $ch): bool =>
+                !SessionChannel::isReserved($ch)
+                && ($mayAccessPrivileged || !self::isPrivilegedChannel($ch)),
         ));
 
-        if ($public === []) {
+        // Default the admin SPA's primary feed only for accounts allowed to see it;
+        // an unauthorized caller must never be defaulted onto a privileged channel.
+        if ($public === [] && $mayAccessPrivileged) {
             $public = ['admin'];
         }
 

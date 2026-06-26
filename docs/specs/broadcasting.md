@@ -134,8 +134,13 @@ auto-discovered pruning so consumers never need to wire the prune task manually.
 ## Endpoint
 
 `GET /broadcast` — matched when `_controller == 'broadcast'` in the route
-attributes. Query parameter `channels` is a comma-separated list. If absent or
-empty, the router defaults to the `admin` channel.
+attributes. The route carries `_authenticated` (`RouteBuilder::requireAuthentication()`),
+so `AuthorizationMiddleware` returns **401** for an anonymous caller before the
+router runs. Query parameter `channels` is a comma-separated list. If absent or
+empty, the router defaults to the `admin` channel **only for accounts authorized
+for it** (see [Channel authorization](#channel-authorization-access-control));
+an unauthenticated/unauthorized caller is never defaulted onto a privileged
+channel.
 
 Response headers:
 
@@ -152,6 +157,31 @@ that, each `BroadcastStorage::poll` row is emitted as
 foundation logger and emit an `error` SSE event before pausing 5 seconds and
 retrying.
 
+## Channel authorization (access control)
+
+Two layers gate which channels a connection may subscribe to (defense in depth):
+
+1. **Route option** — `api.broadcast` carries `_authenticated`, so anonymous
+   callers are rejected with 401 at `AuthorizationMiddleware`, before the SSE
+   router is reached.
+2. **Per-channel ACL in `BroadcastRouter`** (authoritative) — `resolveSubscriberChannels()`
+   drops any **privileged** channel the subscribing account is not authorized for,
+   and the `admin` default is applied **only** for authorized accounts, so a
+   stripped/empty request can never be silently re-defaulted onto a privileged
+   channel.
+
+Privileged channels are listed in `BroadcastRouter::PRIVILEGED_CHANNELS`
+(currently `['admin']` — the site-wide entity-lifecycle feed). An account is
+authorized for privileged channels when it is authenticated **and** satisfies the
+admin predicate `accountMayAccessPrivilegedChannels()`: it holds the
+`administer site` permission, **or** carries the `administrator` (or `admin`) role.
+The predicate is duck-typed against the `_account` request attribute so this
+Layer-0 router does not import the Layer-1 `AccountInterface`. Non-privileged
+("public") channels are kept for every authenticated subscriber.
+
+This closes the prior leak where `GET /api/broadcast?channels=admin` streamed the
+site-wide create/update/delete feed (entity type + id) to any anonymous client.
+
 ## Per-session private channels (session isolation)
 
 The reserved `session:` namespace (`Waaseyaa\Foundation\Http\Router\SessionChannel`)
@@ -163,9 +193,11 @@ connection's PHP session id (`token = substr(sha256(session_id), 0, 32)`). So a
 connection only ever receives its own session's private messages, regardless of
 the `?channels=` it sends. The `connected` frame exposes the non-secret
 `sessionToken` so an authorized publisher can address that session
-(`SessionChannel::forToken($token)`) without learning the raw session id. Public
-channels (e.g. `admin`) are unaffected. This is the substrate for Wayfinding's
-session-scoped beacon delivery (NFR-001).
+(`SessionChannel::forToken($token)`) without learning the raw session id.
+Non-privileged public channels are unaffected by this session-stripping;
+privileged channels such as `admin` are separately gated (see
+[Channel authorization](#channel-authorization-access-control)). This is the
+substrate for Wayfinding's session-scoped beacon delivery (NFR-001).
 
 ## Built-in publishers
 

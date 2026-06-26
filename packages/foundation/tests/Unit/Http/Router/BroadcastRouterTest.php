@@ -68,6 +68,9 @@ final class BroadcastRouterTest extends TestCase
         $broadcastStorage = new \Waaseyaa\Api\Controller\BroadcastStorage($db);
 
         $account = $this->createStub(\Waaseyaa\Access\AccountInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
+        $account->method('getRoles')->willReturn(['administrator']);
+        $account->method('hasPermission')->willReturn(false);
         $request = Request::create('/api/broadcast?channels=admin');
         $request->attributes->set('_controller', 'broadcast');
         $request->attributes->set('_account', $account);
@@ -113,7 +116,12 @@ final class BroadcastRouterTest extends TestCase
 
     private function broadcastRequest(\Waaseyaa\Api\Controller\BroadcastStorage $storage): Request
     {
+        // Use an admin-role account so the existing streaming tests continue to
+        // exercise the `admin` channel after the per-channel ACL was introduced.
         $account = $this->createStub(\Waaseyaa\Access\AccountInterface::class);
+        $account->method('isAuthenticated')->willReturn(true);
+        $account->method('getRoles')->willReturn(['administrator']);
+        $account->method('hasPermission')->willReturn(false);
         $request = Request::create('/api/broadcast?channels=admin');
         $request->attributes->set('_controller', 'broadcast');
         $request->attributes->set('_account', $account);
@@ -369,5 +377,99 @@ final class BroadcastRouterTest extends TestCase
         self::assertSame(0, BroadcastRouter::countActiveStreamsForAccount($rows, 99, $now, 30.0));
         // staleAfter = 0 disables the staleness filter → all account-7 rows count.
         self::assertSame(3, BroadcastRouter::countActiveStreamsForAccount($rows, 7, $now, 0.0));
+    }
+
+    // --- per-channel ACL: resolveSubscriberChannels() ---
+
+    #[Test]
+    public function resolve_subscriber_channels_strips_admin_for_non_privileged_account(): void
+    {
+        // An anonymous/non-admin account requesting `admin` must receive an empty
+        // channel list (not defaulted back onto the privileged channel).
+        self::assertSame([], BroadcastRouter::resolveSubscriberChannels(['admin'], null, false));
+    }
+
+    #[Test]
+    public function resolve_subscriber_channels_keeps_admin_for_privileged_account(): void
+    {
+        self::assertSame(['admin'], BroadcastRouter::resolveSubscriberChannels(['admin'], null, true));
+    }
+
+    #[Test]
+    public function resolve_subscriber_channels_default_admin_only_for_authorized_account(): void
+    {
+        // Non-admin: empty requested → empty result (NOT defaulted to admin).
+        self::assertSame([], BroadcastRouter::resolveSubscriberChannels([], null, false));
+        // Admin: empty requested → defaults to ['admin'].
+        self::assertSame(['admin'], BroadcastRouter::resolveSubscriberChannels([], null, true));
+    }
+
+    #[Test]
+    public function resolve_subscriber_channels_keeps_non_privileged_channel_for_everyone(): void
+    {
+        // A non-privileged channel (e.g. `story`) must pass through regardless of the flag.
+        self::assertSame(['story'], BroadcastRouter::resolveSubscriberChannels(['story'], null, false));
+        self::assertSame(['story'], BroadcastRouter::resolveSubscriberChannels(['story'], null, true));
+    }
+
+    #[Test]
+    public function resolve_subscriber_channels_session_isolation_still_enforced(): void
+    {
+        // A `session:` channel in $requested must be stripped; the own-session
+        // channel must be appended. Privileged channel stripped for non-admin.
+        self::assertSame(
+            ['session:own'],
+            BroadcastRouter::resolveSubscriberChannels(['admin', 'session:abc'], 'session:own', false),
+        );
+    }
+
+    // --- per-channel ACL: accountMayAccessPrivilegedChannels() ---
+
+    #[Test]
+    public function account_may_access_privileged_channels_false_for_anonymous(): void
+    {
+        // Default stub: isAuthenticated() returns false (default bool = false).
+        $anon = $this->createStub(\Waaseyaa\Access\AccountInterface::class);
+        $anon->method('isAuthenticated')->willReturn(false);
+
+        // Use reflection to call the private static method.
+        $ref = new \ReflectionMethod(BroadcastRouter::class, 'accountMayAccessPrivilegedChannels');
+        self::assertFalse($ref->invoke(null, $anon));
+    }
+
+    #[Test]
+    public function account_may_access_privileged_channels_false_for_authenticated_non_admin(): void
+    {
+        $authed = $this->createStub(\Waaseyaa\Access\AccountInterface::class);
+        $authed->method('isAuthenticated')->willReturn(true);
+        $authed->method('getRoles')->willReturn([]);
+        $authed->method('hasPermission')->willReturn(false);
+
+        $ref = new \ReflectionMethod(BroadcastRouter::class, 'accountMayAccessPrivilegedChannels');
+        self::assertFalse($ref->invoke(null, $authed));
+    }
+
+    #[Test]
+    public function account_may_access_privileged_channels_true_for_administrator_role(): void
+    {
+        $admin = $this->createStub(\Waaseyaa\Access\AccountInterface::class);
+        $admin->method('isAuthenticated')->willReturn(true);
+        $admin->method('getRoles')->willReturn(['administrator']);
+        $admin->method('hasPermission')->willReturn(false);
+
+        $ref = new \ReflectionMethod(BroadcastRouter::class, 'accountMayAccessPrivilegedChannels');
+        self::assertTrue($ref->invoke(null, $admin));
+    }
+
+    #[Test]
+    public function account_may_access_privileged_channels_true_for_administer_site_permission(): void
+    {
+        $admin = $this->createStub(\Waaseyaa\Access\AccountInterface::class);
+        $admin->method('isAuthenticated')->willReturn(true);
+        $admin->method('getRoles')->willReturn([]);
+        $admin->method('hasPermission')->willReturnMap([['administer site', true]]);
+
+        $ref = new \ReflectionMethod(BroadcastRouter::class, 'accountMayAccessPrivilegedChannels');
+        self::assertTrue($ref->invoke(null, $admin));
     }
 }
