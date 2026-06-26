@@ -138,6 +138,41 @@ behavior.
 
 ---
 
+## Tamper-evidence (hash chain + signed checkpoints)
+
+The append-only decorator *prevents* mutation through sanctioned paths, but a
+party with raw DB access can still edit/delete history. Tamper-evidence makes
+such mutation **detectable** (design: `craftsmanship/AUDIT-TAMPER-EVIDENCE-DESIGN.md`).
+The scheme is **A+C hybrid, per-segment (checkpoint-time) chaining** — no
+hot-path serialization on the writer.
+
+**Data model (WP1):**
+- `audit_event` gains `row_hash CHAR(64)` and `prev_hash CHAR(64)` (both
+  `DEFAULT ''` = *unsealed*). They are populated **at checkpoint time** by the
+  builder, not at insert — the writer's append path is unchanged.
+- `audit_checkpoint` seals contiguous segments: `segment_start_id`/`segment_end_id`,
+  `row_count`, `segment_hash` (digest over the segment's `row_hash`es),
+  `prev_checkpoint_hash` (chains checkpoints), `checkpoint_hash`
+  (`AuditCheckpointHasher::checkpointHash()` over the segment fields +
+  `prev_checkpoint_hash`), `signature` (deferred), `hash_version`, `is_genesis`.
+  It is itself **append-only** (`AppendOnlyAuditDatabase::APPEND_ONLY_TABLES`).
+- **Canonicalization** is pinned + versioned in `AuditEventCanonicalizer`
+  (`HASH_VERSION = 'v1'`): fixed column order, explicit NULL sentinel,
+  length-prefixed so no field value can forge a delimiter. `row_hash =
+  sha256(canonical(content) || prev_hash)`.
+- **Genesis anchor:** on first `ensureSchema()`, one `is_genesis=1` checkpoint is
+  written over the current `MAX(id)` with `prev_checkpoint_hash = segment_hash =
+  GENESIS_HASH` (64 zeros). Pre-migration rows are **not** back-chained — they
+  are attested as "predates chaining", never given false assurance. Idempotent
+  (guarded on a zero-rows check).
+
+**Operational pieces (subsequent WPs):** the checkpoint builder (scheduled,
+exports each checkpoint to a pluggable external `CheckpointSink` — the
+load-bearing anchor), `audit:verify`, and checkpoint-boundary-aware `audit:prune`
+are documented as they land.
+
+---
+
 ## Event-Kind Taxonomy
 
 `AuditEventKind` is a backed string enum with 19 cases (additive — cases are

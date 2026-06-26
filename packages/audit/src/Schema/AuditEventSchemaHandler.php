@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit\Schema;
 
+use Waaseyaa\Audit\Integrity\AuditCheckpointHasher;
+use Waaseyaa\Audit\Integrity\AuditEventCanonicalizer;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 
@@ -56,7 +58,9 @@ final class AuditEventSchemaHandler
                 outcome VARCHAR(16) NOT NULL DEFAULT \'allowed\',
                 severity VARCHAR(16) NOT NULL DEFAULT \'info\',
                 attributes TEXT NOT NULL DEFAULT \'{}\',
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                row_hash CHAR(64) NOT NULL DEFAULT \'\',
+                prev_hash CHAR(64) NOT NULL DEFAULT \'\'
             )',
         );
 
@@ -69,6 +73,21 @@ final class AuditEventSchemaHandler
         if (!$this->database->schema()->fieldExists('audit_event', 'actor_uid')) {
             $conn->executeStatement(
                 'ALTER TABLE audit_event ADD COLUMN actor_uid INTEGER',
+            );
+        }
+
+        // Additive migration: tamper-evidence chain columns (WP1). DEFAULT ''
+        // means "unsealed" — the checkpoint builder (WP2) fills these in during
+        // the sealing pass. Existing rows keep DEFAULT '' until sealed.
+        if (!$this->database->schema()->fieldExists('audit_event', 'row_hash')) {
+            $conn->executeStatement(
+                "ALTER TABLE audit_event ADD COLUMN row_hash CHAR(64) NOT NULL DEFAULT ''",
+            );
+        }
+
+        if (!$this->database->schema()->fieldExists('audit_event', 'prev_hash')) {
+            $conn->executeStatement(
+                "ALTER TABLE audit_event ADD COLUMN prev_hash CHAR(64) NOT NULL DEFAULT ''",
             );
         }
 
@@ -105,5 +124,76 @@ final class AuditEventSchemaHandler
         $conn->executeStatement(
             'CREATE UNIQUE INDEX IF NOT EXISTS audit_retention_policy_uuid ON audit_retention_policy (uuid)',
         );
+
+        // ----------------------------------------------------------------
+        // Tamper-evidence checkpoint table (WP1)
+        // ----------------------------------------------------------------
+        // audit_checkpoint anchors the hash-chain: each row seals a segment of
+        // audit_event rows (segment_start_id … segment_end_id) by recording the
+        // rolling hash of every row_hash in that segment and chaining it to the
+        // hash of the previous checkpoint. The genesis row (is_genesis=1)
+        // bootstraps the chain on first install; its segment_hash and
+        // prev_checkpoint_hash are GENESIS_HASH ("predates chaining").
+        $conn->executeStatement(
+            'CREATE TABLE IF NOT EXISTS audit_checkpoint (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                uuid VARCHAR(128) NOT NULL DEFAULT \'\',
+                segment_start_id INTEGER NOT NULL DEFAULT 0,
+                segment_end_id INTEGER NOT NULL DEFAULT 0,
+                row_count INTEGER NOT NULL DEFAULT 0,
+                segment_hash CHAR(64) NOT NULL DEFAULT \'\',
+                prev_checkpoint_hash CHAR(64) NOT NULL DEFAULT \'\',
+                checkpoint_hash CHAR(64) NOT NULL DEFAULT \'\',
+                signature TEXT NOT NULL DEFAULT \'\',
+                hash_version VARCHAR(16) NOT NULL DEFAULT \'v1\',
+                is_genesis INTEGER NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )',
+        );
+
+        $conn->executeStatement(
+            'CREATE UNIQUE INDEX IF NOT EXISTS audit_checkpoint_uuid ON audit_checkpoint (uuid)',
+        );
+        $conn->executeStatement(
+            'CREATE INDEX IF NOT EXISTS audit_checkpoint_segment_end ON audit_checkpoint (segment_end_id)',
+        );
+
+        // Genesis anchor: insert exactly once when audit_checkpoint is empty.
+        // Idempotency: the check is done inside a transaction-safe SELECT COUNT
+        // so a concurrent boot cannot insert two genesis rows. Running
+        // ensureSchema() a second time hits the COUNT > 0 branch and skips.
+        $existingCheckpointsRaw = $conn->fetchOne('SELECT COUNT(*) FROM audit_checkpoint');
+        $existingCheckpoints = is_scalar($existingCheckpointsRaw) ? (int) $existingCheckpointsRaw : 0;
+        if ($existingCheckpoints === 0) {
+            // Capture the current high-water mark of audit_event so the genesis
+            // row accurately reflects any events that were written before the
+            // checkpoint table existed.
+            $maxEventIdRaw = $conn->fetchOne('SELECT COALESCE(MAX(id), 0) FROM audit_event');
+            $maxEventId = is_scalar($maxEventIdRaw) ? (int) $maxEventIdRaw : 0;
+            $eventCountRaw = $conn->fetchOne('SELECT COUNT(*) FROM audit_event');
+            $eventCount = is_scalar($eventCountRaw) ? (int) $eventCountRaw : 0;
+
+            $checkpointHash = AuditCheckpointHasher::checkpointHash(
+                segmentStartId: 1,
+                segmentEndId: $maxEventId,
+                rowCount: $eventCount,
+                segmentHash: AuditEventCanonicalizer::GENESIS_HASH,
+                prevCheckpointHash: AuditEventCanonicalizer::GENESIS_HASH,
+            );
+
+            $this->database->insert('audit_checkpoint')->values([
+                'uuid'                 => \Symfony\Component\Uid\Uuid::v4()->toRfc4122(),
+                'segment_start_id'     => 1,
+                'segment_end_id'       => $maxEventId,
+                'row_count'            => $eventCount,
+                'segment_hash'         => AuditEventCanonicalizer::GENESIS_HASH,
+                'prev_checkpoint_hash' => AuditEventCanonicalizer::GENESIS_HASH,
+                'checkpoint_hash'      => $checkpointHash,
+                'signature'            => '',
+                'hash_version'         => AuditEventCanonicalizer::HASH_VERSION,
+                'is_genesis'           => 1,
+                'created_at'           => new \DateTimeImmutable()->format('Y-m-d H:i:s'),
+            ])->execute();
+        }
     }
 }
