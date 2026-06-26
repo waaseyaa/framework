@@ -79,7 +79,10 @@ final class TwoFactorManager
     }
 
     /**
-     * Get the current TOTP code for a secret (for testing).
+     * Get the current TOTP code for a secret. Test/diagnostic helper only:
+     * deriving a live valid TOTP from a secret is not part of the public API.
+     *
+     * @internal
      */
     public function getCurrentCode(string $secret): string
     {
@@ -116,22 +119,6 @@ final class TwoFactorManager
         }
 
         return $codes;
-    }
-
-    /**
-     * Verify a recovery code against a list of valid codes.
-     *
-     * @param list<string> $validCodes
-     */
-    public function verifyRecoveryCode(string $code, array $validCodes): bool
-    {
-        foreach ($validCodes as $validCode) {
-            if (hash_equals($validCode, $code)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function generateCode(string $base32Secret, int $timeStep): string

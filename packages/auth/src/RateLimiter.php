@@ -5,7 +5,13 @@ declare(strict_types=1);
 namespace Waaseyaa\Auth;
 
 /**
- * @api
+ * In-memory rate limiter. State lives in a per-instance array, so under the
+ * framework's boot-per-request runtime it resets every request and does not
+ * actually throttle across requests — the live, bound implementation is
+ * {@see DatabaseRateLimiter}. Retained only as a fallback for tests and
+ * non-boot-per-request contexts; it is NOT part of the public surface.
+ *
+ * @internal
  */
 final class RateLimiter implements RateLimiterInterface
 {
