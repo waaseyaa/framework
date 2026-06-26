@@ -7,9 +7,10 @@ namespace Waaseyaa\Audit\Enum;
 /**
  * Canonical vocabulary of audit event kinds.
  *
- * 19 cases (originally 14, extended additively by
- * `versioned-blob-media-abstraction-01KSEFTJ` (+3) and
- * `revision-audit-provenance-01KTWY5V` (+2) per the §Out-of-band
+ * 20 cases (originally 14, extended additively by
+ * `versioned-blob-media-abstraction-01KSEFTJ` (+3),
+ * `revision-audit-provenance-01KTWY5V` (+2), and
+ * WP3 audit tamper-evidence verify (+1) per the §Out-of-band
  * downstream-amendment principle — additive, no removal).
  *
  * The {@see \Waaseyaa\Audit\Contract\AuditEventDescriptor} rejects
@@ -47,4 +48,8 @@ enum AuditEventKind: string
     case RevisionPublish = 'revision.publish';
     /** The current-revision pointer moved back to a prior revision (revert operation). */
     case RevisionRevert = 'revision.revert';
+
+    // --- Added by WP3 audit tamper-evidence verify ---
+    /** The audit:verify command ran and checked the hash chain + checkpoints. */
+    case AuditVerified = 'audit.verify';
 }

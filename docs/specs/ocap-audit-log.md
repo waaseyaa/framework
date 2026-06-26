@@ -185,13 +185,31 @@ sink** (a host able to edit `audit_event` can also edit a local file). Optional
 HMAC over `checkpoint_hash` is supported (`audit.checkpoint_hmac_key`); asymmetric/
 KMS signing is deferred.
 
-**Still to land:** `audit:verify` and checkpoint-boundary-aware `audit:prune`.
+**Verification — `audit:verify` (WP3):** `AuditChainVerifier::verify()` walks every
+sealed segment and returns an `AuditVerificationResult` (`ok`, `firstBrokenId`,
+`failureKind`, counts). Per checkpoint it checks: the checkpoint chains to its
+predecessor (`prev_checkpoint_hash`), the present row count equals `row_count`,
+each row's `prev_hash` links to the previous row's `row_hash` (first row → prior
+`segment_hash`), each row's content recomputes to its stored `row_hash`
+(`AuditEventCanonicalizer`), the last `row_hash` equals the checkpoint's
+`segment_hash`, and the checkpoint's `checkpoint_hash` recomputes. It STOPS at the
+first break with a machine-readable `failureKind` ∈ {`genesis`, `checkpoint_chain`,
+`row_count`, `chain_link`, `row_content`, `segment_hash`, `checkpoint_hash`}. Rows
+`id ≤ genesis.segment_end_id` (predates chaining) and rows past the last checkpoint
+(unsealed/pending) are not failures. `bin/waaseyaa audit:verify [--json]` exits 0
+when intact and non-zero on tamper, and emits an `audit.verify` self-audit event
+(outcome `allowed`/`denied`). This detects content edits, row deletions, gaps, and
+forged checkpoints — what the append-only decorator cannot *prevent* against a
+party with raw DB access.
+
+**Still to land:** checkpoint-boundary-aware `audit:prune` (so a sanctioned prune
+is distinguishable from a malicious gap).
 
 ---
 
 ## Event-Kind Taxonomy
 
-`AuditEventKind` is a backed string enum with 19 cases (additive — cases are
+`AuditEventKind` is a backed string enum with 20 cases (additive — cases are
 never removed per the out-of-band downstream-amendment principle):
 
 | Case | Value | Description |

@@ -6,9 +6,11 @@ namespace Waaseyaa\CLI\Provider;
 
 use Waaseyaa\Audit\Contract\AuditQueryInterface;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
+use Waaseyaa\Audit\Integrity\AuditChainVerifier;
 use Waaseyaa\Audit\Integrity\AuditCheckpointBuilder;
 use Waaseyaa\CLI\Command\Audit\CheckpointCommand;
 use Waaseyaa\CLI\Command\Audit\PruneCommand;
+use Waaseyaa\CLI\Command\Audit\VerifyCommand;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
@@ -23,6 +25,8 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
  *    given ISO-8601 duration, with optional kind filter and --dry-run.
  *  - `audit:checkpoint` (WP2) — seal the next batch of unsealed audit_event
  *    rows into a tamper-evidence checkpoint.
+ *  - `audit:verify` (WP3) — verify the audit-log hash chain and all sealed
+ *    checkpoints; exit non-zero on tamper detection.
  *
  * @api
  */
@@ -51,6 +55,18 @@ final class AuditServiceProvider extends ServiceProvider implements ProvidesCons
                 $builder = $this->resolve(AuditCheckpointBuilder::class);
 
                 return new CheckpointCommand($builder);
+            },
+        );
+
+        $this->singleton(
+            VerifyCommand::class,
+            function (): VerifyCommand {
+                /** @var DatabaseInterface $db */
+                $db = $this->resolve(DatabaseInterface::class);
+                /** @var AuditWriterInterface $writer */
+                $writer = $this->resolve(AuditWriterInterface::class);
+
+                return new VerifyCommand(new AuditChainVerifier($db), $writer);
             },
         );
     }
@@ -92,6 +108,19 @@ final class AuditServiceProvider extends ServiceProvider implements ProvidesCons
             description: 'Seal the next batch of unsealed audit_event rows into a tamper-evidence checkpoint (WP2). Exports the checkpoint via the configured CheckpointSink.',
             options: [],
             handler: [CheckpointCommand::class, 'execute'],
+        );
+
+        yield new HandlerCommand(
+            name: 'audit:verify',
+            description: 'Verify the audit-log hash chain + checkpoints; exit non-zero on tamper.',
+            options: [
+                new HandlerOption(
+                    name: 'json',
+                    mode: HandlerOptionMode::None,
+                    description: 'Output the result as a JSON object.',
+                ),
+            ],
+            handler: [VerifyCommand::class, 'execute'],
         );
     }
 }
