@@ -92,6 +92,8 @@ This is the same pattern used by the AI observability dashboard (M5A,
 Indices: `uuid` (UNIQUE), `account_uid`, `actor_uid`,
 `(entity_type_id, entity_uuid)`, `(event_kind, created_at)`, `created_at`.
 
+**Single source of truth.** `Schema/AuditEventSchemaHandler::ensureSchema()` is the **one** authoritative definition of the audit schema (the `audit_event`, `audit_retention_policy`, and `audit_checkpoint` tables, their indices, and the genesis anchor). `AuditServiceProvider::boot()` calls it on every boot, and the standalone migration `migrations/2026_05_25_000001_create_audit_event_table.php` **delegates to the same handler** (`new AuditEventSchemaHandler(new DBALDatabase($schema->getConnection()))->ensureSchema()`) rather than hand-maintaining its own `CREATE TABLE`. This guarantees a standalone `migrate` produces byte-identical schema to the boot path; a hand-written migration previously drifted (it lacked `actor_uid`/`row_hash`/`prev_hash`), so a migrate-only install produced a schema the writer's INSERT failed against.
+
 ### Actor semantics (`actor_uid` vs `account_uid`)
 
 `actor_uid` is the authoritative three-state actor:
