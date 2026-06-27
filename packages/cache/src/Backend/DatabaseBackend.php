@@ -168,7 +168,14 @@ final class DatabaseBackend implements TagAwareCacheInterface
         $this->ensureTable();
 
         // Build a WHERE clause that matches any of the specified tags.
-        // Tags are stored comma-separated, so we use LIKE patterns.
+        // Tags are stored comma-separated, so we use LIKE patterns to match
+        // a tag when it is the only value, first, last, or in the middle of
+        // the comma blob. Matching is exact: LIKE metacharacters (% and _) in
+        // tag names are escaped with a backslash (the backslash itself is
+        // escaped first so a literal backslash in a tag name cannot break the
+        // escape sequence), and each LIKE arm carries an explicit ESCAPE '\'
+        // clause. SQLite's default LIKE has no escape character, so the clause
+        // is required for backslash-escaping to work.
         $conditions = [];
         $params = [];
         foreach ($tags as $i => $tag) {
@@ -176,11 +183,14 @@ final class DatabaseBackend implements TagAwareCacheInterface
             $paramStart = ":tagstart{$i}";
             $paramEnd = ":tagend{$i}";
             $paramMiddle = ":tagmid{$i}";
-            $conditions[] = "(tags = {$paramName} OR tags LIKE {$paramStart} OR tags LIKE {$paramEnd} OR tags LIKE {$paramMiddle})";
+            // Escape backslash first so a literal \ in $tag becomes \\,
+            // then escape % and _ so they are treated as literals, not wildcards.
+            $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $tag);
+            $conditions[] = "(tags = {$paramName} OR tags LIKE {$paramStart} ESCAPE '\\' OR tags LIKE {$paramEnd} ESCAPE '\\' OR tags LIKE {$paramMiddle} ESCAPE '\\')";
             $params[$paramName] = $tag;
-            $params[$paramStart] = $tag . ',%';
-            $params[$paramEnd] = '%,' . $tag;
-            $params[$paramMiddle] = '%,' . $tag . ',%';
+            $params[$paramStart] = $escaped . ',%';
+            $params[$paramEnd] = '%,' . $escaped;
+            $params[$paramMiddle] = '%,' . $escaped . ',%';
         }
 
         $where = implode(' OR ', $conditions);
