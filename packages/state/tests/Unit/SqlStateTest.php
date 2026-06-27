@@ -4,7 +4,14 @@ declare(strict_types=1);
 
 namespace Waaseyaa\State\Tests\Unit;
 
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\DeleteInterface;
+use Waaseyaa\Database\InsertInterface;
+use Waaseyaa\Database\SchemaInterface;
+use Waaseyaa\Database\SelectInterface;
+use Waaseyaa\Database\TransactionInterface;
+use Waaseyaa\Database\UpdateInterface;
 use Waaseyaa\State\SqlState;
 use Waaseyaa\State\StateInterface;
 use PHPUnit\Framework\TestCase;
@@ -254,5 +261,131 @@ final class SqlStateTest extends TestCase
 
         $freshState = new SqlState($this->database);
         $this->assertSame('Hello, World!', $freshState->get('greeting'));
+    }
+
+    /**
+     * Regression test for the concurrent new-key PK-collision race (state m2).
+     *
+     * SqlState::set() does UPDATE-then-INSERT. When two concurrent writers both
+     * see 0 rows affected by the UPDATE (the key is new), both attempt INSERT;
+     * the second INSERT hits the PRIMARY KEY on `name` and throws.
+     *
+     * The fix catches UniqueConstraintViolationException from the INSERT and
+     * re-applies the value via a second UPDATE (last-writer-wins). This test
+     * pins that: a spy DatabaseInterface simulates the race by intercepting
+     * the first update('state') call, inserting the competitor row out-of-band
+     * (the "concurrent winner"), and returning 0 — exactly the condition that
+     * triggers the collision on the subsequent INSERT. Pre-fix: throws. Post-fix:
+     * succeeds with last-writer-wins semantics.
+     */
+    public function testSetDoesNotThrowOnConcurrentNewKeyRace(): void
+    {
+        $key = 'concurrent_key';
+        $realDb = DBALDatabase::createSqlite(':memory:');
+        $racingDb = $this->buildRaceSimulatingDatabase($realDb, $key);
+
+        $state = new SqlState($racingDb);
+        $state->ensureTable();
+
+        // Pre-fix: throws Doctrine\DBAL\Exception\UniqueConstraintViolationException.
+        // Post-fix: catches it and re-UPDATEs, so this completes without throwing.
+        $state->set($key, 'my_value');
+
+        // Last-writer-wins: our re-UPDATE overwrote the competitor's serialized value.
+        $freshState = new SqlState($realDb);
+        $this->assertSame('my_value', $freshState->get($key));
+    }
+
+    /**
+     * Returns a DatabaseInterface spy that, on the FIRST update('state') call,
+     * inserts the target key out-of-band (simulating a concurrent winner) and
+     * then returns 0 — so the caller's subsequent INSERT hits the PK constraint.
+     * All subsequent calls, and all other methods, delegate to the real database.
+     */
+    private function buildRaceSimulatingDatabase(DBALDatabase $inner, string $key): DatabaseInterface
+    {
+        return new class ($inner, $key) implements DatabaseInterface {
+            /** @var bool Whether the race interception has already fired. */
+            private bool $armed = true;
+
+            public function __construct(
+                private readonly DBALDatabase $inner,
+                private readonly string $key,
+            ) {}
+
+            public function update(string $table): UpdateInterface
+            {
+                if (!$this->armed || $table !== 'state') {
+                    return $this->inner->update($table);
+                }
+                $this->armed = false;
+
+                // Return a fake UpdateInterface: inserts the competitor row
+                // (concurrent winner) and returns 0 so the caller proceeds to INSERT.
+                return new class ($this->inner, $this->key) implements UpdateInterface {
+                    public function __construct(
+                        private readonly DatabaseInterface $db,
+                        private readonly string $key,
+                    ) {}
+
+                    public function fields(array $fields): static
+                    {
+                        return $this;
+                    }
+
+                    public function condition(string $field, mixed $value, string $operator = '='): static
+                    {
+                        return $this;
+                    }
+
+                    public function execute(): int
+                    {
+                        // Concurrent winner inserts the row between our UPDATE and INSERT.
+                        $this->db->insert('state')
+                            ->fields(['name', 'value'])
+                            ->values(['name' => $this->key, 'value' => serialize('competitor_value')])
+                            ->execute();
+
+                        // Return 0: the key did not exist when our UPDATE ran.
+                        return 0;
+                    }
+                };
+            }
+
+            public function insert(string $table): InsertInterface
+            {
+                return $this->inner->insert($table);
+            }
+
+            public function select(string $table, string $alias = ''): SelectInterface
+            {
+                return $this->inner->select($table, $alias);
+            }
+
+            public function delete(string $table): DeleteInterface
+            {
+                return $this->inner->delete($table);
+            }
+
+            public function schema(): SchemaInterface
+            {
+                return $this->inner->schema();
+            }
+
+            public function transaction(string $name = ''): TransactionInterface
+            {
+                return $this->inner->transaction($name);
+            }
+
+            public function query(string $sql, array $args = []): \Traversable
+            {
+                return $this->inner->query($sql, $args);
+            }
+
+            public function quoteIdentifier(string $identifier): string
+            {
+                return $this->inner->quoteIdentifier($identifier);
+            }
+        };
     }
 }
