@@ -79,6 +79,18 @@ final class GoogleOAuthProvider implements OAuthProviderInterface
 
         $data = $response->json();
 
+        // The userinfo endpoint is the identity source. A 401/403/5xx returns an
+        // error body with no `id`/`email`, which would otherwise be coerced into
+        // a degenerate, empty-providerId profile (a wrong/empty identity). Fail
+        // loudly instead — mirroring the hardened GitHub provider's isSuccess() check.
+        if (!$response->isSuccess()) {
+            $message = $data['error_description'] ?? $data['error'] ?? 'Google user profile request failed';
+            throw new \RuntimeException((string) $message);
+        }
+        if (!isset($data['id']) || (string) $data['id'] === '') {
+            throw new \RuntimeException('Google user profile response is missing an account id.');
+        }
+
         return new OAuthUserProfile(
             providerId: (string) $data['id'],
             email: (string) $data['email'],

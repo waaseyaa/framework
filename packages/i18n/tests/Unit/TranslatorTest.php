@@ -130,4 +130,118 @@ final class TranslatorTest extends TestCase
         file_put_contents($this->langDir . '/en.php', "<?php\nreturn ['greeting' => 'Modified'];\n");
         $this->assertSame('Hello', $translator->trans('greeting'));
     }
+
+    #[Test]
+    public function path_traversal_locale_does_not_execute_a_file_outside_the_translations_dir(): void
+    {
+        // Plant a sentinel PHP file in the PARENT of the translations dir. If an
+        // unvalidated "../" locale reaches `require`, this file executes and sets
+        // a global — proving the path-traversal → code-execution vector. The guard
+        // must prevent it from ever being required.
+        $outside = dirname($this->langDir) . '/waaseyaa_i18n_evil_' . uniqid() . '.php';
+        $sentinel = basename($outside, '.php');
+        file_put_contents($outside, "<?php\n\$GLOBALS['waaseyaa_i18n_pwned'] = true;\nreturn ['pwned' => 'PWNED'];\n");
+        unset($GLOBALS['waaseyaa_i18n_pwned']);
+
+        try {
+            $translator = new Translator($this->langDir, $this->manager);
+            // locale '../<sentinel>' would resolve to $langDir/../<sentinel>.php == $outside.
+            $result = $translator->trans('pwned', [], '../' . $sentinel);
+
+            $this->assertArrayNotHasKey(
+                'waaseyaa_i18n_pwned',
+                $GLOBALS,
+                'A traversal locale must never execute a file outside the translations dir.',
+            );
+            // Sentinel translations must not be loaded; key is returned unchanged.
+            $this->assertSame('pwned', $result);
+        } finally {
+            @unlink($outside);
+            unset($GLOBALS['waaseyaa_i18n_pwned']);
+        }
+    }
+
+    #[Test]
+    public function rejects_locale_addressing_a_subdirectory(): void
+    {
+        // A '/' in a locale must not let it address a nested file. Plant a real
+        // file at $langDir/sub/dir.php so an unguarded locale 'sub/dir' would load
+        // 'SUBDIR'; the guard must reject the separator and fall back to 'en'.
+        mkdir($this->langDir . '/sub', 0o777, true);
+        file_put_contents($this->langDir . '/sub/dir.php', "<?php\nreturn ['greeting' => 'SUBDIR'];\n");
+
+        try {
+            $translator = new Translator($this->langDir, $this->manager);
+            $this->assertSame('Hello', $translator->trans('greeting', [], 'sub/dir'));
+        } finally {
+            @unlink($this->langDir . '/sub/dir.php');
+            @rmdir($this->langDir . '/sub');
+        }
+    }
+
+    #[Test]
+    public function url_encoded_traversal_locale_does_not_fatal_and_falls_back(): void
+    {
+        $translator = new Translator($this->langDir, $this->manager);
+        // Must not fatal and must not address anything outside the dir — safe fallback.
+        $this->assertSame('Hello', $translator->trans('greeting', [], '..%2f..%2fetc%2fpasswd'));
+    }
+
+    #[Test]
+    public function null_byte_locale_does_not_fatal(): void
+    {
+        // Without the guard this reaches is_file()/require with a null byte, which
+        // raises a ValueError (a fatal, not a graceful miss). The guard must reject
+        // it before the path is built and fall back to the default language.
+        $translator = new Translator($this->langDir, $this->manager);
+        $this->assertSame('Hello', $translator->trans('greeting', [], "en\0../../etc/passwd"));
+    }
+
+    #[Test]
+    public function loads_legitimate_bcp47_locales(): void
+    {
+        // Valid BCP-47-shaped locales (with and without region/private-use subtags)
+        // must still load their files — the guard rejects traversal, not legitimacy.
+        file_put_contents($this->langDir . '/fr-CA.php', "<?php\nreturn ['greeting' => 'Bonjour'];\n");
+        file_put_contents($this->langDir . '/oj-x-sagamok.php', "<?php\nreturn ['greeting' => 'Aaniin'];\n");
+
+        try {
+            $translator = new Translator($this->langDir, $this->manager);
+            $this->assertSame('Hello', $translator->trans('greeting', [], 'en'));
+            $this->assertSame('Bonjour', $translator->trans('greeting', [], 'fr-CA'));
+            $this->assertSame('Aaniin', $translator->trans('greeting', [], 'oj-x-sagamok'));
+        } finally {
+            @unlink($this->langDir . '/fr-CA.php');
+            @unlink($this->langDir . '/oj-x-sagamok.php');
+        }
+    }
+
+    #[Test]
+    public function does_not_follow_a_symlink_out_of_the_translations_dir(): void
+    {
+        // Defense-in-depth: even a BCP-47-valid locale whose file is a symlink
+        // pointing outside the translations dir must not be required.
+        $outside = dirname($this->langDir) . '/waaseyaa_i18n_target_' . uniqid() . '.php';
+        file_put_contents($outside, "<?php\n\$GLOBALS['waaseyaa_i18n_symlinked'] = true;\nreturn ['greeting' => 'LEAKED'];\n");
+        unset($GLOBALS['waaseyaa_i18n_symlinked']);
+
+        $link = $this->langDir . '/sneaky.php';
+        if (!@symlink($outside, $link)) {
+            @unlink($outside);
+            $this->markTestSkipped('symlink() not supported in this environment.');
+        }
+
+        try {
+            $translator = new Translator($this->langDir, $this->manager);
+            $result = $translator->trans('greeting', [], 'sneaky');
+
+            $this->assertArrayNotHasKey('waaseyaa_i18n_symlinked', $GLOBALS);
+            // Rejected symlink → safe fallback to the default language.
+            $this->assertSame('Hello', $result);
+        } finally {
+            @unlink($link);
+            @unlink($outside);
+            unset($GLOBALS['waaseyaa_i18n_symlinked']);
+        }
+    }
 }
