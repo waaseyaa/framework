@@ -979,12 +979,6 @@ parameters:
 			path: packages/media/src/UploadHandler.php
 
 		-
-			message: '#^Dead catch \- ReflectionException is never thrown in the try block\.$#'
-			identifier: catch.neverThrown
-			count: 1
-			path: packages/plugin/src/Discovery/AttributeDiscovery.php
-
-		-
 			message: '#^Parameter \#2 \$attempts of method Waaseyaa\\Queue\\Worker\\Worker\:\:calculateBackoff\(\) expects int, \(float\|int\) given\.$#'
 			identifier: argument.type
 			count: 1

@@ -80,28 +80,35 @@ final class AttributeDiscovery implements PluginDiscoveryInterface
 
     private function processClass(string $className, array &$definitions): void
     {
-        if (!class_exists($className)) {
-            return;
-        }
-
         try {
+            // class_exists() triggers PHP's autoloader. When a scanned class
+            // extends a dev-only parent (e.g. PHPUnit's TestCase) that is absent
+            // in a production install, PHP throws a fatal \Error — NOT a
+            // \ReflectionException — at class-definition time. Wrapping the
+            // entire region in catch (\Throwable) keeps boot alive by silently
+            // skipping any class that cannot be loaded, reflected, or instantiated
+            // via its attribute. This mirrors the guard in PackageManifestCompiler
+            // that fixed the alpha.106→107 production outage (waaseyaa/graphql).
+            if (!class_exists($className)) {
+                return;
+            }
+
             $reflection = new \ReflectionClass($className);
-        } catch (\ReflectionException) {
+            $attributes = $reflection->getAttributes($this->attributeClass, \ReflectionAttribute::IS_INSTANCEOF);
+
+            foreach ($attributes as $attribute) {
+                $instance = $attribute->newInstance();
+                $definition = new PluginDefinition(
+                    id: $instance->id,
+                    label: $instance->label,
+                    class: $className,
+                    description: $instance->description,
+                    package: $instance->package,
+                );
+                $definitions[$definition->id] = $definition;
+            }
+        } catch (\Throwable) {
             return;
-        }
-
-        $attributes = $reflection->getAttributes($this->attributeClass, \ReflectionAttribute::IS_INSTANCEOF);
-
-        foreach ($attributes as $attribute) {
-            $instance = $attribute->newInstance();
-            $definition = new PluginDefinition(
-                id: $instance->id,
-                label: $instance->label,
-                class: $className,
-                description: $instance->description,
-                package: $instance->package,
-            );
-            $definitions[$definition->id] = $definition;
         }
     }
 }
