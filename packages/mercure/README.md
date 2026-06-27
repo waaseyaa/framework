@@ -4,7 +4,7 @@
 
 Mercure hub publisher for real-time SSE push in Waaseyaa.
 
-`MercurePublisher` POSTs JSON updates to a configured [Mercure](https://mercure.rocks) hub, minting a short-lived HS256 JWT (one-hour expiry, `publish: ['*']` claim) for each request. Publication is **best-effort**: when the hub URL or JWT secret is unconfigured, or the hub returns a non-2xx response, `publish()` returns `false` rather than throwing — so a failed broadcast never crashes the primary request, matching the framework convention for non-critical side effects. Pure side-effect utility — no entity storage, no global state.
+`MercurePublisher` POSTs JSON updates to a configured [Mercure](https://mercure.rocks) hub, minting a short-lived HS256 JWT (one-hour expiry) for each request. The token follows **least privilege**: its `publish` claim is scoped to the exact topic being published (`publish: ['/notes/42']`), never the `['*']` wildcard — so a leaked token cannot be used to publish to any other topic. The hub URL **must** be `https://`: the token is sent as a bearer header, so a non-https hub would leak it in cleartext and is therefore treated as unconfigured (the POST also pins `CURLOPT_SSL_VERIFYPEER`/`VERIFYHOST`). Publication is **best-effort**: when the hub URL is unconfigured/non-https or the JWT secret is unset, or the hub returns a non-2xx response, `publish()` returns `false` rather than throwing — so a failed broadcast never crashes the primary request, matching the framework convention for non-critical side effects. Pure side-effect utility — no entity storage, no global state.
 
 ## Install
 
@@ -27,7 +27,7 @@ public function __construct(string $hubUrl, string $jwtSecret)
 // response; false if unconfigured, on cURL failure, or non-2xx.
 public function publish(string $topic, array $data): bool
 
-// True only when both hubUrl and jwtSecret are non-empty.
+// True only when jwtSecret is non-empty and hubUrl is an https:// URL.
 public function isConfigured(): bool
 ```
 
