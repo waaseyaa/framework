@@ -68,9 +68,12 @@ final class DBALUpdate implements UpdateInterface
      */
     private function simpleCriteria(): array
     {
+        // Doctrine's Connection::update() emits criteria column names verbatim, so
+        // we quote the WHERE-field identifier here (a reserved-word / user-supplied
+        // column name is then safe). Values stay bound as parameters by Doctrine.
         $criteria = [];
         foreach ($this->conditions as $cond) {
-            $criteria[$cond['field']] = $cond['value'];
+            $criteria[$this->connection->quoteIdentifier($cond['field'])] = $cond['value'];
         }
 
         return $criteria;
@@ -92,7 +95,8 @@ final class DBALUpdate implements UpdateInterface
     private function applyConditions(\Doctrine\DBAL\Query\QueryBuilder $qb): void
     {
         foreach ($this->conditions as $cond) {
-            $field = $cond['field'];
+            // $field is an identifier → always quoted (value stays bound).
+            $field = $this->connection->quoteIdentifier($cond['field']);
             $value = $cond['value'];
             $operator = $cond['operator'];
 

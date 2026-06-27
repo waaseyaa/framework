@@ -44,7 +44,9 @@ final class DBALSelect implements SelectInterface
             $this->qb->addSelect($quoted . '.*');
         } else {
             foreach ($fields as $field) {
-                $this->qb->addSelect($quoted . '.' . $field);
+                $this->qb->addSelect(
+                    $field === '*' ? $quoted . '.*' : $quoted . '.' . $this->quoteName($field),
+                );
             }
         }
 
@@ -57,19 +59,41 @@ final class DBALSelect implements SelectInterface
         $this->hasExplicitFields = true;
         $quoted = $this->connection->quoteIdentifier($tableAlias);
 
-        $col = $quoted . '.' . $field;
+        $col = $field === '*' ? $quoted . '.*' : $quoted . '.' . $this->quoteName($field);
         if ($alias !== '') {
-            $col .= ' AS ' . $alias;
+            $col .= ' AS ' . $this->quoteName($alias);
         }
         $this->qb->addSelect($col);
 
         return $this;
     }
 
+    /**
+     * Quote an identifier (column / alias / table) for the active platform.
+     *
+     * Delegates to the platform's `quoteIdentifier`, which splits a qualified
+     * `alias.column` on `.` and quotes each part — `"alias"."column"` (or
+     * backticks per driver) — and doubles any embedded quote. A reserved word
+     * (`key`, `count`, `order`, …) therefore works as an identifier, and a
+     * value containing a quote / space / SQL metacharacter is rendered inert
+     * (quoted) rather than concatenated raw. Cross-driver by construction.
+     */
+    private function quoteName(string $identifier): string
+    {
+        return $this->connection->quoteIdentifier($identifier);
+    }
+
     #[\NoDiscard('fluent builder — chain or assign the return value')]
     public function condition(string $field, mixed $value, string $operator = '='): static
     {
         $operator = strtoupper($operator);
+        // CONTRACT: $field is a developer-supplied raw SQL fragment — a column,
+        // a qualified/pre-quoted identifier, OR an expression (e.g. SqlEntityQuery
+        // passes `json_extract(_data, '$.x')`). It is emitted verbatim and is
+        // NEVER user input. The $value side is always bound as a parameter, so
+        // injection is not possible via $value. (Auto-quoting $field as an
+        // identifier is deferred to a follow-up that adds whereRaw()/orderByRaw()
+        // and migrates SqlEntityQuery — see SelectInterface::condition().)
 
         if ($operator === 'IS NULL') {
             $this->qb->andWhere($field . ' IS NULL');
@@ -140,6 +164,10 @@ final class DBALSelect implements SelectInterface
             throw new \InvalidArgumentException("Invalid order direction: {$direction}");
         }
 
+        // CONTRACT: like condition(), $field is a developer-supplied raw SQL
+        // fragment (column / qualified identifier / expression such as
+        // SqlEntityQuery's `json_extract(...)`), emitted verbatim — never user
+        // input. Identifier auto-quoting is deferred to a follow-up (orderByRaw()).
         $this->qb->addOrderBy($field, $direction);
 
         return $this;
@@ -156,7 +184,11 @@ final class DBALSelect implements SelectInterface
     #[\NoDiscard('fluent builder — chain or assign the return value')]
     public function join(string $table, string $alias, string $condition): static
     {
-        $this->qb->innerJoin($this->tableAlias, $table, $alias, $condition);
+        // $table and $alias are identifiers → quoted. $condition is a free-form
+        // ON expression that cannot be blindly quoted (it references columns,
+        // operators, literals); it is developer-supplied-only — NEVER user input —
+        // matching the value-binding contract documented on condition().
+        $this->qb->innerJoin($this->tableAlias, $this->quoteName($table), $this->quoteName($alias), $condition);
 
         return $this;
     }
@@ -164,7 +196,8 @@ final class DBALSelect implements SelectInterface
     #[\NoDiscard('fluent builder — chain or assign the return value')]
     public function leftJoin(string $table, string $alias, string $condition): static
     {
-        $this->qb->leftJoin($this->tableAlias, $table, $alias, $condition);
+        // See join(): identifiers quoted; the ON $condition is developer-supplied-only.
+        $this->qb->leftJoin($this->tableAlias, $this->quoteName($table), $this->quoteName($alias), $condition);
 
         return $this;
     }
