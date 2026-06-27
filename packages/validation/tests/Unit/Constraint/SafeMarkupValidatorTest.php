@@ -147,4 +147,53 @@ final class SafeMarkupValidatorTest extends TestCase
             new SafeMarkup(),
         );
     }
+
+    /**
+     * Bypass regression test (RED before fix): a non-base64 data:text/html URI
+     * was NOT blocked by the original `;base64`-only data: regex.  A browser
+     * navigates to the data: URL and renders attacker-controlled HTML, enabling
+     * phishing / stored-XSS if the content is attacker-controlled — even without
+     * a literal <script> tag (e.g. via URL-encoded payloads or browser quirks).
+     *
+     * This payload uses no literal <script> / on*= / javascript: — it bypasses
+     * ALL other current patterns.  It MUST fail (RED) before the data: rule is
+     * broadened to block data:text/html regardless of ;base64.
+     */
+    public function testNonBase64DataTextHtmlUriTriggersViolation(): void
+    {
+        $this->context->expects($this->once())
+            ->method('buildViolation')
+            ->willReturn($this->violationBuilder);
+
+        // data:text/html without ;base64 — browser opens as a full HTML page.
+        // No literal <script>, no on*= handler, no javascript: — only the
+        // data:text/html pattern should block this.  Before fix: passes (RED).
+        $this->validator->validate(
+            '<a href="data:text/html,<b>attacker-controlled-content</b>">click</a>',
+            new SafeMarkup(),
+        );
+    }
+
+    /**
+     * Documents that allowedTags is NOT enforced by SafeMarkupValidator.
+     *
+     * SafeMarkup::$allowedTags is public API (used by ConstraintFactory::safeMarkup())
+     * and is reserved for future DOM-based allowlist enforcement; for now the
+     * validator only runs the coarse regex blocklist.  A tag that is NOT in the
+     * allowedTags list (e.g. <blink>) is NOT stripped or rejected by the
+     * validator — the validator is a blocklist pre-filter, not an allowlist.
+     */
+    public function testAllowedTagsIsNotEnforcedByValidator(): void
+    {
+        // <blink> is not in DEFAULT_ALLOWED_TAGS; the validator should still pass it
+        // because it is a blocklist (not an allowlist) — allowedTags is currently
+        // unused by SafeMarkupValidator.
+        $this->context->expects($this->never())
+            ->method('buildViolation');
+
+        $this->validator->validate(
+            '<blink>retro</blink>',
+            new SafeMarkup(allowedTags: ['p', 'strong']), // <blink> is NOT allowed
+        );
+    }
 }
