@@ -6,24 +6,30 @@ namespace Waaseyaa\Scheduler\Lock;
 
 final class InMemoryLock implements LockInterface
 {
-    /** @var array<string, int> name => expires_at timestamp */
+    /** @var array<string, array{expires_at: int, token: string}> */
     private array $locks = [];
 
-    public function acquire(string $name, int $ttl = 300): bool
+    public function acquire(string $name, int $ttl = 300): ?string
     {
         $now = time();
 
-        if (isset($this->locks[$name]) && $this->locks[$name] > $now) {
-            return false;
+        if (isset($this->locks[$name]) && $this->locks[$name]['expires_at'] > $now) {
+            return null;
         }
 
-        $this->locks[$name] = $now + $ttl;
+        $token = bin2hex(random_bytes(16));
+        $this->locks[$name] = ['expires_at' => $now + $ttl, 'token' => $token];
 
-        return true;
+        return $token;
     }
 
-    public function release(string $name): void
+    public function release(string $name, string $token): void
     {
-        unset($this->locks[$name]);
+        // Ownership-scoped (parity with DatabaseLock): only the current owner can
+        // release. A stale holder whose lease was reclaimed (token rotated by a
+        // later acquire) releases nothing — scheduler m15.
+        if (isset($this->locks[$name]) && hash_equals($this->locks[$name]['token'], $token)) {
+            unset($this->locks[$name]);
+        }
     }
 }

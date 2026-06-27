@@ -90,15 +90,22 @@ final class ScheduleRunner
     {
         unset($now); // Reserved for future "scheduled time" recording; current state row only carries "last_run_at" = wall clock.
 
-        if ($task->preventOverlap && !$this->lock->acquire($task->name, 300)) {
-            $this->stateRepository?->recordRun($task->name, ScheduleRunResult::STATUS_SKIPPED_OVERLAP);
+        // Per-task overlap-lock TTL (scheduler m2): must exceed the task's
+        // expected runtime, since a mid-run lease expiry is what opens the
+        // split-brain reclaim window that scheduler m15's ownership token closes.
+        $lockToken = null;
+        if ($task->preventOverlap) {
+            $lockToken = $this->lock->acquire($task->name, $task->lockTtl);
+            if ($lockToken === null) {
+                $this->stateRepository?->recordRun($task->name, ScheduleRunResult::STATUS_SKIPPED_OVERLAP);
 
-            return new ScheduleRunResult(
-                count: 0,
-                taskNames: [],
-                status: ScheduleRunResult::STATUS_SKIPPED_OVERLAP,
-                message: sprintf('Task "%s" is already running (overlap lock held).', $task->name),
-            );
+                return new ScheduleRunResult(
+                    count: 0,
+                    taskNames: [],
+                    status: ScheduleRunResult::STATUS_SKIPPED_OVERLAP,
+                    message: sprintf('Task "%s" is already running (overlap lock held).', $task->name),
+                );
+            }
         }
 
         try {
@@ -131,8 +138,11 @@ final class ScheduleRunner
                 exceptionClass: $e::class,
             );
         } finally {
-            if ($task->preventOverlap) {
-                $this->lock->release($task->name);
+            // Release only the lock THIS run acquired, scoped by its owner token
+            // so a lease that expired mid-run (and was reclaimed by another node)
+            // is never torn down here (scheduler m15).
+            if ($lockToken !== null) {
+                $this->lock->release($task->name, $lockToken);
             }
         }
     }

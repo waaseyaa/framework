@@ -134,6 +134,7 @@ declare -A PATTERN_TO_SPEC=(
   ["packages/plugin/"]="docs/specs/infrastructure.md"
   ["packages/i18n/"]="docs/specs/infrastructure.md"
   ["packages/queue/"]="docs/specs/infrastructure.md"
+  ["packages/scheduler/"]="docs/specs/infrastructure.md"
   ["packages/state/"]="docs/specs/infrastructure.md"
   ["packages/validation/"]="docs/specs/infrastructure.md"
   ["packages/typed-data/"]="docs/specs/infrastructure.md"
