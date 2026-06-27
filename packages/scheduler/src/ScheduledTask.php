@@ -17,6 +17,13 @@ final class ScheduledTask
         public readonly bool $preventOverlap = false,
         public readonly ?string $timezone = null,
         public readonly ?string $description = null,
+        /**
+         * Overlap-lock TTL in seconds (only meaningful when $preventOverlap).
+         * Must exceed the task's expected runtime: if the lease expires mid-run
+         * another node can reclaim and run concurrently. Default 300s (5 min);
+         * raise it for long-running tasks. See scheduler m15 / m2.
+         */
+        public readonly int $lockTtl = 300,
     ) {
         if (!CronExpression::isValidExpression($this->expression)) {
             throw new \InvalidArgumentException(

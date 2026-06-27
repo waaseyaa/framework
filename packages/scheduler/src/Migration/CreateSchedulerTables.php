@@ -20,7 +20,8 @@ final class CreateSchedulerTables extends Migration
             CREATE TABLE IF NOT EXISTS waaseyaa_schedule_locks (
                 task_name VARCHAR(255) PRIMARY KEY,
                 locked_at INTEGER NOT NULL,
-                expires_at INTEGER NOT NULL
+                expires_at INTEGER NOT NULL,
+                locked_by VARCHAR(64) NOT NULL
             )
         ');
 
