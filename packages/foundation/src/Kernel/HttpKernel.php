@@ -106,17 +106,21 @@ final class HttpKernel extends AbstractKernel
         assert($pdo instanceof \PDO);
 
         $cacheConfig = new CacheConfiguration();
+        $cacheHmacKey = is_string($this->config['cache']['hmac_key'] ?? null) ? $this->config['cache']['hmac_key'] : null;
         $cacheConfig->setFactoryForBin('render', fn(): DatabaseBackend => new DatabaseBackend(
             $pdo,
             'cache_render',
+            hmacKey: $cacheHmacKey,
         ));
         $cacheConfig->setFactoryForBin('discovery', fn(): DatabaseBackend => new DatabaseBackend(
             $pdo,
             'cache_discovery',
+            hmacKey: $cacheHmacKey,
         ));
         $cacheConfig->setFactoryForBin('mcp_read', fn(): DatabaseBackend => new DatabaseBackend(
             $pdo,
             'cache_mcp_read',
+            hmacKey: $cacheHmacKey,
         ));
         $cacheFactory = new CacheFactory($cacheConfig);
         $this->renderCacheBackend = $cacheFactory->get('render');

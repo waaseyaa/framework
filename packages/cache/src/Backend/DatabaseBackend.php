@@ -22,13 +22,22 @@ use Waaseyaa\Cache\TagAwareCacheInterface;
  */
 final class DatabaseBackend implements TagAwareCacheInterface
 {
+    /**
+     * Canonical serialized form of boolean false.
+     * Used to distinguish a legitimately-cached `false` from an unserialize failure.
+     */
+    private const string SERIALIZED_FALSE = 'b:0;';
+
     private bool $tableInitialized = false;
+    private readonly ?string $hmacKey;
 
     public function __construct(
         private readonly \PDO $pdo,
         private readonly string $bin = 'cache_default',
+        ?string $hmacKey = null,
     ) {
         $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+        $this->hmacKey = ($hmacKey === '' ? null : $hmacKey);
     }
 
     public function get(string $cid): CacheItem|false
@@ -90,7 +99,7 @@ final class DatabaseBackend implements TagAwareCacheInterface
         );
         $stmt->execute([
             ':cid' => $cid,
-            ':data' => $serialized,
+            ':data' => $this->encodePayload($serialized),
             ':expire' => $expire,
             ':created' => $now,
             ':tags' => $tagsString,
@@ -219,6 +228,53 @@ final class DatabaseBackend implements TagAwareCacheInterface
     }
 
     /**
+     * Encode a serialized payload for storage.
+     *
+     * When an HMAC key is configured, the stored value is a 64-character
+     * lowercase hex MAC (sha256) followed immediately by the serialized bytes.
+     * Without a key, the serialized string is stored unchanged.
+     */
+    private function encodePayload(string $serialized): string
+    {
+        if ($this->hmacKey === null) {
+            return $serialized;
+        }
+
+        return hash_hmac('sha256', $serialized, $this->hmacKey) . $serialized;
+    }
+
+    /**
+     * Decode a stored payload and verify its integrity.
+     *
+     * When an HMAC key is configured, the first 64 bytes are the MAC; the
+     * remainder is the serialized content. A missing or invalid MAC — including
+     * legacy unsigned rows written before the key was configured — returns
+     * `false`, which the caller treats as a cache miss (self-heals on next set).
+     * Without a key, the stored string is returned unchanged.
+     *
+     * @return string|false Serialized payload on success; false on verification failure.
+     */
+    private function decodePayload(string $stored): string|false
+    {
+        if ($this->hmacKey === null) {
+            return $stored;
+        }
+
+        if (strlen($stored) < 64) {
+            return false;
+        }
+
+        $mac = substr($stored, 0, 64);
+        $serialized = substr($stored, 64);
+
+        if (!hash_equals(hash_hmac('sha256', $serialized, $this->hmacKey), $mac)) {
+            return false;
+        }
+
+        return $serialized;
+    }
+
+    /**
      * @param array<string, mixed> $row
      */
     private function mapRowToItem(array $row): CacheItem|false
@@ -238,11 +294,35 @@ final class DatabaseBackend implements TagAwareCacheInterface
         // Trust boundary (D-12): `data` is this application's own serialized cache
         // payload from a server-controlled table; cache values are `mixed` and
         // routinely hold objects, so `allowed_classes => false` would corrupt them.
-        // Deferred hardening (HMAC integrity signing) is tracked in
-        // docs/specs/infrastructure.md "Stored-payload unserialize() trust boundary (D-12)".
+        // (a) Corrupt or malformed payloads are now treated as a cache miss (never
+        //     fatal) — a try/catch around unserialize() plus a SERIALIZED_FALSE guard
+        //     ensures a decode failure surfaces as false rather than as an exception
+        //     or junk object.
+        // (b) When a cache HMAC key is configured the stored payload is integrity-
+        //     verified by decodePayload() before unserialize() is called; a bad or
+        //     missing signature (including legacy unsigned rows) is treated as a miss
+        //     and self-heals on the next set().
+        // Mandatory HMAC remains deferred per D-12; key custody is part of the same
+        // pending secrets-at-rest decision as OIDC signing keys and audit checkpoints.
+        // See docs/specs/infrastructure.md "Stored-payload unserialize() trust boundary (D-12)".
+        $serialized = $this->decodePayload((string) $row['data']);
+        if ($serialized === false) {
+            return false;
+        }
+
+        try {
+            $value = @unserialize($serialized);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        if ($value === false && $serialized !== self::SERIALIZED_FALSE) {
+            return false;
+        }
+
         return new CacheItem(
             cid: $row['cid'],
-            data: unserialize($row['data']),
+            data: $value,
             created: $created,
             expire: $expire,
             tags: $tags,
