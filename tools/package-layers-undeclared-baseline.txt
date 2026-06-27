@@ -1,0 +1,56 @@
+# Package-layers undeclared-dependency baseline (PL007) — see bin/check-package-layers.
+# Format: "<source-package> <dep-package>  # <example file>"
+# Meaning: <source> imports waaseyaa/<dep> (same-or-lower layer, legal to declare) from a
+#   src/ file but does NOT list it in composer.json require — it resolves only transitively,
+#   so a consumer installing <source> alone hits a fatal missing dependency. Fix by adding
+#   the dep to that package's require, then delete the line. New undeclared edges NOT in this
+#   list fail CI (PL007, fail-on-new). Regenerate: php bin/check-package-layers --generate-baseline
+
+ai-agent config  # ai-agent/src/Mcp/McpCapabilitiesSource.php
+ai-agent routing  # ai-agent/src/Routing/AgentRouteServiceProvider.php
+ai-pipeline foundation  # ai-pipeline/src/AIPipelineServiceProvider.php
+ai-vector foundation  # ai-vector/src/EntityEmbeddingListener.php
+audit scheduler  # audit/src/Schedule/AuditCheckpointScheduleEntries.php
+auth access  # auth/src/Controller/MeController.php
+auth database-legacy  # auth/src/Token/AuthTokenRepository.php
+auth entity  # auth/src/Controller/VerifyEmailController.php
+cli ai-vector  # cli/src/Handler/SemanticRefreshHandler.php
+cli database-legacy  # cli/src/Handler/RevisionsEnableHandler.php
+cli field  # cli/src/Handler/AddTranslationsMigrationGenerator.php
+cli foundation  # cli/src/Handler/ScheduleListHandler.php
+cli oidc  # cli/src/Command/Oidc/RotateSigningKeyCommand.php
+cli plugin  # cli/src/Handler/MakePluginHandler.php
+cli routing  # cli/src/Handler/RouteListHandler.php
+cli search  # cli/src/Handler/SearchReindexHandler.php
+cli workflows  # cli/src/Ingestion/ValidationGateValidator.php
+config foundation  # config/src/Listener/ConfigCacheInvalidator.php
+debug entity  # debug/src/DebugServiceProvider.php
+debug routing  # debug/src/DebugServiceProvider.php
+inertia entity  # inertia/src/InertiaServiceProvider.php
+mcp foundation  # mcp/src/McpServiceProvider.php
+media access  # media/src/Version/MediaVersionRepository.php
+media audit  # media/src/Version/MediaVersionStorageDriver.php
+media database-legacy  # media/src/Version/MediaVersionRepository.php
+menu access  # menu/src/MenuAccessPolicy.php
+menu foundation  # menu/src/MenuServiceProvider.php
+mercure foundation  # mercure/src/MercureServiceProvider.php
+node foundation  # node/src/NodeServiceProvider.php
+note foundation  # note/src/NoteServiceProvider.php
+oidc database-legacy  # oidc/src/OidcServiceProvider.php
+oidc entity  # oidc/src/Userinfo/UserinfoController.php
+oidc entity-storage  # oidc/src/ClientRegistry/OidcClientLookup.php
+path access  # path/src/PathAliasAccessPolicy.php
+path foundation  # path/src/PathServiceProvider.php
+relationship foundation  # relationship/src/RelationshipServiceProvider.php
+routing foundation  # routing/src/AuthOidcRouteServiceProvider.php
+routing user  # routing/src/AuthOidcRouteServiceProvider.php
+ssr database-legacy  # ssr/src/SsrPageHandler.php
+ssr i18n  # ssr/src/LanguageResolver.php
+ssr path  # ssr/src/SsrPageHandler.php
+ssr relationship  # ssr/src/SsrPageHandler.php
+taxonomy field  # taxonomy/src/TaxonomyServiceProvider.php
+taxonomy foundation  # taxonomy/src/TaxonomyServiceProvider.php
+telescope foundation  # telescope/src/TelescopeServiceProvider.php
+testing field  # testing/src/Factory/EntityTypeFixtureValues.php
+wayfinding access  # wayfinding/src/Access/TrailAccessPolicy.php
+workflows foundation  # workflows/src/WorkflowServiceProvider.php

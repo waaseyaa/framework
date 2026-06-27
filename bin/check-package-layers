@@ -11,11 +11,16 @@ declare(strict_types=1);
  *   WAASEYAA_OUTPUT=json
  */
 
-$root = dirname(__DIR__);
+$rootEnv = getenv('WAASEYAA_LAYER_ROOT');
+$root = is_string($rootEnv) && $rootEnv !== '' ? $rootEnv : dirname(__DIR__);
 $outputMode = getenv('WAASEYAA_OUTPUT') === 'json' ? 'json' : 'human';
+$generateBaseline = false;
 foreach (array_slice($argv, 1) as $arg) {
     if ($arg === '--output=json') {
         $outputMode = 'json';
+    }
+    if ($arg === '--generate-baseline') {
+        $generateBaseline = true;
     }
 }
 
@@ -97,7 +102,14 @@ $layerByShort = [
 
 $metapackages = ['cms' => true, 'core' => true, 'full' => true];
 
+// Each entry carries a one-line rationale (per CLAUDE.md "Layer Architecture":
+// "each entry carries a one-line rationale"). Exempt files may import upward
+// because they are entry-point orchestrators (kernel/boot), the L0-owned HTTP
+// substrate, or event-decoupled listeners that subscribe by string event name
+// and only `use` the higher-layer event TYPE they consume.
 $kernelExemptFiles = array_fill_keys([
+    // Foundation kernel/diagnostic + HTTP-substrate routers — wired only by HttpKernel,
+    // no external importers; intentionally reach across layers (see CLAUDE.md exemption note).
     'foundation/src/Diagnostic/HealthChecker.php',
     'foundation/src/Diagnostic/BootDiagnosticReport.php',
     'foundation/src/Http/Router/BroadcastRouter.php',
@@ -117,10 +129,16 @@ $kernelExemptFiles = array_fill_keys([
     'foundation/src/ServiceProvider/Capability/HasCommandsInterface.php',
     'foundation/src/ServiceProvider/Capability/HasMiddlewareInterface.php',
     'foundation/src/ServiceProvider/Capability/HasGraphqlMutationOverridesInterface.php',
-    'cache/src/Listener/ConfigCacheInvalidator.php',
-    'cache/src/Listener/EntityCacheInvalidator.php',
-    'cache/src/Listener/EntityCacheSubscriber.php',
-    'cache/src/CacheConfigResolver.php',
+    // cache (L0) event-decoupled cache-invalidation listeners — subscribe by string
+    // event name and import only the L1 event TYPE they consume (CLAUDE.md blesses this
+    // pattern explicitly). Behaviour stays decoupled; no L1 require edge is created.
+    'cache/src/Listener/ConfigCacheInvalidator.php',     // uses Waaseyaa\Config\Event\ConfigEvent
+    'cache/src/Listener/EntityCacheInvalidator.php',     // uses Waaseyaa\Entity\Event\EntityEvent
+    'cache/src/Listener/EntityCacheSubscriber.php',      // subscribes to L1 entity lifecycle events
+    // cache (L0) cache-control header resolver — its one upward coupling is a direct
+    // Waaseyaa\Access\AccountInterface param type (not event-decoupled). Relocating it to
+    // access/api is a tracked follow-up (W4-3 note); exempt for now so cache stays bootable.
+    'cache/src/CacheConfigResolver.php',                 // uses Waaseyaa\Access\AccountInterface
 ], true);
 
 $namespacePrefixToShort = [
@@ -231,7 +249,47 @@ $shortForNamespace = static function (string $first, ?string $second) use ($name
     return $namespacePrefixToShort[$first] ?? null;
 };
 
-$scanPhpImports = static function (string $packageDirectory, int $selfLayer) use (
+// Undeclared-dependency baseline (PL007, fail-on-new). Mirrors the dead-code /
+// getquery-bindings baselines: existing same-or-lower-layer use-edges that are not
+// declared in composer.json require are listed here so CI stays green while they are
+// driven to zero; any NEW such edge fails. Regenerate with --generate-baseline.
+$undeclaredBaselineEnv = getenv('WAASEYAA_LAYER_UNDECLARED_BASELINE');
+$undeclaredBaselinePath = is_string($undeclaredBaselineEnv) && $undeclaredBaselineEnv !== ''
+    ? $undeclaredBaselineEnv
+    : $root . DIRECTORY_SEPARATOR . 'tools' . DIRECTORY_SEPARATOR . 'package-layers-undeclared-baseline.txt';
+
+/** @return array<string, array<string, true>> source-short => dep-short => true */
+$loadUndeclaredBaseline = static function (string $path): array {
+    $baseline = [];
+    if (!is_file($path)) {
+        return $baseline;
+    }
+    foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $rawLine) {
+        $line = trim($rawLine);
+        if ($line === '' || str_starts_with($line, '#')) {
+            continue;
+        }
+        // Format: "<source> <dep>  # optional example/comment"
+        $parts = preg_split('/\s+/', $line) ?: [];
+        if (count($parts) < 2) {
+            continue;
+        }
+        $baseline[$parts[0]][$parts[1]] = true;
+    }
+    return $baseline;
+};
+$undeclaredBaseline = $loadUndeclaredBaseline($undeclaredBaselinePath);
+
+/**
+ * Scan a package's src/ for `use Waaseyaa\…` edges, classifying each as either an
+ * upward layer violation ('upward' → PL005, hard fail) or a same-or-lower-layer
+ * import that is not declared in composer.json require ('undeclared' → PL007,
+ * baselined). Kernel-exempt files are skipped for both.
+ *
+ * @param array<string, true> $declaredShorts dep shorts in this package's require
+ * @return list<array{relative: string, dep: string, depLayer: int, kind: 'upward'|'undeclared'}>
+ */
+$scanPhpImports = static function (string $packageDirectory, int $selfLayer, string $selfShort, array $declaredShorts) use (
     $root,
     $layerByShort,
     $isKernelExempt,
@@ -271,15 +329,25 @@ $scanPhpImports = static function (string $packageDirectory, int $selfLayer) use
 
         $seen = [];
         foreach ($matches as $match) {
-            $short = $shortForNamespace($match[1], $match[2] ?? null);
-            if ($short === null || !isset($layerByShort[$short]) || isset($seen[$short])) {
+            $depShort = $shortForNamespace($match[1], $match[2] ?? null);
+            if ($depShort === null || !isset($layerByShort[$depShort]) || isset($seen[$depShort])) {
                 continue;
             }
 
-            $seen[$short] = true;
-            $depLayer = $layerByShort[$short];
+            $seen[$depShort] = true;
+            if ($depShort === $selfShort) {
+                continue;
+            }
+
+            $depLayer = $layerByShort[$depShort];
             if ($depLayer > $selfLayer) {
-                $findings[] = [$relative, $short, $depLayer];
+                $findings[] = ['relative' => $relative, 'dep' => $depShort, 'depLayer' => $depLayer, 'kind' => 'upward'];
+                continue;
+            }
+
+            // Same-or-lower layer: a legal dependency, but it must be declared in require.
+            if (!isset($declaredShorts[$depShort])) {
+                $findings[] = ['relative' => $relative, 'dep' => $depShort, 'depLayer' => $depLayer, 'kind' => 'undeclared'];
             }
         }
     }
@@ -300,6 +368,8 @@ $errors = 0;
 $packagesScanned = 0;
 $violations = [];
 $sameLayerEdges = [];
+/** @var array<string, array<string, string>> source-short => dep-short => example relative path */
+$undeclaredFound = [];
 $packageDirectories = glob($packagesDirectory . DIRECTORY_SEPARATOR . '*', GLOB_ONLYDIR) ?: [];
 sort($packageDirectories);
 
@@ -339,6 +409,8 @@ foreach ($packageDirectories as $packageDirectory) {
 
     $selfLayer = $layerByShort[$short];
     $requires = $data['require'] ?? [];
+    /** @var array<string, true> $declaredShorts dep shorts declared in this package's require */
+    $declaredShorts = [];
     if (is_array($requires)) {
         foreach ($requires as $depName => $_version) {
             if (!is_string($depName)) {
@@ -349,6 +421,8 @@ foreach ($packageDirectories as $packageDirectory) {
             if ($depShort === null) {
                 continue;
             }
+
+            $declaredShorts[$depShort] = true;
 
             if (!isset($layerByShort[$depShort])) {
                 ++$errors;
@@ -373,14 +447,67 @@ foreach ($packageDirectories as $packageDirectory) {
         }
     }
 
-    foreach ($scanPhpImports($packageDirectory, $selfLayer) as [$relative, $depShort, $depLayer]) {
+    // De-dup PL007 findings per dep (one message per undeclared edge, with an example file).
+    $undeclaredEdges = [];
+    foreach ($scanPhpImports($packageDirectory, $selfLayer, $short, $declaredShorts) as $finding) {
+        if ($finding['kind'] === 'upward') {
+            ++$errors;
+            $emit(
+                "FAIL [PL005] packages/{$finding['relative']}: file-level layer violation - "
+                . "{$short} (layer {$selfLayer}) imports waaseyaa/{$finding['dep']} (layer {$finding['depLayer']}).",
+            );
+            $violations[] = ['source' => $short, 'target' => $finding['dep'], 'edge' => 'use'];
+            continue;
+        }
+
+        // kind === 'undeclared' (same-or-lower layer, legal to declare but missing from require)
+        if (!isset($undeclaredEdges[$finding['dep']])) {
+            $undeclaredEdges[$finding['dep']] = $finding['relative'];
+        }
+    }
+
+    foreach ($undeclaredEdges as $depShort => $exampleRelative) {
+        if ($generateBaseline) {
+            $undeclaredFound[$short][$depShort] = $exampleRelative;
+            continue;
+        }
+        if (isset($undeclaredBaseline[$short][$depShort])) {
+            continue; // known/accepted undeclared edge (baselined) — fix by declaring it, then remove the line
+        }
         ++$errors;
         $emit(
-            "FAIL [PL005] packages/{$relative}: file-level layer violation - "
-            . "{$short} (layer {$selfLayer}) imports waaseyaa/{$depShort} (layer {$depLayer}).",
+            "FAIL [PL007] packages/{$exampleRelative}: undeclared dependency - "
+            . "{$short} (layer {$selfLayer}) imports waaseyaa/{$depShort} (layer {$layerByShort[$depShort]}) "
+            . "but does not declare it in composer.json require. Add it to require, "
+            . "or baseline it via: php bin/check-package-layers --generate-baseline.",
         );
-        $violations[] = ['source' => $short, 'target' => $depShort, 'edge' => 'use'];
+        $violations[] = ['source' => $short, 'target' => $depShort, 'edge' => 'undeclared'];
     }
+}
+
+if ($generateBaseline) {
+    $lines = [
+        '# Package-layers undeclared-dependency baseline (PL007) — see bin/check-package-layers.',
+        '# Format: "<source-package> <dep-package>  # <example file>"',
+        '# Meaning: <source> imports waaseyaa/<dep> (same-or-lower layer, legal to declare) from a',
+        '#   src/ file but does NOT list it in composer.json require — it resolves only transitively,',
+        '#   so a consumer installing <source> alone hits a fatal missing dependency. Fix by adding',
+        '#   the dep to that package\'s require, then delete the line. New undeclared edges NOT in this',
+        '#   list fail CI (PL007, fail-on-new). Regenerate: php bin/check-package-layers --generate-baseline',
+        '',
+    ];
+    ksort($undeclaredFound);
+    $edgeCount = 0;
+    foreach ($undeclaredFound as $src => $deps) {
+        ksort($deps);
+        foreach ($deps as $dep => $example) {
+            $lines[] = sprintf('%s %s  # %s', $src, $dep, $example);
+            ++$edgeCount;
+        }
+    }
+    file_put_contents($undeclaredBaselinePath, implode("\n", $lines) . "\n");
+    fwrite(STDOUT, "Wrote undeclared-dependency baseline ({$edgeCount} edges): {$undeclaredBaselinePath}\n");
+    exit(0);
 }
 
 $reportedCycles = [];
@@ -418,5 +545,5 @@ if ($errors > 0) {
     exit(1);
 }
 
-echo "OK - package layer constraints (composer.json + PHP file-level) satisfied.\n";
+echo "OK - package layer constraints (composer.json + PHP file-level + declared-require parity) satisfied.\n";
 exit(0);
