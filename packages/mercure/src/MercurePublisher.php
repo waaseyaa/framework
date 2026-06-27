@@ -29,11 +29,18 @@ final class MercurePublisher
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => $this->buildPostBody($topic, $data),
             CURLOPT_HTTPHEADER => [
-                'Authorization: Bearer ' . $this->generateJwt(),
+                // Scope the bearer token to the exact topic being published, so a
+                // leaked token cannot be used to publish to any other topic.
+                'Authorization: Bearer ' . $this->generateJwt($topic),
                 'Content-Type: application/x-www-form-urlencoded',
             ],
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT => 5,
+            // Enforce TLS verification explicitly — never trust an ambient php.ini
+            // that may have disabled it. isConfigured() already requires https://,
+            // so the token is only ever sent over a verified, encrypted channel.
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
         ]);
 
         $result = curl_exec($ch);
@@ -44,14 +51,19 @@ final class MercurePublisher
 
     public function isConfigured(): bool
     {
-        return $this->hubUrl !== '' && $this->jwtSecret !== '';
+        // Require an https:// hub: the bearer token is short-lived but still
+        // grants publish access, and shipping it to a cleartext http:// hub
+        // leaks it in transit. A non-https hub is treated as unconfigured so
+        // publish() returns false without ever minting or sending a token.
+        return $this->jwtSecret !== '' && self::isHttpsUrl($this->hubUrl);
     }
 
-    private function generateJwt(): string
+    private function generateJwt(string $topic): string
     {
         $header = self::base64UrlEncode(json_encode(['alg' => 'HS256', 'typ' => 'JWT'], JSON_THROW_ON_ERROR));
         $payload = self::base64UrlEncode(json_encode([
-            'mercure' => ['publish' => ['*']],
+            // Least privilege: grant publish on this topic only, never ['*'].
+            'mercure' => ['publish' => [$topic]],
             'iat' => time(),
             'exp' => time() + 3600,
         ], JSON_THROW_ON_ERROR));
@@ -66,6 +78,17 @@ final class MercurePublisher
             'topic' => $topic,
             'data' => json_encode($data, JSON_THROW_ON_ERROR),
         ]);
+    }
+
+    private static function isHttpsUrl(string $url): bool
+    {
+        if ($url === '') {
+            return false;
+        }
+
+        $scheme = parse_url($url, PHP_URL_SCHEME);
+
+        return \is_string($scheme) && strtolower($scheme) === 'https';
     }
 
     private static function base64UrlEncode(string $data): string
