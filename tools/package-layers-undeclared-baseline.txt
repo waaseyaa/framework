@@ -6,10 +6,6 @@
 #   the dep to that package's require, then delete the line. New undeclared edges NOT in this
 #   list fail CI (PL007, fail-on-new). Regenerate: php bin/check-package-layers --generate-baseline
 
-ai-agent config  # ai-agent/src/Mcp/McpCapabilitiesSource.php
-ai-agent routing  # ai-agent/src/Routing/AgentRouteServiceProvider.php
-ai-pipeline foundation  # ai-pipeline/src/AIPipelineServiceProvider.php
-ai-vector foundation  # ai-vector/src/EntityEmbeddingListener.php
 cli ai-vector  # cli/src/Handler/SemanticRefreshHandler.php
 cli database-legacy  # cli/src/Handler/RevisionsEnableHandler.php
 cli field  # cli/src/Handler/AddTranslationsMigrationGenerator.php
@@ -23,12 +19,8 @@ debug entity  # debug/src/DebugServiceProvider.php
 debug routing  # debug/src/DebugServiceProvider.php
 inertia entity  # inertia/src/InertiaServiceProvider.php
 mcp foundation  # mcp/src/McpServiceProvider.php
-routing foundation  # routing/src/AuthOidcRouteServiceProvider.php
-routing user  # routing/src/AuthOidcRouteServiceProvider.php
 ssr database-legacy  # ssr/src/SsrPageHandler.php
 ssr i18n  # ssr/src/LanguageResolver.php
 ssr path  # ssr/src/SsrPageHandler.php
 ssr relationship  # ssr/src/SsrPageHandler.php
 telescope foundation  # telescope/src/TelescopeServiceProvider.php
-wayfinding access  # wayfinding/src/Access/TrailAccessPolicy.php
-workflows foundation  # workflows/src/WorkflowServiceProvider.php

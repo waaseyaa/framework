@@ -33,7 +33,8 @@
         "php": ">=8.5",
         "waaseyaa/access": "^0.1.0-alpha.249",
         "waaseyaa/entity": "^0.1.0-alpha.249",
-        "waaseyaa/relationship": "^0.1.0-alpha.249"
+        "waaseyaa/relationship": "^0.1.0-alpha.249",
+        "waaseyaa/foundation": "^0.1.0-alpha.249"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
