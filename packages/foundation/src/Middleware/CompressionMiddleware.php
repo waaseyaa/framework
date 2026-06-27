@@ -42,9 +42,41 @@ final class CompressionMiddleware implements HttpMiddlewareInterface
         $response->setContent($compressed);
         $response->headers->set('Content-Encoding', 'gzip');
         $response->headers->set('Content-Length', (string) strlen($compressed));
-        $response->headers->set('Vary', 'Accept-Encoding');
+        $this->appendVaryToken($response, 'Accept-Encoding');
         $response->headers->remove('Transfer-Encoding');
 
         return $response;
+    }
+
+    /**
+     * Append a Vary token if it is not already present (case-insensitive).
+     *
+     * If no Vary header exists, set it to $token.
+     * If the existing value is "*", leave it unchanged ("*" already varies on
+     * everything; appending would be redundant and malformed).
+     * If the token is already listed (any case), leave it unchanged.
+     * Otherwise append ", $token" to preserve the original tokens verbatim.
+     */
+    private function appendVaryToken(Response $response, string $token): void
+    {
+        $existing = $response->headers->get('Vary');
+        if ($existing === null) {
+            $response->headers->set('Vary', $token);
+
+            return;
+        }
+
+        if ($existing === '*') {
+            return;
+        }
+
+        $existingTokens = array_map(trim(...), explode(',', $existing));
+        foreach ($existingTokens as $existingToken) {
+            if (strcasecmp($existingToken, $token) === 0) {
+                return;
+            }
+        }
+
+        $response->headers->set('Vary', $existing . ', ' . $token);
     }
 }
