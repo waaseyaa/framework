@@ -11,7 +11,23 @@ pre-push:
     composer-policy:
       run: php bin/check-composer-policy
     spec-drift:
-      run: bash tools/drift-detector.sh origin/main
+      # Advisory only — does NOT block the push. Docs/spec coupling is a
+      # heuristic, not a correctness gate: drift-detector is not part of
+      # `composer verify` or CI, and it legitimately flags every bugfix that
+      # uses a justified `spec-reviewed:` ack. Because git's `--no-verify`
+      # skips the WHOLE pre-push hook, a *blocking* drift check trained
+      # contributors to `--no-verify`, which also bypassed the real gates
+      # (composer-policy / phpstan / phpunit) running here. Surface the
+      # findings for visibility, but never fail the push on them.
+      run: |
+        if ! bash tools/drift-detector.sh origin/main; then
+          echo
+          echo "⚠ spec-drift is ADVISORY and did NOT block this push."
+          echo "  If a listed spec's documented contract actually changed, update"
+          echo "  it, or add 'spec-reviewed: <spec-path> — <reason>' to a commit"
+          echo "  message / PR body. Drift is not enforced by CI."
+        fi
+        exit 0
     phpstan:
       glob: "*.php"
       run: composer phpstan
