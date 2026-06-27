@@ -128,6 +128,39 @@ final class SchemaBuilderTest extends TestCase
     }
 
     #[Test]
+    public function drop_reserved_word_table_without_syntax_error(): void
+    {
+        // 'order' is a SQL reserved word; DROP TABLE order (unquoted) is a syntax error.
+        // This test verifies the round-trip succeeds: create → drop with no exception.
+        $this->schema->create('order', function (TableBuilder $table) {
+            $table->id();
+        });
+
+        $this->assertTrue($this->schema->hasTable('order'));
+
+        // Pre-fix: DROP TABLE order → syntax error (expected failure in RED phase)
+        $this->schema->drop('order');
+
+        $this->assertFalse($this->schema->hasTable('order'));
+    }
+
+    #[Test]
+    public function drop_if_exists_reserved_word_table_without_syntax_error(): void
+    {
+        // 'order' is a SQL reserved word; DROP TABLE IF EXISTS order (unquoted) is a syntax error.
+        $this->schema->create('order', function (TableBuilder $table) {
+            $table->id();
+        });
+
+        $this->assertTrue($this->schema->hasTable('order'));
+
+        // Pre-fix: DROP TABLE IF EXISTS order → syntax error (expected failure in RED phase)
+        $this->schema->dropIfExists('order');
+
+        $this->assertFalse($this->schema->hasTable('order'));
+    }
+
+    #[Test]
     public function getConnectionReturnsTheDbalConnection(): void
     {
         $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
