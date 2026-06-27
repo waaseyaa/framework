@@ -5,22 +5,11 @@
 #   so a consumer installing <source> alone hits a fatal missing dependency. Fix by adding
 #   the dep to that package's require, then delete the line. New undeclared edges NOT in this
 #   list fail CI (PL007, fail-on-new). Regenerate: php bin/check-package-layers --generate-baseline
+#
+# STATUS: empty. The 48 historical edges (W4-3 sweep) were all resolved by declaring
+# the dependency in the importing package's composer.json require (issue #1806,
+# batches 1-4). PL007 is now a strict zero-tolerance gate — any new undeclared
+# same/lower-layer use-edge fails CI. Keep this file (do not delete it): the gate
+# reads it, and a future legitimate can't-declare exception would be listed here
+# with a rationale comment.
 
-cli ai-vector  # cli/src/Handler/SemanticRefreshHandler.php
-cli database-legacy  # cli/src/Handler/RevisionsEnableHandler.php
-cli field  # cli/src/Handler/AddTranslationsMigrationGenerator.php
-cli foundation  # cli/src/Handler/ScheduleListHandler.php
-cli oidc  # cli/src/Command/Oidc/RotateSigningKeyCommand.php
-cli plugin  # cli/src/Handler/MakePluginHandler.php
-cli routing  # cli/src/Handler/RouteListHandler.php
-cli search  # cli/src/Handler/SearchReindexHandler.php
-cli workflows  # cli/src/Ingestion/ValidationGateValidator.php
-debug entity  # debug/src/DebugServiceProvider.php
-debug routing  # debug/src/DebugServiceProvider.php
-inertia entity  # inertia/src/InertiaServiceProvider.php
-mcp foundation  # mcp/src/McpServiceProvider.php
-ssr database-legacy  # ssr/src/SsrPageHandler.php
-ssr i18n  # ssr/src/LanguageResolver.php
-ssr path  # ssr/src/SsrPageHandler.php
-ssr relationship  # ssr/src/SsrPageHandler.php
-telescope foundation  # telescope/src/TelescopeServiceProvider.php
