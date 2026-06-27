@@ -80,14 +80,14 @@ final class SchemaBuilder
 
     public function drop(string $table): void
     {
-        $prefixed = $this->tablePrefix . $table;
-        $this->connection->executeStatement("DROP TABLE {$prefixed}");
+        $quoted = $this->connection->getDatabasePlatform()->quoteIdentifier($this->tablePrefix . $table);
+        $this->connection->executeStatement("DROP TABLE {$quoted}");
     }
 
     public function dropIfExists(string $table): void
     {
-        $prefixed = $this->tablePrefix . $table;
-        $this->connection->executeStatement("DROP TABLE IF EXISTS {$prefixed}");
+        $quoted = $this->connection->getDatabasePlatform()->quoteIdentifier($this->tablePrefix . $table);
+        $this->connection->executeStatement("DROP TABLE IF EXISTS {$quoted}");
     }
 
     public function hasTable(string $table): bool
