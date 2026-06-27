@@ -284,6 +284,115 @@ final class DatabaseBackendTest extends TestCase
     }
 
     #[Test]
+    public function get_treats_corrupt_row_as_miss(): void
+    {
+        // Ensure the table exists before raw INSERT.
+        $this->backend->get('nonexistent');
+
+        $stmt = $this->pdo->prepare(
+            "INSERT INTO cache_test (cid, data, expire, created, tags, valid) VALUES (:cid, :data, :expire, :created, :tags, :valid)",
+        );
+        $stmt->execute([
+            ':cid' => 'corrupt',
+            ':data' => 'this is not serialized data {{{',
+            ':expire' => CacheBackendInterface::PERMANENT,
+            ':created' => 0,
+            ':tags' => '',
+            ':valid' => 1,
+        ]);
+
+        $result = $this->backend->get('corrupt');
+
+        $this->assertFalse($result);
+    }
+
+    #[Test]
+    public function get_roundtrips_false_value(): void
+    {
+        $this->backend->set('f', false);
+
+        $item = $this->backend->get('f');
+
+        $this->assertInstanceOf(CacheItem::class, $item);
+        $this->assertFalse($item->data);
+        $this->assertTrue($item->valid);
+    }
+
+    #[Test]
+    public function get_roundtrips_object_value(): void
+    {
+        $obj = (object) ['a' => 1, 'b' => 'hello'];
+        $this->backend->set('obj', $obj);
+
+        $item = $this->backend->get('obj');
+
+        $this->assertInstanceOf(CacheItem::class, $item);
+        $this->assertIsObject($item->data);
+        $this->assertSame(1, $item->data->a);
+        $this->assertSame('hello', $item->data->b);
+    }
+
+    #[Test]
+    public function signed_backend_roundtrips(): void
+    {
+        $signed = new DatabaseBackend($this->pdo, 'cache_signed', 'test-hmac-key-123');
+
+        $signed->set('key', 'value');
+
+        $item = $signed->get('key');
+
+        $this->assertInstanceOf(CacheItem::class, $item);
+        $this->assertSame('value', $item->data);
+    }
+
+    #[Test]
+    public function signed_backend_treats_tampered_row_as_miss(): void
+    {
+        $signed = new DatabaseBackend($this->pdo, 'cache_signed', 'test-hmac-key-123');
+
+        // Write a legitimately-signed row.
+        $signed->set('tampered', 'original');
+
+        // Overwrite the data column with attacker-controlled content that has no valid HMAC.
+        $stmt = $this->pdo->prepare("UPDATE cache_signed SET data = :data WHERE cid = :cid");
+        $stmt->execute([
+            ':data' => serialize('attacker'),
+            ':cid' => 'tampered',
+        ]);
+
+        $result = $signed->get('tampered');
+
+        $this->assertFalse($result);
+    }
+
+    #[Test]
+    public function signed_backend_treats_unsigned_payload_as_miss(): void
+    {
+        $signed = new DatabaseBackend($this->pdo, 'cache_signed', 'test-hmac-key-123');
+
+        // Ensure the table exists.
+        $signed->set('init', 'dummy');
+
+        // INSERT a row with a plain serialized value (no HMAC prefix) — simulates
+        // a legacy row written before the HMAC key was configured.
+        $stmt = $this->pdo->prepare(
+            "INSERT INTO cache_signed (cid, data, expire, created, tags, valid) VALUES (:cid, :data, :expire, :created, :tags, :valid)",
+        );
+        $stmt->execute([
+            ':cid' => 'unsigned_key',
+            ':data' => serialize('legacy'),
+            ':expire' => CacheBackendInterface::PERMANENT,
+            ':created' => 0,
+            ':tags' => '',
+            ':valid' => 1,
+        ]);
+
+        $result = $signed->get('unsigned_key');
+
+        $this->assertFalse($result);
+    }
+
+    #[Test]
     public function remove_bin(): void
     {
         $this->backend->set('a', 1);
