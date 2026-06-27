@@ -71,6 +71,40 @@ final class BodySizeLimitMiddlewareTest extends TestCase
         $this->assertSame(200, $response->getStatusCode());
     }
 
+    #[Test]
+    public function returns_413_when_no_content_length_but_oversized_body(): void
+    {
+        $middleware = new BodySizeLimitMiddleware(maxBytes: 10);
+        $oversizedBody = str_repeat('x', 20); // 20 bytes > 10 byte cap
+        $request = Request::create('/upload', 'POST', [], [], [], [], $oversizedBody);
+        $request->headers->remove('Content-Length'); // simulate chunked / no declaration
+        $handler = $this->passthroughHandler(new Response('ok'));
+
+        $response = $middleware->process($request, $handler);
+
+        $this->assertSame(413, $response->getStatusCode());
+        $body = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame('413', $body['errors'][0]['status']);
+        $this->assertSame('Payload Too Large', $body['errors'][0]['title']);
+    }
+
+    #[Test]
+    public function returns_413_when_content_length_understated_but_actual_body_oversized(): void
+    {
+        $middleware = new BodySizeLimitMiddleware(maxBytes: 10);
+        $oversizedBody = str_repeat('x', 20); // 20 bytes > 10 byte cap
+        $request = Request::create('/upload', 'POST', [], [], [], [], $oversizedBody);
+        $request->headers->set('Content-Length', '5'); // lying / understated header
+        $handler = $this->passthroughHandler(new Response('ok'));
+
+        $response = $middleware->process($request, $handler);
+
+        $this->assertSame(413, $response->getStatusCode());
+        $body = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame('413', $body['errors'][0]['status']);
+        $this->assertSame('Payload Too Large', $body['errors'][0]['title']);
+    }
+
     private function passthroughHandler(Response $response): HttpHandlerInterface
     {
         return new class ($response) implements HttpHandlerInterface {

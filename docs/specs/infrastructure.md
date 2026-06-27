@@ -1522,6 +1522,8 @@ Files: `packages/mail/src/MailerInterface.php`, `packages/mail/src/Transport/Tra
 
 `@internal` — foundation seam. **`AuthMailer`**, **`MailChannel`** (notifications), and app commands send mail via **`MailerInterface::send(Envelope)`**. **`MailServiceProvider`** binds `TransportInterface`: when `mail.sendgrid_api_key` and `mail.from_address` are both non-empty after trim, **`SendGridTransport`** is used; otherwise `mail.transport` selects **`ArrayTransport`** or **`LocalTransport`**. Application code should not depend on these interfaces directly where a higher-level API exists — use **`AuthMailer`**, notification channels, or the shared mailer binding.
 
+**`Envelope` input invariant (mail M1):** `Envelope::__construct()` rejects CR (`\r`), LF (`\n`), and NUL (`\0`) in `from`, `subject`, each `to` address, and each custom header name/value — throwing `\InvalidArgumentException` — to prevent email header injection and log injection. `textBody`/`htmlBody` are exempt (body content legitimately contains newlines). Defence lives at the data boundary so all transports benefit.
+
 ## Queue System
 
 File: `packages/queue/`

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\State;
 
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Waaseyaa\Database\DatabaseInterface;
 
 /**
@@ -89,17 +90,27 @@ final class SqlState implements StateInterface
 
         $serialized = serialize($value);
 
-        // Try to update first, if no rows affected then insert.
+        // Fast path: update an existing key.
         $affected = $this->database->update('state')
             ->fields(['value' => $serialized])
             ->condition('name', $key)
             ->execute();
 
         if ($affected === 0) {
-            $this->database->insert('state')
-                ->fields(['name', 'value'])
-                ->values(['name' => $key, 'value' => $serialized])
-                ->execute();
+            try {
+                $this->database->insert('state')
+                    ->fields(['name', 'value'])
+                    ->values(['name' => $key, 'value' => $serialized])
+                    ->execute();
+            } catch (UniqueConstraintViolationException) {
+                // Lost the race: another writer inserted this key between our UPDATE
+                // (which saw 0 rows) and our INSERT. Re-apply our value as an UPDATE
+                // so set() is last-writer-wins and never throws on a new-key race.
+                $this->database->update('state')
+                    ->fields(['value' => $serialized])
+                    ->condition('name', $key)
+                    ->execute();
+            }
         }
 
         $this->cache[$key] = $value;
