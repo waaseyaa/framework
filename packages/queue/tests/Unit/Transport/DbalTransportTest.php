@@ -173,4 +173,74 @@ final class DbalTransportTest extends TestCase
         self::assertSame('second', $job2['payload']);
         self::assertSame('third', $job3['payload']);
     }
+
+    #[Test]
+    public function popReclaimsExpiredLeaseAndIncrementsAttempts(): void
+    {
+        // 60s visibility timeout for a deterministic, sleep-free test.
+        $transport = new DbalTransport($this->database, 60);
+        $transport->push('default', 'payload');
+
+        // A worker claims the job, then "dies" (never acks/releases).
+        $first = $transport->pop('default');
+        self::assertNotNull($first);
+        self::assertSame(0, $first['attempts']);
+
+        // Without reclaim it would be stranded: a fresh pop sees nothing.
+        self::assertNull($transport->pop('default'));
+
+        // Simulate the lease expiring by back-dating reserved_at past the timeout.
+        $this->backdateReservedAt((int) $first['id'], time() - 120);
+
+        // The crashed worker's job is reclaimed (not lost) with attempts bumped.
+        $reclaimed = $transport->pop('default');
+        self::assertNotNull($reclaimed);
+        self::assertSame((int) $first['id'], (int) $reclaimed['id']);
+        self::assertSame('payload', $reclaimed['payload']);
+        self::assertSame(1, $reclaimed['attempts']);
+    }
+
+    #[Test]
+    public function popDoesNotReclaimWithinVisibilityWindow(): void
+    {
+        $transport = new DbalTransport($this->database, 60);
+        $transport->push('default', 'payload');
+
+        $first = $transport->pop('default');
+        self::assertNotNull($first);
+
+        // Lease is still valid (reserved just now) — must NOT be reclaimed.
+        self::assertNull($transport->pop('default'));
+
+        // Back-date to just within the window (30s < 60s timeout) — still not expired.
+        $this->backdateReservedAt((int) $first['id'], time() - 30);
+        self::assertNull($transport->pop('default'));
+    }
+
+    #[Test]
+    public function popReclaimIncrementsAttemptsEachCycle(): void
+    {
+        $transport = new DbalTransport($this->database, 60);
+        $transport->push('default', 'payload');
+
+        $job = $transport->pop('default');
+        self::assertNotNull($job);
+        self::assertSame(0, $job['attempts']);
+        $id = (int) $job['id'];
+
+        for ($expected = 1; $expected <= 3; $expected++) {
+            $this->backdateReservedAt($id, time() - 120);
+            $job = $transport->pop('default');
+            self::assertNotNull($job);
+            self::assertSame($expected, $job['attempts'], "attempts after reclaim #{$expected}");
+        }
+    }
+
+    private function backdateReservedAt(int $id, int $timestamp): void
+    {
+        $this->database->update('waaseyaa_queue_jobs')
+            ->fields(['reserved_at' => $timestamp])
+            ->condition('id', $id)
+            ->execute();
+    }
 }

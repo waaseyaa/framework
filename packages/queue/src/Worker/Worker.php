@@ -122,6 +122,40 @@ final class Worker
             return;
         }
 
+        // Crash-recovery safety net (queue M1). A job whose recorded attempts have
+        // already reached its max-tries budget — e.g. it was repeatedly claimed
+        // then abandoned by crashed workers, each transport reclaim bumping
+        // `attempts` — is recorded failed instead of run again. This is what stops
+        // an always-crashing job from being reclaimed forever; a healthy job still
+        // gets its full quota because `attempts` counts only prior failed/abandoned
+        // tries (the in-flight try is added by handleFailure on throw).
+        $maxTries = $message instanceof Job ? $message->tries : $options->maxTries;
+        if ($maxTries > 0 && $raw['attempts'] >= $maxTries) {
+            $this->failedJobRepository->record(
+                $queue,
+                $raw['payload'],
+                new \RuntimeException(sprintf(
+                    'Job exceeded its max attempts (%d) without completing — '
+                    . 'likely repeated worker crashes / lease expiries (attempts=%d).',
+                    $maxTries,
+                    $raw['attempts'],
+                )),
+            );
+            $this->transport->reject($raw['id']);
+
+            if ($message instanceof Job) {
+                try {
+                    $message->failed(new \RuntimeException(
+                        'Job exceeded max attempts after lease expiry/abandonment.',
+                    ));
+                } catch (\Throwable) {
+                    // Best-effort: don't let the failure handler crash the worker.
+                }
+            }
+
+            return;
+        }
+
         try {
             foreach ($this->handlers as $handler) {
                 if ($handler->supports($message)) {
