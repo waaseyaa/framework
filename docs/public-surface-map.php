@@ -13,6 +13,8 @@
 declare(strict_types=1);
 
 return [
+    // Layer 0: Analytics — public (Umami backend-sender transport seam, analytics M1+M2)
+    'Waaseyaa\Analytics\Transport' => 'public',
     // Layer 0: Foundation — public
     'Waaseyaa\Foundation\Asset\AssetManagerInterface' => 'public',
     'Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface' => 'public',

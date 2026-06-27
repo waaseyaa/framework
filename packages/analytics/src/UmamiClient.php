@@ -7,26 +7,50 @@ namespace Waaseyaa\Analytics;
 /**
  * Fire-and-forget backend Umami event sender.
  *
- * Uses the same file_get_contents + stream_context pattern as NorthCloudClient.
- * Calls are synchronous with a short timeout — no-op when not configured.
+ * Synchronous with a short timeout — no-op when not configured.
+ *
+ * The optional $transport parameter (Transport seam) defaults to
+ * StreamTransport and may be replaced in tests or custom deployments
+ * without any dependency on waaseyaa/foundation.
+ *
+ * The optional $logger parameter accepts a nullable \Closure with the
+ * signature `(string $message, array $context = []): void`. When provided,
+ * it receives a message on both the misconfig early-return path and any
+ * failed-send / transport-exception path. When null (default), failures
+ * are silently ignored — the same behaviour as before the seam was added.
+ *
+ * Example logger wiring (no external dependency needed):
+ *   $client = new UmamiClient($url, $id, $app, logger: function(string $m): void {
+ *       error_log('[analytics] ' . $m);
+ *   });
+ *
  * @api
  */
 final class UmamiClient
 {
-    private string $hostname;
+    private readonly string $hostname;
+    private readonly Transport $transport;
 
     public function __construct(
         private readonly string $trackerUrl,
         private readonly string $siteId,
         string $appUrl,
+        ?Transport $transport = null,
+        private readonly ?\Closure $logger = null,
     ) {
         $host = parse_url($appUrl, PHP_URL_HOST);
-        $this->hostname = is_string($host) && $host !== '' ? $host : $appUrl;
+        $this->hostname  = is_string($host) && $host !== '' ? $host : $appUrl;
+        $this->transport = $transport ?? new StreamTransport();
     }
 
     public function send(string $event, array $data = [], string $url = '/'): void
     {
         if ($this->trackerUrl === '' || $this->siteId === '') {
+            $this->log('UmamiClient misconfig: trackerUrl and siteId must both be non-empty; event dropped.', [
+                'event'       => $event,
+                'tracker_url' => $this->trackerUrl,
+                'site_id'     => $this->siteId,
+            ]);
             return;
         }
 
@@ -46,19 +70,34 @@ final class UmamiClient
         ]);
 
         if ($payload === false) {
+            $this->log('UmamiClient: failed to JSON-encode event payload; event dropped.', ['event' => $event]);
             return;
         }
 
-        $context = stream_context_create([
-            'http' => [
-                'method'        => 'POST',
-                'header'        => "Content-Type: application/json\r\nUser-Agent: waaseyaa-server/1.0",
-                'content'       => $payload,
-                'timeout'       => 2,
-                'ignore_errors' => true,
-            ],
-        ]);
+        try {
+            $result = $this->transport->post(
+                rtrim($this->trackerUrl, '/') . '/api/send',
+                $payload,
+            );
+        } catch (\Throwable $e) {
+            $this->log('UmamiClient: transport threw an exception sending event; event dropped.', [
+                'event'     => $event,
+                'exception' => $e->getMessage(),
+            ]);
+            return;
+        }
 
-        @file_get_contents(rtrim($this->trackerUrl, '/') . '/api/send', false, $context);
+        if ($result === false) {
+            $this->log('UmamiClient: transport failed (returned false) sending event; event dropped.', [
+                'event' => $event,
+            ]);
+        }
+    }
+
+    private function log(string $message, array $context = []): void
+    {
+        if ($this->logger !== null) {
+            ($this->logger)($message, $context);
+        }
     }
 }
