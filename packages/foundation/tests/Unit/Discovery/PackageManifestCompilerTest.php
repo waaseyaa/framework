@@ -1160,6 +1160,67 @@ final class PackageManifestCompilerTest extends TestCase
         $this->assertContains($fixtureClass, $round->scheduleEntries);
     }
 
+    /**
+     * Regression test: a Waaseyaa\ class in the classmap whose parent is a
+     * dev-only dependency (absent in production) throws \Error — not
+     * \ReflectionException — when PHP's autoloader requires its file.
+     * filterDiscoveryClasses() must catch \Throwable and skip the class so
+     * compile() completes without crashing. This covers the alpha.106→107
+     * outage pattern (waaseyaa/graphql) and the W4-1 scanner-hardening gate.
+     */
+    #[Test]
+    public function compile_skips_class_that_fatals_on_autoload(): void
+    {
+        $uniqueId = str_replace('.', '', uniqid('', true));
+        $ns = 'Waaseyaa\\Foundation\\Tests\\TmpScan\\N' . $uniqueId;
+        $brokenFqcn = $ns . '\\BrokenClass';
+
+        // Write a class file whose parent does not exist in any autoloader.
+        // Requiring this file causes PHP to throw \Error when it cannot resolve
+        // the parent class — the exact fatal that crashed production in alpha.106.
+        $brokenFile = $this->tempDir . '/BrokenClass.php';
+        file_put_contents($brokenFile, sprintf(
+            "<?php\ndeclare(strict_types=1);\nnamespace %s;\nfinal class BrokenClass extends \\Definitely\\Missing\\NonexistentParentClass {}\n",
+            $ns,
+        ));
+
+        // Temporary autoloader registered so that when filterDiscoveryClasses()
+        // does new \ReflectionClass($brokenFqcn), PHP triggers spl_autoload_call,
+        // our closure requires the file, and \Error propagates — reproducing the
+        // production crash chain without touching Composer's real autoload files.
+        $autoloader = static function (string $class) use ($brokenFqcn, $brokenFile): void {
+            if ($class === $brokenFqcn) {
+                require $brokenFile;
+            }
+        };
+        spl_autoload_register($autoloader);
+
+        // Classmap lists the broken FQCN so scanClasses() includes it as a candidate.
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/autoload_classmap.php',
+            sprintf('<?php return [%s => %s];', var_export($brokenFqcn, true), var_export($brokenFile, true)),
+        );
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => []], JSON_THROW_ON_ERROR),
+        );
+
+        try {
+            $compiler = new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage');
+
+            // Must not throw — filterDiscoveryClasses() catches \Throwable from autoload.
+            $manifest = $compiler->compile();
+
+            $this->assertArrayNotHasKey($brokenFqcn, $manifest->policies, 'Fatal-on-autoload class must not appear in discovered policies.');
+            $this->assertSame([], $manifest->middleware, 'Fatal-on-autoload class must not appear in discovered middleware.');
+        } finally {
+            spl_autoload_unregister($autoloader);
+            if (file_exists($brokenFile)) {
+                unlink($brokenFile);
+            }
+        }
+    }
+
     private function removeDir(string $dir): void
     {
         if (!is_dir($dir)) {
