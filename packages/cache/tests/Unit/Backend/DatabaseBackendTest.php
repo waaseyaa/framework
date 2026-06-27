@@ -219,6 +219,71 @@ final class DatabaseBackendTest extends TestCase
     }
 
     #[Test]
+    public function invalidate_by_tags_does_not_overmatch_underscore_wildcard(): void
+    {
+        // node_list contains an underscore, a LIKE wildcard. The over-match only
+        // manifests when the colliding token is followed by a comma in a multi-tag
+        // blob: an unescaped `node_list,%` pattern matches the stored blob
+        // `nodeXlist,extra` because `_` matches the `X`. So the load-bearing
+        // regression key (`nodexlist_multi_key`) carries a SECOND tag — on the
+        // buggy (un-escaped) code it is wrongly invalidated; on the fixed
+        // (`node\_list` + ESCAPE) code it survives. Single-tag variants are also
+        // asserted to cover the literal acceptance ("a key tagged only nodeXlist").
+        $this->backend->set('node_list_multi_key', 'data', CacheBackendInterface::PERMANENT, ['node_list', 'extra']);
+        $this->backend->set('nodexlist_multi_key', 'data', CacheBackendInterface::PERMANENT, ['nodeXlist', 'extra']);
+        $this->backend->set('nodexlist_key', 'data', CacheBackendInterface::PERMANENT, ['nodeXlist']);
+        $this->backend->set('node_key', 'data', CacheBackendInterface::PERMANENT, ['node']);
+
+        $this->backend->invalidateByTags(['node_list']);
+
+        // The genuine node_list holder is invalidated.
+        $this->assertFalse($this->backend->get('node_list_multi_key')->valid);
+        // The underscore must NOT act as a wildcard against nodeXlist (multi-tag: the real bug).
+        $this->assertTrue($this->backend->get('nodexlist_multi_key')->valid);
+        // ...nor against single-tag siblings.
+        $this->assertTrue($this->backend->get('nodexlist_key')->valid);
+        $this->assertTrue($this->backend->get('node_key')->valid);
+    }
+
+    #[Test]
+    public function invalidate_by_tags_does_not_overmatch_percent_wildcard(): void
+    {
+        // A percent sign in a tag is also a LIKE wildcard. Unescaped, invalidating
+        // tag 'a%b' yields the pattern `a%b,%`, where the first `%` is a wildcard
+        // that spans any text — so the multi-tag blob `axxb,extra` is wrongly
+        // matched. The load-bearing key carries a second tag so the bug fires on
+        // the un-escaped code; with `a\%b` + ESCAPE only the literal 'a%b' matches.
+        $this->backend->set('ab_multi_key', 'data', CacheBackendInterface::PERMANENT, ['a%b', 'extra']);
+        $this->backend->set('axxb_multi_key', 'data', CacheBackendInterface::PERMANENT, ['axxb', 'extra']);
+        $this->backend->set('axxb_key', 'data', CacheBackendInterface::PERMANENT, ['axxb']);
+
+        $this->backend->invalidateByTags(['a%b']);
+
+        $this->assertFalse($this->backend->get('ab_multi_key')->valid);
+        $this->assertTrue($this->backend->get('axxb_multi_key')->valid);
+        $this->assertTrue($this->backend->get('axxb_key')->valid);
+    }
+
+    #[Test]
+    public function invalidate_by_tags_matches_tag_at_all_blob_positions(): void
+    {
+        // The escaping must not break legitimate multi-tag comma-blob matching.
+        // A tag containing underscores (which require escaping) must still be
+        // found whether it appears at the start, end, or middle of the blob.
+        $this->backend->set('start_key', 'data', CacheBackendInterface::PERMANENT, ['node_list', 'extra']);
+        $this->backend->set('end_key', 'data', CacheBackendInterface::PERMANENT, ['extra', 'node_list']);
+        $this->backend->set('mid_key', 'data', CacheBackendInterface::PERMANENT, ['x', 'node_list', 'y']);
+        $this->backend->set('unrelated_key', 'data', CacheBackendInterface::PERMANENT, ['other']);
+
+        $this->backend->invalidateByTags(['node_list']);
+
+        $this->assertFalse($this->backend->get('start_key')->valid);
+        $this->assertFalse($this->backend->get('end_key')->valid);
+        $this->assertFalse($this->backend->get('mid_key')->valid);
+        $this->assertTrue($this->backend->get('unrelated_key')->valid);
+    }
+
+    #[Test]
     public function remove_bin(): void
     {
         $this->backend->set('a', 1);
