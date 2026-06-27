@@ -24,6 +24,7 @@ final class QueueServiceProvider extends ServiceProvider
         $this->singleton(TransportInterface::class, match ($driver) {
             'database' => fn(): DbalTransport => new DbalTransport(
                 $this->resolve(DatabaseInterface::class),
+                (int) ($this->config['queue']['visibility_timeout'] ?? 90),
             ),
             default => fn(): InMemoryTransport => new InMemoryTransport(),
         });
