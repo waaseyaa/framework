@@ -137,4 +137,44 @@ final class GoogleOAuthProviderTest extends TestCase
         self::assertSame('https://lh3.googleusercontent.com/photo.jpg', $profile->avatarUrl);
         self::assertTrue($profile->emailVerified);
     }
+
+    public function testGetUserProfileThrowsOnErrorResponseInsteadOfDegenerateIdentity(): void
+    {
+        // A 401 from the userinfo endpoint returns an error body with no id/email.
+        // The pre-fix code coerced this into a profile with an empty providerId
+        // (a wrong/empty identity); it must now fail loudly.
+        $errorBody = json_encode([
+            'error'             => 'invalid_token',
+            'error_description' => 'Token has expired.',
+        ]);
+
+        $this->httpClient
+            ->method('get')
+            ->willReturn(new HttpResponse(401, (string) $errorBody));
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Token has expired.');
+
+        $this->provider->getUserProfile('expired_token');
+    }
+
+    public function testGetUserProfileThrowsWhenIdIsEmpty(): void
+    {
+        // An OK response that is missing 'id' must also fail — an empty provider id
+        // would produce a degenerate identity that could match the wrong account.
+        $responseBody = json_encode([
+            'email'          => 'user@example.com',
+            'verified_email' => true,
+            'name'           => 'Test User',
+        ]);
+
+        $this->httpClient
+            ->method('get')
+            ->willReturn(new HttpResponse(200, (string) $responseBody));
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Google user profile response is missing an account id.');
+
+        $this->provider->getUserProfile('some_token');
+    }
 }
