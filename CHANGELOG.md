@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.250] - 2026-06-27
+
 ### Added
 
 - **Audit tamper-evidence — data-model foundation (`L1-audit.md` M2, WP1 of 4).** The OCAP audit log gains a hash-chain + checkpoint substrate so post-hoc edits/deletions/gaps become *detectable* (the append-only decorator only prevents mutation through sanctioned paths). This PR lands the foundation: `audit_event` gains `row_hash`/`prev_hash` columns (`DEFAULT ''` = unsealed, additive idempotent migration — the writer's append path is unchanged); a new append-only `audit_checkpoint` table seals contiguous segments; `AuditEventCanonicalizer` (`HASH_VERSION v1`, length-prefixed, NULL-explicit, fixed column order) defines the reproducible row hash; `AuditCheckpointHasher` defines the shared checkpoint hash; and a **genesis anchor** is written once over the current `MAX(id)` so pre-migration rows are attested as "predates chaining" without false back-computed assurance. `audit_checkpoint` joins `AppendOnlyAuditDatabase::APPEND_ONLY_TABLES`. The checkpoint builder, `audit:verify`, and checkpoint-aware `audit:prune` follow in subsequent WPs. Design: `craftsmanship/AUDIT-TAMPER-EVIDENCE-DESIGN.md`.
