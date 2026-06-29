@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`waaseyaa/ingestion` README now accurately describes the shipped surface (WP2 Part A — doc reconciliation).** Three false claims corrected: (1) the required-field list no longer mentions a "dedupe key" or "signature" that do not exist — it now lists the actual eight required fields (`payload_id`, `version`, `source`, `snapshot_type`, `timestamp`, `entity_type`, `source_url`, `data`); (2) `ValidationResult` is correctly documented as carrying a `list<string>` of free-form error message strings, not structured `ENVELOPE_*` error codes (those belong to the foundation-layer ingestion package, a separate stack); (3) `EnvelopeValidator` is correctly described as abstract and `@internal` (extended by applications, not a ready-to-use public class). Doc-only — no production code changed.
+
+- **`packages/foundation/src/Ingestion/EnvelopeValidator` renamed to `MessageEnvelopeValidator` to eliminate naming collision with `waaseyaa/ingestion`'s unrelated abstract `EnvelopeValidator` (WP2 Part B — rename).** The foundation class validates a *message* envelope (`source`/`type`/`payload`/`timestamp` + optional `trace_id`/`tenant_id`/`metadata`) and returns an `Envelope` DTO or throws `InvalidEnvelopeException`; the ingestion-package class validates an *entity ingest* payload and returns a `ValidationResult`. The rename covers: `packages/foundation/src/Ingestion/EnvelopeValidator.php` → `MessageEnvelopeValidator.php`; the docblock reference in `Envelope.php`; the test class + file (`EnvelopeValidatorTest` → `MessageEnvelopeValidatorTest`); and the class name in `docs/specs/ingestion-defaults.md` and `docs/specs/infrastructure.md`.
+
+- **`MessageEnvelopeValidator` now accepts an injectable `TraceIdGeneratorInterface` instead of minting trace IDs inline with `Uuid::v4()` (WP2 Part B — DI seam).** The validator previously hard-coupled `symfony/uid` directly; the new `TraceIdGeneratorInterface` (`@api`) and its default implementation `UuidV4TraceIdGenerator` extract the minting behind an injectable seam. The constructor uses the nullable-default pattern (`?TraceIdGeneratorInterface $traceIdGenerator = null` → `$this->traceIdGenerator = $traceIdGenerator ?? new UuidV4TraceIdGenerator()`) so all existing `new MessageEnvelopeValidator()` callers continue to work unchanged. `symfony/uid` is retained in `packages/foundation/composer.json` — `DomainEvent` still depends on it. TDD: `MessageEnvelopeValidatorTest::injectedTraceIdGeneratorIsUsedWhenTraceIdAbsent` was written and confirmed RED (class not found) before the implementation landed.
+
 ## [0.1.0-alpha.250] - 2026-06-27
 
 ### Added

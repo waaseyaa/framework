@@ -60,6 +60,7 @@ return [
     'Waaseyaa\Foundation\Event\DomainEvent' => 'public',
     'Waaseyaa\Foundation\Event\EventDispatcherInterface' => 'public',
     'Waaseyaa\Foundation\Ingestion\IngestionErrorCode' => 'public',
+    'Waaseyaa\Foundation\Ingestion\TraceIdGeneratorInterface' => 'public',
     'Waaseyaa\Foundation\Exception\WaaseyaaException' => 'public',
     'Waaseyaa\Foundation\Http\HttpServiceResolverInterface' => 'public',
     'Waaseyaa\Foundation\Http\JsonApiResponseTrait' => 'public',
