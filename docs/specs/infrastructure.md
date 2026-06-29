@@ -1085,6 +1085,7 @@ Processors enrich `LogRecord` context before handlers receive the record. Execut
 | Interface/Class | File | Purpose |
 |-------|------|---------|
 | `ProcessorInterface` | `Log/Processor/ProcessorInterface.php` | Contract: `process(LogRecord $record): LogRecord`. Must return a new record, not mutate input. |
+| `RedactorProcessor` | `Log/Processor/RedactorProcessor.php` | **Always-on security default** — prepended unconditionally by `LogManager::fromConfig()` before any config-named processors. Redacts context keys whose lowercased name contains any denylist keyword (`password`, `token`, `secret`, `authorization`, `api_key`, `cookie`) and, as a backstop, string values that contain those keywords (e.g. a verbatim `Authorization: Bearer …` header). Applies recursively to nested arrays. Replacement sentinel: `[REDACTED]`. Extra keywords accepted via constructor. Config name `redact` (can also be added explicitly via `processors` config). |
 | `RequestIdProcessor` | `Log/Processor/RequestIdProcessor.php` | Adds `request_id` (UUID hex) to context. Same ID for all records within a single processor instance. |
 | `HostnameProcessor` | `Log/Processor/HostnameProcessor.php` | Adds `hostname` to context. Defaults to `gethostname()`. |
 | `MemoryUsageProcessor` | `Log/Processor/MemoryUsageProcessor.php` | Adds `memory_peak_mb` (float) to context. |
