@@ -12,6 +12,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\RequestContext;
 use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Api\ApiServiceProvider;
 use Waaseyaa\Api\Audit\ApiAuditQueryAdapter;
 use Waaseyaa\Api\Audit\AuditQueryReadModelInterface;
 use Waaseyaa\Api\Controller\AuditQueryController;
@@ -95,9 +96,9 @@ final class OcapAuditEndpointTest extends TestCase
         // Wire query.
         $this->query = new AuditEventQuery($this->database);
 
-        // Wire router.
+        // Wire router. WP5: routes are now registered by ApiServiceProvider::routes().
         $this->router = new WaaseyaaRouter(new RequestContext('', 'GET'));
-        $registrar = new BuiltinRouteRegistrar($this->entityTypeManager);
+        $registrar = new BuiltinRouteRegistrar($this->entityTypeManager, [new ApiServiceProvider()]);
         $registrar->register($this->router);
     }
 

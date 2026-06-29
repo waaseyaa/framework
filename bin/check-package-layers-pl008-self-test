@@ -1,0 +1,120 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/*
+ * Self-test for the PL008 string-literal FQCN layer gate in check-package-layers.
+ *
+ * Plants a synthetic Layer-0 source file containing a quoted Waaseyaa\Api\…
+ * FQCN literal, runs check-package-layers against it, and asserts it exits
+ * non-zero (gate fires). Then verifies the gate is green on a clean tree.
+ *
+ * Wired into composer verify via @check-package-layers-pl008-self-test.
+ */
+
+$root = dirname(__DIR__);
+$checkScript = $root . '/bin/check-package-layers';
+$php = PHP_BINARY;
+
+// Build a minimal fake repo tree in a temp directory.
+$work = sys_get_temp_dir() . '/waaseyaa-pl008-selftest-' . getmypid();
+@mkdir($work . '/packages/foundation/src/Kernel', 0755, true);
+@mkdir($work . '/packages/foundation/src/Discovery', 0755, true);
+@mkdir($work . '/tools', 0755, true);
+
+// foundation composer.json (Layer 0)
+file_put_contents($work . '/packages/foundation/composer.json', json_encode([
+    'name' => 'waaseyaa/foundation',
+    'type' => 'library',
+    'config' => ['sort-packages' => true],
+    'require' => ['php' => '>=8.4'],
+], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT));
+
+// Synthetic violator: a non-kernel-exempt file with a higher-layer FQCN string.
+file_put_contents($work . '/packages/foundation/src/Discovery/SyntheticViolator.php', <<<'PHP'
+<?php
+declare(strict_types=1);
+namespace Waaseyaa\Foundation\Discovery;
+final class SyntheticViolator
+{
+    // PL008 self-test: this literal should be caught as a string-literal layer violation.
+    private const SYNTHETIC_FQCN = 'Waaseyaa\\Api\\Controller\\SomeController';
+}
+PHP);
+
+// Empty string-literal baseline (no exemptions — the violator must be caught).
+file_put_contents($work . '/tools/package-layers-string-literal-baseline.txt', "# empty baseline for self-test\n");
+
+// --- Test 1: gate must FIRE on the synthetic violator. ---
+$env = 'WAASEYAA_LAYER_ROOT=' . escapeshellarg($work)
+    . ' WAASEYAA_LAYER_STRING_LITERAL_BASELINE=' . escapeshellarg($work . '/tools/package-layers-string-literal-baseline.txt')
+    . ' WAASEYAA_OUTPUT=json';
+$output = shell_exec("{$env} {$php} {$checkScript} 2>/dev/null");
+$result = is_string($output) ? json_decode($output, true) : null;
+$hasViolation = is_array($result) && isset($result['violations'])
+    && count(array_filter($result['violations'], static fn($v) => ($v['edge'] ?? '') === 'string-literal')) > 0;
+if (!$hasViolation) {
+    fwrite(STDERR, "FAIL [PL008-self-test] gate did NOT fire on synthetic violator.\n");
+    fwrite(STDERR, "Output: " . ($output ?? '(null)') . "\n");
+    // Cleanup before exit.
+    array_map('unlink', glob($work . '/packages/foundation/src/Discovery/*.php') ?: []);
+    array_map('unlink', glob($work . '/packages/foundation/src/Kernel/*.php') ?: []);
+    array_map('rmdir', [
+        $work . '/packages/foundation/src/Discovery',
+        $work . '/packages/foundation/src/Kernel',
+        $work . '/packages/foundation/src',
+        $work . '/packages/foundation',
+        $work . '/packages',
+        $work . '/tools',
+        $work,
+    ]);
+    exit(1);
+}
+
+// --- Test 2: gate must be GREEN when the violator is allowlisted. ---
+file_put_contents($work . '/tools/package-layers-string-literal-baseline.txt',
+    "foundation/src/Discovery/SyntheticViolator.php  # self-test allowlist entry\n");
+$output2 = shell_exec("{$env} {$php} {$checkScript} 2>/dev/null");
+$result2 = is_string($output2) ? json_decode($output2, true) : null;
+$hasViolation2 = is_array($result2) && isset($result2['violations'])
+    && count(array_filter($result2['violations'], static fn($v) => ($v['edge'] ?? '') === 'string-literal')) > 0;
+if ($hasViolation2) {
+    fwrite(STDERR, "FAIL [PL008-self-test] gate still fired after allowlisting.\n");
+    fwrite(STDERR, "Output: " . ($output2 ?? '(null)') . "\n");
+    // Cleanup.
+    array_map('unlink', glob($work . '/packages/foundation/src/Discovery/*.php') ?: []);
+    array_map('rmdir', [
+        $work . '/packages/foundation/src/Discovery',
+        $work . '/packages/foundation/src/Kernel',
+        $work . '/packages/foundation/src',
+        $work . '/packages/foundation',
+        $work . '/packages',
+        $work . '/tools',
+        $work,
+    ]);
+    exit(1);
+}
+
+// Cleanup.
+foreach ([
+    $work . '/packages/foundation/src/Discovery/SyntheticViolator.php',
+    $work . '/packages/foundation/composer.json',
+    $work . '/tools/package-layers-string-literal-baseline.txt',
+] as $f) {
+    @unlink($f);
+}
+foreach ([
+    $work . '/packages/foundation/src/Discovery',
+    $work . '/packages/foundation/src/Kernel',
+    $work . '/packages/foundation/src',
+    $work . '/packages/foundation',
+    $work . '/packages',
+    $work . '/tools',
+    $work,
+] as $d) {
+    @rmdir($d);
+}
+
+echo "OK - PL008 string-literal layer gate self-test passed (fires on violator, green after allowlist).\n";
+exit(0);

@@ -26,7 +26,8 @@ final class BuiltinRouteRegistrarTest extends TestCase
         $registrar->register($router);
 
         $routes = $router->getRouteCollection();
-        $this->assertNotNull($routes->get('api.schema.show'));
+        // api.schema.show is now owned by ApiServiceProvider::routes() (WP5 route-table inversion).
+        $this->assertNull($routes->get('api.schema.show'), 'api.schema.show belongs to the api package now, not to the bare registrar.');
         $this->assertNotNull($routes->get('api.openapi'));
         $this->assertNotNull($routes->get('api.entity_types'));
         $this->assertNotNull($routes->get('api.entity_types.disable'));

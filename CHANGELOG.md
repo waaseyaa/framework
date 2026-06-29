@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Foundation: invert `BuiltinRouteRegistrar` L0→L4 route-table coupling (WP5). The 14 `Waaseyaa\Api\*` FQCN route blocks previously hard-coded in `BuiltinRouteRegistrar` are now registered by `ApiServiceProvider::routes()` (called via the existing provider loop). Foundation registers only the framework-substrate routes it owns: OpenAPI, entity-type lifecycle, broadcast SSE, media upload, attachment download, semantic search, discovery, and the SSR catch-alls. All route names, paths, and access options are preserved — behavior-neutral refactor.
+- Foundation: add string-literal layer gate (PL008) to `bin/check-package-layers`. Scans Layer-0 `src/` files for quoted `Waaseyaa\<Ns>\…` FQCN string literals that reference packages at a higher layer, fails on new violations. Allowlist in `tools/package-layers-string-literal-baseline.txt` (one entry: `PackageManifestCompiler.php` — legitimate cross-layer attribute FQCNs per CLAUDE.md layer-discipline rule). Self-test in `bin/check-package-layers-pl008-self-test` (wired into `composer verify`).
+
 ## [0.1.0-alpha.250] - 2026-06-27
 
 ### Added

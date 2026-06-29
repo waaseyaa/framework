@@ -12,6 +12,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\RequestContext;
 use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Api\ApiServiceProvider;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Api\Controller\MercureMonitorController;
 use Waaseyaa\Api\Http\Router\MercureMonitorApiRouter;
@@ -70,7 +71,8 @@ final class MercureMonitorEndpointTest extends TestCase
         $this->entityTypeManager = new EntityTypeManager(new EventDispatcher());
         $this->router = new WaaseyaaRouter(new RequestContext('', 'GET'));
 
-        $registrar = new BuiltinRouteRegistrar($this->entityTypeManager);
+        // WP5: routes are now registered by ApiServiceProvider::routes().
+        $registrar = new BuiltinRouteRegistrar($this->entityTypeManager, [new ApiServiceProvider()]);
         $registrar->register($this->router);
 
         // Seed ≥10 broadcast log rows across ≥3 channels + ≥3 event names

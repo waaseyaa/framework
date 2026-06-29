@@ -9,6 +9,21 @@ declare(strict_types=1);
  * Output modes:
  *   --output=json
  *   WAASEYAA_OUTPUT=json
+ *
+ * Rules:
+ *   PL001 – package name does not match directory
+ *   PL002 – package missing from layer index
+ *   PL003 – required dependency not in layer index
+ *   PL004 – composer.json require edge violates layer order (upward)
+ *   PL005 – PHP file-level `use Waaseyaa\…` import violates layer order (upward)
+ *   PL006 – same-layer dependency cycle (WARN only)
+ *   PL007 – undeclared same-or-lower-layer dependency (fail-on-new, baselined)
+ *   PL008 – Layer-0 src/ file contains a string-literal FQCN for a higher-layer
+ *            package (catches routing/bootstrapping coupling hidden from PL005
+ *            because string literals bypass `use` statement analysis). Only
+ *            non-kernel-exempt Layer-0 files are scanned; kernel/boot files are
+ *            already trusted to wire all layers. New violations fail; pre-existing
+ *            legitimate ones are baselined in tools/package-layers-string-literal-baseline.txt.
  */
 
 $rootEnv = getenv('WAASEYAA_LAYER_ROOT');
@@ -280,6 +295,150 @@ $loadUndeclaredBaseline = static function (string $path): array {
 };
 $undeclaredBaseline = $loadUndeclaredBaseline($undeclaredBaselinePath);
 
+// PL008 string-literal FQCN baseline. Mirrors the PL007 baseline pattern.
+// Format: one line per allowlisted relative file path (packages/<pkg>/src/…),
+// followed by "  # <mandatory-rationale>".
+$stringLiteralBaselineEnv = getenv('WAASEYAA_LAYER_STRING_LITERAL_BASELINE');
+$stringLiteralBaselinePath = is_string($stringLiteralBaselineEnv) && $stringLiteralBaselineEnv !== ''
+    ? $stringLiteralBaselineEnv
+    : $root . DIRECTORY_SEPARATOR . 'tools' . DIRECTORY_SEPARATOR . 'package-layers-string-literal-baseline.txt';
+
+/** @return array<string, true>  relative-path => true */
+$loadStringLiteralBaseline = static function (string $baselinePath): array {
+    $baseline = [];
+    if (!is_file($baselinePath)) {
+        return $baseline;
+    }
+    foreach (file($baselinePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $rawLine) {
+        $line = trim($rawLine);
+        if ($line === '' || str_starts_with($line, '#')) {
+            continue;
+        }
+        // Strip trailing comment ("  # reason") to get the file path.
+        $path = preg_replace('/\s{2,}#.*$/', '', $line);
+        if (is_string($path) && $path !== '') {
+            $baseline[trim($path)] = true;
+        }
+    }
+    return $baseline;
+};
+$stringLiteralBaseline = $loadStringLiteralBaseline($stringLiteralBaselinePath);
+
+/**
+ * Scan a Layer-0 package's src/ for string-literal FQCNs referencing packages
+ * at higher layers (PL008). Kernel-exempt files are skipped (they are trusted
+ * bootstrapping orchestrators, same as for PL005). Multi-line block comments
+ * and single-line comments are stripped before matching to avoid false positives.
+ *
+ * Pattern matched in raw PHP file text: a single- or double-quoted literal that
+ * starts with `Waaseyaa\<NamespaceSegment>\` (encoded in the file as two
+ * backslashes per separator: `Waaseyaa\\<NS>\\`).
+ *
+ * @return list<array{relative: string, dep: string, depLayer: int}>
+ */
+$scanStringLiteralFqcns = static function (string $packageDirectory, int $selfLayer, string $selfShort) use (
+    $root,
+    $layerByShort,
+    $isKernelExempt,
+    $shortForNamespace,
+    $stringLiteralBaseline,
+): array {
+    // PL008 only checks Layer-0 packages — they must never hard-code higher-layer
+    // controller FQCNs as string literals (the exact pattern WP5 fixed).
+    if ($selfLayer !== 0) {
+        return [];
+    }
+
+    $src = $packageDirectory . DIRECTORY_SEPARATOR . 'src';
+    if (!is_dir($src)) {
+        return [];
+    }
+
+    $findings = [];
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($src, FilesystemIterator::SKIP_DOTS),
+    );
+
+    foreach ($iterator as $file) {
+        if (!$file instanceof SplFileInfo || $file->getExtension() !== 'php') {
+            continue;
+        }
+
+        $relative = str_replace('\\', '/', substr($file->getPathname(), strlen($root . DIRECTORY_SEPARATOR . 'packages' . DIRECTORY_SEPARATOR)));
+        // Skip kernel-exempt files: they are bootstrapping orchestrators and
+        // are trusted to contain cross-layer wiring (same exemption as PL005).
+        if ($isKernelExempt($relative)) {
+            continue;
+        }
+        // Skip files allowlisted in the PL008 baseline.
+        if (isset($stringLiteralBaseline[$relative])) {
+            continue;
+        }
+
+        $rawText = @file_get_contents($file->getPathname());
+        if (!is_string($rawText)) {
+            continue;
+        }
+
+        // Strip comments conservatively to avoid false positives. We process
+        // line-by-line: skip pure-comment lines (// …, # …, * … for block
+        // comment bodies) and track /* … */ block comment regions.
+        $filteredLines = [];
+        $inBlock = false;
+        foreach (explode("\n", $rawText) as $line) {
+            $trimmed = ltrim($line);
+            if ($inBlock) {
+                if (str_contains($line, '*/')) {
+                    $inBlock = false;
+                }
+                continue;
+            }
+            // Block comment open (/** or /* without closing */ on same line).
+            if (str_starts_with($trimmed, '/*') || str_starts_with($trimmed, '/**')) {
+                if (!str_contains($line, '*/')) {
+                    $inBlock = true;
+                }
+                continue;
+            }
+            // Single-line comment or block comment continuation line.
+            if (str_starts_with($trimmed, '//') || str_starts_with($trimmed, '#') || str_starts_with($trimmed, '*')) {
+                continue;
+            }
+            $filteredLines[] = $line;
+        }
+        $text = implode("\n", $filteredLines);
+
+        // Match quoted string literals containing Waaseyaa\\<Ns>\\  patterns.
+        // In raw PHP file text, namespace separators appear as \\ (two backslashes),
+        // so the regex matches the literal byte sequence `Waaseyaa` + `\\` + CapLetter.
+        preg_match_all(
+            '#[\'"]Waaseyaa\\\\\\\\([A-Z][A-Za-z0-9]*)(?:\\\\\\\\([A-Z][A-Za-z0-9]*))?#',
+            $text,
+            $matches,
+            PREG_SET_ORDER,
+        );
+
+        $seen = [];
+        foreach ($matches as $match) {
+            $depShort = $shortForNamespace($match[1], $match[2] ?? null);
+            if ($depShort === null || !isset($layerByShort[$depShort]) || $depShort === $selfShort) {
+                continue;
+            }
+            if (isset($seen[$depShort])) {
+                continue;
+            }
+            $seen[$depShort] = true;
+
+            $depLayer = $layerByShort[$depShort];
+            if ($depLayer > $selfLayer) {
+                $findings[] = ['relative' => $relative, 'dep' => $depShort, 'depLayer' => $depLayer];
+            }
+        }
+    }
+
+    return $findings;
+};
+
 /**
  * Scan a package's src/ for `use Waaseyaa\…` edges, classifying each as either an
  * upward layer violation ('upward' → PL005, hard fail) or a same-or-lower-layer
@@ -482,6 +641,25 @@ foreach ($packageDirectories as $packageDirectory) {
             . "or baseline it via: php bin/check-package-layers --generate-baseline.",
         );
         $violations[] = ['source' => $short, 'target' => $depShort, 'edge' => 'undeclared'];
+    }
+
+    // PL008: string-literal FQCN layer gate (Layer-0 only). De-dup per dep.
+    $stringLiteralEdges = [];
+    foreach ($scanStringLiteralFqcns($packageDirectory, $selfLayer, $short) as $finding) {
+        if (!isset($stringLiteralEdges[$finding['dep']])) {
+            $stringLiteralEdges[$finding['dep']] = $finding['relative'];
+        }
+    }
+    foreach ($stringLiteralEdges as $depShort => $exampleRelative) {
+        ++$errors;
+        $emit(
+            "FAIL [PL008] packages/{$exampleRelative}: string-literal layer violation - "
+            . "{$short} (layer {$selfLayer}) contains a quoted Waaseyaa\\\\{$depShort}\\\\… FQCN "
+            . "(layer {$layerByShort[$depShort]}). Move the route/binding to the owning higher-layer "
+            . "provider, or baseline the file in tools/package-layers-string-literal-baseline.txt "
+            . "with a mandatory rationale comment.",
+        );
+        $violations[] = ['source' => $short, 'target' => $depShort, 'edge' => 'string-literal'];
     }
 }
 
