@@ -17,15 +17,12 @@ interface SelectInterface
      * Add a WHERE condition. The value is always bound as a parameter (never
      * interpolated), so SQL injection is not possible via $value.
      *
-     * $field CONTRACT: $field is a DEVELOPER-SUPPLIED raw SQL fragment — a column,
-     * a qualified/pre-quoted identifier, or an expression (e.g. SqlEntityQuery
-     * passes `json_extract(_data, '$.x')`). It is emitted VERBATIM and is NOT
-     * quoted or sanitised, the same developer-supplied-only contract as the
-     * join() ON-condition. NEVER pass user input as $field. (Auto-quoting $field
-     * as an identifier is a deferred follow-up that will add raw-expression seams
-     * and migrate SqlEntityQuery; until then $field stays a raw fragment so the
-     * entity query engine's pre-quoted identifiers + json_extract expressions
-     * keep working.)
+     * $field CONTRACT (WP6): $field is an IDENTIFIER — a column or qualified
+     * `alias.column`. It is auto-quoted via the platform's `quoteIdentifier`
+     * (a reserved word / metacharacter-bearing name is rendered inert), so a
+     * caller may pass a raw, unquoted column name safely. Pass a SQL
+     * *expression* (e.g. `json_extract(_data, '$.x')`, `COALESCE(a, 0)`) via
+     * {@see whereRaw()} instead — quoting an expression would corrupt it.
      *
      * LIKE / NOT LIKE contract: $value is treated as a complete LIKE *pattern*.
      * The caller is responsible for (a) adding any `%` / `_` wildcards it wants
@@ -42,6 +39,40 @@ interface SelectInterface
     public function isNotNull(string $field): static;
 
     public function orderBy(string $field, string $direction = 'ASC'): static;
+
+    /**
+     * Add a raw WHERE expression, emitted VERBATIM, with positional `?`
+     * parameters bound in order.
+     *
+     * Use this seam for SQL fragments that are NOT plain identifiers and so
+     * cannot be auto-quoted by {@see condition()} — e.g. `json_extract(_data,
+     * '$.x') = ?`, `COALESCE(reserved_at, 0) <= ?`, or a CAST wrapper. Each `?`
+     * in $expression is replaced, left-to-right, by a bound placeholder for the
+     * corresponding entry in $parameters (an array entry binds as a multi-value
+     * IN list).
+     *
+     * $expression CONTRACT: this is the same DEVELOPER-SUPPLIED-ONLY contract as
+     * the {@see join()} ON-condition — it is emitted verbatim and is NEVER
+     * sanitised. NEVER interpolate user input into $expression; bind it through
+     * a `?` placeholder + $parameters instead.
+     *
+     * @param list<mixed> $parameters
+     *
+     * @api
+     */
+    public function whereRaw(string $expression, array $parameters = []): static;
+
+    /**
+     * Add a raw ORDER BY expression, emitted VERBATIM.
+     *
+     * Companion to {@see orderBy()} for expressions that cannot be auto-quoted
+     * as an identifier (e.g. `json_extract(_data, '$.weight')`). Same
+     * DEVELOPER-SUPPLIED-ONLY contract as {@see whereRaw()} — NEVER pass user
+     * input.
+     *
+     * @api
+     */
+    public function orderByRaw(string $expression, string $direction): static;
 
     public function range(int $offset, int $limit): static;
 

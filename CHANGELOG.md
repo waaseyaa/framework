@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **database-legacy (WP6, #1816):** closed the last SQL-injection vector in the
+  entity read engine. `SelectInterface::condition()`, `orderBy()`, `isNull()`,
+  and `isNotNull()` now auto-quote their `$field` via the platform's
+  `quoteIdentifier` (a reserved-word / metacharacter-bearing column name is
+  rendered inert), matching the long-standing behaviour of `Update` / `Delete`.
+
+### Changed
+- **database-legacy / entity-storage (WP6, #1816):** added two raw-expression
+  seams to `SelectInterface` — `whereRaw(string $expression, array $parameters = [])`
+  and `orderByRaw(string $expression, string $direction)` — emitted verbatim with
+  positional `?` parameters bound in order (developer-supplied-only contract,
+  same as the `join()` ON-condition). `SqlEntityQuery` and `SqlStorageDriver` now
+  resolve each referenced field to a `ResolvedField` value object and route
+  identifiers through the auto-quoting `condition()`/`orderBy()` path and SQL
+  expressions (`json_extract(...)`) through the verbatim raw seams; the K3
+  native-type `CAST(... AS TEXT)` casting for `_data` JSON fields is preserved
+  inside the raw path. `Queue\DbalTransport`'s `COALESCE(...)` predicate migrated
+  to `whereRaw()`.
+
 ## [0.1.0-alpha.250] - 2026-06-27
 
 ### Added
