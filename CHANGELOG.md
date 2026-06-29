@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`ExceptionHandler` was leaking raw exception messages and file paths to clients in production — generic exceptions now return a static safe detail (foundation wave-2 WP2).** `renderGenericException()` was returning `$e->getMessage()` verbatim as the JSON:API `detail` field (status 500): SQL fragments, file paths, and interpolated user input were visible to any API consumer. `renderForCli()` exposed `File: <path>:<line>` for all generic throwables. The fix adds two optional trailing constructor parameters (`bool $debug = false`, `?LoggerInterface $logger = null`) that are safe by default — existing callers `new ExceptionHandler()` / `new ExceptionHandler($context)` are unaffected. In production (`$debug = false`) the HTTP `detail` is now the static string `'Internal Server Error'` and the CLI line drops the raw message and file:line; in debug mode both are present (unchanged developer UX). The real exception message, class, file, line, and trace are always logged internally via the injected logger (defaults to `NullLogger`) so operators retain diagnostics without client exposure. A class-level docblock notes that three error-rendering paths coexist (this handler, the `error-handler` package renderer, and `HttpKernel`'s inline boot-error path) — reconciliation is deferred as a follow-up. TDD: new tests were written and confirmed RED before implementation; two existing tests that asserted the old leaky contract (`renders_generic_exception_as_internal_error`, `renders_generic_cli_error`) were updated to the new safe-by-default contract.
+
 ## [0.1.0-alpha.250] - 2026-06-27
 
 ### Added
