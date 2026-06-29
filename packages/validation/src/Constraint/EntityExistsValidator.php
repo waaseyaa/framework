@@ -25,7 +25,7 @@ final class EntityExistsValidator extends ConstraintValidator
         }
 
         if ($constraint->existsChecker === null) {
-            return;
+            throw new \InvalidArgumentException('The existsChecker option must be a callable; null given.');
         }
 
         $checker = $constraint->existsChecker;
