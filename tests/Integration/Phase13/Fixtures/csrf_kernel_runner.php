@@ -2,6 +2,15 @@
 
 declare(strict_types=1);
 
+// Route PHP display output to stderr immediately — this subprocess's stdout is a
+// structured JSON/headers protocol channel. Any notice or deprecation that leaks
+// to stdout (e.g. the PHP 8.5 deprecation for session.use_only_cookies) causes
+// headers_sent() to return true, which makes session_start() fail and prevents
+// CsrfMiddleware from emitting the XSRF-TOKEN Set-Cookie header. Sending display
+// output to stderr keeps stdout clean regardless of the ambient php.ini setting,
+// making local behaviour identical to CI (where display_errors=0 by default).
+ini_set('display_errors', 'stderr');
+
 /**
  * CSRF integration test runner.
  *
@@ -94,7 +103,6 @@ if ($providerFile !== '' && is_file($providerFile)) {
 // persists across subprocess calls within the same test case.
 session_save_path($sessionPath);
 ini_set('session.use_cookies', '0');
-ini_set('session.use_only_cookies', '0');
 
 // Parse URI.
 $parts = parse_url($uri);

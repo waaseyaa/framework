@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **CSRF integration-test runner now routes PHP display output to stderr so a PHP 8.5 deprecation notice can no longer pollute subprocess stdout, mark `headers_sent()`, and break `session_start()` — local `composer verify` now matches CI (test-infra fix, no production code changed).** `csrf_kernel_runner.php` is spawned via `shell_exec(PHP_BINARY ...)` and inherits the ambient `php.ini`. In PHP 8.5 the `ini_set('session.use_only_cookies', '0')` call emits a `Deprecated` notice; under the WSL2/local default of `display_errors=1` that notice printed to stdout *before* the kernel booted, causing `headers_sent()` to return true. `SessionMiddleware::process()` then called `session_start()` which failed ("cannot be sent after headers already sent"), leaving the session inactive; `CsrfMiddleware::attachCookieIfHtml()` bailed at its `session_status() !== PHP_SESSION_ACTIVE` guard and emitted no `XSRF-TOKEN` Set-Cookie header, making the two `assertNotNull($cookieHeader)` assertions fail. In CI `display_errors=0` the notice went to the log, stdout stayed clean, and both tests passed — a pure environment false alarm. Fix: `ini_set('display_errors', 'stderr')` is added as the very first executable statement (before `require` and any session ini_set) so stdout is always a clean JSON/headers channel regardless of ambient php.ini; the now-redundant deprecated `ini_set('session.use_only_cookies', '0')` line is removed (the explicit `session_id($sessionId)` call plus `ini_set('session.use_cookies', '0')` already provide the intended behaviour). Red→green proof: `-d display_errors=1 phpunit InertiaMultipartCsrfIntegrationTest` showed 2 failures before the fix and 4/4 pass after.
+
 ## [0.1.0-alpha.250] - 2026-06-27
 
 ### Added
