@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Waaseyaa\Cache\Tests\Unit;
+namespace Waaseyaa\Routing\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Cache\CacheConfigResolver;
+use Waaseyaa\Routing\CacheConfigResolver;
 use Waaseyaa\User\AnonymousUser;
 use Waaseyaa\User\DevAdminAccount;
 

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Relocated `CacheConfigResolver` from `waaseyaa/cache` (L0) to `waaseyaa/routing` (L4) to eliminate the only non-event-decoupled upward type edge in the cache package; `Waaseyaa\Cache\CacheConfigResolver` is now `Waaseyaa\Routing\CacheConfigResolver`. Introduces zero new composer `require` edges — both production consumers (`ssr`, `workspace`) already require `waaseyaa/routing`. Removed `cache/src/CacheConfigResolver.php` from `check-package-layers` `kernelExemptFiles`. Behavior-neutral relocation; fixes #1807. W4-3 follow-up: drive `waaseyaa/cache` to full foundation-purity.
+
 ## [0.1.0-alpha.250] - 2026-06-27
 
 ### Added
