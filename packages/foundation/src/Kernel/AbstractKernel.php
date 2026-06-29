@@ -141,7 +141,7 @@ abstract class AbstractKernel
 
         EnvLoader::load($this->projectRoot . '/.env');
 
-        $this->config = ConfigLoader::load($this->projectRoot . '/config/waaseyaa.php');
+        $this->config = ConfigLoader::load($this->projectRoot . '/config/waaseyaa.php', $this->logger);
 
         // Upgrade logger from config.
         if ($this->logger instanceof LogManager) {

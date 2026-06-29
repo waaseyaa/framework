@@ -13,18 +13,6 @@ use Waaseyaa\Foundation\Log\LogManager;
  */
 final class ConfigLoader
 {
-    private static ?LoggerInterface $logger = null;
-
-    public static function setLogger(LoggerInterface $logger): void
-    {
-        self::$logger = $logger;
-    }
-
-    private static function logger(): LoggerInterface
-    {
-        return self::$logger ??= new LogManager(new ErrorLogHandler());
-    }
-
     /**
      * Load configuration from a PHP file that returns an array.
      *
@@ -33,7 +21,7 @@ final class ConfigLoader
      *
      * @return array<mixed>
      */
-    public static function load(string $path): array
+    public static function load(string $path, ?LoggerInterface $logger = null): array
     {
         if (!is_file($path)) {
             return [];
@@ -50,7 +38,8 @@ final class ConfigLoader
         }
 
         if (!is_array($data)) {
-            self::logger()->warning(sprintf(
+            $logger ??= new LogManager(new ErrorLogHandler());
+            $logger->warning(sprintf(
                 'Config file %s did not return an array (got %s), treating as empty.',
                 $path,
                 get_debug_type($data),

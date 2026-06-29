@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`ConfigLoader::load()` now accepts an optional `?LoggerInterface $logger = null` parameter; the static mutable `$logger` field and `setLogger()` / `logger()` helpers are removed (foundation wave-2 WP3, behavior-neutral).** Callers in `AbstractKernel` and `AppEntityTypeLoader` (which both hold a real logger) now pass it explicitly; the two CLI callers (`AboutHandler`, `HealthReportHandler`) use the default `null` path unchanged. `ConfigLoaderTest` updated to pass the logger via the new `load()` param instead of the removed `setLogger()`.
+- **`BuiltinRouteRegistrar` `api.telescope.codified_context.*` route block documented as intentional backward-compat aliases for `api.telescope.agent_context.*` (foundation wave-2 WP3, documentation-only).** Both blocks map to `CodifiedContextController`; the `codified-context` URL prefix is a legacy alias kept for backward-compatibility (spec: `telescope-agent-context-telemetry.md`). A one-line comment is added to the alias block; no routes changed.
+- **`EventListenerRegistrar::registerDiscoveryCacheListeners()` and `registerMcpReadCacheListeners()` now delegate to a shared private `registerEntityCacheInvalidationListeners()` helper (foundation wave-2 WP3, behavior-neutral).** The two methods were near-identical: the helper is parameterised by tag prefix (`discovery` / `mcp_read`), error label, and an optional `?\Closure(string): list<string> $extraTags` for discovery's `discovery:surface:discovery_api` surface tag on relationship/node entity types. Public signatures and registered listener behavior are unchanged.
+
 ## [0.1.0-alpha.250] - 2026-06-27
 
 ### Added

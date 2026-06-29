@@ -54,11 +54,10 @@ final class ConfigLoaderTest extends TestCase
     #[Test]
     public function returns_empty_array_for_non_array_return(): void
     {
-        ConfigLoader::setLogger(new NullLogger());
         $path = $this->tempDir . '/config.php';
         file_put_contents($path, '<?php return "not an array";');
 
-        $result = ConfigLoader::load($path);
+        $result = ConfigLoader::load($path, new NullLogger());
 
         $this->assertSame([], $result);
     }

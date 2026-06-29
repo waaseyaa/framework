@@ -18,7 +18,7 @@ final class AppEntityTypeLoader
     public function load(string $projectRoot, EntityTypeManager $entityTypeManager): void
     {
         $path = $projectRoot . '/config/entity-types.php';
-        $types = ConfigLoader::load($path);
+        $types = ConfigLoader::load($path, $this->logger);
 
         foreach ($types as $index => $typeData) {
             if (!$typeData instanceof \Waaseyaa\Entity\EntityTypeInterface) {
