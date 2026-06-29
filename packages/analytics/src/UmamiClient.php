@@ -19,6 +19,10 @@ namespace Waaseyaa\Analytics;
  * failed-send / transport-exception path. When null (default), failures
  * are silently ignored — the same behaviour as before the seam was added.
  *
+ * The optional $language parameter sets the BCP-47 locale tag reported in the
+ * Umami payload (defaults to 'en'). Set it to the application's active locale
+ * so analytics reflects the language of each event correctly.
+ *
  * Example logger wiring (no external dependency needed):
  *   $client = new UmamiClient($url, $id, $app, logger: function(string $m): void {
  *       error_log('[analytics] ' . $m);
@@ -37,6 +41,7 @@ final class UmamiClient
         string $appUrl,
         ?Transport $transport = null,
         private readonly ?\Closure $logger = null,
+        private readonly string $language = 'en',
     ) {
         $host = parse_url($appUrl, PHP_URL_HOST);
         $this->hostname  = is_string($host) && $host !== '' ? $host : $appUrl;
@@ -57,7 +62,7 @@ final class UmamiClient
         $payload = json_encode([
             'payload' => [
                 'hostname' => $this->hostname,
-                'language' => 'en',
+                'language' => $this->language,
                 'referrer' => '',
                 'screen'   => '',
                 'title'    => '',

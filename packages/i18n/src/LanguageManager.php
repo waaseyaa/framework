@@ -9,6 +9,15 @@ namespace Waaseyaa\I18n;
  *
  * Holds a static collection of Language objects. The current language
  * defaults to the system default language.
+ *
+ * **Worker mode (FrankenPHP, Swoole, RoadRunner):** When Waaseyaa runs under a
+ * persistent PHP worker, each request shares the same container, including this
+ * instance. `setCurrentLanguage()` mutates `$currentLanguage` in-place, so a
+ * previous request's language bleeds into the next request if not reset.
+ * Call {@see resetToDefault()} at the start of each request (e.g. from a
+ * request-lifecycle subscriber or front-controller middleware) to restore the
+ * system default and prevent per-request language state from leaking.
+ *
  * @api
  */
 final class LanguageManager implements LanguageManagerInterface
@@ -91,6 +100,11 @@ final class LanguageManager implements LanguageManagerInterface
             );
         }
         $this->currentLanguage = $language;
+    }
+
+    public function resetToDefault(): void
+    {
+        $this->currentLanguage = $this->defaultLanguage;
     }
 
     /**
