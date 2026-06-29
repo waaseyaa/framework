@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`HttpKernel::serveHttpRequest()` and `AbstractKernel` god-methods extracted to focused collaborators (foundation wave-2 WP4 — behavior-neutral).** Three private methods extracted from `serveHttpRequest()`: `matchRoute(string, string): HttpRequest|HttpResponse` (route context + matching + request attribute population), `buildMiddlewareStack(): HttpPipeline` (middleware collection, sorting, and pipeline assembly), and `buildRouterChain(): ControllerDispatcher` (domain-router list + BroadcastRouter merge). `AbstractKernel::bootEntityTypeManager()` is now a thin delegator to the new named class `EntityTypeManagerFactory` (`packages/foundation/src/Kernel/EntityTypeManagerFactory.php`), which receives the database, dispatcher, field registry, logger, and three callable seams (access-handler resolver, community-scope resolver, account-context attacher) as explicit constructor/method params. `AbstractKernel::buildHandlerContainer()` returns a `KernelHandlerContainer` instance (`packages/foundation/src/Kernel/KernelHandlerContainer.php`) — a `final class implements ContainerInterface` — replacing the inline anonymous class with identical resolution semantics (kernel bindings → provider walk → reflection auto-wiring). Zero assertion changes to `HttpKernelTest`, `AbstractKernelTest`, and all sibling kernel tests; `composer verify` green with only the 2 known pre-existing `InertiaMultipartCsrfIntegrationTest` failures.
+
 ## [0.1.0-alpha.250] - 2026-06-27
 
 ### Added

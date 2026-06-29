@@ -18,19 +18,9 @@ use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeLifecycleManager;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
-use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\EntityStorage\Backend\BackendRegistrarFactory;
-use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\BackendResolver;
-use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
-use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
-use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
-use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Query\DefinitionValidator;
-use Waaseyaa\EntityStorage\Schema\TranslationSchemaHandler;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
-use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
 use Waaseyaa\Foundation\Community\CommunityContextInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
@@ -201,122 +191,19 @@ abstract class AbstractKernel
 
     protected function bootEntityTypeManager(): void
     {
-        $database = $this->database;
-        $dispatcher = $this->dispatcher;
         $fieldRegistry = new \Waaseyaa\Field\FieldDefinitionRegistry();
         $this->fieldRegistry = $fieldRegistry;
         ContentEntityBase::setFieldRegistry($fieldRegistry);
 
-        // Issue #1643: save-time entity validation is ON by default for every
-        // kernel-built repository. One shared stateless EntityValidator is
-        // captured by the repository factory closure below. The boot-time env
-        // switch WAASEYAA_ENTITY_VALIDATION (0/false/off, case-insensitive)
-        // disables the wiring globally; the per-save `validate: false` flag
-        // remains the surgical escape hatch. Read once here — not per save,
-        // not per repository.
-        $raw = getenv('WAASEYAA_ENTITY_VALIDATION');
-        $validationEnabled = !\is_string($raw)
-            || !\in_array(strtolower($raw), ['0', 'false', 'off'], true);
-        $validator = $validationEnabled ? EntityValidator::createDefault() : null;
-
-        $this->entityTypeManager = new EntityTypeManager(
-            $dispatcher,
-            function (EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry): SqlEntityStorage {
-                $schemaHandler = new SqlSchemaHandler($definition, $database, $fieldRegistry, null, $this->logger);
-                $schemaHandler->ensureTable();
-                // Thread the kernel's access handler lazily so getQuery() is
-                // fail-closed (issue #1714). $this->accessHandler is populated by
-                // discoverAccessPolicies() during boot; storage is built on first
-                // use and cached, so resolve at query time (?? null mirrors the
-                // tool-dispatch accessor pattern below).
-                return new SqlEntityStorage(
-                    $definition,
-                    $database,
-                    $dispatcher,
-                    $fieldRegistry,
-                    accessHandlerResolver: fn(): ?EntityAccessHandler => $this->accessHandler ?? null,
-                );
-            },
-            function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $validator): EntityRepositoryInterface {
-                $schemaHandler = new SqlSchemaHandler($definition, $database, $fieldRegistry, null, $this->logger);
-                $schemaHandler->ensureTable();
-                if ($definition->isRevisionable()) {
-                    $schemaHandler->ensureRevisionTable();
-                }
-                if ($definition->isTranslatable()) {
-                    // Gate translation-table creation on the storage backend model,
-                    // mirroring EntitySchemaSync::syncAll (the CLI db:init path).
-                    // sql-blob translatable types keep per-langcode rows IN the base
-                    // table (FR-020) and must NOT get a `<entity>_translations`
-                    // sibling: materialising an empty one is exactly what forced the
-                    // alpha.199 peer-first read fallback to exist. (b2)
-                    $backend = $definition->getPrimaryStorageBackend();
-                    $backend = (\is_string($backend) && $backend !== '')
-                        ? $backend
-                        : ReservedBackendIds::SQL_BLOB;
-                    if ($backend === ReservedBackendIds::SQL_COLUMN) {
-                        new TranslationSchemaHandler($database)->sync($definition);
-                    } elseif ($backend !== ReservedBackendIds::SQL_BLOB) {
-                        $schemaHandler->ensureTranslationTable();
-                    }
-                }
-
-                $keys = $definition->getKeys();
-                $idKey = $keys['id'] ?? 'id';
-
-                $resolver = new SingleConnectionResolver($database);
-                $driver = new SqlStorageDriver(
-                    $resolver,
-                    $idKey,
-                    $this->resolveCommunityScope($definition),
-                );
-                $revisionDriver = $definition->isRevisionable()
-                    ? new RevisionableStorageDriver($resolver, $definition)
-                    : null;
-
-                $repository = new EntityRepository(
-                    $definition,
-                    $driver,
-                    $dispatcher,
-                    $revisionDriver,
-                    $database,
-                    // Issue #1643: shared default validator (null when the
-                    // WAASEYAA_ENTITY_VALIDATION env switch opts out — passing
-                    // null matches the constructor default, so disabled boots
-                    // construct repositories exactly as before this mission).
-                    validator: $validator,
-                    fieldRegistry: $fieldRegistry,
-                    logger: $this->logger,
-                );
-                // revision-audit-provenance-01KTWY5V WP01: forward seam — the
-                // kernel's shared acting-account context is attached once
-                // EntityRepository grows setAccountContext() (WP02 of this
-                // mission); a guarded no-op until then. See attachAccountContext().
+        $this->entityTypeManager = new EntityTypeManagerFactory()->build(
+            database: $this->database,
+            dispatcher: $this->dispatcher,
+            fieldRegistry: $fieldRegistry,
+            logger: $this->logger,
+            accessHandlerResolver: fn(): ?EntityAccessHandler => $this->accessHandler ?? null,
+            communityScoreResolver: fn(EntityTypeInterface $definition): ?\Waaseyaa\EntityStorage\Tenancy\CommunityScope => $this->resolveCommunityScope($definition),
+            accountContextAttacher: function (object $repository): void {
                 $this->attachAccountContext($repository);
-
-                return $repository;
-            },
-            $fieldRegistry,
-            $this->logger,
-            // Issue #1376: probe used by EntityTypeManager::addBundleFields()
-            // to surface a `[BUNDLE_SUBTABLE_MISSING]` notice once per
-            // (entity_type_id, bundle) when the per-bundle subtable is not
-            // yet materialized on disk. Resolved name format mirrors
-            // SqlSchemaHandler::resolveSubtableName().
-            static function (string $entityTypeId, string $bundle) use ($database): bool {
-                return $database->schema()->tableExists(
-                    SqlSchemaHandler::resolveSubtableName($entityTypeId, $bundle),
-                );
-            },
-            // Materializer used by EntityTypeManager::addBundleFields() to
-            // auto-create/migrate the per-bundle subtable (e.g. node__page) with
-            // real typed columns when bundle fields are registered. ensureTable()
-            // is idempotent: it creates the base table if missing and the
-            // subtable(s) for every registered bundle, so it is safe under the
-            // zero-and-re-migrate loop and on re-runs against an existing DB.
-            function (EntityTypeInterface $type) use ($database, $fieldRegistry): void {
-                $handler = new SqlSchemaHandler($type, $database, $fieldRegistry, null, $this->logger);
-                $handler->ensureTable();
             },
         );
     }
@@ -903,109 +790,7 @@ abstract class AbstractKernel
                 ),
         ];
 
-        return new class ($providers, $kernelBindings) implements \Psr\Container\ContainerInterface {
-            /** @var array<string, object> */
-            private array $cache = [];
-
-            /**
-             * @param list<ServiceProvider>                                           $providers
-             * @param array<string, \Closure(\Psr\Container\ContainerInterface): object> $kernelBindings
-             */
-            public function __construct(
-                private readonly array $providers,
-                private readonly array $kernelBindings,
-            ) {}
-
-            public function get(string $id): object
-            {
-                if (isset($this->cache[$id])) {
-                    return $this->cache[$id];
-                }
-
-                // 1. Explicit kernel bindings (BootDiagnosticReport, HealthCheckerInterface, …).
-                if (isset($this->kernelBindings[$id])) {
-                    $instance = ($this->kernelBindings[$id])($this);
-                    $this->cache[$id] = $instance;
-
-                    return $instance;
-                }
-
-                // 2. Provider bindings (EntityTypeManager, DatabaseInterface, …).
-                foreach ($this->providers as $provider) {
-                    try {
-                        $instance = $provider->resolve($id);
-                        $this->cache[$id] = $instance;
-
-                        return $instance;
-                    } catch (\RuntimeException $e) {
-                        // Only a genuinely *unbound* id falls through to the next
-                        // provider / reflection auto-wiring. resolve() signals that
-                        // case with the canonical "No binding registered for …"
-                        // message (ServiceProvider::resolve()). Any other failure is
-                        // a real construction error (e.g. a factory dependency that
-                        // could not be built) — re-throw it so the true cause is not
-                        // masked as a misleading "No binding" NotFoundException.
-                        if (!str_starts_with($e->getMessage(), 'No binding registered for ')) {
-                            throw $e;
-                        }
-                        // try next
-                    }
-                }
-
-                // 3. Reflection-based auto-wiring for concrete handler classes.
-                if (!class_exists($id)) {
-                    throw new class ($id) extends \RuntimeException implements \Psr\Container\NotFoundExceptionInterface {
-                        public function __construct(string $id)
-                        {
-                            parent::__construct(sprintf('No binding for "%s" in KernelHandlerContainer.', $id));
-                        }
-                    };
-                }
-
-                $ref = new \ReflectionClass($id);
-                $ctor = $ref->getConstructor();
-
-                if ($ctor === null || $ctor->getParameters() === []) {
-                    $instance = new $id();
-                    $this->cache[$id] = $instance;
-
-                    return $instance;
-                }
-
-                $args = [];
-                foreach ($ctor->getParameters() as $param) {
-                    $type = $param->getType();
-                    if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
-                        $args[] = $this->get($type->getName());
-                    } elseif ($param->isOptional()) {
-                        $args[] = $param->getDefaultValue();
-                    } else {
-                        throw new class ($id, $param->getName()) extends \RuntimeException implements \Psr\Container\NotFoundExceptionInterface {
-                            public function __construct(string $id, string $param)
-                            {
-                                parent::__construct(sprintf('Cannot auto-wire "%s": unresolvable parameter "$%s".', $id, $param));
-                            }
-                        };
-                    }
-                }
-
-                $instance = $ref->newInstanceArgs($args);
-                $this->cache[$id] = $instance;
-
-                return $instance;
-            }
-
-            public function has(string $id): bool
-            {
-                try {
-                    $this->get($id);
-
-                    return true;
-                } catch (\Throwable) {
-                    return false;
-                }
-            }
-        };
+        return new KernelHandlerContainer($providers, $kernelBindings);
     }
 
     /**

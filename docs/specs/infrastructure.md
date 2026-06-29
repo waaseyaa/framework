@@ -1385,6 +1385,8 @@ CORS origin resolution in `HttpKernel::handleCors()`:
 
 ### HTTP authorization pipeline (`HttpKernel::serveHttpRequest`)
 
+`serveHttpRequest()` orchestrates three focused private steps: `matchRoute()` (builds the `WaaseyaaRouter`, matches the path, populates `HttpRequest` attributes — returns `HttpResponse` on 404/405/500), `buildMiddlewareStack()` (assembles and sorts the auth pipeline, returns `HttpPipeline`), and `buildRouterChain()` (assembles domain routers + `BroadcastRouter`, returns `ControllerDispatcher`). Each is a pure code-movement extraction with no behavior change.
+
 After routing matches, `HttpKernel` builds an `HttpPipeline` of HTTP middleware (Bearer auth, session, CSRF, `AuthorizationMiddleware`, provider middleware). The inner handler is a stub that returns **200** with an empty body when the entire chain allows the request through.
 
 If any middleware short-circuits — for example `AuthorizationMiddleware` returning **302** to `/login` for unauthenticated `_authenticated` render routes, or **401** JSON:API for API routes — that response **must** be returned to the client immediately. The kernel treats any pipeline response whose status is **not 200** as final and does not continue to `ControllerDispatcher`. Only **200** from the pipeline means proceed to dispatch.
@@ -1504,7 +1506,7 @@ Authoritative contracts: `docs/specs/bundle-scoped-storage.md §Drift diagnostic
 
 ### Role registry composition
 
-`AbstractKernel::buildHandlerContainer()` composes the CLI handler container from the booted provider list. Among its kernel-owned bindings it registers `Waaseyaa\User\RoleRepository` via `RoleRepository::fromProviders($this->providers)`, which scans every provider implementing `Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface` and flattens their `Role` contributions into an id-keyed registry. This is a kernel-owned service mirroring the `HealthChecker` composition pattern above: a type no single provider binds, assembled once by the kernel and made injectable into class-based command handlers. It lets role-aware handlers such as the `user:assign-role` handler (`Waaseyaa\CLI\Handler\UserAssignRoleHandler`) resolve a role to its registered permissions and stamp the union onto a user. See `docs/specs/access-control.md §Roles` for the role-to-permission model.
+`AbstractKernel::buildHandlerContainer()` composes the CLI handler container from the booted provider list and returns a `KernelHandlerContainer` instance (`packages/foundation/src/Kernel/KernelHandlerContainer.php`), a named PSR-11 `ContainerInterface` implementation that replaced the inline anonymous class. Among its kernel-owned bindings it registers `Waaseyaa\User\RoleRepository` via `RoleRepository::fromProviders($this->providers)`, which scans every provider implementing `Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface` and flattens their `Role` contributions into an id-keyed registry. This is a kernel-owned service mirroring the `HealthChecker` composition pattern above: a type no single provider binds, assembled once by the kernel and made injectable into class-based command handlers. It lets role-aware handlers such as the `user:assign-role` handler (`Waaseyaa\CLI\Handler\UserAssignRoleHandler`) resolve a role to its registered permissions and stamp the union onto a user. See `docs/specs/access-control.md §Roles` for the role-to-permission model.
 
 ## Internal Interfaces
 
@@ -1628,7 +1630,7 @@ EnvLoader::load(.env)
   → new EntityAuditLogger($projectRoot)
   → register EntityWriteAuditListener on PRE_SAVE, POST_SAVE, POST_DELETE
   → bootDatabase()           // DatabaseBootstrapper
-  → bootEntityTypeManager()  // inline: storage factory (SqlEntityStorage) + repository factory (EntityRepository)
+  → bootEntityTypeManager()  // delegates to EntityTypeManagerFactory: storage factory (SqlEntityStorage) + repository factory (EntityRepository)
   → compileManifest()        // ManifestBootstrapper
   → bootMigrations()         // reuses DBAL connection from bootDatabase
   → discoverAndRegisterProviders()  // ProviderRegistry
@@ -1642,7 +1644,7 @@ EnvLoader::load(.env)
 
 Early boot initializes the entity lifecycle manager (for disabling entity types at runtime) and the entity audit logger (for write audit trails). The `EntityWriteAuditListener` is registered on the event dispatcher before any entity storage is created, ensuring all entity writes are audited from boot onward.
 
-`bootEntityTypeManager()` wires storage for each registered entity type. Every `SqlSchemaHandler` instantiated in that path receives the kernel's `LoggerInterface` as its fifth constructor argument (after entity type, database, shared `FieldDefinitionRegistry`, and optional `null` bundle enumerator) so schema derivation can log unknown field types without failing boot. Column mapping contract: [`field/column-derivation.md`](./field/column-derivation.md).
+`bootEntityTypeManager()` wires storage for each registered entity type. The construction logic is delegated to `EntityTypeManagerFactory` (`packages/foundation/src/Kernel/EntityTypeManagerFactory.php`); the kernel threads in callables for the lazy access-handler resolver, the community-scope resolver, and the account-context attacher — keeping the factory dependency-free while preserving the lazy resolution semantics. Every `SqlSchemaHandler` instantiated in that path receives the kernel's `LoggerInterface` as its fifth constructor argument (after entity type, database, shared `FieldDefinitionRegistry`, and optional `null` bundle enumerator) so schema derivation can log unknown field types without failing boot. Column mapping contract: [`field/column-derivation.md`](./field/column-derivation.md).
 
 `loadAppEntityTypes()` reads `config/entity-types.php` and registers any `EntityTypeInterface` instances found there. Non-conforming entries are logged as warnings. Registration failures (duplicate IDs, invalid definitions) are logged as errors but do not halt boot.
 

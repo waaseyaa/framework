@@ -286,82 +286,13 @@ final class HttpKernel extends AbstractKernel
 
         $path = $this->stripLanguagePrefixForHttpRouting($path);
 
-        $context = new RequestContext('', $method);
-        $router = new WaaseyaaRouter($context);
-        $routeRegistrar = new BuiltinRouteRegistrar($this->entityTypeManager, $this->providers);
-        $routeRegistrar->register($router);
-
-        try {
-            $params = $router->match($path);
-        } catch (RouteNotFoundException) {
-            return $this->jsonApiResponse(404, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => 'No route matches the requested path.']]]);
-        } catch (RouteMethodNotAllowedException) {
-            return $this->jsonApiResponse(405, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '405', 'title' => 'Method Not Allowed', 'detail' => "Method {$method} is not allowed for this route."]]]);
-        } catch (\Throwable $e) {
-            $this->logger->critical(sprintf("Routing error: %s in %s:%d\n%s", $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString()));
-
-            return $this->jsonApiResponse(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'A routing error occurred.']]]);
+        $matchResult = $this->matchRoute($path, $method);
+        if ($matchResult instanceof HttpResponse) {
+            return $matchResult;
         }
+        $httpRequest = $matchResult;
 
-        $httpRequest = HttpRequest::createFromGlobals();
-        $routeName = $params['_route'] ?? '';
-        $matchedRoute = $router->getRouteCollection()->get($routeName);
-        foreach ($params as $key => $value) {
-            $httpRequest->attributes->set(
-                $key,
-                $key === '_controller' ? RouteBuilder::normalizeControllerDefault($value) : $value,
-            );
-        }
-        if ($matchedRoute !== null) {
-            $httpRequest->attributes->set('_route_object', $matchedRoute);
-        }
-
-        $userStorage = $this->entityTypeManager->getStorage('user');
-        $gate = new EntityAccessGate($this->accessHandler);
-        $accessChecker = new AccessChecker(gate: $gate);
-        $errorPageRenderer = $this->resolveErrorPageRenderer();
-
-        $middlewares = [
-            new BearerAuthMiddleware(
-                $userStorage,
-                (string) ($this->config['jwt_secret'] ?? ''),
-                is_array($this->config['api_keys'] ?? null) ? $this->config['api_keys'] : [],
-            ),
-            new SessionMiddleware(
-                $userStorage,
-                $this->shouldUseDevFallbackAccount() ? new DevAdminAccount() : null,
-                $this->logger,
-                $this->sessionCookieOptions(),
-                is_array($this->config['trusted_proxies'] ?? null) ? $this->config['trusted_proxies'] : [],
-                // The kernel's single acting-account context — the middleware
-                // mirrors `_account` into it on every request (FR-002).
-                accountContext: $this->accountContext(),
-            ),
-            new CsrfMiddleware(),
-            new AuthorizationMiddleware($accessChecker, $errorPageRenderer),
-        ];
-
-        if ($this->isDebugMode()) {
-            $middlewares[] = new DebugHeaderMiddleware(
-                startTime: $_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true),
-            );
-        }
-
-        foreach ($this->providers as $provider) {
-            if (!$provider instanceof HasMiddlewareInterface) {
-                continue;
-            }
-            foreach ($provider->middleware($this->entityTypeManager) as $mw) {
-                $middlewares[] = $mw;
-            }
-        }
-
-        usort($middlewares, fn(object $a, object $b) => $this->getMiddlewarePriority($b) <=> $this->getMiddlewarePriority($a));
-
-        $pipeline = new HttpPipeline();
-        foreach ($middlewares as $middleware) {
-            $pipeline = $pipeline->withMiddleware($middleware);
-        }
+        $pipeline = $this->buildMiddlewareStack();
 
         try {
             $authResponse = $pipeline->handle(
@@ -409,6 +340,146 @@ final class HttpKernel extends AbstractKernel
             ]);
         }
 
+        $dispatcher = $this->buildRouterChain();
+
+        $finalResponse = $dispatcher->dispatch($httpRequest);
+
+        // Attach the XSRF-TOKEN cookie to HTML responses after controller
+        // dispatch. CsrfMiddleware runs in the auth pipeline (before the
+        // controller), so it only sees the empty 200 pass-through response,
+        // not the real controller response. We call the middleware's static
+        // helper here to satisfy contract §1 (cookie on every text/html
+        // response) once the actual Content-Type is known.
+        CsrfMiddleware::attachCookieIfHtml($httpRequest, $finalResponse);
+
+        // Apply framing / MIME-sniffing security headers to the dispatched
+        // response (#1651). SecurityHeadersMiddleware never reaches the real
+        // response through the authorization pipeline (its inner handler is a
+        // stub 200), so — like the CSRF cookie above — the headers are applied
+        // here, post-dispatch. X-Frame-Options defaults to SAMEORIGIN (blocks
+        // cross-origin clickjacking, preserves same-origin previews) and is
+        // configurable via security_headers.frame_options; routes that must be
+        // embeddable cross-origin set the _frame_exempt request attribute to opt
+        // out. CSP/HSTS remain opt-in via the middleware constructor.
+        $frameOptions = is_array($this->config['security_headers'] ?? null)
+            && is_string($this->config['security_headers']['frame_options'] ?? null)
+            ? $this->config['security_headers']['frame_options']
+            : 'SAMEORIGIN';
+        SecurityHeadersMiddleware::applyResponseDefaults($httpRequest, $finalResponse, $frameOptions);
+
+        return $finalResponse;
+    }
+
+    /**
+     * Build and return the route-matched HttpRequest with all route parameters
+     * set as attributes. Returns an HttpResponse on routing errors (404, 405, 500).
+     *
+     * @return HttpRequest|HttpResponse HttpRequest on success, HttpResponse on routing error.
+     */
+    private function matchRoute(string $path, string $method): HttpRequest|HttpResponse
+    {
+        $context = new RequestContext('', $method);
+        $router = new WaaseyaaRouter($context);
+        $routeRegistrar = new BuiltinRouteRegistrar($this->entityTypeManager, $this->providers);
+        $routeRegistrar->register($router);
+
+        try {
+            $params = $router->match($path);
+        } catch (RouteNotFoundException) {
+            return $this->jsonApiResponse(404, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => 'No route matches the requested path.']]]);
+        } catch (RouteMethodNotAllowedException) {
+            return $this->jsonApiResponse(405, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '405', 'title' => 'Method Not Allowed', 'detail' => "Method {$method} is not allowed for this route."]]]);
+        } catch (\Throwable $e) {
+            $this->logger->critical(sprintf("Routing error: %s in %s:%d\n%s", $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString()));
+
+            return $this->jsonApiResponse(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'A routing error occurred.']]]);
+        }
+
+        $httpRequest = HttpRequest::createFromGlobals();
+        $routeName = $params['_route'] ?? '';
+        $matchedRoute = $router->getRouteCollection()->get($routeName);
+        foreach ($params as $key => $value) {
+            $httpRequest->attributes->set(
+                $key,
+                $key === '_controller' ? RouteBuilder::normalizeControllerDefault($value) : $value,
+            );
+        }
+        if ($matchedRoute !== null) {
+            $httpRequest->attributes->set('_route_object', $matchedRoute);
+        }
+
+        return $httpRequest;
+    }
+
+    /**
+     * Build the ordered middleware pipeline for the authorization phase.
+     *
+     * Collects built-in middleware (BearerAuth, Session, CSRF, Authorization),
+     * optional debug header middleware, and any provider-contributed middleware,
+     * sorts by priority (highest first — outermost onion layer), and returns
+     * the assembled HttpPipeline.
+     */
+    private function buildMiddlewareStack(): HttpPipeline
+    {
+        $userStorage = $this->entityTypeManager->getStorage('user');
+        $gate = new EntityAccessGate($this->accessHandler);
+        $accessChecker = new AccessChecker(gate: $gate);
+        $errorPageRenderer = $this->resolveErrorPageRenderer();
+
+        $middlewares = [
+            new BearerAuthMiddleware(
+                $userStorage,
+                (string) ($this->config['jwt_secret'] ?? ''),
+                is_array($this->config['api_keys'] ?? null) ? $this->config['api_keys'] : [],
+            ),
+            new SessionMiddleware(
+                $userStorage,
+                $this->shouldUseDevFallbackAccount() ? new DevAdminAccount() : null,
+                $this->logger,
+                $this->sessionCookieOptions(),
+                is_array($this->config['trusted_proxies'] ?? null) ? $this->config['trusted_proxies'] : [],
+                // The kernel's single acting-account context — the middleware
+                // mirrors `_account` into it on every request (FR-002).
+                accountContext: $this->accountContext(),
+            ),
+            new CsrfMiddleware(),
+            new AuthorizationMiddleware($accessChecker, $errorPageRenderer),
+        ];
+
+        if ($this->isDebugMode()) {
+            $middlewares[] = new DebugHeaderMiddleware(
+                startTime: $_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true),
+            );
+        }
+
+        foreach ($this->providers as $provider) {
+            if (!$provider instanceof HasMiddlewareInterface) {
+                continue;
+            }
+            foreach ($provider->middleware($this->entityTypeManager) as $mw) {
+                $middlewares[] = $mw;
+            }
+        }
+
+        usort($middlewares, fn(object $a, object $b) => $this->getMiddlewarePriority($b) <=> $this->getMiddlewarePriority($a));
+
+        $pipeline = new HttpPipeline();
+        foreach ($middlewares as $middleware) {
+            $pipeline = $pipeline->withMiddleware($middleware);
+        }
+
+        return $pipeline;
+    }
+
+    /**
+     * Assemble the domain-router chain and wrap it in a ControllerDispatcher.
+     *
+     * Merges foundation routers, provider-contributed routers, and the
+     * BroadcastRouter (always last), then returns a ready-to-dispatch
+     * ControllerDispatcher.
+     */
+    private function buildRouterChain(): ControllerDispatcher
+    {
         $foundationRouters = [
             new HttpRouter\TranslationRouter($this->entityTypeManager, $this->accessHandler),
             new HttpRouter\JsonApiRouter($this->entityTypeManager, $this->accessHandler),
@@ -445,39 +516,12 @@ final class HttpKernel extends AbstractKernel
             new HttpRouter\BroadcastRouter($this->logger, $broadcastSubscribersPath),
         ]);
 
-        $dispatcher = new ControllerDispatcher(
+        return new ControllerDispatcher(
             $routers,
             $this->config,
             $this->logger,
             $this->resolveInertiaFullPageRenderer(),
         );
-
-        $finalResponse = $dispatcher->dispatch($httpRequest);
-
-        // Attach the XSRF-TOKEN cookie to HTML responses after controller
-        // dispatch. CsrfMiddleware runs in the auth pipeline (before the
-        // controller), so it only sees the empty 200 pass-through response,
-        // not the real controller response. We call the middleware's static
-        // helper here to satisfy contract §1 (cookie on every text/html
-        // response) once the actual Content-Type is known.
-        CsrfMiddleware::attachCookieIfHtml($httpRequest, $finalResponse);
-
-        // Apply framing / MIME-sniffing security headers to the dispatched
-        // response (#1651). SecurityHeadersMiddleware never reaches the real
-        // response through the authorization pipeline (its inner handler is a
-        // stub 200), so — like the CSRF cookie above — the headers are applied
-        // here, post-dispatch. X-Frame-Options defaults to SAMEORIGIN (blocks
-        // cross-origin clickjacking, preserves same-origin previews) and is
-        // configurable via security_headers.frame_options; routes that must be
-        // embeddable cross-origin set the _frame_exempt request attribute to opt
-        // out. CSP/HSTS remain opt-in via the middleware constructor.
-        $frameOptions = is_array($this->config['security_headers'] ?? null)
-            && is_string($this->config['security_headers']['frame_options'] ?? null)
-            ? $this->config['security_headers']['frame_options']
-            : 'SAMEORIGIN';
-        SecurityHeadersMiddleware::applyResponseDefaults($httpRequest, $finalResponse, $frameOptions);
-
-        return $finalResponse;
     }
 
     /**
