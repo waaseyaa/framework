@@ -22,6 +22,9 @@ final class LocalTransport implements TransportInterface
             $envelope->subject,
         );
 
-        file_put_contents($this->logPath, $entry, FILE_APPEND | LOCK_EX);
+        $written = file_put_contents($this->logPath, $entry, FILE_APPEND | LOCK_EX);
+        if ($written === false) {
+            throw new \RuntimeException(sprintf('Failed to write mail log entry to "%s".', $this->logPath));
+        }
     }
 }
