@@ -199,3 +199,38 @@ exists, JsonApiController + genealogy move over, the `accessCheck(false)` caller
 follow trivially, the §2 read/write callers are a mechanical sweep, and
 `SqlEntityStorage` + `EntityStorageFactory` + their fixtures can be deleted.
 Without it, the engine cannot be removed.
+
+---
+
+## 5. WP1 update (2026-07-01): behavior-identity harness findings
+
+`tests/Integration/PhaseN/EntityStorageEngineParity/` now pins four
+cross-engine divergences discovered while building the harness (see
+CHANGELOG `[Unreleased]` for the full writeup). Two are load-bearing for the
+WPs below:
+
+- **Timestamp/clock gap (risk for WP3).** `EntityRepository` has no clock and
+  never auto-populates `created`/`changed`-shaped fields; `SqlEntityStorage`
+  does, via its injected `EntityClockInterface`. **Before migrating any §2
+  write consumer in WP3, check whether the entity type being written has a
+  `created`/`changed`-shaped field that the consumer expects the storage
+  layer to auto-populate** (rather than setting it itself). If so, either the
+  consumer must set the timestamp explicitly before calling
+  `getRepository()->save()`, or this gap needs a fix first — do not assume
+  the WP3 sweep is purely mechanical for such consumers.
+- **Event-model gap (risk for WP2/WP3, already known).** Confirmed exact
+  mechanics: `EntityRepository` additionally fires `BeforeSaveEvent`/
+  `AfterSaveEvent`; a `BeforeSaveEvent` subscriber may throw
+  `AbortOperationException` to veto the save (no write occurs, no
+  `AfterSaveEvent`). Per the WP2 risk check, grep for listeners on these two
+  events and confirm no to-be-migrated write caller's correctness depends on
+  them NOT firing.
+
+Two are informational only (confirmed NOT to block current consumers):
+
+- A `json`-typed core field colliding with a real base-table column is
+  correctly encoded by `SqlEntityStorage` but silently mangled by
+  `EntityRepository`/`SqlStorageDriver`. No first-party entity type has this
+  collision today (real columns only exist for entity-key fields).
+- The sql-column translatable layout has no `EntityRepository` equivalent.
+  No first-party entity type uses sql-column for a translatable type.
