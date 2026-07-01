@@ -15,9 +15,11 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Exception\MissingQueryAccountException;
 use Waaseyaa\EntityStorage\SqlEntityQuery;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 
@@ -40,7 +42,7 @@ final class SqlEntityQueryAccessCheckTest extends TestCase
 {
     private DBALDatabase $database;
 
-    private SqlEntityStorage $storage;
+    private EntityRepository $repository;
 
     protected function setUp(): void
     {
@@ -56,7 +58,14 @@ final class SqlEntityQueryAccessCheckTest extends TestCase
         $schemaHandler->ensureTable();
 
         $dispatcher = new EventDispatcher();
-        $this->storage = new SqlEntityStorage($entityType, $this->database, $dispatcher);
+        $resolver = new SingleConnectionResolver($this->database);
+        $driver = new SqlStorageDriver($resolver);
+        $this->repository = new EntityRepository(
+            $entityType,
+            $driver,
+            $dispatcher,
+            database: $this->database,
+        );
     }
 
     #[Test]
@@ -76,7 +85,6 @@ final class SqlEntityQueryAccessCheckTest extends TestCase
 
         $query = $this->newQuery()
             ->withAccessHandler($handler)
-            ->withEntityLoader($this->storage->loadMultiple(...))
             ->setAccount($accountA);
 
         $ids = $query->execute();
@@ -113,8 +121,7 @@ final class SqlEntityQueryAccessCheckTest extends TestCase
         ]);
 
         $query = $this->newQuery()
-            ->withAccessHandler(new EntityAccessHandler())
-            ->withEntityLoader($this->storage->loadMultiple(...));
+            ->withAccessHandler(new EntityAccessHandler());
 
         $this->expectException(MissingQueryAccountException::class);
         $this->expectExceptionMessageMatches('/access checking is enabled but no account is bound/');
@@ -138,7 +145,6 @@ final class SqlEntityQueryAccessCheckTest extends TestCase
 
         $ids = $this->newQuery()
             ->withAccessHandler($handler)
-            ->withEntityLoader($this->storage->loadMultiple(...))
             ->setAccount($accountA)
             ->sort('id', 'ASC')
             ->execute();
@@ -165,7 +171,6 @@ final class SqlEntityQueryAccessCheckTest extends TestCase
 
         $result = $this->newQuery()
             ->withAccessHandler($handler)
-            ->withEntityLoader($this->storage->loadMultiple(...))
             ->setAccount($accountA)
             ->count()
             ->execute();
@@ -211,7 +216,6 @@ final class SqlEntityQueryAccessCheckTest extends TestCase
         foreach ([[0, 25], [25, 25], [50, 25], [75, 25]] as [$offset, $limit]) {
             $pages[] = $this->newQuery()
                 ->withAccessHandler($handler)
-                ->withEntityLoader($this->storage->loadMultiple(...))
                 ->setAccount($accountA)
                 ->sort('id', 'ASC')
                 ->range($offset, $limit)
@@ -262,7 +266,6 @@ final class SqlEntityQueryAccessCheckTest extends TestCase
 
         $ids = $this->newQuery()
             ->withAccessHandler($handler)
-            ->withEntityLoader($this->storage->loadMultiple(...))
             ->setAccount($anonymous)
             ->execute();
 
@@ -286,7 +289,6 @@ final class SqlEntityQueryAccessCheckTest extends TestCase
         $start = microtime(true);
         $ids = $this->newQuery()
             ->withAccessHandler($handler)
-            ->withEntityLoader($this->storage->loadMultiple(...))
             ->setAccount($accountA)
             ->range(0, 25)
             ->execute();
@@ -327,7 +329,7 @@ final class SqlEntityQueryAccessCheckTest extends TestCase
      */
     private function newQuery(): SqlEntityQuery
     {
-        $query = $this->storage->getQuery();
+        $query = $this->repository->getQuery();
         \assert($query instanceof SqlEntityQuery);
         return $query;
     }
@@ -340,7 +342,7 @@ final class SqlEntityQueryAccessCheckTest extends TestCase
     private function seedRows(array $rows): void
     {
         foreach ($rows as $row) {
-            $this->storage->save($this->storage->create($row));
+            $this->repository->save($this->repository->create($row), validate: false);
         }
     }
 
@@ -352,7 +354,13 @@ final class SqlEntityQueryAccessCheckTest extends TestCase
      */
     private function titlesFor(array $ids): array
     {
-        $entities = $this->storage->loadMultiple($ids);
+        $entities = [];
+        foreach ($this->repository->findMany($ids) as $entity) {
+            $entityId = $entity->id();
+            if ($entityId !== null) {
+                $entities[$entityId] = $entity;
+            }
+        }
         $titles = [];
         foreach ($ids as $id) {
             $entity = $entities[$id] ?? null;

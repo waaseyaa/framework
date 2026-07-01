@@ -15,7 +15,9 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 
@@ -46,7 +48,7 @@ final class AdminBypassCapabilityTest extends TestCase
     public const BYPASS_PERMISSION = 'entity.bypass_ownership';
 
     private DBALDatabase $database;
-    private SqlEntityStorage $storage;
+    private EntityRepository $repository;
 
     protected function setUp(): void
     {
@@ -60,10 +62,13 @@ final class AdminBypassCapabilityTest extends TestCase
 
         new SqlSchemaHandler($entityType, $this->database)->ensureTable();
 
-        $this->storage = new SqlEntityStorage(
+        $resolver = new SingleConnectionResolver($this->database);
+        $driver = new SqlStorageDriver($resolver);
+        $this->repository = new EntityRepository(
             $entityType,
-            $this->database,
+            $driver,
             new EventDispatcher(),
+            database: $this->database,
             accessHandler: new EntityAccessHandler([$this->ownerOrBypassPolicy()]),
         );
 
@@ -75,7 +80,7 @@ final class AdminBypassCapabilityTest extends TestCase
             ['title' => 'c1', 'owner_id' => 3],
             ['title' => 'c2', 'owner_id' => 3],
         ] as $row) {
-            $this->storage->save($this->storage->create($row));
+            $this->repository->save($this->repository->create($row), validate: false);
         }
     }
 
@@ -87,7 +92,7 @@ final class AdminBypassCapabilityTest extends TestCase
         // Note: accessCheck(true) is the default — left untouched on purpose.
         // The admin sees everything because the policy said so, not because
         // the check was silenced.
-        $ids = $this->storage->getQuery()
+        $ids = $this->repository->getQuery()
             ->setAccount($admin)
             ->sort('id', 'ASC')
             ->execute();
@@ -103,7 +108,7 @@ final class AdminBypassCapabilityTest extends TestCase
         // (a1, a2 — 2 rows).
         $plain = $this->makeAccount(1, []);
 
-        $ids = $this->storage->getQuery()
+        $ids = $this->repository->getQuery()
             ->setAccount($plain)
             ->sort('id', 'ASC')
             ->execute();

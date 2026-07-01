@@ -17,7 +17,6 @@ use Waaseyaa\Entity\Tests\Helper\TestEntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Genealogy\Entity\GenealogyFamily;
@@ -40,13 +39,11 @@ final class GenealogyFamilyServiceTest extends TestCase
         $resolver = new SingleConnectionResolver($database);
         $manager = new EntityTypeManager(
             $dispatcher,
-            function (EntityTypeInterface $definition) use ($database, $dispatcher, $registry): SqlEntityStorage {
+            null,
+            // C-22 WP4: repository factory mirroring the kernel's getRepository() shape.
+            function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $resolver, $database, $registry): EntityRepository {
                 (new SqlSchemaHandler($definition, $database, $registry))->ensureTable();
 
-                return new SqlEntityStorage($definition, $database, $dispatcher, $registry);
-            },
-            // C-22 WP2: repository factory mirroring the kernel's getRepository() shape.
-            function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $resolver, $database, $registry): EntityRepository {
                 $idKey = $definition->getKeys()['id'] ?? 'id';
 
                 return new EntityRepository(
@@ -98,19 +95,19 @@ final class GenealogyFamilyServiceTest extends TestCase
     public function member_person_ids_reads_member_of_family_edges(): void
     {
         $manager = $this->makeManager();
-        $personStorage = $manager->getStorage('genealogy_person');
-        $familyStorage = $manager->getStorage('genealogy_family');
-        $relStorage = $manager->getStorage('relationship');
+        $personRepository = $manager->getRepository('genealogy_person');
+        $familyRepository = $manager->getRepository('genealogy_family');
+        $relRepository = $manager->getRepository('relationship');
 
-        $family = $familyStorage->create(['display_name' => 'House']);
-        $familyStorage->save($family);
-        $m1 = $personStorage->create(['display_name' => 'M1']);
-        $personStorage->save($m1);
-        $m2 = $personStorage->create(['display_name' => 'M2']);
-        $personStorage->save($m2);
+        $family = $familyRepository->create(['display_name' => 'House']);
+        $familyRepository->save($family, validate: false);
+        $m1 = $personRepository->create(['display_name' => 'M1']);
+        $personRepository->save($m1, validate: false);
+        $m2 = $personRepository->create(['display_name' => 'M2']);
+        $personRepository->save($m2, validate: false);
 
         foreach ([$m1, $m2] as $member) {
-            $e = $relStorage->create([
+            $e = $relRepository->create([
                 'relationship_type' => GenealogyRelationshipType::MEMBER_OF_FAMILY,
                 'from_entity_type' => 'genealogy_person',
                 'from_entity_id' => (string) $member->id(),
@@ -119,7 +116,7 @@ final class GenealogyFamilyServiceTest extends TestCase
                 'directionality' => 'directed',
                 'status' => 1,
             ]);
-            $relStorage->save($e);
+            $relRepository->save($e, validate: false);
         }
 
         $service = new GenealogyFamilyService($manager);

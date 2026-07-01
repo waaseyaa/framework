@@ -40,29 +40,29 @@ try {
 
 function seedSsrFixtures(HttpKernel $kernel): void
 {
-    $nodeStorage = $kernel->getEntityTypeManager()->getStorage('node');
+    $nodeRepository = $kernel->getEntityTypeManager()->getRepository('node');
     foreach (WorkflowFixturePack::editorialNodesForSsr() as $fixture) {
-        $node = $nodeStorage->create($fixture);
-        $nodeStorage->save($node);
+        $node = $nodeRepository->create($fixture);
+        $nodeRepository->save($node, validate: false);
     }
 
-    $pathAliasStorage = $kernel->getEntityTypeManager()->getStorage('path_alias');
+    $pathAliasRepository = $kernel->getEntityTypeManager()->getRepository('path_alias');
     foreach (WorkflowFixturePack::pathAliasesForSsr() as $aliasFixture) {
-        $alias = $pathAliasStorage->create($aliasFixture);
-        $pathAliasStorage->save($alias);
+        $alias = $pathAliasRepository->create($aliasFixture);
+        $pathAliasRepository->save($alias, validate: false);
     }
 }
 
 function updateNodeTitle(HttpKernel $kernel, string $title): void
 {
-    $storage = $kernel->getEntityTypeManager()->getStorage('node');
-    $node = $storage->load(1);
+    $repository = $kernel->getEntityTypeManager()->getRepository('node');
+    $node = $repository->find('1');
     if ($node === null) {
         throw new RuntimeException('Node 1 was not found.');
     }
 
     $node->set('title', $title);
-    $storage->save($node);
+    $repository->save($node, validate: false);
 }
 
 function closeKernelDatabase(HttpKernel $kernel): void

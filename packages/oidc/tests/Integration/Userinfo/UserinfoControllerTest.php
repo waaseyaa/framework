@@ -18,7 +18,6 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Oidc\Keys\SigningKey;
 use Waaseyaa\Oidc\Token\AccessTokenIssuer;
@@ -43,7 +42,6 @@ final class UserinfoControllerTest extends TestCase
 
     private DBALDatabase $tokenDb;
     private AccessTokenIssuer $accessTokenIssuer;
-    private SqlEntityStorage $userStorage;
     private EntityRepository $userRepository;
 
     protected function setUp(): void
@@ -71,8 +69,7 @@ final class UserinfoControllerTest extends TestCase
             'status' => ['type' => 'int', 'not null' => true, 'default' => 1],
             'created' => ['type' => 'int', 'not null' => false],
         ]);
-        $this->userStorage = new SqlEntityStorage($userEntityType, $userDb, new EventDispatcher());
-        // C-22 WP3: read path now goes through the canonical repository.
+        // C-22 WP4: the sole persistence engine — no separate storage read path.
         $this->userRepository = new EntityRepository(
             $userEntityType,
             new SqlStorageDriver(new SingleConnectionResolver($userDb), 'uid'),
@@ -87,7 +84,7 @@ final class UserinfoControllerTest extends TestCase
             'email_verified' => true,
         ]);
         $user->enforceIsNew();
-        $this->userStorage->save($user);
+        $this->userRepository->save($user);
     }
 
     #[Test]
@@ -169,7 +166,6 @@ final class UserinfoControllerTest extends TestCase
     private function controller(): UserinfoController
     {
         $entityTypeManager = $this->createMock(EntityTypeManager::class);
-        $entityTypeManager->method('getStorage')->with('user')->willReturn($this->userStorage);
         $entityTypeManager->method('getRepository')->with('user')->willReturn($this->userRepository);
 
         return new UserinfoController(

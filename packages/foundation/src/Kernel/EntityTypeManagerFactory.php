@@ -17,13 +17,12 @@ use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Schema\TranslationSchemaHandler;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 
 /**
- * Constructs the EntityTypeManager and its storage/repository factory closures.
+ * Constructs the EntityTypeManager and its repository factory closure.
  *
  * Extracted from AbstractKernel::bootEntityTypeManager() to isolate the
  * construction logic from the kernel's lifecycle orchestration. All
@@ -69,22 +68,11 @@ final class EntityTypeManagerFactory
 
         return new EntityTypeManager(
             $dispatcher,
-            function (EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $logger, $accessHandlerResolver): SqlEntityStorage {
-                $schemaHandler = new SqlSchemaHandler($definition, $database, $fieldRegistry, null, $logger);
-                $schemaHandler->ensureTable();
-                // Thread the kernel's access handler lazily so getQuery() is
-                // fail-closed (issue #1714). accessHandler is populated by
-                // discoverAccessPolicies() during boot; storage is built on first
-                // use and cached, so resolve at query time (?? null mirrors the
-                // tool-dispatch accessor pattern below).
-                return new SqlEntityStorage(
-                    $definition,
-                    $database,
-                    $dispatcher,
-                    $fieldRegistry,
-                    accessHandlerResolver: $accessHandlerResolver,
-                );
-            },
+            // C-22 WP4: the legacy SqlEntityStorage engine is removed. getStorage()
+            // is no longer wired to any first-party persistence engine at boot —
+            // it remains a "bring your own EntityStorageInterface" extension seam
+            // for entity types that explicitly declare a storageClass.
+            null,
             function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $logger, $validator, $communityScoreResolver, $accountContextAttacher, $accessHandlerResolver): EntityRepositoryInterface {
                 $schemaHandler = new SqlSchemaHandler($definition, $database, $fieldRegistry, null, $logger);
                 $schemaHandler->ensureTable();
@@ -117,6 +105,7 @@ final class EntityTypeManagerFactory
                     $resolver,
                     $idKey,
                     $communityScoreResolver($definition),
+                    $fieldRegistry,
                 );
                 $revisionDriver = $definition->isRevisionable()
                     ? new RevisionableStorageDriver($resolver, $definition)
@@ -135,10 +124,8 @@ final class EntityTypeManagerFactory
                     validator: $validator,
                     fieldRegistry: $fieldRegistry,
                     logger: $logger,
-                    // C-22: thread the SAME lazy access-handler resolver the
-                    // storage closure uses so EntityRepository::getQuery() is
-                    // fail-closed and access-filters identically to
-                    // SqlEntityStorage::getQuery().
+                    // C-22: thread the lazy access-handler resolver so
+                    // EntityRepository::getQuery() is fail-closed.
                     accessHandlerResolver: $accessHandlerResolver,
                 );
                 // revision-audit-provenance-01KTWY5V WP01: forward seam — the

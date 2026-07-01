@@ -15,7 +15,6 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\GraphQL\GraphQlEndpoint;
 use Waaseyaa\GraphQL\Schema\SchemaFactory;
@@ -33,7 +32,7 @@ abstract class GraphQlIntegrationTestBase extends TestCase
     protected GraphQlEndpoint $endpoint;
     protected EntityAccessHandler $accessHandler;
 
-    /** @var array<string, SqlEntityStorage> */
+    /** @var array<string, EntityRepository> */
     protected array $storages = [];
 
     protected function setUp(): void
@@ -42,6 +41,7 @@ abstract class GraphQlIntegrationTestBase extends TestCase
 
         $this->database = DBALDatabase::createSqlite();
         $eventDispatcher = new EventDispatcher();
+        $resolver = new SingleConnectionResolver($this->database);
 
         $articleType = new EntityType(
             id: 'article',
@@ -92,20 +92,20 @@ abstract class GraphQlIntegrationTestBase extends TestCase
             $schemaHandler = new SqlSchemaHandler($type, $this->database);
             $schemaHandler->ensureTable();
             // Wire the access handler into getQuery() the way production does
-            // (AbstractKernel / EntityStorageFactory, issue #1714). Lazily, since
+            // (AbstractKernel / EntityRepository factory, issue #1714). Lazily, since
             // $this->accessHandler is built below after seeding. Without this the
             // query layer falls back to an empty handler and — under deny-by-default
             // (audit C-6) — denies every row before the resolver's guard runs.
-            $this->storages[$id] = new SqlEntityStorage(
+            $this->storages[$id] = new EntityRepository(
                 $type,
-                $this->database,
+                new SqlStorageDriver($resolver),
                 $eventDispatcher,
+                database: $this->database,
                 accessHandlerResolver: fn(): ?EntityAccessHandler => $this->accessHandler ?? null,
             );
         }
 
         $storages = $this->storages;
-        $resolver = new SingleConnectionResolver($this->database);
         $database = $this->database;
         $this->entityTypeManager = new EntityTypeManager(
             $eventDispatcher,

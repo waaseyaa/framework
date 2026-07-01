@@ -14,7 +14,7 @@ use Waaseyaa\EntityStorage\SqlSchemaHandler;
  * mission #1257 (entity-storage-hardening, K1).
  *
  * The static helper is the single source of truth shared by SqlSchemaHandler,
- * SqlEntityStorage, and SqlEntityQuery. The structural guard at
+ * the storage engine (EntityRepository), and SqlEntityQuery. The structural guard at
  * EntityTypeManager::addBundleFields() prevents bad input upstream; this
  * helper enforces the same guard at the formatting boundary as belt-and-
  * suspenders defense.

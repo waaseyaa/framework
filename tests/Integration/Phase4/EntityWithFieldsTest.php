@@ -10,7 +10,9 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityType;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldTypeManager;
@@ -20,7 +22,7 @@ use Waaseyaa\Field\FieldTypeManager;
  *
  * Exercises: waaseyaa/entity + waaseyaa/field + waaseyaa/database-legacy +
  * waaseyaa/entity-storage working together. Creates entity types with
- * field definitions, stores entities with field values via SqlEntityStorage,
+ * field definitions, stores entities with field values via EntityRepository,
  * loads them back, and queries by field values.
  */
 final class EntityWithFieldsTest extends TestCase
@@ -28,7 +30,7 @@ final class EntityWithFieldsTest extends TestCase
     private DBALDatabase $database;
     private EntityType $entityType;
     private EventDispatcher $eventDispatcher;
-    private SqlEntityStorage $storage;
+    private EntityRepository $storage;
     private FieldTypeManager $fieldTypeManager;
 
     protected function setUp(): void
@@ -81,10 +83,13 @@ final class EntityWithFieldsTest extends TestCase
             ],
         ]);
 
-        $this->storage = new SqlEntityStorage(
+        $resolver = new SingleConnectionResolver($this->database);
+        $driver = new SqlStorageDriver($resolver, $this->entityType->getKeys()['id'] ?? 'id');
+        $this->storage = new EntityRepository(
             $this->entityType,
-            $this->database,
+            $driver,
             $this->eventDispatcher,
+            database: $this->database,
         );
 
         // Initialize field type manager for field item creation.
@@ -108,7 +113,7 @@ final class EntityWithFieldsTest extends TestCase
             'is_active' => 1,
         ]);
 
-        $result = $this->storage->save($entity);
+        $result = $this->storage->save($entity, validate: false);
         $this->assertSame(EntityConstants::SAVED_NEW, $result);
         $this->assertNotNull($entity->id());
     }
@@ -124,10 +129,10 @@ final class EntityWithFieldsTest extends TestCase
             'description' => 'The ultimate gadget experience.',
             'is_active' => 1,
         ]);
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
         $id = $entity->id();
 
-        $loaded = $this->storage->load($id);
+        $loaded = $this->storage->find((string) $id);
 
         $this->assertNotNull($loaded);
         $this->assertSame('Gadget Pro', $loaded->label());
@@ -151,7 +156,7 @@ final class EntityWithFieldsTest extends TestCase
             'stock_count' => 5,
             'is_active' => 1,
         ]);
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
         $id = $entity->id();
 
         // Update some fields.
@@ -159,9 +164,9 @@ final class EntityWithFieldsTest extends TestCase
         $entity->set('price', 19.99);
         $entity->set('stock_count', 100);
         $entity->set('is_active', 0);
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
 
-        $loaded = $this->storage->load($id);
+        $loaded = $this->storage->find((string) $id);
         $this->assertSame('Updated Product', $loaded->label());
         $this->assertEquals(19.99, (float) $loaded->get('price'));
         $this->assertEquals(100, (int) $loaded->get('stock_count'));
@@ -177,11 +182,11 @@ final class EntityWithFieldsTest extends TestCase
             'bundle' => 'physical',
             'sku' => 'DEL-001',
         ]);
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
         $id = $entity->id();
 
-        $this->storage->delete([$entity]);
-        $this->assertNull($this->storage->load($id));
+        $this->storage->delete($entity);
+        $this->assertNull($this->storage->find((string) $id));
     }
 
     // ---- Query by field values ----
@@ -206,7 +211,7 @@ final class EntityWithFieldsTest extends TestCase
             ->execute();
 
         $this->assertCount(1, $ids);
-        $entity = $this->storage->load($ids[0]);
+        $entity = $this->storage->find((string) $ids[0]);
         $this->assertSame('Laptop', $entity->label());
     }
 
@@ -220,7 +225,7 @@ final class EntityWithFieldsTest extends TestCase
 
         $prices = [];
         foreach ($ids as $id) {
-            $entity = $this->storage->load($id);
+            $entity = $this->storage->find((string) $id);
             $prices[] = (float) $entity->get('price');
         }
 
@@ -243,7 +248,7 @@ final class EntityWithFieldsTest extends TestCase
         // The 2 most expensive products.
         $prices = [];
         foreach ($ids as $id) {
-            $entity = $this->storage->load($id);
+            $entity = $this->storage->find((string) $id);
             $prices[] = (float) $entity->get('price');
         }
 
@@ -410,9 +415,9 @@ final class EntityWithFieldsTest extends TestCase
             'price' => 99.99,
             'stock_count' => 25,
         ]);
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
 
-        $loaded = $this->storage->load($entity->id());
+        $loaded = $this->storage->find((string) $entity->id());
         $this->assertSame('SCH-001', $loaded->get('sku'));
         $this->assertEquals(99.99, (float) $loaded->get('price'));
         $this->assertEquals(25, (int) $loaded->get('stock_count'));
@@ -452,7 +457,7 @@ final class EntityWithFieldsTest extends TestCase
 
         foreach ($products as $values) {
             $entity = $this->storage->create($values);
-            $this->storage->save($entity);
+            $this->storage->save($entity, validate: false);
         }
     }
 }

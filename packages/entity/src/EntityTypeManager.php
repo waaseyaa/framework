@@ -308,7 +308,7 @@ class EntityTypeManager implements EntityTypeManagerInterface
      * yet exist on disk. Issue #1376 (deferred WP07-A from mission #1257).
      *
      * The notice is informational. Save-time and load-time paths in
-     * `SqlEntityStorage` already handle the missing-subtable case (the values
+     * `EntityRepository` already handle the missing-subtable case (the values
      * are skipped silently); this notice surfaces the registration-time
      * signal so operators see the gap before any save attempts.
      *

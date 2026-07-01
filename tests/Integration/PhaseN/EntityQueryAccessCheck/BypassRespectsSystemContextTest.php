@@ -10,7 +10,9 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 
@@ -34,7 +36,7 @@ use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 final class BypassRespectsSystemContextTest extends TestCase
 {
     private DBALDatabase $database;
-    private SqlEntityStorage $storage;
+    private EntityRepository $repository;
 
     protected function setUp(): void
     {
@@ -48,10 +50,13 @@ final class BypassRespectsSystemContextTest extends TestCase
 
         new SqlSchemaHandler($entityType, $this->database)->ensureTable();
 
-        $this->storage = new SqlEntityStorage(
+        $resolver = new SingleConnectionResolver($this->database);
+        $driver = new SqlStorageDriver($resolver);
+        $this->repository = new EntityRepository(
             $entityType,
-            $this->database,
+            $driver,
             new EventDispatcher(),
+            database: $this->database,
         );
 
         // Seed 5 rows owned by three different (fictional) accounts.
@@ -63,14 +68,14 @@ final class BypassRespectsSystemContextTest extends TestCase
             ['title' => 'r5', 'owner_id' => 3],
         ];
         foreach ($rows as $row) {
-            $this->storage->save($this->storage->create($row));
+            $this->repository->save($this->repository->create($row), validate: false);
         }
     }
 
     #[Test]
     public function bypassExecuteReturnsAllRows(): void
     {
-        $ids = $this->storage->getQuery()
+        $ids = $this->repository->getQuery()
             ->accessCheck(false)
             ->execute();
 
@@ -80,7 +85,7 @@ final class BypassRespectsSystemContextTest extends TestCase
     #[Test]
     public function bypassCountReturnsTotalRowCount(): void
     {
-        $result = $this->storage->getQuery()
+        $result = $this->repository->getQuery()
             ->accessCheck(false)
             ->count()
             ->execute();
@@ -96,7 +101,7 @@ final class BypassRespectsSystemContextTest extends TestCase
         // the absence of an account is benign — the reaper, purge job, and
         // migration platform run in a system context and have no principal
         // to bind.
-        $ids = $this->storage->getQuery()
+        $ids = $this->repository->getQuery()
             ->accessCheck(false)
             ->execute();
 

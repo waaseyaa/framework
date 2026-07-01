@@ -28,7 +28,6 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Relationship\Relationship;
 use Waaseyaa\Relationship\RelationshipSchemaManager;
@@ -47,11 +46,9 @@ final class AccessVisibilityConsistencyIntegrationTest extends TestCase
         $resolver = new SingleConnectionResolver($database);
         $manager = new EntityTypeManager(
             $dispatcher,
-            function (EntityType $definition) use ($dispatcher, $database): SqlEntityStorage {
-                $schema = new SqlSchemaHandler($definition, $database);
-                $schema->ensureTable();
-                return new SqlEntityStorage($definition, $database, $dispatcher);
-            },
+            // C-22 WP4: legacy SqlEntityStorage engine is deleted; persistence goes
+            // exclusively through the repository factory below.
+            null,
             // C-22: repository factory mirroring the kernel's getRepository() shape.
             function (string $_id, EntityType $definition) use ($dispatcher, $resolver, $database): EntityRepository {
                 new SqlSchemaHandler($definition, $database)->ensureTable();
@@ -87,30 +84,30 @@ final class AccessVisibilityConsistencyIntegrationTest extends TestCase
                 'status' => ['type' => 'integer'],
             ],
         ));
-        $manager->getStorage('relationship');
+        $manager->getRepository('relationship');
         new RelationshipSchemaManager($database)->ensure();
 
-        $nodeStorage = $manager->getStorage('node');
-        $anchor = $nodeStorage->create([
+        $nodeRepository = $manager->getRepository('node');
+        $anchor = $nodeRepository->create([
             'title' => 'Published Anchor',
             'body' => 'anchor context',
             'type' => 'teaching',
             'status' => 1,
             'workflow_state' => 'published',
         ]);
-        $nodeStorage->save($anchor);
+        $nodeRepository->save($anchor, validate: false);
 
-        $review = $nodeStorage->create([
+        $review = $nodeRepository->create([
             'title' => 'Confidential Review Draft',
             'body' => 'sensitive content',
             'type' => 'teaching',
             'status' => 'published',
             'workflow_state' => 'review',
         ]);
-        $nodeStorage->save($review);
+        $nodeRepository->save($review, validate: false);
 
-        $relationshipStorage = $manager->getStorage('relationship');
-        $relationship = $relationshipStorage->create([
+        $relationshipRepository = $manager->getRepository('relationship');
+        $relationship = $relationshipRepository->create([
             'relationship_type' => 'related',
             'from_entity_type' => 'node',
             'from_entity_id' => (string) $anchor->id(),
@@ -118,7 +115,7 @@ final class AccessVisibilityConsistencyIntegrationTest extends TestCase
             'to_entity_id' => (string) $review->id(),
             'status' => 1,
         ]);
-        $relationshipStorage->save($relationship);
+        $relationshipRepository->save($relationship, validate: false);
 
         $accessHandler = new EntityAccessHandler([
             new AllowAllNodePolicy(),

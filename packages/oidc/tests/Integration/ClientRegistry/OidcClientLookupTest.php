@@ -12,7 +12,6 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Oidc\ClientRegistry\OidcClientLookup;
 use Waaseyaa\Oidc\Entity\OidcClient;
@@ -20,7 +19,7 @@ use Waaseyaa\Oidc\Entity\OidcClient;
 #[CoversClass(OidcClientLookup::class)]
 final class OidcClientLookupTest extends TestCase
 {
-    private SqlEntityStorage $storage;
+    private EntityRepository $repository;
     private OidcClientLookup $lookup;
 
     protected function setUp(): void
@@ -44,20 +43,14 @@ final class OidcClientLookupTest extends TestCase
         ]);
 
         $dispatcher = new EventDispatcher();
-        $this->storage = new SqlEntityStorage(
-            $entityType,
-            $database,
-            $dispatcher,
-        );
-
-        $repository = new EntityRepository(
+        $this->repository = new EntityRepository(
             $entityType,
             new SqlStorageDriver(new SingleConnectionResolver($database)),
             $dispatcher,
             database: $database,
         );
 
-        $this->lookup = new OidcClientLookup($repository);
+        $this->lookup = new OidcClientLookup($this->repository);
     }
 
     public function testReturnsNullWhenClientIdNotFound(): void
@@ -67,12 +60,12 @@ final class OidcClientLookupTest extends TestCase
 
     public function testReturnsClientWhenClientIdMatches(): void
     {
-        $client = $this->storage->create([
+        $client = $this->repository->create([
             'client_id' => 'minoo-web',
             'name' => 'Minoo',
             'redirect_uris' => ['https://minoo.test/callback'],
         ]);
-        $this->storage->save($client);
+        $this->repository->save($client);
 
         $found = $this->lookup->findByClientId('minoo-web');
 
@@ -84,12 +77,12 @@ final class OidcClientLookupTest extends TestCase
 
     public function testDoesNotMatchPartialClientId(): void
     {
-        $client = $this->storage->create([
+        $client = $this->repository->create([
             'client_id' => 'minoo-web',
             'name' => 'Minoo',
             'redirect_uris' => ['https://minoo.test/callback'],
         ]);
-        $this->storage->save($client);
+        $this->repository->save($client);
 
         $this->assertNull($this->lookup->findByClientId('minoo'));
         $this->assertNull($this->lookup->findByClientId('minoo-web-extra'));
@@ -99,19 +92,19 @@ final class OidcClientLookupTest extends TestCase
     {
         // client_id is expected to be unique, but the lookup must behave
         // deterministically if a duplicate ever slips past uniqueness checks.
-        $first = $this->storage->create([
+        $first = $this->repository->create([
             'client_id' => 'dup',
             'name' => 'First',
             'redirect_uris' => ['https://one.test/cb'],
         ]);
-        $this->storage->save($first);
+        $this->repository->save($first);
 
-        $second = $this->storage->create([
+        $second = $this->repository->create([
             'client_id' => 'dup',
             'name' => 'Second',
             'redirect_uris' => ['https://two.test/cb'],
         ]);
-        $this->storage->save($second);
+        $this->repository->save($second);
 
         $found = $this->lookup->findByClientId('dup');
 
@@ -121,12 +114,12 @@ final class OidcClientLookupTest extends TestCase
 
     public function testEmptyClientIdReturnsNull(): void
     {
-        $client = $this->storage->create([
+        $client = $this->repository->create([
             'client_id' => 'minoo-web',
             'name' => 'Minoo',
             'redirect_uris' => ['https://minoo.test/callback'],
         ]);
-        $this->storage->save($client);
+        $this->repository->save($client);
 
         $this->assertNull($this->lookup->findByClientId(''));
     }

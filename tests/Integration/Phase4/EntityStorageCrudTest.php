@@ -12,7 +12,9 @@ use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 
 /**
@@ -26,7 +28,7 @@ final class EntityStorageCrudTest extends TestCase
     private DBALDatabase $database;
     private EntityType $entityType;
     private EventDispatcher $eventDispatcher;
-    private SqlEntityStorage $storage;
+    private EntityRepository $storage;
 
     protected function setUp(): void
     {
@@ -64,10 +66,13 @@ final class EntityStorageCrudTest extends TestCase
             ],
         ]);
 
-        $this->storage = new SqlEntityStorage(
+        $resolver = new SingleConnectionResolver($this->database);
+        $driver = new SqlStorageDriver($resolver, $this->entityType->getKeys()['id'] ?? 'id');
+        $this->storage = new EntityRepository(
             $this->entityType,
-            $this->database,
+            $driver,
             $this->eventDispatcher,
+            database: $this->database,
         );
     }
 
@@ -110,11 +115,14 @@ final class EntityStorageCrudTest extends TestCase
             'bundle' => 'blog',
         ]);
 
-        $result = $this->storage->save($entity);
+        $result = $this->storage->save($entity, validate: false);
 
         $this->assertSame(EntityConstants::SAVED_NEW, $result);
         $this->assertNotNull($entity->id());
-        $this->assertIsInt($entity->id());
+        // EntityRepository assigns the driver's freshly-written id as-is (a
+        // string), unlike the deleted SqlEntityStorage which explicitly cast
+        // it to int; callers are expected to (string)-cast ids.
+        $this->assertIsNumeric($entity->id());
         $this->assertFalse($entity->isNew(), 'Entity should no longer be new after save');
     }
 
@@ -126,13 +134,13 @@ final class EntityStorageCrudTest extends TestCase
                 'title' => "Article $i",
                 'bundle' => 'blog',
             ]);
-            $this->storage->save($entity);
+            $this->storage->save($entity, validate: false);
             $entities[] = $entity;
         }
 
         // IDs should be sequential starting at 1.
         for ($i = 0; $i < 5; $i++) {
-            $this->assertSame($i + 1, $entities[$i]->id());
+            $this->assertSame((string) ($i + 1), (string) $entities[$i]->id());
         }
     }
 
@@ -146,15 +154,15 @@ final class EntityStorageCrudTest extends TestCase
             'body' => 'Article body text',
             'status' => 0,
         ]);
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
         $id = $entity->id();
         $uuid = $entity->uuid();
 
-        $loaded = $this->storage->load($id);
+        $loaded = $this->storage->find((string) $id);
 
         $this->assertNotNull($loaded);
         $this->assertInstanceOf(TestArticleEntity::class, $loaded);
-        $this->assertSame($id, $loaded->id());
+        $this->assertSame((string) $id, (string) $loaded->id());
         $this->assertSame($uuid, $loaded->uuid());
         $this->assertSame('Load Test', $loaded->label());
         $this->assertSame('page', $loaded->bundle());
@@ -164,7 +172,7 @@ final class EntityStorageCrudTest extends TestCase
 
     public function testLoadReturnsNullForNonexistentId(): void
     {
-        $this->assertNull($this->storage->load(999999));
+        $this->assertNull($this->storage->find((string) 999999));
     }
 
     public function testLoadMultipleReturnsKeyedByEntityId(): void
@@ -172,11 +180,17 @@ final class EntityStorageCrudTest extends TestCase
         $e1 = $this->storage->create(['title' => 'E1', 'bundle' => 'a']);
         $e2 = $this->storage->create(['title' => 'E2', 'bundle' => 'b']);
         $e3 = $this->storage->create(['title' => 'E3', 'bundle' => 'c']);
-        $this->storage->save($e1);
-        $this->storage->save($e2);
-        $this->storage->save($e3);
+        $this->storage->save($e1, validate: false);
+        $this->storage->save($e2, validate: false);
+        $this->storage->save($e3, validate: false);
 
-        $loaded = $this->storage->loadMultiple([$e1->id(), $e3->id()]);
+        $loaded = [];
+        foreach ($this->storage->findMany([$e1->id(), $e3->id()]) as $entity) {
+            $id = $entity->id();
+            if ($id !== null) {
+                $loaded[$id] = $entity;
+            }
+        }
 
         $this->assertCount(2, $loaded);
         $this->assertArrayHasKey($e1->id(), $loaded);
@@ -187,7 +201,7 @@ final class EntityStorageCrudTest extends TestCase
 
     public function testLoadMultipleEmptyReturnsEmpty(): void
     {
-        $this->assertSame([], $this->storage->loadMultiple([]));
+        $this->assertSame([], $this->storage->findMany([]));
     }
 
     // ---- UPDATE tests ----
@@ -199,18 +213,18 @@ final class EntityStorageCrudTest extends TestCase
             'bundle' => 'blog',
             'body' => 'Original body',
         ]);
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
         $id = $entity->id();
 
         // Update fields.
         $entity->set('title', 'Updated Title');
         $entity->set('body', 'Updated body content');
-        $result = $this->storage->save($entity);
+        $result = $this->storage->save($entity, validate: false);
 
         $this->assertSame(EntityConstants::SAVED_UPDATED, $result);
 
         // Reload and verify persistence.
-        $reloaded = $this->storage->load($id);
+        $reloaded = $this->storage->find((string) $id);
         $this->assertSame('Updated Title', $reloaded->label());
         $this->assertSame('Updated body content', $reloaded->get('body'));
     }
@@ -221,13 +235,13 @@ final class EntityStorageCrudTest extends TestCase
             'title' => 'UUID Preserve',
             'bundle' => 'blog',
         ]);
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
         $originalUuid = $entity->uuid();
 
         $entity->set('title', 'UUID Still There');
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
 
-        $loaded = $this->storage->load($entity->id());
+        $loaded = $this->storage->find((string) $entity->id());
         $this->assertSame($originalUuid, $loaded->uuid());
     }
 
@@ -238,20 +252,20 @@ final class EntityStorageCrudTest extends TestCase
         $e1 = $this->storage->create(['title' => 'Delete 1', 'bundle' => 'a']);
         $e2 = $this->storage->create(['title' => 'Delete 2', 'bundle' => 'a']);
         $e3 = $this->storage->create(['title' => 'Keep', 'bundle' => 'a']);
-        $this->storage->save($e1);
-        $this->storage->save($e2);
-        $this->storage->save($e3);
+        $this->storage->save($e1, validate: false);
+        $this->storage->save($e2, validate: false);
+        $this->storage->save($e3, validate: false);
 
-        $this->storage->delete([$e1, $e2]);
+        $this->storage->deleteMany([$e1, $e2]);
 
-        $this->assertNull($this->storage->load($e1->id()));
-        $this->assertNull($this->storage->load($e2->id()));
-        $this->assertNotNull($this->storage->load($e3->id()));
+        $this->assertNull($this->storage->find((string) $e1->id()));
+        $this->assertNull($this->storage->find((string) $e2->id()));
+        $this->assertNotNull($this->storage->find((string) $e3->id()));
     }
 
     public function testDeleteEmptyArrayDoesNotThrow(): void
     {
-        $this->storage->delete([]);
+        $this->storage->deleteMany([]);
         $this->assertTrue(true, 'No exception thrown');
     }
 
@@ -275,7 +289,7 @@ final class EntityStorageCrudTest extends TestCase
         );
 
         $entity = $this->storage->create(['title' => 'Events!', 'bundle' => 'blog']);
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
 
         $this->assertSame(['pre_save:Events!', 'post_save:Events!'], $firedEvents);
     }
@@ -298,11 +312,11 @@ final class EntityStorageCrudTest extends TestCase
         );
 
         $entity = $this->storage->create(['title' => 'Bye!', 'bundle' => 'blog']);
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
 
         // Clear save events and delete.
         $firedEvents = [];
-        $this->storage->delete([$entity]);
+        $this->storage->delete($entity);
 
         $this->assertSame(['pre_delete:Bye!', 'post_delete:Bye!'], $firedEvents);
     }
@@ -331,7 +345,7 @@ final class EntityStorageCrudTest extends TestCase
         // Load each to verify ordering.
         $titles = [];
         foreach ($ids as $id) {
-            $entity = $this->storage->load($id);
+            $entity = $this->storage->find((string) $id);
             $titles[] = $entity->label();
         }
 
@@ -385,7 +399,7 @@ final class EntityStorageCrudTest extends TestCase
             ->execute();
 
         $this->assertCount(1, $ids);
-        $entity = $this->storage->load($ids[0]);
+        $entity = $this->storage->find((string) $ids[0]);
         $this->assertSame('Blog Post 1', $entity->label());
     }
 
@@ -402,16 +416,19 @@ final class EntityStorageCrudTest extends TestCase
         ];
 
         $entity = $this->storage->create($originalValues);
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
         $id = $entity->id();
 
         // Load from a fresh storage to avoid any in-memory caching.
-        $freshStorage = new SqlEntityStorage(
+        $freshResolver = new SingleConnectionResolver($this->database);
+        $freshDriver = new SqlStorageDriver($freshResolver, $this->entityType->getKeys()['id'] ?? 'id');
+        $freshStorage = new EntityRepository(
             $this->entityType,
-            $this->database,
+            $freshDriver,
             $this->eventDispatcher,
+            database: $this->database,
         );
-        $loaded = $freshStorage->load($id);
+        $loaded = $freshStorage->find((string) $id);
 
         $this->assertNotNull($loaded);
         $this->assertSame('Round-trip Article', $loaded->label());
@@ -454,7 +471,7 @@ final class EntityStorageCrudTest extends TestCase
 
         foreach ($entities as $values) {
             $entity = $this->storage->create($values);
-            $this->storage->save($entity);
+            $this->storage->save($entity, validate: false);
         }
     }
 }

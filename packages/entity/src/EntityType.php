@@ -25,13 +25,6 @@ use Waaseyaa\Field\FieldStorage;
 final readonly class EntityType implements EntityTypeInterface
 {
     /**
-     * Default storage class FQN for content entity types built via fromClass().
-     *
-     * Stored as a string to avoid the entity package depending on entity-storage.
-     */
-    private const string DEFAULT_STORAGE_CLASS = 'Waaseyaa\\EntityStorage\\SqlEntityStorage';
-
-    /**
      * Canonical scope identifier for community-scoped tenancy.
      *
      * The only scope value accepted by {@see self::__construct()} today.
@@ -200,7 +193,7 @@ final readonly class EntityType implements EntityTypeInterface
      */
     public static function fromClass(
         string $class,
-        string $storageClass = self::DEFAULT_STORAGE_CLASS,
+        string $storageClass = '',
         bool $revisionable = false,
         bool $revisionDefault = false,
         bool $translatable = false,

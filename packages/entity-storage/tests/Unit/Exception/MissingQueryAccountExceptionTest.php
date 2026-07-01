@@ -70,7 +70,7 @@ final class MissingQueryAccountExceptionTest extends TestCase
             id: $id,
             label: ucfirst($id),
             class: $entityClass,
-            storageClass: 'Waaseyaa\\EntityStorage\\SqlEntityStorage',
+            storageClass: 'Waaseyaa\\EntityStorage\\EntityRepository',
             keys: ['id' => 'id'],
         );
     }

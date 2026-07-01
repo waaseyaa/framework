@@ -15,7 +15,9 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 use Waaseyaa\User\AnonymousUser;
@@ -41,7 +43,7 @@ use Waaseyaa\User\AnonymousUser;
 final class AnonymousAccountFilterTest extends TestCase
 {
     private DBALDatabase $database;
-    private SqlEntityStorage $storage;
+    private EntityRepository $repository;
 
     protected function setUp(): void
     {
@@ -55,10 +57,13 @@ final class AnonymousAccountFilterTest extends TestCase
 
         new SqlSchemaHandler($entityType, $this->database)->ensureTable();
 
-        $this->storage = new SqlEntityStorage(
+        $resolver = new SingleConnectionResolver($this->database);
+        $driver = new SqlStorageDriver($resolver);
+        $this->repository = new EntityRepository(
             $entityType,
-            $this->database,
+            $driver,
             new EventDispatcher(),
+            database: $this->database,
             accessHandler: new EntityAccessHandler([$this->publishedOnlyForAnonymousPolicy()]),
         );
 
@@ -68,14 +73,14 @@ final class AnonymousAccountFilterTest extends TestCase
             ['title' => 'd1', 'status' => 'draft'],
             ['title' => 'd2', 'status' => 'draft'],
         ] as $row) {
-            $this->storage->save($this->storage->create($row));
+            $this->repository->save($this->repository->create($row), validate: false);
         }
     }
 
     #[Test]
     public function anonymousSeesPublishedOnly(): void
     {
-        $ids = $this->storage->getQuery()
+        $ids = $this->repository->getQuery()
             ->setAccount(new AnonymousUser())
             ->sort('id', 'ASC')
             ->execute();
@@ -84,7 +89,13 @@ final class AnonymousAccountFilterTest extends TestCase
 
         // Resolve back to titles so the assertion is on observable behaviour
         // (which rows survived) and not on raw IDs that depend on autoincrement.
-        $entities = $this->storage->loadMultiple($ids);
+        $entities = [];
+        foreach ($this->repository->findMany($ids) as $entity) {
+            $id = $entity->id();
+            if ($id !== null) {
+                $entities[$id] = $entity;
+            }
+        }
         $titles = [];
         foreach ($ids as $id) {
             $entity = $entities[$id] ?? null;
@@ -101,7 +112,7 @@ final class AnonymousAccountFilterTest extends TestCase
     {
         // Regression guard: binding AnonymousUser must NOT trip
         // MissingQueryAccountException. id=0 is a real account, not absence.
-        $ids = $this->storage->getQuery()
+        $ids = $this->repository->getQuery()
             ->setAccount(new AnonymousUser())
             ->execute();
 

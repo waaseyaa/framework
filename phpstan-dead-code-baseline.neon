@@ -49,10 +49,10 @@ parameters:
 			path: packages/config/src/EventAwareStorage.php
 
 		-
-			message: '#^Unused Waaseyaa\\EntityStorage\\EntityStorageFactory\:\:getStorage$#'
+			message: '#^Unused Waaseyaa\\EntityStorage\\Hydration\\SqlColumnTranslationHydrator\:\:load$#'
 			identifier: shipmonk.deadMethod
 			count: 1
-			path: packages/entity-storage/src/EntityStorageFactory.php
+			path: packages/entity-storage/src/Hydration/SqlColumnTranslationHydrator.php
 
 		-
 			message: '#^Unused Waaseyaa\\EntityStorage\\SqlEntityQuery\:\:notExists$#'
@@ -61,28 +61,10 @@ parameters:
 			path: packages/entity-storage/src/SqlEntityQuery.php
 
 		-
-			message: '#^Unused Waaseyaa\\EntityStorage\\SqlEntityStorage\:\:create$#'
+			message: '#^Unused Waaseyaa\\EntityStorage\\SqlEntityQueryResultCache\:\:invalidate$#'
 			identifier: shipmonk.deadMethod
 			count: 1
-			path: packages/entity-storage/src/SqlEntityStorage.php
-
-		-
-			message: '#^Unused Waaseyaa\\EntityStorage\\SqlEntityStorage\:\:delete$#'
-			identifier: shipmonk.deadMethod
-			count: 1
-			path: packages/entity-storage/src/SqlEntityStorage.php
-
-		-
-			message: '#^Unused Waaseyaa\\EntityStorage\\SqlEntityStorage\:\:loadByKey$#'
-			identifier: shipmonk.deadMethod
-			count: 1
-			path: packages/entity-storage/src/SqlEntityStorage.php
-
-		-
-			message: '#^Unused Waaseyaa\\EntityStorage\\SqlEntityStorage\:\:save$#'
-			identifier: shipmonk.deadMethod
-			count: 1
-			path: packages/entity-storage/src/SqlEntityStorage.php
+			path: packages/entity-storage/src/SqlEntityQueryResultCache.php
 
 		-
 			message: '#^Unused Waaseyaa\\Entity\\Community\\HasCommunityTrait\:\:getCommunityId$#'
@@ -95,6 +77,24 @@ parameters:
 			identifier: shipmonk.deadMethod
 			count: 1
 			path: packages/entity/src/Community/HasCommunityTrait.php
+
+		-
+			message: '#^Unused Waaseyaa\\Entity\\DateTime\\TimestampFieldConvention\:\:inferAutoPopulate$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: packages/entity/src/DateTime/TimestampFieldConvention.php
+
+		-
+			message: '#^Unused Waaseyaa\\Entity\\DateTime\\TimestampFieldConvention\:\:isRawTimestampUnset$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: packages/entity/src/DateTime/TimestampFieldConvention.php
+
+		-
+			message: '#^Unused Waaseyaa\\Entity\\DateTime\\TimestampFieldConvention\:\:resolveStorageFormat$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: packages/entity/src/DateTime/TimestampFieldConvention.php
 
 		-
 			message: '#^Unused Waaseyaa\\Entity\\EntityType\:\:clearFromClassCache$#'

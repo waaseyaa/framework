@@ -15,7 +15,6 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Oidc\Authorize\AuthorizationRequestValidator;
 use Waaseyaa\Oidc\Authorize\AuthorizeController;
@@ -28,7 +27,6 @@ use Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface;
 #[CoversClass(AuthorizeController::class)]
 final class AuthorizeControllerTest extends TestCase
 {
-    private SqlEntityStorage $storage;
     private EntityRepository $repository;
     private FakeCodeRepository $codeRepository;
     private AuthorizeController $controller;
@@ -55,7 +53,6 @@ final class AuthorizeControllerTest extends TestCase
         ]);
 
         $dispatcher = new EventDispatcher();
-        $this->storage = new SqlEntityStorage($entityType, $database, $dispatcher);
         $this->repository = new EntityRepository(
             $entityType,
             new SqlStorageDriver(new SingleConnectionResolver($database)),
@@ -63,14 +60,14 @@ final class AuthorizeControllerTest extends TestCase
             database: $database,
         );
 
-        $client = $this->storage->create([
+        $client = $this->repository->create([
             'client_id' => 'minoo-web',
             'name' => 'Minoo',
             'redirect_uris' => ['https://minoo.test/callback'],
             'scopes' => ['openid', 'profile', 'email'],
             'grant_types' => ['authorization_code'],
         ]);
-        $this->storage->save($client);
+        $this->repository->save($client);
 
         $this->codeRepository = new FakeCodeRepository();
 
@@ -231,14 +228,14 @@ final class AuthorizeControllerTest extends TestCase
     public function testRedirectUriWithExistingQueryStringUsesAmpersandSeparator(): void
     {
         // Register a client whose redirect_uri already has a query string.
-        $client = $this->storage->create([
+        $client = $this->repository->create([
             'client_id' => 'fancy-client',
             'name' => 'Fancy',
             'redirect_uris' => ['https://fancy.test/cb?src=oidc'],
             'scopes' => ['openid'],
             'grant_types' => ['authorization_code'],
         ]);
-        $this->storage->save($client);
+        $this->repository->save($client);
 
         // Seed consent for fancy-client with scope openid
         $this->consentRepository->record('42', 'fancy-client', ['openid']);

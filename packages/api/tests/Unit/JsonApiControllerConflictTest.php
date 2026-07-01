@@ -21,7 +21,6 @@ use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
@@ -58,8 +57,10 @@ final class JsonApiControllerConflictTest extends TestCase
 
         $this->entityTypeManager = new EntityTypeManager(
             $dispatcher,
-            // The kernel's getStorage() shape: the revision-less SqlEntityStorage.
-            fn(EntityTypeInterface $definition): SqlEntityStorage => new SqlEntityStorage($definition, $this->db, $dispatcher),
+            // C-22 WP4: the legacy SqlEntityStorage engine is removed; the kernel
+            // now wires getStorage() to null (EntityTypeManagerFactory) — it is a
+            // "bring your own EntityStorageInterface" extension seam only.
+            null,
             // The kernel's getRepository() shape: the revision-aware pipeline.
             function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $resolver): EntityRepository {
                 return new EntityRepository(

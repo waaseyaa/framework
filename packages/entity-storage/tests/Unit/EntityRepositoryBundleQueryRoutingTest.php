@@ -13,8 +13,10 @@ use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Exception\UnknownFieldException;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionRegistry;
@@ -36,11 +38,11 @@ use Waaseyaa\Field\FieldStorage;
  * an in-memory DBAL — no kernel boot needed.
  */
 #[CoversNothing]
-final class SqlEntityStorageBundleQueryRoutingTest extends TestCase
+final class EntityRepositoryBundleQueryRoutingTest extends TestCase
 {
     private DBALDatabase $database;
     private FieldDefinitionRegistry $registry;
-    private SqlEntityStorage $storage;
+    private EntityRepository $repository;
     private EntityType $entityType;
 
     protected function setUp(): void
@@ -100,11 +102,14 @@ final class SqlEntityStorageBundleQueryRoutingTest extends TestCase
         );
         $schemaHandler->ensureTable();
 
-        $this->storage = new SqlEntityStorage(
+        $resolver = new SingleConnectionResolver($this->database);
+        $driver = new SqlStorageDriver($resolver, 'wid', fieldRegistry: $this->registry);
+        $this->repository = new EntityRepository(
             $this->entityType,
-            $this->database,
+            $driver,
             new EventDispatcher(),
-            $this->registry,
+            database: $this->database,
+            fieldRegistry: $this->registry,
         );
     }
 
@@ -122,15 +127,21 @@ final class SqlEntityStorageBundleQueryRoutingTest extends TestCase
             'gizmo_code' => 'Y-2',
         ]);
 
-        $this->storage->save($matching);
-        $this->storage->save($other);
+        $this->repository->save($matching, validate: false);
+        $this->repository->save($other, validate: false);
 
-        $ids = $this->storage->getQuery()
+        $ids = $this->repository->getQuery()
             ->accessCheck(false)
             ->condition('gizmo_code', 'X-1')
             ->execute();
 
-        self::assertSame([$matching->id()], $ids);
+        // EntityRepository::doSave() back-fills a freshly-inserted id as the
+        // driver's raw string return value (unlike the retired
+        // SqlEntityStorage, which cast it to (int)); execute() still returns
+        // native SQLite integer ids, so the id is cast here for a like-typed
+        // comparison. This is a representation-only difference — see the
+        // WP4 conversion report for the full note.
+        self::assertSame([(int) $matching->id()], $ids);
     }
 
     #[Test]
@@ -142,14 +153,16 @@ final class SqlEntityStorageBundleQueryRoutingTest extends TestCase
             'status' => 1,
             'gizmo_code' => 'Z-3',
         ]);
-        $this->storage->save($entity);
+        $this->repository->save($entity, validate: false);
 
-        $ids = $this->storage->getQuery()
+        $ids = $this->repository->getQuery()
             ->accessCheck(false)
             ->condition('status', 1)
             ->execute();
 
-        self::assertContains($entity->id(), $ids);
+        // Cast: see the id-representation note in
+        // getQueryForwardsFieldRegistryEnablingBundleScopedConditions() above.
+        self::assertContains((int) $entity->id(), $ids);
     }
 
     #[Test]
@@ -157,7 +170,7 @@ final class SqlEntityStorageBundleQueryRoutingTest extends TestCase
     {
         $this->expectException(UnknownFieldException::class);
 
-        $this->storage->getQuery()
+        $this->repository->getQuery()
             ->accessCheck(false)
             ->condition('totally_made_up_field', 'whatever')
             ->execute();
@@ -172,7 +185,7 @@ final class SqlEntityStorageBundleQueryRoutingTest extends TestCase
             'status' => 1,
             'gizmo_code' => 'W-9',
         ]);
-        $this->storage->save($entity);
+        $this->repository->save($entity, validate: false);
 
         $row = $this->database->getConnection()->fetchAssociative(
             'SELECT _data FROM "widget" WHERE wid = :wid',
@@ -225,8 +238,8 @@ final class SqlEntityStorageBundleQueryRoutingTest extends TestCase
             'gizmo_code' => 'Y-2',
         ]);
 
-        $this->storage->save($matchEntity);
-        $this->storage->save($other);
+        $this->repository->save($matchEntity, validate: false);
+        $this->repository->save($other, validate: false);
 
         // Confirm the write side is already symmetric: both rows have NULL in
         // the legacy column and their actual status in `_data`.
@@ -245,13 +258,15 @@ final class SqlEntityStorageBundleQueryRoutingTest extends TestCase
             'UPDATE "widget" SET status = 99',
         );
 
-        $ids = $this->storage->getQuery()
+        $ids = $this->repository->getQuery()
             ->accessCheck(false)
             ->condition('status', 1)
             ->execute();
 
+        // Cast: see the id-representation note in
+        // getQueryForwardsFieldRegistryEnablingBundleScopedConditions() above.
         self::assertSame(
-            [$matchEntity->id()],
+            [(int) $matchEntity->id()],
             $ids,
             'Read path must consult the FieldStorage::Data registry hint and resolve via json_extract on `_data`, '
             . 'never the lingering legacy column. Reading the column would return either no match (column = 99) or the wrong row.',
@@ -280,24 +295,26 @@ final class SqlEntityStorageBundleQueryRoutingTest extends TestCase
             'status' => 13,
             'gizmo_code' => 'NS-1',
         ]);
-        $this->storage->save($entity);
+        $this->repository->save($entity, validate: false);
 
         // Sanity: integer-bound query already works.
-        $idsInt = $this->storage->getQuery()
+        $idsInt = $this->repository->getQuery()
             ->accessCheck(false)
             ->condition('status', 13)
             ->execute();
-        self::assertSame([$entity->id()], $idsInt, 'integer binding (control)');
+        // Cast: see the id-representation note in
+        // getQueryForwardsFieldRegistryEnablingBundleScopedConditions() above.
+        self::assertSame([(int) $entity->id()], $idsInt, 'integer binding (control)');
 
         // The bug: numeric-string bound against integer-typed _data field
         // returns no rows pre-WP05 because SQLite compares int 13 != string "13".
-        $idsString = $this->storage->getQuery()
+        $idsString = $this->repository->getQuery()
             ->accessCheck(false)
             ->condition('status', '13')
             ->execute();
 
         self::assertSame(
-            [$entity->id()],
+            [(int) $entity->id()],
             $idsString,
             'condition() must coerce numeric-string values to the declared FieldDefinition type so callers do not '
             . 'need to know the storage shape. (Mirrors #1257 reproduction; verifies the (int) workaround is removable.)',
@@ -313,19 +330,21 @@ final class SqlEntityStorageBundleQueryRoutingTest extends TestCase
         $a = new TestRoutingWidget(['name' => 'A', 'type' => 'gizmo', 'status' => 1, 'gizmo_code' => 'A-1']);
         $b = new TestRoutingWidget(['name' => 'B', 'type' => 'gizmo', 'status' => 2, 'gizmo_code' => 'B-1']);
         $c = new TestRoutingWidget(['name' => 'C', 'type' => 'gizmo', 'status' => 3, 'gizmo_code' => 'C-1']);
-        $this->storage->save($a);
-        $this->storage->save($b);
-        $this->storage->save($c);
+        $this->repository->save($a, validate: false);
+        $this->repository->save($b, validate: false);
+        $this->repository->save($c, validate: false);
 
         // Mixed string/int IN-set against an integer-typed _data field must
         // match by numeric value, not lexical bytes.
-        $ids = $this->storage->getQuery()
+        $ids = $this->repository->getQuery()
             ->accessCheck(false)
             ->condition('status', ['1', 3], 'IN')
             ->execute();
 
         sort($ids);
-        self::assertSame([$a->id(), $c->id()], $ids);
+        // Cast: see the id-representation note in
+        // getQueryForwardsFieldRegistryEnablingBundleScopedConditions() above.
+        self::assertSame([(int) $a->id(), (int) $c->id()], $ids);
     }
 }
 

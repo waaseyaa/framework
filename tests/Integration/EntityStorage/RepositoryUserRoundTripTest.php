@@ -10,11 +10,9 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
-use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\User\User;
@@ -51,12 +49,6 @@ final class RepositoryUserRoundTripTest extends TestCase
 
         $resolver = new SingleConnectionResolver($database);
         $driver = new SqlStorageDriver($resolver, idKey: $entityType->getKeys()['id']);
-
-        $entityTypeManager = new EntityTypeManager(
-            $dispatcher,
-            fn(EntityType $def): SqlEntityStorage => new SqlEntityStorage($def, $database, $dispatcher, $fieldRegistry),
-        );
-        $entityTypeManager->registerEntityType($entityType);
 
         $repository = new EntityRepository(
             $entityType,

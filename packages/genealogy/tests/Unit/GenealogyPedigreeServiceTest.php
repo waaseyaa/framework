@@ -17,7 +17,6 @@ use Waaseyaa\Entity\Tests\Helper\TestEntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Genealogy\Entity\GenealogyPerson;
@@ -39,13 +38,11 @@ final class GenealogyPedigreeServiceTest extends TestCase
         $resolver = new SingleConnectionResolver($database);
         $manager = new EntityTypeManager(
             $dispatcher,
-            function (EntityTypeInterface $definition) use ($database, $dispatcher, $registry): SqlEntityStorage {
+            null,
+            // C-22 WP4: repository factory mirroring the kernel's getRepository() shape.
+            function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $resolver, $database, $registry): EntityRepository {
                 (new SqlSchemaHandler($definition, $database, $registry))->ensureTable();
 
-                return new SqlEntityStorage($definition, $database, $dispatcher, $registry);
-            },
-            // C-22 WP2: repository factory mirroring the kernel's getRepository() shape.
-            function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $resolver, $database, $registry): EntityRepository {
                 $idKey = $definition->getKeys()['id'] ?? 'id';
 
                 return new EntityRepository(
@@ -96,15 +93,15 @@ final class GenealogyPedigreeServiceTest extends TestCase
     public function parent_and_child_queries_follow_directed_parent_edges(): void
     {
         $manager = $this->makeManager();
-        $personStorage = $manager->getStorage('genealogy_person');
-        $relStorage = $manager->getStorage('relationship');
+        $personRepository = $manager->getRepository('genealogy_person');
+        $relRepository = $manager->getRepository('relationship');
 
-        $child = $personStorage->create(['display_name' => 'Child']);
-        $personStorage->save($child);
-        $parent = $personStorage->create(['display_name' => 'Parent']);
-        $personStorage->save($parent);
+        $child = $personRepository->create(['display_name' => 'Child']);
+        $personRepository->save($child, validate: false);
+        $parent = $personRepository->create(['display_name' => 'Parent']);
+        $personRepository->save($parent, validate: false);
 
-        $edge = $relStorage->create([
+        $edge = $relRepository->create([
             'relationship_type' => GenealogyRelationshipType::PARENT_OF,
             'from_entity_type' => 'genealogy_person',
             'from_entity_id' => (string) $parent->id(),
@@ -113,7 +110,7 @@ final class GenealogyPedigreeServiceTest extends TestCase
             'directionality' => 'directed',
             'status' => 1,
         ]);
-        $relStorage->save($edge);
+        $relRepository->save($edge, validate: false);
 
         $service = new GenealogyPedigreeService($manager);
 
@@ -125,15 +122,15 @@ final class GenealogyPedigreeServiceTest extends TestCase
     public function spouse_query_handles_either_endpoint(): void
     {
         $manager = $this->makeManager();
-        $personStorage = $manager->getStorage('genealogy_person');
-        $relStorage = $manager->getStorage('relationship');
+        $personRepository = $manager->getRepository('genealogy_person');
+        $relRepository = $manager->getRepository('relationship');
 
-        $a = $personStorage->create(['display_name' => 'A']);
-        $personStorage->save($a);
-        $b = $personStorage->create(['display_name' => 'B']);
-        $personStorage->save($b);
+        $a = $personRepository->create(['display_name' => 'A']);
+        $personRepository->save($a, validate: false);
+        $b = $personRepository->create(['display_name' => 'B']);
+        $personRepository->save($b, validate: false);
 
-        $edge = $relStorage->create([
+        $edge = $relRepository->create([
             'relationship_type' => GenealogyRelationshipType::SPOUSE_OF,
             'from_entity_type' => 'genealogy_person',
             'from_entity_id' => (string) $a->id(),
@@ -142,7 +139,7 @@ final class GenealogyPedigreeServiceTest extends TestCase
             'directionality' => 'bidirectional',
             'status' => 1,
         ]);
-        $relStorage->save($edge);
+        $relRepository->save($edge, validate: false);
 
         $service = new GenealogyPedigreeService($manager);
 
@@ -154,24 +151,24 @@ final class GenealogyPedigreeServiceTest extends TestCase
     public function ancestor_generations_walks_parents_breadth_first(): void
     {
         $manager = $this->makeManager();
-        $personStorage = $manager->getStorage('genealogy_person');
-        $relStorage = $manager->getStorage('relationship');
+        $personRepository = $manager->getRepository('genealogy_person');
+        $relRepository = $manager->getRepository('relationship');
 
-        $child = $personStorage->create(['display_name' => 'Child']);
-        $personStorage->save($child);
-        $p1 = $personStorage->create(['display_name' => 'P1']);
-        $personStorage->save($p1);
-        $p2 = $personStorage->create(['display_name' => 'P2']);
-        $personStorage->save($p2);
-        $gp = $personStorage->create(['display_name' => 'GP']);
-        $personStorage->save($gp);
+        $child = $personRepository->create(['display_name' => 'Child']);
+        $personRepository->save($child, validate: false);
+        $p1 = $personRepository->create(['display_name' => 'P1']);
+        $personRepository->save($p1, validate: false);
+        $p2 = $personRepository->create(['display_name' => 'P2']);
+        $personRepository->save($p2, validate: false);
+        $gp = $personRepository->create(['display_name' => 'GP']);
+        $personRepository->save($gp, validate: false);
 
         foreach ([
             [$p1->id(), $child->id()],
             [$p2->id(), $child->id()],
             [$gp->id(), $p1->id()],
         ] as [$fromId, $toId]) {
-            $e = $relStorage->create([
+            $e = $relRepository->create([
                 'relationship_type' => GenealogyRelationshipType::PARENT_OF,
                 'from_entity_type' => 'genealogy_person',
                 'from_entity_id' => (string) $fromId,
@@ -180,7 +177,7 @@ final class GenealogyPedigreeServiceTest extends TestCase
                 'directionality' => 'directed',
                 'status' => 1,
             ]);
-            $relStorage->save($e);
+            $relRepository->save($e, validate: false);
         }
 
         $service = new GenealogyPedigreeService($manager);

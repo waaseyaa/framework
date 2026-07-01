@@ -16,7 +16,6 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Oidc\ClientRegistry\OidcClientLookup;
 use Waaseyaa\Oidc\Entity\OidcClient;
@@ -43,7 +42,6 @@ final class TokenControllerTest extends TestCase
 
     private string $privateKeyPem;
     private string $publicKeyPem;
-    private SqlEntityStorage $storage;
     private EntityRepository $repository;
 
     protected function setUp(): void
@@ -72,7 +70,6 @@ final class TokenControllerTest extends TestCase
         ]);
 
         $dispatcher = new EventDispatcher();
-        $this->storage = new SqlEntityStorage($entityType, $database, $dispatcher);
         $this->repository = new EntityRepository(
             $entityType,
             new SqlStorageDriver(new SingleConnectionResolver($database)),
@@ -329,7 +326,7 @@ final class TokenControllerTest extends TestCase
     private function controller(array $clients = [], array $codes = []): TokenController
     {
         foreach ($clients as $client) {
-            $this->storage->save($client);
+            $this->repository->save($client);
         }
 
         $db = DBALDatabase::createSqlite();
@@ -353,7 +350,7 @@ final class TokenControllerTest extends TestCase
     private function publicClient(string $clientId): OidcClient
     {
         /** @var OidcClient $client */
-        $client = $this->storage->create([
+        $client = $this->repository->create([
             'client_id' => $clientId,
             'name' => $clientId,
             'redirect_uris' => [self::REDIRECT_URI],
@@ -371,7 +368,7 @@ final class TokenControllerTest extends TestCase
         self::assertIsString($hash);
 
         /** @var OidcClient $client */
-        $client = $this->storage->create([
+        $client = $this->repository->create([
             'client_id' => $clientId,
             'name' => $clientId,
             'redirect_uris' => [self::REDIRECT_URI],

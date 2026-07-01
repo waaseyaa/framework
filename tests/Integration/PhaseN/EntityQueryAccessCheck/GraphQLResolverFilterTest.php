@@ -20,7 +20,6 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 use Waaseyaa\GraphQL\Access\GraphQlAccessGuard;
@@ -50,7 +49,7 @@ final class GraphQLResolverFilterTest extends TestCase
     private const ACCOUNT_B_ID = 20;
 
     private DBALDatabase $database;
-    private SqlEntityStorage $storage;
+    private EntityRepository $repository;
     private EntityTypeManager $entityTypeManager;
     private EntityAccessHandler $accessHandler;
 
@@ -69,22 +68,21 @@ final class GraphQLResolverFilterTest extends TestCase
         $eventDispatcher = new EventDispatcher();
         $this->accessHandler = new EntityAccessHandler([$this->ownerOnlyPolicy()]);
 
-        $this->storage = new SqlEntityStorage(
-            $entityType,
-            $this->database,
-            $eventDispatcher,
-            accessHandler: $this->accessHandler,
-        );
-
-        $storage = $this->storage;
         $resolver = new SingleConnectionResolver($this->database);
         $database = $this->database;
         $accessHandler = $this->accessHandler;
+        $this->repository = new EntityRepository(
+            $entityType,
+            new SqlStorageDriver($resolver),
+            $eventDispatcher,
+            database: $database,
+            accessHandler: $accessHandler,
+        );
+
         $this->entityTypeManager = new EntityTypeManager(
             $eventDispatcher,
-            static fn(EntityTypeInterface $_type) => $storage,
             // C-22: repository factory mirroring the kernel's getRepository() shape.
-            static fn(string $_id, EntityTypeInterface $type): EntityRepository => new EntityRepository(
+            repositoryFactory: static fn(string $_id, EntityTypeInterface $type): EntityRepository => new EntityRepository(
                 $type,
                 new SqlStorageDriver($resolver),
                 $eventDispatcher,
@@ -103,7 +101,7 @@ final class GraphQLResolverFilterTest extends TestCase
             ['title' => 'n2', 'owner_id' => 0],
         ];
         foreach ($rows as $row) {
-            $this->storage->save($this->storage->create($row));
+            $this->repository->save($this->repository->create($row), validate: false);
         }
     }
 

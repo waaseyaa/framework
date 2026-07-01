@@ -9,25 +9,19 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use Symfony\Component\EventDispatcher\EventDispatcher;
-use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
-use Waaseyaa\Entity\Tests\Helper\TestEntityType;
 use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
-use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\CastPersistenceLeafVo;
 use Waaseyaa\EntityStorage\Tests\Fixtures\CastPersistenceOuterVo;
 use Waaseyaa\EntityStorage\Tests\Fixtures\CastPersistenceStringEnum;
 use Waaseyaa\EntityStorage\Tests\Fixtures\CastPersistenceTestEntity;
-use Waaseyaa\Field\FieldDefinition;
 
 /**
  * Verifies #1181 persistence invariant: hydrate/load keeps storage-shaped $values;
  * get() applies casts; toArray() / driver rows stay JSON-safe after set() (castOut).
  */
 #[CoversClass(EntityRepository::class)]
-#[CoversClass(SqlEntityStorage::class)]
 final class CastPersistenceIntegrationTest extends TestCase
 {
     private const ENTITY_KEYS = [
@@ -188,102 +182,6 @@ final class CastPersistenceIntegrationTest extends TestCase
 
         $raw = $entity->toArray();
         self::assertSame('off', $raw['mode']);
-    }
-
-    #[Test]
-    public function sql_storage_extra_fields_round_trip_through_data_blob(): void
-    {
-        $database = DBALDatabase::createSqlite();
-        $entityType = TestEntityType::stub(
-            'cast_persist_entity',
-            [
-                'created' => new FieldDefinition(name: 'created', type: 'timestamp'),
-                'changed' => new FieldDefinition(name: 'changed', type: 'timestamp'),
-            ],
-            keys: self::ENTITY_KEYS,
-            class: CastPersistenceTestEntity::class,
-            label: 'Cast Persist',
-        );
-        $schemaHandler = new SqlSchemaHandler($entityType, $database);
-        $schemaHandler->ensureTable();
-
-        $storage = new SqlEntityStorage(
-            $entityType,
-            $database,
-            new EventDispatcher(),
-        );
-
-        $entity = $storage->create([
-            'label' => 'Sql cast',
-            'bundle' => 'page',
-        ]);
-        $entity->set('score', 7);
-        $entity->set('tags', ['a' => 1]);
-        $entity->set('mode', CastPersistenceStringEnum::On);
-        $storage->save($entity);
-
-        $id = $entity->id();
-        self::assertNotNull($id);
-
-        $loaded = $storage->load($id);
-        self::assertNotNull($loaded);
-        self::assertInstanceOf(CastPersistenceTestEntity::class, $loaded);
-        self::assertSame(7, $loaded->get('score'));
-        self::assertSame(['a' => 1], $loaded->get('tags'));
-        self::assertSame(CastPersistenceStringEnum::On, $loaded->get('mode'));
-
-        $internal = $loaded->toArray();
-        self::assertIsString($internal['tags']);
-        self::assertSame('on', $internal['mode']);
-        self::assertSame(7, $internal['score']);
-    }
-
-    #[Test]
-    public function sql_storage_nested_value_object_round_trip_in_data_blob(): void
-    {
-        $database = DBALDatabase::createSqlite();
-        $entityType = TestEntityType::stub(
-            'cast_persist_entity',
-            [
-                'created' => new FieldDefinition(name: 'created', type: 'timestamp'),
-                'changed' => new FieldDefinition(name: 'changed', type: 'timestamp'),
-            ],
-            keys: self::ENTITY_KEYS,
-            class: CastPersistenceTestEntity::class,
-            label: 'Cast Persist',
-        );
-        $schemaHandler = new SqlSchemaHandler($entityType, $database);
-        $schemaHandler->ensureTable();
-
-        $storage = new SqlEntityStorage(
-            $entityType,
-            $database,
-            new EventDispatcher(),
-        );
-
-        $entity = $storage->create([
-            'label' => 'Sql nested vo',
-            'bundle' => 'page',
-        ]);
-        $entity->set(
-            'nested_profile',
-            new CastPersistenceOuterVo(leaf: new CastPersistenceLeafVo(code: 'sql-leaf')),
-        );
-        $storage->save($entity);
-
-        $id = $entity->id();
-        self::assertNotNull($id);
-
-        $loaded = $storage->load($id);
-        self::assertNotNull($loaded);
-        self::assertInstanceOf(CastPersistenceTestEntity::class, $loaded);
-        $profile = $loaded->get('nested_profile');
-        self::assertInstanceOf(CastPersistenceOuterVo::class, $profile);
-        self::assertSame('sql-leaf', $profile->leaf->code);
-
-        $internal = $loaded->toArray();
-        self::assertIsString($internal['nested_profile']);
-        self::assertSame('{"leaf":{"code":"sql-leaf"}}', $internal['nested_profile']);
     }
 
     /**

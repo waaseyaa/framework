@@ -121,7 +121,7 @@ PHP,
             ),
         ]);
 
-        $etm->getStorage('kernel_test_widget');
+        $etm->getRepository('kernel_test_widget');
 
         $database = $kernel->getDatabase();
         self::assertInstanceOf(DBALDatabase::class, $database);
@@ -157,7 +157,7 @@ PHP,
         $kernel->publicBoot();
 
         $etm = $kernel->getEntityTypeManager();
-        $etm->getStorage('kernel_test_widget');
+        $etm->getRepository('kernel_test_widget');
 
         $database = $kernel->getDatabase();
         self::assertInstanceOf(DBALDatabase::class, $database);

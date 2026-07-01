@@ -19,7 +19,6 @@ use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\EntitySchemaSync;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\Tests\Backend\SqlColumnTranslatableArticleFixture;
 use Waaseyaa\EntityStorage\Tests\Backend\TranslatableArticleFixture;
 use Waaseyaa\EntityStorage\Tests\Repository\Support\CountingDatabaseProxy;
@@ -27,10 +26,6 @@ use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\I18n\Language;
 use Waaseyaa\I18n\LanguageManagerInterface;
-
-// Fixture classes are defined alongside their respective backend tests.
-require_once __DIR__ . '/../Backend/SqlBlobTranslatableTest.php';
-require_once __DIR__ . '/../Backend/SqlColumnTranslatableTest.php';
 
 /**
  * Cross-backend coverage for `EntityRepository::findTranslations()` (M-006 WP10).
@@ -250,38 +245,35 @@ final class EntityRepositoryFindTranslationsTest extends TestCase
         ContentEntityBase::setEntityTypeManager($manager);
 
         try {
-            $storage = new SqlEntityStorage(
-                entityType: $entityType,
-                database: $database,
-                eventDispatcher: $eventDispatcher,
-            );
-
-            // Seed: default 'en' entity + 'fr' + 'oj' translations.
-            $entity = $storage->create([
-                'bundle' => 'article',
-                'label' => 'Hi',
-                'langcode' => 'en',
-                'default_langcode' => 'en',
-                'uuid' => 'u-blob-1',
-                'title' => 'Hello',
-                'body' => 'Greetings.',
-            ]);
-            $storage->save($entity);
-            $entityId = (string) $entity->id();
-            $reloaded = $storage->load($entityId);
-            self::assertNotNull($reloaded);
-
-            $fr = $reloaded->addTranslation('fr');
-            $fr->set('title', 'Bonjour');
-            $fr->set('body', 'Salut.');
-            $storage->save($fr);
-
-            $reloaded2 = $storage->load($entityId);
-            self::assertNotNull($reloaded2);
-            $oj = $reloaded2->addTranslation('oj');
-            $oj->set('title', 'Aaniin');
-            $oj->set('body', 'Boozhoo.');
-            $storage->save($oj);
+            // Seed the sql-blob peer rows (id=1, one row per langcode) directly:
+            // EntityRepository has no write path for the plain (non-revisionable)
+            // translatable trait mechanics (addTranslation()/removeTranslation()
+            // diffed by a generic save()) — that pattern only ever existed on the
+            // retired SqlEntityStorage engine (superseded M-004 stack, see
+            // docs/specs/entity-storage-two-axis.md). Raw inserts exercise the
+            // same on-disk shape without depending on that removed API.
+            $entityId = '1';
+            foreach (
+                [
+                    'en' => ['title' => 'Hello', 'body' => 'Greetings.'],
+                    'fr' => ['title' => 'Bonjour', 'body' => 'Salut.'],
+                    'oj' => ['title' => 'Aaniin', 'body' => 'Boozhoo.'],
+                ] as $langcode => $values
+            ) {
+                // Composite-PK table (id, langcode): use the DBAL connection's
+                // insert() directly — the query-builder's insert()->execute()
+                // always calls lastInsertId(), which SQLite cannot supply for a
+                // table with no single-column ROWID alias.
+                $database->getConnection()->insert('wp10_blob_article', [
+                    'id' => $entityId,
+                    'uuid' => 'u-blob-1',
+                    'bundle' => 'article',
+                    'label' => 'Hi',
+                    'langcode' => $langcode,
+                    'default_langcode' => 'en',
+                    '_data' => json_encode($values, \JSON_THROW_ON_ERROR),
+                ]);
+            }
 
             // Build a counting proxy *after* seeding so we only count the
             // findTranslations query path.
@@ -347,31 +339,38 @@ final class EntityRepositoryFindTranslationsTest extends TestCase
         ContentEntityBase::setEntityTypeManager($manager);
 
         try {
-            $storage = new SqlEntityStorage(
-                entityType: $entityType,
-                database: $database,
-                eventDispatcher: $eventDispatcher,
-            );
-
-            $entity = $storage->create([
+            // Seed the primary row + translation-sibling rows directly (see the
+            // comment in sqlBlobBackendIssuesSingleQuery() above for why: the
+            // plain-translatable addTranslation()/save() write path only ever
+            // existed on the retired SqlEntityStorage engine).
+            $entityId = '1';
+            // Explicit id on this insert defeats lastInsertId() the same way the
+            // composite-PK tables do — use the DBAL connection directly here too.
+            $database->getConnection()->insert('wp10_col_article', [
+                'id' => $entityId,
+                'uuid' => 'u-col-1',
                 'bundle' => 'article',
                 'label' => 'Hi',
                 'langcode' => 'en',
                 'default_langcode' => 'en',
-                'uuid' => 'u-col-1',
-                'title' => 'Hello',
-                'body' => 'Greetings.',
                 'author' => 'Alice',
             ]);
-            $storage->save($entity);
-            $entityId = (string) $entity->id();
-
-            $reloaded = $storage->load($entityId);
-            self::assertNotNull($reloaded);
-            $oj = $reloaded->addTranslation('oj');
-            $oj->set('title', 'Aaniin');
-            $oj->set('body', 'Boozhoo.');
-            $storage->save($oj);
+            foreach (
+                [
+                    'en' => ['title' => 'Hello', 'body' => 'Greetings.'],
+                    'oj' => ['title' => 'Aaniin', 'body' => 'Boozhoo.'],
+                ] as $langcode => $values
+            ) {
+                // Composite-PK table (entity_id, langcode): see the note in
+                // sqlBlobBackendIssuesSingleQuery() above — bypass the query
+                // builder's lastInsertId() call via the DBAL connection directly.
+                $database->getConnection()->insert('wp10_col_article__translation', [
+                    'entity_id' => $entityId,
+                    'langcode' => $langcode,
+                    'title' => $values['title'],
+                    'body' => $values['body'],
+                ]);
+            }
 
             $counting = new CountingDatabaseProxy($database);
             $driver = new SqlStorageDriver(new SingleConnectionResolver($counting));
@@ -563,6 +562,8 @@ final class EntityRepositoryFindTranslationsTest extends TestCase
             public function getCurrentLanguage(): Language { return $this->current; }
 
             public function setCurrentLanguage(Language $language): void { $this->current = $language; }
+
+            public function resetToDefault(): void {}
 
             public function getFallbackChain(string $langcode): array { return [$langcode]; }
 
