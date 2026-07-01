@@ -141,7 +141,8 @@ final class NcSyncService
                     // lookup with accessCheck(false) so it checks ALL rows for a duplicate (a
                     // duplicate is a duplicate regardless of visibility) instead of throwing
                     // MissingQueryAccountException on the real SqlEntityStorage (B-5).
-                    $existing = $storage->getQuery()
+                    // C-22 WP2: the query builder now lives on the repository.
+                    $existing = $this->entityTypeManager->getRepository($entityType)->getQuery()
                         ->accessCheck(false)
                         ->condition($dedupField, $fields[$dedupField])
                         ->execute();

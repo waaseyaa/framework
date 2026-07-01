@@ -130,7 +130,8 @@ final class DomainValidationListener
     private function assertTitleUniqueInBundle(string $bundle, string $title, int|string|null $entityId): void
     {
         $nodeStorage = $this->entityTypeManager->getStorage('node');
-        $ids = $nodeStorage->getQuery()
+        // C-22 WP2: the query builder now lives on the repository.
+        $ids = $this->entityTypeManager->getRepository('node')->getQuery()
             ->condition('type', $bundle)
             // system context: workflow validator runs inside save transaction; needs unrestricted read
             ->accessCheck(false)

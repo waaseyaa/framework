@@ -12,6 +12,9 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Oidc\ClientRegistry\OidcClientLookup;
@@ -24,6 +27,7 @@ use Waaseyaa\Oidc\Token\RefreshTokenIssuer;
 final class RevocationControllerTest extends TestCase
 {
     private SqlEntityStorage $storage;
+    private EntityRepository $repository;
     private DBALDatabase $tokenDb;
     private AccessTokenIssuer $accessTokenIssuer;
     private RefreshTokenIssuer $refreshTokenIssuer;
@@ -48,7 +52,14 @@ final class RevocationControllerTest extends TestCase
             'client_secret_hash' => ['type' => 'varchar', 'length' => 255, 'not null' => false],
         ]);
 
-        $this->storage = new SqlEntityStorage($entityType, $entityDb, new EventDispatcher());
+        $dispatcher = new EventDispatcher();
+        $this->storage = new SqlEntityStorage($entityType, $entityDb, $dispatcher);
+        $this->repository = new EntityRepository(
+            $entityType,
+            new SqlStorageDriver(new SingleConnectionResolver($entityDb)),
+            $dispatcher,
+            database: $entityDb,
+        );
 
         $this->tokenDb = DBALDatabase::createSqlite();
         $this->accessTokenIssuer = new AccessTokenIssuer($this->tokenDb);
@@ -272,7 +283,7 @@ final class RevocationControllerTest extends TestCase
         }
 
         return new RevocationController(
-            clientLookup: new OidcClientLookup($this->storage),
+            clientLookup: new OidcClientLookup($this->storage, $this->repository),
             accessTokenIssuer: $this->accessTokenIssuer,
             refreshTokenIssuer: $this->refreshTokenIssuer,
         );
@@ -280,7 +291,7 @@ final class RevocationControllerTest extends TestCase
 
     private function seedPublicClient(string $clientId): void
     {
-        $existing = (new OidcClientLookup($this->storage))->findByClientId($clientId);
+        $existing = (new OidcClientLookup($this->storage, $this->repository))->findByClientId($clientId);
         if ($existing !== null) {
             return;
         }

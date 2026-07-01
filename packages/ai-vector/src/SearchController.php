@@ -11,7 +11,7 @@ use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\EntityValues;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Workflows\WorkflowVisibility;
@@ -56,6 +56,8 @@ final class SearchController
 
         $limit = max(1, min(100, $limit));
         $storage = $this->entityTypeManager->getStorage($entityTypeId);
+        // C-22 WP2: the query builder now lives on the repository.
+        $repository = $this->entityTypeManager->getRepository($entityTypeId);
         $mode = $this->embeddingProvider !== null ? 'semantic' : 'keyword';
         $fallbackReason = null;
         $requestedMode = $mode;
@@ -66,13 +68,13 @@ final class SearchController
             if ($semanticResult['fallback_reason'] !== null) {
                 $mode = 'keyword';
                 $fallbackReason = $semanticResult['fallback_reason'];
-                $ids = $this->keywordSearchIds($storage, $query, $limit);
+                $ids = $this->keywordSearchIds($repository, $query, $limit);
             } else {
                 $ids = $semanticResult['ids'];
                 $semanticScores = $semanticResult['scores'];
             }
         } else {
-            $ids = $this->keywordSearchIds($storage, $query, $limit);
+            $ids = $this->keywordSearchIds($repository, $query, $limit);
         }
 
         $graphRerankApplied = false;
@@ -170,7 +172,8 @@ final class SearchController
 
         try {
             $relationshipStorage = $this->entityTypeManager->getStorage('relationship');
-            $relationshipQuery = $relationshipStorage->getQuery();
+            // C-22 WP2: the query builder now lives on the repository.
+            $relationshipQuery = $this->entityTypeManager->getRepository('relationship')->getQuery();
             if ($this->account !== null) {
                 $relationshipQuery = $relationshipQuery->setAccount($this->account);
             } else {
@@ -299,15 +302,14 @@ final class SearchController
     }
 
     /**
-     * @param \Waaseyaa\Entity\Storage\EntityStorageInterface $storage
      * @return array<int|string>
      */
-    private function keywordSearchIds(EntityStorageInterface $storage, string $query, int $limit): array
+    private function keywordSearchIds(EntityRepositoryInterface $repository, string $query, int $limit): array
     {
         $candidateIds = [];
         foreach (['title', 'name', 'body'] as $field) {
             try {
-                $keywordQuery = $storage->getQuery()
+                $keywordQuery = $repository->getQuery()
                     ->condition($field, $query, 'CONTAINS')
                     ->range(0, $limit);
                 if ($this->account !== null) {

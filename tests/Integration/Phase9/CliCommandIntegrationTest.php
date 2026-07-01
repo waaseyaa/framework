@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Cache\CacheFactory;
 use Waaseyaa\CLI\Command\HandlerCommand;
@@ -76,6 +77,14 @@ final class CliCommandIntegrationTest extends TestCase
                     'article' => $articleStorage,
                     'user' => $userStorage,
                     default => throw new \RuntimeException("Unknown entity type: {$definition->id()}"),
+                };
+            },
+            // C-22: the query builder now lives on the repository.
+            function (string $entityTypeId) use ($articleStorage, $userStorage) {
+                return match ($entityTypeId) {
+                    'article' => new InMemoryEntityRepository($articleStorage),
+                    'user' => new InMemoryEntityRepository($userStorage),
+                    default => throw new \RuntimeException("Unknown entity type: {$entityTypeId}"),
                 };
             },
         );

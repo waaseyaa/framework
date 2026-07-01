@@ -55,6 +55,8 @@ final class EntityResolver
     public function resolveList(string $entityTypeId, array $args): array
     {
         $storage = $this->entityTypeManager->getStorage($entityTypeId);
+        // C-22 WP2: the query builder now lives on the repository.
+        $repository = $this->entityTypeManager->getRepository($entityTypeId);
 
         $filters = $this->parseFilters($args);
         $sorts = $this->parseSorts($args);
@@ -62,7 +64,7 @@ final class EntityResolver
         $limit = isset($args['limit']) ? min(self::MAX_LIMIT, max(1, (int) $args['limit'])) : self::DEFAULT_LIMIT;
 
         // Total — filters only, no sorts/pagination.
-        $countQuery = $storage->getQuery();
+        $countQuery = $repository->getQuery();
         if ($this->account !== null) {
             // Access-filtered total (#1702, audit C-7). The query layer is
             // open-by-default (admits Allowed AND Neutral), but `items` below are
@@ -108,7 +110,7 @@ final class EntityResolver
             limit: $limit,
         );
         $applier = new QueryApplier();
-        $baseQuery = $storage->getQuery();
+        $baseQuery = $repository->getQuery();
         if ($this->account !== null) {
             $baseQuery = $baseQuery->setAccount($this->account);
         } else {
@@ -245,7 +247,8 @@ final class EntityResolver
         if (is_string($id) && isset($keys['uuid'])
             && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $id)
         ) {
-            $uuidQuery = $storage->getQuery()->condition($keys['uuid'], $id);
+            // C-22 WP2: the query builder now lives on the repository.
+            $uuidQuery = $this->entityTypeManager->getRepository($entityTypeId)->getQuery()->condition($keys['uuid'], $id);
             if ($this->account !== null) {
                 $uuidQuery = $uuidQuery->setAccount($this->account);
             } else {

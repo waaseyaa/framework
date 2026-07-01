@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\User\Http;
 
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
@@ -60,10 +61,10 @@ final class AuthController
      * the documented system-context pattern in SqlEntityStorage::loadByKey
      * (C-004). The status=1 condition still excludes blocked users.
      */
-    public function findUserByName(EntityStorageInterface $storage, string $name): ?User
+    public function findUserByName(EntityStorageInterface $storage, EntityRepositoryInterface $repository, string $name): ?User
     {
-        // Try by name first.
-        $ids = $storage->getQuery()
+        // Try by name first. C-22 WP2: the query builder now lives on the repository.
+        $ids = $repository->getQuery()
             ->accessCheck(false)
             ->condition('name', $name)
             ->condition('status', 1)
@@ -72,7 +73,7 @@ final class AuthController
 
         // If not found, try by mail field (stored in _data JSON blob).
         if ($ids === []) {
-            $ids = $storage->getQuery()
+            $ids = $repository->getQuery()
                 ->accessCheck(false)
                 ->condition('mail', $name)
                 ->condition('status', 1)

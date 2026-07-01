@@ -23,7 +23,8 @@ final class EntityListHandler
         $limit = (int) ($io->option('limit') ?? 25);
 
         $storage = $this->entityTypeManager->getStorage($entityType);
-        $ids = $storage->getQuery()
+        // C-22 WP2: the query builder now lives on the repository.
+        $ids = $this->entityTypeManager->getRepository($entityType)->getQuery()
             ->accessCheck(false)
             ->range(0, $limit)
             ->execute();

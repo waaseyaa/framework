@@ -12,6 +12,9 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\GraphQL\GraphQlEndpoint;
@@ -102,9 +105,20 @@ abstract class GraphQlIntegrationTestBase extends TestCase
         }
 
         $storages = $this->storages;
+        $resolver = new SingleConnectionResolver($this->database);
+        $database = $this->database;
         $this->entityTypeManager = new EntityTypeManager(
             $eventDispatcher,
             static fn(EntityTypeInterface $type) => $storages[$type->id()],
+            // C-22: repository factory mirroring the kernel's getRepository() shape
+            // — same lazy accessHandlerResolver the storage factory threads above.
+            fn(string $_id, EntityTypeInterface $type): EntityRepository => new EntityRepository(
+                $type,
+                new SqlStorageDriver($resolver),
+                $eventDispatcher,
+                database: $database,
+                accessHandlerResolver: fn(): ?EntityAccessHandler => $this->accessHandler ?? null,
+            ),
         );
 
         foreach ($types as $type) {

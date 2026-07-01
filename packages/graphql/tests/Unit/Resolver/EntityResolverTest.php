@@ -14,6 +14,7 @@ use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
+use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -36,6 +37,7 @@ final class EntityResolverTest extends TestCase
         $this->entityTypeManager = new EntityTypeManager(
             new EventDispatcher(),
             fn() => $this->storage,
+            fn() => new InMemoryEntityRepository($this->storage),
         );
         $this->entityTypeManager->registerCoreEntityType(TestEntityType::stub(
             'article',

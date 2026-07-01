@@ -6,6 +6,7 @@ namespace Waaseyaa\Api\Tests\Unit\Query;
 
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\ResourceSerializer;
+use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\EntityType;
@@ -28,6 +29,7 @@ final class JsonApiControllerFilterTest extends TestCase
         $entityTypeManager = new EntityTypeManager(
             new EventDispatcher(),
             fn() => $this->storage,
+            fn() => new InMemoryEntityRepository($this->storage),
         );
 
         $entityTypeManager->registerEntityType(new EntityType(

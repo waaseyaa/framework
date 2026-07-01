@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
 use Waaseyaa\Path\PathAlias;
 use Waaseyaa\Path\PathAliasResolver;
 use Waaseyaa\Path\ResolvedPath;
@@ -37,7 +38,7 @@ final class PathAliasResolverTest extends TestCase
         $storage->method('getQuery')->willReturn($query);
         $storage->method('load')->with(10)->willReturn($alias);
 
-        $resolver = new PathAliasResolver($storage);
+        $resolver = new PathAliasResolver($storage, new QueryOnlyStubRepository($query));
         $resolved = $resolver->resolve('/teaching/water-is-life');
 
         $this->assertInstanceOf(ResolvedPath::class, $resolved);
@@ -57,7 +58,7 @@ final class PathAliasResolverTest extends TestCase
         $storage = $this->createMock(EntityStorageInterface::class);
         $storage->method('getQuery')->willReturn($query);
 
-        $resolver = new PathAliasResolver($storage);
+        $resolver = new PathAliasResolver($storage, new QueryOnlyStubRepository($query));
         $this->assertNull($resolver->resolve('/missing'));
     }
 }

@@ -10,8 +10,10 @@ use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
 use Waaseyaa\Field\Entity\RetentionPolicy;
 
 /**
@@ -49,6 +51,14 @@ trait JobTestEnvironment
                 }
 
                 return $this->storages[$entityTypeId];
+            }
+
+            // C-22: the query builder now lives on the repository. Delegates
+            // getQuery() to the storage LIVE (not a one-time snapshot) — callers
+            // like RetentionScanner call getQuery() fresh on every batch iteration.
+            public function getRepository(string $entityTypeId): EntityRepositoryInterface
+            {
+                return new QueryOnlyStubRepository(fn(): EntityQueryInterface => $this->getStorage($entityTypeId)->getQuery());
             }
 
             /** @return array<string, \Waaseyaa\Entity\EntityTypeInterface> */

@@ -15,6 +15,7 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
 
 #[CoversClass(EntityListHandler::class)]
 final class EntityListHandlerTest extends TestCase
@@ -74,6 +75,8 @@ final class EntityListHandlerTest extends TestCase
 
         $mockManager = $this->createMock(EntityTypeManagerInterface::class);
         $mockManager->method('getStorage')->willReturn($mockStorage);
+        // C-22: the query builder now lives on the repository.
+        $mockManager->method('getRepository')->willReturn(new QueryOnlyStubRepository($mockQuery));
 
         $definition = $this->makeDefinition();
         $tester = CliTester::for($definition, $this->makeContainer($mockManager));
@@ -98,6 +101,8 @@ final class EntityListHandlerTest extends TestCase
 
         $mockManager = $this->createMock(EntityTypeManagerInterface::class);
         $mockManager->method('getStorage')->willReturn($mockStorage);
+        // C-22: the query builder now lives on the repository.
+        $mockManager->method('getRepository')->willReturn(new QueryOnlyStubRepository($mockQuery));
 
         $definition = $this->makeDefinition();
         $tester = CliTester::for($definition, $this->makeContainer($mockManager));

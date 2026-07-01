@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
 use Waaseyaa\Entity\Testing\RecordingEntityQuery;
 use Waaseyaa\Seo\SitemapGenerator;
 
@@ -41,6 +42,8 @@ final class SitemapGeneratorBindingTest extends TestCase
         $etm->method('getDefinitions')->willReturn(['node' => $def, 'media' => $def]);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getStorage')->willReturn($storage);
+        // C-22: the query builder now lives on the repository.
+        $etm->method('getRepository')->willReturn(new QueryOnlyStubRepository($query));
 
         $gen = new SitemapGenerator();
         $gen->collectFromEntityTypes(

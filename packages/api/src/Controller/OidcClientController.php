@@ -8,6 +8,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\Oidc\Entity\OidcClient;
 
@@ -40,7 +41,8 @@ final class OidcClientController
     public function index(): array
     {
         $storage = $this->storage();
-        $ids = $storage->getQuery()->accessCheck(false)->execute();
+        // C-22 WP2: the query builder now lives on the repository (accessCheck(false): system context).
+        $ids = $this->repository()->getQuery()->accessCheck(false)->execute();
         $clients = array_filter(
             array_map(fn(mixed $id): ?OidcClient => $storage->load($id) instanceof OidcClient ? $storage->load($id) : null, $ids),
         );
@@ -208,6 +210,11 @@ final class OidcClientController
         }
 
         return $storage;
+    }
+
+    private function repository(): EntityRepositoryInterface
+    {
+        return $this->entityTypeManager->getRepository('oidc_client');
     }
 
     /** @return array{0: string, 1: string} [plain, hash] */

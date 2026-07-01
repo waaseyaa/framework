@@ -6,6 +6,7 @@ namespace Waaseyaa\Api\Tests\Unit;
 
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\ResourceSerializer;
+use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Api\Tests\Fixtures\NodeTypeConfigTestEntity;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
@@ -97,6 +98,7 @@ final class JsonApiControllerConfigEntityTest extends TestCase
         $entityTypeManager = new EntityTypeManager(
             new EventDispatcher(),
             fn() => $storage,
+            fn() => new InMemoryEntityRepository($storage),
         );
 
         $entityTypeManager->registerEntityType(new EntityType(

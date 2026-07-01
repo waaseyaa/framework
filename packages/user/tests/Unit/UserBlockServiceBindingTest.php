@@ -8,7 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Testing\RecordingEntityQuery;
 use Waaseyaa\User\UserBlockService;
 
@@ -30,11 +30,11 @@ final class UserBlockServiceBindingTest extends TestCase
     {
         $query = new RecordingEntityQuery();
 
-        $storage = $this->createStub(EntityStorageInterface::class);
-        $storage->method('getQuery')->willReturn($query);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
 
         $etm = $this->createMock(EntityTypeManager::class);
-        $etm->method('getStorage')->with('user_block')->willReturn($storage);
+        $etm->method('getRepository')->with('user_block')->willReturn($repository);
 
         $service = new UserBlockService($etm);
         $service->isBlocked(1, 2);

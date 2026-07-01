@@ -15,6 +15,9 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Node\Node;
@@ -52,7 +55,20 @@ final class SsrPageHandlerUuidResolutionTest extends TestCase
         $this->storage = new SqlEntityStorage($entityType, $this->db, new EventDispatcher());
 
         $storage = $this->storage;
-        $this->etm = new EntityTypeManager(new EventDispatcher(), static fn(EntityTypeInterface $_t): SqlEntityStorage => $storage);
+        $dispatcher = new EventDispatcher();
+        $db = $this->db;
+        $resolver = new SingleConnectionResolver($this->db);
+        $this->etm = new EntityTypeManager(
+            $dispatcher,
+            static fn(EntityTypeInterface $_t): SqlEntityStorage => $storage,
+            // C-22: repository factory mirroring the kernel's getRepository() shape.
+            static fn(string $_id, EntityTypeInterface $t): EntityRepository => new EntityRepository(
+                $t,
+                new SqlStorageDriver($resolver),
+                $dispatcher,
+                database: $db,
+            ),
+        );
         $this->etm->registerEntityType($entityType);
     }
 

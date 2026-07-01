@@ -168,7 +168,7 @@ final class OidcServiceProvider extends ServiceProvider
                     );
                 }
 
-                return new OidcClientLookup($storage);
+                return new OidcClientLookup($storage, $entityTypeManager->getRepository('oidc_client'));
             },
         );
 
@@ -287,6 +287,7 @@ final class OidcServiceProvider extends ServiceProvider
         try {
             $entityTypeManager = $this->resolve(EntityTypeManager::class);
             $storage = $entityTypeManager->getStorage('oidc_client');
+            $repository = $entityTypeManager->getRepository('oidc_client');
         } catch (\Throwable) {
             return;
         }
@@ -295,7 +296,7 @@ final class OidcServiceProvider extends ServiceProvider
             return;
         }
 
-        new OidcClientSeeder($storage)->seed($clients);
+        new OidcClientSeeder($storage, $repository)->seed($clients);
     }
 
     private function resolveLoginPath(): string

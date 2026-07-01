@@ -68,6 +68,8 @@ final class RetentionScanner
     {
         try {
             $storage = $this->entityTypeManager->getStorage($entityTypeId);
+            // C-22 WP2: the query builder now lives on the repository.
+            $repository = $this->entityTypeManager->getRepository($entityTypeId);
         } catch (\Throwable) {
             return;
         }
@@ -78,7 +80,7 @@ final class RetentionScanner
             try {
                 // System retention sweep: no user account in scope. accessCheck(false)
                 // is the intentional opt-out (see CLAUDE.md §"Unbound getQuery() gate").
-                $query = $storage->getQuery()
+                $query = $repository->getQuery()
                     ->accessCheck(false)
                     ->exists('classification_label');
 

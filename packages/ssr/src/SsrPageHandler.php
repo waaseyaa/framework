@@ -136,7 +136,10 @@ final class SsrPageHandler
             $entityTypeId = null;
             $entityId = null;
             if (class_exists(PathAliasResolver::class) && $this->entityTypeManager->hasDefinition('path_alias')) {
-                $aliasResolver = new PathAliasResolver($this->entityTypeManager->getStorage('path_alias'));
+                $aliasResolver = new PathAliasResolver(
+                    $this->entityTypeManager->getStorage('path_alias'),
+                    $this->entityTypeManager->getRepository('path_alias'),
+                );
                 $resolved = $aliasResolver->resolve($aliasLookupPath, $contentLangcode);
                 if ($resolved !== null) {
                     $entityTypeId = $resolved->entityTypeId;
@@ -769,7 +772,8 @@ final class SsrPageHandler
             isset($keys['uuid'])
             && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', (string) $id) === 1
         ) {
-            $ids = $storage->getQuery()
+            // C-22 WP2: the query builder now lives on the repository.
+            $ids = $this->entityTypeManager->getRepository($entityTypeId)->getQuery()
                 ->accessCheck(false)
                 ->condition($keys['uuid'], (string) $id)
                 ->execute();

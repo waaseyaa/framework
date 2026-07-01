@@ -18,6 +18,7 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
 use Waaseyaa\Foundation\Http\Router\SearchRouter;
 
 /**
@@ -235,6 +236,8 @@ final class SemanticSearchAccessTest extends TestCase
         $manager = $this->createStub(\Waaseyaa\Entity\EntityTypeManagerInterface::class);
         $manager->method('hasDefinition')->willReturnCallback(static fn(string $id): bool => $id === 'node');
         $manager->method('getStorage')->willReturn($storage);
+        // C-22: the query builder now lives on the repository.
+        $manager->method('getRepository')->willReturn(new QueryOnlyStubRepository($query));
         $manager->method('getDefinition')->willReturn($entityType);
 
         // Embedding storage never called (no provider → keyword fallback)

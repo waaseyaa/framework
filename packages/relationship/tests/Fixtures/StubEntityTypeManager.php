@@ -70,7 +70,7 @@ class StubEntityTypeManager implements EntityTypeManagerInterface
 
     public function getRepository(string $entityTypeId): EntityRepositoryInterface
     {
-        throw new \BadMethodCallException('StubEntityTypeManager does not implement getRepository().');
+        return new StubEntityRepository($this->getStorage($entityTypeId));
     }
 
     public function getDefinitions(): array

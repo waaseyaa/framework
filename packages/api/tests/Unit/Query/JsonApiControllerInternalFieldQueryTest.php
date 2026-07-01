@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\ResourceSerializer;
+use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\EntityType;
@@ -32,7 +33,11 @@ final class JsonApiControllerInternalFieldQueryTest extends TestCase
     {
         $this->storage = new InMemoryEntityStorage('article');
 
-        $entityTypeManager = new EntityTypeManager(new EventDispatcher(), fn() => $this->storage);
+        $entityTypeManager = new EntityTypeManager(
+            new EventDispatcher(),
+            fn() => $this->storage,
+            fn() => new InMemoryEntityRepository($this->storage),
+        );
         $entityTypeManager->registerEntityType(new EntityType(
             id: 'article',
             label: 'Article',

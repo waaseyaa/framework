@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\RecordingEntityQuery;
@@ -59,10 +60,10 @@ final class AuthControllerTest extends TestCase
     public function findUserByNameReturnsUserWhenFound(): void
     {
         $user = new User(['uid' => 3, 'name' => 'bob']);
-        $storage = $this->makeStorageThatReturnsIds([(string) $user->id()]);
+        [$storage, $repository] = $this->makeStorageAndRepositoryThatReturnIds([(string) $user->id()]);
         $controller = new AuthController();
 
-        $found = $controller->findUserByName($storage, 'bob');
+        $found = $controller->findUserByName($storage, $repository, 'bob');
 
         $this->assertInstanceOf(User::class, $found);
         $this->assertSame(3, $found->id());
@@ -71,10 +72,10 @@ final class AuthControllerTest extends TestCase
     #[Test]
     public function findUserByNameReturnsNullWhenNotFound(): void
     {
-        $storage = $this->makeStorageThatReturnsIds([]);
+        [$storage, $repository] = $this->makeStorageAndRepositoryThatReturnIds([]);
         $controller = new AuthController();
 
-        $found = $controller->findUserByName($storage, 'nobody');
+        $found = $controller->findUserByName($storage, $repository, 'nobody');
 
         $this->assertNull($found);
     }
@@ -118,11 +119,13 @@ final class AuthControllerTest extends TestCase
         };
 
         $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->method('getQuery')->willReturn($query);
         $storage->method('load')->with($user->id())->willReturn($user);
 
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
+
         $controller = new AuthController();
-        $found = $controller->findUserByName($storage, 'eve@example.com');
+        $found = $controller->findUserByName($storage, $repository, 'eve@example.com');
 
         $this->assertInstanceOf(User::class, $found);
         $this->assertSame(8, $found->id());
@@ -133,10 +136,10 @@ final class AuthControllerTest extends TestCase
     {
         /** @var list<array{field: string, value: mixed, operator: string}> $capturedConditions */
         $capturedConditions = [];
-        $storage = $this->makeCapturingStorage($capturedConditions, []);
+        [$storage, $repository] = $this->makeCapturingStorageAndRepository($capturedConditions, []);
         $controller = new AuthController();
 
-        $controller->findUserByName($storage, 'dave');
+        $controller->findUserByName($storage, $repository, 'dave');
 
         $this->assertContains(
             ['field' => 'status', 'value' => 1, 'operator' => '='],
@@ -157,10 +160,11 @@ final class AuthControllerTest extends TestCase
         $query = new RecordingEntityQuery();
 
         $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->method('getQuery')->willReturn($query);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
 
         $controller = new AuthController();
-        $controller->findUserByName($storage, 'dave');
+        $controller->findUserByName($storage, $repository, 'dave');
 
         $this->assertSame(
             [false, false],
@@ -171,12 +175,13 @@ final class AuthControllerTest extends TestCase
 
     /**
      * @param array<int|string> $ids
+     * @return array{0: EntityStorageInterface, 1: EntityRepositoryInterface}
      */
-    private function makeStorageThatReturnsIds(array $ids): EntityStorageInterface
+    private function makeStorageAndRepositoryThatReturnIds(array $ids): array
     {
         $user = $ids !== [] ? new User(['uid' => (int) reset($ids), 'name' => 'bob']) : null;
         $ignored = [];
-        $storage = $this->makeCapturingStorage($ignored, $ids);
+        [$storage, $repository] = $this->makeCapturingStorageAndRepository($ignored, $ids);
 
         if ($user !== null) {
             $storage->method('load')->with((int) reset($ids))->willReturn($user);
@@ -184,14 +189,15 @@ final class AuthControllerTest extends TestCase
             $storage->method('load')->willReturn(null);
         }
 
-        return $storage;
+        return [$storage, $repository];
     }
 
     /**
      * @param list<array{field: string, value: mixed, operator: string}> $capturedConditions
      * @param array<int|string> $idsToReturn
+     * @return array{0: EntityStorageInterface, 1: EntityRepositoryInterface}
      */
-    private function makeCapturingStorage(array &$capturedConditions, array $idsToReturn): EntityStorageInterface
+    private function makeCapturingStorageAndRepository(array &$capturedConditions, array $idsToReturn): array
     {
         $query = new class($idsToReturn, $capturedConditions) implements EntityQueryInterface {
             /** @param list<array{field: string, value: mixed, operator: string}> $conditions */
@@ -217,8 +223,9 @@ final class AuthControllerTest extends TestCase
         };
 
         $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->method('getQuery')->willReturn($query);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
 
-        return $storage;
+        return [$storage, $repository];
     }
 }

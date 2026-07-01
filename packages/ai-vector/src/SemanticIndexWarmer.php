@@ -278,9 +278,9 @@ final class SemanticIndexWarmer
      */
     private function collectSortedIds(string $entityTypeId, int $limit): array
     {
-        $storage = $this->entityTypeManager->getStorage($entityTypeId);
+        // C-22 WP2: the query builder now lives on the repository.
         // system context: index-warming job needs to see all entities to build the embedding store
-        $query = $storage->getQuery()->accessCheck(false);
+        $query = $this->entityTypeManager->getRepository($entityTypeId)->getQuery()->accessCheck(false);
         if ($limit > 0) {
             $query = $query->range(0, $limit);
         }

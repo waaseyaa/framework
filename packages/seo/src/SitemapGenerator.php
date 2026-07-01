@@ -97,7 +97,8 @@ final class SitemapGenerator
             // PathAliasResolver — entity-level access is enforced when the caller
             // subsequently loads the entity to render its page.
             // See docs/security/sql-entity-query-access-check-bypass-audit.md (C-004).
-            $query = $entityTypeManager->getStorage($entityTypeId)->getQuery()->accessCheck(false);
+            // C-22 WP2: the query builder now lives on the repository.
+            $query = $entityTypeManager->getRepository($entityTypeId)->getQuery()->accessCheck(false);
 
             // ...but a *public* sitemap must still only advertise PUBLISHED content:
             // the accessCheck(false) bypass is for URL-generation performance, not a
