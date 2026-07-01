@@ -271,4 +271,44 @@ final class UmamiClientTest extends TestCase
         );
         $this->assertInstanceOf(UmamiClient::class, $client);
     }
+
+    #[Test]
+    public function injected_language_is_sent_in_payload(): void
+    {
+        $spy = $this->makeSpyTransport();
+
+        $client = new UmamiClient(
+            trackerUrl: 'https://umami.example.com',
+            siteId:     'site1',
+            appUrl:     'https://myapp.org',
+            transport:  $spy,
+            logger:     null,
+            language:   'fr-CA',
+        );
+
+        $client->send('page_view');
+
+        $payload = json_decode((string) $spy->lastBody, true);
+        $this->assertSame('fr-CA', $payload['payload']['language'],
+            'send() must use the injected language, not the hardcoded "en"');
+    }
+
+    #[Test]
+    public function default_language_is_en_when_not_specified(): void
+    {
+        $spy = $this->makeSpyTransport();
+
+        $client = new UmamiClient(
+            trackerUrl: 'https://umami.example.com',
+            siteId:     'site1',
+            appUrl:     'https://myapp.org',
+            transport:  $spy,
+        );
+
+        $client->send('page_view');
+
+        $payload = json_decode((string) $spy->lastBody, true);
+        $this->assertSame('en', $payload['payload']['language'],
+            'default language must be "en" for backward compatibility');
+    }
 }

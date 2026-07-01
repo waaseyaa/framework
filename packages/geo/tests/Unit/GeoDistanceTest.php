@@ -33,4 +33,44 @@ final class GeoDistanceTest extends TestCase
         $distance = GeoDistance::haversine(90.0, 0.0, -90.0, 0.0);
         $this->assertEqualsWithDelta(20015.0, $distance, 100.0);
     }
+
+    #[Test]
+    public function throws_on_lat1_out_of_range(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('lat1');
+        GeoDistance::haversine(91.0, 0.0, 0.0, 0.0);
+    }
+
+    #[Test]
+    public function throws_on_lat2_out_of_range(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('lat2');
+        GeoDistance::haversine(0.0, 0.0, -90.1, 0.0);
+    }
+
+    #[Test]
+    public function throws_on_lon1_out_of_range(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('lon1');
+        GeoDistance::haversine(0.0, 181.0, 0.0, 0.0);
+    }
+
+    #[Test]
+    public function throws_on_lon2_out_of_range(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('lon2');
+        GeoDistance::haversine(0.0, 0.0, 0.0, -180.1);
+    }
+
+    #[Test]
+    public function accepts_boundary_values(): void
+    {
+        // Boundary values must be accepted without exception
+        $distance = GeoDistance::haversine(-90.0, -180.0, 90.0, 180.0);
+        $this->assertIsFloat($distance);
+    }
 }
