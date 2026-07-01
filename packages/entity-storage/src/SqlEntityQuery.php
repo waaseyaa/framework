@@ -252,17 +252,23 @@ final class SqlEntityQuery implements EntityQueryInterface
     }
 
     /**
-     * Resolve a field name to its SQL expression.
+     * Resolve a field name to its SQL form.
      *
-     * With a routing map (produced by {@see routeFields()}), the result is
-     * qualified with the base or subtable alias so that it is unambiguous
-     * across the JOINed subtables. Without routing, the legacy unqualified
-     * form is returned.
+     * Returns a {@see ResolvedField} that carries both the SQL text and enough
+     * shape to route it through the right DBAL seam (WP6): an *identifier*
+     * (bare column or qualified `table.field`, NOT pre-quoted — auto-quoted by
+     * `condition()`/`orderBy()`), or an *expression* (a `json_extract(...)`
+     * fragment emitted verbatim through `whereRaw()`/`orderByRaw()`).
+     *
+     * With a routing map (produced by {@see routeFields()}), an identifier is
+     * qualified with the base or subtable name so that it is unambiguous across
+     * the JOINed subtables. Without routing, the legacy unqualified form is
+     * returned.
      *
      * @param array<string, ?string> $routing Map of field name to target
      *        bundle (null for core/base), as produced by routeFields().
      */
-    private function resolveField(string $field, array $routing = []): string
+    private function resolveField(string $field, array $routing = []): ResolvedField
     {
         if (\array_key_exists($field, $routing)) {
             $bundle = $routing[$field];
@@ -279,7 +285,10 @@ final class SqlEntityQuery implements EntityQueryInterface
             // the same FieldDefinition->getStored() hint, so reads cannot
             // shadow writes.
             if ($bundle === null && isset($this->getDataStoredCoreFieldNames()[$field])) {
-                return 'json_extract(' . $quotedAlias . '._data, \'$.' . $field . '\')';
+                return ResolvedField::expression(
+                    'json_extract(' . $quotedAlias . '._data, \'$.' . $field . '\')',
+                    isJsonExtract: true,
+                );
             }
 
             $cacheKey = $targetTable . "\0" . $field;
@@ -287,10 +296,15 @@ final class SqlEntityQuery implements EntityQueryInterface
                 $this->columnCache[$cacheKey] = $this->database->schema()->fieldExists($targetTable, $field);
             }
             if ($this->columnCache[$cacheKey]) {
-                return $quotedAlias . '.' . $field;
+                // Qualified identifier — BARE `table.field`; condition()/orderBy()
+                // auto-quote it to `"table"."field"` (WP6).
+                return ResolvedField::identifier($targetTable . '.' . $field);
             }
 
-            return 'json_extract(' . $quotedAlias . '._data, \'$.' . $field . '\')';
+            return ResolvedField::expression(
+                'json_extract(' . $quotedAlias . '._data, \'$.' . $field . '\')',
+                isJsonExtract: true,
+            );
         }
 
         if (!isset($this->columnCache[$field])) {
@@ -298,10 +312,14 @@ final class SqlEntityQuery implements EntityQueryInterface
         }
 
         if ($this->columnCache[$field]) {
-            return $field;
+            // Plain column — BARE name; condition()/orderBy() auto-quote it (WP6).
+            return ResolvedField::identifier($field);
         }
 
-        return "json_extract(_data, '\$." . $field . "')";
+        return ResolvedField::expression(
+            "json_extract(_data, '\$." . $field . "')",
+            isJsonExtract: true,
+        );
     }
 
     /**
@@ -460,16 +478,6 @@ final class SqlEntityQuery implements EntityQueryInterface
             'float', 'decimal', 'numeric' => (float) $value,
             default => $value,
         };
-    }
-
-    /**
-     * Returns true when the resolved field expression is a `json_extract(...)`
-     * call against `_data`. Used to decide when text-cast wrapping is needed
-     * to commute string-vs-int comparisons (mission #1257 WP05, K3).
-     */
-    private static function expressionResolvesViaJsonExtract(string $resolvedField): bool
-    {
-        return str_contains($resolvedField, 'json_extract(');
     }
 
     /**
@@ -747,19 +755,32 @@ final class SqlEntityQuery implements EntityQueryInterface
         }
 
         // Apply conditions.
+        //
+        // WP6: resolveField() now returns a ResolvedField. An *identifier*
+        // (column / qualified `table.field`) flows through condition()/isNull()/
+        // isNotNull(), which auto-quote it. An *expression* (json_extract(...))
+        // flows through whereRaw(), which emits it verbatim — quoting an
+        // expression would corrupt it. The K3 CAST/coercion logic is preserved
+        // inside the expression path.
         foreach ($this->conditions as $condition) {
             $operator = strtoupper($condition['operator']);
             $fieldName = $condition['field'];
             $bundle = $routing[$fieldName] ?? null;
-            $field = $this->resolveField($fieldName, $routing);
+            $resolved = $this->resolveField($fieldName, $routing);
+            $field = $resolved->sql();
+            $isExpr = $resolved->isExpression();
 
             if ($operator === 'IS NULL') {
-                $select = $select->isNull($field);
+                $select = $isExpr
+                    ? $select->whereRaw($field . ' IS NULL')
+                    : $select->isNull($field);
             } elseif ($operator === 'IS NOT NULL') {
-                $select = $select->isNotNull($field);
+                $select = $isExpr
+                    ? $select->whereRaw($field . ' IS NOT NULL')
+                    : $select->isNotNull($field);
             } elseif ($operator === 'IN') {
                 $rawValues = is_array($condition['value']) ? $condition['value'] : [$condition['value']];
-                if (self::expressionResolvesViaJsonExtract($field)) {
+                if ($resolved->isJsonExtract()) {
                     // K3 (mission #1257 WP05): SQLite's `json_extract()` returns
                     // the native JSON type and the underlying DBAL helper
                     // hardcodes ArrayParameterType::STRING for IN-set parameters.
@@ -767,31 +788,47 @@ final class SqlEntityQuery implements EntityQueryInterface
                     // stringifying each value forces text-vs-text equality so
                     // callers can pass int|string|null interchangeably without
                     // knowing the storage shape.
-                    $field = 'CAST(' . $field . ' AS TEXT)';
                     $values = array_map(static fn(mixed $v): string => (string) $v, $rawValues);
+                    $select = $select->whereRaw('CAST(' . $field . ' AS TEXT) IN (?)', [$values]);
                 } else {
                     $values = array_map(
                         fn(mixed $v): mixed => $this->coerceConditionValue($fieldName, $v, $bundle),
                         $rawValues,
                     );
+                    $select = $isExpr
+                        ? $select->whereRaw($field . ' IN (?)', [$values])
+                        : $select->condition($field, $values, 'IN');
                 }
-                $select = $select->condition($field, $values, 'IN');
             } elseif ($operator === 'CONTAINS') {
                 // String-pattern operator: do not coerce, callers want string semantics.
-                $escaped = str_replace(['%', '_'], ['\\%', '\\_'], (string) $condition['value']);
-                $select = $select->condition($field, '%' . $escaped . '%', 'LIKE');
+                $pattern = '%' . str_replace(['%', '_'], ['\\%', '\\_'], (string) $condition['value']) . '%';
+                $select = $isExpr
+                    ? $select->whereRaw($field . " LIKE ? ESCAPE '\\'", [$pattern])
+                    : $select->condition($field, $pattern, 'LIKE');
             } elseif ($operator === 'STARTS_WITH') {
-                $escaped = str_replace(['%', '_'], ['\\%', '\\_'], (string) $condition['value']);
-                $select = $select->condition($field, $escaped . '%', 'LIKE');
+                $pattern = str_replace(['%', '_'], ['\\%', '\\_'], (string) $condition['value']) . '%';
+                $select = $isExpr
+                    ? $select->whereRaw($field . " LIKE ? ESCAPE '\\'", [$pattern])
+                    : $select->condition($field, $pattern, 'LIKE');
             } else {
                 $value = $this->coerceConditionValue($fieldName, $condition['value'], $bundle);
-                $select = $select->condition($field, $value, $condition['operator']);
+                if (!$isExpr) {
+                    $select = $select->condition($field, $value, $condition['operator']);
+                } elseif ($operator === 'LIKE' || $operator === 'NOT LIKE') {
+                    $select = $select->whereRaw($field . ' ' . $operator . " ? ESCAPE '\\'", [$value]);
+                } else {
+                    $select = $select->whereRaw($field . ' ' . $operator . ' ?', [$value]);
+                }
             }
         }
 
-        // Apply sorts.
+        // Apply sorts. Identifiers auto-quote via orderBy(); json_extract(...)
+        // expressions emit verbatim via orderByRaw() (WP6).
         foreach ($this->sorts as $sort) {
-            $select = $select->orderBy($this->resolveField($sort['field'], $routing), $sort['direction']);
+            $resolved = $this->resolveField($sort['field'], $routing);
+            $select = $resolved->isExpression()
+                ? $select->orderByRaw($resolved->sql(), $sort['direction'])
+                : $select->orderBy($resolved->sql(), $sort['direction']);
         }
 
         // Apply range.

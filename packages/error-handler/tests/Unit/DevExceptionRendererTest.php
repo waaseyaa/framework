@@ -46,4 +46,35 @@ final class DevExceptionRendererTest extends TestCase
         self::assertStringContainsString('Suggestions', $html);
         self::assertStringContainsString('Fix', $html);
     }
+
+    #[Test]
+    public function render_uses_injected_editorId_for_editor_link(): void
+    {
+        // When editorId is explicitly injected, the rendered link must use that editor,
+        // not the EDITOR env var (the composition root resolves the env, not the renderer).
+        $renderer = new DevExceptionRenderer(editorId: 'phpstorm');
+        $html = $renderer->render(new \RuntimeException('test'));
+
+        self::assertStringContainsString('phpstorm://', $html,
+            'DevExceptionRenderer must pass the injected editorId through to EditorLinkGenerator');
+    }
+
+    #[Test]
+    public function render_defaults_to_vscode_link_when_no_editorId_and_no_env(): void
+    {
+        $original = getenv('EDITOR');
+        putenv('EDITOR'); // clear the env var
+
+        try {
+            $renderer = new DevExceptionRenderer();
+            $html = $renderer->render(new \RuntimeException('test'));
+
+            self::assertStringContainsString('vscode://', $html,
+                'DevExceptionRenderer must default to vscode when neither editorId nor EDITOR is set');
+        } finally {
+            if ($original !== false) {
+                putenv('EDITOR=' . $original);
+            }
+        }
+    }
 }
