@@ -10,7 +10,9 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityType;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 
 /**
@@ -136,29 +138,29 @@ final class DBALRegressionTest extends TestCase
         $this->assertTrue($entity->isNew());
 
         // 2. Save (insert).
-        $result = $storage->save($entity);
+        $result = $storage->save($entity, validate: false);
         $this->assertSame(EntityConstants::SAVED_NEW, $result);
         $id = $entity->id();
         $this->assertNotNull($id);
         $this->assertFalse($entity->isNew());
 
         // 3. Load.
-        $loaded = $storage->load($id);
+        $loaded = $storage->find((string) $id);
         $this->assertNotNull($loaded);
         $this->assertSame('Lifecycle Test', $loaded->label());
         $this->assertSame($entity->uuid(), $loaded->uuid());
 
         // 4. Update.
         $loaded->set('title', 'Updated Lifecycle');
-        $result = $storage->save($loaded);
+        $result = $storage->save($loaded, validate: false);
         $this->assertSame(EntityConstants::SAVED_UPDATED, $result);
 
-        $reloaded = $storage->load($id);
+        $reloaded = $storage->find((string) $id);
         $this->assertSame('Updated Lifecycle', $reloaded->label());
 
         // 5. Delete.
-        $storage->delete([$reloaded]);
-        $this->assertNull($storage->load($id));
+        $storage->delete($reloaded);
+        $this->assertNull($storage->find((string) $id));
     }
 
     // ---- _data blob round-trip with complex nested data ----
@@ -197,11 +199,11 @@ final class DBALRegressionTest extends TestCase
             'metadata' => $complexData['metadata'],
             'settings' => $complexData['settings'],
         ]);
-        $storage->save($entity);
+        $storage->save($entity, validate: false);
 
         // Load from fresh storage to avoid caching.
         $freshStorage = $this->createStorage($entityType);
-        $loaded = $freshStorage->load($entity->id());
+        $loaded = $freshStorage->find((string) $entity->id());
 
         $this->assertNotNull($loaded);
         $this->assertSame($complexData['metadata'], $loaded->get('metadata'));
@@ -223,9 +225,9 @@ final class DBALRegressionTest extends TestCase
                 'special' => "quotes: \"hello\" and 'world'",
             ],
         ]);
-        $storage->save($entity);
+        $storage->save($entity, validate: false);
 
-        $loaded = $storage->load($entity->id());
+        $loaded = $storage->find((string) $entity->id());
         $this->assertSame('こんにちは', $loaded->get('i18n')['greeting_ja']);
         $this->assertSame('مرحبا', $loaded->get('i18n')['greeting_ar']);
         $this->assertSame('🎉🚀', $loaded->get('i18n')['emoji']);
@@ -242,26 +244,26 @@ final class DBALRegressionTest extends TestCase
             'counter' => 0,
             'history' => ['created'],
         ]);
-        $storage->save($entity);
+        $storage->save($entity, validate: false);
 
         // Update 1.
-        $loaded = $storage->load($entity->id());
+        $loaded = $storage->find((string) $entity->id());
         $loaded->set('counter', 1);
         $history = $loaded->get('history');
         $history[] = 'update_1';
         $loaded->set('history', $history);
-        $storage->save($loaded);
+        $storage->save($loaded, validate: false);
 
         // Update 2.
-        $loaded = $storage->load($entity->id());
+        $loaded = $storage->find((string) $entity->id());
         $loaded->set('counter', 2);
         $history = $loaded->get('history');
         $history[] = 'update_2';
         $loaded->set('history', $history);
-        $storage->save($loaded);
+        $storage->save($loaded, validate: false);
 
         // Verify final state.
-        $final = $storage->load($entity->id());
+        $final = $storage->find((string) $entity->id());
         $this->assertSame(2, $final->get('counter'));
         $this->assertSame(['created', 'update_1', 'update_2'], $final->get('history'));
     }
@@ -273,9 +275,9 @@ final class DBALRegressionTest extends TestCase
         $entityType = $this->createTestEntityType('like_pct_entity');
         $storage = $this->createStorage($entityType);
 
-        $storage->save($storage->create(['title' => '50% off sale', 'bundle' => 'a']));
-        $storage->save($storage->create(['title' => '50 items in stock', 'bundle' => 'a']));
-        $storage->save($storage->create(['title' => 'Regular title', 'bundle' => 'a']));
+        $storage->save($storage->create(['title' => '50% off sale', 'bundle' => 'a']), validate: false);
+        $storage->save($storage->create(['title' => '50 items in stock', 'bundle' => 'a']), validate: false);
+        $storage->save($storage->create(['title' => 'Regular title', 'bundle' => 'a']), validate: false);
 
         // Search for literal "50%" should only match first entity.
         $ids = $storage->getQuery()->accessCheck(false)
@@ -283,7 +285,7 @@ final class DBALRegressionTest extends TestCase
             ->execute();
 
         $this->assertCount(1, $ids);
-        $this->assertSame('50% off sale', $storage->load($ids[0])->label());
+        $this->assertSame('50% off sale', $storage->find((string) $ids[0])->label());
     }
 
     public function testLikeEscapingUnderscoreInContains(): void
@@ -291,9 +293,9 @@ final class DBALRegressionTest extends TestCase
         $entityType = $this->createTestEntityType('like_us_entity');
         $storage = $this->createStorage($entityType);
 
-        $storage->save($storage->create(['title' => 'field_name_value', 'bundle' => 'a']));
-        $storage->save($storage->create(['title' => 'fieldXnameXvalue', 'bundle' => 'a']));
-        $storage->save($storage->create(['title' => 'other content', 'bundle' => 'a']));
+        $storage->save($storage->create(['title' => 'field_name_value', 'bundle' => 'a']), validate: false);
+        $storage->save($storage->create(['title' => 'fieldXnameXvalue', 'bundle' => 'a']), validate: false);
+        $storage->save($storage->create(['title' => 'other content', 'bundle' => 'a']), validate: false);
 
         // Search for "field_name" should only match the one with literal underscore.
         $ids = $storage->getQuery()->accessCheck(false)
@@ -301,7 +303,7 @@ final class DBALRegressionTest extends TestCase
             ->execute();
 
         $this->assertCount(1, $ids);
-        $this->assertSame('field_name_value', $storage->load($ids[0])->label());
+        $this->assertSame('field_name_value', $storage->find((string) $ids[0])->label());
     }
 
     public function testLikeEscapingPercentInStartsWith(): void
@@ -309,15 +311,15 @@ final class DBALRegressionTest extends TestCase
         $entityType = $this->createTestEntityType('like_sw_entity');
         $storage = $this->createStorage($entityType);
 
-        $storage->save($storage->create(['title' => '%discount applied', 'bundle' => 'a']));
-        $storage->save($storage->create(['title' => 'discount applied', 'bundle' => 'a']));
+        $storage->save($storage->create(['title' => '%discount applied', 'bundle' => 'a']), validate: false);
+        $storage->save($storage->create(['title' => 'discount applied', 'bundle' => 'a']), validate: false);
 
         $ids = $storage->getQuery()->accessCheck(false)
             ->condition('title', '%discount', 'STARTS_WITH')
             ->execute();
 
         $this->assertCount(1, $ids);
-        $this->assertSame('%discount applied', $storage->load($ids[0])->label());
+        $this->assertSame('%discount applied', $storage->find((string) $ids[0])->label());
     }
 
     public function testLikeEscapingCombinedSpecialChars(): void
@@ -325,15 +327,15 @@ final class DBALRegressionTest extends TestCase
         $entityType = $this->createTestEntityType('like_combo_entity');
         $storage = $this->createStorage($entityType);
 
-        $storage->save($storage->create(['title' => '100%_complete', 'bundle' => 'a']));
-        $storage->save($storage->create(['title' => '100X complete', 'bundle' => 'a']));
+        $storage->save($storage->create(['title' => '100%_complete', 'bundle' => 'a']), validate: false);
+        $storage->save($storage->create(['title' => '100X complete', 'bundle' => 'a']), validate: false);
 
         $ids = $storage->getQuery()->accessCheck(false)
             ->condition('title', '100%_', 'CONTAINS')
             ->execute();
 
         $this->assertCount(1, $ids);
-        $this->assertSame('100%_complete', $storage->load($ids[0])->label());
+        $this->assertSame('100%_complete', $storage->find((string) $ids[0])->label());
     }
 
     // ---- Helpers ----
@@ -377,15 +379,19 @@ final class DBALRegressionTest extends TestCase
         );
     }
 
-    private function createStorage(EntityType $entityType): SqlEntityStorage
+    private function createStorage(EntityType $entityType): EntityRepository
     {
         $schemaHandler = new SqlSchemaHandler($entityType, $this->database);
         $schemaHandler->ensureTable();
 
-        return new SqlEntityStorage(
+        $resolver = new SingleConnectionResolver($this->database);
+        $driver = new SqlStorageDriver($resolver, $entityType->getKeys()['id'] ?? 'id');
+
+        return new EntityRepository(
             $entityType,
-            $this->database,
+            $driver,
             new EventDispatcher(),
+            database: $this->database,
         );
     }
 }

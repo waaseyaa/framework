@@ -15,7 +15,6 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Oidc\ClientRegistry\OidcClientLookup;
 use Waaseyaa\Oidc\Entity\OidcClient;
@@ -26,7 +25,6 @@ use Waaseyaa\Oidc\Token\RefreshTokenIssuer;
 #[CoversClass(RevocationController::class)]
 final class RevocationControllerTest extends TestCase
 {
-    private SqlEntityStorage $storage;
     private EntityRepository $repository;
     private DBALDatabase $tokenDb;
     private AccessTokenIssuer $accessTokenIssuer;
@@ -53,7 +51,6 @@ final class RevocationControllerTest extends TestCase
         ]);
 
         $dispatcher = new EventDispatcher();
-        $this->storage = new SqlEntityStorage($entityType, $entityDb, $dispatcher);
         $this->repository = new EntityRepository(
             $entityType,
             new SqlStorageDriver(new SingleConnectionResolver($entityDb)),
@@ -296,8 +293,8 @@ final class RevocationControllerTest extends TestCase
             return;
         }
 
-        $this->storage->save(
-            $this->storage->create([
+        $this->repository->save(
+            $this->repository->create([
                 'client_id' => $clientId,
                 'name' => $clientId,
                 'redirect_uris' => ['https://example.com/callback'],

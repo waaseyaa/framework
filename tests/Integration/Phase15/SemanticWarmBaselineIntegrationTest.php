@@ -31,7 +31,6 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Relationship\Relationship;
 use Waaseyaa\Relationship\RelationshipDiscoveryService;
@@ -63,21 +62,13 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
 
         $this->entityTypeManager = new EntityTypeManager(
             $dispatcher,
-            function (EntityType $definition) use ($dispatcher): SqlEntityStorage {
-                $schema = new SqlSchemaHandler($definition, $this->database);
-                $schema->ensureTable();
-                // Wire the access handler into getQuery() as production does
-                // (#1714); under deny-by-default (C-6) an unwired query layer
-                // denies every candidate before the consumer's filter runs.
-                return new SqlEntityStorage(
-                    $definition,
-                    $this->database,
-                    $dispatcher,
-                    accessHandlerResolver: fn(): ?EntityAccessHandler => $this->accessHandler ?? null,
-                );
-            },
+            // C-22 WP4: legacy SqlEntityStorage engine is deleted; persistence goes
+            // exclusively through the repository factory below.
+            null,
             // C-22: repository factory mirroring the kernel's getRepository() shape
-            // — same lazy accessHandlerResolver the storage factory threads above.
+            // — wires the access handler into getQuery() as production does
+            // (#1714); under deny-by-default (C-6) an unwired query layer
+            // denies every candidate before the consumer's filter runs.
             function (string $_id, EntityType $definition) use ($dispatcher, $resolver): EntityRepository {
                 new SqlSchemaHandler($definition, $this->database)->ensureTable();
                 $idKey = $definition->getKeys()['id'] ?? 'id';
@@ -261,17 +252,17 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
 
     private function seedFixtureCorpus(): void
     {
-        $nodeStorage = $this->entityTypeManager->getStorage('node');
+        $nodeRepository = $this->entityTypeManager->getRepository('node');
         foreach (WorkflowFixturePack::discoveryNodes() as $key => $values) {
-            $entity = $nodeStorage->create($values);
-            $nodeStorage->save($entity);
+            $entity = $nodeRepository->create($values);
+            $nodeRepository->save($entity, validate: false);
             $this->nodeIdsByFixtureKey[$key] = $entity->id();
         }
 
-        $relationshipStorage = $this->entityTypeManager->getStorage('relationship');
+        $relationshipRepository = $this->entityTypeManager->getRepository('relationship');
         new RelationshipSchemaManager($this->database)->ensure();
         foreach (WorkflowFixturePack::discoveryRelationships() as $fixture) {
-            $relationship = $relationshipStorage->create([
+            $relationship = $relationshipRepository->create([
                 'relationship_type' => $fixture['relationship_type'],
                 'from_entity_type' => 'node',
                 'from_entity_id' => (string) $this->nodeIdsByFixtureKey[$fixture['from']],
@@ -281,7 +272,7 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
                 'start_date' => $fixture['start_date'],
                 'end_date' => $fixture['end_date'],
             ]);
-            $relationshipStorage->save($relationship);
+            $relationshipRepository->save($relationship, validate: false);
         }
     }
 

@@ -18,7 +18,6 @@ use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 
@@ -36,12 +35,9 @@ final class EntityTypeManagerRepositoryIntegrationTest extends TestCase
 
         $manager = new EntityTypeManager(
             $dispatcher,
-            function (EntityTypeInterface $definition) use ($database, $dispatcher): SqlEntityStorage {
-                $schemaHandler = new SqlSchemaHandler($definition, $database);
-                $schemaHandler->ensureTable();
-
-                return new SqlEntityStorage($definition, $database, $dispatcher);
-            },
+            // C-22 WP4: legacy SqlEntityStorage engine is deleted; only getRepository()
+            // is exercised by this test, so no storage factory is wired.
+            null,
             function (string $entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher): EntityRepositoryInterface {
                 $schemaHandler = new SqlSchemaHandler($definition, $database);
                 $schemaHandler->ensureTable();

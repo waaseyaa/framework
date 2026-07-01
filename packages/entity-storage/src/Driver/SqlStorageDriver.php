@@ -6,9 +6,11 @@ namespace Waaseyaa\EntityStorage\Driver;
 
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\EntityStorage\Connection\ConnectionResolverInterface;
 use Waaseyaa\EntityStorage\ResolvedField;
 use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
+use Waaseyaa\Field\FieldStorage;
 
 /**
  * SQL-based storage driver.
@@ -28,6 +30,10 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
         private readonly ConnectionResolverInterface $connectionResolver,
         private readonly string $idKey = 'id',
         private readonly ?CommunityScope $communityScope = null,
+        // C-22 WP4 fix: mirrors the deleted SqlEntityStorage::$fieldRegistry.
+        // Lets splitForWrite() honor an explicit FieldStorage::Data hint over a
+        // lingering legacy column (see splitForWrite() docblock, issue #1308).
+        private readonly ?FieldDefinitionRegistryInterface $fieldRegistry = null,
     ) {}
 
     public function read(string $entityType, string $id, ?string $langcode = null): ?array
@@ -673,6 +679,11 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
      * this split internally; the repository → driver path goes through here
      * so the same convention holds for both.
      *
+     * A field explicitly registered with a `FieldStorage::Data` hint (see
+     * {@see dataStoredCoreFieldNames()}) always routes to `_data`, even when a
+     * legacy column of the same name still exists in the schema (issue #1308) —
+     * the registry's hint is authoritative over residual schema state.
+     *
      * @param array<string, mixed> $values
      * @return array<string, mixed>
      */
@@ -680,6 +691,7 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
     {
         $schema = $db->schema();
         $hasDataColumn = $schema->fieldExists($entityType, '_data');
+        $dataStoredFields = $this->dataStoredCoreFieldNames($entityType);
 
         $dbValues = [];
         $extraData = [];
@@ -704,7 +716,9 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
                 continue;
             }
 
-            if ($schema->fieldExists($entityType, $key)) {
+            if (isset($dataStoredFields[$key])) {
+                $extraData[$key] = $value;
+            } elseif ($schema->fieldExists($entityType, $key)) {
                 $dbValues[$key] = $value;
             } else {
                 $extraData[$key] = $value;
@@ -716,6 +730,30 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
         }
 
         return $dbValues;
+    }
+
+    /**
+     * Core field names whose registered storage hint is `FieldStorage::Data`.
+     * Mirrors the deleted `SqlEntityStorage::getDataStoredCoreFieldNames()` so
+     * `splitForWrite()` keeps `_data`-routed fields out of base columns even
+     * when a legacy column happens to still exist.
+     *
+     * @return array<string, true>
+     */
+    private function dataStoredCoreFieldNames(string $entityType): array
+    {
+        if ($this->fieldRegistry === null) {
+            return [];
+        }
+
+        $names = [];
+        foreach ($this->fieldRegistry->coreFieldsFor($entityType) as $name => $definition) {
+            if ($definition->getStored() === FieldStorage::Data) {
+                $names[$name] = true;
+            }
+        }
+
+        return $names;
     }
 
     /**

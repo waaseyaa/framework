@@ -712,7 +712,19 @@ final class EntityRepository implements EntityRepositoryInterface
         );
 
         $values = $entity->toArray();
-        $id = (string) ($entity->id() ?? '');
+        // C-22 WP4 fix: read the id key from the entity's raw value bag
+        // (toArray()), not the $entity->id() accessor. Some entity classes
+        // (e.g. Waaseyaa\User\User::id(), which implements AccountInterface's
+        // contract of "anonymous is 0, never null") override id() to coerce
+        // an unset id into a non-null sentinel. `$entity->id() ?? ''` then
+        // never sees the "not yet assigned" null, `$id` never becomes '',
+        // and the new-entity id-backfill branches below (and
+        // SqlStorageDriver::write()'s own empty-id branch) never fire —
+        // silently leaving a freshly-inserted entity's in-memory id at the
+        // sentinel (e.g. a newly created User staying at uid 0) instead of
+        // the real assigned id. The raw $values bag has no such override.
+        $idKeyForNewId = $this->entityType->getKeys()['id'] ?? 'id';
+        $id = (string) ($values[$idKeyForNewId] ?? '');
 
         // Translatable entity types widen the base-table primary key to
         // (id, langcode), so the id column is a plain int shared across a row's

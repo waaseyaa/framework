@@ -15,7 +15,6 @@ use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 use Waaseyaa\Field\FieldDefinition;
@@ -24,13 +23,16 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LoggerTrait;
 
 /**
- * Commit-4 tests: activate the per-bundle save/load path in SqlEntityStorage.
+ * Bundle-scoped storage tests (C-22 WP4: ported from the retired
+ * SqlEntityStorageBundleFieldsTest — SqlEntityStorage is deleted; the shared
+ * {@see \Waaseyaa\EntityStorage\Bundle\BundleSubtableGateway} is now
+ * exercised exclusively through EntityRepository, the sole persistence engine).
  *
  * Covers the §Resolution normalization boundary and the bundle-scoped subtable
  * round trip documented in docs/specs/bundle-scoped-storage.md.
  */
-#[CoversClass(SqlEntityStorage::class)]
-final class SqlEntityStorageBundleFieldsTest extends TestCase
+#[CoversClass(EntityRepository::class)]
+final class EntityRepositoryBundleFieldsTest extends TestCase
 {
     private DBALDatabase $database;
     private EntityType $groupType;
@@ -70,9 +72,9 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
         $this->registerBusinessFields();
         $this->registerOrganizationFields();
         $this->ensureSchema(['business', 'organization']);
-        $storage = $this->makeStorage();
+        $repository = $this->makeRepository();
 
-        $biz = $storage->create([
+        $biz = $repository->create([
             'uuid' => 'uuid-biz',
             'type' => 'business',
             'label' => 'Acme',
@@ -80,11 +82,11 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
             'email' => 'hi@acme.example',
             'phone' => '555-0100',
         ]);
-        $storage->save($biz);
+        $repository->save($biz, validate: false);
         $bizId = $biz->id();
-        self::assertIsInt($bizId);
+        self::assertNotNull($bizId);
 
-        $org = $storage->create([
+        $org = $repository->create([
             'uuid' => 'uuid-org',
             'type' => 'organization',
             'label' => 'OpenOrg',
@@ -92,18 +94,18 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
             'website' => 'https://openorg.example',
             'org_code' => 'OPEN-1',
         ]);
-        $storage->save($org);
+        $repository->save($org, validate: false);
         $orgId = $org->id();
-        self::assertIsInt($orgId);
+        self::assertNotNull($orgId);
 
-        $loadedBiz = $storage->load($bizId);
+        $loadedBiz = $repository->find((string) $bizId);
         self::assertNotNull($loadedBiz);
         self::assertSame('business', $loadedBiz->get('type'));
         self::assertSame('hi@acme.example', $loadedBiz->get('email'));
         self::assertSame('555-0100', $loadedBiz->get('phone'));
         self::assertFalse($loadedBiz->hasField('website'));
 
-        $loadedOrg = $storage->load($orgId);
+        $loadedOrg = $repository->find((string) $orgId);
         self::assertNotNull($loadedOrg);
         self::assertSame('organization', $loadedOrg->get('type'));
         self::assertSame('https://openorg.example', $loadedOrg->get('website'));
@@ -112,16 +114,16 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
     }
 
     /**
-     * Test 2: loadMultiple merges per-bundle subtable rows across mixed bundles
+     * Test 2: findMany merges per-bundle subtable rows across mixed bundles
      * using one IN-query per bundle, not one lookup per entity.
      */
     #[Test]
-    public function loadMultipleBatchMergesPerBundleSubtables(): void
+    public function findManyBatchMergesPerBundleSubtables(): void
     {
         $this->registerBusinessFields();
         $this->registerOrganizationFields();
         $this->ensureSchema(['business', 'organization']);
-        $storage = $this->makeStorage();
+        $repository = $this->makeRepository();
 
         $ids = [];
         foreach ([
@@ -130,38 +132,42 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
             ['uuid-org-1', 'organization', 'OpenOrg', ['website' => 'https://o1.example', 'org_code' => 'O-1']],
             ['uuid-org-2', 'organization', 'WikiOrg', ['website' => 'https://o2.example', 'org_code' => 'O-2']],
         ] as [$uuid, $bundle, $label, $extras]) {
-            $entity = $storage->create(\array_merge([
+            $entity = $repository->create(\array_merge([
                 'uuid' => $uuid,
                 'type' => $bundle,
                 'label' => $label,
                 'langcode' => 'en',
             ], $extras));
-            $storage->save($entity);
-            $ids[] = $entity->id();
+            $repository->save($entity, validate: false);
+            $ids[] = (string) $entity->id();
         }
 
-        $loaded = $storage->loadMultiple($ids);
+        $loaded = $repository->findMany($ids);
 
         self::assertCount(4, $loaded);
-        self::assertSame('a@a.example', $loaded[$ids[0]]->get('email'));
-        self::assertSame('2', $loaded[$ids[1]]->get('phone'));
-        self::assertSame('https://o1.example', $loaded[$ids[2]]->get('website'));
-        self::assertSame('O-2', $loaded[$ids[3]]->get('org_code'));
+        $byId = [];
+        foreach ($loaded as $entity) {
+            $byId[(string) $entity->id()] = $entity;
+        }
+        self::assertSame('a@a.example', $byId[$ids[0]]->get('email'));
+        self::assertSame('2', $byId[$ids[1]]->get('phone'));
+        self::assertSame('https://o1.example', $byId[$ids[2]]->get('website'));
+        self::assertSame('O-2', $byId[$ids[3]]->get('org_code'));
     }
 
     /**
      * Test 3: core fields that are not base-table columns fall through to
      * the _data JSON blob on save and merge back on load. Bundle partitioning
-     * must not short-circuit splitForStorage's existing fallback.
+     * must not short-circuit splitForWrite's existing fallback.
      */
     #[Test]
     public function coreFieldsFallBackToDataBlobWhenNotSchemaColumns(): void
     {
         $this->registerBusinessFields();
         $this->ensureSchema(['business']);
-        $storage = $this->makeStorage();
+        $repository = $this->makeRepository();
 
-        $entity = $storage->create([
+        $entity = $repository->create([
             'uuid' => 'uuid-x',
             'type' => 'business',
             'label' => 'Acme',
@@ -170,9 +176,9 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
             'description' => 'No schema column for me',
             'tags' => ['foo', 'bar'],
         ]);
-        $storage->save($entity);
+        $repository->save($entity, validate: false);
 
-        $loaded = $storage->load($entity->id());
+        $loaded = $repository->find((string) $entity->id());
         self::assertNotNull($loaded);
         self::assertSame('hi@acme.example', $loaded->get('email'));
         self::assertSame('No schema column for me', $loaded->get('description'));
@@ -188,7 +194,7 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
     {
         $this->registerBusinessFields();
         $this->ensureSchema(['business']);
-        $storage = $this->makeStorage();
+        $repository = $this->makeRepository();
 
         $postSaveCount = 0;
         $this->dispatcher->addListener(
@@ -201,14 +207,14 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
         // Make the bundle gateway believe the subtable exists (poison its cache),
         // then drop the real subtable so the upsert hits "no such table" inside the
         // transaction, exercising the rollback path.
-        $gatewayMethod = new \ReflectionMethod(SqlEntityStorage::class, 'bundleGateway');
-        $gateway = $gatewayMethod->invoke($storage);
+        $gatewayMethod = new \ReflectionMethod(EntityRepository::class, 'bundleGateway');
+        $gateway = $gatewayMethod->invoke($repository);
         self::assertNotNull($gateway);
         $existsProp = new \ReflectionProperty($gateway::class, 'existsCache');
         $existsProp->setValue($gateway, ['business' => true]);
         $this->database->getConnection()->executeStatement('DROP TABLE "group__business"');
 
-        $entity = $storage->create([
+        $entity = $repository->create([
             'uuid' => 'uuid-fail',
             'type' => 'business',
             'label' => 'Doomed',
@@ -218,7 +224,7 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
 
         $caught = false;
         try {
-            $storage->save($entity);
+            $repository->save($entity, validate: false);
         } catch (\Throwable $_e) {
             $caught = true;
         }
@@ -231,10 +237,6 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
         self::assertSame(0, (int) ((array) $rows[0])['c'], 'base row must be rolled back');
     }
 
-    /**
-     * Test 5: attempting to save a field registered against a different
-     * bundle throws — the partitioner refuses to write silently-corrupt data.
-     */
     /**
      * Test 5: when bundle-scoped fields are present but the bundle subtable is
      * missing at save time, the write continues on the base row, the column-bound
@@ -269,11 +271,11 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
                 }
             }
         };
-        $storage = $this->makeStorage($logger);
+        $repository = $this->makeRepository($logger);
 
         $this->database->getConnection()->executeStatement('DROP TABLE "group__business"');
 
-        $entity = $storage->create([
+        $entity = $repository->create([
             'uuid' => 'uuid-missing-subtable',
             'type' => 'business',
             'label' => 'Acme',
@@ -281,7 +283,7 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
             'email' => 'hi@acme.example',
         ]);
 
-        $storage->save($entity);
+        $repository->save($entity, validate: false);
 
         self::assertCount(1, $messages);
         self::assertStringContainsString('[MISSING_BUNDLE_SUBTABLE]', $messages[0]);
@@ -291,7 +293,7 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
 
         // Never a silent drop: the bundle value is folded into the base `_data`
         // blob and recovered on load.
-        $loaded = $storage->load($entity->id());
+        $loaded = $repository->find((string) $entity->id());
         self::assertNotNull($loaded);
         self::assertTrue($loaded->hasField('email'), 'the value is recovered from the _data fallback');
         self::assertSame('hi@acme.example', $loaded->get('email'));
@@ -299,7 +301,7 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
 
     /**
      * Test 6: attempting to save a field registered against a different
-     * bundle throws â€” the partitioner refuses to write silently-corrupt data.
+     * bundle throws — the partitioner refuses to write silently-corrupt data.
      */
     #[Test]
     public function saveRejectsFieldsBelongingToOtherBundles(): void
@@ -307,9 +309,9 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
         $this->registerBusinessFields();
         $this->registerOrganizationFields();
         $this->ensureSchema(['business', 'organization']);
-        $storage = $this->makeStorage();
+        $repository = $this->makeRepository();
 
-        $entity = $storage->create([
+        $entity = $repository->create([
             'uuid' => 'uuid-mix',
             'type' => 'business',
             'label' => 'Misrouted',
@@ -321,7 +323,7 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('belongs to bundle "organization"');
 
-        $storage->save($entity);
+        $repository->save($entity, validate: false);
     }
 
     /**
@@ -335,15 +337,15 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
         // Only 'business' has registered fields; 'organization' has none.
         $this->registerBusinessFields();
         $this->ensureSchema(['business', 'organization']);
-        $storage = $this->makeStorage();
+        $repository = $this->makeRepository();
 
-        $org = $storage->create([
+        $org = $repository->create([
             'uuid' => 'uuid-empty',
             'type' => 'organization',
             'label' => 'Bare',
             'langcode' => 'en',
         ]);
-        $storage->save($org);
+        $repository->save($org, validate: false);
         $orgId = $org->id();
 
         self::assertFalse(
@@ -351,7 +353,7 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
             'empty bundle must not have a subtable',
         );
 
-        $loaded = $storage->load($orgId);
+        $loaded = $repository->find((string) $orgId);
         self::assertNotNull($loaded);
         self::assertSame('organization', $loaded->get('type'));
         self::assertSame('Bare', $loaded->label());
@@ -380,84 +382,25 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
 
         (new SqlSchemaHandler($singleBundle, $this->database))->ensureTable();
 
-        $storage = new SqlEntityStorage(
-            $singleBundle,
-            $this->database,
-            $this->dispatcher,
-            $this->registry,
-        );
-
-        $entity = $storage->create([
-            'uuid' => 'uuid-thing',
-            'label' => 'Solo',
-            'langcode' => 'en',
-        ]);
-        $storage->save($entity);
-
-        $loaded = $storage->load($entity->id());
-        self::assertNotNull($loaded);
-        self::assertSame('Solo', $loaded->label());
-    }
-
-    /**
-     * Cross-path unification: write an entity through the EntityRepository (the
-     * migration / canonical write path) and read it back through SqlEntityStorage
-     * (the admin/API getStorage() path). Both share the single
-     * {@see \Waaseyaa\EntityStorage\Bundle\BundleSubtableGateway}, so the bundle
-     * values round-trip identically from the typed subtable columns, never the
-     * `_data` blob.
-     */
-    #[Test]
-    public function bundleValuesRoundTripAcrossRepositoryWriteAndStorageRead(): void
-    {
-        $this->registerBusinessFields();
-        $this->ensureSchema(['business']);
-
         $resolver = new SingleConnectionResolver($this->database);
-        $driver = new SqlStorageDriver($resolver, 'gid');
         $repository = new EntityRepository(
-            $this->groupType,
-            $driver,
+            $singleBundle,
+            new SqlStorageDriver($resolver),
             $this->dispatcher,
             database: $this->database,
             fieldRegistry: $this->registry,
         );
-        $storage = $this->makeStorage();
 
-        // WRITE through the repository.
-        $entity = $storage->create([
-            'uuid' => 'uuid-xpath',
-            'type' => 'business',
-            'label' => 'Acme',
+        $entity = $repository->create([
+            'uuid' => 'uuid-thing',
+            'label' => 'Solo',
             'langcode' => 'en',
-            'email' => 'cross@acme.example',
-            'phone' => '555-0199',
         ]);
         $repository->save($entity, validate: false);
-        $id = $entity->id();
-        self::assertNotNull($id);
-        $id = (int) $id;
 
-        // The values landed in the subtable COLUMNS, not the base `_data` blob.
-        $sub = \iterator_to_array(
-            $this->database->query('SELECT email, phone FROM "group__business" WHERE gid = ' . $id, []),
-        );
-        self::assertCount(1, $sub, 'a subtable row was written by the repository path');
-        self::assertSame('cross@acme.example', ((array) $sub[0])['email']);
-        self::assertSame('555-0199', ((array) $sub[0])['phone']);
-
-        $baseRows = \iterator_to_array(
-            $this->database->query('SELECT _data FROM "group" WHERE gid = ' . $id, []),
-        );
-        $data = \json_decode((string) (((array) $baseRows[0])['_data'] ?? '{}'), true) ?: [];
-        self::assertArrayNotHasKey('email', $data, 'bundle value must not leak into _data');
-        self::assertArrayNotHasKey('phone', $data, 'bundle value must not leak into _data');
-
-        // READ through the storage path: identical round-trip from the columns.
-        $loaded = $storage->load($id);
+        $loaded = $repository->find((string) $entity->id());
         self::assertNotNull($loaded);
-        self::assertSame('cross@acme.example', $loaded->get('email'));
-        self::assertSame('555-0199', $loaded->get('phone'));
+        self::assertSame('Solo', $loaded->label());
     }
 
     private function registerBusinessFields(): void
@@ -509,14 +452,18 @@ final class SqlEntityStorageBundleFieldsTest extends TestCase
         ))->ensureTable();
     }
 
-    private function makeStorage(?LoggerInterface $logger = null): SqlEntityStorage
+    private function makeRepository(?LoggerInterface $logger = null): EntityRepository
     {
-        return new SqlEntityStorage(
+        $resolver = new SingleConnectionResolver($this->database);
+        $driver = new SqlStorageDriver($resolver, 'gid');
+
+        return new EntityRepository(
             $this->groupType,
-            $this->database,
+            $driver,
             $this->dispatcher,
-            $this->registry,
-            $logger,
+            database: $this->database,
+            fieldRegistry: $this->registry,
+            logger: $logger,
         );
     }
 }

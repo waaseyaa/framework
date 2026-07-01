@@ -23,7 +23,6 @@ use Waaseyaa\Entity\Tests\Helper\TestEntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Genealogy\Access\GenealogyContentAccessPolicy;
@@ -242,22 +241,13 @@ final class GenealogySsrConcealmentTest extends TestCase
         $resolver = new SingleConnectionResolver($database);
         $manager = new EntityTypeManager(
             $dispatcher,
-            function (EntityTypeInterface $definition) use ($database, $dispatcher, $registry): SqlEntityStorage {
-                (new SqlSchemaHandler($definition, $database, $registry))->ensureTable();
-
-                // Thread the composed access handler into getQuery() as
-                // production does (#1714); lazily, since $this->accessHandler is
-                // built in setUp() after the manager exists.
-                return new SqlEntityStorage(
-                    $definition,
-                    $database,
-                    $dispatcher,
-                    $registry,
-                    accessHandlerResolver: fn(): ?EntityAccessHandler => $this->accessHandler ?? null,
-                );
-            },
+            // C-22 WP4: the legacy SqlEntityStorage engine is removed; the kernel
+            // now wires getStorage() to null (EntityTypeManagerFactory) — it is a
+            // "bring your own EntityStorageInterface" extension seam only. Fixture
+            // helpers below use getRepository(), the sole persistence engine.
+            null,
             // C-22 WP2: repository factory mirroring the kernel's getRepository() shape
-            // — same lazy accessHandlerResolver the storage factory threads above.
+            // — threads the same lazy accessHandlerResolver the storage factory used to.
             function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $resolver, $database, $registry): EntityRepository {
                 (new SqlSchemaHandler($definition, $database, $registry))->ensureTable();
                 $idKey = $definition->getKeys()['id'] ?? 'id';
@@ -328,7 +318,7 @@ final class GenealogySsrConcealmentTest extends TestCase
 
     private function createTree(bool $published): string
     {
-        $storage = $this->manager->getStorage('genealogy_tree');
+        $storage = $this->manager->getRepository('genealogy_tree');
         $tree = $storage->create([
             'display_name' => 'Fixture tree',
             'owner_uid' => 99,
@@ -341,7 +331,7 @@ final class GenealogySsrConcealmentTest extends TestCase
 
     private function createPerson(string $displayName, string $treeId, bool $isLiving, bool $published): GenealogyPerson
     {
-        $storage = $this->manager->getStorage('genealogy_person');
+        $storage = $this->manager->getRepository('genealogy_person');
         $person = $storage->create([
             'display_name' => $displayName,
             'tree_id' => (int) $treeId,
@@ -357,7 +347,7 @@ final class GenealogySsrConcealmentTest extends TestCase
 
     private function createParentEdge(string $parentId, string $childId): void
     {
-        $storage = $this->manager->getStorage('relationship');
+        $storage = $this->manager->getRepository('relationship');
         $edge = $storage->create([
             'relationship_type' => GenealogyRelationshipType::PARENT_OF,
             'from_entity_type' => 'genealogy_person',

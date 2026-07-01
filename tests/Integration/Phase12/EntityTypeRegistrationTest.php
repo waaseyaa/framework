@@ -11,8 +11,11 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\AI\Pipeline\Pipeline;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Media\Media;
 use Waaseyaa\Media\MediaType;
@@ -31,7 +34,7 @@ use Waaseyaa\Workflows\Workflow;
  *
  * Anchors the user entity key correction ('id' => 'uid') and verifies that
  * each newly registered entity type can be persisted and loaded via
- * SqlEntityStorage backed by an in-memory SQLite database.
+ * EntityRepository backed by an in-memory SQLite database.
  */
 #[CoversNothing]
 final class EntityTypeRegistrationTest extends TestCase
@@ -46,10 +49,17 @@ final class EntityTypeRegistrationTest extends TestCase
 
         $this->entityTypeManager = new EntityTypeManager(
             $dispatcher,
-            function (EntityType $def) use ($dispatcher): SqlEntityStorage {
+            null,
+            // C-22 WP4: legacy SqlEntityStorage engine is deleted; persistence now
+            // goes through the canonical EntityRepository.
+            function (string $entityTypeId, EntityTypeInterface $def) use ($dispatcher): EntityRepository {
                 $schema = new SqlSchemaHandler($def, $this->database);
                 $schema->ensureTable();
-                return new SqlEntityStorage($def, $this->database, $dispatcher);
+
+                $idKey = $def->getKeys()['id'] ?? 'id';
+                $resolver = new SingleConnectionResolver($this->database);
+
+                return new EntityRepository($def, new SqlStorageDriver($resolver, $idKey), $dispatcher);
             },
         );
 
@@ -139,21 +149,21 @@ final class EntityTypeRegistrationTest extends TestCase
 
     /**
      * The user entity key was corrected from 'id' => 'id' to 'id' => 'uid'.
-     * This test anchors that fix: a User round-trips through SqlEntityStorage
+     * This test anchors that fix: a User round-trips through EntityRepository
      * and is loadable by its uid.
      */
     #[Test]
     public function user_entity_persists_and_loads_by_uid(): void
     {
-        $storage = $this->entityTypeManager->getStorage('user');
+        $repository = $this->entityTypeManager->getRepository('user');
 
         $user = new User(['name' => 'alice', 'mail' => 'alice@example.com']);
-        $storage->save($user);
+        $repository->save($user, validate: false);
 
         $uid = $user->id();
         $this->assertGreaterThan(0, $uid, 'User uid must be a positive integer after save.');
 
-        $loaded = $storage->load($uid);
+        $loaded = $repository->find((string) $uid);
 
         $this->assertNotNull($loaded, 'User must be loadable by uid.');
         $this->assertSame($uid, $loaded->id());
@@ -188,45 +198,45 @@ final class EntityTypeRegistrationTest extends TestCase
     #[Test]
     public function integer_keyed_entities_persist_and_load(): void
     {
-        $nodeStorage = $this->entityTypeManager->getStorage('node');
+        $nodeRepository = $this->entityTypeManager->getRepository('node');
         $node = new Node(['title' => 'Hello World', 'type' => 'article']);
-        $nodeStorage->save($node);
-        $loaded = $nodeStorage->load($node->id());
+        $nodeRepository->save($node, validate: false);
+        $loaded = $nodeRepository->find((string) $node->id());
         $this->assertNotNull($loaded);
         $this->assertSame('Hello World', $loaded->get('title'));
 
-        $termStorage = $this->entityTypeManager->getStorage('taxonomy_term');
+        $termRepository = $this->entityTypeManager->getRepository('taxonomy_term');
         $term = new Term(['name' => 'PHP', 'vid' => 'tags']);
-        $termStorage->save($term);
-        $loaded = $termStorage->load($term->id());
+        $termRepository->save($term, validate: false);
+        $loaded = $termRepository->find((string) $term->id());
         $this->assertNotNull($loaded);
         $this->assertSame('PHP', $loaded->get('name'));
 
-        $mediaStorage = $this->entityTypeManager->getStorage('media');
+        $mediaRepository = $this->entityTypeManager->getRepository('media');
         $media = new Media(['name' => 'Photo', 'bundle' => 'image']);
-        $mediaStorage->save($media);
-        $loaded = $mediaStorage->load($media->id());
+        $mediaRepository->save($media, validate: false);
+        $loaded = $mediaRepository->find((string) $media->id());
         $this->assertNotNull($loaded);
         $this->assertSame('Photo', $loaded->get('name'));
     }
 
     /**
      * Path aliases use integer IDs (auto-assigned) and are stored via
-     * SqlEntityStorage like other content entities.
+     * EntityRepository like other content entities.
      */
     #[Test]
     public function path_alias_persists_and_loads(): void
     {
-        $storage = $this->entityTypeManager->getStorage('path_alias');
+        $repository = $this->entityTypeManager->getRepository('path_alias');
 
         $alias = new PathAlias([
             'path' => '/node/1',
             'alias' => '/hello-world',
             'langcode' => 'en',
         ]);
-        $storage->save($alias);
+        $repository->save($alias, validate: false);
 
-        $loaded = $storage->load($alias->id());
+        $loaded = $repository->find((string) $alias->id());
         $this->assertNotNull($loaded);
         $this->assertSame('/hello-world', $loaded->get('alias'));
     }

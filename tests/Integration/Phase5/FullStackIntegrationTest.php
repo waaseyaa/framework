@@ -25,7 +25,6 @@ use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Queue\InMemoryQueue;
 use Waaseyaa\Queue\Message\EntityMessage;
@@ -53,7 +52,7 @@ final class FullStackIntegrationTest extends TestCase
     private DBALDatabase $database;
     private EventDispatcher $eventDispatcher;
     private EntityTypeManager $entityTypeManager;
-    private SqlEntityStorage $articleStorage;
+    private EntityRepository $articleStorage;
     private WaaseyaaRouter $router;
     private AccessChecker $accessChecker;
     private EntityAccessHandler $entityAccessHandler;
@@ -91,34 +90,30 @@ final class FullStackIntegrationTest extends TestCase
         ]);
 
         // ---- Storage ----
-        $this->articleStorage = new SqlEntityStorage(
+        // C-22 WP4: legacy SqlEntityStorage engine is deleted; persistence now
+        // goes through the canonical EntityRepository.
+        $database = $this->database;
+        $dispatcher = $this->eventDispatcher;
+        $idKey = $articleType->getKeys()['id'] ?? 'id';
+        $resolver = new SingleConnectionResolver($this->database);
+        $this->articleStorage = new EntityRepository(
             $articleType,
-            $this->database,
+            new SqlStorageDriver($resolver, $idKey),
             $this->eventDispatcher,
+            database: $this->database,
         );
 
         // ---- Entity Type Manager ----
-        $articleStorageRef = $this->articleStorage;
-        $database = $this->database;
-        $dispatcher = $this->eventDispatcher;
+        $articleRepositoryRef = $this->articleStorage;
         $this->entityTypeManager = new EntityTypeManager(
             $this->eventDispatcher,
-            function ($definition) use ($articleStorageRef) {
-                if ($definition->id() === 'article') {
-                    return $articleStorageRef;
-                }
-                throw new \RuntimeException("Unknown entity type: {$definition->id()}");
-            },
-            // C-22 WP3: read/write path now goes through the canonical repository.
-            function (string $entityTypeId, $definition) use ($database, $dispatcher): EntityRepository {
+            null,
+            function (string $entityTypeId, $definition) use ($articleRepositoryRef): EntityRepository {
                 if ($entityTypeId !== 'article') {
                     throw new \RuntimeException("Unknown entity type: {$entityTypeId}");
                 }
 
-                $idKey = $definition->getKeys()['id'] ?? 'id';
-                $resolver = new SingleConnectionResolver($database);
-
-                return new EntityRepository($definition, new SqlStorageDriver($resolver, $idKey), $dispatcher);
+                return $articleRepositoryRef;
             },
         );
         $this->entityTypeManager->registerEntityType($articleType);
@@ -187,7 +182,7 @@ final class FullStackIntegrationTest extends TestCase
             'body' => 'This is a test article.',
             'status' => 1,
         ]);
-        $this->articleStorage->save($article);
+        $this->articleStorage->save($article, validate: false);
         $articleId = $article->id();
         $this->assertNotNull($articleId);
 
@@ -228,7 +223,7 @@ final class FullStackIntegrationTest extends TestCase
             'bundle' => 'blog',
             'status' => 1,
         ]);
-        $this->articleStorage->save($article);
+        $this->articleStorage->save($article, validate: false);
 
         $anonymous = new AnonymousUser();
 
@@ -307,8 +302,8 @@ final class FullStackIntegrationTest extends TestCase
         $this->assertCount(0, $violations, 'Valid article should have no violations.');
 
         // Now save and verify persistence.
-        $this->articleStorage->save($article);
-        $loaded = $this->articleStorage->load($article->id());
+        $this->articleStorage->save($article, validate: false);
+        $loaded = $this->articleStorage->find((string) $article->id());
         $this->assertNotNull($loaded);
         $this->assertSame('Valid Article', $loaded->label());
     }
@@ -322,7 +317,7 @@ final class FullStackIntegrationTest extends TestCase
             'title' => 'Stateful Article',
             'bundle' => 'blog',
         ]);
-        $this->articleStorage->save($article);
+        $this->articleStorage->save($article, validate: false);
 
         // Track the creation in state.
         $this->state->set('last_created_article_id', $article->id());
@@ -395,7 +390,7 @@ final class FullStackIntegrationTest extends TestCase
             'title' => 'URL Test',
             'bundle' => 'blog',
         ]);
-        $this->articleStorage->save($article);
+        $this->articleStorage->save($article, validate: false);
 
         $url = $this->router->generate('article.view', ['article' => $article->id()]);
         $this->assertSame("/article/{$article->id()}", $url);
@@ -414,12 +409,12 @@ final class FullStackIntegrationTest extends TestCase
                 'bundle' => 'blog',
                 'status' => 1,
             ]);
-            $this->articleStorage->save($article);
+            $this->articleStorage->save($article, validate: false);
             $ids[] = $article->id();
         }
 
         // All 3 articles exist.
-        $loaded = $this->articleStorage->loadMultiple($ids);
+        $loaded = array_values($this->articleStorage->findMany($ids));
         $this->assertCount(3, $loaded);
 
         // The list route is publicly accessible.
@@ -451,30 +446,30 @@ final class FullStackIntegrationTest extends TestCase
             'body' => 'Original body.',
             'status' => 1,
         ]);
-        $this->articleStorage->save($article);
+        $this->articleStorage->save($article, validate: false);
         $this->auditQueue->dispatch(new EntityMessage('article', $article->id(), 'created'));
         $this->state->set('audit.total', $this->state->get('audit.total', 0) + 1);
 
         // UPDATE.
         $article->set('title', 'Updated Lifecycle Test');
         $article->set('body', 'Updated body.');
-        $this->articleStorage->save($article);
+        $this->articleStorage->save($article, validate: false);
         $this->auditQueue->dispatch(new EntityMessage('article', $article->id(), 'updated'));
         $this->state->set('audit.total', $this->state->get('audit.total', 0) + 1);
 
         // Verify updated entity.
-        $loaded = $this->articleStorage->load($article->id());
+        $loaded = $this->articleStorage->find((string) $article->id());
         $this->assertSame('Updated Lifecycle Test', $loaded->label());
         $this->assertSame('Updated body.', $loaded->get('body'));
 
         // DELETE.
         $id = $article->id();
-        $this->articleStorage->delete([$article]);
+        $this->articleStorage->delete($article);
         $this->auditQueue->dispatch(new EntityMessage('article', $id, 'deleted'));
         $this->state->set('audit.total', $this->state->get('audit.total', 0) + 1);
 
         // Verify entity is gone.
-        $this->assertNull($this->articleStorage->load($id));
+        $this->assertNull($this->articleStorage->find((string) $id));
 
         // Verify audit trail.
         $this->assertSame(3, $this->state->get('audit.total'));

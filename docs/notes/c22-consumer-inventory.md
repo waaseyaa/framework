@@ -293,3 +293,89 @@ implementation exactly.
 WP4 (delete `SqlEntityStorage` and `EntityStorageFactory` entirely) is now
 unblocked: harness green, zero remaining production references confirmed by
 the dead-code gate.
+
+---
+
+## 7. WP4 update (2026-07-01): legacy engine deleted
+
+`packages/entity-storage/src/SqlEntityStorage.php` and
+`EntityStorageFactory.php` are deleted. `EntityRepository` is the framework's
+only persistence engine.
+
+**Kept, not removed (verified before deleting anything):**
+
+- `EntityStorageInterface` — `RevisionableStorageInterface extends` it as
+  dormant public API (`docs/public-surface-map.php`), and several test
+  doubles implement it directly (`StorageBackedStubRepository`,
+  `InMemoryEntityStorage`, `relationship`'s `StubEntityStorage`).
+- `SqlEntityQuery`, `BundleSubtableGateway`, `SqlStorageDriver`,
+  `EntityInstantiator`, `EntityStorageCoordinator` — all genuinely shared;
+  `EntityRepository` constructs and uses each independently, not merely by
+  inheriting from `SqlEntityStorage`.
+- `EntityTypeManager::getStorage()` / `EntityTypeManagerInterface::getStorage()`
+  — kept as a dormant "bring your own `EntityStorageInterface`" extension
+  seam. The kernel (`EntityTypeManagerFactory`) no longer supplies a
+  `storageFactory` closure, and `EntityType::fromClass()`'s `$storageClass`
+  default changed from `Waaseyaa\EntityStorage\SqlEntityStorage` to `''` —
+  `getStorage()` now throws for every first-party entity type unless a
+  caller wires their own storage class/factory. Not a supported path;
+  scheduled-for-removal territory, kept only because removing the interface
+  method would be a needless breaking change to a still-valid extension
+  point.
+
+**Test-suite consequences:**
+
+- The WP1 behavior-identity harness (`tests/Integration/PhaseN/EntityStorageEngineParity/`)
+  is deleted — its entire purpose was pinning cross-engine parity during the
+  WP1–WP4 migration window; with one engine there is nothing left to compare.
+- Bundle-subtable and query-routing coverage previously exercised through
+  `SqlEntityStorage` was **ported**, not dropped — e.g.
+  `packages/entity-storage/tests/Unit/EntityRepositoryBundleFieldsTest.php`
+  replaces the deleted `SqlEntityStorageBundleFieldsTest.php`, swapping
+  `$storage->create()/save()/load()/loadMultiple()` for
+  `$repository->create()/save()/find()/findMany()` one-for-one. The final
+  scope grew beyond `packages/entity-storage/tests/`: a repo-wide grep found
+  ~55 test files total (top-level `tests/Integration/**` plus several other
+  packages) that directly instantiated `SqlEntityStorage` for fixture
+  seeding; all converted the same way. Several files were renamed for
+  clarity once they no longer tested `SqlEntityStorage` at all (e.g.
+  `SqlEntityStorageTest.php` → `EntityRepositorySqlCrudTest.php`,
+  `SqlEntityStorageBundleQueryRoutingTest.php` →
+  `EntityRepositoryBundleQueryRoutingTest.php`).
+- One accepted coverage/behavior loss: `SqlEntityStorage`'s load-side
+  `[MISSING_BUNDLE_SUBTABLE]` notice (its private `mergeBundleSubtableRow()`/
+  `mergeBundleSubtableRowsBatch()`) had no `EntityRepository` equivalent —
+  `EntityRepository`'s load path silently skips a missing bundle subtable
+  with no operator-facing notice. The **save-side** notice
+  (`BundleSubtableGateway::logMissingSubtableOnSave()`) is the more
+  load-bearing one — it signals an actual data-placement decision (values
+  folded into `_data` instead of the subtable) — and is preserved and still
+  tested. The load-side notice was purely diagnostic (the entity still loads
+  correctly either way) and is not replaced.
+- **Two real bugs found and fixed while converting fixtures, not mechanical
+  migration:**
+  - `SqlStorageDriver::splitForWrite()` routed values to base-table columns
+    purely by schema-column existence, with no awareness of a field's
+    `FieldStorage::Data` hint. `SqlEntityStorage::splitForStorage()` used to
+    consult the field registry to keep such fields in `_data` even when a
+    stale legacy column lingered (the K2 write/read symmetry fix, issue
+    #1308) — `SqlStorageDriver` never got this fix, so deleting
+    `SqlEntityStorage` would have silently regressed it. Fixed by adding an
+    optional `?FieldDefinitionRegistryInterface $fieldRegistry = null`
+    constructor param to `SqlStorageDriver`, wired by the kernel's
+    `EntityTypeManagerFactory`.
+  - `EntityRepository::doSave()`'s new-entity id-backfill branch checked
+    `(string) ($entity->id() ?? '')` to detect "no id yet." `User::id()`
+    overrides the base accessor to satisfy `AccountInterface`'s "anonymous
+    is `0`, never `null`" contract, so a brand-new `User` produced `id() ??
+    '' === '0'`, never the empty string the backfill branch looked for —
+    the branch silently never fired, and a freshly-saved `User` kept
+    `uid = 0` in memory (colliding with the `AnonymousUser` sentinel) even
+    though the database row got a real autoincrement id. This bug predates
+    C-22 entirely; it surfaced only because this WP's fixture conversions
+    routed many more entity-creation paths (including `User`) through
+    `EntityRepository::save()` for the first time. Fixed by reading the id
+    key from the entity's raw `toArray()` value bag instead of the
+    polymorphic `id()` accessor.
+- `docs/specs/entity-system.md` "The legacy save engine is gone (C-22)" §
+  rewritten for the single-engine reality.

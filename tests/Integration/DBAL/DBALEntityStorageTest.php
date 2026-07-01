@@ -10,7 +10,9 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityType;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 
 /**
@@ -24,7 +26,7 @@ final class DBALEntityStorageTest extends TestCase
     private DBALDatabase $database;
     private EntityType $entityType;
     private EventDispatcher $eventDispatcher;
-    private SqlEntityStorage $storage;
+    private EntityRepository $storage;
 
     protected function setUp(): void
     {
@@ -54,10 +56,13 @@ final class DBALEntityStorageTest extends TestCase
             'price' => ['type' => 'float', 'not null' => false],
         ]);
 
-        $this->storage = new SqlEntityStorage(
+        $resolver = new SingleConnectionResolver($this->database);
+        $driver = new SqlStorageDriver($resolver, $this->entityType->getKeys()['id'] ?? 'id');
+        $this->storage = new EntityRepository(
             $this->entityType,
-            $this->database,
+            $driver,
             $this->eventDispatcher,
+            database: $this->database,
         );
     }
 
@@ -97,11 +102,15 @@ final class DBALEntityStorageTest extends TestCase
             'bundle' => 'default',
         ]);
 
-        $result = $this->storage->save($entity);
+        $result = $this->storage->save($entity, validate: false);
 
         $this->assertSame(EntityConstants::SAVED_NEW, $result);
         $this->assertNotNull($entity->id());
-        $this->assertIsInt($entity->id());
+        // EntityRepository assigns the driver's freshly-written id as-is
+        // (a string), unlike the deleted SqlEntityStorage which explicitly
+        // cast it to int; callers are expected to (string)-cast ids (see
+        // GenealogyPedigreeServiceTest for the canonical convention).
+        $this->assertIsNumeric($entity->id());
         $this->assertFalse($entity->isNew());
     }
 
@@ -115,12 +124,12 @@ final class DBALEntityStorageTest extends TestCase
             'body' => 'Some body text',
             'status' => 0,
         ]);
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
 
-        $loaded = $this->storage->load($entity->id());
+        $loaded = $this->storage->find((string) $entity->id());
 
         $this->assertNotNull($loaded);
-        $this->assertSame($entity->id(), $loaded->id());
+        $this->assertSame((string) $entity->id(), (string) $loaded->id());
         $this->assertSame('Load Test', $loaded->label());
         $this->assertSame('page', $loaded->bundle());
         $this->assertSame('Some body text', $loaded->get('body'));
@@ -129,7 +138,7 @@ final class DBALEntityStorageTest extends TestCase
 
     public function testLoadReturnsNullForNonexistent(): void
     {
-        $this->assertNull($this->storage->load(999999));
+        $this->assertNull($this->storage->find((string) 999999));
     }
 
     public function testLoadMultipleReturnsKeyedArray(): void
@@ -137,11 +146,17 @@ final class DBALEntityStorageTest extends TestCase
         $e1 = $this->storage->create(['title' => 'E1', 'bundle' => 'a']);
         $e2 = $this->storage->create(['title' => 'E2', 'bundle' => 'b']);
         $e3 = $this->storage->create(['title' => 'E3', 'bundle' => 'c']);
-        $this->storage->save($e1);
-        $this->storage->save($e2);
-        $this->storage->save($e3);
+        $this->storage->save($e1, validate: false);
+        $this->storage->save($e2, validate: false);
+        $this->storage->save($e3, validate: false);
 
-        $loaded = $this->storage->loadMultiple([$e1->id(), $e3->id()]);
+        $loaded = [];
+        foreach ($this->storage->findMany([$e1->id(), $e3->id()]) as $entity) {
+            $id = $entity->id();
+            if ($id !== null) {
+                $loaded[$id] = $entity;
+            }
+        }
 
         $this->assertCount(2, $loaded);
         $this->assertArrayHasKey($e1->id(), $loaded);
@@ -157,15 +172,15 @@ final class DBALEntityStorageTest extends TestCase
             'bundle' => 'blog',
             'body' => 'Original body',
         ]);
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
 
         $entity->set('title', 'Updated');
         $entity->set('body', 'Updated body');
-        $result = $this->storage->save($entity);
+        $result = $this->storage->save($entity, validate: false);
 
         $this->assertSame(EntityConstants::SAVED_UPDATED, $result);
 
-        $reloaded = $this->storage->load($entity->id());
+        $reloaded = $this->storage->find((string) $entity->id());
         $this->assertSame('Updated', $reloaded->label());
         $this->assertSame('Updated body', $reloaded->get('body'));
     }
@@ -173,13 +188,13 @@ final class DBALEntityStorageTest extends TestCase
     public function testUpdatePreservesUuid(): void
     {
         $entity = $this->storage->create(['title' => 'UUID Keep', 'bundle' => 'a']);
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
         $originalUuid = $entity->uuid();
 
         $entity->set('title', 'UUID Still Here');
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
 
-        $loaded = $this->storage->load($entity->id());
+        $loaded = $this->storage->find((string) $entity->id());
         $this->assertSame($originalUuid, $loaded->uuid());
     }
 
@@ -189,18 +204,18 @@ final class DBALEntityStorageTest extends TestCase
     {
         $e1 = $this->storage->create(['title' => 'Delete 1', 'bundle' => 'a']);
         $e2 = $this->storage->create(['title' => 'Keep', 'bundle' => 'a']);
-        $this->storage->save($e1);
-        $this->storage->save($e2);
+        $this->storage->save($e1, validate: false);
+        $this->storage->save($e2, validate: false);
 
-        $this->storage->delete([$e1]);
+        $this->storage->delete($e1);
 
-        $this->assertNull($this->storage->load($e1->id()));
-        $this->assertNotNull($this->storage->load($e2->id()));
+        $this->assertNull($this->storage->find((string) $e1->id()));
+        $this->assertNotNull($this->storage->find((string) $e2->id()));
     }
 
     public function testDeleteEmptyArrayDoesNotThrow(): void
     {
-        $this->storage->delete([]);
+        $this->storage->deleteMany([]);
         $this->assertTrue(true);
     }
 
@@ -217,9 +232,9 @@ final class DBALEntityStorageTest extends TestCase
             'price' => 19.99,
             'langcode' => 'en',
         ]);
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
 
-        $loaded = $this->storage->load($entity->id());
+        $loaded = $this->storage->find((string) $entity->id());
         $this->assertSame('Field Types', $loaded->label());
         $this->assertSame('Long text body', $loaded->get('body'));
         $this->assertSame('en', $loaded->language());
@@ -235,9 +250,9 @@ final class DBALEntityStorageTest extends TestCase
             'custom_field' => 'custom_value',
             'tags' => ['php', 'dbal'],
         ]);
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
 
-        $loaded = $this->storage->load($entity->id());
+        $loaded = $this->storage->find((string) $entity->id());
         $this->assertSame('custom_value', $loaded->get('custom_field'));
         $this->assertSame(['php', 'dbal'], $loaded->get('tags'));
     }
@@ -249,12 +264,12 @@ final class DBALEntityStorageTest extends TestCase
             'bundle' => 'test',
             'meta' => ['key' => 'value'],
         ]);
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
 
         $entity->set('title', 'Blob Updated');
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
 
-        $loaded = $this->storage->load($entity->id());
+        $loaded = $this->storage->find((string) $entity->id());
         $this->assertSame('Blob Updated', $loaded->label());
         $this->assertSame(['key' => 'value'], $loaded->get('meta'));
     }
@@ -280,9 +295,9 @@ final class DBALEntityStorageTest extends TestCase
             'bundle' => 'test',
             'nested_data' => $nested,
         ]);
-        $this->storage->save($entity);
+        $this->storage->save($entity, validate: false);
 
-        $loaded = $this->storage->load($entity->id());
+        $loaded = $this->storage->find((string) $entity->id());
         $this->assertSame($nested, $loaded->get('nested_data'));
     }
 
@@ -308,7 +323,7 @@ final class DBALEntityStorageTest extends TestCase
             ->execute();
 
         $titles = array_map(
-            fn($id) => $this->storage->load($id)->label(),
+            fn($id) => $this->storage->find((string) $id)->label(),
             $ids,
         );
 
@@ -334,7 +349,7 @@ final class DBALEntityStorageTest extends TestCase
         // Create 5 entities.
         for ($i = 1; $i <= 5; $i++) {
             $entity = $this->storage->create(['title' => "Item $i", 'bundle' => 'page']);
-            $this->storage->save($entity);
+            $this->storage->save($entity, validate: false);
         }
 
         // Page 1.
@@ -406,7 +421,7 @@ final class DBALEntityStorageTest extends TestCase
             ->execute();
 
         $this->assertCount(1, $ids);
-        $entity = $this->storage->load($ids[0]);
+        $entity = $this->storage->find((string) $ids[0]);
         $this->assertSame('About Page', $entity->label());
     }
 
@@ -416,9 +431,9 @@ final class DBALEntityStorageTest extends TestCase
         $e1 = $this->storage->create(['title' => '100% Complete', 'bundle' => 'test']);
         $e2 = $this->storage->create(['title' => 'field_name', 'bundle' => 'test']);
         $e3 = $this->storage->create(['title' => 'Normal Title', 'bundle' => 'test']);
-        $this->storage->save($e1);
-        $this->storage->save($e2);
-        $this->storage->save($e3);
+        $this->storage->save($e1, validate: false);
+        $this->storage->save($e2, validate: false);
+        $this->storage->save($e3, validate: false);
 
         // CONTAINS with % in user input should only match the literal %.
         $ids = $this->storage->getQuery()->accessCheck(false)
@@ -499,7 +514,7 @@ final class DBALEntityStorageTest extends TestCase
 
         foreach ($items as $values) {
             $entity = $this->storage->create($values);
-            $this->storage->save($entity);
+            $this->storage->save($entity, validate: false);
         }
     }
 }

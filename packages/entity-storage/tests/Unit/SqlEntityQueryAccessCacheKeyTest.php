@@ -15,9 +15,11 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlEntityQuery;
 use Waaseyaa\EntityStorage\SqlEntityQueryResultCache;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 
@@ -27,9 +29,14 @@ use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
  * access-filtered list for one account cannot be served from a cache entry
  * populated by a different account or by an unfiltered accessCheck(false) run.
  *
- * The storage owns a single SqlEntityQueryResultCache that every getQuery()
- * shares, so identical conditions across queries collide on the fingerprint
- * unless the fingerprint discriminates on access + account.
+ * A production storage engine owns a single SqlEntityQueryResultCache that
+ * every getQuery() shares, so identical conditions across queries collide on
+ * the fingerprint unless the fingerprint discriminates on access + account.
+ * EntityRepository::getQuery() does not expose a way to inject a shared
+ * cache instance (each call builds a fresh, uncached SqlEntityQuery), so
+ * this test constructs SqlEntityQuery directly with one explicit shared
+ * {@see SqlEntityQueryResultCache}, mirroring the shared-cache production
+ * shape while using EntityRepository for seeding/loading.
  */
 #[CoversClass(SqlEntityQuery::class)]
 #[CoversClass(SqlEntityQueryResultCache::class)]
@@ -37,30 +44,37 @@ final class SqlEntityQueryAccessCacheKeyTest extends TestCase
 {
     private DBALDatabase $database;
 
-    private SqlEntityStorage $storage;
+    private EntityType $entityType;
+
+    private EntityRepository $repository;
+
+    private SqlEntityQueryResultCache $resultCache;
 
     protected function setUp(): void
     {
         $this->database = DBALDatabase::createSqlite();
-        $entityType = new EntityType(
+        $this->entityType = new EntityType(
             id: 'article',
             label: 'Article',
             class: TestStorageEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title'],
         );
 
-        $schemaHandler = new SqlSchemaHandler($entityType, $this->database);
+        $schemaHandler = new SqlSchemaHandler($this->entityType, $this->database);
         $schemaHandler->ensureTable();
 
-        // Single shared result cache across every getQuery() call — the leak
-        // surface. (SqlEntityStorage defaults to one anyway; pass it explicitly
-        // to make the shared-key contract unambiguous.)
-        $this->storage = new SqlEntityStorage(
-            $entityType,
-            $this->database,
+        $resolver = new SingleConnectionResolver($this->database);
+        $driver = new SqlStorageDriver($resolver);
+        $this->repository = new EntityRepository(
+            $this->entityType,
+            $driver,
             new EventDispatcher(),
-            queryResultCache: new SqlEntityQueryResultCache(),
+            database: $this->database,
         );
+
+        // Single shared result cache across every newQuery() call — the leak
+        // surface.
+        $this->resultCache = new SqlEntityQueryResultCache();
     }
 
     #[Test]
@@ -80,7 +94,6 @@ final class SqlEntityQueryAccessCacheKeyTest extends TestCase
         // access-filtered survivors (a1, a2).
         $idsA = $this->newQuery()
             ->withAccessHandler($handler)
-            ->withEntityLoader($this->storage->loadMultiple(...))
             ->setAccount($this->makeAccount(1))
             ->sort('id', 'ASC')
             ->execute();
@@ -91,7 +104,6 @@ final class SqlEntityQueryAccessCacheKeyTest extends TestCase
         // Post-fix it computes its own survivors (b1, b2).
         $idsB = $this->newQuery()
             ->withAccessHandler($handler)
-            ->withEntityLoader($this->storage->loadMultiple(...))
             ->setAccount($this->makeAccount(2))
             ->sort('id', 'ASC')
             ->execute();
@@ -129,7 +141,6 @@ final class SqlEntityQueryAccessCacheKeyTest extends TestCase
 
         $checked = $this->newQuery()
             ->withAccessHandler($handler)
-            ->withEntityLoader($this->storage->loadMultiple(...))
             ->setAccount($this->makeAccount(1))
             ->sort('id', 'ASC')
             ->execute();
@@ -156,13 +167,12 @@ final class SqlEntityQueryAccessCacheKeyTest extends TestCase
 
         $first = $this->newQuery()
             ->withAccessHandler($handler)
-            ->withEntityLoader($this->storage->loadMultiple(...))
             ->setAccount($account)
             ->sort('id', 'ASC')
             ->execute();
         $this->assertSame(['a1'], $this->titlesFor($first));
 
-        // Insert a now-visible row WITHOUT going through storage->save() (which
+        // Insert a now-visible row WITHOUT going through repository->save() (which
         // would invalidate the cache). owner_id lives in the _data blob (it is
         // not a base column), so the hydrated entity's owner matches account 1.
         // A cache hit means the second run for the same account returns the
@@ -174,7 +184,6 @@ final class SqlEntityQueryAccessCacheKeyTest extends TestCase
 
         $second = $this->newQuery()
             ->withAccessHandler($handler)
-            ->withEntityLoader($this->storage->loadMultiple(...))
             ->setAccount($this->makeAccount(1))
             ->sort('id', 'ASC')
             ->execute();
@@ -186,11 +195,21 @@ final class SqlEntityQueryAccessCacheKeyTest extends TestCase
         );
     }
 
+    /**
+     * Build a query against the single shared {@see SqlEntityQueryResultCache}
+     * — this is the leak surface under test, so every call must reuse the
+     * same cache instance (unlike EntityRepository::getQuery(), which never
+     * shares one).
+     */
     private function newQuery(): SqlEntityQuery
     {
-        $query = $this->storage->getQuery();
-        \assert($query instanceof SqlEntityQuery);
-        return $query;
+        $query = new SqlEntityQuery($this->entityType, $this->database, $this->resultCache);
+
+        return $query
+            ->withEntityLoader(
+                /** @param list<int|string> $ids */
+                fn(array $ids): array => $this->loadMultipleByIds($ids),
+            );
     }
 
     /**
@@ -199,8 +218,30 @@ final class SqlEntityQueryAccessCacheKeyTest extends TestCase
     private function seedRows(array $rows): void
     {
         foreach ($rows as $row) {
-            $this->storage->save($this->storage->create($row));
+            $this->repository->save($this->repository->create($row), validate: false);
         }
+    }
+
+    /**
+     * Id-keyed entity loader mirroring EntityRepository::getQuery()'s
+     * internal hydrateByIdForQuery() shape, since this test builds
+     * SqlEntityQuery directly (to share one result cache) instead of going
+     * through getQuery().
+     *
+     * @param list<int|string> $ids
+     * @return array<int|string, EntityInterface>
+     */
+    private function loadMultipleByIds(array $ids): array
+    {
+        $entities = [];
+        foreach ($this->repository->findMany($ids) as $entity) {
+            $entityId = $entity->id();
+            if ($entityId !== null) {
+                $entities[$entityId] = $entity;
+            }
+        }
+
+        return $entities;
     }
 
     /**
@@ -209,7 +250,7 @@ final class SqlEntityQueryAccessCacheKeyTest extends TestCase
      */
     private function titlesFor(array $ids): array
     {
-        $entities = $this->storage->loadMultiple($ids);
+        $entities = $this->loadMultipleByIds($ids);
         $titles = [];
         foreach ($ids as $id) {
             $entity = $entities[$id] ?? null;

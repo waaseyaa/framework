@@ -20,7 +20,6 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
@@ -40,15 +39,14 @@ final class AuthorizationPipelineTest extends TestCase
 
         $this->entityTypeManager = new EntityTypeManager(
             $dispatcher,
-            function (EntityType $def) use ($dispatcher): SqlEntityStorage {
-                $schema = new SqlSchemaHandler($def, $this->database);
-                $schema->ensureTable();
-                return new SqlEntityStorage($def, $this->database, $dispatcher);
-            },
-            // C-22 WP3: read/write path now goes through the canonical repository.
+            null,
+            // C-22 WP3/WP4: read/write path now goes through the canonical repository;
+            // the legacy SqlEntityStorage engine is deleted, so no storage factory.
             function (string $entityTypeId, EntityTypeInterface $def) use ($dispatcher): EntityRepository {
                 $idKey = $def->getKeys()['id'] ?? 'id';
                 $resolver = new SingleConnectionResolver($this->database);
+                $schema = new SqlSchemaHandler($def, $this->database);
+                $schema->ensureTable();
 
                 return new EntityRepository($def, new SqlStorageDriver($resolver, $idKey), $dispatcher);
             },
@@ -78,7 +76,7 @@ final class AuthorizationPipelineTest extends TestCase
     {
         $user = new User(['uid' => 1, 'name' => 'editor', 'permissions' => []]);
         $user->enforceIsNew();
-        $this->entityTypeManager->getStorage('user')->save($user);
+        $this->entityTypeManager->getRepository('user')->save($user, validate: false);
 
         $pipeline = $this->buildPipeline();
         $request = $this->buildRequest('/api/node', '_permission', 'access content');
@@ -94,7 +92,7 @@ final class AuthorizationPipelineTest extends TestCase
     {
         $user = new User(['uid' => 2, 'name' => 'admin', 'permissions' => ['access content']]);
         $user->enforceIsNew();
-        $this->entityTypeManager->getStorage('user')->save($user);
+        $this->entityTypeManager->getRepository('user')->save($user, validate: false);
 
         $pipeline = $this->buildPipeline();
         $request = $this->buildRequest('/api/node', '_permission', 'access content');

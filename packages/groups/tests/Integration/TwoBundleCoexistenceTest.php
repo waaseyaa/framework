@@ -11,9 +11,11 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Exception\BundleAmbiguousFieldException;
 use Waaseyaa\EntityStorage\SqlEntityQuery;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionRegistry;
@@ -76,9 +78,9 @@ final class TwoBundleCoexistenceTest extends TestCase
         $this->registerBetaFields();
         $this->ensureSchema(['alpha', 'beta']);
 
-        $storage = $this->storage();
+        $repository = $this->repository();
 
-        $alpha = $storage->create([
+        $alpha = $repository->create([
             'uuid' => 'uuid-alpha',
             'type' => 'alpha',
             'name' => 'Alpha One',
@@ -86,9 +88,9 @@ final class TwoBundleCoexistenceTest extends TestCase
             'alpha_code' => 'A-1',
             'shared_tag' => 'alpha-tag',
         ]);
-        $storage->save($alpha);
+        $repository->save($alpha);
 
-        $beta = $storage->create([
+        $beta = $repository->create([
             'uuid' => 'uuid-beta',
             'type' => 'beta',
             'name' => 'Beta One',
@@ -96,7 +98,7 @@ final class TwoBundleCoexistenceTest extends TestCase
             'beta_code' => 'B-1',
             'shared_tag' => 'beta-tag',
         ]);
-        $storage->save($beta);
+        $repository->save($beta);
 
         $alphaRow = iterator_to_array(
             $this->database->query('SELECT alpha_code, shared_tag FROM group__alpha', []),
@@ -121,9 +123,9 @@ final class TwoBundleCoexistenceTest extends TestCase
         $this->registerAlphaFields();
         $this->ensureSchema(['alpha']);
 
-        $storage = $this->storage();
+        $repository = $this->repository();
 
-        $entity = $storage->create([
+        $entity = $repository->create([
             'uuid' => 'uuid-alpha-rt',
             'type' => 'alpha',
             'name' => 'RT',
@@ -131,9 +133,9 @@ final class TwoBundleCoexistenceTest extends TestCase
             'alpha_code' => 'RT-CODE',
             'shared_tag' => 'RT-TAG',
         ]);
-        $storage->save($entity);
+        $repository->save($entity);
 
-        $loaded = $storage->load($entity->id());
+        $loaded = $repository->find((string) $entity->id());
         self::assertNotNull($loaded);
         self::assertSame('RT-CODE', $loaded->get('alpha_code'));
         self::assertSame('RT-TAG', $loaded->get('shared_tag'));
@@ -146,15 +148,15 @@ final class TwoBundleCoexistenceTest extends TestCase
         $this->registerBetaFields();
         $this->ensureSchema(['alpha', 'beta']);
 
-        $storage = $this->storage();
-        $storage->save($storage->create([
+        $repository = $this->repository();
+        $repository->save($repository->create([
             'uuid' => 'uuid-a',
             'type' => 'alpha',
             'name' => 'A',
             'langcode' => 'en',
             'alpha_code' => 'A-42',
         ]));
-        $storage->save($storage->create([
+        $repository->save($repository->create([
             'uuid' => 'uuid-b',
             'type' => 'beta',
             'name' => 'B',
@@ -285,13 +287,18 @@ final class TwoBundleCoexistenceTest extends TestCase
         ))->ensureTable();
     }
 
-    private function storage(): SqlEntityStorage
+    private function repository(): EntityRepository
     {
-        return new SqlEntityStorage(
+        // Group::class declares 'gid' (not 'id') as its id key — the driver
+        // must be told, or read()/write() key off the wrong column.
+        $idKey = $this->groupType->getKeys()['id'] ?? 'id';
+
+        return new EntityRepository(
             $this->groupType,
-            $this->database,
+            new SqlStorageDriver(new SingleConnectionResolver($this->database), $idKey),
             $this->dispatcher,
-            $this->registry,
+            database: $this->database,
+            fieldRegistry: $this->registry,
         );
     }
 

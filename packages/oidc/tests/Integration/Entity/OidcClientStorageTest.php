@@ -9,7 +9,9 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Oidc\Entity\OidcClient;
 
@@ -18,13 +20,13 @@ use Waaseyaa\Oidc\Entity\OidcClient;
  *
  * Verifies that the entity's default values (scopes, grant_types), array fields
  * (redirect_uris), and scalar fields (client_id, client_secret_hash) all round-trip
- * cleanly through SqlEntityStorage.
+ * cleanly through EntityRepository.
  */
 #[CoversClass(OidcClient::class)]
 final class OidcClientStorageTest extends TestCase
 {
     private DBALDatabase $database;
-    private SqlEntityStorage $storage;
+    private EntityRepository $repository;
 
     protected function setUp(): void
     {
@@ -49,31 +51,36 @@ final class OidcClientStorageTest extends TestCase
             'client_secret_hash' => ['type' => 'varchar', 'length' => 255, 'not null' => false],
         ]);
 
-        $this->storage = new SqlEntityStorage(
+        $this->repository = new EntityRepository(
             $entityType,
-            $this->database,
+            new SqlStorageDriver(new SingleConnectionResolver($this->database)),
             new EventDispatcher(),
+            database: $this->database,
         );
     }
 
     public function testCreateAndSaveAssignsId(): void
     {
-        $client = $this->storage->create([
+        $client = $this->repository->create([
             'client_id' => 'minoo-web',
             'name' => 'Minoo',
             'redirect_uris' => ['https://minoo.test/callback'],
         ]);
 
-        $this->storage->save($client);
+        $this->repository->save($client);
 
+        // EntityRepository (the sole persistence engine, C-22) back-fills an
+        // auto-assigned id as a string (SqlStorageDriver::write() returns
+        // string), unlike the legacy SqlEntityStorage engine which cast to int.
+        // The intent — an id was assigned — is what this test pins.
         $this->assertNotNull($client->id());
-        $this->assertIsInt($client->id());
+        $this->assertIsNumeric($client->id());
         $this->assertFalse($client->isNew());
     }
 
     public function testDefaultsAreAppliedOnCreate(): void
     {
-        $client = $this->storage->create([
+        $client = $this->repository->create([
             'client_id' => 'minoo-web',
             'name' => 'Minoo',
         ]);
@@ -86,7 +93,7 @@ final class OidcClientStorageTest extends TestCase
 
     public function testFullRoundTripPreservesAllFields(): void
     {
-        $client = $this->storage->create([
+        $client = $this->repository->create([
             'client_id' => 'biindigen',
             'name' => 'Biindigen Community Portal',
             'redirect_uris' => [
@@ -98,15 +105,19 @@ final class OidcClientStorageTest extends TestCase
             'is_confidential' => true,
             'client_secret_hash' => 'hashed-secret',
         ]);
-        $this->storage->save($client);
+        $this->repository->save($client);
         $id = $client->id();
         $uuid = $client->uuid();
 
-        $loaded = $this->storage->load($id);
+        $loaded = $this->repository->find((string) $id);
 
         $this->assertNotNull($loaded);
         $this->assertInstanceOf(OidcClient::class, $loaded);
-        $this->assertSame($id, $loaded->id());
+        // Compare as strings: the id round-trips through EntityRepository as a
+        // string (SqlStorageDriver::write()) vs. an int on hydration
+        // (SqlStorageDriver::read()) — both valid per EntityInterface::id():
+        // int|string|null.
+        $this->assertSame((string) $id, (string) $loaded->id());
         $this->assertSame($uuid, $loaded->uuid());
         $this->assertSame('biindigen', $loaded->getClientId());
         $this->assertSame('Biindigen Community Portal', $loaded->getName());
@@ -122,12 +133,12 @@ final class OidcClientStorageTest extends TestCase
 
     public function testUpdatePersistsChanges(): void
     {
-        $client = $this->storage->create([
+        $client = $this->repository->create([
             'client_id' => 'minoo-web',
             'name' => 'Minoo',
             'redirect_uris' => ['https://minoo.test/callback'],
         ]);
-        $this->storage->save($client);
+        $this->repository->save($client);
         $id = $client->id();
 
         $client->setRedirectUris([
@@ -135,9 +146,9 @@ final class OidcClientStorageTest extends TestCase
             'https://minoo.test/new-callback',
         ]);
         $client->setScopes(['openid', 'profile']);
-        $this->storage->save($client);
+        $this->repository->save($client);
 
-        $reloaded = $this->storage->load($id);
+        $reloaded = $this->repository->find((string) $id);
         $this->assertSame(
             ['https://minoo.test/callback', 'https://minoo.test/new-callback'],
             $reloaded->getRedirectUris(),
@@ -147,17 +158,17 @@ final class OidcClientStorageTest extends TestCase
 
     public function testUpdatePreservesUuid(): void
     {
-        $client = $this->storage->create([
+        $client = $this->repository->create([
             'client_id' => 'minoo-web',
             'name' => 'Minoo',
         ]);
-        $this->storage->save($client);
+        $this->repository->save($client);
         $originalUuid = $client->uuid();
 
         $client->setName('Minoo (renamed)');
-        $this->storage->save($client);
+        $this->repository->save($client);
 
-        $loaded = $this->storage->load($client->id());
+        $loaded = $this->repository->find((string) $client->id());
         $this->assertSame($originalUuid, $loaded->uuid());
     }
 
@@ -165,52 +176,53 @@ final class OidcClientStorageTest extends TestCase
     {
         $this->seedClients();
 
-        $ids = $this->storage->getQuery()
+        $ids = $this->repository->getQuery()
             ->accessCheck(false)
             ->condition('client_id', 'biindigen')
             ->execute();
 
         $this->assertCount(1, $ids);
-        $client = $this->storage->load($ids[0]);
+        $client = $this->repository->find((string) $ids[0]);
         $this->assertSame('biindigen', $client->getClientId());
     }
 
     public function testDeleteRemovesClient(): void
     {
         $this->seedClients();
-        $all = $this->storage->getQuery()->accessCheck(false)->execute();
+        $all = $this->repository->getQuery()->accessCheck(false)->execute();
         $this->assertCount(2, $all);
 
-        $toDelete = $this->storage->load($all[0]);
-        $this->storage->delete([$toDelete]);
+        $toDelete = $this->repository->find((string) $all[0]);
+        $this->repository->delete($toDelete);
 
-        $remaining = $this->storage->getQuery()->accessCheck(false)->execute();
+        $remaining = $this->repository->getQuery()->accessCheck(false)->execute();
         $this->assertCount(1, $remaining);
-        $this->assertNull($this->storage->load($all[0]));
+        $this->assertNull($this->repository->find((string) $all[0]));
     }
 
     public function testFreshStorageLoadsSameEntity(): void
     {
-        $client = $this->storage->create([
+        $client = $this->repository->create([
             'client_id' => 'minoo-web',
             'name' => 'Minoo',
             'scopes' => ['openid', 'profile'],
         ]);
-        $this->storage->save($client);
+        $this->repository->save($client);
         $id = $client->id();
 
-        $fresh = new SqlEntityStorage(
+        $fresh = new EntityRepository(
             new EntityType(
                 id: 'oidc_client',
                 label: 'OIDC Client',
                 class: OidcClient::class,
                 keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'name'],
             ),
-            $this->database,
+            new SqlStorageDriver(new SingleConnectionResolver($this->database)),
             new EventDispatcher(),
+            database: $this->database,
         );
 
-        $loaded = $fresh->load($id);
+        $loaded = $fresh->find((string) $id);
         $this->assertNotNull($loaded);
         $this->assertSame('minoo-web', $loaded->getClientId());
         $this->assertSame(['openid', 'profile'], $loaded->getScopes());
@@ -223,8 +235,8 @@ final class OidcClientStorageTest extends TestCase
             ['client_id' => 'biindigen', 'name' => 'Biindigen'],
         ];
         foreach ($seeds as $values) {
-            $client = $this->storage->create($values);
-            $this->storage->save($client);
+            $client = $this->repository->create($values);
+            $this->repository->save($client);
         }
     }
 }

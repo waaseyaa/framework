@@ -709,30 +709,6 @@ parameters:
 			path: packages/entity-storage/src/SqlEntityQuery.php
 
 		-
-			message: '#^Call to function method_exists\(\) with Waaseyaa\\Entity\\EntityInterface and ''set'' will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: packages/entity-storage/src/SqlEntityStorage.php
-
-		-
-			message: '#^Construct empty\(\) is not allowed\. Use more strict comparison\.$#'
-			identifier: empty.notAllowed
-			count: 3
-			path: packages/entity-storage/src/SqlEntityStorage.php
-
-		-
-			message: '#^Method Psr\\EventDispatcher\\EventDispatcherInterface\:\:dispatch\(\) invoked with 2 parameters, 1 required\.$#'
-			identifier: arguments.count
-			count: 5
-			path: packages/entity-storage/src/SqlEntityStorage.php
-
-		-
-			message: '#^Parameter \#1 \$ids \(array\<int\|string\>\) of method Waaseyaa\\EntityStorage\\SqlEntityStorage\:\:loadMultiple\(\) should be contravariant with parameter \$ids \(array\) of method Waaseyaa\\Entity\\Storage\\EntityStorageInterface\:\:loadMultiple\(\)$#'
-			identifier: method.childParameterType
-			count: 1
-			path: packages/entity-storage/src/SqlEntityStorage.php
-
-		-
 			message: '#^Empty array passed to foreach\.$#'
 			identifier: foreach.emptyArray
 			count: 1

@@ -10,10 +10,12 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlEntityQuery;
 use Waaseyaa\EntityStorage\SqlEntityQueryResultCache;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 
 #[CoversClass(SqlEntityQueryResultCache::class)]
@@ -85,26 +87,47 @@ final class SqlEntityQueryResultCacheTest extends TestCase
         $this->assertContains(2, $idsFresh);
     }
 
+    /**
+     * C-22 WP4 note: the retired SqlEntityStorage owned a single shared
+     * {@see SqlEntityQueryResultCache} and invalidated it internally inside
+     * save()/delete(). EntityRepository — the sole surviving engine — does
+     * not carry that wiring forward: its getQuery() always builds a fresh,
+     * uncached SqlEntityQuery (no resultCache argument is ever passed), so
+     * there is no shared-cache staleness to invalidate on save through the
+     * public API. This test pinned SqlEntityStorage's own internal
+     * invalidation call, which has no equivalent surface on EntityRepository
+     * to exercise, so it is not ported (see
+     * execute_returns_cached_ids_until_invalidated above for the still-live
+     * SqlEntityQuery + SqlEntityQueryResultCache contract this file covers).
+     */
     #[Test]
-    public function storage_save_invalidates_query_cache(): void
+    public function repositorySaveDoesNotShareAnUncachedQueryCache(): void
     {
-        $cache = new SqlEntityQueryResultCache();
-        $dispatcher = new EventDispatcher();
-        $storage = new SqlEntityStorage($this->entityType, $this->database, $dispatcher, queryResultCache: $cache);
+        $resolver = new SingleConnectionResolver($this->database);
+        $driver = new SqlStorageDriver($resolver);
+        $repository = new EntityRepository(
+            $this->entityType,
+            $driver,
+            new EventDispatcher(),
+            database: $this->database,
+        );
 
-        $before = $storage->getQuery()->accessCheck(false)->condition('bundle', 'article')->execute();
+        $before = $repository->getQuery()->accessCheck(false)->condition('bundle', 'article')->execute();
         $this->assertSame([1], $before);
 
-        $entity = $storage->create([
+        $entity = $repository->create([
             'uuid' => 'uuid-new',
             'bundle' => 'article',
             'label' => 'New row',
             'langcode' => 'en',
             'status' => 1,
         ]);
-        $storage->save($entity);
+        $repository->save($entity, validate: false);
 
-        $after = $storage->getQuery()->accessCheck(false)->condition('bundle', 'article')->execute();
+        // No shared cache is ever wired through getQuery(), so the second
+        // (independently constructed) query already reflects the new row —
+        // there is no staleness to invalidate.
+        $after = $repository->getQuery()->accessCheck(false)->condition('bundle', 'article')->execute();
         $this->assertCount(2, $after);
     }
 }

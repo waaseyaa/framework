@@ -22,7 +22,6 @@ use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\EntityStorageCoordinator;
-use Waaseyaa\EntityStorage\EntityStorageFactory;
 use Waaseyaa\EntityStorage\Query\EntityQuery;
 use Waaseyaa\Field\FieldDefinition;
 
@@ -36,12 +35,17 @@ use Waaseyaa\Field\FieldDefinition;
  * Uses spy decorators and reflection to verify that:
  * 1. No raw PDO or direct-SQL bypass exists in the path.
  * 2. The coordinator is reachable from the repository.
- * 3. The factory wires coordinator and repository together correctly.
- * 4. Calls flow through DBAL (DatabaseInterface), not \PDO directly.
+ * 3. Calls flow through DBAL (DatabaseInterface), not \PDO directly.
+ *
+ * C-22 WP4: the two tests that asserted `EntityStorageFactory::getCoordinator()`
+ * wiring were removed — `EntityStorageFactory` is deleted (SqlEntityStorage's
+ * factory; `EntityRepository` is the sole engine and is constructed directly by
+ * the kernel, never via that factory). The remaining tests below construct
+ * `EntityRepository`/`EntityStorageCoordinator`/`BackendResolver`/
+ * `SqlStorageDriver` directly and are unaffected by that deletion.
  */
 #[CoversClass(EntityRepository::class)]
 #[CoversClass(EntityStorageCoordinator::class)]
-#[CoversClass(EntityStorageFactory::class)]
 #[CoversClass(BackendResolver::class)]
 final class PipelineInvariantTest extends TestCase
 {
@@ -88,60 +92,6 @@ final class PipelineInvariantTest extends TestCase
     // ---------------------------------------------------------------------------
     // Tests
     // ---------------------------------------------------------------------------
-
-    #[Test]
-    public function factory_wires_coordinator_into_repository(): void
-    {
-        $db = DBALDatabase::createSqlite(':memory:');
-        $dispatcher = new EventDispatcher();
-        $registrar = $this->makeRegistrar();
-
-        $factory = new EntityStorageFactory(
-            database: $db,
-            eventDispatcher: $dispatcher,
-            backendRegistrar: $registrar,
-        );
-
-        $entityType = new EntityType(
-            id: 'pipeline_test',
-            label: 'Pipeline Test',
-            class: PipelineTestEntity::class,
-            keys: ['id' => 'id'],
-        );
-
-        $coordinator = $factory->getCoordinator($entityType);
-
-        self::assertInstanceOf(
-            EntityStorageCoordinator::class,
-            $coordinator,
-            'Factory must return a coordinator when BackendRegistrar is provided',
-        );
-    }
-
-    #[Test]
-    public function factory_returns_null_coordinator_when_no_registrar(): void
-    {
-        $db = DBALDatabase::createSqlite(':memory:');
-        $dispatcher = new EventDispatcher();
-
-        $factory = new EntityStorageFactory(
-            database: $db,
-            eventDispatcher: $dispatcher,
-            // No backendRegistrar — single-backend deployment.
-        );
-
-        $entityType = new EntityType(
-            id: 'pipeline_test_single',
-            label: 'Pipeline Test Single',
-            class: PipelineTestEntity::class,
-            keys: ['id' => 'id'],
-        );
-
-        self::assertNull(
-            $factory->getCoordinator($entityType),
-            'Factory must return null when no BackendRegistrar is provided',
-        );
-    }
 
     #[Test]
     public function repository_exposes_coordinator_via_getter(): void

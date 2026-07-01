@@ -9,8 +9,10 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlEntityQuery;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 use Symfony\Component\EventDispatcher\EventDispatcher;
@@ -19,7 +21,7 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 final class SqlEntityQueryLikeTest extends TestCase
 {
     private DBALDatabase $database;
-    private SqlEntityStorage $storage;
+    private EntityRepository $repository;
 
     protected function setUp(): void
     {
@@ -35,17 +37,24 @@ final class SqlEntityQueryLikeTest extends TestCase
         $schemaHandler->ensureTable();
 
         $dispatcher = new EventDispatcher();
-        $this->storage = new SqlEntityStorage($entityType, $this->database, $dispatcher);
+        $resolver = new SingleConnectionResolver($this->database);
+        $driver = new SqlStorageDriver($resolver);
+        $this->repository = new EntityRepository(
+            $entityType,
+            $driver,
+            $dispatcher,
+            database: $this->database,
+        );
     }
 
     #[Test]
     public function containsOperatorMatchesSubstring(): void
     {
-        $this->storage->save($this->storage->create(['title' => 'Hello World']));
-        $this->storage->save($this->storage->create(['title' => 'Goodbye Moon']));
-        $this->storage->save($this->storage->create(['title' => 'World Peace']));
+        $this->repository->save($this->repository->create(['title' => 'Hello World']), validate: false);
+        $this->repository->save($this->repository->create(['title' => 'Goodbye Moon']), validate: false);
+        $this->repository->save($this->repository->create(['title' => 'World Peace']), validate: false);
 
-        $ids = $this->storage->getQuery()
+        $ids = $this->repository->getQuery()
             ->accessCheck(false)
             ->condition('title', 'World', 'CONTAINS')
             ->execute();
@@ -56,11 +65,11 @@ final class SqlEntityQueryLikeTest extends TestCase
     #[Test]
     public function startsWithOperatorMatchesPrefix(): void
     {
-        $this->storage->save($this->storage->create(['title' => 'Hello World']));
-        $this->storage->save($this->storage->create(['title' => 'Goodbye Moon']));
-        $this->storage->save($this->storage->create(['title' => 'Hello Again']));
+        $this->repository->save($this->repository->create(['title' => 'Hello World']), validate: false);
+        $this->repository->save($this->repository->create(['title' => 'Goodbye Moon']), validate: false);
+        $this->repository->save($this->repository->create(['title' => 'Hello Again']), validate: false);
 
-        $ids = $this->storage->getQuery()
+        $ids = $this->repository->getQuery()
             ->accessCheck(false)
             ->condition('title', 'Hello', 'STARTS_WITH')
             ->execute();
@@ -71,10 +80,10 @@ final class SqlEntityQueryLikeTest extends TestCase
     #[Test]
     public function containsOperatorEscapesPercentWildcard(): void
     {
-        $this->storage->save($this->storage->create(['title' => '100% Complete']));
-        $this->storage->save($this->storage->create(['title' => '100 items found']));
+        $this->repository->save($this->repository->create(['title' => '100% Complete']), validate: false);
+        $this->repository->save($this->repository->create(['title' => '100 items found']), validate: false);
 
-        $ids = $this->storage->getQuery()
+        $ids = $this->repository->getQuery()
             ->accessCheck(false)
             ->condition('title', '100%', 'CONTAINS')
             ->execute();
@@ -86,10 +95,10 @@ final class SqlEntityQueryLikeTest extends TestCase
     #[Test]
     public function containsOperatorIsCaseInsensitive(): void
     {
-        $this->storage->save($this->storage->create(['title' => 'Hello World']));
-        $this->storage->save($this->storage->create(['title' => 'hello world']));
+        $this->repository->save($this->repository->create(['title' => 'Hello World']), validate: false);
+        $this->repository->save($this->repository->create(['title' => 'hello world']), validate: false);
 
-        $ids = $this->storage->getQuery()
+        $ids = $this->repository->getQuery()
             ->accessCheck(false)
             ->condition('title', 'hello', 'CONTAINS')
             ->execute();

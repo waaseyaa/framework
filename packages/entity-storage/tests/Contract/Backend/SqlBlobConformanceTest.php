@@ -15,7 +15,9 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\Backend\SqlBlobBackend;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Testing\Contract\FieldStorageBackendContractTestCase;
 use Waaseyaa\Field\FieldDefinition;
@@ -127,19 +129,19 @@ final class SqlBlobConformanceTest extends FieldStorageBackendContractTestCase
         );
         $schemaHandler->ensureTable();
 
-        $storage = new SqlEntityStorage(
+        $repository = new EntityRepository(
             entityType: $entityType,
-            database: $this->db,
+            driver: new SqlStorageDriver(new SingleConnectionResolver($this->db)),
             eventDispatcher: new EventDispatcher(),
         );
 
-        $entity = $storage->create([
+        $entity = $repository->create([
             'uuid'     => 'cb000000-0000-0000-0000-000000000001',
             'label'    => 'Conformance Fixture',
             'bundle'   => 'default',
             'langcode' => 'en',
         ]);
-        $storage->save($entity);
+        $repository->save($entity, validate: false);
     }
 }
 

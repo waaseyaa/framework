@@ -16,6 +16,7 @@ use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Field\Classification\ClassificationParentResolverInterface;
 use Waaseyaa\Field\Classification\EntityLifecycleSubscriber;
 use Waaseyaa\Field\Classification\Job\HoldScanJob;
@@ -135,18 +136,18 @@ final class ClassificationRetentionIntegrationTest extends TestCase
     #[Test]
     public function child_without_explicit_label_inherits_parent_label(): void
     {
-        $storage = $this->entityTypeManager->getStorage(self::ENTITY_TYPE);
+        $repository = $this->entityTypeManager->getRepository(self::ENTITY_TYPE);
 
         $parent = $this->newEntity(['uuid' => 'parent-uuid', 'classification_label' => 'confidential']);
-        $storage->save($parent);
+        $repository->save($parent, validate: false);
 
         // The lifecycle subscriber (wired by FieldServiceProvider::boot) runs on
         // save and resolves inheritance from the parent for a child carrying a
         // parent pointer but no explicit label.
         $child = $this->newEntity(['uuid' => 'child-inherit-uuid', 'parent_uuid' => 'parent-uuid']);
-        $storage->save($child);
+        $repository->save($child, validate: false);
 
-        $reloaded = $storage->loadByKey('uuid', 'child-inherit-uuid');
+        $reloaded = $this->loadByUuid($repository, 'child-inherit-uuid');
         self::assertNotNull($reloaded);
         // (a) inheritance cascaded on first save through the booted pipeline.
         self::assertSame('confidential', $reloaded->get('classification_label'));
@@ -156,10 +157,10 @@ final class ClassificationRetentionIntegrationTest extends TestCase
     #[Test]
     public function child_with_explicit_label_keeps_override_without_inheritance(): void
     {
-        $storage = $this->entityTypeManager->getStorage(self::ENTITY_TYPE);
+        $repository = $this->entityTypeManager->getRepository(self::ENTITY_TYPE);
 
         $parent = $this->newEntity(['uuid' => 'parent-uuid', 'classification_label' => 'confidential']);
-        $storage->save($parent);
+        $repository->save($parent, validate: false);
 
         // Child carries its own explicit label despite having a parent.
         $child = $this->newEntity([
@@ -167,9 +168,9 @@ final class ClassificationRetentionIntegrationTest extends TestCase
             'parent_uuid' => 'parent-uuid',
             'classification_label' => 'public',
         ]);
-        $storage->save($child);
+        $repository->save($child, validate: false);
 
-        $overridden = $storage->loadByKey('uuid', 'child-override-uuid');
+        $overridden = $this->loadByUuid($repository, 'child-override-uuid');
         self::assertNotNull($overridden);
         // (b) explicit override persists and does NOT inherit the parent label.
         self::assertSame('public', $overridden->get('classification_label'));
@@ -185,9 +186,9 @@ final class ClassificationRetentionIntegrationTest extends TestCase
         // REAL kernel-wired LabelInheritanceResolver (which carries the
         // production parent resolvers) — the same object the lifecycle
         // subscriber uses — with that previous label.
-        $storage = $this->entityTypeManager->getStorage(self::ENTITY_TYPE);
+        $repository = $this->entityTypeManager->getRepository(self::ENTITY_TYPE);
         $parent = $this->newEntity(['uuid' => 'parent-uuid', 'classification_label' => 'confidential']);
-        $storage->save($parent);
+        $repository->save($parent, validate: false);
 
         // Child now carries no explicit label (cleared for re-inheritance).
         $child = $this->newEntity(['uuid' => 'reinherit-uuid', 'parent_uuid' => 'parent-uuid']);
@@ -266,7 +267,7 @@ final class ClassificationRetentionIntegrationTest extends TestCase
     #[Test]
     public function purge_job_deletes_aged_public_entity_and_records_audit(): void
     {
-        $storage = $this->entityTypeManager->getStorage(self::ENTITY_TYPE);
+        $repository = $this->entityTypeManager->getRepository(self::ENTITY_TYPE);
 
         // Old public entity: created 30 days ago, beyond the 7-day window.
         $old = $this->newEntity([
@@ -274,7 +275,7 @@ final class ClassificationRetentionIntegrationTest extends TestCase
             'classification_label' => 'public',
             'created_at' => new \DateTimeImmutable('-30 days')->format('Y-m-d H:i:s'),
         ]);
-        $storage->save($old);
+        $repository->save($old, validate: false);
 
         // Fresh public entity: created today, inside the window — must survive.
         $fresh = $this->newEntity([
@@ -282,7 +283,7 @@ final class ClassificationRetentionIntegrationTest extends TestCase
             'classification_label' => 'public',
             'created_at' => new \DateTimeImmutable('now')->format('Y-m-d H:i:s'),
         ]);
-        $storage->save($fresh);
+        $repository->save($fresh, validate: false);
 
         // Seed the 7-day age-based purge policy for `public`.
         $this->seedPolicy([
@@ -301,11 +302,11 @@ final class ClassificationRetentionIntegrationTest extends TestCase
         $job->run();
 
         self::assertNull(
-            $storage->loadByKey('uuid', 'old-public'),
+            $this->loadByUuid($repository, 'old-public'),
             'T-R purge: the aged public entity must be deleted.',
         );
         self::assertNotNull(
-            $storage->loadByKey('uuid', 'fresh-public'),
+            $this->loadByUuid($repository, 'fresh-public'),
             'T-R purge: a fresh entity inside the window must survive.',
         );
 
@@ -325,7 +326,7 @@ final class ClassificationRetentionIntegrationTest extends TestCase
     #[Test]
     public function hold_scan_records_hold_vs_purge_conflict(): void
     {
-        $storage = $this->entityTypeManager->getStorage(self::ENTITY_TYPE);
+        $repository = $this->entityTypeManager->getRepository(self::ENTITY_TYPE);
 
         // A held entity that is also matched by a purge policy (the conflict).
         $held = $this->newEntity([
@@ -333,7 +334,7 @@ final class ClassificationRetentionIntegrationTest extends TestCase
             'classification_label' => 'hold-legal',
             'created_at' => new \DateTimeImmutable('-30 days')->format('Y-m-d H:i:s'),
         ]);
-        $storage->save($held);
+        $repository->save($held, validate: false);
 
         // Conflicting policy pair: a hold-flag policy and a purge policy that
         // BOTH match the `hold-legal` label.
@@ -359,7 +360,7 @@ final class ClassificationRetentionIntegrationTest extends TestCase
 
         // The held entity must NOT be deleted — hold-scan is verification only.
         self::assertNotNull(
-            $storage->loadByKey('uuid', 'held-and-purgeable'),
+            $this->loadByUuid($repository, 'held-and-purgeable'),
             'T-R hold-scan: HoldScanJob must never delete data.',
         );
 
@@ -493,7 +494,7 @@ final class ClassificationRetentionIntegrationTest extends TestCase
 
     private function seedLabels(): void
     {
-        $storage = $this->entityTypeManager->getStorage('classification_label_definition');
+        $repository = $this->entityTypeManager->getRepository('classification_label_definition');
         // confidential is seeded at level 10 so a default `admin` (clearance 10)
         // is Neutral while anonymous (0) is Forbidden — T-R (c).
         $seed = [
@@ -504,7 +505,7 @@ final class ClassificationRetentionIntegrationTest extends TestCase
         foreach ($seed as $values) {
             $label = new ClassificationLabelDefinition($values);
             $label->enforceIsNew();
-            $storage->save($label);
+            $repository->save($label, validate: false);
         }
     }
 
@@ -513,16 +514,34 @@ final class ClassificationRetentionIntegrationTest extends TestCase
      */
     private function seedPolicy(array $values): void
     {
-        $storage = $this->entityTypeManager->getStorage('retention_policy');
-        $policy = $storage->create($values);
-        $storage->save($policy);
+        $repository = $this->entityTypeManager->getRepository('retention_policy');
+        $policy = $repository->create($values);
+        $repository->save($policy, validate: false);
     }
 
     private function loadPolicyIdByUuid(string $uuid): int|string|null
     {
-        $policy = $this->entityTypeManager->getStorage('retention_policy')->loadByKey('uuid', $uuid);
+        $policy = $this->loadByUuid($this->entityTypeManager->getRepository('retention_policy'), $uuid);
 
         return $policy?->id();
+    }
+
+    /**
+     * C-22 WP4: `EntityRepository` has no `loadByKey()` equivalent (the
+     * legacy `SqlEntityStorage` method is retired — see
+     * `packages/entity-storage/tests/Unit/EntityRepositorySqlCrudTest.php`
+     * docblock). Production callsites were converted to a bounded
+     * `getQuery()->condition(...)->range(0, 1)->execute()` + `find()` chain;
+     * this test helper mirrors that pattern. `accessCheck(false)` is an
+     * explicit opt-out: these fixtures run in a system-context test harness
+     * with no `AccountInterface` bound to the query.
+     */
+    private function loadByUuid(EntityRepositoryInterface $repository, string $uuid): ?EntityInterface
+    {
+        $ids = $repository->getQuery()->accessCheck(false)->condition('uuid', $uuid)->range(0, 1)->execute();
+        $id = $ids[0] ?? null;
+
+        return $id === null ? null : $repository->find((string) $id);
     }
 
     /**
@@ -687,9 +706,11 @@ final class Fr015TestServiceProvider extends ServiceProvider
                     return null;
                 }
 
-                return $this->entityTypeManager
-                    ->getStorage('fr015_document')
-                    ->loadByKey('uuid', $parentUuid);
+                $repository = $this->entityTypeManager->getRepository('fr015_document');
+                $ids = $repository->getQuery()->accessCheck(false)->condition('uuid', $parentUuid)->range(0, 1)->execute();
+                $id = $ids[0] ?? null;
+
+                return $id === null ? null : $repository->find((string) $id);
             }
         });
 

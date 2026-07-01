@@ -22,7 +22,6 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Relationship\Relationship;
 use Waaseyaa\Relationship\RelationshipDiscoveryService;
@@ -60,17 +59,16 @@ final class PerformanceFixturePackIntegrationTest extends TestCase
         $dispatcher = new EventDispatcher();
         $entityTypeManager = new EntityTypeManager(
             $dispatcher,
-            function (EntityType $definition) use ($dispatcher, $database): SqlEntityStorage {
-                $schema = new SqlSchemaHandler($definition, $database);
-                $schema->ensureTable();
-                return new SqlEntityStorage($definition, $database, $dispatcher);
-            },
+            // C-22 WP4: legacy SqlEntityStorage engine is deleted; persistence goes
+            // exclusively through the repository factory below.
+            null,
             // C-22 WP3: read/write path now goes through the canonical repository.
             function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $database): EntityRepository {
+                new SqlSchemaHandler($definition, $database)->ensureTable();
                 $idKey = $definition->getKeys()['id'] ?? 'id';
                 $resolver = new SingleConnectionResolver($database);
 
-                return new EntityRepository($definition, new SqlStorageDriver($resolver, $idKey), $dispatcher);
+                return new EntityRepository($definition, new SqlStorageDriver($resolver, $idKey), $dispatcher, database: $database);
             },
         );
 
@@ -105,18 +103,18 @@ final class PerformanceFixturePackIntegrationTest extends TestCase
         ));
         new RelationshipSchemaManager($database)->ensure();
 
-        $nodeStorage = $entityTypeManager->getStorage('node');
+        $nodeRepository = $entityTypeManager->getRepository('node');
         $nodeIdsByKey = [];
         foreach (WorkflowFixturePack::performanceNodesLargeGraph() as $key => $values) {
-            $entity = $nodeStorage->create($values);
-            $nodeStorage->save($entity);
+            $entity = $nodeRepository->create($values);
+            $nodeRepository->save($entity, validate: false);
             $nodeIdsByKey[$key] = (string) $entity->id();
         }
 
-        $relationshipStorage = $entityTypeManager->getStorage('relationship');
+        $relationshipRepository = $entityTypeManager->getRepository('relationship');
         new RelationshipSchemaManager($database)->ensure();
         foreach (WorkflowFixturePack::performanceRelationshipsLargeGraph() as $fixture) {
-            $relationship = $relationshipStorage->create([
+            $relationship = $relationshipRepository->create([
                 'relationship_type' => $fixture['relationship_type'],
                 'from_entity_type' => 'node',
                 'from_entity_id' => $nodeIdsByKey[$fixture['from']],
@@ -126,7 +124,7 @@ final class PerformanceFixturePackIntegrationTest extends TestCase
                 'start_date' => $fixture['start_date'],
                 'end_date' => $fixture['end_date'],
             ]);
-            $relationshipStorage->save($relationship);
+            $relationshipRepository->save($relationship, validate: false);
         }
 
         $discovery = new RelationshipDiscoveryService(

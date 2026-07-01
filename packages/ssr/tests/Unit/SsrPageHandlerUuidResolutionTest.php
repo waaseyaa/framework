@@ -18,7 +18,6 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Node\Node;
 use Waaseyaa\SSR\SsrPageHandler;
@@ -26,17 +25,17 @@ use Waaseyaa\SSR\SsrPageHandler;
 /**
  * #1686 — the canonical public content path must resolve `GET /{type}/{uuid}`,
  * not only `/{type}/{id}`. `SsrPageHandler` fed the raw path segment to
- * `SqlEntityStorage::load()`, which queries the numeric `id` column only, so a
+ * `EntityRepository::find()`, which queries the numeric `id` column only, so a
  * UUID never matched and a valid entity 404'd purely on identifier shape.
  *
  * `loadByIdOrUuid()` now resolves a UUID-shaped segment to the numeric id first;
- * `load()` stays numeric-keyed.
+ * `find()` stays numeric-keyed.
  */
 #[CoversClass(SsrPageHandler::class)]
 final class SsrPageHandlerUuidResolutionTest extends TestCase
 {
     private DBALDatabase $db;
-    private SqlEntityStorage $storage;
+    private EntityRepository $repository;
     private EntityTypeManager $etm;
 
     protected function setUp(): void
@@ -52,22 +51,22 @@ final class SsrPageHandlerUuidResolutionTest extends TestCase
 
         new SqlSchemaHandler($entityType, $this->db)->ensureTable();
 
-        $this->storage = new SqlEntityStorage($entityType, $this->db, new EventDispatcher());
-
-        $storage = $this->storage;
         $dispatcher = new EventDispatcher();
         $db = $this->db;
         $resolver = new SingleConnectionResolver($this->db);
+        $this->repository = new EntityRepository(
+            $entityType,
+            new SqlStorageDriver($resolver),
+            $dispatcher,
+            database: $db,
+        );
+        $repository = $this->repository;
+
         $this->etm = new EntityTypeManager(
             $dispatcher,
-            static fn(EntityTypeInterface $_t): SqlEntityStorage => $storage,
-            // C-22: repository factory mirroring the kernel's getRepository() shape.
-            static fn(string $_id, EntityTypeInterface $t): EntityRepository => new EntityRepository(
-                $t,
-                new SqlStorageDriver($resolver),
-                $dispatcher,
-                database: $db,
-            ),
+            null,
+            // C-22 WP4: repository factory mirroring the kernel's getRepository() shape.
+            static fn(string $_id, EntityTypeInterface $t): EntityRepository => $repository,
         );
         $this->etm->registerEntityType($entityType);
     }
@@ -75,8 +74,8 @@ final class SsrPageHandlerUuidResolutionTest extends TestCase
     #[Test]
     public function resolves_a_content_entity_by_uuid_and_by_numeric_id(): void
     {
-        $entity = $this->storage->create(['title' => 'Water Is Life', 'status' => true]);
-        $this->storage->save($entity);
+        $entity = $this->repository->create(['title' => 'Water Is Life', 'status' => true]);
+        $this->repository->save($entity, validate: false);
 
         $id = $entity->id();
         $uuid = (string) $entity->get('uuid');
@@ -96,7 +95,7 @@ final class SsrPageHandlerUuidResolutionTest extends TestCase
     #[Test]
     public function returns_null_for_an_unknown_uuid(): void
     {
-        $this->storage->save($this->storage->create(['title' => 'Seeded', 'status' => true]));
+        $this->repository->save($this->repository->create(['title' => 'Seeded', 'status' => true]), validate: false);
 
         // Well-formed but unused UUID → no match → null (the caller renders 404,
         // which is correct: the entity genuinely does not exist).

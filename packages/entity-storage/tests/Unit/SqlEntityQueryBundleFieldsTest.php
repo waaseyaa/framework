@@ -10,10 +10,12 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Exception\BundleAmbiguousFieldException;
 use Waaseyaa\EntityStorage\Exception\UnknownFieldException;
 use Waaseyaa\EntityStorage\SqlEntityQuery;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 use Waaseyaa\Field\FieldDefinition;
@@ -307,18 +309,20 @@ final class SqlEntityQueryBundleFieldsTest extends TestCase
         );
         (new SqlSchemaHandler($singleBundle, $this->database))->ensureTable();
 
-        $storage = new SqlEntityStorage(
+        $resolver = new SingleConnectionResolver($this->database);
+        $repository = new EntityRepository(
             $singleBundle,
-            $this->database,
+            new SqlStorageDriver($resolver),
             $this->dispatcher,
-            $this->registry,
+            database: $this->database,
+            fieldRegistry: $this->registry,
         );
-        $entity = $storage->create([
+        $entity = $repository->create([
             'uuid' => 'uuid-thing',
             'label' => 'Solo',
             'langcode' => 'en',
         ]);
-        $storage->save($entity);
+        $repository->save($entity, validate: false);
 
         $query = new SqlEntityQuery(
             $singleBundle,
@@ -387,16 +391,24 @@ final class SqlEntityQueryBundleFieldsTest extends TestCase
         ))->ensureTable();
     }
 
+    private function makeRepository(): EntityRepository
+    {
+        $resolver = new SingleConnectionResolver($this->database);
+
+        return new EntityRepository(
+            $this->groupType,
+            new SqlStorageDriver($resolver, 'gid'),
+            $this->dispatcher,
+            database: $this->database,
+            fieldRegistry: $this->registry,
+        );
+    }
+
     private function seed(): void
     {
-        $storage = new SqlEntityStorage(
-            $this->groupType,
-            $this->database,
-            $this->dispatcher,
-            $this->registry,
-        );
+        $repository = $this->makeRepository();
 
-        $biz = $storage->create([
+        $biz = $repository->create([
             'uuid' => 'uuid-biz',
             'type' => 'business',
             'label' => 'Acme',
@@ -404,9 +416,9 @@ final class SqlEntityQueryBundleFieldsTest extends TestCase
             'email' => 'hi@acme.example',
             'phone' => '555-0100',
         ]);
-        $storage->save($biz);
+        $repository->save($biz, validate: false);
 
-        $org = $storage->create([
+        $org = $repository->create([
             'uuid' => 'uuid-org',
             'type' => 'organization',
             'label' => 'OpenOrg',
@@ -415,24 +427,19 @@ final class SqlEntityQueryBundleFieldsTest extends TestCase
             'website' => 'https://openorg.example',
             'org_code' => 'OPEN-1',
         ]);
-        $storage->save($org);
+        $repository->save($org, validate: false);
     }
 
     private function seedMultipleBusinesses(): void
     {
-        $storage = new SqlEntityStorage(
-            $this->groupType,
-            $this->database,
-            $this->dispatcher,
-            $this->registry,
-        );
+        $repository = $this->makeRepository();
 
         foreach ([
             ['uuid-b1', 'Acme',   'hi@acme.example',   '555-0100'],
             ['uuid-b2', 'Beagle', 'hi@beagle.example', '555-0300'],
             ['uuid-b3', 'Cogent', 'hi@cogent.example', '555-0200'],
         ] as [$uuid, $label, $email, $phone]) {
-            $entity = $storage->create([
+            $entity = $repository->create([
                 'uuid' => $uuid,
                 'type' => 'business',
                 'label' => $label,
@@ -440,7 +447,7 @@ final class SqlEntityQueryBundleFieldsTest extends TestCase
                 'email' => $email,
                 'phone' => $phone,
             ]);
-            $storage->save($entity);
+            $repository->save($entity, validate: false);
         }
     }
 

@@ -15,8 +15,10 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlEntityQuery;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 
@@ -51,7 +53,7 @@ final class SqlEntityQueryDeniesNeutralRowTest extends TestCase
 {
     private DBALDatabase $database;
 
-    private SqlEntityStorage $storage;
+    private EntityRepository $repository;
 
     protected function setUp(): void
     {
@@ -67,7 +69,14 @@ final class SqlEntityQueryDeniesNeutralRowTest extends TestCase
         $schemaHandler->ensureTable();
 
         $dispatcher = new EventDispatcher();
-        $this->storage = new SqlEntityStorage($entityType, $this->database, $dispatcher);
+        $resolver = new SingleConnectionResolver($this->database);
+        $driver = new SqlStorageDriver($resolver);
+        $this->repository = new EntityRepository(
+            $entityType,
+            $driver,
+            $dispatcher,
+            database: $this->database,
+        );
     }
 
     #[Test]
@@ -89,7 +98,6 @@ final class SqlEntityQueryDeniesNeutralRowTest extends TestCase
 
         $ids = $this->newQuery()
             ->withAccessHandler($handler)
-            ->withEntityLoader($this->storage->loadMultiple(...))
             ->setAccount($account)
             ->sort('id', 'ASC')
             ->execute();
@@ -112,7 +120,6 @@ final class SqlEntityQueryDeniesNeutralRowTest extends TestCase
 
         $result = $this->newQuery()
             ->withAccessHandler($handler)
-            ->withEntityLoader($this->storage->loadMultiple(...))
             ->setAccount($account)
             ->count()
             ->execute();
@@ -141,7 +148,6 @@ final class SqlEntityQueryDeniesNeutralRowTest extends TestCase
 
         $ids = $this->newQuery()
             ->withAccessHandler($handler)
-            ->withEntityLoader($this->storage->loadMultiple(...))
             ->setAccount($account)
             ->sort('id', 'ASC')
             ->execute();
@@ -164,7 +170,6 @@ final class SqlEntityQueryDeniesNeutralRowTest extends TestCase
 
         $ids = $this->newQuery()
             ->withAccessHandler(new EntityAccessHandler())
-            ->withEntityLoader($this->storage->loadMultiple(...))
             ->setAccount($account)
             ->execute();
 
@@ -186,7 +191,7 @@ final class SqlEntityQueryDeniesNeutralRowTest extends TestCase
             ['title' => 'p2', 'owner_id' => 2],
         ]);
 
-        $query = $this->storage->getQuery();
+        $query = $this->repository->getQuery();
         $query->setAccount($unprivileged);
         $ids = $query->execute();
 
@@ -199,7 +204,7 @@ final class SqlEntityQueryDeniesNeutralRowTest extends TestCase
 
     private function newQuery(): SqlEntityQuery
     {
-        $query = $this->storage->getQuery();
+        $query = $this->repository->getQuery();
         \assert($query instanceof SqlEntityQuery);
 
         return $query;
@@ -211,7 +216,7 @@ final class SqlEntityQueryDeniesNeutralRowTest extends TestCase
     private function seedRows(array $rows): void
     {
         foreach ($rows as $row) {
-            $this->storage->save($this->storage->create($row));
+            $this->repository->save($this->repository->create($row), validate: false);
         }
     }
 
