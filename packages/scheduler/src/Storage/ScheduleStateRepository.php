@@ -17,9 +17,9 @@ final class ScheduleStateRepository
         private readonly DatabaseInterface $database,
     ) {}
 
-    public function recordRun(string $taskName, string $result): void
+    public function recordRun(string $taskName, string $result, ?\DateTimeInterface $now = null): void
     {
-        $now = date('Y-m-d\TH:i:sP');
+        $ts = ($now ?? new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d\TH:i:sP');
 
         // Portable upsert (task_name is the PRIMARY KEY). The previous
         // `INSERT OR REPLACE` is SQLite-only syntax and throws a syntax error on
@@ -32,7 +32,7 @@ final class ScheduleStateRepository
 
         try {
             $affected = $this->database->update(self::TABLE)
-                ->fields(['last_run_at' => $now, 'last_result' => $result])
+                ->fields(['last_run_at' => $ts, 'last_result' => $result])
                 ->condition('task_name', $taskName)
                 ->execute();
 
@@ -40,7 +40,7 @@ final class ScheduleStateRepository
                 $this->database->insert(self::TABLE)
                     ->values([
                         'task_name' => $taskName,
-                        'last_run_at' => $now,
+                        'last_run_at' => $ts,
                         'last_result' => $result,
                     ])
                     ->execute();

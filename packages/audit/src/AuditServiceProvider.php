@@ -6,6 +6,7 @@ namespace Waaseyaa\Audit;
 
 use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Audit\Contract\AuditQueryInterface;
+use Waaseyaa\Audit\Contract\AuditWriteFailureObserver;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Integrity\AuditCheckpointBuilder;
 use Waaseyaa\Audit\Integrity\CheckpointSink;
@@ -60,11 +61,17 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
             $database = $this->resolve(DatabaseInterface::class);
             $logger = $this->resolveOptional(LoggerInterface::class);
 
+            // Optional L1 observer seam (design §10.4): higher-layer metric
+            // collectors (e.g. Telescope / Prometheus at L6) bind this to get
+            // a loud signal on write failure. Null observer if nothing is bound.
+            $observer = $this->resolveOptional(AuditWriteFailureObserver::class);
+
             // Wrap the database in the append-only decorator: the writer can only
             // ever append to audit_event — never update or delete (OCAP FR-003).
             return new AuditEventWriter(
                 database: new AppendOnlyAuditDatabase($database),
                 logger: $logger instanceof LoggerInterface ? $logger : null,
+                observer: $observer instanceof AuditWriteFailureObserver ? $observer : null,
             );
         });
 

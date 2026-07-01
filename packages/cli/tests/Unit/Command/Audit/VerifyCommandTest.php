@@ -103,6 +103,16 @@ final class VerifyCommandTest extends TestCase
                         return $this;
                     }
 
+                    public function whereRaw(string $expression, array $parameters = []): static
+                    {
+                        return $this;
+                    }
+
+                    public function orderByRaw(string $expression, string $direction): static
+                    {
+                        return $this;
+                    }
+
                     public function range(int $offset, int $limit): static
                     {
                         return $this;

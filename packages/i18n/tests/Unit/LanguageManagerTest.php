@@ -268,4 +268,18 @@ final class LanguageManagerTest extends TestCase
         // 'es' should appear only once at the start.
         $this->assertSame(['es', 'pt', 'en'], $chain);
     }
+
+    #[Test]
+    public function resetToDefault_restores_the_default_language(): void
+    {
+        $fr = new Language(id: 'fr', label: 'French', weight: 1);
+        $manager = new LanguageManager(languages: [$this->english, $fr]);
+
+        $manager->setCurrentLanguage($fr);
+        $this->assertSame('fr', $manager->getCurrentLanguage()->id);
+
+        $manager->resetToDefault();
+        $this->assertSame('en', $manager->getCurrentLanguage()->id,
+            'resetToDefault() must restore the system default language');
+    }
 }

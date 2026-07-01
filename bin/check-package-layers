@@ -150,10 +150,6 @@ $kernelExemptFiles = array_fill_keys([
     'cache/src/Listener/ConfigCacheInvalidator.php',     // uses Waaseyaa\Config\Event\ConfigEvent
     'cache/src/Listener/EntityCacheInvalidator.php',     // uses Waaseyaa\Entity\Event\EntityEvent
     'cache/src/Listener/EntityCacheSubscriber.php',      // subscribes to L1 entity lifecycle events
-    // cache (L0) cache-control header resolver — its one upward coupling is a direct
-    // Waaseyaa\Access\AccountInterface param type (not event-decoupled). Relocating it to
-    // access/api is a tracked follow-up (W4-3 note); exempt for now so cache stays bootable.
-    'cache/src/CacheConfigResolver.php',                 // uses Waaseyaa\Access\AccountInterface
 ], true);
 
 $namespacePrefixToShort = [

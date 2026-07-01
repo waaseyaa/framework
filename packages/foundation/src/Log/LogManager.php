@@ -18,6 +18,7 @@ use Waaseyaa\Foundation\Log\Handler\StreamHandler;
 use Waaseyaa\Foundation\Log\Processor\HostnameProcessor;
 use Waaseyaa\Foundation\Log\Processor\MemoryUsageProcessor;
 use Waaseyaa\Foundation\Log\Processor\ProcessorInterface;
+use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
 use Waaseyaa\Foundation\Log\Processor\RequestIdProcessor;
 
 /**
@@ -66,8 +67,13 @@ final class LogManager implements LoggerInterface
             return new self(new ErrorLogHandler());
         }
 
-        // Build global processors.
-        $globalProcessors = [];
+        // Redaction is an always-on security default: credentials logged through any
+        // channel (password, token, Authorization header, API keys, cookies, secrets)
+        // must never reach disk or S3 in cleartext. RedactorProcessor is prepended
+        // unconditionally so config-named processors (request_id, hostname, …) run after
+        // redaction, preventing any enrichment processor from re-adding cleartext secrets.
+        $globalProcessors = [new RedactorProcessor()];
+
         foreach (($config['processors'] ?? []) as $processorName) {
             $processor = self::buildProcessor($processorName);
             if ($processor !== null) {
@@ -266,6 +272,7 @@ final class LogManager implements LoggerInterface
             'request_id' => new RequestIdProcessor(),
             'hostname' => new HostnameProcessor(),
             'memory_usage' => new MemoryUsageProcessor(),
+            'redact' => new RedactorProcessor(),
             default => null,
         };
     }

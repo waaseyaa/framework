@@ -57,4 +57,17 @@ final class LocalTransportTest extends TestCase
         $this->assertStringContainsString('First', $contents);
         $this->assertStringContainsString('Second', $contents);
     }
+
+    #[Test]
+    public function send_throws_when_log_path_not_writable(): void
+    {
+        $transport = new LocalTransport('/nonexistent-directory/waaseyaa_mail_test.log');
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Failed to write mail log entry to "/nonexistent-directory/waaseyaa_mail_test.log".');
+        $transport->send(new Envelope(
+            to: ['user@example.com'],
+            from: 'noreply@example.com',
+            subject: 'Test',
+        ));
+    }
 }

@@ -464,4 +464,54 @@ final class LogManagerTest extends TestCase
             }
         }
     }
+
+    /**
+     * Integration: RedactorProcessor is always-on after fromConfig() — no explicit 'redact'
+     * processor config needed.  A record logged with a denylisted context key must arrive at
+     * the handler with the value replaced by '[REDACTED]'.
+     *
+     * This test validates the security default added in the "foundation wave-2 WP1" hardening:
+     * credentials must never reach disk (or the S3 sovereignty sink) in cleartext.
+     */
+    #[Test]
+    public function from_config_redactor_is_on_by_default_without_explicit_config(): void
+    {
+        $tmpFile = sys_get_temp_dir() . '/waaseyaa_redact_default_' . uniqid() . '.log';
+
+        try {
+            // No 'processors' key — redaction must be active without being opt-in.
+            $config = [
+                'default' => 'file',
+                'channels' => [
+                    'file' => [
+                        'type' => 'file',
+                        'path' => $tmpFile,
+                        'level' => 'debug',
+                        'formatter' => 'json',
+                    ],
+                ],
+            ];
+
+            $manager = LogManager::fromConfig($config);
+            $manager->info('login attempt', [
+                'user_id'       => 42,
+                'password'      => 'hunter2',
+                'Authorization' => 'Bearer eyJhbGciOiJIUzI1NiJ9',
+            ]);
+
+            $content = trim(file_get_contents($tmpFile));
+            $decoded = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+
+            // Benign key must survive untouched.
+            $this->assertSame(42, $decoded['context']['user_id']);
+
+            // Denylisted keys must be redacted — no explicit processor config was provided.
+            $this->assertSame('[REDACTED]', $decoded['context']['password']);
+            $this->assertSame('[REDACTED]', $decoded['context']['Authorization']);
+        } finally {
+            if (file_exists($tmpFile)) {
+                unlink($tmpFile);
+            }
+        }
+    }
 }

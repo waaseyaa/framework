@@ -168,4 +168,25 @@ abstract class AbstractTransportContract extends TestCase
         /** @phpstan-ignore-next-line argument.type — deliberate contract violation under test */
         $transport->listJobs(10, 0, 'unknown');
     }
+
+    #[Test]
+    public function releaseIncrementsAttemptsAtomically(): void
+    {
+        $transport = $this->makeTransport();
+        $transport->push('default', '{"job":"test"}');
+
+        // Pop the job — fresh claim, attempts = 0.
+        $job = $transport->pop('default');
+        self::assertNotNull($job, 'pop() must return the job');
+        self::assertSame(0, $job['attempts'], 'fresh claim must start with attempts=0');
+
+        // Release it (simulate a soft failure / retry).
+        $transport->release($job['id'], 0);
+
+        // Pop again — attempts must have been incremented atomically to 1.
+        $released = $transport->pop('default');
+        self::assertNotNull($released, 'released job must be re-claimable');
+        self::assertSame(1, $released['attempts'],
+            'release() must increment attempts atomically (no read-then-write race)');
+    }
 }
