@@ -176,7 +176,7 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
             entityTypeManager: $kernel->getEntityTypeManager(),
             database: $kernel->getDatabase(),
             renderCache: $this->renderCache,
-            cacheConfigResolver: new \Waaseyaa\Cache\CacheConfigResolver($kernel->getConfig()),
+            cacheConfigResolver: new \Waaseyaa\Routing\CacheConfigResolver($kernel->getConfig()),
             discoveryHandler: $kernel->getDiscoveryApiHandler(),
             projectRoot: $kernel->getProjectRoot(),
             config: $kernel->getConfig(),

@@ -832,7 +832,7 @@ parameters:
 			message: '#^Casting to string something that''s already string\.$#'
 			identifier: cast.useless
 			count: 1
-			path: packages/foundation/src/Ingestion/EnvelopeValidator.php
+			path: packages/foundation/src/Ingestion/MessageEnvelopeValidator.php
 
 		-
 			message: '#^Class Waaseyaa\\Foundation\\Kernel\\AbstractKernel has an uninitialized property \$accessHandler\. Give it default value or assign it in the constructor\.$#'

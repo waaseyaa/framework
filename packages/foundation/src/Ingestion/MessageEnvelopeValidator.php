@@ -4,19 +4,17 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Ingestion;
 
-use Symfony\Component\Uid\Uuid;
-
 /**
  * Validates and normalizes raw ingestion envelopes against the canonical schema.
  *
  * Responsibilities:
  *   - Validate required fields (source, type, payload, timestamp)
  *   - Reject unknown top-level fields (strict schema)
- *   - Auto-generate trace_id if missing
+ *   - Auto-generate trace_id via the injected TraceIdGeneratorInterface if missing
  *   - Validate field types and formats
  *   - Return a normalized Envelope DTO or throw InvalidEnvelopeException
  */
-final class EnvelopeValidator
+final class MessageEnvelopeValidator
 {
     private const REQUIRED_FIELDS = ['source', 'type', 'payload', 'timestamp'];
 
@@ -24,6 +22,13 @@ final class EnvelopeValidator
         'source', 'type', 'payload', 'timestamp',
         'trace_id', 'tenant_id', 'metadata',
     ];
+
+    private readonly TraceIdGeneratorInterface $traceIdGenerator;
+
+    public function __construct(?TraceIdGeneratorInterface $traceIdGenerator = null)
+    {
+        $this->traceIdGenerator = $traceIdGenerator ?? new UuidV4TraceIdGenerator();
+    }
 
     /**
      * Validate a raw envelope array and return a normalized Envelope DTO.
@@ -76,7 +81,7 @@ final class EnvelopeValidator
         }
 
         // Normalize: auto-generate trace_id if missing.
-        $traceId ??= (string) Uuid::v4();
+        $traceId ??= $this->traceIdGenerator->generate();
 
         return new Envelope(
             source: (string) $raw['source'],

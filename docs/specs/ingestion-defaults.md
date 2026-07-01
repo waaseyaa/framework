@@ -16,8 +16,8 @@ Defines the ingestion pipeline's envelope schema, validation rules, canonical er
 The ingestion pipeline processes data through three validation phases:
 
 ```
-Raw input → EnvelopeValidator → PayloadValidator → Pipeline
-              (shape check)     (content-type check)  (processing)
+Raw input → MessageEnvelopeValidator → PayloadValidator → Pipeline
+              (shape check)            (content-type check)  (processing)
 ```
 
 Each phase produces canonical `IngestionError` objects. Both success and failure outcomes are logged via `IngestionLogger`.
@@ -27,7 +27,7 @@ Each phase produces canonical `IngestionError` objects. Both success and failure
 | Class | Package | Purpose |
 |-------|---------|---------|
 | `Envelope` | foundation | Immutable DTO for validated envelopes |
-| `EnvelopeValidator` | foundation | Validates raw arrays against envelope schema |
+| `MessageEnvelopeValidator` | foundation | Validates raw arrays against envelope schema |
 | `PayloadValidator` | foundation | Validates payload against content-type schema |
 | `IngestionError` | foundation | Canonical error value object |
 | `IngestionErrorCode` | foundation | Error code enum (ENVELOPE_*, PAYLOAD_*) |
@@ -78,13 +78,13 @@ The canonical ingestion envelope is defined in `defaults/ingestion.envelope.sche
 
 ## Validation Rules
 
-### Phase 1: Envelope Validation (`EnvelopeValidator`)
+### Phase 1: Envelope Validation (`MessageEnvelopeValidator`)
 
 1. **Unknown fields rejected** — only the 7 allowed fields are accepted
 2. **Required fields checked** — source, type, payload, timestamp must be present
 3. **Type checking** — source/type must be strings, payload must be an object, etc.
 4. **Format validation** — timestamp must parse as ISO 8601, trace_id must be a lowercase UUID
-5. **Auto-generation** — trace_id is generated via `Uuid::v4()` if absent
+5. **Auto-generation** — trace_id is generated via the injected `TraceIdGeneratorInterface` (default: `UuidV4TraceIdGenerator`) if absent
 
 On success, returns an `Envelope` DTO. On failure, throws `InvalidEnvelopeException` with structured errors.
 

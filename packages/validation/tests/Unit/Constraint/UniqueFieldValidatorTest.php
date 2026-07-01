@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Validation\Tests\Unit\Constraint;
 
-use Waaseyaa\Validation\Constraint\UniqueField;
-use Waaseyaa\Validation\Constraint\UniqueFieldValidator;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Validator\Context\ExecutionContextInterface;
 use Symfony\Component\Validator\Violation\ConstraintViolationBuilderInterface;
+use Waaseyaa\Validation\Constraint\UniqueField;
+use Waaseyaa\Validation\Constraint\UniqueFieldValidator;
 
 final class UniqueFieldValidatorTest extends TestCase
 {
@@ -37,7 +37,7 @@ final class UniqueFieldValidatorTest extends TestCase
         $constraint = new UniqueField(
             entityTypeId: 'node',
             fieldName: 'title',
-            existsChecker: fn (mixed $value): bool => false,
+            existsChecker: fn(mixed $value): bool => false,
         );
 
         $this->validator->validate('Unique Title', $constraint);
@@ -52,7 +52,7 @@ final class UniqueFieldValidatorTest extends TestCase
         $constraint = new UniqueField(
             entityTypeId: 'node',
             fieldName: 'title',
-            existsChecker: fn (mixed $value): bool => true,
+            existsChecker: fn(mixed $value): bool => true,
         );
 
         $this->validator->validate('Duplicate Title', $constraint);
@@ -66,7 +66,7 @@ final class UniqueFieldValidatorTest extends TestCase
         $constraint = new UniqueField(
             entityTypeId: 'node',
             fieldName: 'title',
-            existsChecker: fn (mixed $value): bool => true,
+            existsChecker: fn(mixed $value): bool => true,
         );
 
         $this->validator->validate(null, $constraint);
@@ -80,16 +80,16 @@ final class UniqueFieldValidatorTest extends TestCase
         $constraint = new UniqueField(
             entityTypeId: 'node',
             fieldName: 'title',
-            existsChecker: fn (mixed $value): bool => true,
+            existsChecker: fn(mixed $value): bool => true,
         );
 
         $this->validator->validate('', $constraint);
     }
 
-    public function testNoCheckerDoesNothing(): void
+    public function testNullCheckerThrows(): void
     {
-        $this->context->expects($this->never())
-            ->method('buildViolation');
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('The existsChecker option must be a callable; null given.');
 
         $constraint = new UniqueField(
             entityTypeId: 'node',
