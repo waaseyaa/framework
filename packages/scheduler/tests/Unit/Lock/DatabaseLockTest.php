@@ -129,4 +129,23 @@ final class DatabaseLockTest extends TestCase
         self::assertSame($token, $this->ownerOf('task'));
         self::assertNull($lock->acquire('task', 60));
     }
+
+    #[Test]
+    public function injectedNowGovernsExpiryInsteadOfSystemTime(): void
+    {
+        $lock = new DatabaseLock($this->db);
+
+        // Acquire a lock at Unix epoch with a 10-second TTL.
+        // expires_at = epoch + 10, which is expired relative to any real timestamp.
+        $past = new \DateTimeImmutable('@0');
+        $tokenA = $lock->acquire('task', 10, $past);
+        self::assertIsString($tokenA, 'first acquire at epoch must succeed');
+
+        // A second acquire at epoch+11 must clean up the expired lock and succeed.
+        $laterTs = new \DateTimeImmutable('@11');
+        $tokenB = $lock->acquire('task', 300, $laterTs);
+        self::assertIsString($tokenB, 'acquire past expiry with injected now must succeed');
+        self::assertNotSame($tokenA, $tokenB, 'reclaim must mint a new token');
+        self::assertSame($tokenB, $this->ownerOf('task'));
+    }
 }

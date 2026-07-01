@@ -224,14 +224,28 @@ the `pruned` flag still fails verification (`row_count`/`chain_link`) — that i
 distinguishes a sanctioned prune from a malicious gap.
 
 **v1 complete.** Remaining hardening is tracked separately: the external-sink
-cross-check at verify time, and the fail-open write-path marker+metric (the latter
-filed as its own follow-up; see design `§1`/`§10.4`).
+cross-check at verify time.
+
+**Fail-open write-path hardening (WP4, #1792, design §10.4):** implemented. On
+any audit INSERT failure `AuditEventWriter` now:
+1. Calls the `AuditWriteFailureObserver` L1 seam
+   (`Waaseyaa\Audit\Contract\AuditWriteFailureObserver`) — a loud metric/alert
+   hook intended for higher-layer wiring (Prometheus/Telescope at L6; the default
+   is `NullAuditWriteFailureObserver`, a no-op). Operators bind a real
+   implementation in their service provider.
+2. Attempts one best-effort marker INSERT of kind `AuditEventKind::AuditWriteDegraded`
+   (`audit.write_degraded`) whose attributes carry the `dropped_kind`, `error_class`,
+   and `error_message`. This turns a silently dropped event into an attested
+   degraded window visible to `audit:verify` and operator dashboards.
+3. If the marker ALSO fails, just logs — no recursion, no re-entry into `record()`,
+   no exception escaping to the caller (FR-005/NFR-001 best-effort contract is
+   preserved). The approach is marker + metric, NOT hard fail-closed.
 
 ---
 
 ## Event-Kind Taxonomy
 
-`AuditEventKind` is a backed string enum with 20 cases (additive — cases are
+`AuditEventKind` is a backed string enum with 21 cases (additive — cases are
 never removed per the out-of-band downstream-amendment principle):
 
 | Case | Value | Description |
@@ -255,6 +269,8 @@ never removed per the out-of-band downstream-amendment principle):
 | `MediaVersionDedupHit` | `media.version.dedup_hit` | Added by `versioned-blob-media-abstraction` |
 | `RevisionPublish` | `revision.publish` | Published-revision pointer moved (added by `revision-audit-provenance`) |
 | `RevisionRevert` | `revision.revert` | Current-revision pointer moved back to a prior revision (added by `revision-audit-provenance`) |
+| `AuditVerified` | `audit.verify` | `audit:verify` ran and checked the hash chain + checkpoints (added WP3) |
+| `AuditWriteDegraded` | `audit.write_degraded` | Sentinel written when a primary audit INSERT fails; attributes carry `dropped_kind`, `error_class`, `error_message` (added WP4 #1792, design §10.4) |
 
 Extension policy: new cases MUST be additive only. Removal requires a
 deprecation period and a major-version bump.
