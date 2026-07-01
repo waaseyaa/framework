@@ -34,7 +34,7 @@ final class SendGridTransport implements TransportInterface
             static fn(string $r): bool => $r !== '',
         ));
         if ($recipients === []) {
-            return;
+            throw new \InvalidArgumentException('Cannot send email: no valid recipients provided.');
         }
 
         $email = new Mail();

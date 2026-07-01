@@ -22,6 +22,11 @@ final class LocalTransport implements TransportInterface
             $envelope->subject,
         );
 
-        file_put_contents($this->logPath, $entry, FILE_APPEND | LOCK_EX);
+        // Suppress the PHP I/O warning — we detect the failure via the false return
+        // and re-surface it as a typed RuntimeException below, so the warning is noise.
+        $written = @file_put_contents($this->logPath, $entry, FILE_APPEND | LOCK_EX);
+        if ($written === false) {
+            throw new \RuntimeException(sprintf('Failed to write mail log entry to "%s".', $this->logPath));
+        }
     }
 }

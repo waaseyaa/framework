@@ -14,14 +14,14 @@ final class DatabaseLock implements LockInterface
         private readonly DatabaseInterface $database,
     ) {}
 
-    public function acquire(string $name, int $ttl = 300): ?string
+    public function acquire(string $name, int $ttl = 300, ?\DateTimeInterface $now = null): ?string
     {
-        $now = time();
+        $ts = ($now ?? new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->getTimestamp();
         $token = bin2hex(random_bytes(16));
 
         // Clean up expired locks (a stale holder whose lease has timed out).
         $this->database->delete(self::TABLE)
-            ->condition('expires_at', $now, '<=')
+            ->condition('expires_at', $ts, '<=')
             ->execute();
 
         // Atomic acquire: INSERT and catch the duplicate-key violation. The owner
@@ -30,8 +30,8 @@ final class DatabaseLock implements LockInterface
             $this->database->insert(self::TABLE)
                 ->values([
                     'task_name' => $name,
-                    'locked_at' => $now,
-                    'expires_at' => $now + $ttl,
+                    'locked_at' => $ts,
+                    'expires_at' => $ts + $ttl,
                     'locked_by' => $token,
                 ])
                 ->execute();
