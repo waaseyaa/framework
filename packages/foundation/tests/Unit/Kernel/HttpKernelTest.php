@@ -15,7 +15,7 @@ use Waaseyaa\Cache\TagAwareCacheInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
-use Waaseyaa\Cache\CacheConfigResolver;
+use Waaseyaa\Routing\CacheConfigResolver;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\CorsHandler;

@@ -27,6 +27,26 @@ final class DbalTransport implements TransportInterface
     private const TABLE = 'waaseyaa_queue_jobs';
 
     /**
+     * Maximum number of claim-race retries per pop() call.
+     *
+     * When every SELECT iteration finds a claimable candidate but the
+     * subsequent UPDATE affects 0 rows (another worker claimed it first),
+     * we retry. This cap prevents livelock under adversarial or pathological
+     * contention. The value is intentionally generous (50) because:
+     *   - Each lost race means some other worker successfully claimed a job,
+     *     so the system is still making progress.
+     *   - A false-empty return (pop returns null while jobs exist) is a
+     *     correctness defect; a livelock guard is a safety backstop.
+     *   - In a healthy deployment with any realistic worker count this bound
+     *     should never be reached.
+     *
+     * Note: a lost claim race (UPDATE 0 rows) is NOT counted the same as a
+     * genuine empty queue (SELECT no candidate). Only the latter terminates
+     * pop() immediately with null.
+     */
+    private const MAX_CLAIM_RETRIES = 50;
+
+    /**
      * @param int $visibilityTimeout Seconds a claim is held before its lease is
      *                               considered expired and the job is reclaimable
      *                               by another worker. Configurable via
@@ -56,10 +76,21 @@ final class DbalTransport implements TransportInterface
         $now = time();
         $expiredBefore = $now - $this->visibilityTimeout;
 
-        // Atomic claim: find the next claimable job, then conditionally UPDATE to
-        // reserve it. If another worker (re)claimed it between SELECT and UPDATE,
-        // the UPDATE affects 0 rows and we retry.
-        for ($i = 0; $i < 3; $i++) {
+        // Proportional-retry atomic claim loop.
+        //
+        // The ONLY definitive "queue empty" signal is when SELECT finds no claimable
+        // candidate. A lost claim race (UPDATE affected 0 rows) means another worker
+        // won that race — that is normal contention and must trigger a fresh SELECT +
+        // retry, NOT a false-empty return.
+        //
+        // Why not UPDATE ... RETURNING? MySQL (a supported driver alongside SQLite
+        // and PostgreSQL) does not support it, so portability forbids this approach.
+        //
+        // Safety cap: MAX_CLAIM_RETRIES bounds the loop under adversarial/pathological
+        // contention so that pop() always terminates. See the constant for rationale.
+        $contentionRetries = 0;
+
+        while ($contentionRetries < self::MAX_CLAIM_RETRIES) {
             // Claimable = never reserved (reserved_at IS NULL) OR a lease that has
             // expired (reserved_at <= now - visibilityTimeout). COALESCE folds both
             // into one condition: a fresh row's NULL becomes 0, and `expiredBefore`
@@ -85,6 +116,7 @@ final class DbalTransport implements TransportInterface
             }
 
             if ($candidate === null) {
+                // No claimable job exists — genuine empty queue.
                 return null;
             }
 
@@ -115,10 +147,14 @@ final class DbalTransport implements TransportInterface
             }
 
             if ($affected === 0) {
-                continue; // Another worker (re)claimed it, retry
+                // Lost claim race — another worker (re)claimed first.
+                // Retry with a fresh SELECT rather than giving up: a lost race is
+                // NOT an empty-queue signal.
+                $contentionRetries++;
+                continue;
             }
 
-            // Fetch the full job data (attempts reflects any reclaim bump).
+            // Successfully claimed — fetch the full row (attempts reflects any reclaim bump).
             $jobRows = $this->database->select(self::TABLE, 'qj')
                 ->fields('qj', ['id', 'payload', 'attempts'])
                 ->condition('id', $candidateId)
@@ -133,6 +169,10 @@ final class DbalTransport implements TransportInterface
             }
         }
 
+        // Safety cap reached: a claimable job exists but we kept losing the claim
+        // race. Return null to prevent livelock. This should not occur in normal
+        // deployments — if triggered it indicates extreme worker contention or a
+        // bug in the claim logic.
         return null;
     }
 
@@ -152,14 +192,15 @@ final class DbalTransport implements TransportInterface
 
     public function release(int|string $jobId, int $delay = 0): void
     {
-        $this->database->update(self::TABLE)
-            ->fields([
-                'reserved_at' => null,
-                'available_at' => time() + $delay,
-                'attempts' => $this->getAttempts($jobId) + 1,
-            ])
-            ->condition('id', $jobId)
-            ->execute();
+        // Atomic increment: `attempts = attempts + 1` in a single UPDATE avoids
+        // the non-atomic SELECT (getAttempts) + UPDATE pattern that races under
+        // concurrent workers. The quoteIdentifier call ensures the table name is
+        // safe on all supported platforms (SQLite, MySQL, PostgreSQL).
+        $quotedTable = $this->database->quoteIdentifier(self::TABLE);
+        $this->database->query(
+            "UPDATE {$quotedTable} SET reserved_at = NULL, available_at = ?, attempts = attempts + 1 WHERE id = ?",
+            [time() + $delay, $jobId],
+        );
     }
 
     public function size(string $queue): int
@@ -255,17 +296,4 @@ final class DbalTransport implements TransportInterface
         }
     }
 
-    private function getAttempts(int|string $jobId): int
-    {
-        $rows = $this->database->select(self::TABLE, 'qj')
-            ->fields('qj', ['attempts'])
-            ->condition('id', $jobId)
-            ->execute();
-
-        foreach ($rows as $row) {
-            return (int) $row['attempts'];
-        }
-
-        return 0;
-    }
 }
