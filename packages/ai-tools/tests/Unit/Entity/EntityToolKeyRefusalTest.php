@@ -436,6 +436,11 @@ final class ValidationFailingRepository implements EntityRepositoryInterface
         return array_values($this->store);
     }
 
+    public function getQuery(): \Waaseyaa\Entity\Storage\EntityQueryInterface
+    {
+        throw new \LogicException('getQuery() not implemented in this test double');
+    }
+
     public function exists(string $id): bool
     {
         return isset($this->store[$id]);

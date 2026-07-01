@@ -49,6 +49,7 @@ final class MediaVersionStorageDriverTest extends TestCase
             public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return null; }
             public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
             public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
+            public function getQuery(): \Waaseyaa\Entity\Storage\EntityQueryInterface { throw new \LogicException('getQuery() not implemented in this test double'); }
             public function save(EntityInterface $entity, bool $validate = true): int {
                 $this->saved[] = $entity;
                 return 1;

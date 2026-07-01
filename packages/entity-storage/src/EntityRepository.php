@@ -6,6 +6,7 @@ namespace Waaseyaa\EntityStorage;
 
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\ContentEntityInterface;
 use Waaseyaa\Entity\EntityBase;
@@ -20,6 +21,7 @@ use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\Entity\RevisionMetadata;
+use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\TranslatableInterface;
 use Waaseyaa\Entity\Validation\EntityTypeValidationConstraints;
 use Waaseyaa\Entity\Validation\EntityValidationException;
@@ -87,6 +89,17 @@ final class EntityRepository implements EntityRepositoryInterface
         // class-declared fields.
         private readonly ?FieldDefinitionRegistryInterface $fieldRegistry = null,
         ?\Waaseyaa\Foundation\Log\LoggerInterface $logger = null,
+        // C-22: access-checked query surface. Mirrors SqlEntityStorage's two
+        // access-handler slots so getQuery() is fail-closed and produces the
+        // SAME access-filtered results as the storage engine. An explicit
+        // handler wins; otherwise the resolver supplies the kernel's handler at
+        // query time (the kernel builds it during boot via
+        // discoverAccessPolicies(), after this repository may already be cached
+        // — so resolve lazily, never snapshot at construction). Both null leave
+        // getQuery() unfiltered — valid only for system-context callers.
+        private readonly ?EntityAccessHandler $accessHandler = null,
+        // @var ?\Closure(): ?EntityAccessHandler
+        private readonly ?\Closure $accessHandlerResolver = null,
     ) {
         $this->eventFactory = $eventFactory ?? new DefaultEntityEventFactory();
         $this->logger = $logger ?? new \Waaseyaa\Foundation\Log\NullLogger();
@@ -327,6 +340,75 @@ final class EntityRepository implements EntityRepositoryInterface
         $entities = [];
         foreach ($rows as $row) {
             $entities[] = $this->hydrate($row);
+        }
+
+        return $entities;
+    }
+
+    /**
+     * Build an access-checked entity query (C-22).
+     *
+     * Mirrors {@see SqlEntityStorage::getQuery()} exactly so the two engines'
+     * query surfaces are interchangeable: same {@see SqlEntityQuery} build, same
+     * lazily-resolved {@see EntityAccessHandler} threading, same id-keyed entity
+     * loader. The query is fail-closed — an unbound account throws
+     * {@see \Waaseyaa\EntityStorage\Exception\MissingQueryAccountException} on
+     * `execute()` (see {@see SqlEntityQuery::execute()}).
+     */
+    public function getQuery(): EntityQueryInterface
+    {
+        if ($this->database === null) {
+            throw new \RuntimeException(\sprintf(
+                'EntityRepository for "%s" was constructed without a database; getQuery() requires one.',
+                $this->entityType->id(),
+            ));
+        }
+
+        $query = new SqlEntityQuery(
+            $this->entityType,
+            $this->database,
+            null,
+            $this->fieldRegistry,
+        );
+
+        // Resolve the handler lazily (not at construction) — see the constructor
+        // note on $accessHandler. An explicit handler wins; otherwise ask the
+        // resolver at query time so a handler built after this repository is
+        // still seen (mirrors SqlEntityStorage::getQuery(), issue #1714).
+        $handler = $this->accessHandler
+            ?? ($this->accessHandlerResolver !== null ? ($this->accessHandlerResolver)() : null);
+        if ($handler !== null) {
+            $query = $query->withAccessHandler($handler);
+        }
+
+        return $query->withEntityLoader(
+            /** @param list<int|string> $ids */
+            fn(array $ids): array => $this->hydrateByIdForQuery($ids),
+        );
+    }
+
+    /**
+     * Hydrate candidate rows into an id-keyed map for the access-checked
+     * query's per-row filter.
+     *
+     * Matches {@see SqlEntityStorage::loadMultiple()}'s shape — keyed by
+     * `$entity->id()` — so `getQuery()` runs the identical per-row
+     * `EntityAccessHandler::check()` the storage engine runs. Reuses the
+     * repository's own {@see findMany()} hydration (no language handoff for the
+     * base read) and re-keys the result.
+     *
+     * @param list<int|string> $ids
+     *
+     * @return array<int|string, EntityInterface>
+     */
+    private function hydrateByIdForQuery(array $ids): array
+    {
+        $entities = [];
+        foreach ($this->findMany($ids) as $entity) {
+            $entityId = $entity->id();
+            if ($entityId !== null) {
+                $entities[$entityId] = $entity;
+            }
         }
 
         return $entities;

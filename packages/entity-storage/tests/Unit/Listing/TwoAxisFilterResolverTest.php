@@ -122,6 +122,11 @@ final class TwoAxisFilterResolverTest extends TestCase
                 return [];
             }
 
+            public function getQuery(): \Waaseyaa\Entity\Storage\EntityQueryInterface
+            {
+                throw new \LogicException('getQuery() not implemented in this test double');
+            }
+
             public function save(EntityInterface $entity, bool $validate = true): int
             {
                 return 0;

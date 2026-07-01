@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Entity\Repository;
 
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\Storage\EntityQueryInterface;
 
 /**
  * High-level repository API for entity persistence.
@@ -48,6 +49,24 @@ interface EntityRepositoryInterface
      */
     #[\NoDiscard('lookup result must be checked for null')]
     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array;
+
+    /**
+     * Build an access-checked entity query.
+     *
+     * Returns the SAME access-checked query surface as
+     * {@see \Waaseyaa\Entity\Storage\EntityStorageInterface::getQuery()}: the
+     * returned query is fail-closed by default. Callers MUST bind the acting
+     * account via `setAccount()` before `execute()`, or opt out explicitly with
+     * `accessCheck(false)` for trusted system contexts. An account-bound query
+     * runs the same per-row `EntityAccessHandler::check($entity, 'view', $account)`
+     * filter, so an implementation wired with the same access handler as the
+     * storage engine yields identical access-filtered results.
+     *
+     * Example:
+     *   $ids = $repository->getQuery()->setAccount($account)
+     *       ->condition($key, $value)->range(0, 1)->execute();
+     */
+    public function getQuery(): EntityQueryInterface;
 
     /**
      * Save (insert or update) an entity.
