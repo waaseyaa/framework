@@ -497,7 +497,7 @@ Request -> SessionMiddleware -> AuthorizationMiddleware -> Final Handler -> Resp
 final class SessionMiddleware implements HttpMiddlewareInterface
 {
     public function __construct(
-        private readonly EntityStorageInterface $userStorage,
+        private readonly EntityRepositoryInterface $userRepository,
         private readonly ?AccountInterface $devFallback = null,
         ?LoggerInterface $logger = null,
         private readonly ?array $sessionCookieOptions = null,
@@ -511,7 +511,7 @@ final class SessionMiddleware implements HttpMiddlewareInterface
 
 Behavior:
 1. Reads `$_SESSION['waaseyaa_uid']` (via `$request->attributes->get('_session')` or `$_SESSION`).
-2. Loads User entity via `$this->userStorage->load($uid)`.
+2. Loads User entity via `$this->userRepository->find($uid)`.
 3. Falls back to `AnonymousUser` if: no UID in session, load fails, or loaded entity is not `AccountInterface`.
 4. Sets `$request->attributes->set('_account', $account)`.
 5. Mirrors the same account into the acting-account context (`$this->accountContext?->set($account)`) — unconditionally, on every request, including `AnonymousUser` (id 0). When `BearerAuthMiddleware` (higher priority) already resolved an authenticated `_account`, that account is mirrored instead. See "Acting-account context" below.

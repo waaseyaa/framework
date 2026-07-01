@@ -136,7 +136,7 @@ Relationship traversal powers reusable discovery composition primitives:
 - Endpoint pages: public endpoint contract exposing directional/inverse edge metadata and relationship edge context.
 - Public discovery route payloads must preserve deterministic ordering under identical fixture input.
 - Traversal browse composition reuses an in-request related-entity summary cache keyed by `{entity_type}:{entity_id}` so repeated edges to the same endpoint do not trigger duplicate entity loads.
-- Browse edge materialization warms that cache by grouping distinct referenced endpoint IDs per `related_entity_type` and calling `EntityStorage::loadMultiple()` once per type per directional pass (outbound vs inbound), instead of `load()` per edge, so query count scales with distinct endpoints per type rather than raw edge count.
+- Browse edge materialization warms that cache by grouping distinct referenced endpoint IDs per `related_entity_type` and calling `EntityRepository::findMany()` (via `EntityTypeManager::getRepository($type)`) once per type per directional pass (outbound vs inbound), instead of `find()` per edge, so query count scales with distinct endpoints per type rather than raw edge count.
 
 Deterministic ordering for hub/cluster composition:
 
