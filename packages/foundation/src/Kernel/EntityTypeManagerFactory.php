@@ -85,7 +85,7 @@ final class EntityTypeManagerFactory
                     accessHandlerResolver: $accessHandlerResolver,
                 );
             },
-            function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $logger, $validator, $communityScoreResolver, $accountContextAttacher): EntityRepositoryInterface {
+            function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $logger, $validator, $communityScoreResolver, $accountContextAttacher, $accessHandlerResolver): EntityRepositoryInterface {
                 $schemaHandler = new SqlSchemaHandler($definition, $database, $fieldRegistry, null, $logger);
                 $schemaHandler->ensureTable();
                 if ($definition->isRevisionable()) {
@@ -135,6 +135,11 @@ final class EntityTypeManagerFactory
                     validator: $validator,
                     fieldRegistry: $fieldRegistry,
                     logger: $logger,
+                    // C-22: thread the SAME lazy access-handler resolver the
+                    // storage closure uses so EntityRepository::getQuery() is
+                    // fail-closed and access-filters identically to
+                    // SqlEntityStorage::getQuery().
+                    accessHandlerResolver: $accessHandlerResolver,
                 );
                 // revision-audit-provenance-01KTWY5V WP01: forward seam — the
                 // kernel's shared acting-account context is attached once
