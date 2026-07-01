@@ -79,6 +79,18 @@ final class ScheduleStateRepositoryTest extends TestCase
     }
 
     #[Test]
+    public function recordRun_uses_injected_now_for_timestamp(): void
+    {
+        $fixedNow = new \DateTimeImmutable('2000-01-15T12:00:00+00:00');
+        $this->repository->recordRun('timestamped_task', 'success', $fixedNow);
+
+        $state = $this->repository->getState('timestamped_task');
+        self::assertNotNull($state);
+        self::assertSame('2000-01-15T12:00:00+00:00', $state['last_run_at'],
+            'recordRun() must store the injected timestamp, not the system clock');
+    }
+
+    #[Test]
     public function recordRun_does_not_emit_sqlite_only_insert_or_replace(): void
     {
         // `INSERT OR REPLACE` is SQLite-only syntax that throws a syntax error

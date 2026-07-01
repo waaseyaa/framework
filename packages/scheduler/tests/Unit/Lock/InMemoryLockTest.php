@@ -65,4 +65,23 @@ final class InMemoryLockTest extends TestCase
         $lock->release('task', $tokenB);
         self::assertIsString($lock->acquire('task', 60));
     }
+
+    #[Test]
+    public function injectedNowGovernsExpiryInsteadOfSystemTime(): void
+    {
+        $lock = new InMemoryLock();
+
+        // Acquire a lock "in the past" (Unix epoch) with a 10-second TTL.
+        // Its expires_at = epoch + 10, which is long expired relative to now.
+        $past = new \DateTimeImmutable('@0'); // Unix epoch
+        $tokenA = $lock->acquire('task', 10, $past);
+        self::assertIsString($tokenA, 'first acquire must succeed');
+
+        // A second acquire with a "present" timestamp well past the expiry
+        // (epoch+11) must reclaim the expired lock.
+        $future = new \DateTimeImmutable('@11');
+        $tokenB = $lock->acquire('task', 300, $future);
+        self::assertIsString($tokenB, 'acquire with injected now past expiry must succeed');
+        self::assertNotSame($tokenA, $tokenB, 'reclaim must mint a new token');
+    }
 }

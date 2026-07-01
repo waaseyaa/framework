@@ -42,28 +42,30 @@ final class SendGridTransportTest extends TestCase
     }
 
     #[Test]
-    public function send_returns_early_when_no_recipients(): void
+    public function send_throws_when_recipients_empty(): void
     {
         $transport = new SendGridTransport('key', 'from@example.com', 'App');
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Cannot send email: no valid recipients provided.');
         $transport->send(new Envelope(
             to: [],
             from: '',
             subject: 'Test',
             textBody: 'Hi',
         ));
-        $this->addToAssertionCount(1);
     }
 
     #[Test]
-    public function send_returns_early_when_all_recipients_blank(): void
+    public function send_throws_when_all_recipients_blank(): void
     {
         $transport = new SendGridTransport('key', 'from@example.com', 'App');
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Cannot send email: no valid recipients provided.');
         $transport->send(new Envelope(
             to: ['', '  '],
             from: '',
             subject: 'Test',
             textBody: 'Hi',
         ));
-        $this->addToAssertionCount(1);
     }
 }

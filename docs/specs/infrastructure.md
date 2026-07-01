@@ -121,7 +121,7 @@ Authoritative dispositions are in `docs/public-surface-map.php`, verified by `Pu
 | state | `StateInterface` | State machine internals |
 | mail | `MailerInterface`, `TransportInterface` | `@internal` foundation seam (#798 closed — single `Mailer` + transport stack) |
 | http-client | `HttpClientInterface` | Minimal wrapper, not yet stable |
-| ingestion | `PayloadValidatorInterface`, `EnvelopeValidator` | Ingestion validation internals |
+| ingestion | `PayloadValidatorInterface`, `MessageEnvelopeValidator` | Ingestion validation internals |
 | testing | `WaaseyaaTestCase`, `AbstractGraphQlSchemaContractTestCase` | Test base classes, not consumer API |
 
 ## Packages

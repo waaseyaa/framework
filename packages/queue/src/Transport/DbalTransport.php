@@ -148,14 +148,15 @@ final class DbalTransport implements TransportInterface
 
     public function release(int|string $jobId, int $delay = 0): void
     {
-        $this->database->update(self::TABLE)
-            ->fields([
-                'reserved_at' => null,
-                'available_at' => time() + $delay,
-                'attempts' => $this->getAttempts($jobId) + 1,
-            ])
-            ->condition('id', $jobId)
-            ->execute();
+        // Atomic increment: `attempts = attempts + 1` in a single UPDATE avoids
+        // the non-atomic SELECT (getAttempts) + UPDATE pattern that races under
+        // concurrent workers. The quoteIdentifier call ensures the table name is
+        // safe on all supported platforms (SQLite, MySQL, PostgreSQL).
+        $quotedTable = $this->database->quoteIdentifier(self::TABLE);
+        $this->database->query(
+            "UPDATE {$quotedTable} SET reserved_at = NULL, available_at = ?, attempts = attempts + 1 WHERE id = ?",
+            [time() + $delay, $jobId],
+        );
     }
 
     public function size(string $queue): int
@@ -251,17 +252,4 @@ final class DbalTransport implements TransportInterface
         }
     }
 
-    private function getAttempts(int|string $jobId): int
-    {
-        $rows = $this->database->select(self::TABLE, 'qj')
-            ->fields('qj', ['attempts'])
-            ->condition('id', $jobId)
-            ->execute();
-
-        foreach ($rows as $row) {
-            return (int) $row['attempts'];
-        }
-
-        return 0;
-    }
 }

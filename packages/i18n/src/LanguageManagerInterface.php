@@ -38,6 +38,15 @@ interface LanguageManagerInterface
     public function setCurrentLanguage(Language $language): void;
 
     /**
+     * Resets the current language to the system default.
+     *
+     * **Worker mode (FrankenPHP, Swoole, RoadRunner):** Call this at the start
+     * of each request to prevent the previous request's language from bleeding
+     * into the next request when the manager is shared across requests.
+     */
+    public function resetToDefault(): void;
+
+    /**
      * Returns the fallback chain for a given langcode.
      *
      * Example: getFallbackChain('fr-CA') might return ['fr-CA', 'fr', 'en'].
