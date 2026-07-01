@@ -87,13 +87,14 @@ final class DBALSelect implements SelectInterface
     public function condition(string $field, mixed $value, string $operator = '='): static
     {
         $operator = strtoupper($operator);
-        // CONTRACT: $field is a developer-supplied raw SQL fragment — a column,
-        // a qualified/pre-quoted identifier, OR an expression (e.g. SqlEntityQuery
-        // passes `json_extract(_data, '$.x')`). It is emitted verbatim and is
-        // NEVER user input. The $value side is always bound as a parameter, so
-        // injection is not possible via $value. (Auto-quoting $field as an
-        // identifier is deferred to a follow-up that adds whereRaw()/orderByRaw()
-        // and migrates SqlEntityQuery — see SelectInterface::condition().)
+        // CONTRACT (WP6): $field is an IDENTIFIER (column or qualified
+        // `alias.column`) and is auto-quoted via quoteName() so a reserved-word /
+        // metacharacter-bearing name is rendered inert. A SQL *expression* (e.g.
+        // SqlEntityQuery's `json_extract(...)`) must go through whereRaw(), which
+        // emits verbatim — quoting an expression would corrupt it. The $value
+        // side is always bound as a parameter, so injection is impossible via
+        // $value. See SelectInterface::condition() / ::whereRaw().
+        $field = $this->quoteName($field);
 
         if ($operator === 'IS NULL') {
             $this->qb->andWhere($field . ' IS NULL');
@@ -143,7 +144,9 @@ final class DBALSelect implements SelectInterface
     #[\NoDiscard('fluent builder — chain or assign the return value')]
     public function isNull(string $field): static
     {
-        $this->qb->andWhere($field . ' IS NULL');
+        // $field is an IDENTIFIER → auto-quoted (WP6). Use whereRaw($expr.' IS
+        // NULL') for an expression.
+        $this->qb->andWhere($this->quoteName($field) . ' IS NULL');
 
         return $this;
     }
@@ -151,7 +154,9 @@ final class DBALSelect implements SelectInterface
     #[\NoDiscard('fluent builder — chain or assign the return value')]
     public function isNotNull(string $field): static
     {
-        $this->qb->andWhere($field . ' IS NOT NULL');
+        // $field is an IDENTIFIER → auto-quoted (WP6). Use whereRaw($expr.' IS
+        // NOT NULL') for an expression.
+        $this->qb->andWhere($this->quoteName($field) . ' IS NOT NULL');
 
         return $this;
     }
@@ -159,18 +164,84 @@ final class DBALSelect implements SelectInterface
     #[\NoDiscard('fluent builder — chain or assign the return value')]
     public function orderBy(string $field, string $direction = 'ASC'): static
     {
+        $direction = $this->normaliseDirection($direction);
+
+        // CONTRACT (WP6): like condition(), $field is an IDENTIFIER (column /
+        // qualified `alias.column`) and is auto-quoted via quoteName(). A sort
+        // *expression* (e.g. SqlEntityQuery's `json_extract(...)`) must go
+        // through orderByRaw(), which emits verbatim.
+        $this->qb->addOrderBy($this->quoteName($field), $direction);
+
+        return $this;
+    }
+
+    /**
+     * Add a raw WHERE expression, emitted VERBATIM. Each `?` in $expression is
+     * replaced, left-to-right, with a bound placeholder for the corresponding
+     * entry in $parameters (an array entry binds as a multi-value IN list). See
+     * SelectInterface::whereRaw() for the developer-supplied-only contract.
+     *
+     * @param list<mixed> $parameters
+     */
+    #[\NoDiscard('fluent builder — chain or assign the return value')]
+    public function whereRaw(string $expression, array $parameters = []): static
+    {
+        $index = 0;
+
+        $sql = preg_replace_callback(
+            '/\?/',
+            function () use (&$index, $parameters): string {
+                if (!\array_key_exists($index, $parameters)) {
+                    throw new \InvalidArgumentException(
+                        'whereRaw(): more `?` placeholders than bound parameters.',
+                    );
+                }
+                $value = $parameters[$index];
+                ++$index;
+                $type = is_array($value)
+                    ? ArrayParameterType::STRING
+                    : self::inferType($value);
+
+                return $this->qb->createNamedParameter($value, $type);
+            },
+            $expression,
+        );
+
+        if ($sql === null) {
+            throw new \InvalidArgumentException('whereRaw(): failed to parse expression.');
+        }
+
+        if ($index !== count($parameters)) {
+            throw new \InvalidArgumentException(
+                'whereRaw(): more bound parameters than `?` placeholders.',
+            );
+        }
+
+        $this->qb->andWhere($sql);
+
+        return $this;
+    }
+
+    /**
+     * Add a raw ORDER BY expression, emitted VERBATIM. See
+     * SelectInterface::orderByRaw() for the developer-supplied-only contract.
+     */
+    #[\NoDiscard('fluent builder — chain or assign the return value')]
+    public function orderByRaw(string $expression, string $direction): static
+    {
+        $this->qb->addOrderBy($expression, $this->normaliseDirection($direction));
+
+        return $this;
+    }
+
+    private function normaliseDirection(string $direction): string
+    {
         $direction = strtoupper($direction);
         if ($direction !== 'ASC' && $direction !== 'DESC') {
             throw new \InvalidArgumentException("Invalid order direction: {$direction}");
         }
 
-        // CONTRACT: like condition(), $field is a developer-supplied raw SQL
-        // fragment (column / qualified identifier / expression such as
-        // SqlEntityQuery's `json_extract(...)`), emitted verbatim — never user
-        // input. Identifier auto-quoting is deferred to a follow-up (orderByRaw()).
-        $this->qb->addOrderBy($field, $direction);
-
-        return $this;
+        return $direction;
     }
 
     #[\NoDiscard('fluent builder — chain or assign the return value')]

@@ -49,9 +49,16 @@ final class Translator implements TranslatorInterface
     public function has(string $key, ?string $locale = null): bool
     {
         $locale ??= $this->getLocale();
-        $translations = $this->loadTranslations($locale);
+        $chain = $this->languageManager->getFallbackChain($locale);
 
-        return isset($translations[$key]);
+        foreach ($chain as $langcode) {
+            $translations = $this->loadTranslations($langcode);
+            if (isset($translations[$key]) && $translations[$key] !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function getLocale(): string

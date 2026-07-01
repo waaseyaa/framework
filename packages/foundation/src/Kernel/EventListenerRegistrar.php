@@ -66,57 +66,58 @@ final class EventListenerRegistrar
 
     public function registerDiscoveryCacheListeners(CacheBackendInterface $cache): void
     {
-        $logger = $this->logger;
-        $invalidate = static function (EntityEvent $event) use ($cache, $logger): void {
-            try {
-                if ($cache instanceof TagAwareCacheInterface) {
-                    $entityType = strtolower($event->entity->getEntityTypeId());
-                    $entityId = $event->entity->id();
-                    $tags = [
-                        'discovery',
-                        'discovery:entity:' . $entityType,
-                    ];
-                    if ($entityId !== null && $entityId !== '') {
-                        $tags[] = sprintf('discovery:entity:%s:%s', $entityType, (string) $entityId);
-                    }
-
-                    // Relationship and node updates can influence many discovery reads.
-                    if (in_array($entityType, ['relationship', 'node'], true)) {
-                        $tags[] = 'discovery:surface:discovery_api';
-                    }
-
-                    $cache->invalidateByTags(array_values(array_unique($tags)));
-                    return;
-                }
-
-                $cache->deleteAll();
-            } catch (\Throwable $e) {
-                $logger->warning(sprintf('Failed to clear discovery cache: %s', $e->getMessage()));
-            }
-        };
-
-        $this->dispatcher->addListener(EntityEvents::POST_SAVE->value, static function (EntityEvent $event) use ($invalidate): void {
-            $invalidate($event);
-        });
-        $this->dispatcher->addListener(EntityEvents::POST_DELETE->value, static function (EntityEvent $event) use ($invalidate): void {
-            $invalidate($event);
-        });
+        $this->registerEntityCacheInvalidationListeners(
+            $cache,
+            'discovery',
+            'discovery cache',
+            static function (string $entityType): array {
+                // Relationship and node updates can influence many discovery reads.
+                return in_array($entityType, ['relationship', 'node'], true)
+                    ? ['discovery:surface:discovery_api']
+                    : [];
+            },
+        );
     }
 
     public function registerMcpReadCacheListeners(CacheBackendInterface $cache): void
     {
+        $this->registerEntityCacheInvalidationListeners($cache, 'mcp_read', 'MCP read cache');
+    }
+
+    /**
+     * Shared implementation for entity-event-driven cache invalidation listeners.
+     *
+     * Registers POST_SAVE and POST_DELETE listeners that invalidate the given
+     * cache by tag (when the backend is tag-aware) or flush all (fallback).
+     * Tags follow the pattern: `$tagPrefix`, `$tagPrefix:entity:<type>`,
+     * and optionally `$tagPrefix:entity:<type>:<id>`. An optional `$extraTags`
+     * closure receives the entity type and returns additional tags to include.
+     *
+     * @param \Closure(string): list<string>|null $extraTags callable(entityType): extra tag list; null for none
+     */
+    private function registerEntityCacheInvalidationListeners(
+        CacheBackendInterface $cache,
+        string $tagPrefix,
+        string $errorLabel,
+        ?\Closure $extraTags = null,
+    ): void {
         $logger = $this->logger;
-        $invalidate = static function (EntityEvent $event) use ($cache, $logger): void {
+        $invalidate = static function (EntityEvent $event) use ($cache, $logger, $tagPrefix, $errorLabel, $extraTags): void {
             try {
                 if ($cache instanceof TagAwareCacheInterface) {
                     $entityType = strtolower($event->entity->getEntityTypeId());
                     $entityId = $event->entity->id();
                     $tags = [
-                        'mcp_read',
-                        'mcp_read:entity:' . $entityType,
+                        $tagPrefix,
+                        $tagPrefix . ':entity:' . $entityType,
                     ];
                     if ($entityId !== null && $entityId !== '') {
-                        $tags[] = sprintf('mcp_read:entity:%s:%s', $entityType, (string) $entityId);
+                        $tags[] = sprintf('%s:entity:%s:%s', $tagPrefix, $entityType, (string) $entityId);
+                    }
+                    if ($extraTags !== null) {
+                        foreach ($extraTags($entityType) as $tag) {
+                            $tags[] = $tag;
+                        }
                     }
                     $cache->invalidateByTags(array_values(array_unique($tags)));
                     return;
@@ -124,7 +125,7 @@ final class EventListenerRegistrar
 
                 $cache->deleteAll();
             } catch (\Throwable $e) {
-                $logger->warning(sprintf('Failed to clear MCP read cache: %s', $e->getMessage()));
+                $logger->warning(sprintf('Failed to clear %s: %s', $errorLabel, $e->getMessage()));
             }
         };
 

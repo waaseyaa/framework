@@ -20,9 +20,14 @@ interface LockInterface
      * would then delete the new owner's live lock.
      *
      * @param int $ttl Time-to-live in seconds — must exceed the task's runtime.
+     * @param \DateTimeInterface|null $now Injectable clock (UTC). When null the
+     *        implementation falls back to the current system time. Pass an
+     *        explicit value (e.g. from {@see ScheduleRunner}) so the runner's
+     *        notion of "now" governs TTL and expiry checks — enabling
+     *        deterministic unit tests without sleeping or faking global time.
      * @return string|null Owner token on success, null if the lock is held.
      */
-    public function acquire(string $name, int $ttl = 300): ?string;
+    public function acquire(string $name, int $ttl = 300, ?\DateTimeInterface $now = null): ?string;
 
     /**
      * Release a lock, but only if $token matches the current owner. A stale
