@@ -6,7 +6,7 @@ namespace Waaseyaa\Routing\Tests\Unit;
 
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Routing\ParamConverter\EntityParamConverter;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -22,17 +22,17 @@ final class EntityParamConverterTest extends TestCase
     {
         $entity = $this->createMock(EntityInterface::class);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->once())
-            ->method('load')
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->once())
+            ->method('find')
             ->with('42')
             ->willReturn($entity);
 
         $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
         $entityTypeManager->expects($this->once())
-            ->method('getStorage')
+            ->method('getRepository')
             ->with('node')
-            ->willReturn($storage);
+            ->willReturn($repository);
 
         $converter = new EntityParamConverter($entityTypeManager);
 
@@ -51,17 +51,17 @@ final class EntityParamConverterTest extends TestCase
     #[Test]
     public function convertThrowsWhenEntityNotFound(): void
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->once())
-            ->method('load')
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->once())
+            ->method('find')
             ->with('999')
             ->willReturn(null);
 
         $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
         $entityTypeManager->expects($this->once())
-            ->method('getStorage')
+            ->method('getRepository')
             ->with('node')
-            ->willReturn($storage);
+            ->willReturn($repository);
 
         $converter = new EntityParamConverter($entityTypeManager);
 
@@ -80,7 +80,7 @@ final class EntityParamConverterTest extends TestCase
     public function convertIgnoresNonEntityParameters(): void
     {
         $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
-        $entityTypeManager->expects($this->never())->method('getStorage');
+        $entityTypeManager->expects($this->never())->method('getRepository');
 
         $converter = new EntityParamConverter($entityTypeManager);
 
@@ -99,7 +99,7 @@ final class EntityParamConverterTest extends TestCase
     public function convertIgnoresParametersWithoutType(): void
     {
         $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
-        $entityTypeManager->expects($this->never())->method('getStorage');
+        $entityTypeManager->expects($this->never())->method('getRepository');
 
         $converter = new EntityParamConverter($entityTypeManager);
 
@@ -118,7 +118,7 @@ final class EntityParamConverterTest extends TestCase
     public function convertSkipsMissingParameterValues(): void
     {
         $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
-        $entityTypeManager->expects($this->never())->method('getStorage');
+        $entityTypeManager->expects($this->never())->method('getRepository');
 
         $converter = new EntityParamConverter($entityTypeManager);
 
@@ -138,7 +138,7 @@ final class EntityParamConverterTest extends TestCase
     public function convertHandlesRouteWithNoParameterOption(): void
     {
         $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
-        $entityTypeManager->expects($this->never())->method('getStorage');
+        $entityTypeManager->expects($this->never())->method('getRepository');
 
         $converter = new EntityParamConverter($entityTypeManager);
 
@@ -157,25 +157,25 @@ final class EntityParamConverterTest extends TestCase
         $nodeEntity = $this->createMock(EntityInterface::class);
         $userEntity = $this->createMock(EntityInterface::class);
 
-        $nodeStorage = $this->createMock(EntityStorageInterface::class);
-        $nodeStorage->expects($this->once())
-            ->method('load')
+        $nodeRepository = $this->createMock(EntityRepositoryInterface::class);
+        $nodeRepository->expects($this->once())
+            ->method('find')
             ->with('5')
             ->willReturn($nodeEntity);
 
-        $userStorage = $this->createMock(EntityStorageInterface::class);
-        $userStorage->expects($this->once())
-            ->method('load')
+        $userRepository = $this->createMock(EntityRepositoryInterface::class);
+        $userRepository->expects($this->once())
+            ->method('find')
             ->with('10')
             ->willReturn($userEntity);
 
         $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
         $entityTypeManager->expects($this->exactly(2))
-            ->method('getStorage')
-            ->willReturnCallback(function (string $entityTypeId) use ($nodeStorage, $userStorage) {
+            ->method('getRepository')
+            ->willReturnCallback(function (string $entityTypeId) use ($nodeRepository, $userRepository) {
                 return match ($entityTypeId) {
-                    'node' => $nodeStorage,
-                    'user' => $userStorage,
+                    'node' => $nodeRepository,
+                    'user' => $userRepository,
                 };
             });
 
@@ -199,17 +199,17 @@ final class EntityParamConverterTest extends TestCase
     {
         $entity = $this->createMock(EntityInterface::class);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->once())
-            ->method('load')
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->once())
+            ->method('find')
             ->with('42')
             ->willReturn($entity);
 
         $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
         $entityTypeManager->expects($this->once())
-            ->method('getStorage')
+            ->method('getRepository')
             ->with('node')
-            ->willReturn($storage);
+            ->willReturn($repository);
 
         $converter = new EntityParamConverter($entityTypeManager);
 

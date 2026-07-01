@@ -283,7 +283,7 @@ final class RevocationControllerTest extends TestCase
         }
 
         return new RevocationController(
-            clientLookup: new OidcClientLookup($this->storage, $this->repository),
+            clientLookup: new OidcClientLookup($this->repository),
             accessTokenIssuer: $this->accessTokenIssuer,
             refreshTokenIssuer: $this->refreshTokenIssuer,
         );
@@ -291,7 +291,7 @@ final class RevocationControllerTest extends TestCase
 
     private function seedPublicClient(string $clientId): void
     {
-        $existing = (new OidcClientLookup($this->storage, $this->repository))->findByClientId($clientId);
+        $existing = (new OidcClientLookup($this->repository))->findByClientId($clientId);
         if ($existing !== null) {
             return;
         }

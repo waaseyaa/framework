@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\AccountInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\User\AnonymousUser;
 use Waaseyaa\User\Middleware\BearerAuthMiddleware;
@@ -22,10 +22,10 @@ final class BearerAuthMiddlewareTest extends TestCase
     #[Test]
     public function skips_when_no_bearer_header(): void
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->never())->method('load');
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->never())->method('find');
 
-        $middleware = new BearerAuthMiddleware($storage, 'secret', ['api-key' => 7]);
+        $middleware = new BearerAuthMiddleware($repository, 'secret', ['api-key' => 7]);
         $request = Request::create('/test');
 
         $captured = null;
@@ -47,13 +47,13 @@ final class BearerAuthMiddlewareTest extends TestCase
     public function resolves_account_from_api_key_token(): void
     {
         $user = new User(['uid' => 7, 'name' => 'machine']);
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->once())
-            ->method('load')
-            ->with(7)
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->once())
+            ->method('find')
+            ->with('7')
             ->willReturn($user);
 
-        $middleware = new BearerAuthMiddleware($storage, '', ['api-key' => 7]);
+        $middleware = new BearerAuthMiddleware($repository, '', ['api-key' => 7]);
         $request = Request::create('/test');
         $request->headers->set('Authorization', 'Bearer api-key');
 
@@ -80,13 +80,13 @@ final class BearerAuthMiddlewareTest extends TestCase
         $token = $this->createJwt($secret, ['uid' => 42, 'exp' => time() + 3600]);
         $user = new User(['uid' => 42, 'name' => 'jwt-user']);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->once())
-            ->method('load')
-            ->with(42)
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->once())
+            ->method('find')
+            ->with('42')
             ->willReturn($user);
 
-        $middleware = new BearerAuthMiddleware($storage, $secret, []);
+        $middleware = new BearerAuthMiddleware($repository, $secret, []);
         $request = Request::create('/test');
         $request->headers->set('Authorization', 'Bearer ' . $token);
 
@@ -109,10 +109,10 @@ final class BearerAuthMiddlewareTest extends TestCase
     #[Test]
     public function falls_back_to_anonymous_for_invalid_bearer_token(): void
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->never())->method('load');
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->never())->method('find');
 
-        $middleware = new BearerAuthMiddleware($storage, 'secret', []);
+        $middleware = new BearerAuthMiddleware($repository, 'secret', []);
         $request = Request::create('/test');
         $request->headers->set('Authorization', 'Bearer definitely-invalid');
 
@@ -134,13 +134,13 @@ final class BearerAuthMiddlewareTest extends TestCase
     #[Test]
     public function falls_back_to_anonymous_when_resolved_user_not_found(): void
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->once())
-            ->method('load')
-            ->with(999)
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->once())
+            ->method('find')
+            ->with('999')
             ->willReturn(null);
 
-        $middleware = new BearerAuthMiddleware($storage, '', ['api-key' => 999]);
+        $middleware = new BearerAuthMiddleware($repository, '', ['api-key' => 999]);
         $request = Request::create('/test');
         $request->headers->set('Authorization', 'Bearer api-key');
 

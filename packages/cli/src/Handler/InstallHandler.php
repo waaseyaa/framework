@@ -36,7 +36,8 @@ final class InstallHandler
 
         // Step 2: Create admin user.
         $io->writeln('Creating admin user...');
-        $storage = $this->entityTypeManager->getStorage('user');
+        // C-22 WP3: create/save now go through the canonical repository.
+        $repository = $this->entityTypeManager->getRepository('user');
         $userValues = [
             'name' => 'admin',
             'email' => $adminEmail,
@@ -45,8 +46,8 @@ final class InstallHandler
         if (is_string($adminPassword) && $adminPassword !== '') {
             $userValues['password'] = $adminPassword;
         }
-        $entity = $storage->create($userValues);
-        $storage->save($entity);
+        $entity = $repository->create($userValues);
+        $repository->save($entity);
 
         $io->writeln(sprintf('Waaseyaa "%s" installed successfully.', $siteName));
 

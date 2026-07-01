@@ -81,7 +81,6 @@ final class SemanticIndexWarmer
                 continue;
             }
 
-            $storage = $this->entityTypeManager->getStorage($entityTypeId);
             $ids = $this->collectSortedIds($entityTypeId, $limit);
             $typeStats = $this->processIdsInChunks($listener, $entityTypeId, $ids);
             $typeProcessed = $typeStats['processed'];
@@ -234,14 +233,21 @@ final class SemanticIndexWarmer
      */
     private function processIdsInChunks(EntityEmbeddingListener $listener, string $entityTypeId, array $ids): array
     {
-        $storage = $this->entityTypeManager->getStorage($entityTypeId);
+        // C-22 WP3: read path now goes through the canonical repository.
+        $repository = $this->entityTypeManager->getRepository($entityTypeId);
         $processed = 0;
         $stored = 0;
         $removed = 0;
         $missing = 0;
 
         foreach (array_chunk($ids, self::DEFAULT_CHUNK_SIZE) as $chunk) {
-            $entities = $chunk !== [] ? $storage->loadMultiple($chunk) : [];
+            // findMany() returns a plain list; re-key by id to preserve the isset() lookup below.
+            $entities = [];
+            if ($chunk !== []) {
+                foreach ($repository->findMany($chunk) as $loadedEntity) {
+                    $entities[$loadedEntity->id()] = $loadedEntity;
+                }
+            }
             foreach ($chunk as $id) {
                 if (!isset($entities[$id])) {
                     $missing++;

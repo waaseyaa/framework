@@ -10,7 +10,6 @@ use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\Oidc\Token\AccessTokenIssuer;
 use Waaseyaa\User\User;
 
@@ -75,13 +74,8 @@ final readonly class UserinfoController
             return $this->error(401, 'Bearer realm="oidc", error="invalid_token"', 'invalid_token', 'Token has no subject.');
         }
 
-        // Load the User entity
-        $storage = $this->entityTypeManager->getStorage('user');
-        if (!$storage instanceof SqlEntityStorage) {
-            return $this->serverError('User storage unavailable.');
-        }
-
-        $user = $storage->load((int) $accountId);
+        // Load the User entity (C-22 WP3: canonical repository).
+        $user = $this->entityTypeManager->getRepository('user')->find($accountId);
         if (!$user instanceof User) {
             return $this->error(401, 'Bearer realm="oidc", error="invalid_token"', 'invalid_token', 'Subject not found.');
         }
@@ -145,10 +139,5 @@ final readonly class UserinfoController
         $response->headers->set('Cache-Control', 'no-store');
 
         return $response;
-    }
-
-    private function serverError(string $detail): Response
-    {
-        return new JsonResponse(['error' => 'server_error', 'error_description' => $detail], 500);
     }
 }

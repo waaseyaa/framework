@@ -50,8 +50,9 @@ final class AttachmentDownloadRouter implements DomainRouterInterface
         $id = (string) $request->attributes->get('id', '');
         $account = $request->attributes->get('_account');
 
+        // C-22 WP3: read path now goes through the canonical repository.
         $attachment = $id !== ''
-            ? $this->entityTypeManager->getStorage('attachment')->load($id)
+            ? $this->entityTypeManager->getRepository('attachment')->find($id)
             : null;
 
         // Deny-by-default, fail-closed: anything we can't prove viewable → 404

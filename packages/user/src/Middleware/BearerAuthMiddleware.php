@@ -7,7 +7,7 @@ namespace Waaseyaa\User\Middleware;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\AccountInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
@@ -24,7 +24,7 @@ final class BearerAuthMiddleware implements HttpMiddlewareInterface
      * @param array<string, int|string> $apiKeys Raw API key => user ID mapping.
      */
     public function __construct(
-        private readonly EntityStorageInterface $userStorage,
+        private readonly EntityRepositoryInterface $userRepository,
         private readonly string $jwtSecret = '',
         private readonly array $apiKeys = [],
         ?LoggerInterface $logger = null,
@@ -63,7 +63,7 @@ final class BearerAuthMiddleware implements HttpMiddlewareInterface
         }
 
         try {
-            $account = $this->userStorage->load($uid);
+            $account = $this->userRepository->find((string) $uid);
         } catch (\Throwable $e) {
             $this->logger->warning(sprintf('BearerAuthMiddleware: failed to load user %s: %s', $uid, $e->getMessage()));
             return null;

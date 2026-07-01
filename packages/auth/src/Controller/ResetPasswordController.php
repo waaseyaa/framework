@@ -39,9 +39,9 @@ final class ResetPasswordController
             return new JsonResponse(['error' => 'invalid_or_expired_token'], 422);
         }
 
-        // 4. Load user
-        $storage = $this->entityTypeManager->getStorage('user');
-        $entity = $storage->load($tokenData['user_id']);
+        // 4. Load user (C-22 WP3: canonical repository).
+        $repository = $this->entityTypeManager->getRepository('user');
+        $entity = $repository->find((string) $tokenData['user_id']);
         if ($entity === null) {
             return new JsonResponse(['error' => 'user_not_found'], 422);
         }
@@ -51,7 +51,7 @@ final class ResetPasswordController
 
         // 5. Update password
         $user->setRawPassword($password);
-        $storage->save($user);
+        $repository->save($user);
 
         // 6. Consume token and revoke all password_reset tokens for user
         $this->tokenRepo->consumeToken($tokenData['id']);

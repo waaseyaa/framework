@@ -15,6 +15,9 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Oidc\Keys\SigningKey;
@@ -41,6 +44,7 @@ final class UserinfoControllerTest extends TestCase
     private DBALDatabase $tokenDb;
     private AccessTokenIssuer $accessTokenIssuer;
     private SqlEntityStorage $userStorage;
+    private EntityRepository $userRepository;
 
     protected function setUp(): void
     {
@@ -68,6 +72,13 @@ final class UserinfoControllerTest extends TestCase
             'created' => ['type' => 'int', 'not null' => false],
         ]);
         $this->userStorage = new SqlEntityStorage($userEntityType, $userDb, new EventDispatcher());
+        // C-22 WP3: read path now goes through the canonical repository.
+        $this->userRepository = new EntityRepository(
+            $userEntityType,
+            new SqlStorageDriver(new SingleConnectionResolver($userDb), 'uid'),
+            new EventDispatcher(),
+            database: $userDb,
+        );
 
         $user = new User([
             'uid' => self::ACCOUNT_ID,
@@ -159,6 +170,7 @@ final class UserinfoControllerTest extends TestCase
     {
         $entityTypeManager = $this->createMock(EntityTypeManager::class);
         $entityTypeManager->method('getStorage')->with('user')->willReturn($this->userStorage);
+        $entityTypeManager->method('getRepository')->with('user')->willReturn($this->userRepository);
 
         return new UserinfoController(
             accessTokenIssuer: $this->accessTokenIssuer,

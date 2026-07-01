@@ -43,6 +43,11 @@ final class QueryOnlyStubRepository implements EntityRepositoryInterface
         return $this->query instanceof \Closure ? ($this->query)() : $this->query;
     }
 
+    public function create(array $values = []): EntityInterface
+    {
+        throw new \BadMethodCallException('QueryOnlyStubRepository only supports getQuery().');
+    }
+
     public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
     {
         throw new \BadMethodCallException('QueryOnlyStubRepository only supports getQuery().');

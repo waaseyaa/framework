@@ -67,8 +67,7 @@ final class RetentionScanner
     public function scan(string $entityTypeId, ?string $cutoff = null, ?array $labelCondition = null): iterable
     {
         try {
-            $storage = $this->entityTypeManager->getStorage($entityTypeId);
-            // C-22 WP2: the query builder now lives on the repository.
+            // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
             $repository = $this->entityTypeManager->getRepository($entityTypeId);
         } catch (\Throwable) {
             return;
@@ -105,7 +104,12 @@ final class RetentionScanner
                 return;
             }
 
-            $entities = $storage->loadMultiple($ids);
+            // C-22 WP3: read path now goes through the canonical repository.
+            // findMany() returns a plain list; re-key by id to preserve the isset() lookup below.
+            $entities = [];
+            foreach ($repository->findMany($ids) as $loadedEntity) {
+                $entities[$loadedEntity->id()] = $loadedEntity;
+            }
             // $ids is ordered id-ASC by the query; advance the keyset cursor to the max.
             $lastId = $ids[array_key_last($ids)];
 

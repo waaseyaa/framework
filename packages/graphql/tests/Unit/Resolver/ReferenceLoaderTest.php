@@ -14,7 +14,9 @@ use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
+use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
@@ -36,6 +38,7 @@ final class ReferenceLoaderTest extends TestCase
         $this->entityTypeManager = new EntityTypeManager(
             new EventDispatcher(),
             fn () => $this->storage,
+            fn () => new InMemoryEntityRepository($this->storage),
         );
         $this->entityTypeManager->registerCoreEntityType(new EntityType(
             id: 'article',
@@ -257,11 +260,14 @@ final class ReferenceLoaderTest extends TestCase
     #[Test]
     public function loadUsesSingleLoadMultiplePerEntityTypePerDeferredQueue(): void
     {
-        $articleStorage = new CountingInMemoryStorage('article');
+        $articleStorage = new InMemoryEntityStorage('article');
+        $articleRepository = new CountingInMemoryRepository($articleStorage);
 
         $manager = new EntityTypeManager(
             new EventDispatcher(),
-            static fn (EntityTypeInterface $_def): CountingInMemoryStorage => $articleStorage,
+            static fn (EntityTypeInterface $_def): InMemoryEntityStorage => $articleStorage,
+            // C-22 WP3: read path now goes through the canonical repository.
+            static fn (): CountingInMemoryRepository => $articleRepository,
         );
         $manager->registerCoreEntityType(new EntityType(
             id: 'article',
@@ -284,26 +290,128 @@ final class ReferenceLoaderTest extends TestCase
         $d3 = $loader->load('article', 3, 0);
         Deferred::runQueue();
 
-        self::assertSame(1, $articleStorage->loadMultipleInvocations);
+        self::assertSame(1, $articleRepository->findManyInvocations);
         self::assertNotNull($d1->result);
         self::assertNotNull($d2->result);
         self::assertNotNull($d3->result);
     }
 }
 
-final class CountingInMemoryStorage extends InMemoryEntityStorage
+final class CountingInMemoryRepository implements EntityRepositoryInterface
 {
-    public int $loadMultipleInvocations = 0;
+    public int $findManyInvocations = 0;
 
-    public function __construct(string $entityTypeId = 'article')
+    private readonly InMemoryEntityRepository $inner;
+
+    public function __construct(InMemoryEntityStorage $storage)
     {
-        parent::__construct($entityTypeId);
+        $this->inner = new InMemoryEntityRepository($storage);
     }
 
-    public function loadMultiple(array $ids = []): array
+    public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array
     {
-        ++$this->loadMultipleInvocations;
+        ++$this->findManyInvocations;
 
-        return parent::loadMultiple($ids);
+        return $this->inner->findMany($ids, $langcode, $fallback);
+    }
+
+    public function create(array $values = []): \Waaseyaa\Entity\EntityInterface
+    {
+        return $this->inner->create($values);
+    }
+
+    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?\Waaseyaa\Entity\EntityInterface
+    {
+        return $this->inner->find($id, $langcode, $fallback);
+    }
+
+    public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array
+    {
+        return $this->inner->findBy($criteria, $orderBy, $limit);
+    }
+
+    public function getQuery(): \Waaseyaa\Entity\Storage\EntityQueryInterface
+    {
+        return $this->inner->getQuery();
+    }
+
+    public function save(\Waaseyaa\Entity\EntityInterface $entity, bool $validate = true): int
+    {
+        return $this->inner->save($entity, $validate);
+    }
+
+    public function delete(\Waaseyaa\Entity\EntityInterface $entity): void
+    {
+        $this->inner->delete($entity);
+    }
+
+    public function exists(string $id): bool
+    {
+        return $this->inner->exists($id);
+    }
+
+    public function count(array $criteria = []): int
+    {
+        return $this->inner->count($criteria);
+    }
+
+    public function loadRevision(string $entityId, int $revisionId): ?\Waaseyaa\Entity\EntityInterface
+    {
+        return $this->inner->loadRevision($entityId, $revisionId);
+    }
+
+    public function rollback(string $entityId, int $targetRevisionId): \Waaseyaa\Entity\EntityInterface
+    {
+        return $this->inner->rollback($entityId, $targetRevisionId);
+    }
+
+    public function listRevisions(string $entityId): array
+    {
+        return $this->inner->listRevisions($entityId);
+    }
+
+    public function setCurrentRevision(string $entityId, int $revisionId): \Waaseyaa\Entity\EntityInterface
+    {
+        return $this->inner->setCurrentRevision($entityId, $revisionId);
+    }
+
+    public function loadPublishedRevision(string $entityId): ?\Waaseyaa\Entity\EntityInterface
+    {
+        return $this->inner->loadPublishedRevision($entityId);
+    }
+
+    public function setPublishedRevision(string $entityId, int $revisionId): \Waaseyaa\Entity\EntityInterface
+    {
+        return $this->inner->setPublishedRevision($entityId, $revisionId);
+    }
+
+    public function saveMany(array $entities, bool $validate = true): array
+    {
+        return $this->inner->saveMany($entities, $validate);
+    }
+
+    public function deleteMany(array $entities): int
+    {
+        return $this->inner->deleteMany($entities);
+    }
+
+    public function findTranslations(\Waaseyaa\Entity\EntityInterface $entity): array
+    {
+        return $this->inner->findTranslations($entity);
+    }
+
+    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int
+    {
+        return $this->inner->saveTranslation($entityId, $langcode, $values, $log);
+    }
+
+    public function loadTranslation(string $entityId, string $langcode): ?\Waaseyaa\Entity\EntityInterface
+    {
+        return $this->inner->loadTranslation($entityId, $langcode);
+    }
+
+    public function listTranslationRevisions(string $entityId, string $langcode): array
+    {
+        return $this->inner->listTranslationRevisions($entityId, $langcode);
     }
 }

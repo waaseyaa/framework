@@ -15,7 +15,11 @@ use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\Access\Middleware\AuthorizationMiddleware;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
@@ -40,6 +44,13 @@ final class AuthorizationPipelineTest extends TestCase
                 $schema = new SqlSchemaHandler($def, $this->database);
                 $schema->ensureTable();
                 return new SqlEntityStorage($def, $this->database, $dispatcher);
+            },
+            // C-22 WP3: read/write path now goes through the canonical repository.
+            function (string $entityTypeId, EntityTypeInterface $def) use ($dispatcher): EntityRepository {
+                $idKey = $def->getKeys()['id'] ?? 'id';
+                $resolver = new SingleConnectionResolver($this->database);
+
+                return new EntityRepository($def, new SqlStorageDriver($resolver, $idKey), $dispatcher);
             },
         );
 
@@ -122,11 +133,12 @@ final class AuthorizationPipelineTest extends TestCase
 
     private function buildPipeline(): HttpPipeline
     {
-        $userStorage = $this->entityTypeManager->getStorage('user');
+        // C-22 WP3: read path now goes through the canonical repository.
+        $userRepository = $this->entityTypeManager->getRepository('user');
         $accessChecker = new AccessChecker();
 
         return new HttpPipeline()
-            ->withMiddleware(new SessionMiddleware($userStorage))
+            ->withMiddleware(new SessionMiddleware($userRepository))
             ->withMiddleware(new AuthorizationMiddleware($accessChecker));
     }
 

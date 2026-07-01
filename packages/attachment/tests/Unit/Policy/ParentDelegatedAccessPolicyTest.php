@@ -16,6 +16,7 @@ use Waaseyaa\Attachment\Policy\ParentDelegatedAccessPolicy;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 
 /**
  * Unit tests for ParentDelegatedAccessPolicy.
@@ -133,6 +134,7 @@ final class ParentDelegatedAccessPolicyTest extends TestCase
             ->method('getStorage')
             ->with('node')
             ->willReturn($storage);
+        $this->entityTypeManager->method('getRepository')->with('node')->willReturn(new StorageBackedStubRepository($storage));
 
         $result = $this->policy->access($attachment, 'view', $this->account);
 
@@ -153,6 +155,7 @@ final class ParentDelegatedAccessPolicyTest extends TestCase
         $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('load')->with('1')->willReturn($parentEntity);
         $this->entityTypeManager->method('getStorage')->with('node')->willReturn($storage);
+        $this->entityTypeManager->method('getRepository')->with('node')->willReturn(new StorageBackedStubRepository($storage));
 
         $this->accessHandler
             ->method('check')
@@ -176,6 +179,7 @@ final class ParentDelegatedAccessPolicyTest extends TestCase
         $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('load')->with('2')->willReturn($parentEntity);
         $this->entityTypeManager->method('getStorage')->with('node')->willReturn($storage);
+        $this->entityTypeManager->method('getRepository')->with('node')->willReturn(new StorageBackedStubRepository($storage));
 
         $this->accessHandler
             ->method('check')
@@ -201,6 +205,7 @@ final class ParentDelegatedAccessPolicyTest extends TestCase
         $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('load')->with('3')->willReturn($parentEntity);
         $this->entityTypeManager->method('getStorage')->with('node')->willReturn($storage);
+        $this->entityTypeManager->method('getRepository')->with('node')->willReturn(new StorageBackedStubRepository($storage));
 
         $this->accessHandler
             ->method('check')
@@ -226,6 +231,7 @@ final class ParentDelegatedAccessPolicyTest extends TestCase
         $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('load')->with('4')->willReturn($parentEntity);
         $this->entityTypeManager->method('getStorage')->with('node')->willReturn($storage);
+        $this->entityTypeManager->method('getRepository')->with('node')->willReturn(new StorageBackedStubRepository($storage));
 
         $this->accessHandler
             ->method('check')

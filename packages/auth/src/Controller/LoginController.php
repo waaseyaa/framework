@@ -49,11 +49,10 @@ final class LoginController
             ], 400);
         }
 
-        $userStorage = $this->entityTypeManager->getStorage('user');
-        // C-22 WP2: the query builder now lives on the repository.
+        // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
         $userRepository = $this->entityTypeManager->getRepository('user');
         $authController = new AuthController();
-        $user = $authController->findUserByName($userStorage, $userRepository, $username);
+        $user = $authController->findUserByName($userRepository, $username);
 
         if ($user === null || !$user->isActive() || !$user->checkPassword($password)) {
             $this->rateLimiter->hit($rateLimitKey, 60);

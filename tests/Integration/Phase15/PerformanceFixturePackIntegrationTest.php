@@ -17,7 +17,11 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Relationship\Relationship;
@@ -60,6 +64,13 @@ final class PerformanceFixturePackIntegrationTest extends TestCase
                 $schema = new SqlSchemaHandler($definition, $database);
                 $schema->ensureTable();
                 return new SqlEntityStorage($definition, $database, $dispatcher);
+            },
+            // C-22 WP3: read/write path now goes through the canonical repository.
+            function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $database): EntityRepository {
+                $idKey = $definition->getKeys()['id'] ?? 'id';
+                $resolver = new SingleConnectionResolver($database);
+
+                return new EntityRepository($definition, new SqlStorageDriver($resolver, $idKey), $dispatcher);
             },
         );
 

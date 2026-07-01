@@ -100,7 +100,8 @@ final class EngagementAccessPolicy implements AccessPolicyInterface
             return AccessResult::neutral('Engagement has no resolvable parent.');
         }
 
-        $parent = $this->entityTypeManager->getStorage($targetType)->load($targetId);
+        // C-22 WP3: read path now goes through the canonical repository.
+        $parent = $this->entityTypeManager->getRepository($targetType)->find((string) $targetId);
         if ($parent === null) {
             return AccessResult::neutral('Parent content not found.');
         }

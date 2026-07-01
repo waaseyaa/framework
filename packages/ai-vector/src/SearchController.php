@@ -55,8 +55,7 @@ final class SearchController
         }
 
         $limit = max(1, min(100, $limit));
-        $storage = $this->entityTypeManager->getStorage($entityTypeId);
-        // C-22 WP2: the query builder now lives on the repository.
+        // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
         $repository = $this->entityTypeManager->getRepository($entityTypeId);
         $mode = $this->embeddingProvider !== null ? 'semantic' : 'keyword';
         $fallbackReason = null;
@@ -88,7 +87,15 @@ final class SearchController
             $graphContextCounts = $graphRerank['graph_context_counts'];
         }
 
-        $entities = $ids !== [] ? $storage->loadMultiple($ids) : [];
+        // C-22 WP3: read path now goes through the canonical repository.
+        // findMany() returns a plain list, so re-key by id to preserve the
+        // isset()-based ordering lookup below.
+        $entities = [];
+        if ($ids !== []) {
+            foreach ($repository->findMany($ids) as $loadedEntity) {
+                $entities[$loadedEntity->id()] = $loadedEntity;
+            }
+        }
 
         $orderedEntities = [];
         foreach ($ids as $id) {
@@ -171,9 +178,9 @@ final class SearchController
         }
 
         try {
-            $relationshipStorage = $this->entityTypeManager->getStorage('relationship');
-            // C-22 WP2: the query builder now lives on the repository.
-            $relationshipQuery = $this->entityTypeManager->getRepository('relationship')->getQuery();
+            // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
+            $relationshipRepository = $this->entityTypeManager->getRepository('relationship');
+            $relationshipQuery = $relationshipRepository->getQuery();
             if ($this->account !== null) {
                 $relationshipQuery = $relationshipQuery->setAccount($this->account);
             } else {
@@ -190,7 +197,7 @@ final class SearchController
                 ];
             }
 
-            $relationshipEntities = $relationshipStorage->loadMultiple($relationshipIds);
+            $relationshipEntities = $relationshipRepository->findMany($relationshipIds);
         } catch (\Throwable) {
             return [
                 'ids' => $ids,

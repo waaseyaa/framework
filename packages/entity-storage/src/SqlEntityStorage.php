@@ -126,7 +126,7 @@ final class SqlEntityStorage implements EntityStorageInterface
 
     public function create(array $values = []): EntityInterface
     {
-        $values = $this->applyFieldDefinitionDefaults($values);
+        $values = new Hydration\EntityInstantiator($this->entityType)->applyFieldDefinitionDefaults($values);
 
         $class = $this->entityType->getClass();
         $entity = $this->instantiateEntity($class, $values);
@@ -1297,27 +1297,6 @@ final class SqlEntityStorage implements EntityStorageInterface
     private function instantiateEntity(string $class, array $values): EntityInterface
     {
         return new Hydration\EntityInstantiator($this->entityType)->instantiate($class, $values);
-    }
-
-    /**
-     * Fills missing keys from registered field definitions before hydration.
-     *
-     * @param array<string, mixed> $values
-     * @return array<string, mixed>
-     */
-    private function applyFieldDefinitionDefaults(array $values): array
-    {
-        foreach ($this->entityType->getFieldDefinitions() as $name => $def) {
-            if (array_key_exists($name, $values)) {
-                continue;
-            }
-            $defaultValue = $def->getDefaultValue();
-            if ($defaultValue !== null) {
-                $values[$name] = $defaultValue;
-            }
-        }
-
-        return $values;
     }
 
     /**

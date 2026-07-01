@@ -17,9 +17,9 @@ use Waaseyaa\CLI\Provider\IngestSearchSemanticServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
-use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
 
 #[CoversClass(SemanticRefreshHandler::class)]
 final class SemanticRefreshCommandTest extends TestCase
@@ -105,19 +105,22 @@ final class SemanticRefreshCommandTest extends TestCase
 
         $storage = $this->createMock(EntityStorageInterface::class);
         $storage->method('getQuery')->willReturn($query);
-        $storage->method('loadMultiple')->willReturnCallback(
-            static fn(array $ids): array => array_filter([
+
+        // C-22 WP3: read path now goes through the canonical repository.
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
+        $repository->method('findMany')->willReturnCallback(
+            static fn(array $ids): array => array_values(array_filter([
                 1 => $entity1,
                 2 => $entity2,
                 3 => $entity3,
-            ], static fn($entity, $id): bool => in_array($id, $ids, true), ARRAY_FILTER_USE_BOTH),
+            ], static fn($entity, $id): bool => in_array($id, $ids, true), ARRAY_FILTER_USE_BOTH)),
         );
 
         $manager = $this->createMock(EntityTypeManagerInterface::class);
         $manager->method('hasDefinition')->with('node')->willReturn(true);
         $manager->method('getStorage')->with('node')->willReturn($storage);
-        // C-22: the query builder now lives on the repository.
-        $manager->method('getRepository')->with('node')->willReturn(new QueryOnlyStubRepository($query));
+        $manager->method('getRepository')->with('node')->willReturn($repository);
 
         $provider = $this->createMock(EmbeddingProviderInterface::class);
         $provider->method('embed')->willReturn([0.1, 0.2]);

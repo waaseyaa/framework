@@ -9,7 +9,6 @@ use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Oidc\Authorize\AuthorizationRequestValidator;
 use Waaseyaa\Oidc\Authorize\AuthorizeController;
@@ -159,17 +158,10 @@ final class OidcServiceProvider extends ServiceProvider
         // Client registry
         $this->singleton(
             OidcClientLookup::class,
-            function (): OidcClientLookup {
-                $entityTypeManager = $this->resolve(EntityTypeManager::class);
-                $storage = $entityTypeManager->getStorage('oidc_client');
-                if (!$storage instanceof SqlEntityStorage) {
-                    throw new \RuntimeException(
-                        'OIDC client lookup requires SqlEntityStorage; got ' . $storage::class . '.',
-                    );
-                }
-
-                return new OidcClientLookup($storage, $entityTypeManager->getRepository('oidc_client'));
-            },
+            // C-22 WP3: canonical repository.
+            fn(): OidcClientLookup => new OidcClientLookup(
+                $this->resolve(EntityTypeManager::class)->getRepository('oidc_client'),
+            ),
         );
 
         // Request validators
@@ -285,18 +277,13 @@ final class OidcServiceProvider extends ServiceProvider
         }
 
         try {
-            $entityTypeManager = $this->resolve(EntityTypeManager::class);
-            $storage = $entityTypeManager->getStorage('oidc_client');
-            $repository = $entityTypeManager->getRepository('oidc_client');
+            // C-22 WP3: canonical repository.
+            $repository = $this->resolve(EntityTypeManager::class)->getRepository('oidc_client');
         } catch (\Throwable) {
             return;
         }
 
-        if (!$storage instanceof SqlEntityStorage) {
-            return;
-        }
-
-        new OidcClientSeeder($storage, $repository)->seed($clients);
+        new OidcClientSeeder($repository)->seed($clients);
     }
 
     private function resolveLoginPath(): string

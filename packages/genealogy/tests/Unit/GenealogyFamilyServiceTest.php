@@ -47,9 +47,11 @@ final class GenealogyFamilyServiceTest extends TestCase
             },
             // C-22 WP2: repository factory mirroring the kernel's getRepository() shape.
             function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $resolver, $database, $registry): EntityRepository {
+                $idKey = $definition->getKeys()['id'] ?? 'id';
+
                 return new EntityRepository(
                     $definition,
-                    new SqlStorageDriver($resolver),
+                    new SqlStorageDriver($resolver, $idKey),
                     $dispatcher,
                     database: $database,
                     fieldRegistry: $registry,

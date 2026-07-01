@@ -105,6 +105,11 @@ final class TwoAxisFilterResolverTest extends TestCase
                 $this->map = $map;
             }
 
+            public function create(array $values = []): EntityInterface
+            {
+                throw new \LogicException('create() not implemented in this test double');
+            }
+
             public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
             {
                 $this->findCalls[] = [$id, $langcode];

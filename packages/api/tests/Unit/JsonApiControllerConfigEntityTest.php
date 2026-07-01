@@ -146,6 +146,7 @@ final class JsonApiControllerConfigEntityTest extends TestCase
         $configManager = new EntityTypeManager(
             new EventDispatcher(),
             fn() => $configStorage,
+            fn() => new InMemoryEntityRepository($configStorage),
         );
         $configManager->registerEntityType(new EntityType(
             id: 'node_type',

@@ -40,8 +40,15 @@ final class ClassificationLabelRegistry implements ClassificationLabelRegistryIn
             return $this->cache[$labelId];
         }
 
-        $storage = $this->entityTypeManager->getStorage(self::ENTITY_TYPE_ID);
-        $loaded = $storage->loadByKey('label_id', $labelId);
+        // C-22 WP3: loadByKey() has no repository equivalent, so this is a
+        // bounded query + find() against the canonical repository.
+        $repository = $this->entityTypeManager->getRepository(self::ENTITY_TYPE_ID);
+        $ids = $repository->getQuery()
+            ->accessCheck(false)
+            ->condition('label_id', $labelId)
+            ->range(0, 1)
+            ->execute();
+        $loaded = $ids === [] ? null : $repository->find((string) $ids[0]);
 
         $definition = $loaded instanceof ClassificationLabelDefinition ? $loaded : null;
         $this->cache[$labelId] = $definition;

@@ -79,7 +79,7 @@ final class AuthorizeControllerTest extends TestCase
         $this->consentRepository->record('42', 'minoo-web', ['openid', 'profile']);
 
         $this->controller = new AuthorizeController(
-            clientLookup: new OidcClientLookup($this->storage, $this->repository),
+            clientLookup: new OidcClientLookup($this->repository),
             validator: new AuthorizationRequestValidator(),
             codeRepository: $this->codeRepository,
             consentRepository: $this->consentRepository,
@@ -109,7 +109,7 @@ final class AuthorizeControllerTest extends TestCase
         // produced `/login?foo=bar?return_to=...` (malformed). The controller
         // must use `&` as the separator when the path already contains `?`.
         $controller = new AuthorizeController(
-            clientLookup: new OidcClientLookup($this->storage, $this->repository),
+            clientLookup: new OidcClientLookup($this->repository),
             validator: new AuthorizationRequestValidator(),
             codeRepository: $this->codeRepository,
             consentRepository: $this->consentRepository,

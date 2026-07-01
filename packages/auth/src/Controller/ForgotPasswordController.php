@@ -61,9 +61,15 @@ final class ForgotPasswordController
         $this->rateLimiter->hit($emailKey, 900);
         $this->rateLimiter->hit($ipKey, 3600);
 
-        // 5. Look up user by email
-        $storage = $this->entityTypeManager->getStorage('user');
-        $entity = $storage->loadByKey('mail', $email);
+        // 5. Look up user by email (C-22 WP3: canonical repository; loadByKey()
+        // has no repository equivalent, so the lookup is a bounded query + find()).
+        $repository = $this->entityTypeManager->getRepository('user');
+        $ids = $repository->getQuery()
+            ->accessCheck(false)
+            ->condition('mail', $email)
+            ->range(0, 1)
+            ->execute();
+        $entity = $ids === [] ? null : $repository->find((string) $ids[0]);
 
         /** @var \Waaseyaa\User\User|null $user */
         $user = $entity;

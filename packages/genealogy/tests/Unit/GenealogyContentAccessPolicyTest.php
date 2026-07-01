@@ -11,6 +11,7 @@ use Waaseyaa\Genealogy\Entity\GenealogyPerson;
 use Waaseyaa\Genealogy\Entity\GenealogyTree;
 use Waaseyaa\Genealogy\GenealogyBootstrap;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\User\AnonymousUser;
 use Waaseyaa\User\DevAdminAccount;
@@ -31,8 +32,13 @@ final class GenealogyContentAccessPolicyTest extends TestCase
         $treeStorage = $this->createMock(EntityStorageInterface::class);
         $treeStorage->method('load')->with((string) $treeId)->willReturn($tree);
 
+        // C-22 WP3: read path now goes through the canonical repository.
+        $treeRepository = $this->createMock(EntityRepositoryInterface::class);
+        $treeRepository->method('find')->with((string) $treeId)->willReturn($tree);
+
         $etm = $this->createMock(EntityTypeManagerInterface::class);
         $etm->method('getStorage')->with('genealogy_tree')->willReturn($treeStorage);
+        $etm->method('getRepository')->with('genealogy_tree')->willReturn($treeRepository);
 
         GenealogyBootstrap::bind($etm, null);
     }

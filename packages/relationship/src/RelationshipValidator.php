@@ -157,9 +157,9 @@ final class RelationshipValidator
             return $errors;
         }
 
-        $storage = $this->entityTypeManager->getStorage($entityType);
-        $loadId = is_string($entityId) && ctype_digit($entityId) ? (int) $entityId : $entityId;
-        if ($storage->load($loadId) === null && !$this->entityExistsByUuid($entityType, (string) $entityId)) {
+        // C-22 WP3: read path now goes through the canonical repository.
+        $repository = $this->entityTypeManager->getRepository($entityType);
+        if ($repository->find((string) $entityId) === null && !$this->entityExistsByUuid($entityType, (string) $entityId)) {
             $errors[] = sprintf(
                 'Field "%s" references missing entity "%s:%s".',
                 $idField,

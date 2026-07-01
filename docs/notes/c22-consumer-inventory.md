@@ -234,3 +234,62 @@ Two are informational only (confirmed NOT to block current consumers):
   collision today (real columns only exist for entity-key fields).
 - The sql-column translatable layout has no `EntityRepository` equivalent.
   No first-party entity type uses sql-column for a translatable type.
+
+---
+
+## 6. WP3 update (2026-07-01): consumer migration complete
+
+Every production `getStorage()`-based `load()`/`loadMultiple()`/`create()`/
+`save()`/`delete()`/`loadByKey()` callsite from §1 and §2 above has been
+migrated to the equivalent `getRepository()` method. Confirmation: the
+dead-code gate (`bin/check-dead-code`) now reports `SqlEntityStorage::create`/
+`load`/`loadByKey`/`loadMultiple`/`save`/`delete` and
+`EntityStorageFactory::getStorage` as unused — baselined in
+`phpstan-dead-code-baseline.neon` pending deletion in WP4. The WP1 harness
+(`tests/Integration/PhaseN/EntityStorageEngineParity/`) stayed green
+throughout.
+
+Two forks surfaced mid-sweep and were resolved (both confirmed with the
+requester before implementing, per the "stop and surface a fork" standing
+rule):
+
+1. **`create()` has no repository equivalent.** 8 production callsites called
+   `getStorage()->create($values)` (field-default application + hydration, no
+   I/O). Resolved by adding `EntityRepositoryInterface::create()` /
+   `EntityRepository::create()`, backed by the SAME
+   `EntityInstantiator::applyFieldDefinitionDefaults()` logic
+   `SqlEntityStorage::create()` already used (extracted to the shared
+   `EntityInstantiator` class rather than reimplemented) — no drift possible
+   between the two engines' defaulting behavior. Parity test:
+   `CreateFieldDefaultsParityTest.php` (folded into the WP1 harness).
+2. **JSON:API no-expectation PATCH was on a documented revision-free
+   contract.** `JsonApiController::update()`'s two save branches diverged:
+   expectation-stated → `getRepository()->save(..., context: ...)`
+   (revision-aware); no-expectation → `getStorage()->save()` (revision-less),
+   per `kitty-specs/archive/optimistic-locking-01KTXCHY/contracts/conflict-surfaces.md`
+   clause 14 (FR-003/SC-003). Resolved by unifying both branches onto
+   `getRepository()->save()` — a no-expectation PATCH on a revisionable type
+   now cuts a revision, simply skipping the `SaveContext` conflict-detection
+   guard. Verified no other consumer depended on the revision-free behavior:
+   the AI-tools `entity.update` surface already saved unconditionally through
+   `getRepository()->save()` for both paths, so this change brings the REST
+   and MCP-tool write surfaces into alignment rather than introducing a new
+   asymmetry. The archived contract doc, `docs/specs/api-layer.md`, and
+   `JsonApiControllerConflictTest` were updated to match.
+
+`loadByKey()` (5 callsites: `ForgotPasswordController`, `RegisterController`,
+`ClassificationLabelRegistry`, `GenericAdminSurfaceHost` ×3 via a new shared
+`findByIdOrUuid()` helper) has no repository equivalent either, but needed no
+design decision — each callsite became a bounded
+`getQuery()->accessCheck(false)->condition($key, $value)->range(0, 1)->execute()`
++ `find()`, mirroring `SqlEntityStorage::loadByKey()`'s own internal
+implementation exactly.
+
+`SessionMiddleware`, `BearerAuthMiddleware`, `NoteIngester`,
+`OidcClientSeeder`, and `OidcClientLookup` had constructors typed on
+`EntityStorageInterface` (or both interfaces); all narrowed to a single
+`EntityRepositoryInterface` parameter.
+
+WP4 (delete `SqlEntityStorage` and `EntityStorageFactory` entirely) is now
+unblocked: harness green, zero remaining production references confirmed by
+the dead-code gate.

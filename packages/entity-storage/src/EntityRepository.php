@@ -228,6 +228,23 @@ final class EntityRepository implements EntityRepositoryInterface
         ));
     }
 
+    public function create(array $values = []): EntityInterface
+    {
+        // Shared with SqlEntityStorage::create() via EntityInstantiator so a
+        // fresh entity gets the same field defaults regardless of engine.
+        $instantiator = new Hydration\EntityInstantiator($this->entityType);
+        $values = $instantiator->applyFieldDefinitionDefaults($values);
+
+        $class = $this->entityType->getClass();
+        $entity = $instantiator->instantiate($class, $values);
+
+        if (method_exists($entity, 'enforceIsNew')) {
+            $entity->enforceIsNew();
+        }
+
+        return $entity;
+    }
+
     public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
     {
         $entityTypeId = $this->entityType->id();

@@ -2,26 +2,30 @@
 
 declare(strict_types=1);
 
-namespace Waaseyaa\Api\Tests\Fixtures;
+namespace Waaseyaa\Entity\Testing;
 
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
+use Waaseyaa\Entity\Storage\EntityStorageInterface;
 
 /**
- * In-memory `EntityRepositoryInterface` for testing (C-22).
+ * Test stub for EntityRepositoryInterface that delegates find()/findMany()/
+ * save()/delete()/getQuery() to an existing EntityStorageInterface double.
  *
- * Wraps an {@see InMemoryEntityStorage} instance and delegates every method
- * that the storage fixture already supports (load/loadMultiple/save/delete,
- * and — the point of this fixture — `getQuery()`), so a test can register
- * both a storage factory and a repository factory over the SAME underlying
- * entities without duplicating fixture data. Revision/translation methods
- * are not supported by the in-memory storage fixture and throw.
+ * C-22 migrates production consumers from `getStorage()` to `getRepository()`;
+ * this lets a test that already configured a storage double's load()/save()
+ * expectations wire the SAME double as the repository double, instead of
+ * duplicating the expectations across two separate mocks.
+ *
+ * Every other method throws — this stub is intentionally narrow.
+ *
+ * @api — Public test-helper surface. Safe to depend on from any package's tests.
  */
-final class InMemoryEntityRepository implements EntityRepositoryInterface
+final class StorageBackedStubRepository implements EntityRepositoryInterface
 {
     public function __construct(
-        private readonly InMemoryEntityStorage $storage,
+        private readonly EntityStorageInterface $storage,
     ) {}
 
     public function create(array $values = []): EntityInterface
@@ -37,20 +41,6 @@ final class InMemoryEntityRepository implements EntityRepositoryInterface
     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array
     {
         return array_values($this->storage->loadMultiple($ids));
-    }
-
-    public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array
-    {
-        $entities = array_values($this->storage->loadMultiple());
-        foreach ($criteria as $field => $value) {
-            $entities = array_values(array_filter(
-                $entities,
-                static fn(EntityInterface $entity): bool => $entity instanceof \Waaseyaa\Entity\FieldableInterface
-                    && $entity->get($field) === $value,
-            ));
-        }
-
-        return $limit !== null ? array_slice($entities, 0, $limit) : $entities;
     }
 
     public function getQuery(): EntityQueryInterface
@@ -73,6 +63,20 @@ final class InMemoryEntityRepository implements EntityRepositoryInterface
         return $this->storage->load($id) !== null;
     }
 
+    public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array
+    {
+        $entities = array_values($this->storage->loadMultiple());
+        foreach ($criteria as $field => $value) {
+            $entities = array_values(array_filter(
+                $entities,
+                static fn(EntityInterface $entity): bool => $entity instanceof \Waaseyaa\Entity\FieldableInterface
+                    && $entity->get($field) === $value,
+            ));
+        }
+
+        return $limit !== null ? array_slice($entities, 0, $limit) : $entities;
+    }
+
     public function count(array $criteria = []): int
     {
         return count($this->findBy($criteria));
@@ -80,32 +84,32 @@ final class InMemoryEntityRepository implements EntityRepositoryInterface
 
     public function loadRevision(string $entityId, int $revisionId): ?EntityInterface
     {
-        throw new \LogicException('InMemoryEntityRepository does not support revisions.');
+        throw new \BadMethodCallException('StorageBackedStubRepository does not support revisions.');
     }
 
     public function rollback(string $entityId, int $targetRevisionId): EntityInterface
     {
-        throw new \LogicException('InMemoryEntityRepository does not support revisions.');
+        throw new \BadMethodCallException('StorageBackedStubRepository does not support revisions.');
     }
 
     public function listRevisions(string $entityId): array
     {
-        throw new \LogicException('InMemoryEntityRepository does not support revisions.');
+        throw new \BadMethodCallException('StorageBackedStubRepository does not support revisions.');
     }
 
     public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface
     {
-        throw new \LogicException('InMemoryEntityRepository does not support revisions.');
+        throw new \BadMethodCallException('StorageBackedStubRepository does not support revisions.');
     }
 
     public function loadPublishedRevision(string $entityId): ?EntityInterface
     {
-        throw new \LogicException('InMemoryEntityRepository does not support revisions.');
+        throw new \BadMethodCallException('StorageBackedStubRepository does not support revisions.');
     }
 
     public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface
     {
-        throw new \LogicException('InMemoryEntityRepository does not support revisions.');
+        throw new \BadMethodCallException('StorageBackedStubRepository does not support revisions.');
     }
 
     public function saveMany(array $entities, bool $validate = true): array
@@ -129,16 +133,16 @@ final class InMemoryEntityRepository implements EntityRepositoryInterface
 
     public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int
     {
-        throw new \LogicException('InMemoryEntityRepository does not support translations.');
+        throw new \BadMethodCallException('StorageBackedStubRepository does not support translations.');
     }
 
     public function loadTranslation(string $entityId, string $langcode): ?EntityInterface
     {
-        throw new \LogicException('InMemoryEntityRepository does not support translations.');
+        throw new \BadMethodCallException('StorageBackedStubRepository does not support translations.');
     }
 
     public function listTranslationRevisions(string $entityId, string $langcode): array
     {
-        throw new \LogicException('InMemoryEntityRepository does not support translations.');
+        throw new \BadMethodCallException('StorageBackedStubRepository does not support translations.');
     }
 }

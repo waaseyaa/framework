@@ -20,6 +20,7 @@ use Waaseyaa\Attachment\Storage\PrivateFileStore;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 
 /**
  * The authorized download path serves a private attachment's BYTES only to a
@@ -134,6 +135,10 @@ final class AttachmentDownloadRouterTest extends TestCase
         $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getStorage')->willReturnCallback(
             fn(string $type): EntityStorageInterface => $type === 'attachment' ? $attachmentStorage : $parentStorage,
+        );
+        // C-22 WP3: read path now goes through the canonical repository.
+        $manager->method('getRepository')->willReturnCallback(
+            fn(string $type) => new StorageBackedStubRepository($type === 'attachment' ? $attachmentStorage : $parentStorage),
         );
 
         $handler = new EntityAccessHandler([$this->parentPolicy($parentViewableByAccountId)]);

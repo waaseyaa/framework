@@ -42,11 +42,12 @@ final class SearchReindexHandler
         $totalIndexed = 0;
 
         foreach ($this->entityTypeManager->getDefinitions() as $entityType) {
-            $storage = $this->entityTypeManager->getStorage($entityType->id());
+            // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
+            $repository = $this->entityTypeManager->getRepository($entityType->id());
             $typeIndexed = 0;
             $offset = 0;
 
-            // Stream IDs in pages instead of loadMultiple() with no args, which
+            // Stream IDs in pages instead of findMany() with no args, which
             // would pull every entity of every type into memory at once.
             while (true) {
                 // System reindex enumerates every indexable document and runs
@@ -54,8 +55,7 @@ final class SearchReindexHandler
                 // irrelevant to building the index (the search provider gates
                 // reads). Mirrors SitemapGenerator's system-context bypass, and
                 // accessCheck(false) keeps the unbound-getQuery() gate satisfied.
-                // C-22 WP2: the query builder now lives on the repository.
-                $ids = $this->entityTypeManager->getRepository($entityType->id())->getQuery()
+                $ids = $repository->getQuery()
                     ->accessCheck(false)
                     ->range($offset, $batchSize)
                     ->execute();
@@ -67,7 +67,7 @@ final class SearchReindexHandler
                 $offset += count($ids);
 
                 $indexables = [];
-                foreach ($storage->loadMultiple($ids) as $entity) {
+                foreach ($repository->findMany($ids) as $entity) {
                     if ($entity instanceof SearchIndexableInterface) {
                         $indexables[] = $entity;
                     }

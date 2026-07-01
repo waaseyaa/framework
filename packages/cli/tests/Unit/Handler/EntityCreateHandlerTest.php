@@ -13,7 +13,7 @@ use Waaseyaa\CLI\Provider\EntityTypeServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 
 #[CoversClass(EntityCreateHandler::class)]
 final class EntityCreateHandlerTest extends TestCase
@@ -62,12 +62,12 @@ final class EntityCreateHandlerTest extends TestCase
         $entity = $this->createMock(EntityInterface::class);
         $entity->method('id')->willReturn($id);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->once())->method('create')->with($expectedValues)->willReturn($entity);
-        $storage->expects($this->once())->method('save')->with($entity);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->once())->method('create')->with($expectedValues)->willReturn($entity);
+        $repository->expects($this->once())->method('save')->with($entity);
 
         $manager = $this->createMock(EntityTypeManagerInterface::class);
-        $manager->method('getStorage')->willReturn($storage);
+        $manager->method('getRepository')->willReturn($repository);
 
         return $manager;
     }
@@ -97,19 +97,19 @@ final class EntityCreateHandlerTest extends TestCase
         $mockEntity = $this->createMock(EntityInterface::class);
         $mockEntity->method('id')->willReturn(42);
 
-        $mockStorage = $this->createMock(EntityStorageInterface::class);
-        $mockStorage->expects($this->once())
+        $mockRepository = $this->createMock(EntityRepositoryInterface::class);
+        $mockRepository->expects($this->once())
             ->method('create')
             ->with(['title' => 'Test'])
             ->willReturn($mockEntity);
-        $mockStorage->expects($this->once())
+        $mockRepository->expects($this->once())
             ->method('save')
             ->with($mockEntity);
 
         $mockManager = $this->createMock(EntityTypeManagerInterface::class);
-        $mockManager->method('getStorage')
+        $mockManager->method('getRepository')
             ->with('node')
-            ->willReturn($mockStorage);
+            ->willReturn($mockRepository);
 
         $definition = $this->makeDefinition();
         $tester = CliTester::for($definition, $this->makeContainer($mockManager));
@@ -125,15 +125,15 @@ final class EntityCreateHandlerTest extends TestCase
         $mockEntity = $this->createMock(EntityInterface::class);
         $mockEntity->method('id')->willReturn(1);
 
-        $mockStorage = $this->createMock(EntityStorageInterface::class);
-        $mockStorage->expects($this->once())
+        $mockRepository = $this->createMock(EntityRepositoryInterface::class);
+        $mockRepository->expects($this->once())
             ->method('create')
             ->with([])
             ->willReturn($mockEntity);
-        $mockStorage->expects($this->once())->method('save');
+        $mockRepository->expects($this->once())->method('save');
 
         $mockManager = $this->createMock(EntityTypeManagerInterface::class);
-        $mockManager->method('getStorage')->willReturn($mockStorage);
+        $mockManager->method('getRepository')->willReturn($mockRepository);
 
         $definition = $this->makeDefinition();
         $tester = CliTester::for($definition, $this->makeContainer($mockManager));

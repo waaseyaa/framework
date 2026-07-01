@@ -16,6 +16,7 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 use Waaseyaa\Search\Access\EntitySearchAccessChecker;
 use Waaseyaa\Search\Fts5\Fts5SearchIndexer;
 use Waaseyaa\Search\Fts5\Fts5SearchProvider;
@@ -97,6 +98,8 @@ final class SearchAccessTest extends TestCase
         $etm = $this->createMock(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturnCallback(static fn (string $type): bool => $type === 'node');
         $etm->method('getStorage')->with('node')->willReturn($storage);
+        // C-22 WP3: read path now goes through the canonical repository.
+        $etm->method('getRepository')->with('node')->willReturn(new StorageBackedStubRepository($storage));
 
         // Policy: 'secret'-bundle nodes are forbidden for 'view'; everything
         // else is allowed.

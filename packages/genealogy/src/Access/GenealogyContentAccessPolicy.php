@@ -203,7 +203,8 @@ final class GenealogyContentAccessPolicy implements AccessPolicyInterface, Field
             return null;
         }
 
-        $loaded = $etm->getStorage('genealogy_tree')->load((string) $treeId);
+        // C-22 WP3: read path now goes through the canonical repository.
+        $loaded = $etm->getRepository('genealogy_tree')->find((string) $treeId);
         if (!$loaded instanceof GenealogyTree) {
             return null;
         }

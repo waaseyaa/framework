@@ -30,6 +30,11 @@ final class StubEntityRepository implements EntityRepositoryInterface
         return $this->storage->getQuery();
     }
 
+    public function create(array $values = []): EntityInterface
+    {
+        return $this->storage->create($values);
+    }
+
     public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
     {
         return $this->storage->load($id);

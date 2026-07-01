@@ -22,9 +22,9 @@ final class EntityListHandler
         $entityType = $io->argument('entity_type');
         $limit = (int) ($io->option('limit') ?? 25);
 
-        $storage = $this->entityTypeManager->getStorage($entityType);
-        // C-22 WP2: the query builder now lives on the repository.
-        $ids = $this->entityTypeManager->getRepository($entityType)->getQuery()
+        // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
+        $repository = $this->entityTypeManager->getRepository($entityType);
+        $ids = $repository->getQuery()
             ->accessCheck(false)
             ->range(0, $limit)
             ->execute();
@@ -35,7 +35,7 @@ final class EntityListHandler
             return 0;
         }
 
-        $entities = $storage->loadMultiple($ids);
+        $entities = $repository->findMany($ids);
 
         $io->writeln(sprintf('%-20s %s', 'ID', 'Label'));
         $io->writeln(str_repeat('-', 40));

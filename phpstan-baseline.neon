@@ -199,12 +199,6 @@ parameters:
 			path: packages/api/src/JsonApiController.php
 
 		-
-			message: '#^Parameter \#1 \$haystack of function str_starts_with expects string, \(int\|string\) given\.$#'
-			identifier: argument.type
-			count: 1
-			path: packages/api/src/JsonApiController.php
-
-		-
 			message: '#^Parameter \#1 \$field of class Waaseyaa\\Api\\Query\\QueryFilter constructor expects string, \(int\|string\) given\.$#'
 			identifier: argument.type
 			count: 2

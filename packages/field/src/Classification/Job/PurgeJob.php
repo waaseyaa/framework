@@ -79,11 +79,11 @@ final class PurgeJob
      */
     private function loadPurgePolicies(): array
     {
-        $storage = $this->entityTypeManager->getStorage('retention_policy');
         // Reading policy rows for a system sweep; no user account in scope.
         // accessCheck(false) is the intentional opt-out (CLAUDE.md §"Unbound getQuery() gate").
-        // C-22 WP2: the query builder now lives on the repository.
-        $ids = $this->entityTypeManager->getRepository('retention_policy')->getQuery()
+        // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
+        $repository = $this->entityTypeManager->getRepository('retention_policy');
+        $ids = $repository->getQuery()
             ->accessCheck(false)
             ->condition('action', RetentionPolicy::ACTION_PURGE)
             ->condition('trigger_kind', RetentionPolicy::TRIGGER_AGE_BASED)
@@ -94,7 +94,7 @@ final class PurgeJob
         }
 
         return array_values(array_filter(
-            $storage->loadMultiple($ids),
+            $repository->findMany($ids),
             static fn(EntityInterface $e): bool => $e instanceof RetentionPolicy,
         ));
     }
@@ -144,9 +144,9 @@ final class PurgeJob
                     continue;
                 }
 
-                // storage->delete() dispatches POST_DELETE, which the audit
+                // repository->delete() dispatches POST_DELETE, which the audit
                 // substrate's EntityLifecycleAuditListener records as entity.delete.
-                $this->entityTypeManager->getStorage($entityTypeId)->delete([$entity]);
+                $this->entityTypeManager->getRepository($entityTypeId)->delete($entity);
                 $this->recordPurge($policy, $entityTypeId, $uuid, $labelId);
                 ++$deleted;
             }

@@ -172,9 +172,8 @@ final class DiscoveryApiHandler
         }
 
         try {
-            $storage = $this->entityTypeManager->getStorage($entityType);
-            $resolvedId = ctype_digit($entityId) ? (int) $entityId : $entityId;
-            $entity = $storage->load($resolvedId);
+            // C-22 WP3: read path now goes through the canonical repository.
+            $entity = $this->entityTypeManager->getRepository($entityType)->find($entityId);
             if ($entity instanceof EntityInterface) {
                 return $entity;
             }

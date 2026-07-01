@@ -95,7 +95,8 @@ final class GenealogySsrController
         }
 
         $id = isset($params['id']) ? (string) $params['id'] : '';
-        $family = $this->entityTypeManager->getStorage('genealogy_family')->load($id);
+        // C-22 WP3: read path now goes through the canonical repository.
+        $family = $this->entityTypeManager->getRepository('genealogy_family')->find($id);
         if (!$family instanceof GenealogyFamily || !$this->gate->allows('view', $family, $account)) {
             return new Response('Not Found', 404);
         }

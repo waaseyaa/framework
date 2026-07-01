@@ -15,6 +15,7 @@ use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 use Waaseyaa\User\Role;
 use Waaseyaa\User\RoleRepository;
 
@@ -187,6 +188,9 @@ final class UserAssignRoleHandlerTest extends TestCase
     {
         $manager = $this->createMock(EntityTypeManagerInterface::class);
         $manager->method('getStorage')->willReturn($storage);
+        // C-22 WP3: read/write path now goes through the canonical repository —
+        // delegate find()/save() to the same storage double the test already configured.
+        $manager->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
         return $manager;
     }

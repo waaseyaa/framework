@@ -224,8 +224,10 @@ final class SchemaFactory
         }
 
         try {
+            // C-22 WP3: read path now goes through the canonical repository.
+            // findBy([]) is the "load all" equivalent of loadMultiple() with no ids.
             $bundles = [];
-            foreach ($this->entityTypeManager->getStorage($bundleTypeId)->loadMultiple() as $configEntity) {
+            foreach ($this->entityTypeManager->getRepository($bundleTypeId)->findBy([]) as $configEntity) {
                 $id = $configEntity->id();
                 if (is_string($id) && $id !== '') {
                     $bundles[] = $id;

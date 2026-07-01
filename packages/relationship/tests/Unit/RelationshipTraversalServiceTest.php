@@ -16,6 +16,7 @@ use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 use Waaseyaa\Relationship\Relationship;
 use Waaseyaa\Relationship\RelationshipTraversalService;
 use Waaseyaa\Relationship\VisibilityFilterInterface;
@@ -370,7 +371,8 @@ final class TraversalEntityTypeManager implements EntityTypeManagerInterface
 
     public function getRepository(string $entityTypeId): \Waaseyaa\Entity\Repository\EntityRepositoryInterface
     {
-        throw new \RuntimeException('Not needed in test.');
+        // C-22 WP3: read path now goes through the canonical repository.
+        return new StorageBackedStubRepository($this->getStorage($entityTypeId));
     }
 
     public function registerEntityType(EntityTypeInterface $type, ?string $registrant = null): void

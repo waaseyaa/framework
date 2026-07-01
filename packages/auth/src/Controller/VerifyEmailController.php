@@ -33,9 +33,9 @@ final class VerifyEmailController
             return new JsonResponse(['error' => 'invalid_token'], 422);
         }
 
-        // 4. Load user from token data
-        $storage = $this->entityTypeManager->getStorage('user');
-        $entity = $storage->load($tokenData['user_id']);
+        // 4. Load user from token data (C-22 WP3: canonical repository).
+        $repository = $this->entityTypeManager->getRepository('user');
+        $entity = $repository->find((string) $tokenData['user_id']);
 
         if ($entity === null) {
             return new JsonResponse(['error' => 'user_not_found'], 422);
@@ -45,7 +45,7 @@ final class VerifyEmailController
         /** @var \Waaseyaa\User\User $user */
         $user = $entity;
         $user->setEmailVerified(true);
-        $storage->save($user);
+        $repository->save($user);
 
         // 6. Consume token and revoke all email_verification tokens for user
         $this->tokenRepo->consumeToken($tokenData['id']);

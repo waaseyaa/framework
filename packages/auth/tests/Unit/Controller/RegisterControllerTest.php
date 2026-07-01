@@ -14,6 +14,8 @@ use Waaseyaa\Auth\Controller\RegisterController;
 use Waaseyaa\Auth\RateLimiter;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\User\AuthMailer;
 
@@ -35,12 +37,26 @@ final class RegisterControllerTest extends TestCase
         );
     }
 
-    private function makeEntityTypeManager(?EntityStorageInterface $storage = null): EntityTypeManager
+    private function makeEntityTypeManager(?EntityStorageInterface $storage = null, mixed $existing = null): EntityTypeManager
     {
         $manager = $this->createMock(EntityTypeManager::class);
 
         if ($storage !== null) {
             $manager->method('getStorage')->willReturn($storage);
+            // C-22 WP3: the uniqueness check now goes through the canonical
+            // repository (loadByKey() has no repository equivalent, so
+            // RegisterController uses a bounded query instead).
+            $query = $this->createStub(EntityQueryInterface::class);
+            $query->method('accessCheck')->willReturnSelf();
+            $query->method('condition')->willReturnSelf();
+            $query->method('range')->willReturnSelf();
+            $query->method('execute')->willReturn($existing !== null ? [1] : []);
+
+            $repository = $this->createStub(EntityRepositoryInterface::class);
+            $repository->method('getQuery')->willReturn($query);
+            $repository->method('save')->willReturn(1); // SAVED_NEW
+
+            $manager->method('getRepository')->willReturn($repository);
         }
 
         return $manager;
@@ -231,10 +247,11 @@ final class RegisterControllerTest extends TestCase
         // Storage returns an existing user for loadByKey
         $existingUser = new \Waaseyaa\User\User(['uid' => 1, 'mail' => 'alice@example.com']);
         $storage = $this->makeStorage($existingUser);
+        $existing = $existingUser;
 
         $controller = $this->makeController(
             config: $this->makeConfig('open'),
-            entityTypeManager: $this->makeEntityTypeManager($storage),
+            entityTypeManager: $this->makeEntityTypeManager($storage, $existing),
         );
 
         $response = $controller($this->makeRequest([
@@ -253,11 +270,12 @@ final class RegisterControllerTest extends TestCase
     {
         $_SESSION = [];
         $storage = $this->makeStorage(null);
+        $existing = null;
         $mailer = $this->makeAuthMailer(false);
 
         $controller = $this->makeController(
             config: $this->makeConfig('open'),
-            entityTypeManager: $this->makeEntityTypeManager($storage),
+            entityTypeManager: $this->makeEntityTypeManager($storage, $existing),
             authMailer: $mailer,
         );
 
@@ -280,6 +298,7 @@ final class RegisterControllerTest extends TestCase
     {
         $_SESSION = [];
         $storage = $this->makeStorage(null);
+        $existing = null;
 
         $tokenRepo = $this->createMock(AuthTokenRepositoryInterface::class);
         $tokenRepo->method('validateToken')->willReturn(['id' => 42, 'user_id' => null, 'meta' => null]);
@@ -287,7 +306,7 @@ final class RegisterControllerTest extends TestCase
 
         $controller = $this->makeController(
             config: $this->makeConfig('invite'),
-            entityTypeManager: $this->makeEntityTypeManager($storage),
+            entityTypeManager: $this->makeEntityTypeManager($storage, $existing),
             tokenRepo: $tokenRepo,
         );
 
@@ -308,6 +327,7 @@ final class RegisterControllerTest extends TestCase
     {
         $_SESSION = [];
         $storage = $this->makeStorage(null);
+        $existing = null;
 
         $tokenRepo = $this->createMock(AuthTokenRepositoryInterface::class);
         $tokenRepo->method('createToken')->willReturn('verify-token-abc');
@@ -319,7 +339,7 @@ final class RegisterControllerTest extends TestCase
 
         $controller = $this->makeController(
             config: $this->makeConfig('open'),
-            entityTypeManager: $this->makeEntityTypeManager($storage),
+            entityTypeManager: $this->makeEntityTypeManager($storage, $existing),
             tokenRepo: $tokenRepo,
             authMailer: $mailer,
         );

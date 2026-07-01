@@ -12,7 +12,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Context\RequestAccountContext;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\User\AnonymousUser;
 use Waaseyaa\User\DevAdminAccount;
@@ -26,10 +26,10 @@ final class SessionMiddlewareTest extends TestCase
     #[Test]
     public function sets_anonymous_user_when_no_session(): void
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->never())->method('load');
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->never())->method('find');
 
-        $middleware = new SessionMiddleware($storage);
+        $middleware = new SessionMiddleware($repository);
         $request = Request::create('/test');
 
         $capturedAccount = null;
@@ -53,13 +53,13 @@ final class SessionMiddlewareTest extends TestCase
     {
         $user = new User(['uid' => 42, 'name' => 'admin', 'permissions' => ['access content']]);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->once())
-            ->method('load')
-            ->with(42)
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->once())
+            ->method('find')
+            ->with('42')
             ->willReturn($user);
 
-        $middleware = new SessionMiddleware($storage);
+        $middleware = new SessionMiddleware($repository);
         $request = Request::create('/test');
         $request->attributes->set('_session', ['waaseyaa_uid' => 42]);
 
@@ -83,13 +83,13 @@ final class SessionMiddlewareTest extends TestCase
     #[Test]
     public function falls_back_to_anonymous_when_user_not_found(): void
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->once())
-            ->method('load')
-            ->with(999)
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->once())
+            ->method('find')
+            ->with('999')
             ->willReturn(null);
 
-        $middleware = new SessionMiddleware($storage);
+        $middleware = new SessionMiddleware($repository);
         $request = Request::create('/test');
         $request->attributes->set('_session', ['waaseyaa_uid' => 999]);
 
@@ -112,13 +112,13 @@ final class SessionMiddlewareTest extends TestCase
     #[Test]
     public function falls_back_to_anonymous_when_storage_throws(): void
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->once())
-            ->method('load')
-            ->with(42)
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->once())
+            ->method('find')
+            ->with('42')
             ->willThrowException(new \RuntimeException('Database unavailable'));
 
-        $middleware = new SessionMiddleware($storage);
+        $middleware = new SessionMiddleware($repository);
         $request = Request::create('/test');
         $request->attributes->set('_session', ['waaseyaa_uid' => 42]);
 
@@ -142,10 +142,10 @@ final class SessionMiddlewareTest extends TestCase
     public function uses_dev_fallback_when_no_session_and_fallback_provided(): void
     {
         $devAccount = new DevAdminAccount();
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->never())->method('load');
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->never())->method('find');
 
-        $middleware = new SessionMiddleware($storage, $devAccount);
+        $middleware = new SessionMiddleware($repository, $devAccount);
         $request = Request::create('/test');
 
         $capturedAccount = null;
@@ -171,13 +171,13 @@ final class SessionMiddlewareTest extends TestCase
         $devAccount = new DevAdminAccount();
         $user = new User(['uid' => 42, 'name' => 'admin', 'permissions' => ['access content']]);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->once())
-            ->method('load')
-            ->with(42)
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->once())
+            ->method('find')
+            ->with('42')
             ->willReturn($user);
 
-        $middleware = new SessionMiddleware($storage, $devAccount);
+        $middleware = new SessionMiddleware($repository, $devAccount);
         $request = Request::create('/test');
         $request->attributes->set('_session', ['waaseyaa_uid' => 42]);
 
@@ -202,13 +202,13 @@ final class SessionMiddlewareTest extends TestCase
     public function does_not_use_dev_fallback_when_session_uid_exists_but_user_not_found(): void
     {
         $devAccount = new DevAdminAccount();
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->once())
-            ->method('load')
-            ->with(999)
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->once())
+            ->method('find')
+            ->with('999')
             ->willReturn(null);
 
-        $middleware = new SessionMiddleware($storage, $devAccount);
+        $middleware = new SessionMiddleware($repository, $devAccount);
         $request = Request::create('/test');
         $request->attributes->set('_session', ['waaseyaa_uid' => 999]);
 
@@ -232,13 +232,13 @@ final class SessionMiddlewareTest extends TestCase
     public function does_not_use_dev_fallback_when_session_uid_exists_but_storage_throws(): void
     {
         $devAccount = new DevAdminAccount();
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->once())
-            ->method('load')
-            ->with(42)
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->once())
+            ->method('find')
+            ->with('42')
             ->willThrowException(new \RuntimeException('Database unavailable'));
 
-        $middleware = new SessionMiddleware($storage, $devAccount);
+        $middleware = new SessionMiddleware($repository, $devAccount);
         $request = Request::create('/test');
         $request->attributes->set('_session', ['waaseyaa_uid' => 42]);
 
@@ -261,8 +261,8 @@ final class SessionMiddlewareTest extends TestCase
     #[Test]
     public function passes_response_from_next_handler(): void
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $middleware = new SessionMiddleware($storage);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $middleware = new SessionMiddleware($repository);
         $request = Request::create('/test');
 
         $next = new class implements HttpHandlerInterface {
@@ -282,10 +282,10 @@ final class SessionMiddlewareTest extends TestCase
     public function does_not_override_existing_account_attribute(): void
     {
         $existing = new User(['uid' => 88, 'name' => 'token-user']);
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->never())->method('load');
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->never())->method('find');
 
-        $middleware = new SessionMiddleware($storage);
+        $middleware = new SessionMiddleware($repository);
         $request = Request::create('/test');
         $request->attributes->set('_account', $existing);
 
@@ -308,8 +308,8 @@ final class SessionMiddlewareTest extends TestCase
     #[Test]
     public function attaches_native_session_to_request(): void
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $middleware = new SessionMiddleware($storage);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $middleware = new SessionMiddleware($repository);
         $request = Request::create('/test');
 
         $capturedSession = null;
@@ -331,8 +331,8 @@ final class SessionMiddlewareTest extends TestCase
     #[Test]
     public function does_not_replace_existing_session(): void
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $middleware = new SessionMiddleware($storage);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $middleware = new SessionMiddleware($repository);
         $request = Request::create('/test');
 
         $existingSession = new NativeSession();
@@ -359,14 +359,14 @@ final class SessionMiddlewareTest extends TestCase
     {
         $user = new User(['uid' => 42, 'name' => 'admin', 'permissions' => ['access content']]);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->once())
-            ->method('load')
-            ->with(42)
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->once())
+            ->method('find')
+            ->with('42')
             ->willReturn($user);
 
         $context = new RequestAccountContext();
-        $middleware = new SessionMiddleware($storage, accountContext: $context);
+        $middleware = new SessionMiddleware($repository, accountContext: $context);
         $request = Request::create('/test');
         $request->attributes->set('_session', ['waaseyaa_uid' => 42]);
 
@@ -392,11 +392,11 @@ final class SessionMiddlewareTest extends TestCase
     #[Test]
     public function mirrors_anonymous_fallback_into_account_context(): void
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->never())->method('load');
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->never())->method('find');
 
         $context = new RequestAccountContext();
-        $middleware = new SessionMiddleware($storage, accountContext: $context);
+        $middleware = new SessionMiddleware($repository, accountContext: $context);
         $request = Request::create('/test');
 
         $next = new class implements HttpHandlerInterface {
@@ -417,11 +417,11 @@ final class SessionMiddlewareTest extends TestCase
     public function mirrors_preset_authenticated_account_into_account_context(): void
     {
         $existing = new User(['uid' => 88, 'name' => 'token-user']);
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->never())->method('load');
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->never())->method('find');
 
         $context = new RequestAccountContext();
-        $middleware = new SessionMiddleware($storage, accountContext: $context);
+        $middleware = new SessionMiddleware($repository, accountContext: $context);
         $request = Request::create('/test');
         $request->attributes->set('_account', $existing);
 
@@ -442,12 +442,12 @@ final class SessionMiddlewareTest extends TestCase
     #[Test]
     public function works_without_account_context_param(): void
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->never())->method('load');
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->never())->method('find');
 
         // Legacy construction — no context param. The `?->` guard means no
         // error, and `_account` behavior is unchanged.
-        $middleware = new SessionMiddleware($storage);
+        $middleware = new SessionMiddleware($repository);
         $request = Request::create('/test');
 
         $capturedAccount = null;
@@ -471,7 +471,7 @@ final class SessionMiddlewareTest extends TestCase
     #[RunInSeparateProcess]
     public function applies_session_cookie_ini_when_configured(): void
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
         $keys = [
             'session.cookie_httponly',
             'session.cookie_secure',
@@ -485,7 +485,7 @@ final class SessionMiddlewareTest extends TestCase
 
         try {
             $_SERVER['HTTPS'] = 'on';
-            $middleware = new SessionMiddleware($storage, null, null, [
+            $middleware = new SessionMiddleware($repository, null, null, [
                 'httponly' => true,
                 'secure' => 'auto',
                 'samesite' => 'Lax',
@@ -514,13 +514,13 @@ final class SessionMiddlewareTest extends TestCase
     #[RunInSeparateProcess]
     public function secure_auto_rejects_forwarded_proto_from_untrusted_ip(): void
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
         $savedSecure = ini_get('session.cookie_secure');
         try {
             unset($_SERVER['HTTPS']);
             $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https';
             $_SERVER['REMOTE_ADDR'] = '192.168.1.99';
-            $middleware = new SessionMiddleware($storage, null, null, [
+            $middleware = new SessionMiddleware($repository, null, null, [
                 'secure' => 'auto',
             ], ['10.0.0.1']);
             $method = new \ReflectionMethod(SessionMiddleware::class, 'applySessionCookieIni');
@@ -541,13 +541,13 @@ final class SessionMiddlewareTest extends TestCase
     #[RunInSeparateProcess]
     public function secure_auto_respects_x_forwarded_proto(): void
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
         $savedSecure = ini_get('session.cookie_secure');
         try {
             unset($_SERVER['HTTPS']);
             $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https';
             $_SERVER['REMOTE_ADDR'] = '10.0.0.1';
-            $middleware = new SessionMiddleware($storage, null, null, [
+            $middleware = new SessionMiddleware($repository, null, null, [
                 'secure' => 'auto',
             ], ['10.0.0.1']);
             $method = new \ReflectionMethod(SessionMiddleware::class, 'applySessionCookieIni');
@@ -568,7 +568,7 @@ final class SessionMiddlewareTest extends TestCase
     #[RunInSeparateProcess]
     public function applies_secure_session_cookie_defaults_when_unconfigured(): void
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
         $keys = [
             'session.cookie_httponly',
             'session.cookie_samesite',
@@ -586,7 +586,7 @@ final class SessionMiddlewareTest extends TestCase
             ini_set('session.use_strict_mode', '0');
 
             // No fourth arg => $sessionCookieOptions is null (default config).
-            $middleware = new SessionMiddleware($storage);
+            $middleware = new SessionMiddleware($repository);
             $method = new \ReflectionMethod(SessionMiddleware::class, 'applySessionCookieIni');
             $method->invoke($middleware);
 
@@ -612,7 +612,7 @@ final class SessionMiddlewareTest extends TestCase
     #[RunInSeparateProcess]
     public function explicit_session_cookie_options_override_secure_defaults(): void
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
         $keys = [
             'session.cookie_httponly',
             'session.cookie_samesite',
@@ -626,7 +626,7 @@ final class SessionMiddlewareTest extends TestCase
         try {
             ini_set('session.use_strict_mode', '0');
 
-            $middleware = new SessionMiddleware($storage, null, null, [
+            $middleware = new SessionMiddleware($repository, null, null, [
                 'httponly' => false,
                 'samesite' => 'Strict',
                 // use_strict_mode intentionally omitted -> default (true) applies.

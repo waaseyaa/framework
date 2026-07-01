@@ -14,6 +14,7 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 use Waaseyaa\User\User;
 
 /**
@@ -57,7 +58,8 @@ final class TwoFactorTestKit
             public function hasDefinition(string $entityTypeId): bool { return true; }
             public function getDefinitions(): array { return []; }
             public function getStorage(string $entityTypeId): EntityStorageInterface { return $this->storage; }
-            public function getRepository(string $entityTypeId): EntityRepositoryInterface { throw new \BadMethodCallException(); }
+            // C-22 WP3: TwoFactorService now saves through the canonical repository.
+            public function getRepository(string $entityTypeId): EntityRepositoryInterface { return new StorageBackedStubRepository($this->storage); }
         };
     }
 

@@ -53,4 +53,28 @@ final class EntityInstantiator
 
         return $class::fromStorage($values, $context);
     }
+
+    /**
+     * Fills missing keys from registered field definitions before hydration.
+     * Shared by {@see \Waaseyaa\EntityStorage\EntityRepository::create()} and
+     * {@see \Waaseyaa\EntityStorage\SqlEntityStorage::create()} so a fresh
+     * entity gets the SAME field defaults regardless of which engine built it.
+     *
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    public function applyFieldDefinitionDefaults(array $values): array
+    {
+        foreach ($this->entityType->getFieldDefinitions() as $name => $def) {
+            if (array_key_exists($name, $values)) {
+                continue;
+            }
+            $defaultValue = $def->getDefaultValue();
+            if ($defaultValue !== null) {
+                $values[$name] = $defaultValue;
+            }
+        }
+
+        return $values;
+    }
 }

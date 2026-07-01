@@ -45,9 +45,10 @@ final class EntityCreateHandler
         }
 
         try {
-            $storage = $this->entityTypeManager->getStorage($entityType);
-            $entity = $storage->create($values);
-            $storage->save($entity);
+            // C-22 WP3: create/save now go through the canonical repository.
+            $repository = $this->entityTypeManager->getRepository($entityType);
+            $entity = $repository->create($values);
+            $repository->save($entity);
         } catch (\Throwable $e) {
             $io->error(sprintf('Failed to create %s entity: %s', $entityType, $e->getMessage()));
 

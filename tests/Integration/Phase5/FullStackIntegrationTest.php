@@ -22,6 +22,9 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Validation\EntityValidator;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Queue\InMemoryQueue;
@@ -96,6 +99,8 @@ final class FullStackIntegrationTest extends TestCase
 
         // ---- Entity Type Manager ----
         $articleStorageRef = $this->articleStorage;
+        $database = $this->database;
+        $dispatcher = $this->eventDispatcher;
         $this->entityTypeManager = new EntityTypeManager(
             $this->eventDispatcher,
             function ($definition) use ($articleStorageRef) {
@@ -103,6 +108,17 @@ final class FullStackIntegrationTest extends TestCase
                     return $articleStorageRef;
                 }
                 throw new \RuntimeException("Unknown entity type: {$definition->id()}");
+            },
+            // C-22 WP3: read/write path now goes through the canonical repository.
+            function (string $entityTypeId, $definition) use ($database, $dispatcher): EntityRepository {
+                if ($entityTypeId !== 'article') {
+                    throw new \RuntimeException("Unknown entity type: {$entityTypeId}");
+                }
+
+                $idKey = $definition->getKeys()['id'] ?? 'id';
+                $resolver = new SingleConnectionResolver($database);
+
+                return new EntityRepository($definition, new SqlStorageDriver($resolver, $idKey), $dispatcher);
             },
         );
         $this->entityTypeManager->registerEntityType($articleType);

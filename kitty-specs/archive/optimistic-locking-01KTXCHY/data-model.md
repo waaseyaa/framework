@@ -104,7 +104,7 @@ PATCH request (the expectation seam — resource-object meta; headers are unreac
 
 | Request state | Response |
 |---|---|
-| `expected_revision_id` absent | byte-identical legacy update path (`getStorage()->save()`) — FR-003/SC-003 |
+| `expected_revision_id` absent | (superseded 2026-07-01, issue C-22) originally the legacy `getStorage()->save()` path byte-identically — FR-003/SC-003. Post-C-22 WP3: applies through the same `getRepository()->save(…)` pipeline as the "head matches" row below, just without the `SaveContext::withExpectedRevisionId()` guard — a revision is cut for revisionable types |
 | present, not a positive integer | 400 `Bad Request` |
 | present, type not single-axis revisionable | 422 `Unprocessable Entity` (screened; storage `\LogicException` is the backstop) |
 | present, head moved | **409** — see below |

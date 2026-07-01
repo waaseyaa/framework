@@ -16,6 +16,7 @@ use Waaseyaa\Attachment\Policy\ParentDelegatedAccessPolicy;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 
 /**
  * Integration tests for ParentDelegatedAccessPolicy.
@@ -221,6 +222,8 @@ final class ParentDelegatedAccessTest extends TestCase
     {
         $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getStorage')->with($entityTypeId)->willReturn($storage);
+        // C-22 WP3: read path now goes through the canonical repository.
+        $manager->method('getRepository')->with($entityTypeId)->willReturn(new StorageBackedStubRepository($storage));
 
         return $manager;
     }

@@ -13,9 +13,9 @@ use Waaseyaa\AI\Vector\EmbeddingStorageInterface;
 use Waaseyaa\AI\Vector\SemanticIndexWarmer;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
-use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
 
 #[CoversClass(SemanticIndexWarmer::class)]
 final class SemanticIndexWarmerTest extends TestCase
@@ -40,16 +40,18 @@ final class SemanticIndexWarmerTest extends TestCase
         $nodeC = new SemanticWarmerEntity(3, 'node', ['title' => 'Public', 'status' => 1, 'workflow_state' => 'published']);
 
         $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->method('getQuery')->willReturn($query);
-        $storage->method('loadMultiple')
+
+        // C-22 WP3: read path now goes through the canonical repository.
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
+        $repository->method('findMany')
             ->with([1, 2, 3])
-            ->willReturn([1 => $nodeA, 2 => $nodeB, 3 => $nodeC]);
+            ->willReturn([$nodeA, $nodeB, $nodeC]);
 
         $manager = $this->createMock(EntityTypeManagerInterface::class);
         $manager->method('hasDefinition')->with('node')->willReturn(true);
         $manager->method('getStorage')->with('node')->willReturn($storage);
-        // C-22: the query builder now lives on the repository.
-        $manager->method('getRepository')->with('node')->willReturn(new QueryOnlyStubRepository($query));
+        $manager->method('getRepository')->with('node')->willReturn($repository);
 
         $provider = $this->createMock(EmbeddingProviderInterface::class);
         $provider->expects($this->exactly(2))
@@ -129,19 +131,22 @@ final class SemanticIndexWarmerTest extends TestCase
 
         $storage = $this->createMock(EntityStorageInterface::class);
         $storage->method('getQuery')->willReturn($query);
-        $storage->method('loadMultiple')->willReturnCallback(
-            static fn(array $ids): array => array_filter([
+
+        // C-22 WP3: read path now goes through the canonical repository.
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
+        $repository->method('findMany')->willReturnCallback(
+            static fn(array $ids): array => array_values(array_filter([
                 1 => $node1,
                 2 => $node2,
                 3 => $node3,
-            ], static fn($entity, $id): bool => in_array($id, $ids, true), ARRAY_FILTER_USE_BOTH),
+            ], static fn($entity, $id): bool => in_array($id, $ids, true), ARRAY_FILTER_USE_BOTH)),
         );
 
         $manager = $this->createMock(EntityTypeManagerInterface::class);
         $manager->method('hasDefinition')->with('node')->willReturn(true);
         $manager->method('getStorage')->with('node')->willReturn($storage);
-        // C-22: the query builder now lives on the repository.
-        $manager->method('getRepository')->with('node')->willReturn(new QueryOnlyStubRepository($query));
+        $manager->method('getRepository')->with('node')->willReturn($repository);
 
         $provider = $this->createMock(EmbeddingProviderInterface::class);
         $provider->method('embed')->willReturn([0.1, 0.2]);

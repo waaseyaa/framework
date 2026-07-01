@@ -13,6 +13,7 @@ use Waaseyaa\CLI\Provider\UserPermissionServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 
 #[CoversClass(UserRoleHandler::class)]
@@ -71,6 +72,18 @@ final class UserRoleHandlerTest extends TestCase
         return $storage;
     }
 
+    // C-22 WP3: read/write path now goes through the canonical repository.
+    private function makeRepository(?EntityInterface $user): EntityRepositoryInterface
+    {
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($user);
+        if ($user !== null) {
+            $repository->method('save');
+        }
+
+        return $repository;
+    }
+
     #[Test]
     public function addsRoleToUser(): void
     {
@@ -78,6 +91,7 @@ final class UserRoleHandlerTest extends TestCase
 
         $mockManager = $this->createMock(EntityTypeManagerInterface::class);
         $mockManager->method('getStorage')->willReturn($this->makeStorage($user));
+        $mockManager->method('getRepository')->willReturn($this->makeRepository($user));
 
         $definition = $this->makeDefinition();
         $tester = CliTester::for($definition, $this->makeContainer($mockManager));
@@ -94,6 +108,7 @@ final class UserRoleHandlerTest extends TestCase
 
         $mockManager = $this->createMock(EntityTypeManagerInterface::class);
         $mockManager->method('getStorage')->willReturn($this->makeStorage($user));
+        $mockManager->method('getRepository')->willReturn($this->makeRepository($user));
 
         $definition = $this->makeDefinition();
         $tester = CliTester::for($definition, $this->makeContainer($mockManager));
@@ -110,6 +125,7 @@ final class UserRoleHandlerTest extends TestCase
 
         $mockManager = $this->createMock(EntityTypeManagerInterface::class);
         $mockManager->method('getStorage')->willReturn($this->makeStorage($user));
+        $mockManager->method('getRepository')->willReturn($this->makeRepository($user));
 
         $definition = $this->makeDefinition();
         $tester = CliTester::for($definition, $this->makeContainer($mockManager));
@@ -124,6 +140,7 @@ final class UserRoleHandlerTest extends TestCase
     {
         $mockManager = $this->createMock(EntityTypeManagerInterface::class);
         $mockManager->method('getStorage')->willReturn($this->makeStorage(null));
+        $mockManager->method('getRepository')->willReturn($this->makeRepository(null));
 
         $definition = $this->makeDefinition();
         $tester = CliTester::for($definition, $this->makeContainer($mockManager));

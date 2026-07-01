@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Waaseyaa\Oidc\ClientRegistry;
 
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\Oidc\Entity\OidcClient;
 
 /**
@@ -34,8 +33,7 @@ use Waaseyaa\Oidc\Entity\OidcClient;
 final class OidcClientSeeder
 {
     public function __construct(
-        private readonly SqlEntityStorage $storage,
-        // C-22 WP2: the query builder now lives on the repository.
+        // C-22 WP2/WP3: create/save/query all go through the canonical repository.
         private readonly EntityRepositoryInterface $repository,
     ) {}
 
@@ -89,12 +87,12 @@ final class OidcClientSeeder
             foreach ($values as $field => $value) {
                 $existing->set($field, $value);
             }
-            $this->storage->save($existing);
+            $this->repository->save($existing);
             return;
         }
 
-        $entity = $this->storage->create($values);
-        $this->storage->save($entity);
+        $entity = $this->repository->create($values);
+        $this->repository->save($entity);
     }
 
     /**
@@ -133,7 +131,7 @@ final class OidcClientSeeder
             return null;
         }
 
-        $entity = $this->storage->load($ids[0]);
+        $entity = $this->repository->find((string) $ids[0]);
 
         return $entity instanceof OidcClient ? $entity : null;
     }

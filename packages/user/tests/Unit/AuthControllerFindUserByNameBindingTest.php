@@ -8,7 +8,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\RecordingEntityQuery;
 use Waaseyaa\User\Http\AuthController;
 
@@ -30,15 +29,13 @@ final class AuthControllerFindUserByNameBindingTest extends TestCase
     {
         $query = new RecordingEntityQuery();
 
-        $storage = $this->createStub(EntityStorageInterface::class);
-        $storage->method('load')->willReturn(null);
-
         $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('getQuery')->willReturn($query);
+        $repository->method('find')->willReturn(null);
 
         $controller = new AuthController();
         // Pass an unknown name so both the name-query and mail-fallback fire.
-        $controller->findUserByName($storage, $repository, 'unknown-user-that-will-not-match');
+        $controller->findUserByName($repository, 'unknown-user-that-will-not-match');
 
         self::assertSame(
             [false, false],

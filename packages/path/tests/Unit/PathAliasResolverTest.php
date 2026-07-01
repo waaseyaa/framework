@@ -7,9 +7,8 @@ namespace Waaseyaa\Path\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
-use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
 use Waaseyaa\Path\PathAlias;
 use Waaseyaa\Path\PathAliasResolver;
 use Waaseyaa\Path\ResolvedPath;
@@ -34,11 +33,11 @@ final class PathAliasResolverTest extends TestCase
         $query->method('range')->willReturnSelf();
         $query->method('execute')->willReturn([10]);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->method('getQuery')->willReturn($query);
-        $storage->method('load')->with(10)->willReturn($alias);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
+        $repository->method('find')->with('10')->willReturn($alias);
 
-        $resolver = new PathAliasResolver($storage, new QueryOnlyStubRepository($query));
+        $resolver = new PathAliasResolver($repository);
         $resolved = $resolver->resolve('/teaching/water-is-life');
 
         $this->assertInstanceOf(ResolvedPath::class, $resolved);
@@ -55,10 +54,10 @@ final class PathAliasResolverTest extends TestCase
         $query->method('range')->willReturnSelf();
         $query->method('execute')->willReturn([]);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->method('getQuery')->willReturn($query);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
 
-        $resolver = new PathAliasResolver($storage, new QueryOnlyStubRepository($query));
+        $resolver = new PathAliasResolver($repository);
         $this->assertNull($resolver->resolve('/missing'));
     }
 }

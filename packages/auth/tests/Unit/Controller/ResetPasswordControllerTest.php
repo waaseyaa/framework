@@ -12,6 +12,7 @@ use Waaseyaa\Auth\Controller\ResetPasswordController;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 use Waaseyaa\User\User;
 
 #[CoversClass(ResetPasswordController::class)]
@@ -32,8 +33,11 @@ final class ResetPasswordControllerTest extends TestCase
 
     private function makeEntityTypeManager(?EntityStorageInterface $storage = null): EntityTypeManager
     {
+        $storage ??= $this->makeStorage();
         $manager = $this->createMock(EntityTypeManager::class);
-        $manager->method('getStorage')->willReturn($storage ?? $this->makeStorage());
+        $manager->method('getStorage')->willReturn($storage);
+        // C-22 WP3: read/write path now goes through the canonical repository.
+        $manager->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
         return $manager;
     }

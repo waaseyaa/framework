@@ -120,7 +120,8 @@ final class VerifyTwoFactorController
             return [null, false];
         }
 
-        $loaded = $this->entityTypeManager->getStorage('user')->load($pendingUid);
+        // C-22 WP3: read path now goes through the canonical repository.
+        $loaded = $this->entityTypeManager->getRepository('user')->find((string) $pendingUid);
         if (!$loaded instanceof User) {
             return [null, false];
         }
