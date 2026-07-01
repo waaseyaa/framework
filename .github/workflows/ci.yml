@@ -41,7 +41,7 @@ jobs:
           coverage: none
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: vendor
           key: composer-v2-${{ hashFiles('composer.lock') }}
@@ -81,7 +81,7 @@ jobs:
           coverage: none
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: vendor
           key: composer-v2-${{ hashFiles('composer.lock') }}
@@ -105,7 +105,7 @@ jobs:
         run: composer cs-check
 
       - name: Restore PHPStan result cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: tmp/phpstan
           key: phpstan-result-cache-${{ github.run_id }}
@@ -116,7 +116,7 @@ jobs:
         run: composer phpstan
 
       - name: Save PHPStan result cache
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         if: ${{ !cancelled() }}
         with:
           path: tmp/phpstan
@@ -135,7 +135,7 @@ jobs:
           coverage: none
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: vendor
           key: composer-v2-${{ hashFiles('composer.lock') }}
@@ -145,7 +145,7 @@ jobs:
         run: composer install --no-interaction --prefer-dist
 
       - name: Restore dead-code PHPStan result cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: tmp/phpstan-dead-code
           # Bust the cache when the analyzer's rules change: provider source,
@@ -160,7 +160,7 @@ jobs:
         run: php bin/check-dead-code
 
       - name: Save dead-code PHPStan result cache
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         if: ${{ !cancelled() }}
         with:
           path: tmp/phpstan-dead-code
@@ -180,7 +180,7 @@ jobs:
           coverage: pcov
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: vendor
           key: composer-v2-${{ hashFiles('composer.lock') }}
@@ -245,7 +245,7 @@ jobs:
           coverage: none
 
       - name: Cache packaged-form Composer dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: tests/PackagedForm/skeleton/vendor
           key: packaged-form-composer-v1-${{ hashFiles('tests/PackagedForm/skeleton/composer.lock') }}
@@ -329,7 +329,7 @@ jobs:
           node-version: '20'
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: vendor
           key: composer-v2-${{ hashFiles('composer.lock') }}
@@ -377,7 +377,7 @@ jobs:
           coverage: none
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: vendor
           key: composer-v2-${{ hashFiles('composer.lock') }}
@@ -394,13 +394,13 @@ jobs:
           cache-dependency-path: packages/admin/package-lock.json
 
       - name: Cache node modules
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: packages/admin/node_modules
           key: node-${{ hashFiles('packages/admin/package-lock.json') }}
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ hashFiles('packages/admin/package-lock.json') }}
@@ -456,7 +456,7 @@ jobs:
           cache-dependency-path: packages/admin/package-lock.json
 
       - name: Cache node modules
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: packages/admin/node_modules
           key: node-${{ hashFiles('packages/admin/package-lock.json') }}
@@ -558,7 +558,7 @@ jobs:
           coverage: none
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: vendor
           key: composer-v2-${{ hashFiles('composer.lock') }}
