@@ -298,6 +298,7 @@ final class BuiltinRouteRegistrar
                 ->build(),
         );
 
+        // Legacy backward-compat aliases: codified-context → agent-context (spec: telescope-agent-context-telemetry.md).
         $router->addRoute(
             'api.telescope.codified_context.sessions',
             RouteBuilder::create('/api/telescope/codified-context/sessions')
