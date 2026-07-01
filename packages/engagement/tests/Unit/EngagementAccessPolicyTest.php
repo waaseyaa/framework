@@ -15,6 +15,7 @@ use Waaseyaa\Engagement\EngagementAccessPolicy;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 
 /**
  * @covers \Waaseyaa\Engagement\EngagementAccessPolicy
@@ -162,6 +163,8 @@ final class EngagementAccessPolicyTest extends TestCase
         $etm = $this->createMock(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturnCallback(static fn(string $t): bool => $t === $type);
         $etm->method('getStorage')->willReturn($storage);
+        // C-22 WP3: read path now goes through the canonical repository.
+        $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
         $policy = $this->createMock(AccessPolicyInterface::class);
         $policy->method('appliesTo')->willReturnCallback(static fn(string $t): bool => $t === $type);

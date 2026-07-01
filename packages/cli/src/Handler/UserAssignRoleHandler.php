@@ -49,8 +49,9 @@ final class UserAssignRoleHandler
             return 1;
         }
 
-        $storage = $this->entityTypeManager->getStorage('user');
-        $user = $storage->load($userId);
+        // C-22 WP3: read/write path now goes through the canonical repository.
+        $repository = $this->entityTypeManager->getRepository('user');
+        $user = $repository->find($userId);
 
         if ($user === null) {
             $io->error(sprintf('User with ID "%s" not found.', $userId));
@@ -81,7 +82,7 @@ final class UserAssignRoleHandler
 
         $user->set('roles', $roles);
         $user->set('permissions', $permissions);
-        $storage->save($user);
+        $repository->save($user);
 
         if ($remove) {
             $io->writeln(sprintf('Removed role "%s" from user %s.', $roleId, $userId));

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Note\Ingestion;
 
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Note\Note;
 
 /**
@@ -13,19 +13,19 @@ use Waaseyaa\Note\Note;
  */
 final class NoteIngester
 {
-    public function __construct(private readonly EntityStorageInterface $storage) {}
+    public function __construct(private readonly EntityRepositoryInterface $repository) {}
 
     public function ingest(IngestionEnvelope $envelope): Note
     {
         /** @var Note $note */
-        $note = $this->storage->create([
+        $note = $this->repository->create([
             'title'            => $envelope->title,
             'body'             => $envelope->body,
             'ingestion_source' => $envelope->source,
             'ingested_at'      => $envelope->ingestedAt,
         ]);
 
-        $this->storage->save($note);
+        $this->repository->save($note);
 
         return $note;
     }

@@ -303,8 +303,12 @@ final class RelationshipTraversalService
         }
 
         $ids = array_map(static fn(array $row): int => (int) ($row['rid'] ?? 0), $rows);
-        $storage = $this->entityTypeManager->getStorage('relationship');
-        $loaded = $storage->loadMultiple($ids);
+        // C-22 WP3: read path now goes through the canonical repository.
+        // findMany() returns a plain list; re-key by id to preserve the lookup below.
+        $loaded = [];
+        foreach ($this->entityTypeManager->getRepository('relationship')->findMany($ids) as $loadedEntity) {
+            $loaded[$loadedEntity->id()] = $loadedEntity;
+        }
 
         $result = [];
         foreach ($ids as $idValue) {
@@ -583,8 +587,13 @@ final class RelationshipTraversalService
             }
 
             try {
-                $storage = $this->entityTypeManager->getStorage($entityType);
-                $loaded = $storage->loadMultiple($resolvedIds);
+                // C-22 WP3: read path now goes through the canonical repository.
+                // findMany() returns a plain list; re-key by id to preserve the
+                // int/string-tolerant lookups below.
+                $loaded = [];
+                foreach ($this->entityTypeManager->getRepository($entityType)->findMany($resolvedIds) as $loadedEntity) {
+                    $loaded[$loadedEntity->id()] = $loadedEntity;
+                }
             } catch (\Throwable) {
                 foreach ($entityIds as $entityId) {
                     $cacheKey = strtolower($entityType) . ':' . $entityId;
@@ -646,9 +655,8 @@ final class RelationshipTraversalService
         }
 
         try {
-            $storage = $this->entityTypeManager->getStorage($entityType);
-            $resolvedId = ctype_digit($entityId) ? (int) $entityId : $entityId;
-            $entity = $storage->load($resolvedId);
+            // C-22 WP3: read path now goes through the canonical repository.
+            $entity = $this->entityTypeManager->getRepository($entityType)->find($entityId);
             if ($entity !== null) {
                 $label = trim($entity->label()) !== ''
                     ? $entity->label()

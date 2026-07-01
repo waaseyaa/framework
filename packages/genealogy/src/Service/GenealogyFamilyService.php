@@ -7,7 +7,6 @@ namespace Waaseyaa\Genealogy\Service;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Genealogy\GenealogyRelationshipType;
 use Waaseyaa\Relationship\Relationship;
 
@@ -25,9 +24,9 @@ final class GenealogyFamilyService
      */
     public function memberPersonIds(string $familyId, ?AccountInterface $account = null): array
     {
-        $storage = $this->relationshipStorage();
-        // C-22 WP2: the account-filtered query surface now lives on the repository.
-        $q = $this->relationshipRepository()->getQuery();
+        // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
+        $repository = $this->relationshipRepository();
+        $q = $repository->getQuery();
         if ($account !== null) {
             $q->setAccount($account);
         } else {
@@ -45,18 +44,13 @@ final class GenealogyFamilyService
         }
 
         $people = [];
-        foreach ($storage->loadMultiple($ids) as $entity) {
+        foreach ($repository->findMany($ids) as $entity) {
             if ($entity instanceof Relationship) {
                 $people[] = (string) $entity->get('from_entity_id');
             }
         }
 
         return $this->uniqueSortedStringIds($people);
-    }
-
-    private function relationshipStorage(): EntityStorageInterface
-    {
-        return $this->entityTypeManager->getStorage('relationship');
     }
 
     private function relationshipRepository(): EntityRepositoryInterface

@@ -50,7 +50,7 @@ final class OidcClientSeederTest extends TestCase
             $dispatcher,
             database: $database,
         );
-        $this->seeder = new OidcClientSeeder($this->storage, $repository);
+        $this->seeder = new OidcClientSeeder($repository);
     }
 
     public function testSeedEmptyConfigIsNoOp(): void

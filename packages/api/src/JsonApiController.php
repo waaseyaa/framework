@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Api;
 
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Query\PaginationLinks;
@@ -55,10 +56,7 @@ final class JsonApiController
             );
         }
 
-        $storage = $this->entityTypeManager->getStorage($entityTypeId);
-        // C-22 WP2: the account-filtered query surface now lives on the
-        // canonical repository (getStorage() still serves loadMultiple() below
-        // until WP3 migrates the read/write calls too).
+        // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
         $repository = $this->entityTypeManager->getRepository($entityTypeId);
 
         // Parse query parameters.
@@ -105,7 +103,7 @@ final class JsonApiController
         $applier->apply($parsedQuery, $entityQuery);
 
         $ids = $entityQuery->execute();
-        $entities = $ids !== [] ? $storage->loadMultiple($ids) : [];
+        $entities = $ids !== [] ? $repository->findMany($ids) : [];
 
         // Filter the current page by view access if an access handler is
         // available. Entity-level access is deny-by-default (isAllowed): a
@@ -122,7 +120,7 @@ final class JsonApiController
             // deny-by-default (isAllowed), so Neutral rows would inflate it.
             // Recompute the true total by re-running the filter set without
             // pagination and counting rows this account may actually view.
-            $total = $this->accessFilteredTotal($repository, $storage, $parsedQuery);
+            $total = $this->accessFilteredTotal($repository, $parsedQuery);
         }
 
         $resources = $this->serializer->serializeCollection($entities, $this->accessHandler, $this->account);
@@ -172,11 +170,9 @@ final class JsonApiController
      * system / no-account path keeps the storage COUNT computed in index().
      *
      * @param \Waaseyaa\Entity\Repository\EntityRepositoryInterface $repository
-     * @param \Waaseyaa\Entity\Storage\EntityStorageInterface $storage
      */
     private function accessFilteredTotal(
         \Waaseyaa\Entity\Repository\EntityRepositoryInterface $repository,
-        \Waaseyaa\Entity\Storage\EntityStorageInterface $storage,
         ParsedQuery $parsedQuery,
     ): int {
         \assert($this->accessHandler !== null && $this->account !== null);
@@ -194,7 +190,7 @@ final class JsonApiController
         }
 
         $total = 0;
-        foreach ($storage->loadMultiple($ids) as $entity) {
+        foreach ($repository->findMany($ids) as $entity) {
             if ($this->accessHandler->check($entity, 'view', $this->account)->isAllowed()) {
                 $total++;
             }
@@ -332,8 +328,9 @@ final class JsonApiController
             }
         }
 
-        $storage = $this->entityTypeManager->getStorage($entityTypeId);
-        $entity = $storage->create($attributes);
+        // C-22 WP3: create/save now go through the canonical repository.
+        $repository = $this->entityTypeManager->getRepository($entityTypeId);
+        $entity = $repository->create($attributes);
 
         // Check create access.
         if ($this->accessHandler !== null && $this->account !== null) {
@@ -362,19 +359,15 @@ final class JsonApiController
         }
 
         try {
-            $storage->save($entity);
-        } catch (\PDOException $e) {
-            if (str_contains($e->getMessage(), 'UNIQUE constraint failed')
-                || str_starts_with($e->getCode(), '23')) {
-                return $this->errorDocument(
-                    new JsonApiError(
-                        '409',
-                        'Conflict',
-                        sprintf("An entity of type '%s' with this ID already exists.", $entityTypeId),
-                    ),
-                );
-            }
-            throw $e;
+            $repository->save($entity);
+        } catch (UniqueConstraintViolationException) {
+            return $this->errorDocument(
+                new JsonApiError(
+                    '409',
+                    'Conflict',
+                    sprintf("An entity of type '%s' with this ID already exists.", $entityTypeId),
+                ),
+            );
         }
 
         $resource = $this->serializer->serialize($entity, $this->accessHandler, $this->account);
@@ -410,7 +403,8 @@ final class JsonApiController
             );
         }
 
-        $storage = $this->entityTypeManager->getStorage($entityTypeId);
+        // C-22 WP3: save path now goes through the canonical repository.
+        $repository = $this->entityTypeManager->getRepository($entityTypeId);
 
         // Validate request data structure.
         if (!isset($data['data']) || !isset($data['data']['type'])) {
@@ -506,7 +500,7 @@ final class JsonApiController
                 return $failure;
             }
         } else {
-            $storage->save($entity);
+            $repository->save($entity);
         }
 
         $resource = $this->serializer->serialize($entity, $this->accessHandler, $this->account);
@@ -595,8 +589,6 @@ final class JsonApiController
             );
         }
 
-        $storage = $this->entityTypeManager->getStorage($entityTypeId);
-
         // Check delete access.
         if ($this->accessHandler !== null && $this->account !== null) {
             $access = $this->accessHandler->check($entity, 'delete', $this->account);
@@ -607,7 +599,8 @@ final class JsonApiController
             }
         }
 
-        $storage->delete([$entity]);
+        // C-22 WP3: delete path now goes through the canonical repository.
+        $this->entityTypeManager->getRepository($entityTypeId)->delete($entity);
 
         return JsonApiDocument::empty(meta: ['deleted' => true], statusCode: 204);
     }
@@ -620,14 +613,14 @@ final class JsonApiController
      */
     private function loadByIdOrUuid(string $entityTypeId, int|string $id): ?\Waaseyaa\Entity\EntityInterface
     {
-        $storage = $this->entityTypeManager->getStorage($entityTypeId);
+        // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
+        $repository = $this->entityTypeManager->getRepository($entityTypeId);
         $definition = $this->entityTypeManager->getDefinition($entityTypeId);
         $keys = $definition->getKeys();
 
         // If the entity type has a uuid key and the ID looks like a UUID, query by uuid.
         if (isset($keys['uuid']) && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', (string) $id)) {
-            // C-22 WP2: query surface migrated to the repository; load() below stays on getStorage() until WP3.
-            $query = $this->entityTypeManager->getRepository($entityTypeId)->getQuery();
+            $query = $repository->getQuery();
             if ($this->account !== null) {
                 $query->setAccount($this->account);
             } else {
@@ -639,10 +632,10 @@ final class JsonApiController
             if ($ids === []) {
                 return null;
             }
-            return $storage->load(reset($ids));
+            return $repository->find((string) reset($ids));
         }
 
-        return $storage->load($id);
+        return $repository->find((string) $id);
     }
 
     /**

@@ -259,9 +259,12 @@ final class GenealogySsrConcealmentTest extends TestCase
             // C-22 WP2: repository factory mirroring the kernel's getRepository() shape
             // — same lazy accessHandlerResolver the storage factory threads above.
             function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $resolver, $database, $registry): EntityRepository {
+                (new SqlSchemaHandler($definition, $database, $registry))->ensureTable();
+                $idKey = $definition->getKeys()['id'] ?? 'id';
+
                 return new EntityRepository(
                     $definition,
-                    new SqlStorageDriver($resolver),
+                    new SqlStorageDriver($resolver, $idKey),
                     $dispatcher,
                     database: $database,
                     fieldRegistry: $registry,

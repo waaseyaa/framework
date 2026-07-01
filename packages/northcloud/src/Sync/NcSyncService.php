@@ -125,7 +125,8 @@ final class NcSyncService
             $entityType = $mapper->entityType();
             $fields = $mapper->map($hit);
             $dedupField = $mapper->dedupField();
-            $storage = $this->entityTypeManager->getStorage($entityType);
+            // C-22 WP2/WP3: both the query surface and the create/save path now live on the repository.
+            $repository = $this->entityTypeManager->getRepository($entityType);
 
             if ($dedupField !== '') {
                 if (!array_key_exists($dedupField, $fields)) {
@@ -141,8 +142,7 @@ final class NcSyncService
                     // lookup with accessCheck(false) so it checks ALL rows for a duplicate (a
                     // duplicate is a duplicate regardless of visibility) instead of throwing
                     // MissingQueryAccountException on the real SqlEntityStorage (B-5).
-                    // C-22 WP2: the query builder now lives on the repository.
-                    $existing = $this->entityTypeManager->getRepository($entityType)->getQuery()
+                    $existing = $repository->getQuery()
                         ->accessCheck(false)
                         ->condition($dedupField, $fields[$dedupField])
                         ->execute();
@@ -175,8 +175,8 @@ final class NcSyncService
                     ->withCreatedSample($sample, $sampleLimit);
             }
 
-            $entity = $storage->create($fields);
-            $storage->save($entity);
+            $entity = $repository->create($fields);
+            $repository->save($entity);
             $sample = $this->summarizeHit($hit) + [
                 'entity_type' => $entityType,
                 'mapped_title' => self::scalarOrNull($fields['title'] ?? null),

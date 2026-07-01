@@ -7,7 +7,6 @@ namespace Waaseyaa\Path\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
 use Waaseyaa\Entity\Testing\RecordingEntityQuery;
 use Waaseyaa\Path\PathAliasResolver;
@@ -30,12 +29,7 @@ final class PathAliasResolverBindingTest extends TestCase
     {
         $query = new RecordingEntityQuery();
 
-        $storage = $this->createStub(EntityStorageInterface::class);
-        $storage->method('getQuery')->willReturn($query);
-        // Return empty: the binding assertion does not require a resolved entity.
-        $storage->method('load')->willReturn(null);
-
-        $resolver = new PathAliasResolver($storage, new QueryOnlyStubRepository($query));
+        $resolver = new PathAliasResolver(new QueryOnlyStubRepository($query));
         $resolver->resolve('/any-alias');
 
         self::assertContains(

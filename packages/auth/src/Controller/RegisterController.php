@@ -85,11 +85,16 @@ final class RegisterController
             return new JsonResponse(['errors' => $errors], 422);
         }
 
-        // 6. Check email uniqueness (anti-enumeration: generic 422)
-        $storage = $this->entityTypeManager->getStorage('user');
-        $existing = $storage->loadByKey('mail', $email);
+        // 6. Check email uniqueness (anti-enumeration: generic 422). C-22 WP3:
+        // loadByKey() has no repository equivalent, so this is a bounded query + find().
+        $repository = $this->entityTypeManager->getRepository('user');
+        $existingIds = $repository->getQuery()
+            ->accessCheck(false)
+            ->condition('mail', $email)
+            ->range(0, 1)
+            ->execute();
 
-        if ($existing !== null) {
+        if ($existingIds !== []) {
             return new JsonResponse(['errors' => ['email' => 'Registration failed. Please try again.']], 422);
         }
 
@@ -106,7 +111,7 @@ final class RegisterController
         // 8. Set password, mark new, save
         $user->setRawPassword($password);
         $user->enforceIsNew();
-        $storage->save($user);
+        $repository->save($user);
 
         // 9. Consume invite token if applicable
         if ($this->config->registration === 'invite' && $inviteTokenData !== null) {

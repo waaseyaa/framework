@@ -25,6 +25,7 @@ use Waaseyaa\AdminSurface\Query\SurfaceFilterOperator;
 use Waaseyaa\AdminSurface\Query\SurfaceQuery;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 
 #[CoversClass(GenericAdminSurfaceHost::class)]
 final class GenericAdminSurfaceHostTest extends TestCase
@@ -64,6 +65,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm = $this->createMock(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getStorage')->willReturn($storage);
+        $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
         // No access handler and no resolved session — must expose nothing.
         $host = new GenericAdminSurfaceHost($etm);
@@ -85,6 +87,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm = $this->createMock(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getStorage')->willReturn($storage);
+        $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
         // No access handler and no resolved session — must deny.
         $host = new GenericAdminSurfaceHost($etm);
@@ -352,6 +355,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm = $this->createMock(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getStorage')->willReturn($storage);
+        $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
         $host = new GenericAdminSurfaceHost($etm);
         $result = $host->action('event', 'nonexistent');
@@ -374,6 +378,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm = $this->createMock(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getStorage')->willReturn($storage);
+        $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
         $accessResult = AccessResult::neutral('Denied.');
         $accessHandler = $this->createMock(EntityAccessHandler::class);
@@ -410,14 +415,23 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $entity->method('id')->willReturn(1);
         $entity->method('uuid')->willReturn($uuid);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
-        // Non-numeric id => load() is skipped; resolution goes through loadByKey('uuid').
-        $storage->method('loadByKey')->with('uuid', $uuid)->willReturn($entity);
-        $storage->expects($this->once())->method('delete')->with([$entity]);
+        // Non-numeric id => find() is skipped; resolution goes through the
+        // bounded uuid query + find() (C-22 WP3: loadByKey() has no repository
+        // equivalent).
+        $query = $this->createMock(\Waaseyaa\Entity\Storage\EntityQueryInterface::class);
+        $query->method('accessCheck')->willReturnSelf();
+        $query->method('condition')->with('uuid', $uuid)->willReturnSelf();
+        $query->method('range')->willReturnSelf();
+        $query->method('execute')->willReturn(['1']);
+
+        $repository = $this->createMock(\Waaseyaa\Entity\Repository\EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
+        $repository->method('find')->with('1')->willReturn($entity);
+        $repository->expects($this->once())->method('delete')->with($entity);
 
         $etm = $this->createMock(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
-        $etm->method('getStorage')->willReturn($storage);
+        $etm->method('getRepository')->willReturn($repository);
 
         $accessHandler = $this->createMock(EntityAccessHandler::class);
         $accessHandler->method('check')->willReturn(AccessResult::allowed('ok'));
@@ -480,6 +494,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($eventType);
         $etm->method('getStorage')->willReturn($storage);
+        $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
         $accessHandler = $this->createMock(EntityAccessHandler::class);
         $accessHandler->method('check')->willReturnCallback(
@@ -557,6 +572,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($articleType);
         $etm->method('getStorage')->willReturn($storage);
+        $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
         $host = $this->permissiveHost($etm);
 
@@ -605,6 +621,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($type);
         $etm->method('getStorage')->willReturn($storage);
+        $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
         $host = $this->permissiveHost($etm);
 
@@ -654,6 +671,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($type);
         $etm->method('getStorage')->willReturn($storage);
+        $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
         $host = $this->permissiveHost($etm);
 
@@ -711,6 +729,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($contactType);
         $etm->method('getStorage')->willReturn($storage);
+        $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
         $host = $this->permissiveHost($etm);
 
@@ -766,6 +785,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($articleType);
         $etm->method('getStorage')->willReturn($storage);
+        $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
         $host = $this->permissiveHost($etm);
 
@@ -824,6 +844,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($eventType);
         $etm->method('getStorage')->willReturn($storage);
+        $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
         $host = $this->permissiveHost($etm);
 

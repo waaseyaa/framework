@@ -15,6 +15,7 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Controller\TranslationController;
 use Waaseyaa\Api\ResourceSerializer;
+use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Api\Tests\Fixtures\TranslatableTestEntity;
 use Waaseyaa\Entity\EntityInterface;
@@ -44,6 +45,7 @@ final class TranslationAccessControlTest extends TestCase
         $this->entityTypeManager = new EntityTypeManager(
             new EventDispatcher(),
             fn(\Waaseyaa\Entity\EntityTypeInterface $definition) => $this->storage,
+            fn() => new InMemoryEntityRepository($this->storage),
         );
 
         $this->entityTypeManager->registerEntityType(new EntityType(

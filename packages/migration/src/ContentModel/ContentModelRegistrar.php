@@ -100,10 +100,12 @@ final readonly class ContentModelRegistrar
             $idKey = $keys['id'] ?? 'id';
             $labelKey = $keys['label'] ?? $idKey;
 
-            $storage = $this->entityTypeManager->getStorage($bundleTypeId);
+            // C-22 WP3: read path now goes through the canonical repository.
+            // findBy([]) is the "load all" equivalent of loadMultiple() with no ids.
+            $repository = $this->entityTypeManager->getRepository($bundleTypeId);
 
             // Idempotency: skip if a config entity with this id already exists.
-            foreach ($storage->loadMultiple() as $existing) {
+            foreach ($repository->findBy([]) as $existing) {
                 if ((string) $existing->id() === $type->bundle) {
                     return;
                 }
@@ -124,7 +126,7 @@ final readonly class ContentModelRegistrar
                 $configEntity->enforceIsNew();
             }
 
-            $this->entityTypeManager->getRepository($bundleTypeId)->save($configEntity);
+            $repository->save($configEntity);
 
             $this->logger->info(\sprintf(
                 '[content-model] registered content type "%s" (%s) as %s "%s".',

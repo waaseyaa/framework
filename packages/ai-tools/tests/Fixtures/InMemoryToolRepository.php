@@ -32,6 +32,11 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
         $this->store[(string) $entity->id()] = $entity;
     }
 
+    public function create(array $values = []): EntityInterface
+    {
+        throw new \LogicException('InMemoryToolRepository does not support create().');
+    }
+
     public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
     {
         return $this->store[$id] ?? null;

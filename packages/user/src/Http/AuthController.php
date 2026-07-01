@@ -6,7 +6,6 @@ namespace Waaseyaa\User\Http;
 
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\User\User;
@@ -61,9 +60,10 @@ final class AuthController
      * the documented system-context pattern in SqlEntityStorage::loadByKey
      * (C-004). The status=1 condition still excludes blocked users.
      */
-    public function findUserByName(EntityStorageInterface $storage, EntityRepositoryInterface $repository, string $name): ?User
+    public function findUserByName(EntityRepositoryInterface $repository, string $name): ?User
     {
-        // Try by name first. C-22 WP2: the query builder now lives on the repository.
+        // Try by name first. C-22 WP2/WP3: both the query surface and the read path
+        // now live on the repository.
         $ids = $repository->getQuery()
             ->accessCheck(false)
             ->condition('name', $name)
@@ -85,7 +85,7 @@ final class AuthController
             return null;
         }
 
-        $user = $storage->load(reset($ids));
+        $user = $repository->find((string) reset($ids));
 
         return $user instanceof User ? $user : null;
     }

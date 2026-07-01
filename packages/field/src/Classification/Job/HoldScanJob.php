@@ -127,11 +127,11 @@ final class HoldScanJob
      */
     private function loadPolicies(string $action): array
     {
-        $storage = $this->entityTypeManager->getStorage('retention_policy');
         // Verification-only scan; no user account in scope. accessCheck(false)
         // is the intentional opt-out (CLAUDE.md §"Unbound getQuery() gate").
-        // C-22 WP2: the query builder now lives on the repository.
-        $ids = $this->entityTypeManager->getRepository('retention_policy')->getQuery()
+        // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
+        $repository = $this->entityTypeManager->getRepository('retention_policy');
+        $ids = $repository->getQuery()
             ->accessCheck(false)
             ->condition('action', $action)
             ->execute();
@@ -141,7 +141,7 @@ final class HoldScanJob
         }
 
         return array_values(array_filter(
-            $storage->loadMultiple($ids),
+            $repository->findMany($ids),
             static fn(EntityInterface $e): bool => $e instanceof RetentionPolicy,
         ));
     }

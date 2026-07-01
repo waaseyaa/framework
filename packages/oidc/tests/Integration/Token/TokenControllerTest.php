@@ -337,7 +337,7 @@ final class TokenControllerTest extends TestCase
         $refreshTokenIssuer = new RefreshTokenIssuer($db);
 
         return new TokenController(
-            clientLookup: new OidcClientLookup($this->storage, $this->repository),
+            clientLookup: new OidcClientLookup($this->repository),
             validator: new TokenRequestValidator(),
             pkceVerifier: new PkceVerifier(),
             codeRepository: $this->fakeCodeRepository($codes),

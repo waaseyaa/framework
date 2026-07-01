@@ -74,7 +74,7 @@ final class TwoFactorService
 
         $user->setTwoFactorSecret($secret);
         $user->setTwoFactorRecoveryCodesHash($hashes);
-        $this->entityTypeManager->getStorage('user')->save($user);
+        $this->entityTypeManager->getRepository('user')->save($user);
 
         return true;
     }
@@ -108,7 +108,7 @@ final class TwoFactorService
             }
 
             $user->setTwoFactorLastUsedStep($matchedStep);
-            $this->entityTypeManager->getStorage('user')->save($user);
+            $this->entityTypeManager->getRepository('user')->save($user);
 
             return true;
         }
@@ -118,7 +118,7 @@ final class TwoFactorService
             if (password_verify($code, $hash)) {
                 unset($hashes[$index]);
                 $user->setTwoFactorRecoveryCodesHash(array_values($hashes));
-                $this->entityTypeManager->getStorage('user')->save($user);
+                $this->entityTypeManager->getRepository('user')->save($user);
 
                 return true;
             }
@@ -136,7 +136,7 @@ final class TwoFactorService
     {
         $user->setTwoFactorSecret(null);
         $user->setTwoFactorRecoveryCodesHash(null);
-        $this->entityTypeManager->getStorage('user')->save($user);
+        $this->entityTypeManager->getRepository('user')->save($user);
     }
 
     public function isEnabled(User $user): bool

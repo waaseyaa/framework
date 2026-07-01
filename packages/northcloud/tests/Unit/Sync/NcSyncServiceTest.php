@@ -323,10 +323,10 @@ final class NcSyncServiceTest extends TestCase
                 return $this->storages[$entityTypeId];
             }
 
-            // C-22: the query builder now lives on the repository.
+            // C-22 WP2/WP3: both the query surface and the create/save path now live on the repository.
             public function getRepository(string $entityTypeId): \Waaseyaa\Entity\Repository\EntityRepositoryInterface
             {
-                return new \Waaseyaa\Entity\Testing\QueryOnlyStubRepository($this->getStorage($entityTypeId)->getQuery());
+                return new \Waaseyaa\Entity\Testing\StorageBackedStubRepository($this->getStorage($entityTypeId));
             }
         };
     }

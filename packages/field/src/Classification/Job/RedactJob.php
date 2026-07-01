@@ -76,11 +76,11 @@ final class RedactJob
      */
     private function loadRedactPolicies(): array
     {
-        $storage = $this->entityTypeManager->getStorage('retention_policy');
         // System sweep; no user account in scope. accessCheck(false) is the
         // intentional opt-out (CLAUDE.md §"Unbound getQuery() gate").
-        // C-22 WP2: the query builder now lives on the repository.
-        $ids = $this->entityTypeManager->getRepository('retention_policy')->getQuery()
+        // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
+        $repository = $this->entityTypeManager->getRepository('retention_policy');
+        $ids = $repository->getQuery()
             ->accessCheck(false)
             ->condition('action', RetentionPolicy::ACTION_REDACT)
             ->execute();
@@ -90,7 +90,7 @@ final class RedactJob
         }
 
         return array_values(array_filter(
-            $storage->loadMultiple($ids),
+            $repository->findMany($ids),
             static fn(EntityInterface $e): bool => $e instanceof RetentionPolicy,
         ));
     }
@@ -126,9 +126,9 @@ final class RedactJob
                 foreach ($piiFields as $field) {
                     $entity->set($field, null);
                 }
-                // storage->save() dispatches POST_SAVE; the entity, its id/uuid,
+                // repository->save() dispatches POST_SAVE; the entity, its id/uuid,
                 // classification label, and audit trail are all preserved (FR-011).
-                $this->entityTypeManager->getStorage($entityTypeId)->save($entity);
+                $this->entityTypeManager->getRepository($entityTypeId)->save($entity);
 
                 $this->recordRedact($policy, $entityTypeId, $uuid, $labelId, $piiFields);
                 ++$redacted;

@@ -50,7 +50,8 @@ final class EntitySearchAccessChecker implements SearchAccessChecker
             return false;
         }
 
-        $entity = $this->entityTypeManager->getStorage($entityType)->load($id);
+        // C-22 WP3: read path now goes through the canonical repository.
+        $entity = $this->entityTypeManager->getRepository($entityType)->find($id);
         if ($entity === null) {
             // Indexed entity no longer loads (deleted, or a stale index row).
             return false;

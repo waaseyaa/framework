@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Genealogy\Access\GenealogyRelationshipAccessPolicy;
@@ -30,9 +31,20 @@ final class GenealogyRelationshipAccessPolicyTest extends TestCase
             ['1', $p2],
         ]);
 
+        // C-22 WP3: read path now goes through the canonical repository.
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturnCallback(
+            static fn(string $id): ?GenealogyPerson => match ($id) {
+                '2' => $p1,
+                '1' => $p2,
+                default => null,
+            },
+        );
+
         $etm = $this->createMock(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getStorage')->willReturn($storage);
+        $etm->method('getRepository')->willReturn($repository);
 
         $handler = $this->createMock(EntityAccessHandler::class);
         $handler->method('check')->willReturn(AccessResult::allowed());
@@ -65,9 +77,20 @@ final class GenealogyRelationshipAccessPolicyTest extends TestCase
             ['1', $p2],
         ]);
 
+        // C-22 WP3: read path now goes through the canonical repository.
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturnCallback(
+            static fn(string $id): ?GenealogyPerson => match ($id) {
+                '2' => $p1,
+                '1' => $p2,
+                default => null,
+            },
+        );
+
         $etm = $this->createMock(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getStorage')->willReturn($storage);
+        $etm->method('getRepository')->willReturn($repository);
 
         $handler = $this->createMock(EntityAccessHandler::class);
         $handler->method('check')->willReturn(AccessResult::forbidden('hidden'));

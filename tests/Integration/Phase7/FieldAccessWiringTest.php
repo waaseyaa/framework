@@ -17,6 +17,7 @@ use Waaseyaa\Api\Controller\SchemaController;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Api\Schema\SchemaPresenter;
+use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
@@ -44,6 +45,7 @@ final class FieldAccessWiringTest extends TestCase
         $this->entityTypeManager = new EntityTypeManager(
             new EventDispatcher(),
             fn() => $this->storage,
+            fn() => new InMemoryEntityRepository($this->storage),
         );
 
         $this->entityType = new EntityType(

@@ -16,6 +16,7 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Controller\TranslationController;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Api\Tests\Fixtures\ConfigContentTestEntity;
+use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Api\Tests\Fixtures\ReadOnlyTranslatableTestEntity;
 use Waaseyaa\Api\Tests\Fixtures\TranslatableTestEntity;
@@ -44,6 +45,13 @@ final class TranslationControllerTest extends TestCase
                 return match ($definition->id()) {
                     'readonly' => $this->readonlyStorage,
                     default    => $this->storage,
+                };
+            },
+            // C-22 WP3: read/write path now goes through the canonical repository.
+            function (string $entityTypeId) {
+                return match ($entityTypeId) {
+                    'readonly' => new InMemoryEntityRepository($this->readonlyStorage),
+                    default    => new InMemoryEntityRepository($this->storage),
                 };
             },
         );

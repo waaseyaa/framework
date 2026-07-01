@@ -46,6 +46,7 @@ final class MediaVersionStorageDriverTest extends TestCase
             /** @var EntityInterface[] */
             public array $saved = [];
 
+            public function create(array $values = []): EntityInterface { throw new \LogicException('create() not implemented in this test double'); }
             public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return null; }
             public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
             public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }

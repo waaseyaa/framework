@@ -14,6 +14,7 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\ResourceSerializer;
+use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\EntityType;
@@ -105,6 +106,7 @@ final class JsonApiControllerDeniedNotFoundTest extends TestCase
         $entityTypeManager = new EntityTypeManager(
             new EventDispatcher(),
             static fn() => $storage,
+            static fn() => new InMemoryEntityRepository($storage),
         );
         $entityTypeManager->registerEntityType(new EntityType(
             id: 'article',

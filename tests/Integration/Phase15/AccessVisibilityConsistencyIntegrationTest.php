@@ -55,7 +55,9 @@ final class AccessVisibilityConsistencyIntegrationTest extends TestCase
             // C-22: repository factory mirroring the kernel's getRepository() shape.
             function (string $_id, EntityType $definition) use ($dispatcher, $resolver, $database): EntityRepository {
                 new SqlSchemaHandler($definition, $database)->ensureTable();
-                return new EntityRepository($definition, new SqlStorageDriver($resolver), $dispatcher, database: $database);
+                $idKey = $definition->getKeys()['id'] ?? 'id';
+
+                return new EntityRepository($definition, new SqlStorageDriver($resolver, $idKey), $dispatcher, database: $database);
             },
         );
 

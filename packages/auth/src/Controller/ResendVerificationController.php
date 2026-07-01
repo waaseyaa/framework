@@ -60,9 +60,8 @@ final class ResendVerificationController
             $this->config->tokenTtl('email_verification'),
         );
 
-        // 5. Load user from storage
-        $storage = $this->entityTypeManager->getStorage('user');
-        $entity = $storage->load($userId);
+        // 5. Load user from the canonical repository (C-22 WP3).
+        $entity = $this->entityTypeManager->getRepository('user')->find((string) $userId);
 
         /** @var \Waaseyaa\User\User|null $user */
         $user = $entity;

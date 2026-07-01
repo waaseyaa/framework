@@ -15,9 +15,9 @@ use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\Tests\Helper\TestEntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
-use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
 
 #[CoversClass(SearchController::class)]
 final class SearchControllerTest extends TestCase
@@ -29,10 +29,13 @@ final class SearchControllerTest extends TestCase
         $entityB = new SearchEntity(2, 'node', ['title' => 'B']);
 
         $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->expects($this->once())
-            ->method('loadMultiple')
+
+        // C-22 WP3: read path now goes through the canonical repository.
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects($this->once())
+            ->method('findMany')
             ->with([2, 1])
-            ->willReturn([1 => $entityA, 2 => $entityB]);
+            ->willReturn([$entityB, $entityA]);
 
         $definition = TestEntityType::stub(
             id: 'node',
@@ -45,6 +48,7 @@ final class SearchControllerTest extends TestCase
         $manager = $this->createMock(EntityTypeManagerInterface::class);
         $manager->method('hasDefinition')->willReturnCallback(static fn(string $id): bool => $id === 'node');
         $manager->method('getStorage')->willReturn($storage);
+        $manager->method('getRepository')->willReturn($repository);
         $manager->method('getDefinition')->willReturn($definition);
 
         $provider = $this->createMock(EmbeddingProviderInterface::class);
@@ -111,10 +115,6 @@ final class SearchControllerTest extends TestCase
 
         $storage = $this->createMock(EntityStorageInterface::class);
         $storage->method('getQuery')->willReturn($query);
-        $storage->expects($this->once())
-            ->method('loadMultiple')
-            ->with([5, 6])
-            ->willReturn([5 => $entityA, 6 => $entityB]);
 
         $definition = TestEntityType::stub(
             id: 'node',
@@ -124,12 +124,19 @@ final class SearchControllerTest extends TestCase
             fieldDefinitions: ['title' => ['type' => 'string']],
         );
 
+        // C-22 WP3: read path now goes through the canonical repository.
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
+        $repository->expects($this->once())
+            ->method('findMany')
+            ->with([5, 6])
+            ->willReturn([$entityA, $entityB]);
+
         $manager = $this->createMock(EntityTypeManagerInterface::class);
         $manager->method('hasDefinition')->willReturnCallback(static fn(string $id): bool => $id === 'node');
         $manager->method('getStorage')->willReturn($storage);
         $manager->method('getDefinition')->willReturn($definition);
-        // C-22: the query builder now lives on the repository.
-        $manager->method('getRepository')->willReturn(new QueryOnlyStubRepository($query));
+        $manager->method('getRepository')->willReturn($repository);
 
         $embeddingStorage = $this->createMock(EmbeddingStorageInterface::class);
         $embeddingStorage->expects($this->never())->method('findSimilar');
@@ -175,10 +182,6 @@ final class SearchControllerTest extends TestCase
 
         $storage = $this->createMock(EntityStorageInterface::class);
         $storage->method('getQuery')->willReturn($query);
-        $storage->expects($this->once())
-            ->method('loadMultiple')
-            ->with([42])
-            ->willReturn([42 => $entity]);
 
         $definition = TestEntityType::stub(
             id: 'node',
@@ -188,12 +191,19 @@ final class SearchControllerTest extends TestCase
             fieldDefinitions: ['title' => ['type' => 'string']],
         );
 
+        // C-22 WP3: read path now goes through the canonical repository.
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
+        $repository->expects($this->once())
+            ->method('findMany')
+            ->with([42])
+            ->willReturn([$entity]);
+
         $manager = $this->createMock(EntityTypeManagerInterface::class);
         $manager->method('hasDefinition')->willReturnCallback(static fn(string $id): bool => $id === 'node');
         $manager->method('getStorage')->willReturn($storage);
         $manager->method('getDefinition')->willReturn($definition);
-        // C-22: the query builder now lives on the repository.
-        $manager->method('getRepository')->willReturn(new QueryOnlyStubRepository($query));
+        $manager->method('getRepository')->willReturn($repository);
 
         $provider = $this->createMock(EmbeddingProviderInterface::class);
         $provider->expects($this->once())
@@ -227,10 +237,13 @@ final class SearchControllerTest extends TestCase
         $entityB = new SearchEntity(2, 'node', ['title' => 'B']);
 
         $nodeStorage = $this->createMock(EntityStorageInterface::class);
-        $nodeStorage->expects($this->once())
-            ->method('loadMultiple')
+
+        // C-22 WP3: read path now goes through the canonical repository.
+        $nodeRepository = $this->createMock(EntityRepositoryInterface::class);
+        $nodeRepository->expects($this->once())
+            ->method('findMany')
             ->with([2, 1])
-            ->willReturn([1 => $entityA, 2 => $entityB]);
+            ->willReturn([$entityB, $entityA]);
 
         $relationshipQuery = new class implements EntityQueryInterface {
             public function condition(string $field, mixed $value, string $operator = '='): static { return $this; }
@@ -245,12 +258,15 @@ final class SearchControllerTest extends TestCase
         };
 
         $relationshipStorage = $this->createMock(EntityStorageInterface::class);
-        $relationshipStorage->method('getQuery')->willReturn($relationshipQuery);
-        $relationshipStorage->expects($this->once())
-            ->method('loadMultiple')
+
+        // C-22 WP3: read path now goes through the canonical repository.
+        $relationshipRepository = $this->createMock(EntityRepositoryInterface::class);
+        $relationshipRepository->method('getQuery')->willReturn($relationshipQuery);
+        $relationshipRepository->expects($this->once())
+            ->method('findMany')
             ->with([99])
             ->willReturn([
-                99 => new SearchEntity(99, 'relationship', [
+                new SearchEntity(99, 'relationship', [
                     'status' => 1,
                     'from_entity_type' => 'node',
                     'from_entity_id' => '2',
@@ -273,10 +289,12 @@ final class SearchControllerTest extends TestCase
             static fn(string $id): EntityStorageInterface => $id === 'relationship' ? $relationshipStorage : $nodeStorage,
         );
         $manager->method('getDefinition')->willReturn($definition);
-        // C-22: the query builder now lives on the repository. 'node' repository's
-        // getQuery() is never invoked in this test (semantic mode succeeds, so
-        // keywordSearchIds is skipped) — only the 'relationship' rerank query matters.
-        $manager->method('getRepository')->willReturn(new QueryOnlyStubRepository($relationshipQuery));
+        // 'node' repository's getQuery() is never invoked in this test (semantic
+        // mode succeeds, so keywordSearchIds is skipped) — only findMany() for
+        // the reranked node ids, and the 'relationship' rerank query, matter.
+        $manager->method('getRepository')->willReturnCallback(
+            static fn(string $id): EntityRepositoryInterface => $id === 'relationship' ? $relationshipRepository : $nodeRepository,
+        );
 
         $provider = $this->createMock(EmbeddingProviderInterface::class);
         $provider->expects($this->once())->method('embed')->with('water')->willReturn([0.1, 0.2]);

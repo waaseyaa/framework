@@ -89,8 +89,9 @@ final class FieldAutoSaveController
             return $this->error(404, 'entity_type_not_found', "Unknown entity type '{$entityType}'");
         }
 
-        $storage = $this->entityTypeManager->getStorage($entityType);
-        $entity = $storage->load($id);
+        // C-22 WP3: read/write path now goes through the canonical repository.
+        $repository = $this->entityTypeManager->getRepository($entityType);
+        $entity = $repository->find($id);
         if ($entity === null) {
             return $this->error(404, 'entity_not_found', "Entity '{$entityType}/{$id}' not found");
         }
@@ -129,7 +130,7 @@ final class FieldAutoSaveController
 
         // 9. Persist.
         $entity->set($key, $body['value']);
-        $storage->save($entity);
+        $repository->save($entity);
 
         // 10. 200 response per contracts/README.md F3.
         return new JsonApiResponse([

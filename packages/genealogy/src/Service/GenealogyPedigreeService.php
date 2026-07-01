@@ -8,7 +8,6 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Genealogy\Entity\GenealogyPerson;
 use Waaseyaa\Genealogy\GenealogyLivingSemantics;
 use Waaseyaa\Genealogy\GenealogyRelationshipType;
@@ -28,9 +27,9 @@ final class GenealogyPedigreeService
      */
     public function parentPersonIds(string $personId, ?AccountInterface $account = null): array
     {
-        $storage = $this->relationshipStorage();
-        // C-22 WP2: the account-filtered query surface now lives on the repository.
-        $q = $this->relationshipRepository()->getQuery();
+        // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
+        $repository = $this->relationshipRepository();
+        $q = $repository->getQuery();
         if ($account !== null) {
             $q->setAccount($account);
         } else {
@@ -42,7 +41,7 @@ final class GenealogyPedigreeService
         $q->condition('to_entity_id', $personId);
         $q->condition('from_entity_type', 'genealogy_person');
 
-        return $this->sortedPersonIdsFromRelationships($storage, $q->execute(), static function (Relationship $r): string {
+        return $this->sortedPersonIdsFromRelationships($repository, $q->execute(), static function (Relationship $r): string {
             return (string) $r->get('from_entity_id');
         });
     }
@@ -52,9 +51,9 @@ final class GenealogyPedigreeService
      */
     public function childPersonIds(string $personId, ?AccountInterface $account = null): array
     {
-        $storage = $this->relationshipStorage();
-        // C-22 WP2: the account-filtered query surface now lives on the repository.
-        $q = $this->relationshipRepository()->getQuery();
+        // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
+        $repository = $this->relationshipRepository();
+        $q = $repository->getQuery();
         if ($account !== null) {
             $q->setAccount($account);
         } else {
@@ -66,7 +65,7 @@ final class GenealogyPedigreeService
         $q->condition('from_entity_id', $personId);
         $q->condition('to_entity_type', 'genealogy_person');
 
-        return $this->sortedPersonIdsFromRelationships($storage, $q->execute(), static function (Relationship $r): string {
+        return $this->sortedPersonIdsFromRelationships($repository, $q->execute(), static function (Relationship $r): string {
             return (string) $r->get('to_entity_id');
         });
     }
@@ -76,9 +75,9 @@ final class GenealogyPedigreeService
      */
     public function spousePersonIds(string $personId, ?AccountInterface $account = null): array
     {
-        $storage = $this->relationshipStorage();
+        $repository = $this->relationshipRepository();
         $ids = [];
-        foreach ($this->edgesForSpouse($storage, $personId, $account) as $edge) {
+        foreach ($this->edgesForSpouse($repository, $personId, $account) as $edge) {
             $other = $this->otherPersonId($edge, $personId);
             if ($other !== null) {
                 $ids[] = $other;
@@ -200,14 +199,10 @@ final class GenealogyPedigreeService
 
     public function loadPerson(string $id): ?GenealogyPerson
     {
-        $entity = $this->entityTypeManager->getStorage('genealogy_person')->load($id);
+        // C-22 WP3: read path now goes through the canonical repository.
+        $entity = $this->entityTypeManager->getRepository('genealogy_person')->find($id);
 
         return $entity instanceof GenealogyPerson ? $entity : null;
-    }
-
-    private function relationshipStorage(): EntityStorageInterface
-    {
-        return $this->entityTypeManager->getStorage('relationship');
     }
 
     private function relationshipRepository(): EntityRepositoryInterface
@@ -221,7 +216,7 @@ final class GenealogyPedigreeService
      * @return list<string>
      */
     private function sortedPersonIdsFromRelationships(
-        EntityStorageInterface $storage,
+        EntityRepositoryInterface $repository,
         array $relationshipIds,
         callable $extractPersonId,
     ): array {
@@ -229,7 +224,7 @@ final class GenealogyPedigreeService
             return [];
         }
 
-        $entities = $storage->loadMultiple($relationshipIds);
+        $entities = $repository->findMany(array_map(strval(...), $relationshipIds));
         $ids = [];
         foreach ($entities as $entity) {
             if ($entity instanceof Relationship) {
@@ -243,11 +238,11 @@ final class GenealogyPedigreeService
     /**
      * @return iterable<Relationship>
      */
-    private function edgesForSpouse(EntityStorageInterface $storage, string $personId, ?AccountInterface $account = null): iterable
+    private function edgesForSpouse(EntityRepositoryInterface $repository, string $personId, ?AccountInterface $account = null): iterable
     {
         foreach (['from_entity_id', 'to_entity_id'] as $field) {
             // C-22 WP2: the account-filtered query surface now lives on the repository.
-            $q = $this->relationshipRepository()->getQuery();
+            $q = $repository->getQuery();
             if ($account !== null) {
                 $q->setAccount($account);
             } else {
@@ -262,7 +257,7 @@ final class GenealogyPedigreeService
             if ($ids === []) {
                 continue;
             }
-            foreach ($storage->loadMultiple($ids) as $rel) {
+            foreach ($repository->findMany(array_map(strval(...), $ids)) as $rel) {
                 if ($rel instanceof Relationship) {
                     yield $rel;
                 }

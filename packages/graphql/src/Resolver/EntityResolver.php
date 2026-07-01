@@ -54,8 +54,7 @@ final class EntityResolver
      */
     public function resolveList(string $entityTypeId, array $args): array
     {
-        $storage = $this->entityTypeManager->getStorage($entityTypeId);
-        // C-22 WP2: the query builder now lives on the repository.
+        // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
         $repository = $this->entityTypeManager->getRepository($entityTypeId);
 
         $filters = $this->parseFilters($args);
@@ -82,7 +81,7 @@ final class EntityResolver
             $countIds = $countQuery->execute();
             $total = 0;
             if ($countIds !== []) {
-                foreach ($storage->loadMultiple($countIds) as $countEntity) {
+                foreach ($repository->findMany($countIds) as $countEntity) {
                     if ($this->guard->canView($countEntity)) {
                         ++$total;
                     }
@@ -120,7 +119,7 @@ final class EntityResolver
         $mainQuery = $applier->apply($parsedQuery, $baseQuery);
         $ids = $mainQuery->execute();
 
-        $entities = $ids !== [] ? $storage->loadMultiple($ids) : [];
+        $entities = $ids !== [] ? $repository->findMany($ids) : [];
 
         // Post-fetch access filtering
         $items = [];
@@ -171,8 +170,9 @@ final class EntityResolver
 
         $input = $this->injectAccountContext($entityTypeId, $input);
 
-        $storage = $this->entityTypeManager->getStorage($entityTypeId);
-        $entity = $storage->create($input);
+        // C-22 WP3: create/save now go through the canonical repository.
+        $repository = $this->entityTypeManager->getRepository($entityTypeId);
+        $entity = $repository->create($input);
 
         foreach (array_keys($input) as $fieldName) {
             $this->guard->assertFieldEditAccess($entity, $fieldName);
@@ -181,7 +181,7 @@ final class EntityResolver
         if ($entity instanceof EntityBase) {
             $entity->enforceIsNew();
         }
-        $storage->save($entity);
+        $repository->save($entity);
 
         $values = EntityValues::toCastAwareMap($entity);
         $values['_graphql_depth'] = 0;
@@ -213,8 +213,8 @@ final class EntityResolver
             $entity->set($field, $value);
         }
 
-        $storage = $this->entityTypeManager->getStorage($entityTypeId);
-        $storage->save($entity);
+        // C-22 WP3: save path now goes through the canonical repository.
+        $this->entityTypeManager->getRepository($entityTypeId)->save($entity);
 
         $values = EntityValues::toCastAwareMap($entity);
         $values['_graphql_depth'] = 0;
@@ -231,15 +231,16 @@ final class EntityResolver
 
         $this->guard->assertDeleteAccess($entity);
 
-        $storage = $this->entityTypeManager->getStorage($entityTypeId);
-        $storage->delete([$entity]);
+        // C-22 WP3: delete path now goes through the canonical repository.
+        $this->entityTypeManager->getRepository($entityTypeId)->delete($entity);
 
         return true;
     }
 
     private function loadEntity(string $entityTypeId, int|string $id): ?EntityInterface
     {
-        $storage = $this->entityTypeManager->getStorage($entityTypeId);
+        // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
+        $repository = $this->entityTypeManager->getRepository($entityTypeId);
         $definition = $this->entityTypeManager->getDefinition($entityTypeId);
         $keys = $definition->getKeys();
 
@@ -247,8 +248,7 @@ final class EntityResolver
         if (is_string($id) && isset($keys['uuid'])
             && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $id)
         ) {
-            // C-22 WP2: the query builder now lives on the repository.
-            $uuidQuery = $this->entityTypeManager->getRepository($entityTypeId)->getQuery()->condition($keys['uuid'], $id);
+            $uuidQuery = $repository->getQuery()->condition($keys['uuid'], $id);
             if ($this->account !== null) {
                 $uuidQuery = $uuidQuery->setAccount($this->account);
             } else {
@@ -259,10 +259,10 @@ final class EntityResolver
             if ($ids === []) {
                 return null;
             }
-            return $storage->load(reset($ids));
+            return $repository->find((string) reset($ids));
         }
 
-        return $storage->load(is_numeric($id) ? (int) $id : $id);
+        return $repository->find((string) $id);
     }
 
     /**

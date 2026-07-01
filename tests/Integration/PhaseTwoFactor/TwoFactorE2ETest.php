@@ -20,6 +20,7 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 use Waaseyaa\User\User;
 
 /**
@@ -263,7 +264,8 @@ final class TwoFactorE2ETest extends TestCase
             }
             public function getRepository(string $entityTypeId): EntityRepositoryInterface
             {
-                throw new \BadMethodCallException();
+                // C-22 WP3: read/write path now goes through the canonical repository.
+                return new StorageBackedStubRepository($this->storage);
             }
         };
     }

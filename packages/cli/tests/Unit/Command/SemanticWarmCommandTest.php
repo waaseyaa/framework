@@ -17,9 +17,9 @@ use Waaseyaa\CLI\Provider\IngestSearchSemanticServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
-use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
 
 #[CoversClass(SemanticWarmHandler::class)]
 final class SemanticWarmCommandTest extends TestCase
@@ -89,13 +89,16 @@ final class SemanticWarmCommandTest extends TestCase
 
         $storage = $this->createMock(EntityStorageInterface::class);
         $storage->method('getQuery')->willReturn($query);
-        $storage->method('loadMultiple')->with([1])->willReturn([1 => $entity]);
+
+        // C-22 WP3: read path now goes through the canonical repository.
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
+        $repository->method('findMany')->with([1])->willReturn([$entity]);
 
         $manager = $this->createMock(EntityTypeManagerInterface::class);
         $manager->method('hasDefinition')->with('node')->willReturn(true);
         $manager->method('getStorage')->with('node')->willReturn($storage);
-        // C-22: the query builder now lives on the repository.
-        $manager->method('getRepository')->with('node')->willReturn(new QueryOnlyStubRepository($query));
+        $manager->method('getRepository')->with('node')->willReturn($repository);
 
         $embeddingProvider = $this->createMock(EmbeddingProviderInterface::class);
         $embeddingProvider->method('embed')->willReturn([0.2, 0.4]);

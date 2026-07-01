@@ -77,7 +77,8 @@ final class GenealogyRelationshipAccessPolicy implements AccessPolicyInterface
             return null;
         }
 
-        $loaded = $this->entityTypeManager->getStorage($entityTypeId)->load($id);
+        // C-22 WP3: read path now goes through the canonical repository.
+        $loaded = $this->entityTypeManager->getRepository($entityTypeId)->find($id);
 
         return $loaded instanceof EntityInterface ? $loaded : null;
     }

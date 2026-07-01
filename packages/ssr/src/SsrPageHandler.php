@@ -137,7 +137,6 @@ final class SsrPageHandler
             $entityId = null;
             if (class_exists(PathAliasResolver::class) && $this->entityTypeManager->hasDefinition('path_alias')) {
                 $aliasResolver = new PathAliasResolver(
-                    $this->entityTypeManager->getStorage('path_alias'),
                     $this->entityTypeManager->getRepository('path_alias'),
                 );
                 $resolved = $aliasResolver->resolve($aliasLookupPath, $contentLangcode);
@@ -765,15 +764,15 @@ final class SsrPageHandler
      */
     private function loadByIdOrUuid(string $entityTypeId, int|string $id): ?EntityInterface
     {
-        $storage = $this->entityTypeManager->getStorage($entityTypeId);
+        // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
+        $repository = $this->entityTypeManager->getRepository($entityTypeId);
         $keys = $this->entityTypeManager->getDefinition($entityTypeId)->getKeys();
 
         if (
             isset($keys['uuid'])
             && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', (string) $id) === 1
         ) {
-            // C-22 WP2: the query builder now lives on the repository.
-            $ids = $this->entityTypeManager->getRepository($entityTypeId)->getQuery()
+            $ids = $repository->getQuery()
                 ->accessCheck(false)
                 ->condition($keys['uuid'], (string) $id)
                 ->execute();
@@ -781,10 +780,10 @@ final class SsrPageHandler
                 return null;
             }
 
-            return $storage->load(reset($ids));
+            return $repository->find((string) reset($ids));
         }
 
-        return $storage->load($id);
+        return $repository->find((string) $id);
     }
 
     /**

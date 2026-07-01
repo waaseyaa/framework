@@ -57,7 +57,7 @@ final class OidcClientLookupTest extends TestCase
             database: $database,
         );
 
-        $this->lookup = new OidcClientLookup($this->storage, $repository);
+        $this->lookup = new OidcClientLookup($repository);
     }
 
     public function testReturnsNullWhenClientIdNotFound(): void

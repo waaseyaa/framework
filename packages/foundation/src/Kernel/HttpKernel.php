@@ -421,19 +421,20 @@ final class HttpKernel extends AbstractKernel
      */
     private function buildMiddlewareStack(): HttpPipeline
     {
-        $userStorage = $this->entityTypeManager->getStorage('user');
+        // C-22 WP3: read path now goes through the canonical repository.
+        $userRepository = $this->entityTypeManager->getRepository('user');
         $gate = new EntityAccessGate($this->accessHandler);
         $accessChecker = new AccessChecker(gate: $gate);
         $errorPageRenderer = $this->resolveErrorPageRenderer();
 
         $middlewares = [
             new BearerAuthMiddleware(
-                $userStorage,
+                $userRepository,
                 (string) ($this->config['jwt_secret'] ?? ''),
                 is_array($this->config['api_keys'] ?? null) ? $this->config['api_keys'] : [],
             ),
             new SessionMiddleware(
-                $userStorage,
+                $userRepository,
                 $this->shouldUseDevFallbackAccount() ? new DevAdminAccount() : null,
                 $this->logger,
                 $this->sessionCookieOptions(),

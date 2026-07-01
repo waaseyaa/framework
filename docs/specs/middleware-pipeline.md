@@ -190,7 +190,7 @@ $response->send();
 Behavior:
 1. If `session.cookie` options are configured (see `HttpKernel` / `config/waaseyaa.php`), applies matching `ini_set` calls for `session.cookie_*` and `session.use_strict_mode` **before** `session_start()`. Supported keys: `httponly` (bool), `secure` (bool or `'auto'` to enable only when the request is HTTPS or `X-Forwarded-Proto: https`), `samesite` (string), `use_strict_mode` (bool).
 2. Reads `$_SESSION['waaseyaa_uid']` (or `$request->attributes->get('_session')` for testability).
-3. Loads `User` entity via `EntityStorageInterface::load($uid)`.
+3. Loads `User` entity via `EntityRepositoryInterface::find($uid)`.
 4. Falls back to `AnonymousUser` if uid is null, user not found, or storage throws.
 5. Sets `AccountInterface` instance on `$request->attributes->set('_account', $account)`.
 6. Calls `$next->handle($request)`.
@@ -328,7 +328,7 @@ All HTTP middleware implement `HttpMiddlewareInterface` and use `#[AsMiddleware(
 | 70 | `BodySizeLimitMiddleware` | foundation | Rejects payloads over max bytes (413). Constructor: `(int $maxBytes = 1_048_576)` |
 | 60 | `RequestLoggingMiddleware` | foundation | Logs method, URI, status, duration. Constructor: `(?Closure $logger = null)` |
 | 50 | `ETagMiddleware` | foundation | ETag generation + 304 Not Modified for GET/HEAD |
-| 40 | `BearerAuthMiddleware` | user | JWT and API key auth via Bearer header. Constructor: `(EntityStorageInterface, string $jwtSecret, array $apiKeys, ?LoggerInterface)` |
+| 40 | `BearerAuthMiddleware` | user | JWT and API key auth via Bearer header. Constructor: `(EntityRepositoryInterface, string $jwtSecret, array $apiKeys, ?LoggerInterface)` |
 | 30 | `SessionMiddleware` | user | Resolves `AccountInterface` from session |
 | 20 | `CsrfMiddleware` | user | Double-submit / header CSRF validation for state-changing non-JSON requests |
 | 10 | `AuthorizationMiddleware` | access | Route-level access enforcement via `AccessChecker` |

@@ -16,7 +16,7 @@ use Waaseyaa\Config\ConfigManagerInterface;
 use Waaseyaa\Config\StorageInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 
 #[CoversClass(InstallHandler::class)]
 final class InstallHandlerTest extends TestCase
@@ -66,17 +66,17 @@ final class InstallHandlerTest extends TestCase
 
         $mockEntity = $this->createMock(EntityInterface::class);
 
-        $mockEntityStorage = $this->createMock(EntityStorageInterface::class);
-        $mockEntityStorage->expects($this->once())
+        $mockEntityRepository = $this->createMock(EntityRepositoryInterface::class);
+        $mockEntityRepository->expects($this->once())
             ->method('create')
             ->with($this->callback(static function (array $values): bool {
                 return $values['name'] === 'admin' && $values['roles'] === ['administrator'];
             }))
             ->willReturn($mockEntity);
-        $mockEntityStorage->expects($this->once())->method('save');
+        $mockEntityRepository->expects($this->once())->method('save');
 
         $mockEntityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
-        $mockEntityTypeManager->method('getStorage')->with('user')->willReturn($mockEntityStorage);
+        $mockEntityTypeManager->method('getRepository')->with('user')->willReturn($mockEntityRepository);
 
         $handler = new InstallHandler(
             entityTypeManager: $mockEntityTypeManager,
@@ -106,12 +106,12 @@ final class InstallHandlerTest extends TestCase
 
         $mockEntity = $this->createMock(EntityInterface::class);
 
-        $mockEntityStorage = $this->createMock(EntityStorageInterface::class);
-        $mockEntityStorage->method('create')->willReturn($mockEntity);
-        $mockEntityStorage->method('save');
+        $mockEntityRepository = $this->createMock(EntityRepositoryInterface::class);
+        $mockEntityRepository->method('create')->willReturn($mockEntity);
+        $mockEntityRepository->method('save');
 
         $mockEntityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
-        $mockEntityTypeManager->method('getStorage')->willReturn($mockEntityStorage);
+        $mockEntityTypeManager->method('getRepository')->willReturn($mockEntityRepository);
 
         $handler = new InstallHandler(
             entityTypeManager: $mockEntityTypeManager,

@@ -18,6 +18,17 @@ use Waaseyaa\Entity\Storage\EntityQueryInterface;
 interface EntityRepositoryInterface
 {
     /**
+     * Construct a new, unsaved entity of this repository's type.
+     *
+     * Applies registered field-definition defaults for any key absent from
+     * $values, then hydrates the entity class and marks it new (isNew()). Pure
+     * object construction — no I/O. Callers must still call save() to persist.
+     *
+     * @param array<string, mixed> $values
+     */
+    public function create(array $values = []): EntityInterface;
+
+    /**
      * Find an entity by ID.
      *
      * @param string $id The entity ID.
@@ -77,6 +88,7 @@ interface EntityRepositoryInterface
      * @param bool $validate Whether to run pre-save validation.
      * @return int SAVED_NEW (1) or SAVED_UPDATED (2).
      * @throws \Waaseyaa\Entity\Validation\EntityValidationException If validation fails.
+     * @throws \Doctrine\DBAL\Exception\UniqueConstraintViolationException If a unique constraint (e.g. duplicate id/uuid) is violated.
      */
     public function save(EntityInterface $entity, bool $validate = true): int;
 

@@ -178,9 +178,8 @@ final class TranslationController
             }
         }
 
-        // Save the entity with its new translation.
-        $storage = $this->entityTypeManager->getStorage($entityTypeId);
-        $storage->save($entity);
+        // Save the entity with its new translation (C-22 WP3: canonical repository).
+        $this->entityTypeManager->getRepository($entityTypeId)->save($entity);
 
         $resource = $this->serializer->serialize($translation);
         $resource = new JsonApiResource(
@@ -247,8 +246,8 @@ final class TranslationController
             }
         }
 
-        $storage = $this->entityTypeManager->getStorage($entityTypeId);
-        $storage->save($entity);
+        // C-22 WP3: canonical repository.
+        $this->entityTypeManager->getRepository($entityTypeId)->save($entity);
 
         $resource = $this->serializer->serialize($translation);
         $resource = new JsonApiResource(
@@ -301,8 +300,8 @@ final class TranslationController
 
         // removeTranslation is now part of TranslatableInterface — call it directly.
         $entity->removeTranslation($langcode);
-        $storage = $this->entityTypeManager->getStorage($entityTypeId);
-        $storage->save($entity);
+        // C-22 WP3: canonical repository.
+        $this->entityTypeManager->getRepository($entityTypeId)->save($entity);
 
         return JsonApiDocument::empty(
             meta: ['deleted' => true, 'langcode' => $langcode],
@@ -379,8 +378,8 @@ final class TranslationController
             );
         }
 
-        $storage = $this->entityTypeManager->getStorage($entityTypeId);
-        $entity = $storage->load($id);
+        // C-22 WP3: read path now goes through the canonical repository.
+        $entity = $this->entityTypeManager->getRepository($entityTypeId)->find((string) $id);
 
         if ($entity === null) {
             throw new JsonApiDocumentException(

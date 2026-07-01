@@ -16,9 +16,9 @@ use Waaseyaa\AI\Vector\SearchController;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
-use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
 use Waaseyaa\Foundation\Http\Router\SearchRouter;
 
 /**
@@ -223,8 +223,11 @@ final class SemanticSearchAccessTest extends TestCase
 
         $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('getQuery')->willReturn($query);
-        $storage->method('loadMultiple')
-            ->willReturn([1 => $node1, 2 => $node2]);
+
+        // C-22 WP3: read path now goes through the canonical repository.
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
+        $repository->method('findMany')->willReturn([$node1, $node2]);
 
         $entityType = new EntityType(
             id: 'node',
@@ -236,8 +239,7 @@ final class SemanticSearchAccessTest extends TestCase
         $manager = $this->createStub(\Waaseyaa\Entity\EntityTypeManagerInterface::class);
         $manager->method('hasDefinition')->willReturnCallback(static fn(string $id): bool => $id === 'node');
         $manager->method('getStorage')->willReturn($storage);
-        // C-22: the query builder now lives on the repository.
-        $manager->method('getRepository')->willReturn(new QueryOnlyStubRepository($query));
+        $manager->method('getRepository')->willReturn($repository);
         $manager->method('getDefinition')->willReturn($entityType);
 
         // Embedding storage never called (no provider → keyword fallback)

@@ -80,9 +80,11 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
             // — same lazy accessHandlerResolver the storage factory threads above.
             function (string $_id, EntityType $definition) use ($dispatcher, $resolver): EntityRepository {
                 new SqlSchemaHandler($definition, $this->database)->ensureTable();
+                $idKey = $definition->getKeys()['id'] ?? 'id';
+
                 return new EntityRepository(
                     $definition,
-                    new SqlStorageDriver($resolver),
+                    new SqlStorageDriver($resolver, $idKey),
                     $dispatcher,
                     database: $this->database,
                     accessHandlerResolver: fn(): ?EntityAccessHandler => $this->accessHandler ?? null,

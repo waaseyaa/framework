@@ -15,8 +15,8 @@ use Waaseyaa\GraphQL\Access\GraphQlAccessGuard;
  * Matches the usual DataLoader contract at a high level: enqueue many
  * independent loads during the same resolver wave, flush once per entity
  * type when {@see Deferred} completes, then satisfy each deferred callback
- * from an in-memory map. Uses {@see EntityTypeManagerInterface::getStorage()}
- * and {@see \Waaseyaa\Entity\Storage\EntityStorageInterface::loadMultiple()}
+ * from an in-memory map. Uses {@see EntityTypeManagerInterface::getRepository()}
+ * and {@see \Waaseyaa\Entity\Repository\EntityRepositoryInterface::findMany()}
  * so each type sees one SQL round-trip per queue flush instead of N.
  *
  * Lifecycle: construct a new instance per GraphQL request (see
@@ -94,8 +94,13 @@ final class ReferenceLoader
         );
 
         if ($toLoad !== []) {
-            $storage = $this->entityTypeManager->getStorage($entityTypeId);
-            $entities = $storage->loadMultiple(array_values($toLoad));
+            // C-22 WP3: read path now goes through the canonical repository.
+            // findMany() returns a plain list; re-key by id to preserve the lookup below.
+            $repository = $this->entityTypeManager->getRepository($entityTypeId);
+            $entities = [];
+            foreach ($repository->findMany(array_values($toLoad)) as $loadedEntity) {
+                $entities[$loadedEntity->id()] = $loadedEntity;
+            }
             foreach ($toLoad as $id) {
                 $this->loaded[$entityTypeId][$id] = $entities[$id] ?? null;
             }

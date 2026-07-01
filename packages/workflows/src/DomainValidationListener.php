@@ -102,8 +102,8 @@ final class DomainValidationListener
 
     private function assertWorkflowTransitionAllowed(string $bundle, string $entityId, string $nextState): void
     {
-        $nodeStorage = $this->entityTypeManager->getStorage('node');
-        $existing = $nodeStorage->load(ctype_digit($entityId) ? (int) $entityId : $entityId);
+        // C-22 WP3: read path now goes through the canonical repository.
+        $existing = $this->entityTypeManager->getRepository('node')->find($entityId);
         if ($existing === null) {
             return;
         }
@@ -129,9 +129,9 @@ final class DomainValidationListener
 
     private function assertTitleUniqueInBundle(string $bundle, string $title, int|string|null $entityId): void
     {
-        $nodeStorage = $this->entityTypeManager->getStorage('node');
-        // C-22 WP2: the query builder now lives on the repository.
-        $ids = $this->entityTypeManager->getRepository('node')->getQuery()
+        // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
+        $repository = $this->entityTypeManager->getRepository('node');
+        $ids = $repository->getQuery()
             ->condition('type', $bundle)
             // system context: workflow validator runs inside save transaction; needs unrestricted read
             ->accessCheck(false)
@@ -141,7 +141,7 @@ final class DomainValidationListener
         }
 
         $normalized = mb_strtolower($title);
-        $existing = $nodeStorage->loadMultiple($ids);
+        $existing = $repository->findMany($ids);
         foreach ($existing as $node) {
             if ($entityId !== null && (string) $node->id() === (string) $entityId) {
                 continue;

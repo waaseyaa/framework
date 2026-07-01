@@ -8,8 +8,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Note\Ingestion\IngestionEnvelope;
 use Waaseyaa\Note\Ingestion\NoteIngester;
 use Waaseyaa\Note\Note;
@@ -18,13 +18,13 @@ use Waaseyaa\Note\Note;
 #[CoversClass(IngestionEnvelope::class)]
 final class NoteIngesterTest extends TestCase
 {
-    private CapturingStorage $storage;
+    private CapturingRepository $repository;
     private NoteIngester $ingester;
 
     protected function setUp(): void
     {
-        $this->storage = new CapturingStorage();
-        $this->ingester = new NoteIngester($this->storage);
+        $this->repository = new CapturingRepository();
+        $this->ingester = new NoteIngester($this->repository);
     }
 
     #[Test]
@@ -59,7 +59,7 @@ final class NoteIngesterTest extends TestCase
 
         $this->ingester->ingest($envelope);
 
-        $this->assertTrue($this->storage->saveCalled);
+        $this->assertTrue($this->repository->saveCalled);
     }
 
     #[Test]
@@ -98,7 +98,7 @@ final class NoteIngesterTest extends TestCase
 // Test double
 // ---------------------------------------------------------------------------
 
-final class CapturingStorage implements EntityStorageInterface
+final class CapturingRepository implements EntityRepositoryInterface
 {
     public bool $saveCalled = false;
 
@@ -109,24 +109,65 @@ final class CapturingStorage implements EntityStorageInterface
         return $note;
     }
 
-    public function save(EntityInterface $entity): int
+    public function save(EntityInterface $entity, bool $validate = true): int
     {
         $this->saveCalled = true;
         return 1;
     }
 
-    public function load(int|string $id): ?EntityInterface { return null; }
+    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return null; }
 
-    public function loadByKey(string $key, mixed $value): ?EntityInterface { return null; }
+    public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
 
-    public function loadMultiple(array $ids = []): array { return []; }
+    public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
 
-    public function delete(array $entities): void {}
+    public function delete(EntityInterface $entity): void {}
+
+    public function deleteMany(array $entities): int { return 0; }
+
+    public function saveMany(array $entities, bool $validate = true): array { return []; }
+
+    public function exists(string $id): bool { return false; }
+
+    public function count(array $criteria = []): int { return 0; }
 
     public function getQuery(): EntityQueryInterface
     {
         throw new \LogicException('Not implemented in test double.');
     }
 
-    public function getEntityTypeId(): string { return 'note'; }
+    public function loadRevision(string $entityId, int $revisionId): ?EntityInterface
+    {
+        throw new \LogicException('Not implemented in test double.');
+    }
+
+    public function rollback(string $entityId, int $targetRevisionId): EntityInterface
+    {
+        throw new \LogicException('Not implemented in test double.');
+    }
+
+    public function listRevisions(string $entityId): array { return []; }
+
+    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface
+    {
+        throw new \LogicException('Not implemented in test double.');
+    }
+
+    public function loadPublishedRevision(string $entityId): ?EntityInterface { return null; }
+
+    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface
+    {
+        throw new \LogicException('Not implemented in test double.');
+    }
+
+    public function findTranslations(EntityInterface $entity): array { return []; }
+
+    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int
+    {
+        throw new \LogicException('Not implemented in test double.');
+    }
+
+    public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
+
+    public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
 }

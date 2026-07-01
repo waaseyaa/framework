@@ -13,8 +13,8 @@ use Waaseyaa\CLI\Provider\EntityTypeServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
 
 #[CoversClass(EntityListHandler::class)]
@@ -69,14 +69,13 @@ final class EntityListHandlerTest extends TestCase
         $mockQuery->method('range')->willReturnSelf();
         $mockQuery->method('execute')->willReturn([1, 2]);
 
-        $mockStorage = $this->createMock(EntityStorageInterface::class);
-        $mockStorage->method('getQuery')->willReturn($mockQuery);
-        $mockStorage->method('loadMultiple')->willReturn([$entity1, $entity2]);
+        // C-22 WP3: read path now goes through the canonical repository.
+        $mockRepository = $this->createMock(EntityRepositoryInterface::class);
+        $mockRepository->method('getQuery')->willReturn($mockQuery);
+        $mockRepository->method('findMany')->willReturn([$entity1, $entity2]);
 
         $mockManager = $this->createMock(EntityTypeManagerInterface::class);
-        $mockManager->method('getStorage')->willReturn($mockStorage);
-        // C-22: the query builder now lives on the repository.
-        $mockManager->method('getRepository')->willReturn(new QueryOnlyStubRepository($mockQuery));
+        $mockManager->method('getRepository')->willReturn($mockRepository);
 
         $definition = $this->makeDefinition();
         $tester = CliTester::for($definition, $this->makeContainer($mockManager));
@@ -96,12 +95,8 @@ final class EntityListHandlerTest extends TestCase
         $mockQuery->method('range')->willReturnSelf();
         $mockQuery->method('execute')->willReturn([]);
 
-        $mockStorage = $this->createMock(EntityStorageInterface::class);
-        $mockStorage->method('getQuery')->willReturn($mockQuery);
-
-        $mockManager = $this->createMock(EntityTypeManagerInterface::class);
-        $mockManager->method('getStorage')->willReturn($mockStorage);
         // C-22: the query builder now lives on the repository.
+        $mockManager = $this->createMock(EntityTypeManagerInterface::class);
         $mockManager->method('getRepository')->willReturn(new QueryOnlyStubRepository($mockQuery));
 
         $definition = $this->makeDefinition();

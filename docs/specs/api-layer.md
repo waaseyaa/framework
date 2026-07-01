@@ -313,12 +313,12 @@ The `$accessHandler` and `$account` follow the **paired nullable** pattern: both
 3. Checks update access at entity level.
 4. Checks field edit access for each submitted attribute.
 5. Applies updates via `$entity->set($field, $value)` (requires `FieldableInterface`).
-6. Saves — **without** an expectation through the legacy `getStorage()->save()` path (byte-identical to pre-#1647); **with** an expectation through `getRepository()->save($entity, context: SaveContext::default()->withExpectedRevisionId($n))` — and returns the updated resource.
+6. Saves through `getRepository()->save($entity)` in both cases (C-22 WP3 unified the two save paths onto the canonical repository) — **without** an expectation, the plain form; **with** an expectation, `getRepository()->save($entity, context: SaveContext::default()->withExpectedRevisionId($n))` — and returns the updated resource.
 
 **`destroy(string $entityTypeId, int|string $id): JsonApiDocument`**
 
 1. Loads entity, checks delete access.
-2. Deletes via `$storage->delete([$entity])`.
+2. Deletes via `getRepository()->delete($entity)` (C-22 WP3: canonical repository).
 3. Returns `JsonApiDocument::empty(meta: ['deleted' => true], statusCode: 204)`.
 
 ### Denial responses per operation (#1649, FR-003/FR-004)
@@ -359,17 +359,19 @@ Headers do not reach `JsonApiController` (`WaaseyaaContext` carries
 
 | Request state | Response |
 |---|---|
-| `expected_revision_id` absent (or no `data.meta` at all) | byte-identical legacy update path (`getStorage()->save()`) — same checks, same responses, same events, zero added queries |
+| `expected_revision_id` absent (or no `data.meta` at all) | (superseded 2026-07-01, C-22 WP3) update applies through the SAME `getRepository()->save($entity)` pipeline as the "head matches" row below, just without the `SaveContext::withExpectedRevisionId()` guard — same checks, same responses, same events; a revision IS now cut for revisionable types (previously routed through the legacy `getStorage()->save()` path and did not cut one) |
 | present, not a positive integer | 400 `Bad Request` |
 | present, type not single-axis revisionable | 422 `Unprocessable Entity` (controller screen; the storage `\LogicException` rejection matrix remains the invariant backstop, also mapped to 422 — never a 500) |
 | present, head moved | **409** — body below |
 | present, head matches | update applies through `getRepository()->save(…, context:)` — the revision-aware repository pipeline; 200 with the updated resource (attributes include the new `revision_id`) |
 | present, repository validation fails | 422 (`EntityValidationException` mapped) |
 
-**Stated plainly: an expectation-stated PATCH on a revisionable type cuts a new
-revision and dispatches the repository lifecycle events** — opting in to a
-conflict-checkable write opts in to the standard persistence pipeline. The
-no-expectation path is untouched.
+**Stated plainly: a PATCH on a revisionable type now ALWAYS cuts a new
+revision and dispatches the repository lifecycle events**, whether or not an
+expectation is stated — C-22 WP3 removed the separate legacy `getStorage()`
+save path entirely. Only the `SaveContext::withExpectedRevisionId()` guard
+(and the resulting `RevisionConflictException` possibility) is conditional on
+whether the caller stated an expectation.
 
 **409 body** (the `meta` member is the new additive `JsonApiError` field):
 

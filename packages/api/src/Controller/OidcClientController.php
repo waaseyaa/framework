@@ -9,7 +9,6 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
-use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\Oidc\Entity\OidcClient;
 
 /**
@@ -40,11 +39,13 @@ final class OidcClientController
      */
     public function index(): array
     {
-        $storage = $this->storage();
-        // C-22 WP2: the query builder now lives on the repository (accessCheck(false): system context).
-        $ids = $this->repository()->getQuery()->accessCheck(false)->execute();
+        // C-22 WP2/WP3: both the query surface and the read path now live on the
+        // repository (accessCheck(false): system context).
+        $repository = $this->repository();
+        $ids = $repository->getQuery()->accessCheck(false)->execute();
         $clients = array_filter(
-            array_map(fn(mixed $id): ?OidcClient => $storage->load($id) instanceof OidcClient ? $storage->load($id) : null, $ids),
+            $repository->findMany($ids),
+            static fn(mixed $c): bool => $c instanceof OidcClient,
         );
 
         return [
@@ -75,14 +76,13 @@ final class OidcClientController
             return $this->badRequest('Invalid JSON body.');
         }
 
-        $storage = $this->storage();
         $client = new OidcClient();
         $this->hydrateFromBody($client, $body);
 
         [$plainSecret, $secretHash] = $this->generateSecret();
         $client->setClientSecretHash($secretHash);
 
-        $storage->save($client);
+        $this->repository()->save($client);
 
         $data = $this->serialize($client);
         $data['client_secret'] = $plainSecret; // shown once only
@@ -106,7 +106,7 @@ final class OidcClientController
         }
 
         $this->hydrateFromBody($client, $body);
-        $this->storage()->save($client);
+        $this->repository()->save($client);
 
         return new JsonResponse(['data' => $this->serialize($client)]);
     }
@@ -121,7 +121,7 @@ final class OidcClientController
             return $this->notFound($id);
         }
 
-        $this->storage()->delete([$client]);
+        $this->repository()->delete($client);
 
         return new Response('', 204);
     }
@@ -140,7 +140,7 @@ final class OidcClientController
 
         [$plainSecret, $secretHash] = $this->generateSecret();
         $client->setClientSecretHash($secretHash);
-        $this->storage()->save($client);
+        $this->repository()->save($client);
 
         $data = $this->serialize($client);
         $data['client_secret'] = $plainSecret;
@@ -197,19 +197,9 @@ final class OidcClientController
 
     private function loadOrFail(string $id): ?OidcClient
     {
-        $entity = $this->storage()->load((int) $id);
+        $entity = $this->repository()->find($id);
 
         return $entity instanceof OidcClient ? $entity : null;
-    }
-
-    private function storage(): SqlEntityStorage
-    {
-        $storage = $this->entityTypeManager->getStorage('oidc_client');
-        if (!$storage instanceof SqlEntityStorage) {
-            throw new \RuntimeException('OidcClient storage must be SqlEntityStorage.');
-        }
-
-        return $storage;
     }
 
     private function repository(): EntityRepositoryInterface

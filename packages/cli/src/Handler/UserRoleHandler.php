@@ -24,8 +24,9 @@ final class UserRoleHandler
         $role = $io->argument('role');
         $remove = (bool) $io->option('remove');
 
-        $storage = $this->entityTypeManager->getStorage('user');
-        $user = $storage->load($userId);
+        // C-22 WP3: read/write path now goes through the canonical repository.
+        $repository = $this->entityTypeManager->getRepository('user');
+        $user = $repository->find($userId);
 
         if ($user === null) {
             $io->error(sprintf('User with ID "%s" not found.', $userId));
@@ -48,7 +49,7 @@ final class UserRoleHandler
         }
 
         $user->set('roles', $roles);
-        $storage->save($user);
+        $repository->save($user);
 
         if ($remove) {
             $io->writeln(sprintf('Removed role "%s" from user %s.', $role, $userId));

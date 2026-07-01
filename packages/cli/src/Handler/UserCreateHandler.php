@@ -39,9 +39,10 @@ final class UserCreateHandler
         }
 
         try {
-            $storage = $this->entityTypeManager->getStorage('user');
-            $user = $storage->create($values);
-            $storage->save($user);
+            // C-22 WP3: create/save now go through the canonical repository.
+            $repository = $this->entityTypeManager->getRepository('user');
+            $user = $repository->create($values);
+            $repository->save($user);
         } catch (\Throwable $e) {
             $io->error(sprintf('Failed to create user "%s": %s', $username, $e->getMessage()));
 

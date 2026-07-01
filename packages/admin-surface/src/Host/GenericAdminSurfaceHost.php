@@ -154,9 +154,10 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             ]);
         }
 
-        $storage = $this->entityTypeManager->getStorage($type);
+        // C-22 WP3: read path now goes through the canonical repository.
+        // findBy([]) is the "load all" equivalent of loadMultiple() with no ids.
         $entities = array_filter(
-            $storage->loadMultiple(),
+            $this->entityTypeManager->getRepository($type)->findBy([]),
             fn($e) => $this->accessHandler->check($e, 'view', $this->currentAccount)->isAllowed(),
         );
 
@@ -241,13 +242,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             return AdminSurfaceResultData::error(404, 'Unknown entity type', "Type '{$type}' is not registered.");
         }
 
-        $storage = $this->entityTypeManager->getStorage($type);
-        $entity = is_numeric($id) ? $storage->load($id) : null;
-
-        // Fall back to UUID lookup for non-numeric IDs
-        if ($entity === null) {
-            $entity = $storage->loadByKey('uuid', $id);
-        }
+        $entity = $this->findByIdOrUuid($type, $id);
 
         if ($entity === null) {
             return AdminSurfaceResultData::error(404, 'Not found', "Entity '{$type}/{$id}' does not exist.");
@@ -339,11 +334,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         }
 
         try {
-            $storage = $this->entityTypeManager->getStorage($type);
-            $entity = is_numeric($id) ? $storage->load($id) : null;
-            if ($entity === null) {
-                $entity = $storage->loadByKey('uuid', $id);
-            }
+            $entity = $this->findByIdOrUuid($type, $id);
             if ($entity === null) {
                 return null;
             }
@@ -444,17 +435,13 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             return AdminSurfaceResultData::error(400, 'Missing ID', 'Payload must include an id field.');
         }
 
-        $storage = $this->entityTypeManager->getStorage($type);
-        $entity = is_numeric($id) ? $storage->load($id) : null;
-
         // The admin SPA sends the JSON:API resource id, which is the UUID for
-        // int-keyed content entities. Fall back to a UUID lookup on a non-numeric
-        // id, exactly as get()/resolveSchemaBundle() do — without this the delete
-        // missed, returned a misleading 404 "Not found", and never reached
-        // delete() (D7). Per-entity authorization is still enforced below.
-        if ($entity === null) {
-            $entity = $storage->loadByKey('uuid', $id);
-        }
+        // int-keyed content entities. findByIdOrUuid() falls back to a UUID
+        // lookup on a non-numeric id, exactly as get()/resolveSchemaBundle() do —
+        // without this the delete missed, returned a misleading 404 "Not found",
+        // and never reached delete() (D7). Per-entity authorization is still
+        // enforced below.
+        $entity = $this->findByIdOrUuid($type, (string) $id);
 
         if ($entity === null) {
             return AdminSurfaceResultData::error(404, 'Not found', "Entity '{$type}/{$id}' does not exist.");
@@ -470,9 +457,36 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             return AdminSurfaceResultData::error(403, 'Access denied', 'You do not have permission to delete this entity.');
         }
 
-        $storage->delete([$entity]);
+        // C-22 WP3: delete path now goes through the canonical repository.
+        $this->entityTypeManager->getRepository($type)->delete($entity);
 
         return AdminSurfaceResultData::success(['deleted' => true]);
+    }
+
+    /**
+     * Load an entity by numeric id, falling back to a UUID lookup for
+     * non-numeric ids (the admin SPA sends the JSON:API resource id, which is
+     * the UUID for int-keyed content entities). C-22 WP3: loadByKey() has no
+     * repository equivalent, so the UUID branch is a bounded query + find().
+     */
+    private function findByIdOrUuid(string $type, string $id): ?\Waaseyaa\Entity\EntityInterface
+    {
+        $repository = $this->entityTypeManager->getRepository($type);
+
+        if (is_numeric($id)) {
+            $entity = $repository->find($id);
+            if ($entity !== null) {
+                return $entity;
+            }
+        }
+
+        $ids = $repository->getQuery()
+            ->accessCheck(false)
+            ->condition('uuid', $id)
+            ->range(0, 1)
+            ->execute();
+
+        return $ids === [] ? null : $repository->find((string) $ids[0]);
     }
 
     private function jsonApi(): JsonApiController

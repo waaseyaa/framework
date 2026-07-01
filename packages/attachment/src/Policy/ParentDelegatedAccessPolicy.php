@@ -57,8 +57,8 @@ final class ParentDelegatedAccessPolicy implements AccessPolicyInterface
             return AccessResult::neutral('Attachment has no parent entity reference.');
         }
 
-        $storage = $this->entityTypeManager->getStorage($parentType);
-        $parent = $storage->load($parentId);
+        // C-22 WP3: read path now goes through the canonical repository.
+        $parent = $this->entityTypeManager->getRepository($parentType)->find($parentId);
 
         if ($parent === null) {
             // Referential integrity gap: parent entity no longer exists.

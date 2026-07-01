@@ -217,7 +217,8 @@ final class AppControllerMethodInvoker
             throw new InvalidAppControllerArgumentException(sprintf('Missing or invalid id for entity route key %s.', $key));
         }
 
-        $entity = $ctx->entityTypeManager->getStorage($entityTypeId)->load($raw);
+        // C-22 WP3: read path now goes through the canonical repository.
+        $entity = $ctx->entityTypeManager->getRepository($entityTypeId)->find((string) $raw);
         if ($entity === null) {
             throw new ResourceNotFoundException(sprintf('No %s entity for id %s.', $entityTypeId, (string) $raw));
         }

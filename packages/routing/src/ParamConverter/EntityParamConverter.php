@@ -58,8 +58,8 @@ final class EntityParamConverter
                 continue;
             }
 
-            $storage = $this->entityTypeManager->getStorage($entityTypeId);
-            $entity = $storage->load($rawId);
+            // C-22 WP3: read path now goes through the canonical repository.
+            $entity = $this->entityTypeManager->getRepository($entityTypeId)->find((string) $rawId);
 
             if ($entity === null) {
                 throw new ResourceNotFoundException(

@@ -5,13 +5,11 @@ declare(strict_types=1);
 namespace Waaseyaa\Path;
 
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
 
 final readonly class PathAliasResolver
 {
     public function __construct(
-        private EntityStorageInterface $pathAliasStorage,
-        // C-22 WP2: the query builder now lives on the repository.
+        // C-22 WP2/WP3: query + read path both go through the canonical repository.
         private EntityRepositoryInterface $pathAliasRepository,
     ) {}
 
@@ -37,7 +35,7 @@ final readonly class PathAliasResolver
         }
 
         foreach ($ids as $id) {
-            $entity = $this->pathAliasStorage->load($id);
+            $entity = $this->pathAliasRepository->find((string) $id);
             if (!$entity instanceof PathAlias || !$entity->isPublished()) {
                 continue;
             }

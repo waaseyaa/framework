@@ -31,8 +31,12 @@ use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
  * PATCH per contracts/conflict-surfaces.md §9–16: the data.meta seam, the
  * request-state table (absent / invalid / non-revisionable / stale 409 /
  * current / validation 422 / uuid locator), the 409 body member-by-member,
- * no-expectation byte-invariance, and the show() revision_id attribute pin
- * (FR-008).
+ * and the show() revision_id attribute pin (FR-008).
+ *
+ * C-22 WP3 superseded contract §14 (2026-07-01): the no-expectation PATCH
+ * path no longer routes through the legacy `getStorage()->save()` — it now
+ * shares the same revision-aware `getRepository()->save()` pipeline as an
+ * expectation-stated PATCH, just without the conflict-detection guard.
  */
 #[CoversClass(JsonApiController::class)]
 final class JsonApiControllerConflictTest extends TestCase
@@ -155,11 +159,11 @@ final class JsonApiControllerConflictTest extends TestCase
     }
 
     // -----------------------------------------------------------------------
-    // No-expectation invariance (contract §14)
+    // No-expectation invariance (contract §14, superseded 2026-07-01 by C-22 WP3)
     // -----------------------------------------------------------------------
 
     #[Test]
-    public function patchWithoutExpectationKeepsTheLegacyStoragePath(): void
+    public function patchWithoutExpectationStillUsesRevisionAwareRepository(): void
     {
         $this->seedEntity();
         $revisionsBefore = $this->revisionRowCount();
@@ -169,8 +173,10 @@ final class JsonApiControllerConflictTest extends TestCase
 
         $this->assertSame(200, $doc->statusCode);
         $this->assertSame('v2', $array['data']['attributes']['title']);
-        // The legacy getStorage() path is revision-less: no revision is cut.
-        $this->assertSame($revisionsBefore, $this->revisionRowCount(), 'no-expectation PATCH must not cut a revision');
+        // C-22 WP3: the no-expectation PATCH now persists through the same
+        // getRepository()->save() pipeline as the expectation-stated path —
+        // there is no separate legacy storage path — so a revision IS cut.
+        $this->assertGreaterThan($revisionsBefore, $this->revisionRowCount(), 'no-expectation PATCH now goes through the revision-aware repository');
     }
 
     #[Test]

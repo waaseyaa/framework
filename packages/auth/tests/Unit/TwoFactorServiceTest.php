@@ -15,6 +15,7 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 use Waaseyaa\User\User;
 
 #[CoversClass(TwoFactorService::class)]
@@ -117,7 +118,8 @@ final class TwoFactorServiceTest extends TestCase
 
             public function getRepository(string $entityTypeId): EntityRepositoryInterface
             {
-                throw new \BadMethodCallException('not used in this test');
+                // C-22 WP3: TwoFactorService now saves through the canonical repository.
+                return new StorageBackedStubRepository($this->storage);
             }
         };
 

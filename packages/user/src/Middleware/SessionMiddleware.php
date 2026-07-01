@@ -8,7 +8,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
@@ -23,7 +23,7 @@ final class SessionMiddleware implements HttpMiddlewareInterface
     private readonly LoggerInterface $logger;
 
     /**
-     * @param EntityStorageInterface $userStorage Storage for loading user entities.
+     * @param EntityRepositoryInterface $userRepository Repository for loading user entities.
      * @param AccountInterface|null $devFallback Account returned when no session UID exists. Intended for dev environments only.
      * @param array<string, mixed>|null $sessionCookieOptions Optional session ini overrides applied before session_start().
      *        Secure-by-default: when null (or when a key is omitted) the hardened defaults
@@ -36,7 +36,7 @@ final class SessionMiddleware implements HttpMiddlewareInterface
      *        revision-audit-provenance-01KTWY5V FR-002). Null keeps legacy construction working.
      */
     public function __construct(
-        private readonly EntityStorageInterface $userStorage,
+        private readonly EntityRepositoryInterface $userRepository,
         private readonly ?AccountInterface $devFallback = null,
         ?LoggerInterface $logger = null,
         private readonly ?array $sessionCookieOptions = null,
@@ -151,7 +151,7 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         }
 
         try {
-            $user = $this->userStorage->load($uid);
+            $user = $this->userRepository->find((string) $uid);
         } catch (\Throwable $e) {
             $this->logger->warning(sprintf('SessionMiddleware: failed to load user %s: %s', $uid, $e->getMessage()));
             return new AnonymousUser();

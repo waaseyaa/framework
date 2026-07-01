@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 use Waaseyaa\Note\Ingestion\IngestionEnvelope;
 use Waaseyaa\Note\Ingestion\IngestionEnvelopeValidator;
 use Waaseyaa\Note\Ingestion\NoteIngester;
@@ -34,7 +35,8 @@ final class NoteIngestionIntegrationTest extends TestCase
     {
         $this->storage   = new InMemoryNoteStorage();
         $this->validator = new IngestionEnvelopeValidator();
-        $this->ingester  = new NoteIngester($this->storage);
+        // C-22 WP3: NoteIngester now depends on the canonical repository.
+        $this->ingester  = new NoteIngester(new StorageBackedStubRepository($this->storage));
     }
 
     // -----------------------------------------------------------------------

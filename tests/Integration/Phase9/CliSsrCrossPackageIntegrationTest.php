@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Twig\Environment;
 use Twig\Loader\ArrayLoader;
+use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Cache\CacheFactory;
@@ -65,6 +66,14 @@ final class CliSsrCrossPackageIntegrationTest extends TestCase
                     'article' => $articleStorage,
                     'user' => $userStorage,
                     default => throw new \RuntimeException("Unknown entity type: {$definition->id()}"),
+                };
+            },
+            // C-22 WP3: create/save now go through the canonical repository.
+            function (string $entityTypeId) use ($articleStorage, $userStorage) {
+                return match ($entityTypeId) {
+                    'article' => new InMemoryEntityRepository($articleStorage),
+                    'user' => new InMemoryEntityRepository($userStorage),
+                    default => throw new \RuntimeException("Unknown entity type: {$entityTypeId}"),
                 };
             },
         );
