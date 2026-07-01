@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **database-legacy (WP6, #1816):** closed the last SQL-injection vector in the
+  entity read engine. `SelectInterface::condition()`, `orderBy()`, `isNull()`,
+  and `isNotNull()` now auto-quote their `$field` via the platform's
+  `quoteIdentifier` (a reserved-word / metacharacter-bearing column name is
+  rendered inert), matching the long-standing behaviour of `Update` / `Delete`.
+
+### Changed
+- **database-legacy / entity-storage (WP6, #1816):** added two raw-expression
+  seams to `SelectInterface` — `whereRaw(string $expression, array $parameters = [])`
+  and `orderByRaw(string $expression, string $direction)` — emitted verbatim with
+  positional `?` parameters bound in order (developer-supplied-only contract,
+  same as the `join()` ON-condition). `SqlEntityQuery` and `SqlStorageDriver` now
+  resolve each referenced field to a `ResolvedField` value object and route
+  identifiers through the auto-quoting `condition()`/`orderBy()` path and SQL
+  expressions (`json_extract(...)`) through the verbatim raw seams; the K3
+  native-type `CAST(... AS TEXT)` casting for `_data` JSON fields is preserved
+  inside the raw path. `Queue\DbalTransport`'s `COALESCE(...)` predicate migrated
+  to `whereRaw()`.
 
 - **`#[UniqueJob]` and `#[RateLimited]` were silent no-ops in `DbalQueue` — the persistent driver never consulted `AttributeGuard`, which performs in-process / per-PHP-process tracking only (queue M2, WP5).** Both attributes are correctly enforced by `SyncQueue` (same-process execution) but had zero effect when jobs were dispatched through the `DbalQueue` transport-backed driver — silently misleading consumers. Cross-process enforcement requires a distributed dedup/rate-limit store and is out of scope. The fix makes the surface HONEST and the no-op NON-SILENT: (1) `UniqueJob.php`, `RateLimited.php`, and `AttributeGuard.php` gain prominent docblock warnings that these attributes are in-process / SyncQueue-only and are NOT enforced by `DbalQueue`; (2) `DbalQueue` gains an optional trailing `?LoggerInterface $logger = null` constructor parameter (existing callers `new DbalQueue($transport)` / `new DbalQueue($transport, 'queue')` remain valid), resolving to `NullLogger` by default; (3) when a message carrying `#[UniqueJob]` or `#[RateLimited]` is dispatched, a `warning` is logged naming the unenforced attribute(s) and the job class — deduplicated once per job class per process instance to prevent log spam. The message is still pushed to the transport (never suppressed).
 

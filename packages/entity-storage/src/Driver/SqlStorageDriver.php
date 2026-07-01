@@ -7,6 +7,7 @@ namespace Waaseyaa\EntityStorage\Driver;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\EntityStorage\Connection\ConnectionResolverInterface;
+use Waaseyaa\EntityStorage\ResolvedField;
 use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
 
 /**
@@ -291,7 +292,10 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
         }
 
         foreach ($criteria as $field => $value) {
-            $query = $query->condition($this->resolveField($db, $entityType, $field), $value);
+            $resolved = $this->resolveField($db, $entityType, $field);
+            $query = $resolved->isExpression()
+                ? $query->whereRaw($resolved->sql() . ' = ?', [$value])
+                : $query->condition($resolved->sql(), $value);
         }
 
         $result = $query->execute();
@@ -320,12 +324,18 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
         }
 
         foreach ($criteria as $field => $value) {
-            $query = $query->condition($this->resolveField($db, $entityType, $field), $value);
+            $resolved = $this->resolveField($db, $entityType, $field);
+            $query = $resolved->isExpression()
+                ? $query->whereRaw($resolved->sql() . ' = ?', [$value])
+                : $query->condition($resolved->sql(), $value);
         }
 
         if ($orderBy !== null) {
             foreach ($orderBy as $field => $direction) {
-                $query = $query->orderBy($this->resolveField($db, $entityType, $field), strtoupper($direction));
+                $resolved = $this->resolveField($db, $entityType, $field);
+                $query = $resolved->isExpression()
+                    ? $query->orderByRaw($resolved->sql(), strtoupper($direction))
+                    : $query->orderBy($resolved->sql(), strtoupper($direction));
             }
         }
 
@@ -611,18 +621,20 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
     }
 
     /**
-     * Resolve a field name to a SQL expression.
+     * Resolve a field name to its SQL form (WP6).
      *
-     * Real table columns are returned as-is. Fields stored in the _data
-     * JSON blob are wrapped in json_extract().
+     * Real table columns become a bare {@see ResolvedField::identifier()}
+     * (auto-quoted downstream by condition()/orderBy()). Fields stored in the
+     * _data JSON blob become a json_extract {@see ResolvedField::expression()}
+     * routed through whereRaw()/orderByRaw() (emitted verbatim).
      */
-    private function resolveField(DatabaseInterface $db, string $entityType, string $field): string
+    private function resolveField(DatabaseInterface $db, string $entityType, string $field): ResolvedField
     {
         if ($db->schema()->fieldExists($entityType, $field)) {
-            return $field;
+            return ResolvedField::identifier($field);
         }
 
-        return "json_extract(_data, '\$." . $field . "')";
+        return ResolvedField::expression("json_extract(_data, '\$." . $field . "')", isJsonExtract: true);
     }
 
     /**

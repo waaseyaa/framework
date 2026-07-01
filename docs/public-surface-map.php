@@ -88,6 +88,10 @@ return [
     'Waaseyaa\Cache\ContextNames' => 'public',
     'Waaseyaa\Cache\Exception\InvalidCacheTagException' => 'public',
     'Waaseyaa\Database\DatabaseInterface' => 'public',
+    // SelectInterface gained two raw-expression seams in WP6 (#1816):
+    // whereRaw(string, array) and orderByRaw(string, string). condition() /
+    // orderBy() / isNull() / isNotNull() now auto-quote their $field identifier;
+    // SQL expressions (json_extract, COALESCE, CAST) go through the raw seams.
     'Waaseyaa\Database\SelectInterface' => 'public',
     'Waaseyaa\Database\InsertInterface' => 'public',
     'Waaseyaa\Database\UpdateInterface' => 'public',

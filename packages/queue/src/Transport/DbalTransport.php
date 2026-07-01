@@ -100,7 +100,11 @@ final class DbalTransport implements TransportInterface
                 ->fields('qj', ['id', 'reserved_at', 'attempts'])
                 ->condition('queue', $queue)
                 ->condition('available_at', $now, '<=')
-                ->condition('COALESCE(reserved_at, 0)', $expiredBefore, '<=')
+                // COALESCE(...) is a SQL expression, not an identifier — it goes
+                // through whereRaw() so it is emitted verbatim (condition() would
+                // quote it as an identifier and corrupt it). $expiredBefore is
+                // bound as a parameter (WP6).
+                ->whereRaw('COALESCE(reserved_at, 0) <= ?', [$expiredBefore])
                 ->orderBy('id', 'ASC')
                 ->range(0, 1)
                 ->execute();
