@@ -501,6 +501,9 @@ return [
     'Waaseyaa\Audit\Contract\AuditQueryInterface' => 'public',
     'Waaseyaa\Audit\Contract\AuditWriterInterface' => 'public',
     'Waaseyaa\Audit\Enum\AuditEventKind' => 'public',
+    // WP4 #1792: L1 metric seam — operators bind a real implementation to get
+    // a loud signal (counter/alert) on audit write failures.
+    'Waaseyaa\Audit\Contract\AuditWriteFailureObserver' => 'public',
     // Tamper-evidence: checkpoint export sink is a public extension point —
     // operators implement it to ship checkpoints to an off-box / WORM sink.
     'Waaseyaa\Audit\Integrity\CheckpointSink' => 'public',

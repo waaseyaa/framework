@@ -46,14 +46,24 @@ final class AuditEventKindAmendmentTest extends TestCase
     }
 
     #[Test]
-    public function total_case_count_is_twenty(): void
+    public function total_case_count_is_twenty_one(): void
     {
         // Originally 14 cases (OCAP substrate). Extended additively to 17
         // by versioned-blob-media-abstraction-01KSEFTJ (WP02), then to 19
         // by revision-audit-provenance-01KTWY5V (revision.publish /
         // revision.revert, FR-006), then to 20 by WP3 audit tamper-evidence
-        // verify (audit.verify).
-        self::assertCount(20, AuditEventKind::cases());
+        // verify (audit.verify), then to 21 by WP4 fail-open marker+metric
+        // (#1792, audit.write_degraded).
+        self::assertCount(21, AuditEventKind::cases());
+    }
+
+    #[Test]
+    public function audit_write_degraded_resolves_from_string(): void
+    {
+        self::assertSame(
+            AuditEventKind::AuditWriteDegraded,
+            AuditEventKind::tryFrom('audit.write_degraded'),
+        );
     }
 
     #[Test]
