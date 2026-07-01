@@ -12,6 +12,7 @@ use Symfony\Component\Routing\RequestContext;
 use Symfony\Component\Routing\Route;
 use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Api\ApiServiceProvider;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Kernel\BuiltinRouteRegistrar;
 use Waaseyaa\Routing\WaaseyaaRouter;
@@ -45,7 +46,12 @@ final class SchemaSurfaceRequiresAuthTest extends TestCase
     protected function setUp(): void
     {
         $this->router = new WaaseyaaRouter(new RequestContext('', 'GET'));
-        new BuiltinRouteRegistrar(new EntityTypeManager(new EventDispatcher()))->register($this->router);
+        // api.schema.show is owned by ApiServiceProvider (WP5: route-table inversion).
+        // Pass ApiServiceProvider so the end-to-end route registration includes it.
+        new BuiltinRouteRegistrar(
+            new EntityTypeManager(new EventDispatcher()),
+            [new ApiServiceProvider()],
+        )->register($this->router);
         $this->accessChecker = new AccessChecker();
     }
 
@@ -94,7 +100,7 @@ final class SchemaSurfaceRequiresAuthTest extends TestCase
     private function routeNamed(string $name): Route
     {
         $route = $this->router->getRouteCollection()->get($name);
-        self::assertNotNull($route, "BuiltinRouteRegistrar must register {$name}.");
+        self::assertNotNull($route, "End-to-end route registration (BuiltinRouteRegistrar + ApiServiceProvider) must yield {$name}.");
 
         return $route;
     }

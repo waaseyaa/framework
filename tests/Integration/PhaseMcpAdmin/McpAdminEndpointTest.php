@@ -12,6 +12,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\RequestContext;
 use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Api\ApiServiceProvider;
 use Waaseyaa\Api\Controller\McpAdminController;
 use Waaseyaa\Api\Http\Router\McpAdminApiRouter;
 use Waaseyaa\Api\McpAdmin\ServerConfigReadModelInterface;
@@ -56,7 +57,8 @@ final class McpAdminEndpointTest extends TestCase
         $entityTypeManager = new EntityTypeManager(new EventDispatcher());
         $this->waaseyaaRouter = new WaaseyaaRouter(new RequestContext('', 'GET'));
 
-        $registrar = new BuiltinRouteRegistrar($entityTypeManager);
+        // WP5: routes are now registered by ApiServiceProvider::routes().
+        $registrar = new BuiltinRouteRegistrar($entityTypeManager, [new ApiServiceProvider()]);
         $registrar->register($this->waaseyaaRouter);
 
         $account = $this->adminAccount();

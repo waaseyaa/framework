@@ -246,7 +246,9 @@ final class HttpKernelTest extends TestCase
         $registrar->register($router);
 
         $routes = $router->getRouteCollection();
-        $this->assertNotNull($routes->get('api.schema.show'));
+        // api.schema.show is now owned by ApiServiceProvider::routes() (WP5 inversion)
+        // and is absent from the bare registrar. Coverage is in ApiServiceProviderAdminRoutesTest.
+        $this->assertNull($routes->get('api.schema.show'), 'api.schema.show is provider-owned since WP5 inversion.');
         $this->assertNotNull($routes->get('api.openapi'));
         $this->assertNotNull($routes->get('api.entity_types'));
         $this->assertNotNull($routes->get('api.broadcast'));

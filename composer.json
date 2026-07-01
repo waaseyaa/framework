@@ -1,6 +1,6 @@
 {
     "name": "waaseyaa/framework",
-    "description": "Waaseyaa monorepo \u2014 a modern, entity-first, AI-native CMS",
+    "description": "Waaseyaa monorepo — a modern, entity-first, AI-native CMS",
     "type": "project",
     "license": "GPL-2.0-or-later",
     "repositories": [
@@ -506,6 +506,7 @@
             "@check-phpstan-paths",
             "@check-composer-policy",
             "@check-package-layers",
+            "@check-package-layers-pl008-self-test",
             "@check-distribution-extensions",
             "@check-no-secrets",
             "@check-ingestion-defaults",
@@ -517,20 +518,21 @@
             "@check-admin-dist-fresh",
             "@check-openapi",
             "@test"
-        ]
+        ],
+        "check-package-layers-pl008-self-test": "php bin/check-package-layers-pl008-self-test"
     },
     "scripts-descriptions": {
         "check-admin-coercion-patterns": "Prevent regression of the useAdminConfig() migration (mission M-F). Fails when raw string-compare coercion patterns (=== '1', === '0') appear in packages/admin/app/**/*.{ts,vue} outside of configCoercion.ts, test files, or lines marked with // allow-coercion: <reason>.",
         "check-admin-coercion-self-test": "Meta-test for the admin coercion gate (audit D-5). Runs bin/check-admin-coercion-patterns --self-test: plants a synthetic violator and asserts the scanner exits non-zero, proving the gate is not a silent no-op. Wired into verify and the ci/verify-gates job so the self-test actually runs in CI.",
         "check-dead-code": "Fail-on-new dead-code gate (Phase 4 of the dead-code cleanup audit). Runs phpstan-dead-code.neon with shipmonk's detector; pre-existing baseline entries are suppressed, only NEW findings fail. See docs/audits/2026-05-17-dead-code-baseline-audit.md and bin/check-dead-code header for how to handle a new finding.",
-        "check-getquery-bindings": "Fail-on-new gate for unbound getQuery()->execute() callsites. Baseline at tools/getquery-bindings-baseline.txt. New callsites fail CI; add to baseline with mandatory exemption comment if legitimately exempt. See CLAUDE.md \u00a7 CI gates.",
+        "check-getquery-bindings": "Fail-on-new gate for unbound getQuery()->execute() callsites. Baseline at tools/getquery-bindings-baseline.txt. New callsites fail CI; add to baseline with mandatory exemption comment if legitimately exempt. See CLAUDE.md § CI gates.",
         "check-admin-dist-fresh": "Admin dist freshness gate (D6). Fails when packages/admin/app source changes without rebuilding the committed packages/admin-surface/dist bundle, by comparing a line-ending-normalised content signature (packages/admin-surface/dist.signature) against a freshly computed one. Rebuild + refresh with bin/build-admin-dist. Prevents shipping a stale prebuilt admin SPA (e.g. the alpha.226 Edit-feedback feature that never reached the served bundle).",
         "check-openapi": "Spectral-lint the hand-maintained agent-run sub-spec packages/api/openapi.yaml (3 SSE endpoints + pending_approval shape) for YAML/OpenAPI structural validity. Syntax/shape lint of that one file only — does NOT check route parity against live routes. Requires Node.js + npx; exits 0 with SKIP notice when npx is unavailable (CI-safe). Wired as a hard gate in verify per NFR-004 (WP02, mission agent-executor-v1-1-audit-followups-01KS3S5M).",
-        "check-symfony-imports": "Enforce the Path R-narrow Symfony-import boundary (mission #1107 C-005 (b)). Fails when `use Symfony\\\u2026` appears outside the framework allowlist. Allowlist lives in .symfony-import-allowlist.json \u2014 see docs/specs/api-layer.md \u00a7Symfony Import Boundary.",
-        "dev": "Start the PHP dev server (delegates to dev:php). For the admin SPA, run `composer dev:admin` in a second terminal \u2014 see docs/specs/operations-playbooks.md.",
+        "check-symfony-imports": "Enforce the Path R-narrow Symfony-import boundary (mission #1107 C-005 (b)). Fails when `use Symfony\\…` appears outside the framework allowlist. Allowlist lives in .symfony-import-allowlist.json — see docs/specs/api-layer.md §Symfony Import Boundary.",
+        "dev": "Start the PHP dev server (delegates to dev:php). For the admin SPA, run `composer dev:admin` in a second terminal — see docs/specs/operations-playbooks.md.",
         "dev:admin": "Start the Nuxt admin SPA dev server. NUXT_BACKEND_URL points at the PHP server (default :8080); set APP_PORT to override.",
         "dev:php": "Start the PHP built-in dev server via bin/waaseyaa serve. Single typed long-running process with no shell forking.",
-        "verify": "Run all repo-wide gates: cs-check, phpstan, composer-policy, package-layers, no-secrets, ingestion-defaults, symfony-imports, dead-code (fail-on-new), and the test suite. Canonical CI entry point \u2014 see docs/specs/operations-playbooks.md."
+        "verify": "Run all repo-wide gates: cs-check, phpstan, composer-policy, package-layers, no-secrets, ingestion-defaults, symfony-imports, dead-code (fail-on-new), and the test suite. Canonical CI entry point — see docs/specs/operations-playbooks.md."
     },
     "minimum-stability": "dev",
     "prefer-stable": true,

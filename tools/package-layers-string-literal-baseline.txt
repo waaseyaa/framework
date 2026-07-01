@@ -1,0 +1,22 @@
+# Package-layers string-literal FQCN baseline (PL008) — see bin/check-package-layers.
+#
+# Format: one entry per allowlisted file (relative to packages/), followed by
+# two or more spaces and a mandatory rationale comment:
+#
+#   <pkg>/src/Path/To/File.php  # reason why the string-literal FQCNs are legitimate
+#
+# Meaning: the listed file contains quoted Waaseyaa\<Ns>\… FQCN string literals that
+# reference packages at a higher layer than the containing package. These are accepted
+# because the file is a discovery bootstrapper or kernel-level orchestrator that cannot
+# use `use` imports (which would be upward PL005 violations) and instead encodes FQCNs
+# as string constants per the CLAUDE.md "Layer discipline for imports" rule:
+#   "When cross-layer attribute scanning is needed, use string constants instead of
+#    ::class references. ReflectionClass::getAttributes() accepts string class names."
+#
+# Add new entries here (with rationale) when a legitimate cross-layer string constant
+# is introduced in a Layer-0 file. Do NOT add entries to hide accidental coupling —
+# fix the coupling instead (e.g. move the route registration to the owning provider).
+#
+# New PL008 violations NOT listed here fail CI (fail-on-new).
+#
+foundation/src/Discovery/PackageManifestCompiler.php  # Discovery bootstrapper: uses private string constants (not 'use' imports) for cross-layer attribute FQCNs per CLAUDE.md layer-discipline rule — Waaseyaa\Access\Gate\PolicyAttribute (L1), Waaseyaa\AI\*\Attribute\* (L5), Waaseyaa\SSR\Attribute\* (L6); avoids upward 'use' imports that would violate PL005

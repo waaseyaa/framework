@@ -13,6 +13,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\RequestContext;
 use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Api\ApiServiceProvider;
 use Waaseyaa\Api\Controller\NotificationController;
 use Waaseyaa\Api\Http\Router\NotificationAdminApiRouter;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -54,7 +55,8 @@ final class NotificationAdminEndpointsTest extends TestCase
         $this->entityTypeManager = new EntityTypeManager(new EventDispatcher());
         $this->router = new WaaseyaaRouter(new RequestContext('', 'GET'));
 
-        $registrar = new BuiltinRouteRegistrar($this->entityTypeManager);
+        // WP5: routes are now registered by ApiServiceProvider::routes().
+        $registrar = new BuiltinRouteRegistrar($this->entityTypeManager, [new ApiServiceProvider()]);
         $registrar->register($this->router);
     }
 
