@@ -7,7 +7,7 @@ namespace Waaseyaa\Foundation\Ingestion;
 /**
  * Immutable value object representing a validated ingestion envelope.
  *
- * Construct only via EnvelopeValidator — the validator guarantees all
+ * Construct only via MessageEnvelopeValidator — the validator guarantees all
  * required fields are present and normalized before this object is created.
  * @api
  */
