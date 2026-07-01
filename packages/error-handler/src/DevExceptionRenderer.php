@@ -6,9 +6,18 @@ namespace Waaseyaa\ErrorHandler;
 
 final class DevExceptionRenderer
 {
+    private readonly string $editorId;
+
     public function __construct(
         private readonly ?SolutionProviderRegistry $solutionRegistry = null,
-    ) {}
+        ?string $editorId = null,
+    ) {
+        // Resolve the editor at the composition root so EditorLinkGenerator
+        // stays a pure value object with no environment side-effects.
+        $env = getenv('EDITOR');
+        $fromEnv = is_string($env) && trim($env) !== '' ? strtolower(trim(explode(' ', $env)[0])) : null;
+        $this->editorId = $editorId ?? $fromEnv ?? 'vscode';
+    }
 
     public function render(\Throwable $e): string
     {
@@ -18,7 +27,7 @@ final class DevExceptionRenderer
         $line = $e->getLine();
         $trace = htmlspecialchars($e->getTraceAsString(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
-        $links = new EditorLinkGenerator();
+        $links = new EditorLinkGenerator($this->editorId);
         $editorHref = htmlspecialchars($links->link($e->getFile(), $e->getLine()), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
         $solutionsHtml = '';

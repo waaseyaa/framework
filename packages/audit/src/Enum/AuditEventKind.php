@@ -7,10 +7,11 @@ namespace Waaseyaa\Audit\Enum;
 /**
  * Canonical vocabulary of audit event kinds.
  *
- * 20 cases (originally 14, extended additively by
+ * 21 cases (originally 14, extended additively by
  * `versioned-blob-media-abstraction-01KSEFTJ` (+3),
- * `revision-audit-provenance-01KTWY5V` (+2), and
- * WP3 audit tamper-evidence verify (+1) per the §Out-of-band
+ * `revision-audit-provenance-01KTWY5V` (+2),
+ * WP3 audit tamper-evidence verify (+1), and
+ * WP4 audit fail-open marker+metric (#1792) (+1) per the §Out-of-band
  * downstream-amendment principle — additive, no removal).
  *
  * The {@see \Waaseyaa\Audit\Contract\AuditEventDescriptor} rejects
@@ -52,4 +53,15 @@ enum AuditEventKind: string
     // --- Added by WP3 audit tamper-evidence verify ---
     /** The audit:verify command ran and checked the hash chain + checkpoints. */
     case AuditVerified = 'audit.verify';
+
+    // --- Added by WP4 audit fail-open marker+metric (#1792, design §10.4) ---
+    /**
+     * Sentinel written when an audit INSERT fails to preserve the tamper-evidence
+     * chain's observability. Attributes carry `dropped_kind` (value of the lost
+     * event kind) and `error_class` / `error_message` so operators can correlate
+     * the degraded window with the originating exception. This turns a silently
+     * dropped event into an attested degraded window visible to `audit:verify`
+     * and operator dashboards.
+     */
+    case AuditWriteDegraded = 'audit.write_degraded';
 }

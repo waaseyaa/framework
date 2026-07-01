@@ -8,6 +8,13 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\DeleteInterface;
+use Waaseyaa\Database\InsertInterface;
+use Waaseyaa\Database\SchemaInterface;
+use Waaseyaa\Database\SelectInterface;
+use Waaseyaa\Database\TransactionInterface;
+use Waaseyaa\Database\UpdateInterface;
 use Waaseyaa\Queue\Transport\DbalTransport;
 
 #[CoversClass(DbalTransport::class)]
@@ -236,11 +243,149 @@ final class DbalTransportTest extends TestCase
         }
     }
 
+    // --- M3: proportional-retry pop() under contention ---
+
+    #[Test]
+    public function popReturnsJobAfterMoreThanThreeLostClaimRaces(): void
+    {
+        // The old loop had a hard cap of 3. Under contention (K=5 > 3 lost races
+        // before success) the old code returned null — a false-empty while the job
+        // existed and was claimable. The new proportional-retry loop must succeed.
+        $racesBeforeSuccess = 5;
+
+        $spyDb = new ContentiousDatabase($this->database, $racesBeforeSuccess);
+        $transport = new DbalTransport($spyDb);
+        $transport->push('default', 'contended-payload');
+
+        $job = $transport->pop('default');
+
+        self::assertNotNull($job, 'pop() must not return false-empty when the job exists but early claim races are lost');
+        self::assertSame('contended-payload', $job['payload']);
+    }
+
+    #[Test]
+    public function popReturnsNullWhenQueueIsGenuinelyEmpty(): void
+    {
+        // Verify the genuine-empty path: no job in the DB → pop returns null
+        // immediately without hitting any safety bounds.
+        $spyDb = new ContentiousDatabase($this->database, 0);
+        $transport = new DbalTransport($spyDb);
+
+        self::assertNull($transport->pop('default'));
+    }
+
+    #[Test]
+    public function popReturnsNullWhenSafetyBoundIsReachedWithoutWinningAClaim(): void
+    {
+        // If the claim UPDATE returns 0 for every attempt (extreme adversarial
+        // contention or a bug), pop() must return null rather than loop forever.
+        // ContentiousDatabase with PHP_INT_MAX races simulates this ceiling.
+        $spyDb = new ContentiousDatabase($this->database, PHP_INT_MAX);
+        $transport = new DbalTransport($spyDb);
+        $transport->push('default', 'always-loses');
+
+        // This must terminate (not hang) and return null.
+        $result = $transport->pop('default');
+
+        self::assertNull($result, 'pop() must return null at the safety bound rather than loop forever');
+    }
+
     private function backdateReservedAt(int $id, int $timestamp): void
     {
         $this->database->update('waaseyaa_queue_jobs')
             ->fields(['reserved_at' => $timestamp])
             ->condition('id', $id)
             ->execute();
+    }
+}
+
+/**
+ * Spy DatabaseInterface decorator that makes UPDATE return 0 rows affected for
+ * the first $racesBeforeSuccess calls, simulating lost claim races under contention.
+ *
+ * SELECT/INSERT/DELETE delegate to the real database so SELECT keeps returning the
+ * same unclaimed candidate (the UPDATE no-op leaves the row unreserved).
+ */
+final class ContentiousDatabase implements DatabaseInterface
+{
+    private int $failsLeft;
+
+    public function __construct(
+        private readonly DatabaseInterface $real,
+        int $racesBeforeSuccess,
+    ) {
+        $this->failsLeft = $racesBeforeSuccess;
+    }
+
+    public function update(string $table): UpdateInterface
+    {
+        if ($this->failsLeft > 0) {
+            $this->failsLeft--;
+
+            // Return a no-op builder: collects the fluent calls but execute()
+            // never touches the DB, leaving the row unclaimed so the next SELECT
+            // can find it again.
+            return new ZeroRowsUpdate();
+        }
+
+        return $this->real->update($table);
+    }
+
+    public function select(string $table, string $alias = ''): SelectInterface
+    {
+        return $this->real->select($table, $alias);
+    }
+
+    public function insert(string $table): InsertInterface
+    {
+        return $this->real->insert($table);
+    }
+
+    public function delete(string $table): DeleteInterface
+    {
+        return $this->real->delete($table);
+    }
+
+    public function schema(): SchemaInterface
+    {
+        return $this->real->schema();
+    }
+
+    public function transaction(string $name = ''): TransactionInterface
+    {
+        return $this->real->transaction($name);
+    }
+
+    /** @return \Traversable<mixed> */
+    public function query(string $sql, array $args = []): \Traversable
+    {
+        return $this->real->query($sql, $args);
+    }
+
+    public function quoteIdentifier(string $identifier): string
+    {
+        return $this->real->quoteIdentifier($identifier);
+    }
+}
+
+/**
+ * No-op UpdateInterface implementation that returns 0 from execute() without
+ * touching the database, simulating a lost claim race.
+ */
+final class ZeroRowsUpdate implements UpdateInterface
+{
+    public function fields(array $fields): static
+    {
+        return $this;
+    }
+
+    public function condition(string $field, mixed $value, string $operator = '='): static
+    {
+        return $this;
+    }
+
+    public function execute(): int
+    {
+        return 0;
     }
 }

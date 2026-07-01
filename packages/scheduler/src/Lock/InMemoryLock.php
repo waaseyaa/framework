@@ -9,16 +9,16 @@ final class InMemoryLock implements LockInterface
     /** @var array<string, array{expires_at: int, token: string}> */
     private array $locks = [];
 
-    public function acquire(string $name, int $ttl = 300): ?string
+    public function acquire(string $name, int $ttl = 300, ?\DateTimeInterface $now = null): ?string
     {
-        $now = time();
+        $ts = ($now ?? new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->getTimestamp();
 
-        if (isset($this->locks[$name]) && $this->locks[$name]['expires_at'] > $now) {
+        if (isset($this->locks[$name]) && $this->locks[$name]['expires_at'] > $ts) {
             return null;
         }
 
         $token = bin2hex(random_bytes(16));
-        $this->locks[$name] = ['expires_at' => $now + $ttl, 'token' => $token];
+        $this->locks[$name] = ['expires_at' => $ts + $ttl, 'token' => $token];
 
         return $token;
     }

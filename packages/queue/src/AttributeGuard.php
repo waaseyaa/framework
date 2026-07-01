@@ -10,7 +10,14 @@ use Waaseyaa\Queue\Attribute\UniqueJob;
 /**
  * Enforces #[UniqueJob] and #[RateLimited] attributes on job messages.
  *
- * Uses pure in-memory tracking — no external dependencies.
+ * **IMPORTANT — in-process / SyncQueue-only. NOT enforced by DbalQueue.**
+ *
+ * This guard uses pure in-memory tracking (instance arrays, no external
+ * dependencies). It is called by {@see \Waaseyaa\Queue\SyncQueue} and
+ * enforces both attributes correctly within a single PHP process. It is
+ * NOT called by {@see \Waaseyaa\Queue\DbalQueue} (the persistent,
+ * transport-backed driver) — cross-process enforcement would require a
+ * distributed dedup/rate-limit store and is currently unimplemented.
  *
  * - UniqueJob: the first dispatch of a job acquires a lock keyed on the job
  *   class name (or the custom key). Any subsequent dispatch within the
@@ -18,6 +25,7 @@ use Waaseyaa\Queue\Attribute\UniqueJob;
  *
  * - RateLimited: counts dispatches within the decaySeconds window and skips
  *   any dispatch that would exceed maxAttempts.
+ *
  * @api
  */
 final class AttributeGuard
