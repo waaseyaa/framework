@@ -12,7 +12,7 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Policy\PublishedContentAccessPolicy;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
-use Waaseyaa\Cache\CacheConfigResolver;
+use Waaseyaa\Routing\CacheConfigResolver;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
