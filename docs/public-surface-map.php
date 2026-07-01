@@ -60,6 +60,7 @@ return [
     'Waaseyaa\Foundation\Event\DomainEvent' => 'public',
     'Waaseyaa\Foundation\Event\EventDispatcherInterface' => 'public',
     'Waaseyaa\Foundation\Ingestion\IngestionErrorCode' => 'public',
+    'Waaseyaa\Foundation\Ingestion\TraceIdGeneratorInterface' => 'public',
     'Waaseyaa\Foundation\Exception\WaaseyaaException' => 'public',
     'Waaseyaa\Foundation\Http\HttpServiceResolverInterface' => 'public',
     'Waaseyaa\Foundation\Http\JsonApiResponseTrait' => 'public',
@@ -87,6 +88,10 @@ return [
     'Waaseyaa\Cache\ContextNames' => 'public',
     'Waaseyaa\Cache\Exception\InvalidCacheTagException' => 'public',
     'Waaseyaa\Database\DatabaseInterface' => 'public',
+    // SelectInterface gained two raw-expression seams in WP6 (#1816):
+    // whereRaw(string, array) and orderByRaw(string, string). condition() /
+    // orderBy() / isNull() / isNotNull() now auto-quote their $field identifier;
+    // SQL expressions (json_extract, COALESCE, CAST) go through the raw seams.
     'Waaseyaa\Database\SelectInterface' => 'public',
     'Waaseyaa\Database\InsertInterface' => 'public',
     'Waaseyaa\Database\UpdateInterface' => 'public',
@@ -500,6 +505,9 @@ return [
     'Waaseyaa\Audit\Contract\AuditQueryInterface' => 'public',
     'Waaseyaa\Audit\Contract\AuditWriterInterface' => 'public',
     'Waaseyaa\Audit\Enum\AuditEventKind' => 'public',
+    // WP4 #1792: L1 metric seam — operators bind a real implementation to get
+    // a loud signal (counter/alert) on audit write failures.
+    'Waaseyaa\Audit\Contract\AuditWriteFailureObserver' => 'public',
     // Tamper-evidence: checkpoint export sink is a public extension point —
     // operators implement it to ship checkpoints to an off-box / WORM sink.
     'Waaseyaa\Audit\Integrity\CheckpointSink' => 'public',

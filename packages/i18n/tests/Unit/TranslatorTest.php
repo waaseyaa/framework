@@ -92,6 +92,31 @@ final class TranslatorTest extends TestCase
     }
 
     #[Test]
+    public function has_returns_false_for_empty_string_translation(): void
+    {
+        // has() must agree with trans(): an empty-string value is not a valid
+        // translation (trans() skips it and falls through to the fallback chain).
+        file_put_contents($this->langDir . '/oj.php', "<?php\nreturn ['greeting' => '', 'nav.home' => 'Endaad'];\n");
+        $this->manager->setCurrentLanguage($this->manager->getLanguage('oj'));
+        $translator = new Translator($this->langDir, $this->manager);
+
+        // 'greeting' is empty in oj but present (non-empty) in en via fallback.
+        $this->assertTrue($translator->has('greeting'), 'has() must find the key via fallback when oj value is empty');
+    }
+
+    #[Test]
+    public function has_walks_fallback_chain_like_trans(): void
+    {
+        // Set language to 'oj', which lacks 'welcome'. has() must walk the chain
+        // and find it in 'en' — the same lookup path that trans() uses.
+        $this->manager->setCurrentLanguage($this->manager->getLanguage('oj'));
+        $translator = new Translator($this->langDir, $this->manager);
+
+        $this->assertTrue($translator->has('welcome'), 'has() must find key in fallback language');
+        $this->assertFalse($translator->has('nonexistent'), 'has() must return false when no fallback has the key');
+    }
+
+    #[Test]
     public function handles_missing_lang_file_gracefully(): void
     {
         $this->manager->setCurrentLanguage($this->manager->getLanguage('oj'));

@@ -88,16 +88,14 @@ final class ScheduleRunner
      */
     private function runTask(ScheduledTask $task, \DateTimeInterface $now): ScheduleRunResult
     {
-        unset($now); // Reserved for future "scheduled time" recording; current state row only carries "last_run_at" = wall clock.
-
         // Per-task overlap-lock TTL (scheduler m2): must exceed the task's
         // expected runtime, since a mid-run lease expiry is what opens the
         // split-brain reclaim window that scheduler m15's ownership token closes.
         $lockToken = null;
         if ($task->preventOverlap) {
-            $lockToken = $this->lock->acquire($task->name, $task->lockTtl);
+            $lockToken = $this->lock->acquire($task->name, $task->lockTtl, $now);
             if ($lockToken === null) {
-                $this->stateRepository?->recordRun($task->name, ScheduleRunResult::STATUS_SKIPPED_OVERLAP);
+                $this->stateRepository?->recordRun($task->name, ScheduleRunResult::STATUS_SKIPPED_OVERLAP, $now);
 
                 return new ScheduleRunResult(
                     count: 0,
@@ -114,7 +112,7 @@ final class ScheduleRunner
             } else {
                 ($task->command)();
             }
-            $this->stateRepository?->recordRun($task->name, ScheduleRunResult::STATUS_SUCCESS);
+            $this->stateRepository?->recordRun($task->name, ScheduleRunResult::STATUS_SUCCESS, $now);
 
             return new ScheduleRunResult(
                 count: 1,
@@ -127,7 +125,7 @@ final class ScheduleRunner
             // passing the throwable through. The dashboard JSON payload is
             // built from `status`, `message`, and `exceptionClass` (FQCN
             // string), never from the raw object.
-            $this->stateRepository?->recordRun($task->name, 'failed: ' . $e->getMessage());
+            $this->stateRepository?->recordRun($task->name, 'failed: ' . $e->getMessage(), $now);
             $this->logger->error("Task {$task->name} failed: {$e->getMessage()}");
 
             return new ScheduleRunResult(

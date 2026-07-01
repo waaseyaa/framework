@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Waaseyaa\Cache;
+namespace Waaseyaa\Routing;
 
 use Waaseyaa\Access\AccountInterface;
 

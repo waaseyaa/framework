@@ -8,23 +8,24 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Foundation\Ingestion\Envelope;
-use Waaseyaa\Foundation\Ingestion\EnvelopeValidator;
 use Waaseyaa\Foundation\Ingestion\IngestionError;
 use Waaseyaa\Foundation\Ingestion\IngestionErrorCode;
 use Waaseyaa\Foundation\Ingestion\InvalidEnvelopeException;
+use Waaseyaa\Foundation\Ingestion\MessageEnvelopeValidator;
+use Waaseyaa\Foundation\Ingestion\TraceIdGeneratorInterface;
 
-#[CoversClass(EnvelopeValidator::class)]
+#[CoversClass(MessageEnvelopeValidator::class)]
 #[CoversClass(Envelope::class)]
 #[CoversClass(InvalidEnvelopeException::class)]
 #[CoversClass(IngestionError::class)]
 #[CoversClass(IngestionErrorCode::class)]
-final class EnvelopeValidatorTest extends TestCase
+final class MessageEnvelopeValidatorTest extends TestCase
 {
-    private EnvelopeValidator $validator;
+    private MessageEnvelopeValidator $validator;
 
     protected function setUp(): void
     {
-        $this->validator = new EnvelopeValidator();
+        $this->validator = new MessageEnvelopeValidator();
     }
 
     // ------------------------------------------------------------------
@@ -68,6 +69,50 @@ final class EnvelopeValidatorTest extends TestCase
             '/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/',
             $envelope->traceId,
         );
+    }
+
+    #[Test]
+    public function injectedTraceIdGeneratorIsUsedWhenTraceIdAbsent(): void
+    {
+        $fixedId = 'aaaabbbb-cccc-dddd-eeee-ffffffffffff';
+
+        $generator = new class($fixedId) implements TraceIdGeneratorInterface {
+            public function __construct(private readonly string $id) {}
+
+            public function generate(): string
+            {
+                return $this->id;
+            }
+        };
+
+        $validator = new MessageEnvelopeValidator($generator);
+
+        $raw = $this->validEnvelope();
+        unset($raw['trace_id']);
+
+        $envelope = $validator->validate($raw);
+
+        $this->assertSame($fixedId, $envelope->traceId);
+    }
+
+    #[Test]
+    public function injectedTraceIdGeneratorIsNotUsedWhenTraceIdPresent(): void
+    {
+        $generator = new class implements TraceIdGeneratorInterface {
+            public function generate(): string
+            {
+                return 'should-not-be-used';
+            }
+        };
+
+        $validator = new MessageEnvelopeValidator($generator);
+
+        $raw = $this->validEnvelope();
+        $raw['trace_id'] = '550e8400-e29b-41d4-a716-446655440000';
+
+        $envelope = $validator->validate($raw);
+
+        $this->assertSame('550e8400-e29b-41d4-a716-446655440000', $envelope->traceId);
     }
 
     #[Test]

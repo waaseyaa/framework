@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
-use Waaseyaa\Cache\CacheConfigResolver;
+use Waaseyaa\Routing\CacheConfigResolver;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\ContentNegotiation\MediaTypeAcceptNegotiator;
