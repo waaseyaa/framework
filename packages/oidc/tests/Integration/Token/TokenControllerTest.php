@@ -13,6 +13,9 @@ use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Oidc\ClientRegistry\OidcClientLookup;
@@ -41,6 +44,7 @@ final class TokenControllerTest extends TestCase
     private string $privateKeyPem;
     private string $publicKeyPem;
     private SqlEntityStorage $storage;
+    private EntityRepository $repository;
 
     protected function setUp(): void
     {
@@ -67,7 +71,14 @@ final class TokenControllerTest extends TestCase
             'client_secret_hash' => ['type' => 'varchar', 'length' => 255, 'not null' => false],
         ]);
 
-        $this->storage = new SqlEntityStorage($entityType, $database, new EventDispatcher());
+        $dispatcher = new EventDispatcher();
+        $this->storage = new SqlEntityStorage($entityType, $database, $dispatcher);
+        $this->repository = new EntityRepository(
+            $entityType,
+            new SqlStorageDriver(new SingleConnectionResolver($database)),
+            $dispatcher,
+            database: $database,
+        );
     }
 
     #[Test]
@@ -326,7 +337,7 @@ final class TokenControllerTest extends TestCase
         $refreshTokenIssuer = new RefreshTokenIssuer($db);
 
         return new TokenController(
-            clientLookup: new OidcClientLookup($this->storage),
+            clientLookup: new OidcClientLookup($this->storage, $this->repository),
             validator: new TokenRequestValidator(),
             pkceVerifier: new PkceVerifier(),
             codeRepository: $this->fakeCodeRepository($codes),

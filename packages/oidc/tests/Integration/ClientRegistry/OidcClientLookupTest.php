@@ -9,6 +9,9 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Oidc\ClientRegistry\OidcClientLookup;
@@ -40,13 +43,21 @@ final class OidcClientLookupTest extends TestCase
             'client_secret_hash' => ['type' => 'varchar', 'length' => 255, 'not null' => false],
         ]);
 
+        $dispatcher = new EventDispatcher();
         $this->storage = new SqlEntityStorage(
             $entityType,
             $database,
-            new EventDispatcher(),
+            $dispatcher,
         );
 
-        $this->lookup = new OidcClientLookup($this->storage);
+        $repository = new EntityRepository(
+            $entityType,
+            new SqlStorageDriver(new SingleConnectionResolver($database)),
+            $dispatcher,
+            database: $database,
+        );
+
+        $this->lookup = new OidcClientLookup($this->storage, $repository);
     }
 
     public function testReturnsNullWhenClientIdNotFound(): void

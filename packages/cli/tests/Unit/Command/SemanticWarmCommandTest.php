@@ -19,6 +19,7 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
 
 #[CoversClass(SemanticWarmHandler::class)]
 final class SemanticWarmCommandTest extends TestCase
@@ -93,6 +94,8 @@ final class SemanticWarmCommandTest extends TestCase
         $manager = $this->createMock(EntityTypeManagerInterface::class);
         $manager->method('hasDefinition')->with('node')->willReturn(true);
         $manager->method('getStorage')->with('node')->willReturn($storage);
+        // C-22: the query builder now lives on the repository.
+        $manager->method('getRepository')->with('node')->willReturn(new QueryOnlyStubRepository($query));
 
         $embeddingProvider = $this->createMock(EmbeddingProviderInterface::class);
         $embeddingProvider->method('embed')->willReturn([0.2, 0.4]);

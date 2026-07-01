@@ -12,6 +12,7 @@ use Symfony\Component\Routing\RequestContext;
 use Waaseyaa\Api\ApiServiceProvider;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\ResourceSerializer;
+use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -40,6 +41,7 @@ final class ApiRoutingIntegrationTest extends TestCase
         $this->entityTypeManager = new EntityTypeManager(
             new EventDispatcher(),
             fn() => $this->nodeStorage,
+            fn() => new InMemoryEntityRepository($this->nodeStorage),
         );
 
         $this->entityTypeManager->registerEntityType(new EntityType(

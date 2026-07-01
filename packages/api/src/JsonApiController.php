@@ -56,6 +56,10 @@ final class JsonApiController
         }
 
         $storage = $this->entityTypeManager->getStorage($entityTypeId);
+        // C-22 WP2: the account-filtered query surface now lives on the
+        // canonical repository (getStorage() still serves loadMultiple() below
+        // until WP3 migrates the read/write calls too).
+        $repository = $this->entityTypeManager->getRepository($entityTypeId);
 
         // Parse query parameters.
         $parser = new QueryParser();
@@ -75,7 +79,7 @@ final class JsonApiController
 
         // Count total matching entities (before pagination). Bind the request's
         // authenticated account so the query layer filters access at source.
-        $countQuery = $storage->getQuery();
+        $countQuery = $repository->getQuery();
         if ($this->account !== null) {
             $countQuery->setAccount($this->account);
         } else {
@@ -91,7 +95,7 @@ final class JsonApiController
         $total = (int) ($countResult[0] ?? 0);
 
         // Build and execute the main query with filters, sorts, and pagination.
-        $entityQuery = $storage->getQuery();
+        $entityQuery = $repository->getQuery();
         if ($this->account !== null) {
             $entityQuery->setAccount($this->account);
         } else {
@@ -118,7 +122,7 @@ final class JsonApiController
             // deny-by-default (isAllowed), so Neutral rows would inflate it.
             // Recompute the true total by re-running the filter set without
             // pagination and counting rows this account may actually view.
-            $total = $this->accessFilteredTotal($storage, $parsedQuery);
+            $total = $this->accessFilteredTotal($repository, $storage, $parsedQuery);
         }
 
         $resources = $this->serializer->serializeCollection($entities, $this->accessHandler, $this->account);
@@ -167,15 +171,17 @@ final class JsonApiController
      * Only invoked when both an access handler and an account are bound; the
      * system / no-account path keeps the storage COUNT computed in index().
      *
+     * @param \Waaseyaa\Entity\Repository\EntityRepositoryInterface $repository
      * @param \Waaseyaa\Entity\Storage\EntityStorageInterface $storage
      */
     private function accessFilteredTotal(
+        \Waaseyaa\Entity\Repository\EntityRepositoryInterface $repository,
         \Waaseyaa\Entity\Storage\EntityStorageInterface $storage,
         ParsedQuery $parsedQuery,
     ): int {
         \assert($this->accessHandler !== null && $this->account !== null);
 
-        $idQuery = $storage->getQuery();
+        $idQuery = $repository->getQuery();
         $idQuery->setAccount($this->account);
         // Filters only — no sort, no range — so we span the whole match set.
         foreach ($parsedQuery->filters as $filter) {
@@ -620,7 +626,8 @@ final class JsonApiController
 
         // If the entity type has a uuid key and the ID looks like a UUID, query by uuid.
         if (isset($keys['uuid']) && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', (string) $id)) {
-            $query = $storage->getQuery();
+            // C-22 WP2: query surface migrated to the repository; load() below stays on getStorage() until WP3.
+            $query = $this->entityTypeManager->getRepository($entityTypeId)->getQuery();
             if ($this->account !== null) {
                 $query->setAccount($this->account);
             } else {

@@ -28,6 +28,9 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Relationship\Relationship;
@@ -56,6 +59,7 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
     {
         $this->database = DBALDatabase::createSqlite();
         $dispatcher = new EventDispatcher();
+        $resolver = new SingleConnectionResolver($this->database);
 
         $this->entityTypeManager = new EntityTypeManager(
             $dispatcher,
@@ -69,6 +73,18 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
                     $definition,
                     $this->database,
                     $dispatcher,
+                    accessHandlerResolver: fn(): ?EntityAccessHandler => $this->accessHandler ?? null,
+                );
+            },
+            // C-22: repository factory mirroring the kernel's getRepository() shape
+            // — same lazy accessHandlerResolver the storage factory threads above.
+            function (string $_id, EntityType $definition) use ($dispatcher, $resolver): EntityRepository {
+                new SqlSchemaHandler($definition, $this->database)->ensureTable();
+                return new EntityRepository(
+                    $definition,
+                    new SqlStorageDriver($resolver),
+                    $dispatcher,
+                    database: $this->database,
                     accessHandlerResolver: fn(): ?EntityAccessHandler => $this->accessHandler ?? null,
                 );
             },

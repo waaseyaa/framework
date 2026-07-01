@@ -158,8 +158,8 @@ final class GenealogySsrController
      */
     private function resolveLocalDemoLinks(): array
     {
-        $personStorage = $this->entityTypeManager->getStorage('genealogy_person');
-        $personIds = $personStorage->getQuery()
+        // C-22 WP2: the query builder now lives on the repository.
+        $personIds = $this->entityTypeManager->getRepository('genealogy_person')->getQuery()
             ->condition('display_name', GenealogyLocalDemoMarkers::CHILD_PERSON_DISPLAY)
             // system context: local-demo link discovery runs without an account in scope
             ->accessCheck(false)
@@ -167,8 +167,7 @@ final class GenealogySsrController
             ->execute();
         $personId = isset($personIds[0]) ? (string) $personIds[0] : null;
 
-        $familyStorage = $this->entityTypeManager->getStorage('genealogy_family');
-        $familyIds = $familyStorage->getQuery()
+        $familyIds = $this->entityTypeManager->getRepository('genealogy_family')->getQuery()
             ->condition('display_name', GenealogyLocalDemoMarkers::FAMILY_DISPLAY)
             // system context: local-demo link discovery runs without an account in scope
             ->accessCheck(false)

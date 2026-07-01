@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Oidc\ClientRegistry;
 
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\Oidc\Entity\OidcClient;
 
@@ -34,6 +35,8 @@ final class OidcClientSeeder
 {
     public function __construct(
         private readonly SqlEntityStorage $storage,
+        // C-22 WP2: the query builder now lives on the repository.
+        private readonly EntityRepositoryInterface $repository,
     ) {}
 
     /**
@@ -120,7 +123,7 @@ final class OidcClientSeeder
 
     private function findByClientId(string $clientId): ?OidcClient
     {
-        $ids = $this->storage->getQuery()
+        $ids = $this->repository->getQuery()
             // system context: client registry seed runs pre-auth
             ->accessCheck(false)
             ->condition('client_id', $clientId)

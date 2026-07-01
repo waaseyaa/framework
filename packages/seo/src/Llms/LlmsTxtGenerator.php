@@ -104,8 +104,9 @@ final class LlmsTxtGenerator
                 continue;
             }
 
+            // C-22 WP2: the query builder now lives on the repository.
             $query = $entityTypeManager
-                ->getStorage($entityTypeId)
+                ->getRepository($entityTypeId)
                 ->getQuery()
                 ->accessCheck(false);
 

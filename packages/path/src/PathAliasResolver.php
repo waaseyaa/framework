@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Path;
 
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 
 final readonly class PathAliasResolver
 {
     public function __construct(
         private EntityStorageInterface $pathAliasStorage,
+        // C-22 WP2: the query builder now lives on the repository.
+        private EntityRepositoryInterface $pathAliasRepository,
     ) {}
 
     public function resolve(string $alias, string $langcode = 'en'): ?ResolvedPath
@@ -22,7 +25,7 @@ final readonly class PathAliasResolver
         // globally; entity-level access is enforced when the resolved entity
         // is subsequently loaded by the caller.
         // See docs/security/sql-entity-query-access-check-bypass-audit.md.
-        $query = $this->pathAliasStorage->getQuery()
+        $query = $this->pathAliasRepository->getQuery()
             ->accessCheck(false)
             ->condition('alias', $alias)
             ->condition('langcode', $langcode)

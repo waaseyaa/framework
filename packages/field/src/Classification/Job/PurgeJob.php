@@ -82,7 +82,8 @@ final class PurgeJob
         $storage = $this->entityTypeManager->getStorage('retention_policy');
         // Reading policy rows for a system sweep; no user account in scope.
         // accessCheck(false) is the intentional opt-out (CLAUDE.md §"Unbound getQuery() gate").
-        $ids = $storage->getQuery()
+        // C-22 WP2: the query builder now lives on the repository.
+        $ids = $this->entityTypeManager->getRepository('retention_policy')->getQuery()
             ->accessCheck(false)
             ->condition('action', RetentionPolicy::ACTION_PURGE)
             ->condition('trigger_kind', RetentionPolicy::TRIGGER_AGE_BASED)

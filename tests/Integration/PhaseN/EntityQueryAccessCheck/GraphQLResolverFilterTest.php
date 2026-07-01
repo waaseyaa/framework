@@ -17,6 +17,9 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
@@ -74,9 +77,20 @@ final class GraphQLResolverFilterTest extends TestCase
         );
 
         $storage = $this->storage;
+        $resolver = new SingleConnectionResolver($this->database);
+        $database = $this->database;
+        $accessHandler = $this->accessHandler;
         $this->entityTypeManager = new EntityTypeManager(
             $eventDispatcher,
             static fn(EntityTypeInterface $_type) => $storage,
+            // C-22: repository factory mirroring the kernel's getRepository() shape.
+            static fn(string $_id, EntityTypeInterface $type): EntityRepository => new EntityRepository(
+                $type,
+                new SqlStorageDriver($resolver),
+                $eventDispatcher,
+                database: $database,
+                accessHandler: $accessHandler,
+            ),
         );
         $this->entityTypeManager->registerEntityType($entityType);
 

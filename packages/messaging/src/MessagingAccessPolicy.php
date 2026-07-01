@@ -135,7 +135,8 @@ final class MessagingAccessPolicy implements AccessPolicyInterface, FieldAccessP
         try {
             // System integrity query (the policy IS the access boundary), so it
             // opts out of the per-query account gate via accessCheck(false).
-            $ids = $this->entityTypeManager->getStorage('thread_participant')->getQuery()
+            // C-22 WP2: the query builder now lives on the repository.
+            $ids = $this->entityTypeManager->getRepository('thread_participant')->getQuery()
                 ->accessCheck(false)
                 ->condition('thread_id', $threadId)
                 ->condition('user_id', (int) $account->id())

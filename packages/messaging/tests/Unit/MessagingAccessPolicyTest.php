@@ -13,6 +13,7 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
 use Waaseyaa\Messaging\MessagingAccessPolicy;
 
 /**
@@ -104,6 +105,8 @@ final class MessagingAccessPolicyTest extends TestCase
 
         $etm = $this->createMock(EntityTypeManagerInterface::class);
         $etm->method('getStorage')->willReturn($storage);
+        // C-22: the query builder now lives on the repository.
+        $etm->method('getRepository')->willReturn(new QueryOnlyStubRepository($query));
 
         return $etm;
     }

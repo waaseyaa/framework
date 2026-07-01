@@ -268,8 +268,8 @@ final class RelationshipValidator
             return false;
         }
 
-        $storage = $this->entityTypeManager->getStorage($entityType);
-        $ids = $storage->getQuery()
+        // C-22 WP2: the query builder now lives on the repository.
+        $ids = $this->entityTypeManager->getRepository($entityType)->getQuery()
             ->condition($uuidKey, $candidate)
             // system context: referential-integrity check spans access boundaries
             ->accessCheck(false)

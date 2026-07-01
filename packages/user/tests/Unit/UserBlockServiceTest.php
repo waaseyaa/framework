@@ -8,8 +8,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\User\UserBlockService;
 
 #[CoversClass(UserBlockService::class)]
@@ -24,11 +24,11 @@ final class UserBlockServiceTest extends TestCase
         $query->method('range')->willReturnSelf();
         $query->method('execute')->willReturn([1]);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->method('getQuery')->willReturn($query);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
 
         $etm = $this->createMock(EntityTypeManager::class);
-        $etm->method('getStorage')->with('user_block')->willReturn($storage);
+        $etm->method('getRepository')->with('user_block')->willReturn($repository);
 
         $service = new UserBlockService($etm);
         $this->assertTrue($service->isBlocked(42, 99));
@@ -43,11 +43,11 @@ final class UserBlockServiceTest extends TestCase
         $query->method('range')->willReturnSelf();
         $query->method('execute')->willReturn([]);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->method('getQuery')->willReturn($query);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
 
         $etm = $this->createMock(EntityTypeManager::class);
-        $etm->method('getStorage')->with('user_block')->willReturn($storage);
+        $etm->method('getRepository')->with('user_block')->willReturn($repository);
 
         $service = new UserBlockService($etm);
         $this->assertFalse($service->isBlocked(42, 99));
@@ -71,11 +71,11 @@ final class UserBlockServiceTest extends TestCase
         $query->method('range')->willReturnSelf();
         $query->method('execute')->willReturn([]);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->method('getQuery')->willReturn($query);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
 
         $etm = $this->createMock(EntityTypeManager::class);
-        $etm->method('getStorage')->with('user_block')->willReturn($storage);
+        $etm->method('getRepository')->with('user_block')->willReturn($repository);
 
         $service = new UserBlockService($etm);
         $service->isBlocked(42, 99);

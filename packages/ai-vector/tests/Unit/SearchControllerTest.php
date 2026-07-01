@@ -17,6 +17,7 @@ use Waaseyaa\Entity\Tests\Helper\TestEntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
 
 #[CoversClass(SearchController::class)]
 final class SearchControllerTest extends TestCase
@@ -127,6 +128,8 @@ final class SearchControllerTest extends TestCase
         $manager->method('hasDefinition')->willReturnCallback(static fn(string $id): bool => $id === 'node');
         $manager->method('getStorage')->willReturn($storage);
         $manager->method('getDefinition')->willReturn($definition);
+        // C-22: the query builder now lives on the repository.
+        $manager->method('getRepository')->willReturn(new QueryOnlyStubRepository($query));
 
         $embeddingStorage = $this->createMock(EmbeddingStorageInterface::class);
         $embeddingStorage->expects($this->never())->method('findSimilar');
@@ -189,6 +192,8 @@ final class SearchControllerTest extends TestCase
         $manager->method('hasDefinition')->willReturnCallback(static fn(string $id): bool => $id === 'node');
         $manager->method('getStorage')->willReturn($storage);
         $manager->method('getDefinition')->willReturn($definition);
+        // C-22: the query builder now lives on the repository.
+        $manager->method('getRepository')->willReturn(new QueryOnlyStubRepository($query));
 
         $provider = $this->createMock(EmbeddingProviderInterface::class);
         $provider->expects($this->once())
@@ -268,6 +273,10 @@ final class SearchControllerTest extends TestCase
             static fn(string $id): EntityStorageInterface => $id === 'relationship' ? $relationshipStorage : $nodeStorage,
         );
         $manager->method('getDefinition')->willReturn($definition);
+        // C-22: the query builder now lives on the repository. 'node' repository's
+        // getQuery() is never invoked in this test (semantic mode succeeds, so
+        // keywordSearchIds is skipped) — only the 'relationship' rerank query matters.
+        $manager->method('getRepository')->willReturn(new QueryOnlyStubRepository($relationshipQuery));
 
         $provider = $this->createMock(EmbeddingProviderInterface::class);
         $provider->expects($this->once())->method('embed')->with('water')->willReturn([0.1, 0.2]);

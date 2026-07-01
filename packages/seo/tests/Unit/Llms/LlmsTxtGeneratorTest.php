@@ -8,8 +8,10 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
 use Waaseyaa\Seo\Llms\LlmsTopic;
 use Waaseyaa\Seo\Llms\LlmsTxtGenerator;
 
@@ -96,6 +98,8 @@ final class LlmsTxtGeneratorTest extends TestCase
         $manager = $this->createMock(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn(['node' => $this->createStub(\Waaseyaa\Entity\EntityTypeInterface::class)]);
         $manager->method('getStorage')->willReturn($storage);
+        // C-22: the query builder now lives on the repository.
+        $manager->method('getRepository')->willReturn(new QueryOnlyStubRepository($query));
 
         $topics = new LlmsTxtGenerator()->collectTopics(
             $manager,
@@ -229,6 +233,8 @@ final class LlmsTxtGeneratorTest extends TestCase
         $manager = $this->createMock(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn(['node' => $def]);
         $manager->method('getStorage')->willReturn($storage);
+        // C-22: the query builder now lives on the repository.
+        $manager->method('getRepository')->willReturn(new QueryOnlyStubRepository($query));
 
         new LlmsTxtGenerator()->collectTopics(
             $manager,
@@ -260,6 +266,15 @@ final class LlmsTxtGeneratorTest extends TestCase
             $storage->method('getQuery')->willReturn($query);
 
             return $storage;
+        });
+        // C-22: the query builder now lives on the repository.
+        $manager->method('getRepository')->willReturnCallback(function (string $type) use ($typeIds): EntityRepositoryInterface {
+            $query = $this->createMock(EntityQueryInterface::class);
+            $query->method('accessCheck')->willReturnSelf();
+            $query->method('range')->willReturnSelf();
+            $query->method('execute')->willReturn($typeIds[$type] ?? []);
+
+            return new QueryOnlyStubRepository($query);
         });
 
         return $manager;

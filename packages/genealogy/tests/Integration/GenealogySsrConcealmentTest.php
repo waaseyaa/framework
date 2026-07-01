@@ -20,6 +20,9 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Tests\Helper\TestEntityType;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Field\FieldDefinitionRegistry;
@@ -236,6 +239,7 @@ final class GenealogySsrConcealmentTest extends TestCase
         $dispatcher = new EventDispatcher();
         $registry = new FieldDefinitionRegistry();
 
+        $resolver = new SingleConnectionResolver($database);
         $manager = new EntityTypeManager(
             $dispatcher,
             function (EntityTypeInterface $definition) use ($database, $dispatcher, $registry): SqlEntityStorage {
@@ -249,6 +253,18 @@ final class GenealogySsrConcealmentTest extends TestCase
                     $database,
                     $dispatcher,
                     $registry,
+                    accessHandlerResolver: fn(): ?EntityAccessHandler => $this->accessHandler ?? null,
+                );
+            },
+            // C-22 WP2: repository factory mirroring the kernel's getRepository() shape
+            // — same lazy accessHandlerResolver the storage factory threads above.
+            function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $resolver, $database, $registry): EntityRepository {
+                return new EntityRepository(
+                    $definition,
+                    new SqlStorageDriver($resolver),
+                    $dispatcher,
+                    database: $database,
+                    fieldRegistry: $registry,
                     accessHandlerResolver: fn(): ?EntityAccessHandler => $this->accessHandler ?? null,
                 );
             },

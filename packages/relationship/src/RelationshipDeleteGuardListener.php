@@ -30,16 +30,17 @@ final class RelationshipDeleteGuardListener
             return;
         }
 
-        $relationshipStorage = $this->entityTypeManager->getStorage('relationship');
+        // C-22 WP2: the query builder now lives on the repository.
+        $relationshipRepository = $this->entityTypeManager->getRepository('relationship');
         $idString = (string) $entityId;
 
-        $outbound = $relationshipStorage->getQuery()
+        $outbound = $relationshipRepository->getQuery()
             ->condition('from_entity_type', $this->guardedEntityType)
             ->condition('from_entity_id', $idString)
             // system context: referential-integrity check spans access boundaries
             ->accessCheck(false)
             ->execute();
-        $inbound = $relationshipStorage->getQuery()
+        $inbound = $relationshipRepository->getQuery()
             ->condition('to_entity_type', $this->guardedEntityType)
             ->condition('to_entity_id', $idString)
             // system context: referential-integrity check spans access boundaries

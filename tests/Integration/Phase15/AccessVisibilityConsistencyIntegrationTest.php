@@ -25,6 +25,9 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Relationship\Relationship;
@@ -41,12 +44,18 @@ final class AccessVisibilityConsistencyIntegrationTest extends TestCase
         $database = DBALDatabase::createSqlite();
         $dispatcher = new EventDispatcher();
 
+        $resolver = new SingleConnectionResolver($database);
         $manager = new EntityTypeManager(
             $dispatcher,
             function (EntityType $definition) use ($dispatcher, $database): SqlEntityStorage {
                 $schema = new SqlSchemaHandler($definition, $database);
                 $schema->ensureTable();
                 return new SqlEntityStorage($definition, $database, $dispatcher);
+            },
+            // C-22: repository factory mirroring the kernel's getRepository() shape.
+            function (string $_id, EntityType $definition) use ($dispatcher, $resolver, $database): EntityRepository {
+                new SqlSchemaHandler($definition, $database)->ensureTable();
+                return new EntityRepository($definition, new SqlStorageDriver($resolver), $dispatcher, database: $database);
             },
         );
 

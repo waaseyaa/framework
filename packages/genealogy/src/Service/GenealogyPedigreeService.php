@@ -7,6 +7,7 @@ namespace Waaseyaa\Genealogy\Service;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Genealogy\Entity\GenealogyPerson;
 use Waaseyaa\Genealogy\GenealogyLivingSemantics;
@@ -28,7 +29,8 @@ final class GenealogyPedigreeService
     public function parentPersonIds(string $personId, ?AccountInterface $account = null): array
     {
         $storage = $this->relationshipStorage();
-        $q = $storage->getQuery();
+        // C-22 WP2: the account-filtered query surface now lives on the repository.
+        $q = $this->relationshipRepository()->getQuery();
         if ($account !== null) {
             $q->setAccount($account);
         } else {
@@ -51,7 +53,8 @@ final class GenealogyPedigreeService
     public function childPersonIds(string $personId, ?AccountInterface $account = null): array
     {
         $storage = $this->relationshipStorage();
-        $q = $storage->getQuery();
+        // C-22 WP2: the account-filtered query surface now lives on the repository.
+        $q = $this->relationshipRepository()->getQuery();
         if ($account !== null) {
             $q->setAccount($account);
         } else {
@@ -207,6 +210,11 @@ final class GenealogyPedigreeService
         return $this->entityTypeManager->getStorage('relationship');
     }
 
+    private function relationshipRepository(): EntityRepositoryInterface
+    {
+        return $this->entityTypeManager->getRepository('relationship');
+    }
+
     /**
      * @param list<int|string> $relationshipIds
      * @param callable(Relationship): string $extractPersonId
@@ -238,7 +246,8 @@ final class GenealogyPedigreeService
     private function edgesForSpouse(EntityStorageInterface $storage, string $personId, ?AccountInterface $account = null): iterable
     {
         foreach (['from_entity_id', 'to_entity_id'] as $field) {
-            $q = $storage->getQuery();
+            // C-22 WP2: the account-filtered query surface now lives on the repository.
+            $q = $this->relationshipRepository()->getQuery();
             if ($account !== null) {
                 $q->setAccount($account);
             } else {

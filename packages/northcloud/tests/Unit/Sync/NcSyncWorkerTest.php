@@ -215,6 +215,12 @@ final class NcSyncWorkerTest extends TestCase
                 }
                 return $this->storages[$entityTypeId];
             }
+
+            // C-22: the query builder now lives on the repository.
+            public function getRepository(string $entityTypeId): \Waaseyaa\Entity\Repository\EntityRepositoryInterface
+            {
+                return new \Waaseyaa\Entity\Testing\QueryOnlyStubRepository($this->getStorage($entityTypeId)->getQuery());
+            }
         };
     }
 

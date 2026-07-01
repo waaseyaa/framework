@@ -12,6 +12,9 @@ use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlEntityStorage;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Oidc\Authorize\AuthorizationRequestValidator;
@@ -26,6 +29,7 @@ use Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface;
 final class AuthorizeControllerTest extends TestCase
 {
     private SqlEntityStorage $storage;
+    private EntityRepository $repository;
     private FakeCodeRepository $codeRepository;
     private AuthorizeController $controller;
     private ConsentRepository $consentRepository;
@@ -50,7 +54,14 @@ final class AuthorizeControllerTest extends TestCase
             'client_secret_hash' => ['type' => 'varchar', 'length' => 255, 'not null' => false],
         ]);
 
-        $this->storage = new SqlEntityStorage($entityType, $database, new EventDispatcher());
+        $dispatcher = new EventDispatcher();
+        $this->storage = new SqlEntityStorage($entityType, $database, $dispatcher);
+        $this->repository = new EntityRepository(
+            $entityType,
+            new SqlStorageDriver(new SingleConnectionResolver($database)),
+            $dispatcher,
+            database: $database,
+        );
 
         $client = $this->storage->create([
             'client_id' => 'minoo-web',
@@ -68,7 +79,7 @@ final class AuthorizeControllerTest extends TestCase
         $this->consentRepository->record('42', 'minoo-web', ['openid', 'profile']);
 
         $this->controller = new AuthorizeController(
-            clientLookup: new OidcClientLookup($this->storage),
+            clientLookup: new OidcClientLookup($this->storage, $this->repository),
             validator: new AuthorizationRequestValidator(),
             codeRepository: $this->codeRepository,
             consentRepository: $this->consentRepository,
@@ -98,7 +109,7 @@ final class AuthorizeControllerTest extends TestCase
         // produced `/login?foo=bar?return_to=...` (malformed). The controller
         // must use `&` as the separator when the path already contains `?`.
         $controller = new AuthorizeController(
-            clientLookup: new OidcClientLookup($this->storage),
+            clientLookup: new OidcClientLookup($this->storage, $this->repository),
             validator: new AuthorizationRequestValidator(),
             codeRepository: $this->codeRepository,
             consentRepository: $this->consentRepository,

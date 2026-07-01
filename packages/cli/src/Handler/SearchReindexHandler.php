@@ -54,7 +54,8 @@ final class SearchReindexHandler
                 // irrelevant to building the index (the search provider gates
                 // reads). Mirrors SitemapGenerator's system-context bypass, and
                 // accessCheck(false) keeps the unbound-getQuery() gate satisfied.
-                $ids = $storage->getQuery()
+                // C-22 WP2: the query builder now lives on the repository.
+                $ids = $this->entityTypeManager->getRepository($entityType->id())->getQuery()
                     ->accessCheck(false)
                     ->range($offset, $batchSize)
                     ->execute();

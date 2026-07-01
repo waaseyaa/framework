@@ -11,6 +11,7 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\ResourceSerializer;
+use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -55,6 +56,7 @@ final class PolicylessEntityDenyByDefaultTest extends TestCase
         $this->entityTypeManager = new EntityTypeManager(
             new EventDispatcher(),
             fn() => $this->storage,
+            fn() => new InMemoryEntityRepository($this->storage),
         );
         $this->entityTypeManager->registerEntityType(new EntityType(
             id: 'widget',

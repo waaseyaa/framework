@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
 use Waaseyaa\Entity\Testing\RecordingEntityQuery;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -43,11 +44,14 @@ final class SitemapGeneratorTest extends TestCase
     #[Test]
     public function collect_from_entity_types_respects_include(): void
     {
+        $articleQuery = new StubEntityQuery([10, 20]);
+        $pageQuery = new StubEntityQuery([3]);
+
         $articleStorage = $this->createStub(EntityStorageInterface::class);
-        $articleStorage->method('getQuery')->willReturn(new StubEntityQuery([10, 20]));
+        $articleStorage->method('getQuery')->willReturn($articleQuery);
 
         $pageStorage = $this->createStub(EntityStorageInterface::class);
-        $pageStorage->method('getQuery')->willReturn(new StubEntityQuery([3]));
+        $pageStorage->method('getQuery')->willReturn($pageQuery);
 
         $articleDef = $this->createStub(EntityTypeInterface::class);
         $pageDef = $this->createStub(EntityTypeInterface::class);
@@ -65,6 +69,11 @@ final class SitemapGeneratorTest extends TestCase
         $etm->method('getStorage')->willReturnMap([
             ['article', $articleStorage],
             ['page', $pageStorage],
+        ]);
+        // C-22: the query builder now lives on the repository.
+        $etm->method('getRepository')->willReturnMap([
+            ['article', new QueryOnlyStubRepository($articleQuery)],
+            ['page', new QueryOnlyStubRepository($pageQuery)],
         ]);
 
         $gen = new SitemapGenerator();
@@ -113,14 +122,17 @@ final class SitemapGeneratorTest extends TestCase
     #[Test]
     public function collect_skips_empty_locations_from_callback(): void
     {
+        $query = new StubEntityQuery([1, 2]);
         $storage = $this->createStub(EntityStorageInterface::class);
-        $storage->method('getQuery')->willReturn(new StubEntityQuery([1, 2]));
+        $storage->method('getQuery')->willReturn($query);
 
         $def = $this->createStub(EntityTypeInterface::class);
         $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('getDefinitions')->willReturn(['article' => $def]);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getStorage')->with('article')->willReturn($storage);
+        // C-22: the query builder now lives on the repository.
+        $etm->method('getRepository')->with('article')->willReturn(new QueryOnlyStubRepository($query));
 
         $gen = new SitemapGenerator();
         $urls = $gen->collectFromEntityTypes(
@@ -161,6 +173,11 @@ final class SitemapGeneratorTest extends TestCase
         $etm->method('getStorage')->willReturnMap([
             ['node', $nodeStorage],
             ['vocab', $taxStorage],
+        ]);
+        // C-22: the query builder now lives on the repository.
+        $etm->method('getRepository')->willReturnMap([
+            ['node', new QueryOnlyStubRepository($statusQuery)],
+            ['vocab', new QueryOnlyStubRepository($statuslessQuery)],
         ]);
 
         (new SitemapGenerator())->collectFromEntityTypes(
@@ -203,6 +220,8 @@ final class SitemapGeneratorTest extends TestCase
         ]);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getStorage')->willReturn($storage);
+        // C-22: the query builder now lives on the repository.
+        $etm->method('getRepository')->willReturn(new QueryOnlyStubRepository($query));
 
         $gen = new SitemapGenerator();
         $gen->collectFromEntityTypes(
