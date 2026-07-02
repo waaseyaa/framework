@@ -14,7 +14,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final class AdminSpaFallback
 {
-    public const SPEC_URL = 'https://github.com/jonesrussell/waaseyaa/blob/main/docs/specs/admin-spa.md';
+    public const SPEC_URL = 'https://github.com/waaseyaa/framework/blob/main/docs/specs/admin-spa.md';
 
     public static function htmlResponse(string $appDisplayName = 'Application'): Response
     {
