@@ -1,4 +1,5 @@
 <!-- Spec reviewed 2026-05-13 - migration-platform-v1 mission landed -->
+<!-- Spec reviewed 2026-07-02 - R3 WP1 HtmlSanitizeProcessor nested-case + CDATA-content-model B-4 fix (§3.5, §16) -->
 
 # Migration Platform
 
@@ -125,6 +126,34 @@ use a non-reserved id; convention is `<vendor>_<purpose>` (e.g.
 
 Reserved ids are owned by the framework. The complete list lives in
 `Waaseyaa\Migration\Plugin\ReservedPluginIds`.
+
+**Security note (B-4, nested-case + CDATA-content-model fixpoint — audit-remediation batch 2026-07-02, R3 WP1):**
+`HtmlSanitizeProcessor`'s DOMDocument fallback path (used whenever
+`ezyang/htmlpurifier` is not installed) closes two sibling stored-XSS bypasses
+of the same B-4 class:
+
+- **Nested-wrapper hoist.** The filter re-checks every element it hoists out
+  of a stripped disallowed wrapper, not just top-level children. A disallowed
+  tag or an unsafe-scheme URL attribute nested inside another disallowed tag
+  (e.g. `<span><img onerror=…></span>`, or a `javascript:` href nested inside a
+  stripped `<div>`) is re-run against the tag allowlist and
+  `filterAttributes()`/`hasUnsafeUrlScheme()` at every promotion depth, to a
+  fixpoint — nesting the payload below a disallowed wrapper cannot bypass the
+  allowlist. See `HtmlSanitizeProcessor::applyChildPolicy()` /
+  `HtmlSanitizeProcessor::replaceWithTextContent()`.
+- **CDATA content model.** libxml2 parses the inner payload of the raw-text
+  content-model tags `xmp` / `iframe` / `noembed` / `noframes` / `plaintext`
+  (alongside `script` / `style`) as a `\DOMCdataSection`, which
+  `DOMDocument::saveHTML()` serializes verbatim (no entity escaping), so a
+  `<script>`/`onerror`/`javascript:` payload wrapped in one of them survives as
+  live markup with no nesting. These tags are enumerated in
+  `RAW_TEXT_CONTENT_MODEL_TAGS` and are **force-stripped even when a custom
+  allowlist names them** (escaping is decided by a node's parent content model,
+  so a payload kept inside such a wrapper cannot be escaped in place); their
+  content is routed through the hoist path and neutralized by
+  `convertCdataToText()` (CDATA → entity-escaped text node) — or dropped
+  wholesale for `script`/`style`. RCDATA tags `title` / `textarea` are
+  deliberately exempt: libxml parses them as `\DOMText`, which saveHTML escapes.
 
 ### 3.6 Schema
 
@@ -552,6 +581,21 @@ lives at `docs/cookbook/migration-first-cut.md`.
 
 ## 16. History
 
+- 2026-07-02 — Audit-remediation batch, R3 WP1 (M1). Closed two sibling
+  stored-XSS bypasses in `HtmlSanitizeProcessor`'s DOMDocument fallback path,
+  both reopening B-4: (1) a **nested-wrapper** bypass —
+  `replaceWithTextContent()` hoisted a disallowed wrapper's descendants
+  verbatim without re-running the tag allowlist or `filterAttributes()`/
+  URL-scheme check on the promoted nodes, so a dangerous element or attribute
+  nested one or more levels below a disallowed tag survived untouched; fixed
+  by re-applying the per-child policy (`applyChildPolicy()`) to every promoted
+  node at every hoist depth, to a fixpoint. (2) a **CDATA-content-model**
+  bypass — libxml parses the payload of `xmp`/`iframe`/`noembed`/`noframes`/
+  `plaintext` as a `\DOMCdataSection` that saveHTML emits verbatim, so a live
+  `<script>`/`onerror`/`javascript:` survived with no nesting; fixed by
+  force-stripping those tags (`RAW_TEXT_CONTENT_MODEL_TAGS`) even when
+  custom-allowlisted and converting CDATA to entity-escaped text
+  (`convertCdataToText()`). See §3.5 for the security note.
 - 2026-05-13 — Mission `migration-platform-v1-01KRCDE9` (M-002) lands on
   `main`. WP01 through WP11 ship code; WP12 ships this document plus the
   charter §5.8 amendment and CHANGELOG entry.

@@ -60,6 +60,22 @@ final readonly class HtmlSanitizeProcessor implements ProcessPluginInterface
     ];
 
     /**
+     * Tags whose content libxml parses under a raw-text / CDATA content model
+     * (`\DOMCdataSection`, serialized VERBATIM by `saveHTML()` — no HTML-entity
+     * escaping). Because escaping is decided by a node's PARENT content model,
+     * a payload kept inside one of these elements round-trips as LIVE markup
+     * (`<script>`, `onerror=`, `javascript:`) even after tag/attribute
+     * filtering — a stored-XSS bypass, no nesting required (B-4 class). They are
+     * therefore force-stripped even when a custom allowlist names them, so their
+     * content is hoisted into a normal-content context and escaped (or dropped,
+     * for script/style). RCDATA tags (`title`, `textarea`) are deliberately NOT
+     * here: libxml parses them as `\DOMText` and `saveHTML()` escapes them.
+     *
+     * @var list<string>
+     */
+    private const RAW_TEXT_CONTENT_MODEL_TAGS = ['script', 'style', 'xmp', 'iframe', 'noembed', 'noframes', 'plaintext'];
+
+    /**
      * Attribute names whose value is a URL and must be scheme-checked. An allowed attribute
      * here is stripped when its value resolves to a non-safe scheme — the name allowlist alone
      * does not catch `<a href="javascript:…">` / `<img src="data:text/html,…">` (B-4).
@@ -242,17 +258,85 @@ final readonly class HtmlSanitizeProcessor implements ProcessPluginInterface
 
         foreach ($children as $child) {
             if ($child instanceof \DOMElement) {
-                $tag = strtolower($child->tagName);
-                if (!in_array($tag, $this->allowedTags, true)) {
-                    // Replace the disallowed element with its text content.
-                    $this->replaceWithTextContent($child);
-                    continue;
-                }
-
-                $this->filterAttributes($child, $tag);
-                $this->filterNode($child);
+                $this->applyChildPolicy($child);
+            } elseif ($child instanceof \DOMCdataSection) {
+                // Belt-and-suspenders: an ALLOWED CDATA-content-model tag (only
+                // reachable via a custom allowlist that includes xmp / iframe /
+                // noembed / noframes / plaintext) parses its inner payload as a
+                // raw CDATA section. Left alone it would serialize as live
+                // markup — neutralize it here too, not only on the hoist path.
+                $this->convertCdataToText($child);
             }
         }
+    }
+
+    /**
+     * Apply the allowlist policy to a single element: strip it (hoisting its
+     * children up as text/markup) if its tag is disallowed, otherwise filter
+     * its attributes and recurse into its own children.
+     *
+     * This is also the re-entry point used when {@see replaceWithTextContent}
+     * promotes a disallowed element's descendants up to a new parent. Without
+     * re-running this policy on every promoted node, a payload nested inside
+     * a disallowed wrapper (e.g. `<span><img onerror=…></span>`) would be
+     * hoisted verbatim and skip both the tag allowlist and attribute/URL
+     * scheme filtering — a stored-XSS bypass (B-4 reopened at nested depth).
+     * Re-applying the policy at every promotion depth guarantees a fixpoint:
+     * no disallowed tag or attribute can survive regardless of how deeply it
+     * was originally nested.
+     */
+    private function applyChildPolicy(\DOMElement $child): void
+    {
+        $tag = strtolower($child->tagName);
+        if (!in_array($tag, $this->allowedTags, true)
+            || in_array($tag, self::RAW_TEXT_CONTENT_MODEL_TAGS, true)) {
+            // Replace the disallowed element with its text content.
+            //
+            // A raw-text-content-model tag is force-stripped even when a custom
+            // allowlist names it: libxml parses its payload as a raw CDATA
+            // section, and `saveHTML()` escapes a node according to its PARENT's
+            // content model — so a text node kept INSIDE such an element still
+            // serializes verbatim (unescaped) and could smuggle live markup.
+            // Stripping the wrapper routes the payload through the hoist path in
+            // replaceWithTextContent(), where it lands in a normal-content
+            // parent and is properly entity-escaped (or, for script/style,
+            // dropped wholesale). This is why they can never be safely kept.
+            $this->replaceWithTextContent($child);
+            return;
+        }
+
+        $this->filterAttributes($child, $tag);
+        $this->filterNode($child);
+    }
+
+    /**
+     * Replace a CDATA section with an escaped text node carrying the same data,
+     * in place under its current parent.
+     *
+     * libxml2's HTML parser resolves the *content model* of a handful of tags —
+     * `script`, `style`, and the CDATA-content-model group `xmp` / `iframe` /
+     * `noembed` / `noframes` / `plaintext` — by parsing their inner payload as a
+     * raw `\DOMCdataSection` (nodeType 4), NOT a `\DOMText` node.
+     * `\DOMDocument::saveHTML()` serializes a CDATA section VERBATIM (no
+     * HTML-entity escaping, unlike a text node), so a `<script>` / `onerror=` /
+     * `javascript:` payload wrapped in one of those tags round-trips as LIVE
+     * markup even though it was never a real DOM element the tag/attribute
+     * allowlist could see — a stored-XSS bypass, no nesting required (B-4 class).
+     * (Contrast RCDATA tags `title` / `textarea`, which libxml parses as
+     * `\DOMText` and saveHTML escapes correctly — those are already safe.)
+     * Converting to a text node makes saveHTML entity-escape the payload
+     * (`<script>` → `&lt;script&gt;`), neutralizing it while preserving the
+     * author's visible text — including multibyte / Indigenous orthography.
+     */
+    private function convertCdataToText(\DOMCdataSection $cdata): void
+    {
+        $document = $cdata->ownerDocument;
+        $parent = $cdata->parentNode;
+        if ($document === null || $parent === null) {
+            return;
+        }
+
+        $parent->replaceChild($document->createTextNode($cdata->data), $cdata);
     }
 
     private function filterAttributes(\DOMElement $element, string $tag): void
@@ -331,7 +415,31 @@ final readonly class HtmlSanitizeProcessor implements ProcessPluginInterface
 
         while ($element->firstChild !== null) {
             $child = $element->firstChild;
+
+            if ($child instanceof \DOMCdataSection) {
+                // The wrapper being stripped is a CDATA-content-model tag (xmp /
+                // iframe / noembed / noframes / plaintext): its raw payload is a
+                // CDATA section that saveHTML would emit VERBATIM as live markup.
+                // Neutralize it IN PLACE first — replaceChild swaps it for an
+                // escaped text node, which becomes the new firstChild and is
+                // hoisted (as harmless escaped text) on the next iteration.
+                $this->convertCdataToText($child);
+                continue;
+            }
+
             $parent->insertBefore($child, $element);
+
+            // The promoted node has skipped filterNode()'s per-child snapshot
+            // loop entirely (it was never a child of $parent when that loop
+            // ran) — without this, a disallowed/dangerous element nested
+            // inside a stripped wrapper would survive verbatim, tag and
+            // attributes unchecked, at its new (shallower) position. Re-run
+            // the same policy on it now, in its new position, so nesting
+            // depth cannot be used to smuggle a disallowed tag or an unsafe
+            // attribute/URL scheme past the allowlist.
+            if ($child instanceof \DOMElement) {
+                $this->applyChildPolicy($child);
+            }
         }
 
         $parent->removeChild($element);
