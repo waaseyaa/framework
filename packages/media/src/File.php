@@ -14,6 +14,12 @@ namespace Waaseyaa\Media;
  */
 final readonly class File
 {
+    /**
+     * @param ?string $originalName The client-supplied filename, verbatim.
+     *        The disk-facing $filename is ASCII-sanitized (destroying
+     *        Indigenous orthography); this field preserves the original as
+     *        display metadata. Never use it to build filesystem paths.
+     */
     public function __construct(
         public string $uri,
         public string $filename,
@@ -22,6 +28,7 @@ final readonly class File
         public string $status = 'permanent',
         public ?int $ownerId = null,
         public ?int $createdTime = null,
+        public ?string $originalName = null,
     ) {}
 
     /**

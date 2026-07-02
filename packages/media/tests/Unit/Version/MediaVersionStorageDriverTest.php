@@ -131,6 +131,137 @@ final class MediaVersionStorageDriverTest extends TestCase
         };
     }
 
+    /**
+     * An EntityRepositoryInterface double whose save() actually INSERTs the
+     * MediaVersion row, so nextVid() sees prior saves and the (media_uuid, vid)
+     * unique index can reject a raced duplicate exactly like production.
+     *
+     * @param ?\Closure $beforeInsert Invoked before each insert — lets a test
+     *        simulate a concurrent writer claiming the same vid.
+     */
+    private function makeInsertingEntityRepo(DBALDatabase $db, ?\Closure $beforeInsert = null): EntityRepositoryInterface
+    {
+        $base = $this->makeEntityRepo();
+
+        return new class ($base, $db, $beforeInsert) implements EntityRepositoryInterface {
+            /** @var EntityInterface[] */
+            public array $saved = [];
+
+            public function __construct(
+                private readonly EntityRepositoryInterface $base,
+                private readonly DBALDatabase $db,
+                private readonly ?\Closure $beforeInsert,
+            ) {}
+
+            public function save(EntityInterface $entity, bool $validate = true): int
+            {
+                if ($this->beforeInsert !== null) {
+                    ($this->beforeInsert)($entity);
+                }
+
+                $this->db->insert('media_version')
+                    ->fields(['uuid', 'media_uuid', 'vid', 'blob_uri', 'mime', 'size', 'sha256', 'created_at', 'created_by'])
+                    ->values([
+                        (string) $entity->get('uuid'),
+                        (string) $entity->get('media_uuid'),
+                        (int) $entity->get('vid'),
+                        (string) $entity->get('blob_uri'),
+                        (string) $entity->get('mime'),
+                        (int) $entity->get('size'),
+                        (string) $entity->get('sha256'),
+                        (int) $entity->get('created_at'),
+                        (int) $entity->get('created_by'),
+                    ])
+                    ->execute();
+
+                $this->saved[] = $entity;
+
+                return 1;
+            }
+
+            public function create(array $values = []): EntityInterface
+            {
+                return $this->base->create($values);
+            }
+            public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
+            {
+                return $this->base->find($id, $langcode, $fallback);
+            }
+            public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array
+            {
+                return $this->base->findMany($ids, $langcode, $fallback);
+            }
+            public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array
+            {
+                return $this->base->findBy($criteria, $orderBy, $limit);
+            }
+            public function getQuery(): \Waaseyaa\Entity\Storage\EntityQueryInterface
+            {
+                return $this->base->getQuery();
+            }
+            public function delete(EntityInterface $entity): void
+            {
+                $this->base->delete($entity);
+            }
+            public function exists(string $id): bool
+            {
+                return $this->base->exists($id);
+            }
+            public function count(array $criteria = []): int
+            {
+                return $this->base->count($criteria);
+            }
+            public function loadRevision(string $entityId, int $revisionId): ?EntityInterface
+            {
+                return $this->base->loadRevision($entityId, $revisionId);
+            }
+            public function rollback(string $entityId, int $targetRevisionId): EntityInterface
+            {
+                return $this->base->rollback($entityId, $targetRevisionId);
+            }
+            public function listRevisions(string $entityId): array
+            {
+                return $this->base->listRevisions($entityId);
+            }
+            public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface
+            {
+                return $this->base->setCurrentRevision($entityId, $revisionId);
+            }
+            public function loadPublishedRevision(string $entityId): ?EntityInterface
+            {
+                return $this->base->loadPublishedRevision($entityId);
+            }
+            public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface
+            {
+                return $this->base->setPublishedRevision($entityId, $revisionId);
+            }
+            public function saveMany(array $entities, bool $validate = true): array
+            {
+                return $this->base->saveMany($entities, $validate);
+            }
+            public function deleteMany(array $entities): int
+            {
+                return $this->base->deleteMany($entities);
+            }
+            public function findTranslations(EntityInterface $entity): array
+            {
+                return $this->base->findTranslations($entity);
+            }
+            public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int
+            {
+                return $this->base->saveTranslation($entityId, $langcode, $values, $log);
+            }
+            public function loadTranslation(string $entityId, string $langcode): ?EntityInterface
+            {
+                return $this->base->loadTranslation($entityId, $langcode);
+            }
+            public function listTranslationRevisions(string $entityId, string $langcode): array
+            {
+                return $this->base->listTranslationRevisions($entityId, $langcode);
+            }
+        };
+    }
+
     private function makeAuditWriter(): AuditWriterInterface
     {
         return new class implements AuditWriterInterface {
@@ -245,6 +376,91 @@ final class MediaVersionStorageDriverTest extends TestCase
 
         $kinds = array_map(static fn(AuditEventDescriptor $d) => $d->kind, $auditWriter->recorded);
         self::assertContains(AuditEventKind::MediaVersionDedupHit, $kinds);
+    }
+
+    #[Test]
+    public function versions_get_incrementing_vids_across_successive_uploads(): void
+    {
+        $db = $this->makeSqliteWithVersionTable();
+        $entityRepo = $this->makeInsertingEntityRepo($db);
+        $auditWriter = $this->makeAuditWriter();
+        $driver = new MediaVersionStorageDriver(
+            new MediaVersionRepository($entityRepo, $db),
+            new ContentAddressedFileRepositoryDecorator(new InMemoryFileRepository()),
+            $auditWriter,
+        );
+
+        $mediaUuid = 'increment-test-media';
+        $media = new Media(['uuid' => $mediaUuid]);
+
+        $driver->setPendingUpload($mediaUuid, new PendingUpload('first bytes', 'text/plain', 1));
+        $driver->onMediaPostSave(new EntityEvent($media, $media));
+        $driver->setPendingUpload($mediaUuid, new PendingUpload('second bytes', 'text/plain', 1));
+        $driver->onMediaPostSave(new EntityEvent($media, $media));
+
+        $vids = array_map(static fn(EntityInterface $e): int => (int) $e->get('vid'), $entityRepo->saved);
+        self::assertSame([1, 2], $vids);
+    }
+
+    #[Test]
+    public function vid_allocation_retries_past_a_stolen_vid_and_never_duplicates(): void
+    {
+        $db = $this->makeSqliteWithVersionTable();
+        // The unique constraint the production migration adds — the collision
+        // detector the retry relies on (mirrors #1706 revision allocation).
+        $db->getConnection()->executeStatement(
+            'CREATE UNIQUE INDEX IF NOT EXISTS uq_media_version_media_uuid_vid ON media_version (media_uuid, vid)',
+        );
+
+        $mediaUuid = 'race-test-media';
+        // Seed vid 1 so the driver computes nextVid = 2.
+        $db->query(
+            "INSERT INTO media_version (uuid, media_uuid, vid, sha256) VALUES ('seed', ?, 1, 's')",
+            [$mediaUuid],
+        );
+
+        $stolen = false;
+        $entityRepo = $this->makeInsertingEntityRepo($db, beforeInsert: function () use ($db, $mediaUuid, &$stolen): void {
+            if ($stolen) {
+                return;
+            }
+            $stolen = true;
+            // A "concurrent writer" claims vid 2 between the MAX read and our
+            // insert — the unique index must reject our duplicate, and the
+            // driver must retry with a freshly re-read MAX.
+            $db->query(
+                "INSERT INTO media_version (uuid, media_uuid, vid, sha256) VALUES ('thief', ?, 2, 't')",
+                [$mediaUuid],
+            );
+        });
+        $auditWriter = $this->makeAuditWriter();
+        $driver = new MediaVersionStorageDriver(
+            new MediaVersionRepository($entityRepo, $db),
+            new ContentAddressedFileRepositoryDecorator(new InMemoryFileRepository()),
+            $auditWriter,
+        );
+
+        $media = new Media(['uuid' => $mediaUuid]);
+        $driver->setPendingUpload($mediaUuid, new PendingUpload('raced bytes', 'text/plain', 7));
+        $driver->onMediaPostSave(new EntityEvent($media, $media));
+
+        // The allocation must advance past the stolen vid, never duplicate it.
+        self::assertCount(1, $entityRepo->saved, 'exactly one version row saved for the upload');
+        self::assertSame(3, (int) $entityRepo->saved[0]->get('vid'), 'allocation must advance past the stolen vid');
+
+        $rows = iterator_to_array(
+            $db->query('SELECT vid FROM media_version WHERE media_uuid = ? ORDER BY vid ASC', [$mediaUuid]),
+            false,
+        );
+        self::assertSame([1, 2, 3], array_map(static fn(array $row): int => (int) $row['vid'], $rows));
+
+        // The audit trail records the FINAL vid, not the raced one.
+        $created = array_values(array_filter(
+            $auditWriter->recorded,
+            static fn(AuditEventDescriptor $d): bool => $d->kind === AuditEventKind::MediaVersionCreated,
+        ));
+        self::assertCount(1, $created);
+        self::assertStringEndsWith('/versions/3', $created[0]->subjectUri);
     }
 
     #[Test]

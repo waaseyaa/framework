@@ -39,6 +39,7 @@ final class LocalFileRepository implements FileRepositoryInterface
             'status' => $file->status,
             'ownerId' => $file->ownerId,
             'createdTime' => $file->createdTime,
+            'originalName' => $file->originalName,
         ], JSON_THROW_ON_ERROR);
 
         if (file_put_contents($metadataPath, $payload) === false) {
@@ -77,6 +78,7 @@ final class LocalFileRepository implements FileRepositoryInterface
             status: (string) ($data['status'] ?? 'permanent'),
             ownerId: isset($data['ownerId']) ? (int) $data['ownerId'] : null,
             createdTime: isset($data['createdTime']) ? (int) $data['createdTime'] : null,
+            originalName: isset($data['originalName']) ? (string) $data['originalName'] : null,
         );
     }
 
@@ -124,6 +126,7 @@ final class LocalFileRepository implements FileRepositoryInterface
                 status: (string) ($data['status'] ?? 'permanent'),
                 ownerId: (int) $data['ownerId'],
                 createdTime: isset($data['createdTime']) ? (int) $data['createdTime'] : null,
+                originalName: isset($data['originalName']) ? (string) $data['originalName'] : null,
             );
         }
 

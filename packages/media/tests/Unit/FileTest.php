@@ -33,6 +33,26 @@ final class FileTest extends TestCase
         $this->assertSame(1700000000, $file->createdTime);
     }
 
+    public function testRetainsOriginalNameAsMetadata(): void
+    {
+        // The sanitized disk filename destroys Indigenous orthography; the
+        // client's original name survives as a separate metadata field.
+        $file = new File(
+            uri: 'public://Ozhibii_igan_ab12cd34.png',
+            filename: 'Ozhibii_igan_ab12cd34.png',
+            originalName: 'Ozhibiiʼigan ᐊᓂᔑᓈᐯᒧᐎᓐ.png',
+        );
+
+        $this->assertSame('Ozhibiiʼigan ᐊᓂᔑᓈᐯᒧᐎᓐ.png', $file->originalName);
+    }
+
+    public function testOriginalNameDefaultsToNull(): void
+    {
+        $file = new File(uri: 'public://test.txt', filename: 'test.txt');
+
+        $this->assertNull($file->originalName);
+    }
+
     public function testConstructorDefaults(): void
     {
         $file = new File(

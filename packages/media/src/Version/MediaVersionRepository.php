@@ -102,26 +102,29 @@ final class MediaVersionRepository
      *
      * Uses a raw query because DatabaseInterface::select() does not expose
      * aggregate expressions on the stable SelectInterface contract.
+     *
+     * Throws on query failure — historically a broken schema was swallowed
+     * here and vid 1 returned, silently colliding with / rewriting version
+     * history. Allocation is MAX+1 (not atomic); the caller pairs it with
+     * the (media_uuid, vid) unique index and retries on
+     * UniqueConstraintViolationException (see MediaVersionStorageDriver,
+     * pattern per #1706).
      */
     public function nextVid(string $mediaUuid): int
     {
         $maxVid = 0;
 
-        try {
-            foreach (
-                $this->db->query(
-                    'SELECT MAX(vid) AS max_vid FROM media_version WHERE media_uuid = ?',
-                    [$mediaUuid],
-                ) as $row
-            ) {
-                /** @var array<string, mixed> $row */
-                if (isset($row['max_vid'])) {
-                    $maxVid = (int) $row['max_vid'];
-                }
-                break;
+        foreach (
+            $this->db->query(
+                'SELECT MAX(vid) AS max_vid FROM media_version WHERE media_uuid = ?',
+                [$mediaUuid],
+            ) as $row
+        ) {
+            /** @var array<string, mixed> $row */
+            if (isset($row['max_vid'])) {
+                $maxVid = (int) $row['max_vid'];
             }
-        } catch (\Throwable $e) {
-            $this->logger->warning('MediaVersionRepository::nextVid query failed: ' . $e->getMessage());
+            break;
         }
 
         return $maxVid + 1;

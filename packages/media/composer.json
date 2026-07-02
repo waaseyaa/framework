@@ -69,7 +69,8 @@
         "waaseyaa": {
             "providers": [
                 "Waaseyaa\\Media\\MediaServiceProvider"
-            ]
+            ],
+            "migrations": "migrations"
         },
         "branch-alias": {
             "dev-main": "0.1.x-dev",
