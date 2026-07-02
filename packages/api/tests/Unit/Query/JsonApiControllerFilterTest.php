@@ -11,6 +11,7 @@ use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Field\FieldDefinition;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -37,6 +38,12 @@ final class JsonApiControllerFilterTest extends TestCase
             label: 'Article',
             class: TestEntity::class,
             keys: TestEntity::definitionKeys(),
+            // Declared so the JSON:API field allowlist (audit R2 WP1) permits filtering/sorting
+            // on these undeclared-column _data fields exercised below.
+            _fieldDefinitions: [
+                'status' => new FieldDefinition(name: 'status', type: 'integer', targetEntityTypeId: 'article'),
+                'category' => new FieldDefinition(name: 'category', type: 'string', targetEntityTypeId: 'article'),
+            ],
         ));
 
         $serializer = new ResourceSerializer($entityTypeManager);

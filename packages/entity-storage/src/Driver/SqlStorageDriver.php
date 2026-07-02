@@ -8,6 +8,7 @@ use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\EntityStorage\Connection\ConnectionResolverInterface;
+use Waaseyaa\EntityStorage\Query\JsonFieldName;
 use Waaseyaa\EntityStorage\ResolvedField;
 use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
 use Waaseyaa\Field\FieldStorage;
@@ -639,6 +640,15 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
         if ($db->schema()->fieldExists($entityType, $field)) {
             return ResolvedField::identifier($field);
         }
+
+        // Twin sink of SqlEntityQuery::resolveField() — reached via
+        // EntityRepository::findBy()/count() (e.g. ai-tools EntityListTool) with
+        // criteria/orderBy keys passed verbatim. The field name is interpolated
+        // RAW into the json_extract('$.<field>') string literal below (only the
+        // value is bound), so a single quote in $field breaks out of it. Guard
+        // with the same shared identifier allowlist as the SqlEntityQuery sink
+        // so the raw fragment is un-injectable regardless of caller (audit R2 WP1).
+        JsonFieldName::assertQueryable($field);
 
         return ResolvedField::expression("json_extract(_data, '\$." . $field . "')", isJsonExtract: true);
     }

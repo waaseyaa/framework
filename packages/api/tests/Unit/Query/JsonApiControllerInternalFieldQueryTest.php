@@ -44,8 +44,11 @@ final class JsonApiControllerInternalFieldQueryTest extends TestCase
             class: TestEntity::class,
             keys: TestEntity::definitionKeys(),
             // A class-declared field marked internal — must be unqueryable (the two_factor_secret case).
+            // 'status' is declared plainly so the allowlist (audit R2 WP1) permits the
+            // legitimate-filter regression test below.
             _fieldDefinitions: [
                 'secret_field' => new FieldDefinition(name: 'secret_field', type: 'string', settings: ['internal' => true], targetEntityTypeId: 'article'),
+                'status' => new FieldDefinition(name: 'status', type: 'integer', targetEntityTypeId: 'article'),
             ],
         ));
 
@@ -84,7 +87,8 @@ final class JsonApiControllerInternalFieldQueryTest extends TestCase
 
         $array = $this->controller->index('article', ['filter' => ['status' => 1]])->toArray();
 
-        // Filtering on an ordinary (undeclared, non-internal) field is unaffected.
+        // Filtering on an ordinary declared, non-internal field ('status', declared above) is
+        // unaffected — the allowlist admits it, the internal-field check does not reject it.
         $this->assertArrayNotHasKey('errors', $array);
         $this->assertArrayHasKey('data', $array);
     }

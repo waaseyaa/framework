@@ -14,6 +14,7 @@ use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Field\FieldDefinition;
 
 /**
  * Filtering, sorting, and pagination integration tests with real storage.
@@ -47,6 +48,13 @@ final class JsonApiFilterSortPageIntegrationTest extends TestCase
                 'uuid' => 'uuid',
                 'label' => 'title',
                 'bundle' => 'type',
+            ],
+            // Audit R2 WP1: the JSON:API filter/sort allowlist admits declared fields plus
+            // entity keys. `title` (label key) and `type` (bundle key) already pass via keys;
+            // `status` is an undeclared _data field these tests filter on, so declare it — real
+            // node types declare `status` as a #[Field]. Do NOT weaken the allowlist.
+            _fieldDefinitions: [
+                'status' => new FieldDefinition(name: 'status', type: 'integer', targetEntityTypeId: 'node'),
             ],
         ));
 
