@@ -29,7 +29,18 @@ final class SlugGenerator
         }
 
         $slug = mb_strtolower($value, 'UTF-8');
-        $replaced = preg_replace('/[^\p{L}\p{N}]+/u', '-', $slug);
+
+        // Lowercasing can itself emit combining marks (e.g. İ U+0130 → i +
+        // U+0307), so re-normalize before slugging to recompose what it can.
+        $renormalized = \Normalizer::normalize($slug, \Normalizer::FORM_C);
+        if (is_string($renormalized)) {
+            $slug = $renormalized;
+        }
+
+        // \p{M} is kept so combining marks with NO precomposed form (the
+        // S̱aanich macron-below, the Tłı̨chǫ ogonek on dotless ı) survive
+        // attached to their base letter instead of splitting the word.
+        $replaced = preg_replace('/[^\p{L}\p{N}\p{M}]+/u', '-', $slug);
         if (!is_string($replaced)) {
             // Invalid UTF-8: degrade to the historical byte-wise ASCII
             // slugging rather than failing the caller.
