@@ -18,9 +18,13 @@ use Waaseyaa\Field\ViewModeConfigInterface;
  * {@see ResourceSerializer::serialize()}: the attribute map this presenter
  * renders has already had internal/credential fields dropped and per-account
  * field access applied, so Markdown output can never leak a field the JSON:API
- * representation would hide. View-mode field selection, ordering, and per-field
- * formatter settings come from {@see ViewModeConfigInterface} — the same source
- * the HTML renderer uses — so the two representations stay in lockstep.
+ * representation would hide. This guarantee is enforced structurally, not by
+ * convention: {@see self::present()} takes $accessHandler and $account as
+ * REQUIRED, non-nullable parameters, so the per-account field filter always
+ * runs — a caller cannot omit it and silently fall back to unfiltered output.
+ * View-mode field selection, ordering, and per-field formatter settings come
+ * from {@see ViewModeConfigInterface} — the same source the HTML renderer
+ * uses — so the two representations stay in lockstep.
  *
  * Output is deterministic: the SSR `?raw` toggle returns exactly these bytes.
  *
@@ -41,18 +45,23 @@ final class EntityMarkdownPresenter
     /**
      * Render an entity as Markdown.
      *
-     * @param ?EntityAccessHandler $accessHandler Paired with $account; when both
-     *                                            are provided, fields the account
-     *                                            cannot view are omitted.
-     * @param ?string              $canonicalUrl  Public URL of the resource, when
-     *                                            known by the caller (the SSR
-     *                                            layer); recorded in front matter.
+     * @param EntityAccessHandler $accessHandler Required. Together with $account,
+     *                                           applies the per-account field
+     *                                           filter — the same one
+     *                                           {@see ResourceSerializer} uses for
+     *                                           JSON:API. There is no unfiltered
+     *                                           code path.
+     * @param AccountInterface    $account       Required. The viewing account the
+     *                                           field filter is evaluated against.
+     * @param ?string             $canonicalUrl  Public URL of the resource, when
+     *                                           known by the caller (the SSR
+     *                                           layer); recorded in front matter.
      */
     public function present(
         EntityInterface $entity,
-        string $viewMode = 'full',
-        ?EntityAccessHandler $accessHandler = null,
-        ?AccountInterface $account = null,
+        string $viewMode,
+        EntityAccessHandler $accessHandler,
+        AccountInterface $account,
         ?string $canonicalUrl = null,
     ): string {
         $mode = $viewMode !== '' ? $viewMode : 'full';

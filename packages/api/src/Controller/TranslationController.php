@@ -55,12 +55,21 @@ final class TranslationController
             return $denied;
         }
 
+        // Same account checkAccess() just authorized — thread it (with the
+        // handler) into serialize() so the per-account field filter runs on the
+        // response. checkAccess() already denied a null account, so this is
+        // non-null in the happy path; the guard fails closed defensively.
+        $account = $request->attributes->get('_account');
+        if (!$account instanceof AccountInterface) {
+            return $this->forbiddenDocument();
+        }
+
         $languages = $entity->getTranslationLanguages();
         $resources = [];
 
         foreach ($languages as $langcode) {
             $translation = $entity->getTranslation($langcode);
-            $resource = $this->serializer->serialize($translation);
+            $resource = $this->serializer->serialize($translation, $this->accessHandler, $account);
             $resources[] = new JsonApiResource(
                 type: $resource->type,
                 id: $resource->id,
@@ -94,6 +103,14 @@ final class TranslationController
             return $denied;
         }
 
+        // Same account checkAccess() just authorized — thread it (with the
+        // handler) into serialize() so the per-account field filter runs on the
+        // response.
+        $account = $request->attributes->get('_account');
+        if (!$account instanceof AccountInterface) {
+            return $this->forbiddenDocument();
+        }
+
         if (!$entity->hasTranslation($langcode)) {
             return $this->errorDocument(
                 JsonApiError::notFound("Translation '{$langcode}' not found for entity '{$id}'."),
@@ -101,7 +118,7 @@ final class TranslationController
         }
 
         $translation = $entity->getTranslation($langcode);
-        $resource = $this->serializer->serialize($translation);
+        $resource = $this->serializer->serialize($translation, $this->accessHandler, $account);
         $resource = new JsonApiResource(
             type: $resource->type,
             id: $resource->id,
@@ -135,6 +152,14 @@ final class TranslationController
             return $denied;
         }
 
+        // Same account checkAccess() just authorized — used both for the
+        // field-level edit gate below and for the per-account field filter on
+        // the serialized response.
+        $account = $request->attributes->get('_account');
+        if (!$account instanceof AccountInterface) {
+            return $this->forbiddenDocument();
+        }
+
         if ($entity->hasTranslation($langcode)) {
             return $this->errorDocument(
                 JsonApiError::conflict("Translation '{$langcode}' already exists for entity '{$id}'."),
@@ -163,14 +188,11 @@ final class TranslationController
             // may not edit BEFORE mutating, mirroring JsonApiController. Without
             // it, a caller with create access could set a FieldAccessPolicy-
             // forbidden field (e.g. a privileged field) via the translation path.
-            $account = $request->attributes->get('_account');
-            if ($account instanceof AccountInterface) {
-                foreach (array_keys($attributes) as $field) {
-                    if ($this->accessHandler->checkFieldAccess($entity, (string) $field, 'edit', $account)->isForbidden()) {
-                        return $this->errorDocument(
-                            JsonApiError::forbidden("No edit access to field '{$field}'."),
-                        );
-                    }
+            foreach (array_keys($attributes) as $field) {
+                if ($this->accessHandler->checkFieldAccess($entity, (string) $field, 'edit', $account)->isForbidden()) {
+                    return $this->errorDocument(
+                        JsonApiError::forbidden("No edit access to field '{$field}'."),
+                    );
                 }
             }
             foreach ($attributes as $field => $value) {
@@ -181,7 +203,7 @@ final class TranslationController
         // Save the entity with its new translation (C-22 WP3: canonical repository).
         $this->entityTypeManager->getRepository($entityTypeId)->save($entity);
 
-        $resource = $this->serializer->serialize($translation);
+        $resource = $this->serializer->serialize($translation, $this->accessHandler, $account);
         $resource = new JsonApiResource(
             type: $resource->type,
             id: $resource->id,
@@ -217,6 +239,14 @@ final class TranslationController
             return $denied;
         }
 
+        // Same account checkAccess() just authorized — used both for the
+        // field-level edit gate below and for the per-account field filter on
+        // the serialized response.
+        $account = $request->attributes->get('_account');
+        if (!$account instanceof AccountInterface) {
+            return $this->forbiddenDocument();
+        }
+
         if (!$entity->hasTranslation($langcode)) {
             return $this->errorDocument(
                 JsonApiError::notFound("Translation '{$langcode}' not found for entity '{$id}'."),
@@ -231,14 +261,11 @@ final class TranslationController
             // may not edit BEFORE mutating, mirroring JsonApiController. Without
             // it, a caller with update access could set a FieldAccessPolicy-
             // forbidden field (e.g. a privileged field) via the translation path.
-            $account = $request->attributes->get('_account');
-            if ($account instanceof AccountInterface) {
-                foreach (array_keys($attributes) as $field) {
-                    if ($this->accessHandler->checkFieldAccess($entity, (string) $field, 'edit', $account)->isForbidden()) {
-                        return $this->errorDocument(
-                            JsonApiError::forbidden("No edit access to field '{$field}'."),
-                        );
-                    }
+            foreach (array_keys($attributes) as $field) {
+                if ($this->accessHandler->checkFieldAccess($entity, (string) $field, 'edit', $account)->isForbidden()) {
+                    return $this->errorDocument(
+                        JsonApiError::forbidden("No edit access to field '{$field}'."),
+                    );
                 }
             }
             foreach ($attributes as $field => $value) {
@@ -249,7 +276,7 @@ final class TranslationController
         // C-22 WP3: canonical repository.
         $this->entityTypeManager->getRepository($entityTypeId)->save($entity);
 
-        $resource = $this->serializer->serialize($translation);
+        $resource = $this->serializer->serialize($translation, $this->accessHandler, $account);
         $resource = new JsonApiResource(
             type: $resource->type,
             id: $resource->id,
