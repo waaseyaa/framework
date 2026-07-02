@@ -1430,6 +1430,19 @@ Behaviour of the hook:
 
 This hook is the only post-dispatch mutation `serveHttpRequest` applies to the controller response; everything else (CORS, debug headers) is handled earlier in the pipeline.
 
+### SlugGenerator (Unicode-preserving slugs)
+
+File: `packages/foundation/src/SlugGenerator.php` — `SlugGenerator::generate(string $value): string`.
+
+**Policy: preserve Unicode, never transliterate to ASCII.** Waaseyaa is an Indigenous-language CMS; ASCII transliteration destroys meaning in Anishinaabemowin orthography (long-vowel diacritics `ā`/`í`, the glottal `ʼ` U+02BC — a *letter*, category Lm — and Canadian syllabics). Pipeline:
+
+1. `trim()`, then NFC-normalize (`\Normalizer::FORM_C`) so decomposed input (base letter + combining mark) slugs identically to its precomposed form.
+2. `mb_strtolower(..., 'UTF-8')`, then NFC-normalize **again** — lowercasing can itself emit combining marks (`İ` U+0130 → `i` + U+0307).
+3. Replace runs of `[^\p{L}\p{N}\p{M}]+` with `-` (`/u` flag), then trim leading/trailing hyphens. `\p{M}` is in the keep-class so combining marks with **no precomposed form** (the S̱aanich macron-below U+0331, the Tłı̨chǫ ogonek on dotless `ı`) survive attached to their base letter instead of splitting the word.
+4. Invalid UTF-8 degrades to the historical byte-wise ASCII slugging (`strtolower` + `[^a-z0-9]+`) instead of erroring; empty input still yields `''` (callers own the empty-slug fallback).
+
+Pure-ASCII inputs produce byte-identical slugs to the pre-Unicode implementation (regression-pinned in `SlugGeneratorTest`). Unicode slugs are percent-encoded on the wire and decoded by Symfony's `UrlMatcher` (`rawurldecode`) before matching; `WaaseyaaRouter::generate()` percent-encodes them on the way out — round-trip pinned in `WaaseyaaRouterTest`. Consumers: Minoo ingestion mappers (see `docs/specs/extraction-log.md` #692); no in-monorepo callers. `symfony/polyfill-mbstring` and `symfony/polyfill-intl-normalizer` are explicit foundation requires so standalone installs get `mb_strtolower`/`\Normalizer` without the extensions.
+
 ### Dev fallback account
 
 `HttpKernel::shouldUseDevFallbackAccount()` controls whether `DevAdminAccount` is injected as the session fallback. All three conditions must be true:
