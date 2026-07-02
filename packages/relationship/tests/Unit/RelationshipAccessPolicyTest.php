@@ -8,7 +8,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccessPolicyInterface;
-use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Gate\PolicyAttribute;
 use Waaseyaa\Entity\EntityInterface;
@@ -110,39 +109,93 @@ final class RelationshipAccessPolicyTest extends TestCase
 
     private function makeEntity(array $values): EntityInterface
     {
-        return new class($values) implements EntityInterface {
+        return new class ($values) implements EntityInterface {
             public function __construct(private readonly array $values) {}
-            public function id(): int|string|null { return $this->values['id'] ?? 1; }
-            public function uuid(): string { return ''; }
-            public function label(): string { return 'test'; }
-            public function getEntityTypeId(): string { return 'relationship'; }
-            public function bundle(): string { return 'default'; }
-            public function isNew(): bool { return false; }
-            public function get(string $name): mixed { return $this->values[$name] ?? null; }
-            public function set(string $name, mixed $value): static { throw new \LogicException('Readonly'); }
-            public function toArray(): array { return $this->values; }
-            public function language(): string { return 'en'; }
+            public function id(): int|string|null
+            {
+                return $this->values['id'] ?? 1;
+            }
+            public function uuid(): string
+            {
+                return '';
+            }
+            public function label(): string
+            {
+                return 'test';
+            }
+            public function getEntityTypeId(): string
+            {
+                return 'relationship';
+            }
+            public function bundle(): string
+            {
+                return 'default';
+            }
+            public function isNew(): bool
+            {
+                return false;
+            }
+            public function get(string $name): mixed
+            {
+                return $this->values[$name] ?? null;
+            }
+            public function set(string $name, mixed $value): static
+            {
+                throw new \LogicException('Readonly');
+            }
+            public function toArray(): array
+            {
+                return $this->values;
+            }
+            public function language(): string
+            {
+                return 'en';
+            }
         };
     }
 
     private function makeAccount(array $permissions): AccountInterface
     {
-        return new class($permissions) implements AccountInterface {
+        return new class ($permissions) implements AccountInterface {
             public function __construct(private readonly array $permissions) {}
-            public function id(): int|string { return 1; }
-            public function isAuthenticated(): bool { return true; }
-            public function hasPermission(string $permission): bool { return in_array($permission, $this->permissions, true); }
-            public function getRoles(): array { return []; }
+            public function id(): int|string
+            {
+                return 1;
+            }
+            public function isAuthenticated(): bool
+            {
+                return true;
+            }
+            public function hasPermission(string $permission): bool
+            {
+                return in_array($permission, $this->permissions, true);
+            }
+            public function getRoles(): array
+            {
+                return [];
+            }
         };
     }
 
     private function makeAnonymousAccount(): AccountInterface
     {
         return new class implements AccountInterface {
-            public function id(): int|string { return 0; }
-            public function isAuthenticated(): bool { return false; }
-            public function hasPermission(string $permission): bool { return false; }
-            public function getRoles(): array { return []; }
+            public function id(): int|string
+            {
+                return 0;
+            }
+            public function isAuthenticated(): bool
+            {
+                return false;
+            }
+            public function hasPermission(string $permission): bool
+            {
+                return false;
+            }
+            public function getRoles(): array
+            {
+                return [];
+            }
         };
     }
 }

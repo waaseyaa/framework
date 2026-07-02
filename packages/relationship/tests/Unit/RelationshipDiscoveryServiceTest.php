@@ -430,21 +430,21 @@ final class RelationshipDiscoveryServiceTest extends TestCase
     private function createRelationshipTable(DBALDatabase $database): void
     {
         $database->getConnection()->getNativeConnection()->exec(<<<SQL
-CREATE TABLE relationship (
-  rid INTEGER PRIMARY KEY,
-  relationship_type TEXT NOT NULL,
-  from_entity_type TEXT NOT NULL,
-  from_entity_id TEXT NOT NULL,
-  to_entity_type TEXT NOT NULL,
-  to_entity_id TEXT NOT NULL,
-  directionality TEXT NOT NULL DEFAULT 'directed',
-  status INTEGER NOT NULL DEFAULT 1,
-  weight REAL DEFAULT NULL,
-  confidence REAL DEFAULT NULL,
-  start_date INTEGER DEFAULT NULL,
-  end_date INTEGER DEFAULT NULL
-)
-SQL);
+            CREATE TABLE relationship (
+              rid INTEGER PRIMARY KEY,
+              relationship_type TEXT NOT NULL,
+              from_entity_type TEXT NOT NULL,
+              from_entity_id TEXT NOT NULL,
+              to_entity_type TEXT NOT NULL,
+              to_entity_id TEXT NOT NULL,
+              directionality TEXT NOT NULL DEFAULT 'directed',
+              status INTEGER NOT NULL DEFAULT 1,
+              weight REAL DEFAULT NULL,
+              confidence REAL DEFAULT NULL,
+              start_date INTEGER DEFAULT NULL,
+              end_date INTEGER DEFAULT NULL
+            )
+            SQL);
     }
 
     private function insertRelationship(
@@ -484,7 +484,10 @@ SQL);
 
 final class DiscoveryEntityTypeManager implements EntityTypeManagerInterface
 {
-            public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array { return []; }
+    public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array
+    {
+        return [];
+    }
     /**
      * @param array<string, EntityStorageInterface> $storages
      */
@@ -548,7 +551,10 @@ final class DiscoveryRelationshipStorage implements EntityStorageInterface
         return $this->entities[(int) $id] ?? null;
     }
 
-    public function loadByKey(string $key, mixed $value): ?EntityInterface { return null; }
+    public function loadByKey(string $key, mixed $value): ?EntityInterface
+    {
+        return null;
+    }
 
     public function loadMultiple(array $ids = []): array
     {
@@ -605,7 +611,10 @@ final class DiscoveryEntityStorage implements EntityStorageInterface
         return $this->entities[(string) $id] ?? null;
     }
 
-    public function loadByKey(string $key, mixed $value): ?EntityInterface { return null; }
+    public function loadByKey(string $key, mixed $value): ?EntityInterface
+    {
+        return null;
+    }
 
     public function loadMultiple(array $ids = []): array
     {
@@ -680,8 +689,14 @@ final class DiscoveryTestEntity implements EntityInterface
         return false;
     }
 
-    public function get(string $name): mixed { return null; }
-    public function set(string $name, mixed $value): static { return $this; }
+    public function get(string $name): mixed
+    {
+        return null;
+    }
+    public function set(string $name, mixed $value): static
+    {
+        return $this;
+    }
 
     public function toArray(): array
     {

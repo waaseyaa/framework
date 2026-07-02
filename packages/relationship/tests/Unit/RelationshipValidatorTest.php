@@ -401,7 +401,7 @@ final class RelationshipValidatorTest extends TestCase
     public function validate_rejects_entity_not_found(): void
     {
         $storage = new StubEntityStorage(
-            loadHandler: static fn () => null,
+            loadHandler: static fn() => null,
             query: new FixedResultEntityQuery([[], []]),
             entityTypeId: 'node',
         );
@@ -433,7 +433,7 @@ final class RelationshipValidatorTest extends TestCase
     public function validate_accepts_entity_found_by_uuid(): void
     {
         $storage = new StubEntityStorage(
-            loadHandler: static fn () => null,
+            loadHandler: static fn() => null,
             query: new FixedResultEntityQuery([[1], [1]]),
             entityTypeId: 'node',
         );
