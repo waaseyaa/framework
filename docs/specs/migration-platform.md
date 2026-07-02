@@ -534,6 +534,18 @@ conformance asserts on `EntityDestination` itself.
   non-zero so `import:resume` can pick up where it stopped.
 - **Windows:** flock degrades to advisory-only on some filesystems; the
   platform still works but the lock is best-effort.
+- **Monotonic clock clamp:** `RunReport`/`RollbackReport` both assert
+  `finishedAt >= startedAt`. Since the runner's/walker's injected clock
+  defaults to non-monotonic wall-clock time (`new \DateTimeImmutable('now',
+  UTC)`), a backward step mid-run (NTP step, VM/WSL suspend-resume,
+  leap-second smear) could otherwise trip that invariant on an already
+  fully-committed run and crash the CLI with an uncaught
+  `\InvalidArgumentException`. `MigrationRunner::nowClampedTo()` and
+  `RollbackWalker::rollback()`'s inline clamp both capture `($this->clock)()`
+  and advance a regressed finish stamp forward by 1 microsecond over
+  `$startedAt` before constructing the report, so a clock regression is
+  absorbed rather than surfaced as a crash (audit-remediation batch
+  2026-07-02 R3 WP2, migration M2).
 
 ---
 
