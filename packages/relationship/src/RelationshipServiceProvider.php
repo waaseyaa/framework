@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Waaseyaa\Relationship;
 
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Event\EntityEvents;
+use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 final class RelationshipServiceProvider extends ServiceProvider
@@ -24,5 +28,33 @@ final class RelationshipServiceProvider extends ServiceProvider
             ],
             group: 'content',
         ));
+    }
+
+    public function boot(): void
+    {
+        // Wire the referential-integrity delete guard: deleting an entity that
+        // is still referenced as a relationship endpoint must fail loudly, not
+        // silently orphan edge rows. (Historically this listener existed but
+        // was never registered.)
+        //
+        // The kernel-services bus serves the dispatcher ONLY under the
+        // Symfony-contracts FQCN (ProviderRegistryKernelServices::get());
+        // resolving the foundation FQCN returns null and would silently skip
+        // registration. Resolve the served key, then type-check against the
+        // foundation contract (pattern per AuditServiceProvider::boot()).
+        $dispatcher = $this->resolveOptional(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
+        if (!$dispatcher instanceof EventDispatcherInterface) {
+            return;
+        }
+
+        $entityTypeManager = $this->resolveOptional(EntityTypeManager::class);
+        if (!$entityTypeManager instanceof EntityTypeManagerInterface) {
+            return;
+        }
+
+        $dispatcher->addListener(
+            EntityEvents::PRE_DELETE->value,
+            new RelationshipDeleteGuardListener($entityTypeManager),
+        );
     }
 }
