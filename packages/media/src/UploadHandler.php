@@ -17,11 +17,16 @@ final class UploadHandler
 
     public const array DEFAULT_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
-    /** @param string[] $allowedMimeTypes */
+    /**
+     * @param string[] $allowedMimeTypes Exact types or `type/*` wildcards.
+     * @param ?\Closure(string): ?string $mimeDetector Overrides content
+     *        sniffing (testing seam). Default: ext-fileinfo.
+     */
     public function __construct(
         private readonly string $basePath,
         private readonly array $allowedMimeTypes = self::DEFAULT_ALLOWED_TYPES,
         private readonly int $maxSizeBytes = self::DEFAULT_MAX_SIZE,
+        private readonly ?\Closure $mimeDetector = null,
     ) {}
 
     /** @return string[] validation errors */
@@ -40,18 +45,66 @@ final class UploadHandler
             $errors[] = "File must be under {$maxMb}MB.";
         }
 
-        $tmpName = $file['tmp_name'] ?? '';
-        if ($tmpName !== '' && is_file($tmpName)) {
-            $detectedType = new \finfo(FILEINFO_MIME_TYPE)->file($tmpName);
-        } else {
-            $detectedType = $file['type'] ?? '';
+        // Fail closed: only a content sniff counts. The client-declared
+        // 'type' is attacker-controlled and is never consulted.
+        $detectedType = $this->detectMimeType((string) ($file['tmp_name'] ?? ''));
+        if ($detectedType === null) {
+            $errors[] = 'File type could not be verified.';
+
+            return $errors;
         }
 
-        if (!in_array($detectedType, $this->allowedMimeTypes, true)) {
+        if (!self::mimeTypeMatches($detectedType, $this->allowedMimeTypes)) {
             $errors[] = 'File type not allowed.';
         }
 
         return $errors;
+    }
+
+    /**
+     * Sniff a file's MIME type from its contents (ext-fileinfo).
+     *
+     * Returns null when the file is missing or the type cannot be
+     * determined — callers MUST treat null as "reject" (fail closed),
+     * never fall back to a client-declared type.
+     */
+    public function detectMimeType(string $filePath): ?string
+    {
+        if ($this->mimeDetector !== null) {
+            return ($this->mimeDetector)($filePath);
+        }
+
+        if ($filePath === '' || !is_file($filePath) || !class_exists(\finfo::class)) {
+            return null;
+        }
+
+        $detected = new \finfo(FILEINFO_MIME_TYPE)->file($filePath);
+
+        return is_string($detected) && $detected !== '' ? $detected : null;
+    }
+
+    /**
+     * Match a MIME type against an allowlist of exact types and
+     * `type/*` wildcards. Shared by UploadHandler::validate() and
+     * MediaRouter so there is exactly one matcher.
+     *
+     * @param list<string> $allowedMimeTypes
+     */
+    public static function mimeTypeMatches(string $mimeType, array $allowedMimeTypes): bool
+    {
+        foreach ($allowedMimeTypes as $allowed) {
+            if ($allowed === $mimeType) {
+                return true;
+            }
+            if (str_ends_with($allowed, '/*')) {
+                $prefix = substr($allowed, 0, -1);
+                if (str_starts_with($mimeType, $prefix)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     public function generateSafeFilename(string $original): string

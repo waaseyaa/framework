@@ -40,17 +40,20 @@ return [
         ),
     ],
 
-    // Upload validation (POST /api/media/upload).
+    // Upload validation (POST /api/media/upload). MIME types are sniffed
+    // from file contents (ext-fileinfo) and validation fails closed — the
+    // client-declared type is never trusted. 'image/svg+xml' (script-capable)
+    // and 'application/octet-stream' (matches any unrecognized binary) are
+    // deliberately NOT in the default allowlist; add them here explicitly to
+    // opt back in.
     'upload_max_bytes' => 10 * 1024 * 1024, // 10 MiB
     'upload_allowed_mime_types' => [
         'image/jpeg',
         'image/png',
         'image/gif',
         'image/webp',
-        'image/svg+xml',
         'application/pdf',
         'text/plain',
-        'application/octet-stream',
     ],
 
     // Allowed CORS origins for the admin SPA.

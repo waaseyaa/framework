@@ -20,10 +20,13 @@ final class MediaRouter implements DomainRouterInterface
 
     /**
      * @param array<string, mixed> $config
+     * @param ?UploadHandler $uploadHandler Overrides the per-request handler
+     *        (testing seam — e.g. to simulate unavailable MIME detection).
      */
     public function __construct(
         private readonly string $projectRoot,
         private readonly array $config,
+        private readonly ?UploadHandler $uploadHandler = null,
     ) {}
 
     public function supports(Request $request): bool
@@ -73,8 +76,20 @@ final class MediaRouter implements DomainRouterInterface
             ]);
         }
 
-        $mimeType = $uploadedFile->getMimeType() ?? $uploadedFile->getClientMimeType();
+        $filesRoot = $this->resolveFilesRootDir();
         $allowedMimeTypes = $this->resolveAllowedUploadMimeTypes();
+        $uploadHandler = $this->uploadHandler ?? new UploadHandler($filesRoot, $allowedMimeTypes);
+
+        // Fail closed: only the content sniff (ext-fileinfo via UploadHandler)
+        // counts — the client-declared MIME is attacker-controlled and is
+        // never consulted, not even as a fallback.
+        $mimeType = $uploadHandler->detectMimeType($uploadedFile->getPathname());
+        if ($mimeType === null) {
+            return $this->jsonApiResponse(415, [
+                'jsonapi' => ['version' => '1.1'],
+                'errors' => [['status' => '415', 'title' => 'Unsupported Media Type', 'detail' => 'File type could not be verified.']],
+            ]);
+        }
         if (!$this->isAllowedMimeType($mimeType, $allowedMimeTypes)) {
             return $this->jsonApiResponse(415, [
                 'jsonapi' => ['version' => '1.1'],
@@ -82,8 +97,7 @@ final class MediaRouter implements DomainRouterInterface
             ]);
         }
 
-        $filesRoot = $this->resolveFilesRootDir();
-        $safeName = new UploadHandler($filesRoot)->generateSafeFilename($uploadedFile->getClientOriginalName());
+        $safeName = $uploadHandler->generateSafeFilename($uploadedFile->getClientOriginalName());
 
         if (!is_dir($filesRoot) && !@mkdir($filesRoot, 0o755, true) && !is_dir($filesRoot)) {
             return $this->uploadStorageFailureResponse();
@@ -176,15 +190,18 @@ final class MediaRouter implements DomainRouterInterface
             }
         }
 
+        // Hardened defaults: no image/svg+xml (script-capable, served from
+        // /files/ with no attachment/nosniff headers) and no
+        // application/octet-stream (finfo's answer for ANY unrecognized
+        // binary — allowlisting it allowlists arbitrary content). Sites can
+        // opt back in explicitly via 'upload_allowed_mime_types'.
         return [
             'image/jpeg',
             'image/png',
             'image/gif',
             'image/webp',
-            'image/svg+xml',
             'application/pdf',
             'text/plain',
-            'application/octet-stream',
         ];
     }
 
@@ -193,19 +210,7 @@ final class MediaRouter implements DomainRouterInterface
      */
     public function isAllowedMimeType(string $mimeType, array $allowedMimeTypes): bool
     {
-        foreach ($allowedMimeTypes as $allowed) {
-            if ($allowed === $mimeType) {
-                return true;
-            }
-            if (str_ends_with($allowed, '/*')) {
-                $prefix = substr($allowed, 0, -1);
-                if (str_starts_with($mimeType, $prefix)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return UploadHandler::mimeTypeMatches($mimeType, $allowedMimeTypes);
     }
 
     public function buildPublicFileUrl(string $uri): string
