@@ -31,21 +31,66 @@ class StubEntityTypeManager implements EntityTypeManagerInterface
     {
         return new class ($entityTypeId) implements EntityTypeInterface {
             public function __construct(private readonly string $id) {}
-            public function id(): string { return $this->id; }
-            public function getLabel(): string { return $this->id; }
-            public function getClass(): string { return ''; }
-            public function getStorageClass(): string { return ''; }
-            public function getKeys(): array { return ['id' => 'id', 'uuid' => 'uuid']; }
-            public function isRevisionable(): bool { return false; }
-            public function getRevisionDefault(): bool { return false; }
-            public function isTranslatable(): bool { return false; }
-            public function getBundleEntityType(): ?string { return null; }
-            public function getConstraints(): array { return []; }
-            public function getFieldDefinitions(): array { return []; }
-            public function getPrimaryStorageBackend(): ?string { return null; }
-            public function getGroup(): ?string { return null; }
-            public function getDescription(): ?string { return null; }
-            public function getTenancy(): ?array { return null; }
+            public function id(): string
+            {
+                return $this->id;
+            }
+            public function getLabel(): string
+            {
+                return $this->id;
+            }
+            public function getClass(): string
+            {
+                return '';
+            }
+            public function getStorageClass(): string
+            {
+                return '';
+            }
+            public function getKeys(): array
+            {
+                return ['id' => 'id', 'uuid' => 'uuid'];
+            }
+            public function isRevisionable(): bool
+            {
+                return false;
+            }
+            public function getRevisionDefault(): bool
+            {
+                return false;
+            }
+            public function isTranslatable(): bool
+            {
+                return false;
+            }
+            public function getBundleEntityType(): ?string
+            {
+                return null;
+            }
+            public function getConstraints(): array
+            {
+                return [];
+            }
+            public function getFieldDefinitions(): array
+            {
+                return [];
+            }
+            public function getPrimaryStorageBackend(): ?string
+            {
+                return null;
+            }
+            public function getGroup(): ?string
+            {
+                return null;
+            }
+            public function getDescription(): ?string
+            {
+                return null;
+            }
+            public function getTenancy(): ?array
+            {
+                return null;
+            }
         };
     }
 

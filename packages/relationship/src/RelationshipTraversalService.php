@@ -28,6 +28,16 @@ final class RelationshipTraversalService
     ) {}
 
     /**
+     * Traverse relationship edges for an entity.
+     *
+     * Endpoint visibility matches browse(): in `published`/`unpublished` mode
+     * every non-source endpoint of a returned relationship is checked against
+     * the visibility filter, fail-closed — with no filter wired, no edge is
+     * returned in those modes, so an unwired caller cannot leak the identity
+     * (`to_entity_type`/`to_entity_id`) of entities the viewer cannot see.
+     * Callers opting into `status: 'all'` own the exposure decision (system
+     * context) exactly as they do with browse().
+     *
      * @param array{
      *   direction?: 'outbound'|'inbound'|'both',
      *   relationship_types?: list<string>,
@@ -55,7 +65,107 @@ final class RelationshipTraversalService
             null,
         );
 
-        return $this->applyTemporalActiveFilterSortAndLimit($relationships, $at, $limit);
+        $relationships = $this->applyTemporalActiveFilterSortAndLimit($relationships, $at, $limit);
+
+        return $this->filterByEndpointVisibility($relationships, $entityType, (string) $entityId, $status);
+    }
+
+    /**
+     * Drop relationships whose non-source endpoints fail the visibility gate.
+     *
+     * Mirrors browse()'s fail-closed endpoint handling (mapTraversalRelationships),
+     * but is direction-independent and strictly at-least-as-closed: a returned
+     * Relationship entity exposes BOTH endpoint identities, so in `published`
+     * mode every endpoint other than the queried source must be provably
+     * public (and in `unpublished` mode provably non-public). Runs after the
+     * temporal/sort/limit step, matching browse()'s ordering.
+     *
+     * @param list<Relationship> $relationships
+     * @param 'published'|'unpublished'|'all' $statusMode
+     * @return list<Relationship>
+     */
+    private function filterByEndpointVisibility(
+        array $relationships,
+        string $sourceEntityType,
+        string $sourceEntityId,
+        string $statusMode,
+    ): array {
+        if ($statusMode !== 'published' && $statusMode !== 'unpublished') {
+            return $relationships;
+        }
+
+        // With no filter wired we can prove NOTHING about endpoint visibility
+        // in either direction, so both modes fail fully closed. (Published
+        // mode would drop every edge below anyway; unpublished mode must not
+        // become fail-open — "not provably public" is not "provably draft".)
+        if ($this->visibilityFilter === null) {
+            return [];
+        }
+
+        /** @var array<string, array{label: string, is_public: bool}> $entitySummaryCache */
+        $entitySummaryCache = [];
+
+        $pendingPairs = [];
+        foreach ($relationships as $relationship) {
+            foreach ($this->nonSourceEndpoints($relationship, $sourceEntityType, $sourceEntityId) as $pair) {
+                $pendingPairs[] = $pair;
+            }
+        }
+        $this->warmEntitySummariesForKeys($pendingPairs, $entitySummaryCache);
+
+        $result = [];
+        foreach ($relationships as $relationship) {
+            $keep = true;
+            foreach ($this->nonSourceEndpoints($relationship, $sourceEntityType, $sourceEntityId) as [$endpointType, $endpointId]) {
+                $summary = $this->loadEntitySummaryCached($endpointType, $endpointId, $entitySummaryCache);
+                if ($statusMode === 'published' && !$summary['is_public']) {
+                    $keep = false;
+                    break;
+                }
+                if ($statusMode === 'unpublished' && $summary['is_public']) {
+                    $keep = false;
+                    break;
+                }
+            }
+            if ($keep) {
+                $result[] = $relationship;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Endpoints of a relationship other than the queried source entity.
+     *
+     * A self-loop (both endpoints are the source) yields no pairs — the caller
+     * already knows its own entity, nothing foreign is exposed. Empty endpoint
+     * slots yield no pairs for the same reason.
+     *
+     * @return list<array{0: string, 1: string}>
+     */
+    private function nonSourceEndpoints(
+        Relationship $relationship,
+        string $sourceEntityType,
+        string $sourceEntityId,
+    ): array {
+        $pairs = [];
+        $candidates = [
+            [(string) ($relationship->get('from_entity_type') ?? ''), (string) ($relationship->get('from_entity_id') ?? '')],
+            [(string) ($relationship->get('to_entity_type') ?? ''), (string) ($relationship->get('to_entity_id') ?? '')],
+        ];
+
+        foreach ($candidates as [$endpointType, $endpointId]) {
+            if ($endpointType === '' || $endpointId === '') {
+                continue;
+            }
+            if ($endpointType === $sourceEntityType && $endpointId === $sourceEntityId) {
+                continue;
+            }
+            $pairs[$endpointType . ':' . $endpointId] = [$endpointType, $endpointId];
+        }
+
+        return array_values($pairs);
     }
 
     /**

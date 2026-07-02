@@ -23,7 +23,7 @@ final class RelationshipAccessPolicyContractTest extends AccessPolicyContractTes
 
     protected function createEntityStub(): EntityInterface
     {
-        return new class () implements EntityInterface {
+        return new class implements EntityInterface {
             public function id(): int|string|null
             {
                 return 1;

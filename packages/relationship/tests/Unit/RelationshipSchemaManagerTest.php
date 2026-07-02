@@ -29,11 +29,11 @@ final class RelationshipSchemaManagerTest extends TestCase
     {
         $database = DBALDatabase::createSqlite();
         $database->getConnection()->getNativeConnection()->exec(<<<SQL
-CREATE TABLE relationship (
-  rid INTEGER PRIMARY KEY,
-  relationship_type TEXT NOT NULL
-)
-SQL);
+            CREATE TABLE relationship (
+              rid INTEGER PRIMARY KEY,
+              relationship_type TEXT NOT NULL
+            )
+            SQL);
 
         $manager = new RelationshipSchemaManager($database);
         $manager->ensure();
@@ -56,23 +56,23 @@ SQL);
     {
         $database = DBALDatabase::createSqlite();
         $database->getConnection()->getNativeConnection()->exec(<<<SQL
-CREATE TABLE relationship (
-  rid INTEGER PRIMARY KEY,
-  relationship_type TEXT NOT NULL,
-  from_entity_type TEXT NOT NULL DEFAULT '',
-  from_entity_id TEXT NOT NULL DEFAULT '',
-  to_entity_type TEXT NOT NULL DEFAULT '',
-  to_entity_id TEXT NOT NULL DEFAULT '',
-  directionality TEXT NOT NULL DEFAULT 'directed',
-  status INTEGER NOT NULL DEFAULT 1,
-  weight REAL,
-  start_date INTEGER,
-  end_date INTEGER,
-  confidence REAL,
-  source_ref TEXT,
-  notes TEXT
-)
-SQL);
+            CREATE TABLE relationship (
+              rid INTEGER PRIMARY KEY,
+              relationship_type TEXT NOT NULL,
+              from_entity_type TEXT NOT NULL DEFAULT '',
+              from_entity_id TEXT NOT NULL DEFAULT '',
+              to_entity_type TEXT NOT NULL DEFAULT '',
+              to_entity_id TEXT NOT NULL DEFAULT '',
+              directionality TEXT NOT NULL DEFAULT 'directed',
+              status INTEGER NOT NULL DEFAULT 1,
+              weight REAL,
+              start_date INTEGER,
+              end_date INTEGER,
+              confidence REAL,
+              source_ref TEXT,
+              notes TEXT
+            )
+            SQL);
 
         $manager = new RelationshipSchemaManager($database);
         $manager->ensure();
@@ -89,11 +89,11 @@ SQL);
     {
         $database = DBALDatabase::createSqlite();
         $database->getConnection()->getNativeConnection()->exec(<<<SQL
-CREATE TABLE relationship (
-  rid INTEGER PRIMARY KEY,
-  relationship_type TEXT NOT NULL
-)
-SQL);
+            CREATE TABLE relationship (
+              rid INTEGER PRIMARY KEY,
+              relationship_type TEXT NOT NULL
+            )
+            SQL);
 
         $manager = new RelationshipSchemaManager($database);
         $manager->ensure();

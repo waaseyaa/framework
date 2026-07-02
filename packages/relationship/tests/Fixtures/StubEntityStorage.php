@@ -31,16 +31,46 @@ class StubEntityStorage implements EntityStorageInterface
         $this->loadHandler = $loadHandler ?? static function (int|string $id): EntityInterface {
             return new class ($id) implements EntityInterface {
                 public function __construct(private readonly int|string $id) {}
-                public function id(): int|string|null { return $this->id; }
-                public function uuid(): string { return ''; }
-                public function label(): string { return 'test'; }
-                public function getEntityTypeId(): string { return 'node'; }
-                public function bundle(): string { return 'default'; }
-                public function isNew(): bool { return false; }
-                public function get(string $name): mixed { return null; }
-                public function set(string $name, mixed $value): static { return $this; }
-                public function toArray(): array { return []; }
-                public function language(): string { return 'en'; }
+                public function id(): int|string|null
+                {
+                    return $this->id;
+                }
+                public function uuid(): string
+                {
+                    return '';
+                }
+                public function label(): string
+                {
+                    return 'test';
+                }
+                public function getEntityTypeId(): string
+                {
+                    return 'node';
+                }
+                public function bundle(): string
+                {
+                    return 'default';
+                }
+                public function isNew(): bool
+                {
+                    return false;
+                }
+                public function get(string $name): mixed
+                {
+                    return null;
+                }
+                public function set(string $name, mixed $value): static
+                {
+                    return $this;
+                }
+                public function toArray(): array
+                {
+                    return [];
+                }
+                public function language(): string
+                {
+                    return 'en';
+                }
             };
         };
     }
