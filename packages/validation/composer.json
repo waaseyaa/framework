@@ -23,7 +23,7 @@
     ],
     "require": {
         "php": ">=8.5",
-        "waaseyaa/typed-data": "^0.1.0-alpha.251",
+        "waaseyaa/typed-data": "^0.1.0-alpha.252",
         "symfony/validator": "^7.0"
     },
     "require-dev": {

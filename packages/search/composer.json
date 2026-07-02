@@ -6,10 +6,10 @@
     "require": {
         "php": ">=8.5",
         "twig/twig": "^3.0",
-        "waaseyaa/foundation": "^0.1.0-alpha.251",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.251",
-        "waaseyaa/entity": "^0.1.0-alpha.251",
-        "waaseyaa/access": "^0.1.0-alpha.251",
+        "waaseyaa/foundation": "^0.1.0-alpha.252",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.252",
+        "waaseyaa/entity": "^0.1.0-alpha.252",
+        "waaseyaa/access": "^0.1.0-alpha.252",
         "symfony/event-dispatcher": "^7.0"
     },
     "require-dev": {
