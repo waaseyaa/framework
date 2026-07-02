@@ -48,7 +48,37 @@ final class PathAlias extends ContentEntityBase
             'status' => true,
         ];
 
+        // EntityBase::__construct() assigns $values straight into $this->values
+        // (no setAlias() call), so a PathAlias built via EntityRepository::create()
+        // (the JSON:API POST path) would otherwise store whatever byte form the
+        // caller sent. Normalize here so every construction path stores NFC.
+        if (isset($values['alias']) && is_string($values['alias'])) {
+            $values['alias'] = self::normalizeAlias($values['alias']);
+        }
+
         parent::__construct($values, $entityTypeId, $entityKeys, $fieldDefinitions);
+    }
+
+    /**
+     * NFC-normalize an alias string.
+     *
+     * Waaseyaa is an Indigenous-language CMS: aliases legitimately carry
+     * Unicode letters (long-vowel diacritics, the glottal ʼ U+02BC, Canadian
+     * syllabics) and MUST NOT be transliterated, lowercased, or slugified —
+     * only canonically composed. Without this, NFC and NFD forms of the same
+     * visible alias are distinct byte strings that can both be stored,
+     * resolving first-match-wins. Modeled on the guard in
+     * {@see \Waaseyaa\Foundation\SlugGenerator::generate()}.
+     *
+     * Exposed as `public` so {@see \Waaseyaa\Path\PathAliasUniquenessListener}
+     * can compute the same canonical form for its uniqueness comparison
+     * without duplicating the guard.
+     */
+    public static function normalizeAlias(string $alias): string
+    {
+        $normalized = \Normalizer::normalize($alias, \Normalizer::FORM_C);
+
+        return is_string($normalized) ? $normalized : $alias;
     }
 
     /**
@@ -90,7 +120,7 @@ final class PathAlias extends ContentEntityBase
             );
         }
 
-        $this->set('alias', $alias);
+        $this->set('alias', self::normalizeAlias($alias));
 
         return $this;
     }

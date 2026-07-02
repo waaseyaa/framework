@@ -267,4 +267,54 @@ final class PathAliasTest extends TestCase
 
         $this->assertSame('ja', $alias->language());
     }
+
+    #[Test]
+    public function constructorNormalizesNfdAliasToNfc(): void
+    {
+        // "/page" with the "e" decomposed as base "a" + combining acute
+        // (U+0301) — the NFD twin of the precomposed "á" (U+00E1).
+        $nfd = "/pa\u{0301}ge";
+
+        $alias = new PathAlias(['alias' => $nfd]);
+
+        $this->assertSame("/p\u{00E1}ge", $alias->getAlias());
+        $this->assertTrue(\Normalizer::isNormalized($alias->getAlias(), \Normalizer::FORM_C));
+    }
+
+    #[Test]
+    public function setAliasNormalizesNfdAliasToNfc(): void
+    {
+        $alias = new PathAlias();
+        $nfd = "/pa\u{0301}ge";
+
+        $alias->setAlias($nfd);
+
+        $this->assertSame("/p\u{00E1}ge", $alias->getAlias());
+        $this->assertTrue(\Normalizer::isNormalized($alias->getAlias(), \Normalizer::FORM_C));
+    }
+
+    #[Test]
+    public function syllabicsAliasRoundTripsUnchanged(): void
+    {
+        // Canadian syllabics are already NFC; normalization must not corrupt them.
+        $syllabics = '/ᐊᓂᐦᔑᓈᐯ';
+
+        $alias = new PathAlias(['alias' => $syllabics]);
+
+        $this->assertSame($syllabics, $alias->getAlias());
+        $this->assertTrue(\Normalizer::isNormalized($alias->getAlias(), \Normalizer::FORM_C));
+    }
+
+    #[Test]
+    public function glottalStopAliasRoundTripsUnchanged(): void
+    {
+        // U+02BC MODIFIER LETTER APOSTROPHE — the glottal stop used in
+        // Anishinaabemowin orthography (e.g. "munuba'"). Already NFC.
+        $glottal = "/munuba\u{02BC}";
+
+        $alias = new PathAlias(['alias' => $glottal]);
+
+        $this->assertSame($glottal, $alias->getAlias());
+        $this->assertTrue(\Normalizer::isNormalized($alias->getAlias(), \Normalizer::FORM_C));
+    }
 }
