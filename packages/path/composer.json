@@ -10,6 +10,10 @@
         },
         {
             "type": "path",
+            "url": "../entity-storage"
+        },
+        {
+            "type": "path",
             "url": "../plugin"
         },
         {
@@ -27,8 +31,9 @@
     ],
     "require": {
         "php": ">=8.5",
-        "waaseyaa/entity": "^0.1.0-alpha.250",
         "waaseyaa/access": "^0.1.0-alpha.250",
+        "waaseyaa/entity": "^0.1.0-alpha.250",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.250",
         "waaseyaa/foundation": "^0.1.0-alpha.250"
     },
     "require-dev": {

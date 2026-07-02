@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Path;
 
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 final class PathServiceProvider extends ServiceProvider
@@ -18,5 +19,24 @@ final class PathServiceProvider extends ServiceProvider
             PathAlias::class,
             group: 'structure',
         ));
+    }
+
+    public function boot(): void
+    {
+        // Resolve the Symfony-contracts dispatcher FQCN (the key the kernel-services
+        // bus actually serves), then instanceof-check the foundation interface —
+        // per RelationshipServiceProvider::boot()/AuditServiceProvider::boot().
+        $dispatcher = $this->resolveOptional(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
+        if (!$dispatcher instanceof \Waaseyaa\Foundation\Event\EventDispatcherInterface) {
+            return;
+        }
+        $entityTypeManager = $this->resolveOptional(EntityTypeManagerInterface::class);
+        if (!$entityTypeManager instanceof EntityTypeManagerInterface) {
+            return;
+        }
+        $dispatcher->addListener(
+            \Waaseyaa\EntityStorage\Event\BeforeSaveEvent::class,
+            new PathAliasUniquenessListener($entityTypeManager),
+        );
     }
 }
