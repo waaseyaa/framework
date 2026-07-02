@@ -191,6 +191,49 @@ final class AttachmentDownloadRouterTest extends TestCase
     }
 
     #[Test]
+    public function bidi_override_characters_are_stripped_from_filename_star(): void
+    {
+        // U+202E (RTL OVERRIDE) makes a browser render "photo\u{202E}gnp.exe" as
+        // "photoexe.png" in the save dialog — classic extension-spoofing. The old
+        // ASCII-only header could never carry it; filename* must not reintroduce it.
+        // Directional-formatting characters are stripped BEFORE percent-encoding
+        // (ZWJ/ZWNJ are deliberately kept — they are orthographically meaningful).
+        $filename = "photo\u{202E}gnp.exe";
+        $router = $this->buildRouter(parentViewableByAccountId: 1, storageUri: 'private://secret.bin', filename: $filename);
+        $header = (string) $router->handle($this->request('10', 1))->headers->get('Content-Disposition');
+
+        self::assertSame(
+            'attachment; filename="photo___gnp.exe"; filename*=UTF-8\'\'photognp.exe',
+            $header,
+        );
+
+        // Isolate controls (U+2066–U+2069) and LRM/RLM/ALM are stripped too.
+        $filename = "a\u{2066}b\u{200F}c\u{061C}d.txt";
+        $router = $this->buildRouter(parentViewableByAccountId: 1, storageUri: 'private://secret.bin', filename: $filename);
+        $header = (string) $router->handle($this->request('10', 1))->headers->get('Content-Disposition');
+
+        self::assertStringEndsWith("filename*=UTF-8''abcd.txt", $header);
+    }
+
+    #[Test]
+    public function overlong_filename_is_capped_in_filename_star(): void
+    {
+        // The filename lives in the unbounded `_data` blob, and percent-encoding
+        // triples multibyte names — a pathological stored name must not balloon the
+        // header past proxy/server line limits (~8KB). filename* caps at 255 chars.
+        $filename = str_repeat('ᐊ', 1000) . '.pdf';
+        $router = $this->buildRouter(parentViewableByAccountId: 1, storageUri: 'private://secret.bin', filename: $filename);
+        $response = $router->handle($this->request('10', 1));
+        $header = (string) $response->headers->get('Content-Disposition');
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertLessThan(4096, \strlen($header));
+
+        preg_match("/filename\\*=UTF-8''(.*)$/", $header, $m);
+        self::assertSame(255, mb_strlen(rawurldecode($m[1]), 'UTF-8'));
+    }
+
+    #[Test]
     public function invalid_utf8_filename_omits_filename_star_and_does_not_throw(): void
     {
         $invalid = "bad\xFF\xFEname.pdf";

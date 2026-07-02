@@ -134,7 +134,7 @@ $active = $repo->getActive('node', $nodeId);
 
 → See `docs/specs/access-control.md` § "Parent-delegated policies".
 
-**Download response filename**: `AttachmentDownloadRouter` emits a dual `Content-Disposition` filename per RFC 5987/6266 — `attachment; filename="<ascii-safe>"; filename*=UTF-8''<percent-encoded>`. The quoted `filename=` stays the existing ASCII-sanitized fallback (`[^A-Za-z0-9._-]` → `_`, so non-ASCII names degrade to underscores there); `filename*` carries the original UTF-8 filename `rawurlencode()`-percent-encoded, so RFC 6266-aware clients render Anishinaabemowin and other non-ASCII filenames intact. `filename*` is omitted (ASCII fallback only) when the stored filename is not valid UTF-8 or has an empty basename.
+**Download response filename**: `AttachmentDownloadRouter` emits a dual `Content-Disposition` filename per RFC 5987/6266 — `attachment; filename="<ascii-safe>"; filename*=UTF-8''<percent-encoded>`. The quoted `filename=` stays the existing ASCII-sanitized fallback (`[^A-Za-z0-9._-]` → `_`, so non-ASCII names degrade to underscores there); `filename*` carries the original UTF-8 filename `rawurlencode()`-percent-encoded, so RFC 6266-aware clients render Anishinaabemowin and other non-ASCII filenames intact. `filename*` is omitted (ASCII fallback only) when the stored filename is not valid UTF-8 or has an empty basename. Hardening: directional-formatting characters (U+202E RTLO, LRM/RLM/ALM, isolate controls) are stripped from `filename*` before encoding (extension-spoofing; ZWJ/ZWNJ kept — orthographically meaningful), and both parameters cap at 255 characters (header-bloat guard; shorter names untouched).
 
 ---
 
