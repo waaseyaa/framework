@@ -9,8 +9,10 @@ use Waaseyaa\Attachment\Schema\AttachmentSchema;
 use Waaseyaa\Attachment\Storage\PrivateFileStore;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
+use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
@@ -24,6 +26,12 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
  *
  * The access policy ({@see Policy\ParentDelegatedAccessPolicy}) is auto-discovered
  * via the #[PolicyAttribute] attribute; no registration is needed here.
+ *
+ * {@see boot()} additionally wires {@see AttachmentActiveGuardListener} onto
+ * `EntityEvents::PRE_SAVE` — the at-most-one-active guard for the generic
+ * entity API (`getRepository('attachment')->save()`), which bypasses
+ * {@see AttachmentRepository} entirely and therefore needs its own
+ * enforcement point.
  */
 final class AttachmentServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface
 {
@@ -33,12 +41,54 @@ final class AttachmentServiceProvider extends ServiceProvider implements HasHttp
 
         $this->singleton(AttachmentSchema::class, fn() => new AttachmentSchema(
             $this->resolve(DatabaseInterface::class),
+            $this->resolveLoggerOrNull(),
         ));
 
         $this->singleton(AttachmentRepository::class, fn() => new AttachmentRepository(
             $this->resolve(EntityRepositoryInterface::class),
             $this->resolve(DatabaseInterface::class),
+            $this->resolveLoggerOrNull(),
         ));
+    }
+
+    /**
+     * Resolves the kernel logger when available; both AttachmentSchema and
+     * AttachmentRepository already default to NullLogger, so this is
+     * best-effort wiring, not a hard dependency.
+     */
+    private function resolveLoggerOrNull(): ?LoggerInterface
+    {
+        $logger = $this->resolveOptional(LoggerInterface::class);
+
+        return $logger instanceof LoggerInterface ? $logger : null;
+    }
+
+    /**
+     * Wires {@see AttachmentActiveGuardListener} onto `EntityEvents::PRE_SAVE`.
+     *
+     * The kernel-services bus serves the event dispatcher ONLY under the
+     * Symfony-contracts FQCN (`ProviderRegistryKernelServices::get()`);
+     * resolving the foundation FQCN returns null and would silently skip
+     * registration — same gotcha `RelationshipServiceProvider::boot()`
+     * fixed for the delete guard (#1852). Resolve the served key, then
+     * type-check against the foundation contract.
+     */
+    public function boot(): void
+    {
+        $dispatcher = $this->resolveOptional(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
+        if (!$dispatcher instanceof \Waaseyaa\Foundation\Event\EventDispatcherInterface) {
+            return;
+        }
+
+        $database = $this->resolveOptional(DatabaseInterface::class);
+        if (!$database instanceof DatabaseInterface) {
+            return;
+        }
+
+        $dispatcher->addListener(
+            EntityEvents::PRE_SAVE->value,
+            new AttachmentActiveGuardListener($database),
+        );
     }
 
     /**
