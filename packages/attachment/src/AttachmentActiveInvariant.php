@@ -28,13 +28,18 @@ final class AttachmentActiveInvariant
     private function __construct() {}
 
     /**
-     * Whether the given attachment's in-memory `is_active` value is truthy,
-     * tolerant of the bool/int/numeric-string representations `get()` may
-     * return depending on hydration source.
+     * Whether the given attachment's in-memory `is_active` value is active.
+     *
+     * Strict allow-list — active iff the value is `true`, `1`, or `'1'`:
+     * exactly the representations boolean assignment and SQLite/MySQL
+     * hydration actually produce. A naive `(bool)` cast would read
+     * PHP-truthy garbage (the string `'false'`, stray integers) as active
+     * and demote every sibling on a malformed value; the allow-list makes
+     * garbage inert instead.
      */
     public static function isActive(Attachment $attachment): bool
     {
-        return (bool) $attachment->get('is_active');
+        return \in_array($attachment->get('is_active'), [true, 1, '1'], true);
     }
 
     /**

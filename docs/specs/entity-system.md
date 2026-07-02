@@ -530,7 +530,14 @@ interface EntityRepositoryInterface
 
 `save()` accepts `bool $validate = true`. When true and an `EntityValidator` is configured, validates against the merged map from `EntityTypeValidationConstraints::forEntityType()` (field definitions + `getConstraints()`, see “Field definitions → constraints” below) before persisting. Throws `EntityValidationException` on failure. **Since alpha.204 (#1643) a validator is configured by default**: the kernel wires one shared `EntityValidator::createDefault()` into every repository it builds, so validation runs framework-wide unless opted out (boot-time `WAASEYAA_ENTITY_VALIDATION=0|false|off`, or per-call `validate: false`).
 
-`saveMany()`/`deleteMany()` wrap all operations in a `UnitOfWork` transaction. Events are buffered and dispatched only after successful commit. Requires `$database` to be non-null (throws `\LogicException` otherwise).
+`saveMany()`/`deleteMany()` wrap all operations in a `UnitOfWork` transaction. Requires `$database` to be non-null (throws `\LogicException` otherwise).
+
+**Event dispatch semantics under `UnitOfWork` (changed 2026-07-02, audit-remediation WP2 review):** the save path splits PRE-write from POST-write dispatch.
+
+- **PRE-write events dispatch IMMEDIATELY, inside the batch transaction** — `EntityEvents::PRE_SAVE` and `BeforeSaveEvent` fire before each entity's row is written, exactly as they do for a single `save()`. Rationale: a PRE event announces *intent*; listeners that mutate the entity (classification label resolution writes resolved columns via `$entity->set()`) or issue guarding DB writes (the attachment at-most-one-active sibling demote) only work if they run before the write — under the old buffer-everything model those mutations happened *after* the batch had committed, so they were silently never persisted, and two attachment-style guards in one batch cross-demoted each other post-commit. The "listeners never observe rolled-back work" goal that buffering exists for is still satisfied: an immediate PRE listener's DB writes JOIN the batch transaction and roll back with it. This also makes `BeforeSaveEvent`'s documented abort contract real inside batches: an `AbortOperationException` thrown for entity *k* of a batch aborts the `UnitOfWork` transaction and rolls back the WHOLE batch (no partial writes) — previously the buffered "abort" fired after every row had already committed. Pinned by `EntityRepositoryTest::saveManyDispatchesPreWriteEventsBeforeRowsAreWritten` / `::saveManyAbortFromBeforeSaveOnSecondEntityRollsBackWholeBatch`.
+- **POST/AFTER events remain buffered** — `POST_SAVE`, `REVISION_CREATED`, `AfterSaveEvent` are buffered by the `UnitOfWork` and dispatched only after successful commit (discarded on rollback), unchanged.
+- **The delete path is deliberately NOT aligned** — `doDelete()` still buffers `PRE_DELETE` under `deleteMany()`, so batch deletes bypass pre-delete guards (e.g. `RelationshipDeleteGuardListener`, documented as single-delete-only in #1852). Aligning it is a flagged follow-up (see the `dispatchEvent()` docblock in `EntityRepository`); it changes #1852's documented behavior and needs its own blast-radius pass.
+- **Stateful PRE/POST listener pairing caveat:** listeners that capture state in PRE and read it in POST (the audit listeners' `pendingIsNew`) now see all of a batch's PRE events before any POST event (`pre1, pre2, …, post1, post2, …`). For mixed new/updated batches the captured value can be stale by the time the paired POST fires — a pre-existing stateful-listener limitation (the old order was equally wrong in a different way: PRE fired post-commit when `isNew()` was already false, so batch writes always audited as "update"). Single saves are unaffected.
 
 ### EntityConstants
 
@@ -934,6 +941,8 @@ Constructor: `(DatabaseInterface $database, EventDispatcherInterface $eventDispa
 `transaction(\Closure $callback): mixed` -- wraps callback in DB transaction, buffers events during transaction, dispatches after commit. On failure, discards events and rolls back.
 
 `bufferEvent(Event $event, string $eventName): void` -- buffers events inside transaction, dispatches immediately outside.
+
+Since 2026-07-02 (WP2 review) only POST/AFTER lifecycle events are routed through `bufferEvent()` on the save path — PRE-write events (`PRE_SAVE`, `BeforeSaveEvent`) dispatch immediately inside the transaction. See "Event dispatch semantics under `UnitOfWork`" above.
 
 ### Storage Drivers
 

@@ -500,7 +500,17 @@ final class JsonApiController
                 return $failure;
             }
         } else {
-            $repository->save($entity);
+            try {
+                $repository->save($entity);
+            } catch (UniqueConstraintViolationException) {
+                // Mirrors create()'s 409 mapping (WP2 review): a PATCH that
+                // trips a uniqueness constraint (e.g. the attachment
+                // one-active-per-parent partial index under a race) is a
+                // caller-visible Conflict, never a raw 500 with driver SQL
+                // in the body. Names the REAL entity id, not the request
+                // locator (contract §15 locator honesty).
+                return $this->errorDocument($this->uniquenessConflictError($entityTypeId, (string) $entity->id()));
+            }
         }
 
         $resource = $this->serializer->serialize($entity, $this->accessHandler, $this->account);
@@ -542,6 +552,11 @@ final class JsonApiController
 
         try {
             $repository->save($entity, context: SaveContext::default()->withExpectedRevisionId($expectedRevisionId));
+        } catch (UniqueConstraintViolationException) {
+            // Same 409 mapping as the no-expectation PATCH path and
+            // create() (WP2 review): the expectation can pass and the base
+            // write still trip a uniqueness constraint — never a raw 500.
+            return $this->errorDocument($this->uniquenessConflictError($entityTypeId, (string) $entity->id()));
         } catch (RevisionConflictException $e) {
             return $this->errorDocument(JsonApiError::conflict(
                 "Entity of type '{$entityTypeId}' with ID '{$e->entityId}' was modified: "
@@ -565,6 +580,18 @@ final class JsonApiController
         }
 
         return null;
+    }
+
+    /**
+     * The 409 body for a uniqueness-constraint trip during PATCH — same
+     * status/title shape as create()'s duplicate-ID 409 (codeless, so the
+     * `code` member keeps discriminating the REVISION_CONFLICT 409).
+     */
+    private function uniquenessConflictError(string $entityTypeId, string $entityId): JsonApiError
+    {
+        return JsonApiError::conflict(
+            sprintf("Updating entity of type '%s' with ID '%s' violated a uniqueness constraint.", $entityTypeId, $entityId),
+        );
     }
 
     /**

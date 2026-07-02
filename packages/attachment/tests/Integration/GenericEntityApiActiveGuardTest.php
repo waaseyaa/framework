@@ -198,4 +198,121 @@ final class GenericEntityApiActiveGuardTest extends TestCase
         $this->expectException(\Doctrine\DBAL\Exception\UniqueConstraintViolationException::class);
         $entityRepository->save($second);
     }
+
+    /**
+     * saveMany() — the batch surface (adversarial-review BLOCKER, WP2
+     * follow-up). saveMany() runs the batch through one UnitOfWork; since
+     * the PRE-write dispatch fix in EntityRepository, PRE_SAVE fires
+     * IMMEDIATELY inside the batch transaction (not buffered post-commit),
+     * so the guard listener demotes prior batch rows before each next
+     * insert and the batch converges to sequential-save semantics: exactly
+     * one active row, last in batch wins, no unique-constraint trip from
+     * the partial index, no post-commit cross-demote.
+     *
+     * NOTE the in-memory/DB desync for the batch loser: $first's in-memory
+     * object still says is_active=1 after saveMany() while its row says 0 —
+     * the SAME desync a pair of sequential save() calls produces (the demote
+     * is a direct UPDATE; no entity events fire for demoted siblings, by
+     * design, mirroring setActive()). Callers needing fresh state must
+     * re-find(). Acceptable and documented, not a bug.
+     */
+    #[Test]
+    public function saveManyOfTwoActiveAttachmentsConvergesToOneActiveRow(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        new AttachmentSchema($database)->ensureTable();
+
+        $entityRepository = $this->buildGuardedRepository($database);
+
+        [$first, $second] = $this->twoNewActiveAttachments();
+        $entityRepository->saveMany([$first, $second]);
+
+        $this->assertConvergedToSingleActive($database, $second);
+    }
+
+    /**
+     * Same batch scenario WITHOUT the partial unique index — the
+     * MySQL/MariaDB shape (no partial-index support) and the legacy-install
+     * shape (index creation skipped over pre-existing violations). The
+     * immediate-PRE-dispatch guard alone must converge the batch; before
+     * the dispatch fix, the two buffered listeners fired post-commit and
+     * CROSS-DEMOTED each other (each demotes all-except-own-id), leaving
+     * ZERO active rows.
+     */
+    #[Test]
+    public function saveManyConvergesWithoutThePartialIndexToo(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        new AttachmentSchema($database)->ensureTable();
+        $database->schema()->dropIndex('attachment', 'attachment_one_active_per_parent');
+
+        $entityRepository = $this->buildGuardedRepository($database);
+
+        [$first, $second] = $this->twoNewActiveAttachments();
+        $entityRepository->saveMany([$first, $second]);
+
+        $this->assertConvergedToSingleActive($database, $second);
+    }
+
+    /**
+     * Builds an EntityRepository with the guard listener wired
+     * production-style (same event name AttachmentServiceProvider::boot()
+     * registers on).
+     */
+    private function buildGuardedRepository(DBALDatabase $database): EntityRepository
+    {
+        $dispatcher = new SymfonyEventDispatcherAdapter();
+        $dispatcher->addListener(
+            EntityEvents::PRE_SAVE->value,
+            new AttachmentActiveGuardListener($database),
+        );
+
+        return new EntityRepository(
+            entityType: EntityType::fromClass(Attachment::class),
+            driver: new SqlStorageDriver(new SingleConnectionResolver($database), 'id'),
+            eventDispatcher: $dispatcher,
+            database: $database,
+        );
+    }
+
+    /**
+     * @return array{Attachment, Attachment}
+     */
+    private function twoNewActiveAttachments(): array
+    {
+        $attachments = [];
+        foreach (['first.pdf', 'second.pdf'] as $filename) {
+            $attachment = new Attachment([
+                'parent_entity_type' => 'node',
+                'parent_entity_id' => '1',
+                'is_active' => 1,
+                'filename' => $filename,
+            ]);
+            $attachment->enforceIsNew();
+            $attachments[] = $attachment;
+        }
+
+        return [$attachments[0], $attachments[1]];
+    }
+
+    private function assertConvergedToSingleActive(DBALDatabase $database, Attachment $expectedWinner): void
+    {
+        $allRows = iterator_to_array($database->select('attachment')
+            ->fields('attachment', ['id', 'is_active'])
+            ->condition('parent_entity_type', 'node')
+            ->condition('parent_entity_id', '1')
+            ->execute());
+        self::assertCount(2, $allRows, 'Both batch entities must have been persisted (no rollback, no lost rows).');
+
+        $activeIds = array_values(array_map(
+            static fn(array $row): string => (string) $row['id'],
+            array_filter($allRows, static fn(array $row): bool => (int) $row['is_active'] === 1),
+        ));
+
+        self::assertSame(
+            [(string) $expectedWinner->id()],
+            $activeIds,
+            'Exactly one active row must remain, and it must be the LAST entity in the batch.',
+        );
+    }
 }

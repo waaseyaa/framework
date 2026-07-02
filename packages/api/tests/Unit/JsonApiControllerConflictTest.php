@@ -349,6 +349,74 @@ final class JsonApiControllerConflictTest extends TestCase
     }
 
     // -----------------------------------------------------------------------
+    // Unique-constraint trips map to 409, not raw 500 (audit-remediation
+    // batch 2026-07-02, WP2 review MAJOR). create() has caught
+    // UniqueConstraintViolationException → 409 since its introduction;
+    // update()'s two save paths surfaced the raw DBAL exception (500,
+    // possible SQL leak under APP_DEBUG). Both PATCH paths must mirror
+    // create()'s Conflict mapping. Real constraint trips (a UNIQUE index on
+    // the fixture table + a colliding UPDATE), not hand-built exceptions.
+    // -----------------------------------------------------------------------
+
+    #[Test]
+    public function patchWithoutExpectationMapsUniqueConstraintViolationTo409(): void
+    {
+        $this->db->query('CREATE UNIQUE INDEX test_plain_label_unique ON test_plain (label)');
+        $plainRepo = $this->entityTypeManager->getRepository('test_plain');
+        foreach ([['1', 'alpha'], ['2', 'beta']] as [$id, $label]) {
+            $seed = new TestStorageEntity(values: ['id' => $id, 'label' => $label], entityTypeId: 'test_plain', entityKeys: self::PLAIN_KEYS);
+            $seed->enforceIsNew();
+            $plainRepo->save($seed);
+        }
+
+        // PATCH entity 2's label to entity 1's value — trips the unique index.
+        $doc = $this->controller->update('test_plain', '2', [
+            'data' => ['type' => 'test_plain', 'attributes' => ['label' => 'alpha']],
+        ]);
+        $array = $doc->toArray();
+
+        $this->assertSame(409, $doc->statusCode);
+        $this->assertSame('409', $array['errors'][0]['status']);
+        $this->assertSame('Conflict', $array['errors'][0]['title']);
+        $this->assertSame(
+            "Updating entity of type 'test_plain' with ID '2' violated a uniqueness constraint.",
+            $array['errors'][0]['detail'],
+        );
+
+        $reloaded = $plainRepo->find('2');
+        $this->assertNotNull($reloaded);
+        $this->assertSame('beta', $reloaded->get('label'), 'the refused update persisted nothing');
+    }
+
+    #[Test]
+    public function patchWithExpectationMapsUniqueConstraintViolationTo409(): void
+    {
+        $this->db->query('CREATE UNIQUE INDEX test_revisionable_title_unique ON test_revisionable (title)');
+        $this->seedEntity();
+        $sibling = new TestRevisionableEntity(values: ['title' => 'other', 'id' => '2', 'uuid' => 'u2']);
+        $sibling->enforceIsNew();
+        $this->repo->save($sibling);
+
+        // PATCH entity 2's title to entity 1's value with a matching
+        // expectation — the expectation passes, then the base-table UPDATE
+        // trips the unique index inside the save pipeline.
+        $doc = $this->controller->update('test_revisionable', '2', $this->patchBody(['title' => 'v1'], expected: 1));
+        $array = $doc->toArray();
+
+        $this->assertSame(409, $doc->statusCode);
+        $this->assertSame('409', $array['errors'][0]['status']);
+        $this->assertSame('Conflict', $array['errors'][0]['title']);
+        $this->assertSame(
+            "Updating entity of type 'test_revisionable' with ID '2' violated a uniqueness constraint.",
+            $array['errors'][0]['detail'],
+        );
+
+        $reloaded = $this->repo->find('2');
+        \assert($reloaded instanceof TestRevisionableEntity);
+        $this->assertSame('other', $reloaded->label(), 'the refused update persisted nothing');
+    }
+
+    // -----------------------------------------------------------------------
     // FR-008 pin (contract §16)
     // -----------------------------------------------------------------------
 

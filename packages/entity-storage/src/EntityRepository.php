@@ -672,10 +672,22 @@ final class EntityRepository implements EntityRepositoryInterface
             $entity->preSave($isNew);
         }
 
+        // PRE-write events dispatch IMMEDIATELY — even under a UnitOfWork
+        // batch (audit-remediation batch 2026-07-02, WP2 review BLOCKER).
+        // A PRE event announces intent: listeners that mutate the entity
+        // (classification label resolution) or issue guarding DB writes
+        // (the attachment active-invariant sibling demote) only work if
+        // they run BEFORE the row is written. Post-commit buffering exists
+        // so listeners never observe rolled-back work — an immediate PRE
+        // listener's DB writes JOIN the batch transaction and roll back
+        // with it, which satisfies that goal without breaking the
+        // pre-write contract. (Buffered-PRE also broke saveMany batches
+        // of attachment-style guards: both listeners fired post-commit
+        // and cross-demoted each other's rows.) POST/AFTER events remain
+        // buffered — see dispatchEvent().
         $this->dispatchEvent(
             $this->eventFactory->create($entity, $originalEntity),
             EntityEvents::PRE_SAVE->value,
-            $unitOfWork,
         );
 
         $createRevision = $this->shouldCreateRevision($entity, $isNew);
@@ -704,11 +716,17 @@ final class EntityRepository implements EntityRepositoryInterface
         // callers (e.g. `\Waaseyaa\Migration\Plugin\Destination\EntityDestination`)
         // no longer self-dispatch. Subscribers may abort via
         // AbortOperationException; no write occurs and AfterSaveEvent does
-        // NOT fire.
+        // NOT fire. Dispatched IMMEDIATELY even under a UnitOfWork batch
+        // (see the PRE_SAVE dispatch above for the full rationale): the
+        // documented abort contract is unfulfillable when buffered
+        // post-commit — the "abort" would fire after every batch row had
+        // already committed (and its throw would then hit the committed
+        // transaction's rollback path). Immediate dispatch makes a
+        // mid-batch abort roll back the WHOLE batch, as the contract
+        // requires.
         $this->dispatchEvent(
             new BeforeSaveEvent($entity, $resolvedContext, $createRevision),
             BeforeSaveEvent::class,
-            $unitOfWork,
         );
 
         $values = $entity->toArray();
@@ -942,6 +960,23 @@ final class EntityRepository implements EntityRepositoryInterface
         }
     }
 
+    /**
+     * Dispatch a lifecycle event, buffering it until after commit when a
+     * UnitOfWork batch is in flight.
+     *
+     * Buffering is now POST/AFTER-only: doSave()'s PRE_SAVE and
+     * BeforeSaveEvent dispatch sites deliberately do NOT pass $unitOfWork
+     * (audit-remediation batch 2026-07-02, WP2 review) — pre-write events
+     * fire immediately inside the batch transaction so guarding listeners
+     * run before the write and a BeforeSaveEvent abort rolls back the
+     * whole batch. FOLLOW-UP (delete-path symmetry): doDelete() still
+     * buffers PRE_DELETE under deleteMany(), so batch deletes bypass
+     * pre-delete guards (e.g. RelationshipDeleteGuardListener — documented
+     * in #1852 as single-delete-only). Aligning the delete path with the
+     * save path's immediate-PRE semantics is deliberately out of scope
+     * here; it changes #1852's documented behavior and needs its own
+     * blast-radius pass.
+     */
     private function dispatchEvent(object $event, string $eventName, ?UnitOfWork $unitOfWork = null): void
     {
         if ($unitOfWork !== null) {

@@ -42,6 +42,14 @@ use Waaseyaa\Entity\Event\EntityEvent;
  * write through {@see AttachmentRepository::save()} or
  * {@see AttachmentRepository::setActive()}, both of which wrap the demote +
  * write in one transaction.
+ *
+ * BATCHES (`saveMany()`) are correct within one process: since the
+ * PRE-write dispatch fix in `EntityRepository` (WP2 review), PRE_SAVE fires
+ * IMMEDIATELY inside the UnitOfWork batch transaction, so this listener's
+ * demote joins the batch transaction, runs before each next insert, and a
+ * batch of N active attachments converges to sequential-save semantics
+ * (exactly one active, last in batch wins). Before that fix the buffered
+ * listeners fired post-commit and cross-demoted each other's rows.
  */
 final class AttachmentActiveGuardListener
 {
