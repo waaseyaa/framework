@@ -97,6 +97,7 @@ final class EngagementAccessPolicyTest extends TestCase
     {
         $account = $this->createMock(AccountInterface::class);
         $account->method('hasPermission')->willReturn(false);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(42);
 
         $policy = $this->policyWithParent('post', 7, parentViewable: false);
@@ -104,6 +105,25 @@ final class EngagementAccessPolicyTest extends TestCase
 
         $result = $policy->access($entity, 'view', $account);
         $this->assertTrue($result->isAllowed());
+    }
+
+    #[Test]
+    public function anonymous_cannot_view_unpublished_comment_with_user_id_zero(): void
+    {
+        // The exact exploit: a comment with user_id === 0 (mintable pre-fix via
+        // the client-writable user_id field hole) must not be "owned" by the
+        // anonymous account just because AnonymousUser::id() also returns 0.
+        $account = $this->createMock(AccountInterface::class);
+        $account->method('hasPermission')->willReturn(false);
+        $account->method('isAuthenticated')->willReturn(false);
+        $account->method('id')->willReturn(0);
+
+        // Parent view resolution is irrelevant: pre-fix, the owner branch
+        // short-circuited to Allowed before parent-cascade was ever consulted.
+        $entity = $this->engagement('comment', targetType: 'post', targetId: 7, status: false, ownerId: 0);
+
+        $result = $this->policy->access($entity, 'view', $account);
+        $this->assertFalse($result->isAllowed(), 'Anonymous must not be treated as the owner of a user_id=0 row.');
     }
 
     #[Test]
@@ -124,6 +144,7 @@ final class EngagementAccessPolicyTest extends TestCase
     {
         $account = $this->createMock(AccountInterface::class);
         $account->method('hasPermission')->willReturn(false);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(42);
 
         $entity = $this->createMock(EntityInterface::class);
@@ -138,6 +159,7 @@ final class EngagementAccessPolicyTest extends TestCase
     {
         $account = $this->createMock(AccountInterface::class);
         $account->method('hasPermission')->willReturn(false);
+        $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(99);
 
         $entity = $this->createMock(EntityInterface::class);
@@ -145,6 +167,25 @@ final class EngagementAccessPolicyTest extends TestCase
 
         $result = $this->policy->access($entity, 'delete', $account);
         $this->assertTrue($result->isNeutral());
+    }
+
+    #[Test]
+    public function anonymous_is_never_owner_of_a_user_id_zero_row_on_delete(): void
+    {
+        // The exact exploit: AnonymousUser::id() returns 0. A row with
+        // user_id === 0 (mintable pre-fix via the client-writable user_id
+        // field hole) must not grant anonymous DELETE just because the ids
+        // collide.
+        $account = $this->createMock(AccountInterface::class);
+        $account->method('hasPermission')->willReturn(false);
+        $account->method('isAuthenticated')->willReturn(false);
+        $account->method('id')->willReturn(0);
+
+        $entity = $this->createMock(EntityInterface::class);
+        $entity->method('get')->with('user_id')->willReturn(0);
+
+        $result = $this->policy->access($entity, 'delete', $account);
+        $this->assertTrue($result->isNeutral(), 'Anonymous must not be granted delete on a user_id=0 row.');
     }
 
     /**

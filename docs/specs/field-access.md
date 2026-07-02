@@ -140,6 +140,12 @@ final class NodeAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
 
 The `appliesTo()` method from `AccessPolicyInterface` scopes both entity-level and field-level access to the same entity types. For multi-bundle entity types, policies may additionally narrow scope to specific bundles via the `#[AccessPolicy(bundles: [...])]` attribute parameter; see [`bundle-scoped-fields.md`](./bundle-scoped-fields.md#access).
 
+### Real-world example: ownership-field locks
+
+`NodeAccessPolicy` (`packages/node/src/NodeAccessPolicy.php`) forbids edit of `uid`/`type`/`created`/`changed` on an *existing* node for non-admins, closing a mass-assignment path where an author with `edit own {type} content` could reassign authorship, change the bundle, or forge timestamps via `PATCH`. Those fields stay settable at create time (`uid`/`created` are part of authoring a new node).
+
+`EngagementAccessPolicy` (`packages/engagement/src/EngagementAccessPolicy.php`) applies the same pattern to `user_id` on `reaction`/`comment`/`follow` entities, but stricter: `user_id` is server-authoritative and never client-reassignable. On an *existing* entity it is edit-Forbidden outright — ownership is immutable after creation, not just admin-only-editable. On *create* it is edit-Forbidden unless the submitted `user_id` equals the caller's own account id. This closes an anonymous-ownership hole: `EngagementAccessPolicy` had no field policy at all, so any authenticated account could `POST` a comment with `user_id: 0` (or another account's id), minting a row "owned" by the anonymous account — which, combined with a missing `isAuthenticated()` guard in the entity-level `isOwner()` check, let every anonymous visitor `DELETE` or view-as-owner any row with `user_id === 0` (`AnonymousUser::id()` also returns `0`).
+
 ## View vs Edit Denial
 
 ### JSON:API Serialization (ResourceSerializer)
