@@ -66,8 +66,10 @@ final class LayerDependencyTest extends TestCase
      * Per-file exemptions for legitimate cross-layer imports outside Kernel/
      * (bulk-exempt below — CLAUDE.md "Exemption": entry-point orchestrators
      * that intentionally wire all layers) and outside Http/Router/, Http/Inbound/
-     * (already fully governed by the HTTP-substrate test above — skipped here
-     * to avoid double-covering the same directories under a second rule).
+     * (governed by bin/check-package-layers' allowlist scan — the HTTP-substrate
+     * test above deliberately skips those two directories too, so NO
+     * PHPUnit-level check covers them; skipped here to keep one owner per
+     * directory rather than to avoid double coverage).
      *
      * Mirrors bin/check-package-layers' $kernelExemptFiles allowlist style:
      * every entry carries a one-line rationale. Keep the two lists in sync —
@@ -261,6 +263,42 @@ final class LayerDependencyTest extends TestCase
             $violations,
             "Foundation Http/ outside Http/Router/ must not import Waaseyaa namespaces other than Waaseyaa\\Foundation\\\n"
             . implode("\n", $violations),
+        );
+    }
+
+    /**
+     * Mechanical cross-check for the dual-list drift risk: SRC_SCAN_EXEMPT_FILES
+     * here and bin/check-package-layers' $kernelExemptFiles are maintained by
+     * hand (the script calls exit(), so it cannot be require'd from a test).
+     * The script CAN be read as text, though — every foundation exemption this
+     * test grants must also appear in the script's allowlist, so the two lists
+     * cannot silently drift apart in the permissive direction. (The reverse —
+     * script entries absent here — is fine: the script governs directories
+     * this scan deliberately skips, e.g. Http/Router/.)
+     */
+    #[Test]
+    public function srcScanExemptionsAreMirroredInCheckPackageLayersAllowlist(): void
+    {
+        $script = dirname(__DIR__, 4) . '/bin/check-package-layers';
+        $contents = file_get_contents($script);
+        self::assertIsString($contents, 'bin/check-package-layers must be readable');
+
+        preg_match_all("/'((?:foundation|cache)\\/src\\/[^']+)'/", $contents, $m);
+        $scriptEntries = array_flip($m[1]);
+
+        $missing = [];
+        foreach (array_keys(self::SRC_SCAN_EXEMPT_FILES) as $relative) {
+            if (!isset($scriptEntries['foundation/src/' . $relative])) {
+                $missing[] = $relative;
+            }
+        }
+
+        self::assertSame(
+            [],
+            $missing,
+            "SRC_SCAN_EXEMPT_FILES entries missing from bin/check-package-layers' \$kernelExemptFiles "
+            . '(add them there with a rationale, or remove the exemption here): '
+            . implode(', ', $missing),
         );
     }
 
