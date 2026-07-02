@@ -114,6 +114,29 @@ final class CheckPackageLayersGateTest extends TestCase
     }
 
     #[Test]
+    public function flags_leading_backslash_use_import_pl005_outside_layer_zero(): void
+    {
+        // entity (L1) imports api (L4) via `use \Waaseyaa\Api\...;` — the optional
+        // leading backslash is valid PHP with identical semantics, and previously
+        // evaded PL005's regex in EVERY layer (WP7 adversarial-review finding).
+        // A non-Layer-0 package is deliberate: PL008 only scans L0, so PL005 is
+        // the only rule that can catch this shape here.
+        $this->writeFixturePackage(
+            short: 'entity',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'src/Demo.php',
+            useStatements: ['\\Waaseyaa\\Api\\JsonApiController'],
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+        self::assertSame(1, $exit, "Gate must fail on a leading-backslash upward use-import.\n{$out}");
+        self::assertStringContainsString('PL005', $out);
+        self::assertStringContainsString('entity', $out);
+        self::assertStringContainsString('api', $out);
+    }
+
+    #[Test]
     public function flags_quoted_string_literal_fqcn_pl008(): void
     {
         // plugin (L0) hard-codes a quoted 'Waaseyaa\\Node\\...' string literal (L2) —

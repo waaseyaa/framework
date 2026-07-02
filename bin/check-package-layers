@@ -376,6 +376,13 @@ $stringLiteralBaseline = $loadStringLiteralBaseline($stringLiteralBaselinePath);
  *       `::class` is caught for free — the match is on the name token
  *       itself, regardless of what follows it.
  *
+ * Known accepted misses: lowercase FQCNs ('waaseyaa\node\foo') evade both
+ * sub-patterns — acceptable because Composer's PSR-4 prefix matching is
+ * case-sensitive, so a lowercase string cannot trigger upward autoloading
+ * (class_exists() on it returns false unless the canonical-case class is
+ * already loaded). Dynamically assembled FQCNs (sprintf/concat) are
+ * inherently invisible to a lexical scan.
+ *
  * @return list<array{relative: string, dep: string, depLayer: int}>
  */
 $scanStringLiteralFqcns = static function (string $packageDirectory, int $selfLayer, string $selfShort) use (
@@ -526,8 +533,12 @@ $scanPhpImports = static function (string $packageDirectory, int $selfLayer, str
             continue;
         }
 
+        // The optional leading \ covers `use \Waaseyaa\…;` — valid PHP, identical
+        // semantics to the unprefixed form, and previously invisible to this scan
+        // in every layer (WP7 adversarial-review finding; the PL008 tokenizer scan
+        // only covers Layer-0 packages, so PL005 must catch it everywhere else).
         preg_match_all(
-            '/^\s*use(?:\s+function|\s+const)?\s+Waaseyaa\\\\([A-Z][A-Za-z0-9]*)(?:\\\\([A-Z][A-Za-z0-9]*))?/m',
+            '/^\s*use(?:\s+function|\s+const)?\s+\\\\?Waaseyaa\\\\([A-Z][A-Za-z0-9]*)(?:\\\\([A-Z][A-Za-z0-9]*))?/m',
             $text,
             $matches,
             PREG_SET_ORDER,
@@ -690,17 +701,21 @@ foreach ($packageDirectories as $packageDirectory) {
         $violations[] = ['source' => $short, 'target' => $depShort, 'edge' => 'undeclared'];
     }
 
-    // PL008: string-literal FQCN layer gate (Layer-0 only). De-dup per dep.
+    // PL008: string-literal FQCN layer gate (Layer-0 only). One error per dep,
+    // but list EVERY violating file — keeping only the first example hid the
+    // rest behind alphabetically-earlier files (WP7 adversarial-review finding).
     $stringLiteralEdges = [];
     foreach ($scanStringLiteralFqcns($packageDirectory, $selfLayer, $short) as $finding) {
-        if (!isset($stringLiteralEdges[$finding['dep']])) {
-            $stringLiteralEdges[$finding['dep']] = $finding['relative'];
-        }
+        $stringLiteralEdges[$finding['dep']][$finding['relative']] = true;
     }
-    foreach ($stringLiteralEdges as $depShort => $exampleRelative) {
+    foreach ($stringLiteralEdges as $depShort => $relativeSet) {
         ++$errors;
+        $fileList = implode(', ', array_map(
+            static fn(string $rel): string => "packages/{$rel}",
+            array_keys($relativeSet),
+        ));
         $emit(
-            "FAIL [PL008] packages/{$exampleRelative}: string-literal layer violation - "
+            "FAIL [PL008] {$fileList}: string-literal layer violation - "
             . "{$short} (layer {$selfLayer}) references a Waaseyaa\\{$depShort}\\… FQCN "
             . "(layer {$layerByShort[$depShort]}) as a fully-qualified name in code or inside "
             . "a string scalar. Move the route/binding to the owning higher-layer provider, "

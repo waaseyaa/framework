@@ -22,6 +22,12 @@
 # later. Before adding or keeping an entry, re-audit the ENTIRE file for upward
 # references, not just the finding that prompted the entry.
 #
+# Known false-positive class: a human-readable diagnostic/exception message that
+# merely MENTIONS a higher-layer FQCN (e.g. "expected an instance compatible with
+# Waaseyaa\Node\NodeInterface") trips sub-pattern (a) even though it is not runtime
+# coupling. Prefer rephrasing the message (drop the namespace, use the short name);
+# baseline the file only if the FQCN genuinely helps the operator.
+#
 # New PL008 violations NOT listed here fail CI (fail-on-new).
 #
 foundation/src/Discovery/PackageManifestCompiler.php  # Discovery bootstrapper: uses private string constants (not 'use' imports) for cross-layer attribute FQCNs per CLAUDE.md layer-discipline rule — Waaseyaa\Access\Gate\PolicyAttribute (L1), Waaseyaa\AI\*\Attribute\* (L5), Waaseyaa\SSR\Attribute\* (L6), Waaseyaa\Entity\DefinesEntityType (L1); avoids upward 'use' imports that would violate PL005
