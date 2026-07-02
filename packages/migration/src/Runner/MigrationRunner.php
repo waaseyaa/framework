@@ -263,7 +263,7 @@ final class MigrationRunner
                     ]);
 
                     if ($options->haltOnError) {
-                        $finishedAt = ($this->clock)();
+                        $finishedAt = $this->nowClampedTo($startedAt);
                         $report = new RunReport(
                             migrationId: $definition->id,
                             runId: $runId,
@@ -293,7 +293,7 @@ final class MigrationRunner
             throw $e;
         } catch (\Throwable $e) {
             // FR-048 — run-level failure. Build a partial report and halt.
-            $finishedAt = ($this->clock)();
+            $finishedAt = $this->nowClampedTo($startedAt);
             $report = new RunReport(
                 migrationId: $definition->id,
                 runId: $runId,
@@ -321,7 +321,7 @@ final class MigrationRunner
             );
         }
 
-        $finishedAt = ($this->clock)();
+        $finishedAt = $this->nowClampedTo($startedAt);
 
         return new RunReport(
             migrationId: $definition->id,
@@ -335,6 +335,25 @@ final class MigrationRunner
             finishedAt: $finishedAt,
             aborted: false,
         );
+    }
+
+    /**
+     * Capture the current instant from the injected clock and clamp it
+     * monotonically against `$startedAt`.
+     *
+     * Wall-clock time is non-monotonic (NTP step, VM/WSL suspend-resume,
+     * leap-second smear); a backward step between the `$startedAt` capture
+     * (run() entry) and a `$finishedAt` capture below would otherwise trip
+     * {@see RunReport}'s `finishedAt >= startedAt` invariant and crash the
+     * CLI on a migration whose data is already fully committed. Advancing
+     * the finish stamp by 1µs over the start mirrors
+     * {@see RollbackWalker::rollback()}'s existing clamp.
+     */
+    private function nowClampedTo(\DateTimeImmutable $startedAt): \DateTimeImmutable
+    {
+        $finishedAt = ($this->clock)();
+
+        return $finishedAt < $startedAt ? $startedAt->modify('+1 microsecond') : $finishedAt;
     }
 
     /**

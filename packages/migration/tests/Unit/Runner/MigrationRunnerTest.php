@@ -223,6 +223,120 @@ final class MigrationRunnerTest extends TestCase
     }
 
     /**
+     * R3 WP2 (audit-remediation batch 2026-07-02): wall-clock time is
+     * non-monotonic (NTP step, VM/WSL suspend-resume, leap-second smear). A
+     * backward step between the `$startedAt` capture (run() entry) and the
+     * `$finishedAt` capture (report construction) must not turn a
+     * fully-committed successful run into an uncaught
+     * `\InvalidArgumentException` from `RunReport`'s invariant. Mirrors
+     * `RollbackWalker`'s existing monotonic clamp.
+     */
+    #[Test]
+    public function backward_clock_step_does_not_crash_a_successful_run(): void
+    {
+        $source = new InMemorySource(id: 'in_memory', records: $this->makeRecords(['a', 'b']));
+        $destination = new InMemoryDestination();
+
+        $definition = $this->demoDefinition($source, $destination);
+        $registry = $this->buildRegistry($definition);
+
+        $startedAt = new \DateTimeImmutable('2026-07-02T12:00:00+00:00');
+        // Finish stamp lands 1 second BEFORE the start stamp — simulates a
+        // backward wall-clock step occurring mid-run.
+        $finishedAt = $startedAt->modify('-1 second');
+        $runner = $this->makeRunner($registry, $this->descendingClock($startedAt, $finishedAt));
+
+        $report = $runner->run('demo', new RunOptions());
+
+        self::assertSame(2, $report->imported);
+        self::assertFalse($report->aborted);
+        self::assertTrue(
+            $report->finishedAt >= $report->startedAt,
+            'RunReport::$finishedAt must be clamped to >= $startedAt on a backward clock step.',
+        );
+    }
+
+    /**
+     * @see backward_clock_step_does_not_crash_a_successful_run() — same
+     * clock-regression scenario, but the failure happens on the
+     * `--halt-on-error` per-record abort path (RunReport site ~L266).
+     */
+    #[Test]
+    public function backward_clock_step_does_not_crash_a_halt_on_error_abort(): void
+    {
+        $source = new InMemorySource(id: 'in_memory', records: $this->makeRecords(['a', 'b']));
+        $definition = new MigrationDefinition(
+            id: 'demo',
+            source: $source,
+            process: ['body' => [new AlwaysFailingProcessor()]],
+            destination: new InMemoryDestination(),
+        );
+
+        $startedAt = new \DateTimeImmutable('2026-07-02T12:00:00+00:00');
+        $finishedAt = $startedAt->modify('-1 second');
+        $runner = $this->makeRunner($this->buildRegistry($definition), $this->descendingClock($startedAt, $finishedAt));
+
+        try {
+            $runner->run('demo', new RunOptions(haltOnError: true));
+            self::fail('expected MigrationAbortedException');
+        } catch (MigrationAbortedException $e) {
+            self::assertTrue($e->report->aborted);
+            self::assertTrue(
+                $e->report->finishedAt >= $e->report->startedAt,
+                'RunReport::$finishedAt must be clamped to >= $startedAt on a backward clock step.',
+            );
+        }
+    }
+
+    /**
+     * @see backward_clock_step_does_not_crash_a_successful_run() — same
+     * clock-regression scenario, but the failure happens on the run-level
+     * FR-048 abort path (RunReport site ~L296).
+     */
+    #[Test]
+    public function backward_clock_step_does_not_crash_a_run_level_abort_FR048(): void
+    {
+        $source = new InMemorySource(
+            id: 'in_memory',
+            records: $this->makeRecords(['a', 'b', 'c']),
+            throwAtIndex: 1,
+        );
+
+        $startedAt = new \DateTimeImmutable('2026-07-02T12:00:00+00:00');
+        $finishedAt = $startedAt->modify('-1 second');
+        $runner = $this->makeRunner(
+            $this->buildRegistry($this->demoDefinition($source, new InMemoryDestination())),
+            $this->descendingClock($startedAt, $finishedAt),
+        );
+
+        try {
+            $runner->run('demo', new RunOptions());
+            self::fail('expected MigrationAbortedException');
+        } catch (MigrationAbortedException $e) {
+            self::assertTrue($e->report->aborted);
+            self::assertTrue(
+                $e->report->finishedAt >= $e->report->startedAt,
+                'RunReport::$finishedAt must be clamped to >= $startedAt on a backward clock step.',
+            );
+        }
+    }
+
+    /**
+     * Builds a clock test-seam that returns `$first` on its first
+     * invocation and `$second` on every subsequent invocation — enough to
+     * simulate a `$startedAt` capture followed by one-or-more `$finishedAt`
+     * captures that land before it.
+     */
+    private function descendingClock(\DateTimeImmutable $first, \DateTimeImmutable $second): \Closure
+    {
+        $calls = 0;
+        return function () use (&$calls, $first, $second): \DateTimeImmutable {
+            $calls++;
+            return $calls === 1 ? $first : $second;
+        };
+    }
+
+    /**
      * @return list<SourceRecord>
      */
     private function makeRecords(array $ids): array
@@ -263,12 +377,13 @@ final class MigrationRunnerTest extends TestCase
         return $registry;
     }
 
-    private function makeRunner(MigrationRegistry $registry): MigrationRunner
+    private function makeRunner(MigrationRegistry $registry, ?\Closure $clock = null): MigrationRunner
     {
         return new MigrationRunner(
             registry: $registry,
             chain: new ProcessChainExecutor(),
             idMap: $this->idMap,
+            clock: $clock,
         );
     }
 }
