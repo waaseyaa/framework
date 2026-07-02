@@ -4,6 +4,26 @@
 
 Multi-bundle `group` content entity type for Waaseyaa applications. The package defines two entity types — `group` (the bundle-aware content entity, keyed by `gid`/`uuid`, labeled by `name`, partitioned by `type`) and `group_type` (the config entity that declares bundle identities) — and ships with **zero pre-registered bundles and zero bundle-scoped fields**. Consuming applications declare their own `GroupType` bundles and register bundle-scoped fields; those field values land in per-bundle subtables named `group__{bundle}`, while the core keys plus the `FieldStorage::Data` universals (`status`, `created_at`, `updated_at`) live on the base `group` table. The package is framework-agnostic: it targets no single product domain. See `docs/specs/bundle-scoped-storage.md`.
 
+## API exposure (parked)
+
+`group` and `group_type` are **not exposed over JSON:API**. `JsonApiRouteProvider`
+auto-mounts CRUD routes for every registered entity type, so `/api/group*`
+routes exist — but this package ships zero `AccessPolicyInterface`
+implementations for either type. With no applicable policy,
+`EntityAccessHandler` always returns Neutral, and `JsonApiController` treats
+Neutral as denied (deny-by-default, not fail-open): every `/api/group*`
+request is rejected for every account, including admins. Both types are also
+registered with `discoverable: false`, so they are omitted from the `GET /api`
+discovery index.
+
+This is a deliberate PARK decision (audit-remediation batch 2026-07-02, WP5),
+not an oversight — no consumer exercises group-over-API today. A consumer
+that wants group-over-API must ship its own access policy; this package
+intentionally does not provide one. Full route suppression (removing the
+dead routes instead of just denying/hiding them) is deferred to the planned
+entity-type `#[ContentEntityType(..., api: false)]` exposure flag, tracked in
+issue #1871.
+
 ## Install
 
 Ships as part of `waaseyaa/framework` — consumers of the metapackage already have it. To depend on it directly:
