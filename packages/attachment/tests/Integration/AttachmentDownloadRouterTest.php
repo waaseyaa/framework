@@ -112,14 +112,148 @@ final class AttachmentDownloadRouterTest extends TestCase
         }
     }
 
+    #[Test]
+    public function download_response_sets_nosniff_header(): void
+    {
+        $router = $this->buildRouter(parentViewableByAccountId: 1, storageUri: 'private://secret.bin');
+        $response = $router->handle($this->request('10', 1));
+
+        self::assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
+    }
+
+    #[Test]
+    public function pure_ascii_filename_content_disposition_is_byte_identical_to_pre_change_output(): void
+    {
+        // Pins the pre-change output: `filename="report.txt"` must appear
+        // verbatim. This is the fallback token every UA that doesn't
+        // understand RFC 5987 falls back to.
+        $router = $this->buildRouter(parentViewableByAccountId: 1, storageUri: 'private://secret.bin', filename: 'report.txt');
+        $header = (string) $router->handle($this->request('10', 1))->headers->get('Content-Disposition');
+
+        self::assertStringStartsWith('attachment; filename="report.txt"', $header);
+        // Decision: filename* is always emitted, even for pure-ASCII names, for a single
+        // consistent code path (no ASCII-only special case).
+        self::assertSame('attachment; filename="report.txt"; filename*=UTF-8\'\'report.txt', $header);
+    }
+
+    #[Test]
+    public function syllabics_filename_carries_rfc5987_encoded_original(): void
+    {
+        // ASCII fallback degrades to underscores per the pre-existing sanitizer (each
+        // UTF-8 byte outside [A-Za-z0-9._-] is byte-wise replaced); filename* carries
+        // the percent-encoded original UTF-8 bytes so RFC 5987/6266-aware clients
+        // (virtually all modern browsers) render the real Anishinaabemowin name.
+        $router = $this->buildRouter(parentViewableByAccountId: 1, storageUri: 'private://secret.bin', filename: 'ᐊᓂᔑᓈᐯᒧᐎᓐ.pdf');
+        $header = (string) $router->handle($this->request('10', 1))->headers->get('Content-Disposition');
+
+        self::assertSame(
+            'attachment; filename="________________________.pdf"'
+            . '; filename*=UTF-8\'\'%E1%90%8A%E1%93%82%E1%94%91%E1%93%88%E1%90%AF%E1%92%A7%E1%90%8E%E1%93%90.pdf',
+            $header,
+        );
+    }
+
+    #[Test]
+    public function diacritic_and_glottal_filename_carries_rfc5987_encoded_original(): void
+    {
+        // U+02BC MODIFIER LETTER APOSTROPHE (glottal stop) + macron/acute diacritics.
+        $filename = "Ozhibii\u{02BC}igan \u{0100}k\u{00ED}.pdf";
+        $router = $this->buildRouter(parentViewableByAccountId: 1, storageUri: 'private://secret.bin', filename: $filename);
+        $header = (string) $router->handle($this->request('10', 1))->headers->get('Content-Disposition');
+
+        self::assertSame(
+            'attachment; filename="Ozhibii__igan___k__.pdf"'
+            . '; filename*=UTF-8\'\'Ozhibii%CA%BCigan%20%C4%80k%C3%AD.pdf',
+            $header,
+        );
+    }
+
+    #[Test]
+    public function header_injection_characters_never_reach_the_header(): void
+    {
+        // Quote, CR, LF in the stored filename must never appear raw anywhere in the
+        // emitted Content-Disposition value — the ASCII fallback sanitizer already
+        // strips them to `_`, and filename* percent-encodes them.
+        $filename = "evil\".txt\r\nX-Injected: yes";
+        $router = $this->buildRouter(parentViewableByAccountId: 1, storageUri: 'private://secret.bin', filename: $filename);
+        $header = (string) $router->handle($this->request('10', 1))->headers->get('Content-Disposition');
+
+        // Exactly the two wrapping quotes of filename="..." — the malicious quote from
+        // the stored filename must have been sanitized away, not smuggled through.
+        self::assertSame(2, substr_count($header, '"'));
+        self::assertStringNotContainsString("\r", $header);
+        self::assertStringNotContainsString("\n", $header);
+        self::assertSame(
+            'attachment; filename="evil_.txt__X-Injected__yes"'
+            . '; filename*=UTF-8\'\'evil%22.txt%0D%0AX-Injected%3A%20yes',
+            $header,
+        );
+    }
+
+    #[Test]
+    public function bidi_override_characters_are_stripped_from_filename_star(): void
+    {
+        // U+202E (RTL OVERRIDE) makes a browser render "photo\u{202E}gnp.exe" as
+        // "photoexe.png" in the save dialog — classic extension-spoofing. The old
+        // ASCII-only header could never carry it; filename* must not reintroduce it.
+        // Directional-formatting characters are stripped BEFORE percent-encoding
+        // (ZWJ/ZWNJ are deliberately kept — they are orthographically meaningful).
+        $filename = "photo\u{202E}gnp.exe";
+        $router = $this->buildRouter(parentViewableByAccountId: 1, storageUri: 'private://secret.bin', filename: $filename);
+        $header = (string) $router->handle($this->request('10', 1))->headers->get('Content-Disposition');
+
+        self::assertSame(
+            'attachment; filename="photo___gnp.exe"; filename*=UTF-8\'\'photognp.exe',
+            $header,
+        );
+
+        // Isolate controls (U+2066–U+2069) and LRM/RLM/ALM are stripped too.
+        $filename = "a\u{2066}b\u{200F}c\u{061C}d.txt";
+        $router = $this->buildRouter(parentViewableByAccountId: 1, storageUri: 'private://secret.bin', filename: $filename);
+        $header = (string) $router->handle($this->request('10', 1))->headers->get('Content-Disposition');
+
+        self::assertStringEndsWith("filename*=UTF-8''abcd.txt", $header);
+    }
+
+    #[Test]
+    public function overlong_filename_is_capped_in_filename_star(): void
+    {
+        // The filename lives in the unbounded `_data` blob, and percent-encoding
+        // triples multibyte names — a pathological stored name must not balloon the
+        // header past proxy/server line limits (~8KB). filename* caps at 255 chars.
+        $filename = str_repeat('ᐊ', 1000) . '.pdf';
+        $router = $this->buildRouter(parentViewableByAccountId: 1, storageUri: 'private://secret.bin', filename: $filename);
+        $response = $router->handle($this->request('10', 1));
+        $header = (string) $response->headers->get('Content-Disposition');
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertLessThan(4096, \strlen($header));
+
+        preg_match("/filename\\*=UTF-8''(.*)$/", $header, $m);
+        self::assertSame(255, mb_strlen(rawurldecode($m[1]), 'UTF-8'));
+    }
+
+    #[Test]
+    public function invalid_utf8_filename_omits_filename_star_and_does_not_throw(): void
+    {
+        $invalid = "bad\xFF\xFEname.pdf";
+        $router = $this->buildRouter(parentViewableByAccountId: 1, storageUri: 'private://secret.bin', filename: $invalid);
+        $response = $router->handle($this->request('10', 1));
+        $header = (string) $response->headers->get('Content-Disposition');
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('attachment; filename="bad__name.pdf"', $header);
+        self::assertStringNotContainsString('filename*', $header);
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private function buildRouter(int $parentViewableByAccountId, string $storageUri): AttachmentDownloadRouter
+    private function buildRouter(int $parentViewableByAccountId, string $storageUri, string $filename = 'report.txt'): AttachmentDownloadRouter
     {
         $attachment = new Attachment([
             'parent_entity_type' => 'node',
             'parent_entity_id' => '1',
-            'filename' => 'report.txt',
+            'filename' => $filename,
             'content_type' => 'text/plain',
             'storage_uri' => $storageUri,
         ]);

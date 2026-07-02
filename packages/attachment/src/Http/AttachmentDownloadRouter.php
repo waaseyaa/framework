@@ -72,7 +72,6 @@ final class AttachmentDownloadRouter implements DomainRouterInterface
             return $this->notFound();
         }
 
-        $filename = $this->safeFilename((string) $attachment->get('filename'));
         $contentType = (string) $attachment->get('content_type');
         if ($contentType === '') {
             $contentType = 'application/octet-stream';
@@ -92,10 +91,29 @@ final class AttachmentDownloadRouter implements DomainRouterInterface
             200,
             [
                 'Content-Type' => $contentType,
-                'Content-Disposition' => sprintf('attachment; filename="%s"', $filename),
+                'Content-Disposition' => $this->contentDisposition((string) $attachment->get('filename')),
                 'X-Content-Type-Options' => 'nosniff',
             ],
         );
+    }
+
+    /**
+     * Builds an RFC 6266 Content-Disposition value carrying both an ASCII-safe
+     * `filename=` fallback (for user agents that don't understand `filename*`)
+     * and — for every well-formed name, ASCII or not — an RFC 5987
+     * `filename*=UTF-8''<percent-encoded>` extended parameter so Anishinaabemowin
+     * and other non-ASCII filenames survive intact for RFC 6266-aware clients.
+     */
+    private function contentDisposition(string $filename): string
+    {
+        $header = sprintf('attachment; filename="%s"', $this->safeFilename($filename));
+
+        $encoded = $this->rfc5987Encode($filename);
+        if ($encoded !== null) {
+            $header .= sprintf("; filename*=UTF-8''%s", $encoded);
+        }
+
+        return $header;
     }
 
     private function safeFilename(string $filename): string
@@ -103,7 +121,57 @@ final class AttachmentDownloadRouter implements DomainRouterInterface
         $base = basename($filename);
         $clean = preg_replace('/[^A-Za-z0-9._-]/', '_', $base);
 
-        return ($clean === null || $clean === '') ? 'download' : $clean;
+        if ($clean === null || $clean === '') {
+            return 'download';
+        }
+
+        // ASCII-only at this point, so a byte cap is a character cap. Keeps a
+        // pathological stored name from ballooning the header (mirrors the
+        // 255-char cap in rfc5987Encode()); names ≤255 chars are untouched.
+        return substr($clean, 0, 255);
+    }
+
+    /**
+     * RFC 5987 attr-char percent-encoding of the basename (emitted for every
+     * valid name, ASCII included — one code path), or null when there is nothing
+     * to encode (empty basename) or the stored filename is not valid UTF-8
+     * (malformed data must not produce a malformed header).
+     *
+     * `rawurlencode()` leaves only `A-Za-z0-9-_.~` unescaped, which is a strict
+     * subset of RFC 5987 attr-char (`ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" /
+     * "-" / "." / "^" / "_" / "`" / "|" / "~"`); over-encoding a few extra attr-char
+     * characters is RFC-compliant and safe, unlike under-encoding.
+     *
+     * Directional-formatting characters (RTLO & friends) are stripped first: the
+     * pre-RFC-5987 header was ASCII-only and could never carry U+202E, so keeping
+     * it out closes the extension-spoofing vector this feature would otherwise
+     * open ("photo\u{202E}gnp.exe" rendering as "photoexe.png" in a save dialog).
+     * ZWJ/ZWNJ are deliberately NOT stripped — they are orthographically
+     * meaningful (Persian, Indic scripts). The name is also capped at 255
+     * characters so a pathological stored name (the field lives in the unbounded
+     * `_data` blob) cannot balloon the header past proxy line limits.
+     */
+    private function rfc5987Encode(string $filename): ?string
+    {
+        $base = basename($filename);
+        if ($base === '' || !mb_check_encoding($base, 'UTF-8')) {
+            return null;
+        }
+
+        $base = (string) preg_replace(
+            '/[\x{061C}\x{200E}\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}]/u',
+            '',
+            $base,
+        );
+        if ($base === '') {
+            return null;
+        }
+
+        if (mb_strlen($base, 'UTF-8') > 255) {
+            $base = mb_substr($base, 0, 255, 'UTF-8');
+        }
+
+        return rawurlencode($base);
     }
 
     private function notFound(): Response
