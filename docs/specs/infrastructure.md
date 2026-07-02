@@ -1161,6 +1161,7 @@ final class ViteAssetManager implements AssetManagerInterface
         private readonly string $basePath,              // dist directory path
         private readonly string $baseUrl = '/dist',
         private readonly ?string $devServerUrl = null,  // e.g., 'http://localhost:5173'
+        ?LoggerInterface $logger = null,                // Waaseyaa\Foundation\Log\LoggerInterface, defaults to NullLogger
     );
 
     public function url(string $path, string $bundle = 'admin'): string;
@@ -1173,7 +1174,16 @@ Reads Vite `manifest.json` files to resolve source paths to hashed asset URLs. M
 
 `assetTags()` generates HTML `<script>` and `<link>` tags for a bundle's entry assets. In production (manifest exists), it emits hashed asset tags. In dev mode (no manifest, `devServerUrl` set), it emits Vite dev server HMR tags. All attribute values are escaped via `htmlspecialchars()`. Returns empty string when neither manifest nor dev server is available.
 
-`TenantAssetResolver` (`packages/foundation/src/Asset/TenantAssetResolver.php`) resolves tenant-specific asset paths.
+**Fail-open manifest load observability (WP5, audit-remediation batch 2026-07-02):** `loadManifest()` fails open — a missing, unreadable, corrupt-JSON, or non-array manifest all resolve to `[]` (and are memoized as such) rather than throwing, so `url()` falls back to un-hashed paths instead of crashing the request. Every failure is logged once per bundle via the injected `LoggerInterface` (the `$manifests` memoization guarantees `loadManifest()` — and therefore the log call — runs at most once per bundle for the life of the instance). Logging rule: `missing` logs at ERROR, except when `$devServerUrl` is set, where it is downgraded to DEBUG (a missing production manifest is the expected dev-mode state — `assetTags()` falls through to `devTags()`); `unreadable`, `corrupt-json`, and `non-array` are always ERROR regardless of dev-server configuration, since those mean the manifest file exists but is broken, which is never expected. The log context carries `kind`, `bundle`, and `probed_paths` (both the `.vite/manifest.json` and legacy `manifest.json` candidates for `missing`; the single resolved path for the other three kinds). Wired at the one production composition root that constructs `ViteAssetManager` — `Waaseyaa\Inertia\InertiaServiceProvider::registerWithRoot()` — via `resolveOptional(LoggerInterface::class)` against the kernel-services bus (`ProviderRegistryKernelServices` serves `Waaseyaa\Foundation\Log\LoggerInterface` directly); absence must not crash provider registration, so the constructor default remains `NullLogger`.
+
+### TenantAssetResolver
+
+File: `packages/foundation/src/Asset/TenantAssetResolver.php`
+Implements: `AssetManagerInterface`
+
+Resolves tenant-specific asset paths across three tiers, first-match-wins: tenant theme (`themes/{tenant}/dist/`) → base SSR (`dist/ssr/`) → admin SPA (`dist/admin/`). `url()` walks each tier's `ViteAssetManager`, maps its candidate URL back to a filesystem path via that tier's own `basePath`/`baseUrl` pair, and returns the first URL whose backing file actually exists.
+
+**URL namespace / filesystem root pairing (WP5, audit-remediation batch 2026-07-02):** each entry's `baseUrl` must be a distinct URL prefix that maps 1:1 to that entry's `basePath` — before this fix, the ssr and admin entries both used the bare `$baseUrl` (no suffix) while pointing at two different `basePath` roots, so the existence check for one entry could pass against a file that a real one-URL-prefix-per-root static server would never actually serve from that URL. Fixed to `<baseUrl>/ssr` ↔ `<basePath>/ssr` and `<baseUrl>/admin` ↔ `<basePath>/admin`, mirroring the tenant-theme entry's pre-existing `<baseUrl>/themes/<theme>` ↔ `<basePath>/themes/<theme>/dist` pairing. **This class is not currently wired to `AssetManagerInterface` at any composition root** — the only production binding (`InertiaServiceProvider`) constructs a bare `ViteAssetManager` directly — and no static-file-serving mechanism found in this repo (the FrankenPHP `Caddyfile`'s `root ./public` + `php_server`; the `cli-server` passthrough in `public/index.php`) supports anything other than one physical root per URL prefix. Should `TenantAssetResolver` be wired to a real static-file root in the future, that root MUST serve `<baseUrl>/ssr/**` from `<basePath>/ssr/**` and `<baseUrl>/admin/**` from `<basePath>/admin/**` for `url()`'s existence check to remain meaningful.
 
 ## Sovereignty Configuration
 

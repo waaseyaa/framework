@@ -6,6 +6,9 @@ namespace Waaseyaa\Foundation\Tests\Unit\Asset;
 
 use Waaseyaa\Foundation\Asset\AssetManagerInterface;
 use Waaseyaa\Foundation\Asset\ViteAssetManager;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\LoggerTrait;
+use Waaseyaa\Foundation\Log\LogLevel;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -278,6 +281,179 @@ final class ViteAssetManagerTest extends TestCase
         self::assertStringContainsString('vendor-def.js', $tags);
         self::assertStringContainsString('app-abc.css', $tags);
         self::assertStringNotContainsString('shared-ghi.js', $tags);
+    }
+
+    #[Test]
+    public function missing_manifest_logs_error_when_no_dev_server(): void
+    {
+        $logger = $this->recordingLogger();
+
+        $manager = new ViteAssetManager($this->fixtureDir, '/dist', devServerUrl: null, logger: $logger);
+        $manager->url('src/main.ts', 'missing_bundle');
+
+        $this->assertCount(1, $logger->records);
+        $this->assertSame(LogLevel::ERROR, $logger->records[0]['level']);
+        $this->assertSame('missing', $logger->records[0]['context']['kind']);
+        $this->assertSame('missing_bundle', $logger->records[0]['context']['bundle']);
+        $this->assertCount(2, $logger->records[0]['context']['probed_paths']);
+    }
+
+    #[Test]
+    public function missing_manifest_is_quiet_in_dev_mode(): void
+    {
+        $logger = $this->recordingLogger();
+
+        $manager = new ViteAssetManager(
+            $this->fixtureDir,
+            '/dist',
+            devServerUrl: 'http://localhost:5173',
+            logger: $logger,
+        );
+        $manager->url('src/main.ts', 'missing_bundle');
+
+        $this->assertCount(1, $logger->records);
+        $this->assertSame(LogLevel::DEBUG, $logger->records[0]['level']);
+        $this->assertSame('missing', $logger->records[0]['context']['kind']);
+    }
+
+    #[Test]
+    public function corrupt_json_manifest_always_logs_error_even_in_dev_mode(): void
+    {
+        $dir = $this->fixtureDir . '/admin/.vite';
+        if (!is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+        file_put_contents($dir . '/manifest.json', '{not valid json');
+
+        $logger = $this->recordingLogger();
+
+        $manager = new ViteAssetManager(
+            $this->fixtureDir,
+            '/dist',
+            devServerUrl: 'http://localhost:5173',
+            logger: $logger,
+        );
+        $manager->url('src/main.ts', 'admin');
+
+        $this->assertCount(1, $logger->records);
+        $this->assertSame(LogLevel::ERROR, $logger->records[0]['level']);
+        $this->assertSame('corrupt-json', $logger->records[0]['context']['kind']);
+        $this->assertSame('admin', $logger->records[0]['context']['bundle']);
+    }
+
+    #[Test]
+    public function unreadable_manifest_logs_error_with_kind(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->markTestSkipped('chmod 0000 does not block reads for root.');
+        }
+
+        // A chmod 0000 file makes file_get_contents() return false — the only
+        // reliable cross-filesystem way to hit that branch (an existing-but-
+        // unopenable directory at the same path returns "" on this platform,
+        // which would land in the corrupt-json branch instead).
+        $dir = $this->fixtureDir . '/admin/.vite';
+        if (!is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+        $manifestPath = $dir . '/manifest.json';
+        file_put_contents($manifestPath, '{}');
+        chmod($manifestPath, 0000);
+
+        // Expect (and swallow) the native E_WARNING file_get_contents() raises for
+        // the permission-denied read — that's the exact condition under test, not
+        // an unexpected failure; PHPUnit would otherwise convert it into a test
+        // warning and fail the run.
+        set_error_handler(static fn(): bool => true, E_WARNING);
+
+        try {
+            $logger = $this->recordingLogger();
+
+            $manager = new ViteAssetManager($this->fixtureDir, '/dist', logger: $logger);
+            $manager->url('src/main.ts', 'admin');
+
+            $this->assertCount(1, $logger->records);
+            $this->assertSame(LogLevel::ERROR, $logger->records[0]['level']);
+            $this->assertSame('unreadable', $logger->records[0]['context']['kind']);
+        } finally {
+            restore_error_handler();
+            chmod($manifestPath, 0644);
+        }
+    }
+
+    #[Test]
+    public function non_array_manifest_logs_error_with_kind(): void
+    {
+        $dir = $this->fixtureDir . '/admin/.vite';
+        if (!is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+        file_put_contents($dir . '/manifest.json', json_encode('just a string'));
+
+        $logger = $this->recordingLogger();
+
+        $manager = new ViteAssetManager($this->fixtureDir, '/dist', logger: $logger);
+        $manager->url('src/main.ts', 'admin');
+
+        $this->assertCount(1, $logger->records);
+        $this->assertSame(LogLevel::ERROR, $logger->records[0]['level']);
+        $this->assertSame('non-array', $logger->records[0]['context']['kind']);
+    }
+
+    #[Test]
+    public function valid_manifest_logs_nothing(): void
+    {
+        $this->writeManifest('admin', [
+            'src/main.ts' => ['file' => 'assets/main-abc.js', 'isEntry' => true],
+        ]);
+
+        $logger = $this->recordingLogger();
+
+        $manager = new ViteAssetManager($this->fixtureDir, '/dist', logger: $logger);
+        $manager->url('src/main.ts', 'admin');
+
+        $this->assertSame([], $logger->records);
+    }
+
+    #[Test]
+    public function manifest_failure_logs_exactly_once_across_repeated_calls(): void
+    {
+        $logger = $this->recordingLogger();
+
+        $manager = new ViteAssetManager($this->fixtureDir, '/dist', logger: $logger);
+        $manager->url('src/main.ts', 'missing_bundle');
+        $manager->url('other/path.ts', 'missing_bundle');
+        $manager->preloadLinks('missing_bundle');
+
+        $this->assertCount(1, $logger->records);
+    }
+
+    #[Test]
+    public function null_logger_default_does_not_crash_when_unwired(): void
+    {
+        $manager = new ViteAssetManager($this->fixtureDir, '/dist');
+
+        $url = $manager->url('src/main.ts', 'missing_bundle');
+
+        $this->assertSame('/dist/missing_bundle/src/main.ts', $url);
+    }
+
+    /**
+     * @return LoggerInterface&object{records: list<array{level: LogLevel, message: string, context: array<string, mixed>}>}
+     */
+    private function recordingLogger(): object
+    {
+        return new class implements LoggerInterface {
+            use LoggerTrait;
+
+            /** @var list<array{level: LogLevel, message: string, context: array<string, mixed>}> */
+            public array $records = [];
+
+            public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
+            {
+                $this->records[] = ['level' => $level, 'message' => (string) $message, 'context' => $context];
+            }
+        };
     }
 
     /**

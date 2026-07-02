@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Asset;
 
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\LogLevel;
+use Waaseyaa\Foundation\Log\NullLogger;
+
 /**
  * Asset manager that reads Vite manifest.json files to resolve asset URLs.
  *
@@ -19,11 +23,32 @@ namespace Waaseyaa\Foundation\Asset;
  *     "imports": ["_vendor-ghi789.js"]
  *   }
  * }
+ *
+ * ## Fail-open observability
+ *
+ * `loadManifest()` fails open: a missing/unreadable/corrupt manifest resolves
+ * to an empty array (rather than throwing), so `url()` falls back to
+ * un-hashed paths instead of crashing the request. That silence is dangerous
+ * after a bad deploy (truncated or absent manifest = sitewide asset 404s with
+ * zero signal), so every failure is logged once per bundle via the injected
+ * `LoggerInterface` (the memoization in `$manifests` guarantees `loadManifest()`
+ * only computes — and therefore only logs — once per bundle for the life of
+ * the instance).
+ *
+ * Logging rule: a `missing` manifest is logged at ERROR, *except* when
+ * `$devServerUrl` is set, in which case it is downgraded to DEBUG — a missing
+ * production manifest is the normal, expected state in dev mode (see
+ * `assetTags()`, which falls through to `devTags()`). `unreadable`,
+ * `corrupt-json`, and `non-array` failures are always logged at ERROR
+ * regardless of dev-server configuration, because those indicate a manifest
+ * that exists but is broken, which is never expected in any mode.
  */
 final class ViteAssetManager implements AssetManagerInterface
 {
     /** @var array<string, array<string, mixed>> Cached parsed manifests per bundle */
     private array $manifests = [];
+
+    private readonly LoggerInterface $logger;
 
     /**
      * @param string $basePath Base path to the dist directory (e.g., '/var/www/dist')
@@ -33,7 +58,10 @@ final class ViteAssetManager implements AssetManagerInterface
         private readonly string $basePath,
         private readonly string $baseUrl = '/dist',
         private readonly ?string $devServerUrl = null,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function url(string $path, string $bundle = 'admin'): string
     {
@@ -147,20 +175,24 @@ final class ViteAssetManager implements AssetManagerInterface
             return $this->manifests[$bundle];
         }
 
-        $manifestPath = rtrim($this->basePath, '/') . '/' . $bundle . '/.vite/manifest.json';
+        $viteManifestPath = rtrim($this->basePath, '/') . '/' . $bundle . '/.vite/manifest.json';
+        // Legacy location without .vite prefix.
+        $legacyManifestPath = rtrim($this->basePath, '/') . '/' . $bundle . '/manifest.json';
 
+        $manifestPath = $viteManifestPath;
         if (!file_exists($manifestPath)) {
-            // Try legacy location without .vite prefix.
-            $manifestPath = rtrim($this->basePath, '/') . '/' . $bundle . '/manifest.json';
+            $manifestPath = $legacyManifestPath;
         }
 
         if (!file_exists($manifestPath)) {
+            $this->logManifestFailure('missing', $bundle, [$viteManifestPath, $legacyManifestPath]);
             $this->manifests[$bundle] = [];
             return [];
         }
 
         $contents = file_get_contents($manifestPath);
         if ($contents === false) {
+            $this->logManifestFailure('unreadable', $bundle, [$manifestPath]);
             $this->manifests[$bundle] = [];
             return [];
         }
@@ -168,10 +200,12 @@ final class ViteAssetManager implements AssetManagerInterface
         try {
             $manifest = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
         } catch (\JsonException) {
+            $this->logManifestFailure('corrupt-json', $bundle, [$manifestPath]);
             $this->manifests[$bundle] = [];
             return [];
         }
         if (!is_array($manifest)) {
+            $this->logManifestFailure('non-array', $bundle, [$manifestPath]);
             $this->manifests[$bundle] = [];
             return [];
         }
@@ -179,6 +213,30 @@ final class ViteAssetManager implements AssetManagerInterface
         $this->manifests[$bundle] = $manifest;
 
         return $manifest;
+    }
+
+    /**
+     * Log a manifest-load failure. Called at most once per bundle — the
+     * `$manifests` memoization in {@see loadManifest()} short-circuits every
+     * subsequent call for the same bundle before this is reached.
+     *
+     * `missing` is downgraded to DEBUG when a dev server is configured (the
+     * expected dev-mode state: `assetTags()` falls through to dev-server
+     * tags). Every other failure kind — the manifest file exists but could
+     * not be read or parsed — is always ERROR.
+     *
+     * @param 'missing'|'unreadable'|'corrupt-json'|'non-array' $kind
+     * @param list<string> $probedPaths
+     */
+    private function logManifestFailure(string $kind, string $bundle, array $probedPaths): void
+    {
+        $level = ($kind === 'missing' && $this->devServerUrl !== null) ? LogLevel::DEBUG : LogLevel::ERROR;
+
+        $this->logger->log($level, 'Vite manifest load failed', [
+            'kind' => $kind,
+            'bundle' => $bundle,
+            'probed_paths' => $probedPaths,
+        ]);
     }
 
     private function guessAssetType(string $file): string

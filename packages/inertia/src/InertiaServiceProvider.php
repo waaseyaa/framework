@@ -7,6 +7,7 @@ namespace Waaseyaa\Inertia;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Asset\ViteAssetManager;
 use Waaseyaa\Foundation\Http\Inertia\InertiaFullPageRendererInterface;
+use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -46,10 +47,19 @@ final class InertiaServiceProvider extends ServiceProvider implements HasMiddlew
         $entrypointRaw = $_ENV['VITE_ENTRYPOINT'] ?? getenv('VITE_ENTRYPOINT');
         $entrypoint = is_string($entrypointRaw) && $entrypointRaw !== '' ? $entrypointRaw : null;
 
+        // Thread the kernel logger through so a missing/corrupt manifest after a
+        // bad deploy leaves a signal instead of silently falling back to
+        // un-hashed asset paths. Resolved optionally via the kernel-services bus
+        // (bound to Waaseyaa\Foundation\Log\LoggerInterface) — absence must not
+        // crash provider registration, mirroring every other optional framework
+        // service pulled through resolveOptional().
+        $logger = $this->resolveOptional(LoggerInterface::class);
+
         $assetManager = new ViteAssetManager(
             basePath: $root . '/public',
             baseUrl: '',
             devServerUrl: $devServerUrl,
+            logger: $logger instanceof LoggerInterface ? $logger : null,
         );
 
         $renderer = new RootTemplateRenderer(

@@ -123,6 +123,117 @@ final class TenantAssetResolverTest extends TestCase
         $this->assertStringContainsString('main-abc.js', $links[0]['href']);
     }
 
+    #[Test]
+    public function ssr_and_admin_entries_have_distinct_url_namespaces(): void
+    {
+        // WP5: before the fix, both entries shared the bare baseUrl
+        // (e.g. '/dist') with no distinguishing suffix, so a candidate URL
+        // could not be traced back to which entry it came from. Pin that the
+        // two base entries now resolve into disjoint URL prefixes.
+        $resolver = new TenantAssetResolver($this->fixtureDir, '/dist');
+        [$ssrResolver, $adminResolver] = $resolver->getResolvers();
+
+        // No manifest exists, so url() falls back to the raw path — this
+        // cleanly exposes each entry's baseUrl prefix.
+        $ssrUrl = $ssrResolver->url('missing.js', 'x');
+        $adminUrl = $adminResolver->url('missing.js', 'x');
+
+        $this->assertStringStartsWith('/dist/ssr/', $ssrUrl);
+        $this->assertStringStartsWith('/dist/admin/', $adminUrl);
+        $this->assertNotSame($ssrUrl, $adminUrl);
+    }
+
+    #[Test]
+    public function existence_check_never_serves_a_url_from_the_wrong_entrys_root(): void
+    {
+        // Two entries can independently map the same logical bundle+path to a
+        // DIFFERENT hashed filename (their manifests are unrelated files on
+        // disk). Only the admin entry's hashed file actually exists. Pin that
+        // the resolver falls through past the ssr entry (whose manifest
+        // points at a file that does not exist) to the admin entry, and that
+        // the returned URL's namespace (/dist/admin/...) matches the root the
+        // file was actually found under (basePath/admin/admin/...) — the
+        // pre-fix bug was that a shared baseUrl made this pairing
+        // ambiguous.
+        mkdir($this->fixtureDir . '/ssr/admin/.vite', 0777, true);
+        $this->writeManifest($this->fixtureDir . '/ssr/admin', [
+            'x.js' => ['file' => 'assets/ssr-hash.js'],
+        ]);
+        // Deliberately do NOT create ssr/admin/assets/ssr-hash.js on disk.
+
+        mkdir($this->fixtureDir . '/admin/admin/.vite', 0777, true);
+        $this->writeManifest($this->fixtureDir . '/admin/admin', [
+            'x.js' => ['file' => 'assets/admin-hash.js'],
+        ]);
+        mkdir($this->fixtureDir . '/admin/admin/assets', 0777, true);
+        file_put_contents($this->fixtureDir . '/admin/admin/assets/admin-hash.js', 'body{}');
+
+        $resolver = new TenantAssetResolver($this->fixtureDir, '/dist');
+
+        $url = $resolver->url('x.js', 'admin');
+
+        $this->assertSame('/dist/admin/admin/assets/admin-hash.js', $url);
+    }
+
+    #[Test]
+    public function resolution_order_is_tenant_theme_then_ssr_then_admin(): void
+    {
+        // All three tiers have a matching file for the same logical path;
+        // pin that the highest-priority tier (tenant theme) wins.
+        $themeDist = $this->fixtureDir . '/themes/agency/dist';
+        mkdir($themeDist . '/admin/.vite', 0777, true);
+        $this->writeManifest($themeDist . '/admin', [
+            'x.js' => ['file' => 'assets/theme-hash.js'],
+        ]);
+        mkdir($themeDist . '/admin/assets', 0777, true);
+        file_put_contents($themeDist . '/admin/assets/theme-hash.js', 'body{}');
+
+        mkdir($this->fixtureDir . '/ssr/admin/.vite', 0777, true);
+        $this->writeManifest($this->fixtureDir . '/ssr/admin', [
+            'x.js' => ['file' => 'assets/ssr-hash.js'],
+        ]);
+        mkdir($this->fixtureDir . '/ssr/admin/assets', 0777, true);
+        file_put_contents($this->fixtureDir . '/ssr/admin/assets/ssr-hash.js', 'body{}');
+
+        mkdir($this->fixtureDir . '/admin/admin/.vite', 0777, true);
+        $this->writeManifest($this->fixtureDir . '/admin/admin', [
+            'x.js' => ['file' => 'assets/admin-hash.js'],
+        ]);
+        mkdir($this->fixtureDir . '/admin/admin/assets', 0777, true);
+        file_put_contents($this->fixtureDir . '/admin/admin/assets/admin-hash.js', 'body{}');
+
+        $resolver = new TenantAssetResolver($this->fixtureDir, '/dist', 'agency');
+
+        $this->assertStringContainsString('theme-hash.js', $resolver->url('x.js', 'admin'));
+    }
+
+    #[Test]
+    public function get_resolvers_and_preload_links_unaffected_by_namespace_fix(): void
+    {
+        $resolver = new TenantAssetResolver($this->fixtureDir, '/dist', 'agency');
+
+        $this->assertCount(3, $resolver->getResolvers());
+        foreach ($resolver->getResolvers() as $entryResolver) {
+            $this->assertInstanceOf(AssetManagerInterface::class, $entryResolver);
+        }
+
+        // preloadLinks() still delegates to the primary (highest-priority)
+        // resolver only — unaffected by the baseUrl namespace fix.
+        mkdir($this->fixtureDir . '/themes/agency/dist/admin/.vite', 0777, true);
+        $this->writeManifest($this->fixtureDir . '/themes/agency/dist/admin', [
+            'src/main.ts' => [
+                'file' => 'assets/main-theme.js',
+                'isEntry' => true,
+            ],
+        ]);
+
+        $links = $resolver->preloadLinks('admin');
+
+        $this->assertCount(1, $links);
+        $this->assertStringContainsString('main-theme.js', $links[0]['href']);
+        $this->assertStringStartsWith('/dist/themes/agency/', $links[0]['href']);
+    }
+
     /**
      * @param array<string, mixed> $manifest
      */
