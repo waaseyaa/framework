@@ -45,11 +45,19 @@ use Waaseyaa\EntityStorage\SqlSchemaHandler;
  *      identical (type/nullability/default) to what SqlSchemaHandler
  *      generates for the same entity type — the docblock claim
  *      "matching what SqlSchemaHandler would auto-generate" actually holds.
+ *      (Regression pin: this behavior predates the WP and already passed
+ *      before its fix — the value is preventing future drift.)
  *   2. AttachmentSchema's own build includes every documented index.
+ *      (Regression pin, same caveat as 1.)
  *   3. AttachmentSchema::ensureTable() self-heals: run AFTER the generic
  *      path already created the (incomplete) base-only table — the ordering
  *      an out-of-order boot or a pre-fix install could produce — it
  *      converges to the exact same final shape as a from-scratch build.
+ *      (The WP's red→green test: failed before the heal branch existed.)
+ *
+ * Data-preservation and platform-robustness of the heal (value backfill
+ * from `_data`, non-SQLite catalog probes, mid-heal failure posture) are
+ * covered by the sibling {@see AttachmentSchemaSelfHealTest}.
  */
 #[CoversClass(AttachmentSchema::class)]
 final class AttachmentSchemaParityTest extends TestCase

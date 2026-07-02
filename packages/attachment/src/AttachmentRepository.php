@@ -71,7 +71,10 @@ final class AttachmentRepository
      * parameter to check against — inventing one with no current caller to
      * supply it would be speculative, not a fix. See
      * `docs/specs/work-surface.md` § F4 for the caller-must-gate contract
-     * this documents.
+     * this documents. NOTE: this contract is a documented convention with
+     * NO mechanical enforcement — findBy() callsites are invisible to the
+     * check-getquery-bindings CI gate (it only sees getQuery() chains), so
+     * reviewers of new consumers must check compliance by hand.
      *
      * @return list<Attachment>
      */

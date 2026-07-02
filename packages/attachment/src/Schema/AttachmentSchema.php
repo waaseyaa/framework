@@ -40,8 +40,11 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * first (a lazy `getRepository('attachment')` call racing ahead of this
  * package's `boot()`, or a pre-existing install from before this class was
  * wired in) — {@see ensureColumns()} / {@see ensureIndexes()} additively
- * backfill the missing attachment-specific columns/indexes onto the
- * existing table. Either ordering converges to the same final shape.
+ * add the missing attachment-specific columns/indexes onto the existing
+ * table, and {@see backfillNewColumnsFromDataBlob()} copies pre-existing
+ * rows' values for those columns out of the `_data` JSON blob so healed
+ * rows keep their data (real columns win over `_data` at read time).
+ * Either ordering converges to the same final shape and data.
  *
  * Columns:
  *   - id               INTEGER PK AUTOINCREMENT
@@ -88,9 +91,25 @@ final class AttachmentSchema
      * does not exist, {@see createTable()} builds the complete canonical
      * shape in one call. When it already exists — most likely because the
      * generic sql-blob schema-sync path materialized the base-only table
-     * first (see the class docblock) — {@see ensureColumns()} and
-     * {@see ensureIndexes()} additively backfill the attachment-specific
-     * columns/indexes rather than silently no-op'ing on an incomplete table.
+     * first (see the class docblock) — the heal branch additively adds the
+     * attachment-specific columns/indexes rather than silently no-op'ing on
+     * an incomplete table, AND backfills each newly-added column's VALUES
+     * from the `_data` JSON blob ({@see backfillNewColumnsFromDataBlob()}).
+     * The value backfill is load-bearing, not cosmetic: rows written under
+     * the degraded schema carry their parent linkage / active flag /
+     * timestamps in the blob, and `SqlStorageDriver::mergeFromRead()` lets
+     * real columns WIN over `_data` on key collision — adding the columns
+     * with their static defaults ('' / 0) and NOT backfilling would silently
+     * blank every pre-existing row at hydration (listFor() stops finding it;
+     * the download router's parent-delegated access check 404s it forever).
+     *
+     * The whole heal is best-effort (try/catch + logged warning, mirroring
+     * {@see ensureActivePartialUniqueIndex()}'s posture): it runs on every
+     * kernel boot via `AttachmentServiceProvider::boot()`, and a platform
+     * quirk or partial failure must degrade loudly in the log — never crash
+     * boot. Cost when there is nothing to heal: a fresh table skips the
+     * branch entirely; an already-healed table does five fieldExists()
+     * probes and two index-catalog COUNTs, no row reads.
      */
     public function ensureTable(): void
     {
@@ -99,8 +118,23 @@ final class AttachmentSchema
         if (!$schema->tableExists(self::TABLE)) {
             $this->createTable($schema);
         } else {
-            $this->ensureColumns($schema);
-            $this->ensureIndexes($schema);
+            try {
+                $addedColumns = $this->ensureColumns($schema);
+                if ($addedColumns !== []) {
+                    $this->backfillNewColumnsFromDataBlob($addedColumns);
+                }
+                $this->ensureIndexes($schema);
+            } catch (\Throwable $e) {
+                $this->logger->warning(\sprintf(
+                    'AttachmentSchema: best-effort self-heal of the "%s" table failed: %s. '
+                    . 'The table may be missing attachment-specific columns/indexes or '
+                    . 'backfilled values; AttachmentRepository raw-column operations '
+                    . '(setActive(), demoteSiblings()) may misbehave until the schema is '
+                    . 'healed — re-run db:init or fix the underlying error.',
+                    self::TABLE,
+                    $e->getMessage(),
+                ));
+            }
         }
 
         // Idempotent (CREATE ... IF NOT EXISTS) regardless of whether the
@@ -187,12 +221,16 @@ final class AttachmentSchema
     }
 
     /**
-     * Additively backfills the attachment-specific columns onto an
+     * Additively adds the attachment-specific columns onto an
      * ALREADY-EXISTING `attachment` table (see {@see ensureTable()}).
      * Mirrors the base-column shapes in {@see createTable()} exactly;
      * skips any column that is already present.
+     *
+     * @return list<string> The names of the columns that were actually
+     *   added (empty when the table was already complete) — the caller
+     *   backfills exactly these from the `_data` blob.
      */
-    private function ensureColumns(SchemaInterface $schema): void
+    private function ensureColumns(SchemaInterface $schema): array
     {
         $columns = [
             'parent_entity_type' => [
@@ -224,20 +262,125 @@ final class AttachmentSchema
             ],
         ];
 
+        $added = [];
         foreach ($columns as $name => $spec) {
             if ($schema->fieldExists(self::TABLE, $name)) {
                 continue;
             }
             $schema->addField(self::TABLE, $name, $spec);
+            $added[] = $name;
+        }
+
+        return $added;
+    }
+
+    /**
+     * Backfills newly-added columns' VALUES from each row's `_data` blob.
+     *
+     * Rows written under the degraded (base-only) schema carry
+     * parent_entity_type / parent_entity_id / is_active / created_at /
+     * updated_at inside the `_data` JSON blob (SqlStorageDriver routes any
+     * value without a real column there). Once the real columns exist,
+     * `mergeFromRead()` lets column values win over blob values on key
+     * collision — so the freshly-added columns' static defaults would
+     * shadow the real data unless copied out of the blob first. Runs ONLY
+     * for the columns that {@see ensureColumns()} just added, and only
+     * writes a column when the blob actually carries a value for it.
+     *
+     * Portability: no `json_extract` SQL (syntax diverges across
+     * platforms) — rows are read via the query builder and decoded in PHP,
+     * with one UPDATE per row that needs backfill. This is a one-time heal
+     * (subsequent boots find the columns present and never reach here), so
+     * per-row UPDATEs are acceptable; blob keys intentionally stay in
+     * `_data` (harmless: columns win on read, and the next entity save
+     * rebuilds the blob without column-routed keys).
+     *
+     * Value interpretation:
+     *   - parent_entity_type / parent_entity_id: scalar blob values cast to
+     *     string; non-scalar garbage is skipped.
+     *   - is_active: the strict AttachmentActiveInvariant::isActive()
+     *     allow-list (true / 1 / '1' → 1); anything else — including
+     *     PHP-truthy garbage like the string 'false' — backfills as 0.
+     *   - created_at / updated_at: numeric blob values cast to int;
+     *     non-numeric garbage is skipped.
+     *
+     * @param list<string> $addedColumns
+     */
+    private function backfillNewColumnsFromDataBlob(array $addedColumns): void
+    {
+        $rows = $this->database->select(self::TABLE, 'a')
+            ->fields('a', ['id', '_data'])
+            ->execute();
+
+        $healedCount = 0;
+        foreach ($rows as $row) {
+            $raw = $row['_data'] ?? null;
+            if (!\is_string($raw) || $raw === '') {
+                continue;
+            }
+            try {
+                $blob = json_decode($raw, associative: true, flags: \JSON_THROW_ON_ERROR);
+            } catch (\JsonException) {
+                continue; // Corrupt blob: nothing recoverable for this row.
+            }
+            if (!\is_array($blob)) {
+                continue;
+            }
+
+            $updates = [];
+            foreach ($addedColumns as $column) {
+                if (!\array_key_exists($column, $blob)) {
+                    continue;
+                }
+                $value = $blob[$column];
+                $converted = match ($column) {
+                    'parent_entity_type', 'parent_entity_id' => \is_scalar($value) ? (string) $value : null,
+                    'is_active' => \in_array($value, [true, 1, '1'], true) ? 1 : 0,
+                    'created_at', 'updated_at' => is_numeric($value) ? (int) $value : null,
+                    default => null,
+                };
+                if ($converted !== null) {
+                    $updates[$column] = $converted;
+                }
+            }
+
+            if ($updates === []) {
+                continue;
+            }
+
+            $this->database->update(self::TABLE)
+                ->fields($updates)
+                ->condition('id', $row['id'])
+                ->execute();
+            ++$healedCount;
+        }
+
+        if ($healedCount > 0) {
+            $this->logger->info(\sprintf(
+                'AttachmentSchema: self-heal backfilled %d pre-existing "%s" row(s) — copied '
+                . '%s values out of the _data blob into the newly-added real columns.',
+                $healedCount,
+                self::TABLE,
+                implode(', ', $addedColumns),
+            ));
         }
     }
 
     /**
-     * Additively backfills the two composite indexes onto an
-     * ALREADY-EXISTING `attachment` table (see {@see ensureTable()}).
-     * The partial unique active-row index is handled separately by
+     * Additively adds the two composite indexes onto an ALREADY-EXISTING
+     * `attachment` table (see {@see ensureTable()}). The partial unique
+     * active-row index is handled separately by
      * {@see ensureActivePartialUniqueIndex()} — it is always (re)ensured,
      * not just on this branch.
+     *
+     * On a platform this class cannot identify, index backfill is SKIPPED
+     * with a logged warning (indexes are a performance concern, not a
+     * correctness one — better to run without them than to gamble on a
+     * catalog query that may explode). Note: this and
+     * `RelationshipSchemaManager::ensureIndexes()` share the
+     * additive-backfill shape, but that class has no production caller —
+     * this heal path is the first LIVE use of the pattern, hence the
+     * platform hardening here that its inspiration never needed.
      */
     private function ensureIndexes(SchemaInterface $schema): void
     {
@@ -247,7 +390,17 @@ final class AttachmentSchema
         ];
 
         foreach ($indexes as $name => $fields) {
-            if ($this->indexExists($name)) {
+            $exists = $this->indexExists($name);
+            if ($exists === null) {
+                $this->logger->warning(\sprintf(
+                    'AttachmentSchema: cannot probe index existence on unrecognized platform; '
+                    . 'skipping composite-index backfill on "%s" (queries still work, unindexed).',
+                    self::TABLE,
+                ));
+
+                return;
+            }
+            if ($exists) {
                 continue;
             }
             $schema->addIndex(self::TABLE, $name, $fields);
@@ -255,17 +408,37 @@ final class AttachmentSchema
     }
 
     /**
-     * `sqlite_master` existence probe for a named index — mirrors
-     * {@see \Waaseyaa\Relationship\RelationshipSchemaManager::indexExists()},
-     * the established precedent for additive package-owned index backfill.
+     * Platform-aware existence probe for a named index, following the same
+     * platform-detection approach as {@see ensureActivePartialUniqueIndex()}:
+     * each supported platform gets its own catalog query (`sqlite_master`
+     * exists ONLY on SQLite — the naive first cut of this probe crashed
+     * kernel boot on PostgreSQL/MySQL). Returns null when the platform is
+     * unrecognized so the caller can skip rather than guess.
      */
-    private function indexExists(string $name): bool
+    private function indexExists(string $name): ?bool
     {
-        $rows = $this->database->query(
-            "SELECT COUNT(*) AS cnt FROM sqlite_master WHERE type = 'index' AND name = ?",
-            [$name],
-        );
-        $data = iterator_to_array($rows, false);
+        [$sql, $args] = match ($this->detectDatabasePlatform()) {
+            'sqlite' => [
+                "SELECT COUNT(*) AS cnt FROM sqlite_master WHERE type = 'index' AND name = ?",
+                [$name],
+            ],
+            'postgresql' => [
+                'SELECT COUNT(*) AS cnt FROM pg_indexes WHERE tablename = ? AND indexname = ?',
+                [self::TABLE, $name],
+            ],
+            'mysql', 'mariadb' => [
+                'SELECT COUNT(*) AS cnt FROM information_schema.statistics '
+                . 'WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?',
+                [self::TABLE, $name],
+            ],
+            default => [null, []],
+        };
+
+        if ($sql === null) {
+            return null;
+        }
+
+        $data = iterator_to_array($this->database->query($sql, $args), false);
 
         return (int) ($data[0]['cnt'] ?? 0) > 0;
     }
