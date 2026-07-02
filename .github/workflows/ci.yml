@@ -356,6 +356,7 @@ jobs:
           run_gate check-distribution-extensions
           run_gate check-symfony-imports
           run_gate check-getquery-bindings
+          run_gate check-dispatcher-keys
           run_gate check-admin-coercion-patterns
           run_gate check-admin-coercion-self-test
           run_gate check-admin-dist-fresh

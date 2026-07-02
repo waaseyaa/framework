@@ -102,6 +102,73 @@ final class DispatcherKeysGateTest extends TestCase
     }
 
     #[Test]
+    public function kernelServicesGetWithUnservedFqcnFollowedByAddListenerFailsGate(): void
+    {
+        // The direct bus-access shape (`$this->kernelServices?->get(...)`,
+        // the style packages/listing uses) must be caught the same as
+        // resolve()/resolveOptional() — the bus serves the identical key set.
+        file_put_contents($this->tempDir . '/src/OffenderProvider.php', <<<'PHP'
+            <?php
+            declare(strict_types=1);
+            namespace Waaseyaa\Fixture;
+            use Waaseyaa\Foundation\Event\EventDispatcherInterface;
+            final class OffenderProvider
+            {
+                public function boot(): void
+                {
+                    $dispatcher = $this->kernelServices?->get(EventDispatcherInterface::class);
+                    if (!$dispatcher instanceof EventDispatcherInterface) {
+                        return;
+                    }
+                    $dispatcher->addListener('some.event', new SomeListener());
+                }
+            }
+            PHP);
+
+        file_put_contents($this->tempBaseline, "# empty baseline\n");
+
+        [$output, $exitCode] = $this->runGate($this->tempDir . '/src', $this->tempBaseline, ['--verify']);
+
+        self::assertNotSame(0, $exitCode, 'Expected non-zero exit for kernelServices->get() unserved-FQCN registration. Output: ' . $output);
+        self::assertStringContainsString('Waaseyaa\\Foundation\\Event\\EventDispatcherInterface', $output);
+    }
+
+    #[Test]
+    public function kernelServicesGetMultiKeyFallbackIncludingServedKeyPassesGate(): void
+    {
+        // The listing-style defensive multi-key fallback: tries the Component
+        // and foundation FQCNs but ALSO the served Contracts FQCN in the same
+        // method — the served-key attempt makes the registration reachable in
+        // a real boot, so the method must stay clean.
+        file_put_contents($this->tempDir . '/src/ListingLikeProvider.php', <<<'PHP'
+            <?php
+            declare(strict_types=1);
+            namespace Waaseyaa\Fixture;
+            use Symfony\Component\EventDispatcher\EventDispatcherInterface as SymfonyComponentEventDispatcherInterface;
+            final class ListingLikeProvider
+            {
+                public function boot(): void
+                {
+                    $dispatcher = $this->kernelServices?->get(SymfonyComponentEventDispatcherInterface::class);
+                    if (!$dispatcher instanceof SymfonyComponentEventDispatcherInterface) {
+                        $dispatcher = $this->kernelServices?->get(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
+                    }
+                    if (!$dispatcher instanceof SymfonyComponentEventDispatcherInterface) {
+                        return;
+                    }
+                    $dispatcher->addListener('some.event', new SomeListener());
+                }
+            }
+            PHP);
+
+        file_put_contents($this->tempBaseline, "# empty baseline\n");
+
+        [$output, $exitCode] = $this->runGate($this->tempDir . '/src', $this->tempBaseline, ['--verify']);
+
+        self::assertSame(0, $exitCode, 'Expected zero exit for multi-key fallback that includes the served FQCN. Output: ' . $output);
+    }
+
+    #[Test]
     public function servedContractsFqcnResolutionPassesGate(): void
     {
         file_put_contents($this->tempDir . '/src/GoodProvider.php', <<<'PHP'

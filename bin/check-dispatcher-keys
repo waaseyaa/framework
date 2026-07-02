@@ -19,8 +19,30 @@ declare(strict_types=1);
 // resolution silently never registers. No exception, no log line — just a
 // guard, telemetry stream, or lifecycle subscriber that never runs.
 //
-// A resolve() call for the served Symfony-contracts FQCN is NEVER flagged,
-// regardless of what it's followed by.
+// Recognized resolution idioms (all bus-backed, identical key set):
+//   - $this->resolve(FQCN::class) / $this->resolveOptional(FQCN::class)
+//   - $this->kernelServices->get(FQCN::class) / $this->kernelServices?->get(FQCN::class)
+//
+// A resolution of the served Symfony-contracts FQCN is NEVER flagged. A
+// method that resolves the served FQCN ANYWHERE in its body is skipped
+// entirely — a defensive multi-key fallback (listing-style: try Component,
+// then Contracts, then foundation) can reach its registration in a real
+// boot, so its unserved fallback keys are not offenses.
+//
+// KNOWN-NOT-CAUGHT shapes (this is a regex/brace-matching scanner, NOT
+// AST-level analysis — do not assume full coverage):
+//   - Split-method registration: the dispatcher is resolved in a private
+//     helper (e.g. a resolveDispatcher() method) and addListener()/
+//     addSubscriber() happens in boot(). Only register()/boot() bodies are
+//     scanned, and resolution + registration must appear in the SAME method.
+//   - Variable/alias indirection: the FQCN reaches the resolution call via a
+//     variable, constant, or class-string expression rather than a literal
+//     `SomeEventDispatcherInterface::class` token.
+//   - Resolves-both-registers-dead: a method that resolves the served FQCN
+//     AND an unserved one but registers using the dead instance is skipped
+//     by the multi-key exemption above.
+// If you add a new resolution idiom or registration surface, extend the
+// scanner and its self-test (tests/Integration/Phase31/DispatcherKeysGateTest.php).
 //
 // Modes:
 //   (no flags)          Verify mode: fail on new offending sites not in baseline.
@@ -173,9 +195,21 @@ function findOffenders(array $scanDirs, string $repoRoot): array
                     continue;
                 }
 
-                foreach (findDispatcherResolutions($method['body']) as $resolution) {
+                $resolutions = findDispatcherResolutions($method['body']);
+
+                // A method that ALSO resolves the served contracts FQCN
+                // (defensive multi-key fallback, listing-style) can actually
+                // reach its registration in a real boot — skip the whole
+                // method rather than flagging its unserved fallback keys.
+                foreach ($resolutions as $resolution) {
+                    if (resolveFqcn($resolution['token'], $imports) === SERVED_DISPATCHER_FQCN) {
+                        continue 2;
+                    }
+                }
+
+                foreach ($resolutions as $resolution) {
                     $fqcn = resolveFqcn($resolution['token'], $imports);
-                    if ($fqcn === null || $fqcn === SERVED_DISPATCHER_FQCN) {
+                    if ($fqcn === null) {
                         continue;
                     }
                     if (!str_ends_with($fqcn, '\\EventDispatcherInterface')) {
@@ -275,16 +309,21 @@ function findMatchingBrace(string $source, int $openOffset): ?int
 }
 
 /**
- * Find `resolve(...EventDispatcherInterface::class)` /
- * `resolveOptional(...EventDispatcherInterface::class)` calls within a
- * method body and return their class-reference token plus byte offset.
+ * Find dispatcher-resolution calls within a method body and return their
+ * class-reference token plus byte offset. Recognized resolution idioms:
+ *
+ *   - `$this->resolve(...EventDispatcherInterface::class)`
+ *   - `$this->resolveOptional(...EventDispatcherInterface::class)`
+ *   - `$this->kernelServices->get(...EventDispatcherInterface::class)`
+ *     (also the nullsafe `?->get(` form — the direct bus-access shape
+ *     packages/listing uses; the bus serves the identical key set).
  *
  * @return list<array{token: string, offset: int}>
  */
 function findDispatcherResolutions(string $methodBody): array
 {
     $results = [];
-    $regex = '/resolve(?:Optional)?\(\s*(\\\\?[\w\\\\]*EventDispatcherInterface)::class\s*\)/';
+    $regex = '/(?:resolve(?:Optional)?|kernelServices\??->get)\(\s*(\\\\?[\w\\\\]*EventDispatcherInterface)::class\s*\)/';
     if (preg_match_all($regex, $methodBody, $matches, PREG_OFFSET_CAPTURE)) {
         foreach ($matches[1] as $match) {
             $results[] = ['token' => $match[0], 'offset' => $match[1]];
