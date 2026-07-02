@@ -132,4 +132,3 @@ final class LocalFileRepositoryTest extends TestCase
         $this->assertSame('passwd', $loaded->filename);
     }
 }
-

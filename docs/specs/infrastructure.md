@@ -1333,7 +1333,7 @@ Optional follow-ups (full header map API, lazy adapter, JSON:API adoption) are t
 | `CodifiedContextApiRouter` | `Waaseyaa\Api\Controller\CodifiedContextController::*` | Telescope agent-context session JSON (`BuiltinRouteRegistrar` routes under `/api/telescope/agent-context/…` plus legacy `/api/telescope/codified-context/…`); optional `CodifiedContextSessionStoreInterface` from `HttpKernel::getCodifiedContextSessionStore()` |
 | `DiscoveryRouter` (`Waaseyaa\Api\Http\Router`) | `discovery.topic_hub`, `discovery.cluster`, `discovery.timeline`, `discovery.endpoint` | Discovery API for topic hubs, clusters, timelines (registered from `ApiServiceProvider::httpDomainRouters()`) |
 | `SearchRouter` | `search.semantic` | Semantic search via embedding storage |
-| `MediaRouter` (`Waaseyaa\Media\Http\Router`) | `media.upload` | File upload with MIME validation, size limits, sanitization, move error handling (`MediaServiceProvider`) |
+| `MediaRouter` (`Waaseyaa\Media\Http\Router`) | `media.upload` | File upload with size limits, sanitization, move error handling (`MediaServiceProvider`). MIME validation is **sniff-only and fail-closed** (2026-07-01 WP4 hardening): the type is detected from file contents via `UploadHandler::detectMimeType()` (ext-fileinfo) — the client-declared MIME is never consulted (Symfony `getMimeType()` is not called; symfony/mime is not installed), and undetectable types are rejected 415 (`File type could not be verified.`). Allowlist matching is shared with `UploadHandler` (`mimeTypeMatches()`, exact + `type/*` wildcards). Default allowlist deliberately EXCLUDES `image/svg+xml` (script-capable; `/files/` serving adds no attachment/nosniff headers) and `application/octet-stream` (finfo's answer for any unrecognized binary); sites opt back in explicitly via `upload_allowed_mime_types`. The stored `File.mimeType` is the sniffed type. |
 | `GraphQlRouter` (`Waaseyaa\GraphQL\Http\Router`) | `graphql.endpoint` | GraphQL query/mutation execution (`GraphQlServiceProvider`) |
 | `McpRouter` | `mcp.endpoint` | MCP JSON-RPC endpoint |
 | `SsrRouter` (`Waaseyaa\SSR\Http\Router`) | `render.page` | Server-side page rendering (`SsrServiceProvider`) |
@@ -1900,7 +1900,7 @@ Http/
         SchemaRouter.php                 -- OpenAPI and JSON Schema endpoints
         DiscoveryRouter.php              -- topic hub, cluster, timeline, endpoint
         SearchRouter.php                 -- semantic search
-        MediaRouter.php                  -- file upload with validation
+        MediaRouter.php                  -- file upload; sniff-only fail-closed MIME validation (no svg/octet-stream defaults)
         GraphQlRouter.php                -- GraphQL execution
         McpRouter.php                    -- MCP JSON-RPC endpoint
         SsrRouter.php                    -- server-side page rendering

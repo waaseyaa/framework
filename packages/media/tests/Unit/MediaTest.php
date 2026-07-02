@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Media\Tests\Unit;
 
-use Waaseyaa\Media\Media;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Media\Media;
 
 /**
  * @covers \Waaseyaa\Media\Media

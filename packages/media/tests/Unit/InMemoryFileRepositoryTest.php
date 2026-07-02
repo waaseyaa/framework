@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Media\Tests\Unit;
 
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Media\File;
 use Waaseyaa\Media\FileRepositoryInterface;
 use Waaseyaa\Media\InMemoryFileRepository;
-use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \Waaseyaa\Media\InMemoryFileRepository

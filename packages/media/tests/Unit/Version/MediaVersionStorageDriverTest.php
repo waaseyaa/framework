@@ -46,30 +46,88 @@ final class MediaVersionStorageDriverTest extends TestCase
             /** @var EntityInterface[] */
             public array $saved = [];
 
-            public function create(array $values = []): EntityInterface { throw new \LogicException('create() not implemented in this test double'); }
-            public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return null; }
-            public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
-            public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
-            public function getQuery(): \Waaseyaa\Entity\Storage\EntityQueryInterface { throw new \LogicException('getQuery() not implemented in this test double'); }
-            public function save(EntityInterface $entity, bool $validate = true): int {
+            public function create(array $values = []): EntityInterface
+            {
+                throw new \LogicException('create() not implemented in this test double');
+            }
+            public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
+            {
+                return null;
+            }
+            public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array
+            {
+                return [];
+            }
+            public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array
+            {
+                return [];
+            }
+            public function getQuery(): \Waaseyaa\Entity\Storage\EntityQueryInterface
+            {
+                throw new \LogicException('getQuery() not implemented in this test double');
+            }
+            public function save(EntityInterface $entity, bool $validate = true): int
+            {
                 $this->saved[] = $entity;
                 return 1;
             }
             public function delete(EntityInterface $entity): void {}
-            public function exists(string $id): bool { return false; }
-            public function count(array $criteria = []): int { return 0; }
-            public function loadRevision(string $entityId, int $revisionId): ?EntityInterface { return null; }
-            public function rollback(string $entityId, int $targetRevisionId): EntityInterface { throw new \RuntimeException('not implemented'); }
-            public function listRevisions(string $entityId): array { return []; }
-            public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface { throw new \RuntimeException('not implemented'); }
-            public function loadPublishedRevision(string $entityId): ?EntityInterface { return null; }
-            public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface { throw new \RuntimeException('not implemented'); }
-            public function saveMany(array $entities, bool $validate = true): array { return []; }
-            public function deleteMany(array $entities): int { return 0; }
-            public function findTranslations(EntityInterface $entity): array { return []; }
-            public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int { throw new \RuntimeException('not implemented'); }
-            public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { throw new \RuntimeException('not implemented'); }
-            public function listTranslationRevisions(string $entityId, string $langcode): array { throw new \RuntimeException('not implemented'); }
+            public function exists(string $id): bool
+            {
+                return false;
+            }
+            public function count(array $criteria = []): int
+            {
+                return 0;
+            }
+            public function loadRevision(string $entityId, int $revisionId): ?EntityInterface
+            {
+                return null;
+            }
+            public function rollback(string $entityId, int $targetRevisionId): EntityInterface
+            {
+                throw new \RuntimeException('not implemented');
+            }
+            public function listRevisions(string $entityId): array
+            {
+                return [];
+            }
+            public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface
+            {
+                throw new \RuntimeException('not implemented');
+            }
+            public function loadPublishedRevision(string $entityId): ?EntityInterface
+            {
+                return null;
+            }
+            public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface
+            {
+                throw new \RuntimeException('not implemented');
+            }
+            public function saveMany(array $entities, bool $validate = true): array
+            {
+                return [];
+            }
+            public function deleteMany(array $entities): int
+            {
+                return 0;
+            }
+            public function findTranslations(EntityInterface $entity): array
+            {
+                return [];
+            }
+            public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int
+            {
+                throw new \RuntimeException('not implemented');
+            }
+            public function loadTranslation(string $entityId, string $langcode): ?EntityInterface
+            {
+                throw new \RuntimeException('not implemented');
+            }
+            public function listTranslationRevisions(string $entityId, string $langcode): array
+            {
+                throw new \RuntimeException('not implemented');
+            }
         };
     }
 
@@ -107,7 +165,10 @@ final class MediaVersionStorageDriverTest extends TestCase
 
         // Non-media entity — must be a no-op.
         $otherEntity = new class extends \Waaseyaa\Entity\EntityBase {
-            public function __construct() { parent::__construct([], 'other', ['id' => 'id', 'uuid' => 'uuid']); }
+            public function __construct()
+            {
+                parent::__construct([], 'other', ['id' => 'id', 'uuid' => 'uuid']);
+            }
         };
         $driver->onMediaPostSave(new EntityEvent($otherEntity, $otherEntity));
 
