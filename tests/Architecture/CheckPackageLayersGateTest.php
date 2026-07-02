@@ -113,15 +113,108 @@ final class CheckPackageLayersGateTest extends TestCase
         self::assertStringContainsString('OK', $out);
     }
 
+    #[Test]
+    public function flags_quoted_string_literal_fqcn_pl008(): void
+    {
+        // plugin (L0) hard-codes a quoted 'Waaseyaa\\Node\\...' string literal (L2) —
+        // PL008 sub-pattern (a), the original WP5 pattern.
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'src/Demo.php',
+            useStatements: [],
+            rawBody: "private const FQCN = 'Waaseyaa\\\\Node\\\\Something';",
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+        self::assertSame(1, $exit, "Gate must fail on a quoted string-literal higher-layer FQCN.\n{$out}");
+        self::assertStringContainsString('PL008', $out);
+        self::assertStringContainsString('plugin', $out);
+        self::assertStringContainsString('node', $out);
+    }
+
+    #[Test]
+    public function flags_inline_class_constant_fqcn_pl008(): void
+    {
+        // plugin (L0) references \Waaseyaa\Node\Something::class inline, with no `use`
+        // import — PL008 sub-pattern (b), added WP7. Before the extension this shape
+        // was invisible to both PL005 (no `use` statement to scan) and the original
+        // PL008 regex (requires a leading quote character).
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'src/Demo.php',
+            useStatements: [],
+            rawBody: '\\Waaseyaa\\Node\\Something::class;',
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+        self::assertSame(1, $exit, "Gate must fail on an inline ::class higher-layer FQCN.\n{$out}");
+        self::assertStringContainsString('PL008', $out);
+        self::assertStringContainsString('plugin', $out);
+        self::assertStringContainsString('node', $out);
+    }
+
+    #[Test]
+    public function baseline_suppresses_known_inline_class_fqcn_pl008(): void
+    {
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'src/Demo.php',
+            useStatements: [],
+            rawBody: '\\Waaseyaa\\Node\\Something::class;',
+        );
+
+        $stringLiteralBaselinePath = $this->tmpRoot . '/pl008-baseline.txt';
+        file_put_contents(
+            $stringLiteralBaselinePath,
+            "# fixture PL008 baseline\nplugin/src/Demo.php  # fixture allowlist entry\n",
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true, stringLiteralBaselinePath: $stringLiteralBaselinePath);
+
+        self::assertSame(0, $exit, "A baselined PL008 file must not fail the gate.\n{$out}");
+        self::assertStringContainsString('OK', $out);
+    }
+
+    #[Test]
+    public function does_not_flag_inline_class_fqcn_for_a_same_layer_dependency(): void
+    {
+        // plugin (L0) references \Waaseyaa\Queue\QueueInterface::class inline — queue is
+        // also L0 (same layer), so this must NOT trip PL008 (which only fires when the
+        // referenced package's layer is strictly greater than the containing package's).
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'src/Demo.php',
+            useStatements: [],
+            rawBody: '\\Waaseyaa\\Queue\\QueueInterface::class;',
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+        self::assertSame(0, $exit, "An inline ::class reference to a same-layer package must not fail PL008.\n{$out}");
+        self::assertStringContainsString('OK', $out);
+    }
+
     /**
      * @param array<string, string> $require
      * @param list<string>          $useStatements FQCNs to `use` from the src file
+     * @param string                $rawBody       Arbitrary raw text placed inside the class
+     *                                              body — used to plant PL008 string-literal /
+     *                                              inline `::class` fixtures. The gate scans raw
+     *                                              file text with regexes, so this need not be
+     *                                              syntactically valid PHP.
      */
     private function writeFixturePackage(
         string $short,
         array $require,
         string $relativeSrcFile,
         array $useStatements,
+        string $rawBody = '',
     ): void {
         $pkgDir = $this->tmpRoot . '/packages/' . $short;
         $srcPath = $pkgDir . '/' . $relativeSrcFile;
@@ -142,19 +235,27 @@ final class CheckPackageLayersGateTest extends TestCase
         }
         file_put_contents(
             $srcPath,
-            "<?php\n\ndeclare(strict_types=1);\n\nnamespace Waaseyaa\\" . ucfirst($short) . ";\n\n{$uses}\nfinal class Demo {}\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nnamespace Waaseyaa\\" . ucfirst($short) . ";\n\n{$uses}\nfinal class Demo {\n{$rawBody}\n}\n",
         );
     }
 
     /**
      * @return array{0: int, 1: string} [exitCode, combinedOutput]
      */
-    private function runGate(bool $emptyBaseline = false, ?string $baselinePath = null): array
-    {
+    private function runGate(
+        bool $emptyBaseline = false,
+        ?string $baselinePath = null,
+        ?string $stringLiteralBaselinePath = null,
+    ): array {
         $baseline = $baselinePath ?? ($emptyBaseline ? '/dev/null' : '');
+        // Default to /dev/null so fixture runs never fall through to the REAL repo's
+        // tools/package-layers-string-literal-baseline.txt (which would silently
+        // suppress fixture findings or, worse, pass because the fixture path never
+        // matches a real baseline entry for unrelated reasons).
         $env = [
             'WAASEYAA_LAYER_ROOT' => $this->tmpRoot,
             'WAASEYAA_LAYER_UNDECLARED_BASELINE' => $baseline,
+            'WAASEYAA_LAYER_STRING_LITERAL_BASELINE' => $stringLiteralBaselinePath ?? '/dev/null',
             'PATH' => getenv('PATH') ?: '/usr/bin:/bin',
         ];
 

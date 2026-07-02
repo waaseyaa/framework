@@ -38,7 +38,28 @@ final class PackageManifestCompiler
     /** @internal Providers confirmed missing after recompile; prevents repeated recompile on next request */
     private const KNOWN_MISSING_PROVIDERS_KEY = '_known_missing_providers';
 
+    /**
+     * @internal String FQN avoids upward layer import (Foundation/L0 must not import from
+     * Entity/L1). `::class` on an unimported FQCN is a compile-time literal only — PHP does
+     * not autoload the class to resolve `::class` — so this string constant is behaviourally
+     * identical to the inline `\Waaseyaa\Entity\DefinesEntityType::class` it replaces (WP7
+     * audit remediation), just consistent with the sibling cross-layer constants in this file
+     * (POLICY_ATTRIBUTE et al.) and avoids a PL008 finding for the inline `::class` form.
+     */
+    private const ENTITY_TYPE_DEFINITION_INTERFACE = 'Waaseyaa\\Entity\\DefinesEntityType';
+
     private readonly LoggerInterface $logger;
+
+    /**
+     * Memoized result of {@see scanClasses()}. Populated on first call within this
+     * compiler instance. Compiler instances are created fresh per boot (a new
+     * PackageManifestCompiler is constructed for each request/CLI invocation), so
+     * memoizing here has no cross-request staleness window — the memo lives exactly
+     * as long as this instance does, and this instance lives exactly one compile.
+     *
+     * @var list<class-string>|null
+     */
+    private ?array $scannedClasses = null;
 
     public function __construct(
         private readonly string $basePath,
@@ -147,8 +168,8 @@ final class PackageManifestCompiler
             }
 
             foreach ($ref->getAttributes(AsEntityType::class) as $_attr) {
-                if (interface_exists(\Waaseyaa\Entity\DefinesEntityType::class)
-                    && is_subclass_of($class, \Waaseyaa\Entity\DefinesEntityType::class, true)
+                if (interface_exists(self::ENTITY_TYPE_DEFINITION_INTERFACE)
+                    && is_subclass_of($class, self::ENTITY_TYPE_DEFINITION_INTERFACE, true)
                 ) {
                     $attributeEntityTypes[] = $class;
                 }
@@ -338,8 +359,16 @@ final class PackageManifestCompiler
                 }
             } catch (StaleManifestException) {
                 // New missing providers — fall through to compileAndCache()
-            } catch (\Throwable) {
-                // Corrupt cache — recompile
+            } catch (\Throwable $e) {
+                // Corrupt cache (e.g. a cache file that throws on require()) — log
+                // before falling through to recompile, so an operator can see WHY
+                // a recompile happened instead of it being a silent self-heal.
+                $this->logger->warning(sprintf(
+                    'Package manifest cache at %s is unreadable (%s: %s); recompiling.',
+                    $cachePath,
+                    $e::class,
+                    $e->getMessage(),
+                ));
             }
         }
 
@@ -457,10 +486,19 @@ final class PackageManifestCompiler
      * Scans Waaseyaa\ framework classes and any app-level namespaces
      * declared in the root composer.json autoload section.
      *
+     * Memoized per instance (see {@see $scannedClasses}) — compile() calls this both
+     * directly (attribute scan) and indirectly via scanScheduleEntryClasses() (schedule-
+     * entries pass), and without memoization that ran the full reflective scan twice
+     * per compile().
+     *
      * @return string[]
      */
     private function scanClasses(): array
     {
+        if ($this->scannedClasses !== null) {
+            return $this->scannedClasses;
+        }
+
         $prefixes = $this->discoveryScanPrefixes();
         $candidates = [];
 
@@ -501,7 +539,7 @@ final class PackageManifestCompiler
             $candidates = $this->scanPsr4Classes($prefixes);
         }
 
-        return $this->filterDiscoveryClasses($candidates);
+        return $this->scannedClasses = $this->filterDiscoveryClasses($candidates);
     }
 
     private function assertProvidersExist(PackageManifest $manifest, string $cachePath): void
@@ -802,6 +840,15 @@ final class PackageManifestCompiler
      *
      * Uses @class_implements() with the interface FQCN as a string constant to
      * preserve layer discipline (Foundation must not import from Scheduler via use statement).
+     *
+     * Decision (WP7 audit remediation): this stays a second logical pass over
+     * scanClasses() rather than being folded into the attribute-scan loop in
+     * compile() — filterDiscoveryClasses() already admits ScheduleEntriesInterface
+     * implementors into the same discovery-class set that compile()'s attribute
+     * loop iterates (see the interface-check branch inside filterDiscoveryClasses()),
+     * and this method filters that shared set down to implementors. With
+     * scanClasses() now memoized (see $scannedClasses), this is a cheap in-memory
+     * filter over an already-computed array, not a second reflective class scan.
      *
      * @return list<class-string>
      */

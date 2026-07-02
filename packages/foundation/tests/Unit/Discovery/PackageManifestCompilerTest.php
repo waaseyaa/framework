@@ -383,6 +383,133 @@ final class PackageManifestCompilerTest extends TestCase
     }
 
     #[Test]
+    public function load_logs_a_warning_naming_the_cache_path_and_exception_before_recompiling_on_corrupt_cache(): void
+    {
+        $storagePath = $this->tempDir . '/storage';
+        mkdir($storagePath . '/framework', 0o755, true);
+
+        $cachePath = $storagePath . '/framework/packages.php';
+        file_put_contents($cachePath, '<?php throw new \RuntimeException("corrupt");');
+
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => []], JSON_THROW_ON_ERROR),
+        );
+
+        $logger = new class implements LoggerInterface {
+            use LoggerTrait;
+
+            /** @var list<array{level: LogLevel, message: string}> */
+            public array $messages = [];
+
+            public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
+            {
+                $this->messages[] = ['level' => $level, 'message' => (string) $message];
+            }
+        };
+
+        $compiler = new PackageManifestCompiler($this->tempDir, $storagePath, $logger);
+        $manifest = $compiler->load();
+
+        // Self-heal preserved: load() still returns a usable manifest.
+        $this->assertInstanceOf(PackageManifest::class, $manifest);
+
+        $warnings = array_values(array_filter(
+            $logger->messages,
+            static fn(array $m): bool => $m['level'] === LogLevel::WARNING
+                && str_contains($m['message'], 'recompiling')
+                && str_contains($m['message'], 'RuntimeException'),
+        ));
+
+        $this->assertNotEmpty(
+            $warnings,
+            'A corrupt manifest cache must log a warning naming the exception class before recompiling.',
+        );
+        $this->assertStringContainsString($cachePath, $warnings[0]['message']);
+    }
+
+    #[Test]
+    public function load_recompiles_silently_when_cache_returns_a_non_array_wrong_type(): void
+    {
+        // A cache file that returns a wrong-shaped value (not an array) falls through
+        // the is_array($data) branch without ever entering the catch(\Throwable) path —
+        // no exception is thrown, so no "recompiling" warning is expected here. Self-heal
+        // (no crash, fresh compile) must still work.
+        $storagePath = $this->tempDir . '/storage';
+        mkdir($storagePath . '/framework', 0o755, true);
+
+        file_put_contents(
+            $storagePath . '/framework/packages.php',
+            '<?php return "not an array";',
+        );
+
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => []], JSON_THROW_ON_ERROR),
+        );
+
+        $logger = new class implements LoggerInterface {
+            use LoggerTrait;
+
+            /** @var list<string> */
+            public array $messages = [];
+
+            public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
+            {
+                $this->messages[] = (string) $message;
+            }
+        };
+
+        $compiler = new PackageManifestCompiler($this->tempDir, $storagePath, $logger);
+        $manifest = $compiler->load();
+
+        $this->assertInstanceOf(PackageManifest::class, $manifest);
+        $this->assertSame([], $manifest->providers);
+    }
+
+    #[Test]
+    public function compile_performs_exactly_one_reflective_class_scan_per_compile(): void
+    {
+        // No vendor/composer/autoload_classmap.php and no app-level PSR-4 prefixes
+        // (no root composer.json psr-4 entries) — scanClasses() takes the
+        // "no discoverable classes" fallback path and logs exactly one warning
+        // EACH TIME IT RUNS. compile() invokes scanClasses() directly (the
+        // attribute-scan loop) and indirectly via scanScheduleEntryClasses() (the
+        // schedule-entries pass) — before memoization this logged the fallback
+        // warning TWICE per compile(); memoized, it must log exactly once.
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => []], JSON_THROW_ON_ERROR),
+        );
+
+        $logger = new class implements LoggerInterface {
+            use LoggerTrait;
+
+            /** @var list<string> */
+            public array $messages = [];
+
+            public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
+            {
+                $this->messages[] = (string) $message;
+            }
+        };
+
+        $compiler = new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage', $logger);
+        $compiler->compile();
+
+        $fallbackWarnings = array_values(array_filter(
+            $logger->messages,
+            static fn(string $m): bool => str_contains($m, 'Falling back to full PSR-4 directory scanning'),
+        ));
+
+        $this->assertCount(
+            1,
+            $fallbackWarnings,
+            'scanClasses() must run exactly once per compile() (memoized) — got ' . count($fallbackWarnings) . ' invocations.',
+        );
+    }
+
+    #[Test]
     public function load_recompiles_when_cache_returns_non_array(): void
     {
         $storagePath = $this->tempDir . '/storage';

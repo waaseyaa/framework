@@ -24,6 +24,18 @@ declare(strict_types=1);
  *            non-kernel-exempt Layer-0 files are scanned; kernel/boot files are
  *            already trusted to wire all layers. New violations fail; pre-existing
  *            legitimate ones are baselined in tools/package-layers-string-literal-baseline.txt.
+ *            Two sub-patterns are matched under the same PL008 rule ID (same
+ *            finding/baseline/emit path — a file with either pattern needs the
+ *            same fix: move the reference to the owning higher-layer package or
+ *            switch to the string-constant mechanism, then baseline if intentional):
+ *              (a) quoted string literals, e.g. 'Waaseyaa\\Node\\Foo' (two
+ *                  backslashes per separator in raw file text — the original PL008
+ *                  pattern, WP5).
+ *              (b) inline fully-qualified `::class` tokens with no `use` import,
+ *                  e.g. \Waaseyaa\Node\Foo::class (one backslash per separator in
+ *                  raw file text — added audit-remediation WP7 after this shape was
+ *                  found invisible to both PL005 (no `use` statement to scan) and the
+ *                  original PL008 regex (requires a leading quote character).
  */
 
 $rootEnv = getenv('WAASEYAA_LAYER_ROOT');
@@ -320,14 +332,28 @@ $loadStringLiteralBaseline = static function (string $baselinePath): array {
 $stringLiteralBaseline = $loadStringLiteralBaseline($stringLiteralBaselinePath);
 
 /**
- * Scan a Layer-0 package's src/ for string-literal FQCNs referencing packages
- * at higher layers (PL008). Kernel-exempt files are skipped (they are trusted
- * bootstrapping orchestrators, same as for PL005). Multi-line block comments
- * and single-line comments are stripped before matching to avoid false positives.
+ * Scan a Layer-0 package's src/ for FQCNs referencing packages at higher
+ * layers, hidden from both PL005 (no `use` import to scan) and ordinary
+ * grep-for-`use` review (PL008). Kernel-exempt files are skipped (they are
+ * trusted bootstrapping orchestrators, same as for PL005). Multi-line block
+ * comments and single-line comments are stripped before matching to avoid
+ * false positives.
  *
- * Pattern matched in raw PHP file text: a single- or double-quoted literal that
- * starts with `Waaseyaa\<NamespaceSegment>\` (encoded in the file as two
- * backslashes per separator: `Waaseyaa\\<NS>\\`).
+ * Two sub-patterns are matched (both raised as PL008 — see rule-ID doc at
+ * the top of this file):
+ *
+ *   (a) A single- or double-quoted literal that starts with
+ *       `Waaseyaa\<NamespaceSegment>\` (encoded in the file as two
+ *       backslashes per separator: `Waaseyaa\\<NS>\\`). WP5 original pattern.
+ *
+ *   (b) An inline, unquoted, fully-qualified `::class` token with no `use`
+ *       import — `\Waaseyaa\<NamespaceSegment>\...::class` (encoded in the
+ *       file as ONE backslash per separator, since this is real PHP syntax,
+ *       not a string literal). Added audit-remediation WP7: the sibling string-constant
+ *       convention (CLAUDE.md "Layer discipline for imports") already covers
+ *       quoted FQCNs; this closes the gap for the `::class` form, which is
+ *       invisible to both PL005 (no `use` statement) and pattern (a) (no
+ *       leading quote character, and only one backslash per separator).
  *
  * @return list<array{relative: string, dep: string, depLayer: int}>
  */
@@ -403,18 +429,33 @@ $scanStringLiteralFqcns = static function (string $packageDirectory, int $selfLa
         }
         $text = implode("\n", $filteredLines);
 
-        // Match quoted string literals containing Waaseyaa\\<Ns>\\  patterns.
+        // Sub-pattern (a): quoted string literals containing Waaseyaa\\<Ns>\\ patterns.
         // In raw PHP file text, namespace separators appear as \\ (two backslashes),
         // so the regex matches the literal byte sequence `Waaseyaa` + `\\` + CapLetter.
         preg_match_all(
             '#[\'"]Waaseyaa\\\\\\\\([A-Z][A-Za-z0-9]*)(?:\\\\\\\\([A-Z][A-Za-z0-9]*))?#',
             $text,
-            $matches,
+            $quotedMatches,
+            PREG_SET_ORDER,
+        );
+
+        // Sub-pattern (b): inline, unquoted, fully-qualified `::class` tokens with no
+        // `use` import — \Waaseyaa\<Ns>\...::class. In raw PHP file text this is real
+        // syntax (not a string literal), so namespace separators appear as a SINGLE
+        // backslash. The negative lookbehind excludes a preceding quote/backslash so
+        // this pattern does not also fire on the second backslash of a sub-pattern-(a)
+        // double-backslash sequence; requiring the `::class` suffix independently rules
+        // out matching inside string-literal constant definitions (e.g. POLICY_ATTRIBUTE),
+        // which are never followed by `::class`.
+        preg_match_all(
+            '#(?<![\'"\\\\])\\\\Waaseyaa\\\\([A-Z][A-Za-z0-9]*)(?:\\\\([A-Z][A-Za-z0-9]*))?(?:\\\\[A-Za-z0-9_]+)*::class#',
+            $text,
+            $inlineClassMatches,
             PREG_SET_ORDER,
         );
 
         $seen = [];
-        foreach ($matches as $match) {
+        foreach ([...$quotedMatches, ...$inlineClassMatches] as $match) {
             $depShort = $shortForNamespace($match[1], $match[2] ?? null);
             if ($depShort === null || !isset($layerByShort[$depShort]) || $depShort === $selfShort) {
                 continue;
@@ -649,10 +690,10 @@ foreach ($packageDirectories as $packageDirectory) {
         ++$errors;
         $emit(
             "FAIL [PL008] packages/{$exampleRelative}: string-literal layer violation - "
-            . "{$short} (layer {$selfLayer}) contains a quoted Waaseyaa\\\\{$depShort}\\\\… FQCN "
-            . "(layer {$layerByShort[$depShort]}). Move the route/binding to the owning higher-layer "
-            . "provider, or baseline the file in tools/package-layers-string-literal-baseline.txt "
-            . "with a mandatory rationale comment.",
+            . "{$short} (layer {$selfLayer}) contains a quoted string-literal or inline ::class "
+            . "Waaseyaa\\{$depShort}\\… FQCN (layer {$layerByShort[$depShort]}). Move the "
+            . "route/binding to the owning higher-layer provider, or baseline the file in "
+            . "tools/package-layers-string-literal-baseline.txt with a mandatory rationale comment.",
         );
         $violations[] = ['source' => $short, 'target' => $depShort, 'edge' => 'string-literal'];
     }

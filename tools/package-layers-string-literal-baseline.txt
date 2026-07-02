@@ -19,4 +19,5 @@
 #
 # New PL008 violations NOT listed here fail CI (fail-on-new).
 #
-foundation/src/Discovery/PackageManifestCompiler.php  # Discovery bootstrapper: uses private string constants (not 'use' imports) for cross-layer attribute FQCNs per CLAUDE.md layer-discipline rule — Waaseyaa\Access\Gate\PolicyAttribute (L1), Waaseyaa\AI\*\Attribute\* (L5), Waaseyaa\SSR\Attribute\* (L6); avoids upward 'use' imports that would violate PL005
+foundation/src/Discovery/PackageManifestCompiler.php  # Discovery bootstrapper: uses private string constants (not 'use' imports) for cross-layer attribute FQCNs per CLAUDE.md layer-discipline rule — Waaseyaa\Access\Gate\PolicyAttribute (L1), Waaseyaa\AI\*\Attribute\* (L5), Waaseyaa\SSR\Attribute\* (L6), Waaseyaa\Entity\DefinesEntityType (L1); avoids upward 'use' imports that would violate PL005
+foundation/src/Http/ControllerDispatcher.php  # Optional-dependency probe: class_exists() check on Waaseyaa\SSR\SsrPageHandler (L6) to return a helpful 501 when waaseyaa/ssr is not installed; string constant per CLAUDE.md layer-discipline rule, no upward import
