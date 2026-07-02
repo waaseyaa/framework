@@ -72,7 +72,6 @@ final class AttachmentDownloadRouter implements DomainRouterInterface
             return $this->notFound();
         }
 
-        $filename = $this->safeFilename((string) $attachment->get('filename'));
         $contentType = (string) $attachment->get('content_type');
         if ($contentType === '') {
             $contentType = 'application/octet-stream';
@@ -92,10 +91,29 @@ final class AttachmentDownloadRouter implements DomainRouterInterface
             200,
             [
                 'Content-Type' => $contentType,
-                'Content-Disposition' => sprintf('attachment; filename="%s"', $filename),
+                'Content-Disposition' => $this->contentDisposition((string) $attachment->get('filename')),
                 'X-Content-Type-Options' => 'nosniff',
             ],
         );
+    }
+
+    /**
+     * Builds an RFC 6266 Content-Disposition value carrying both an ASCII-safe
+     * `filename=` fallback (for user agents that don't understand `filename*`) and,
+     * when the original name has meaningful non-ASCII content, an RFC 5987
+     * `filename*=UTF-8''<percent-encoded>` extended parameter so Anishinaabemowin
+     * and other non-ASCII filenames survive intact for RFC 6266-aware clients.
+     */
+    private function contentDisposition(string $filename): string
+    {
+        $header = sprintf('attachment; filename="%s"', $this->safeFilename($filename));
+
+        $encoded = $this->rfc5987Encode($filename);
+        if ($encoded !== null) {
+            $header .= sprintf("; filename*=UTF-8''%s", $encoded);
+        }
+
+        return $header;
     }
 
     private function safeFilename(string $filename): string
@@ -104,6 +122,26 @@ final class AttachmentDownloadRouter implements DomainRouterInterface
         $clean = preg_replace('/[^A-Za-z0-9._-]/', '_', $base);
 
         return ($clean === null || $clean === '') ? 'download' : $clean;
+    }
+
+    /**
+     * RFC 5987 attr-char percent-encoding of the basename, or null when there is
+     * nothing meaningful to encode (empty basename) or the stored filename is not
+     * valid UTF-8 (malformed data must not produce a malformed header).
+     *
+     * `rawurlencode()` leaves only `A-Za-z0-9-_.~` unescaped, which is a strict
+     * subset of RFC 5987 attr-char (`ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" /
+     * "-" / "." / "^" / "_" / "`" / "|" / "~"`); over-encoding a few extra attr-char
+     * characters is RFC-compliant and safe, unlike under-encoding.
+     */
+    private function rfc5987Encode(string $filename): ?string
+    {
+        $base = basename($filename);
+        if ($base === '' || !mb_check_encoding($base, 'UTF-8')) {
+            return null;
+        }
+
+        return rawurlencode($base);
     }
 
     private function notFound(): Response
