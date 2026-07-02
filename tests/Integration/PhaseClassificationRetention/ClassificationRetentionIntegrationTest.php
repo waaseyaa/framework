@@ -18,7 +18,6 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Field\Classification\ClassificationParentResolverInterface;
-use Waaseyaa\Field\Classification\EntityLifecycleSubscriber;
 use Waaseyaa\Field\Classification\Job\HoldScanJob;
 use Waaseyaa\Field\Classification\Job\PurgeJob;
 use Waaseyaa\Field\Classification\LabelInheritanceResolver;
@@ -714,30 +713,22 @@ final class Fr015TestServiceProvider extends ServiceProvider
             }
         });
 
-        // Attach the real EntityLifecycleSubscriber to the kernel dispatcher,
-        // composed from the kernel-resolved resolver + the bound audit writer.
-        //
-        // FieldServiceProvider::boot() requests the dispatcher via the Symfony
-        // *Component* EventDispatcherInterface, which the kernel-services bus
-        // keys only under the *Contracts* interface — so its own subscriber wiring
-        // no-ops under a hand-built manifest. We attach the same production
-        // subscriber here through the Contracts interface so the WP01 inheritance
-        // pipeline runs end-to-end on save. (Same class, same collaborators.)
-        $dispatcher = $this->resolveOptional(
-            \Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class,
-        );
-        if (!$dispatcher instanceof \Symfony\Component\EventDispatcher\EventDispatcherInterface) {
-            return;
-        }
-
-        $auditWriter = $this->resolveOptional(AuditWriterInterface::class);
-        if (!$auditWriter instanceof AuditWriterInterface) {
-            return;
-        }
-
-        $dispatcher->addSubscriber(new EntityLifecycleSubscriber(
-            resolver: $resolver,
-            auditWriter: $auditWriter,
-        ));
+        // NOTE (WP4 dead-subscriber sweep, audit-remediation batch
+        // 2026-07-01/02): this method used to ALSO hand-attach a second
+        // EntityLifecycleSubscriber to the dispatcher here, because
+        // FieldServiceProvider::boot() resolved the dispatcher under the
+        // foundation EventDispatcherInterface FQCN — a key the kernel-services
+        // bus never serves — so its own subscriber wiring silently no-op'd in
+        // every real kernel boot, including this test's. That production bug
+        // is now fixed (FieldServiceProvider::boot() resolves the served
+        // Symfony-contracts FQCN, same #1852 pattern), so this provider's
+        // boot() only needs to register the entity-type-specific parent
+        // resolver on the SHARED LabelInheritanceResolver singleton above —
+        // FieldServiceProvider's own subscriber (bound to that same resolver
+        // instance) now runs end-to-end without help. Re-adding a duplicate
+        // subscriber here would double-run inheritance resolution per save:
+        // the second pass sees the entity already carrying the label the
+        // first pass just set, treats it as an explicit override, and wipes
+        // `classification_inherited_from` back to null.
     }
 }

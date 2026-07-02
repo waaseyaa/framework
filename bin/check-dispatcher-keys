@@ -1,0 +1,452 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+// Usage: php bin/check-dispatcher-keys [--generate-baseline | --verify] [--scan-dir <dir>] [--baseline <file>]
+//
+// Scans packages/*/src/**/*.php for provider register()/boot() methods that
+// resolve an event dispatcher under an FQCN the production kernel-services
+// bus does NOT serve, and then use that (dead) dispatcher to addListener()/
+// addSubscriber(). This is the exact bug class found and fixed in #1852
+// (relationship delete guard) and swept in WP4 (2026-07-01/02
+// audit-remediation batch): ProviderRegistryKernelServices::get() serves the
+// dispatcher ONLY under `Symfony\Contracts\EventDispatcher\EventDispatcherInterface`.
+// A provider that resolves `Waaseyaa\Foundation\Event\EventDispatcherInterface`
+// or `Symfony\Component\EventDispatcher\EventDispatcherInterface` instead gets
+// null (resolveOptional) or a thrown RuntimeException (resolve) in a real
+// kernel boot, and any addListener()/addSubscriber() call guarded by that
+// resolution silently never registers. No exception, no log line — just a
+// guard, telemetry stream, or lifecycle subscriber that never runs.
+//
+// Recognized resolution idioms (all bus-backed, identical key set):
+//   - $this->resolve(FQCN::class) / $this->resolveOptional(FQCN::class)
+//   - $this->kernelServices->get(FQCN::class) / $this->kernelServices?->get(FQCN::class)
+//
+// A resolution of the served Symfony-contracts FQCN is NEVER flagged. A
+// method that resolves the served FQCN ANYWHERE in its body is skipped
+// entirely — a defensive multi-key fallback (listing-style: try Component,
+// then Contracts, then foundation) can reach its registration in a real
+// boot, so its unserved fallback keys are not offenses.
+//
+// KNOWN-NOT-CAUGHT shapes (this is a regex/brace-matching scanner, NOT
+// AST-level analysis — do not assume full coverage):
+//   - Split-method registration: the dispatcher is resolved in a private
+//     helper (e.g. a resolveDispatcher() method) and addListener()/
+//     addSubscriber() happens in boot(). Only register()/boot() bodies are
+//     scanned, and resolution + registration must appear in the SAME method.
+//   - Variable/alias indirection: the FQCN reaches the resolution call via a
+//     variable, constant, or class-string expression rather than a literal
+//     `SomeEventDispatcherInterface::class` token.
+//   - Resolves-both-registers-dead: a method that resolves the served FQCN
+//     AND an unserved one but registers using the dead instance is skipped
+//     by the multi-key exemption above.
+// If you add a new resolution idiom or registration surface, extend the
+// scanner and its self-test (tests/Integration/Phase31/DispatcherKeysGateTest.php).
+//
+// Modes:
+//   (no flags)          Verify mode: fail on new offending sites not in baseline.
+//   --verify            Explicit verify mode (same as no flags).
+//   --generate-baseline Write/overwrite tools/dispatcher-key-baseline.txt.
+//
+// Flags (for test isolation):
+//   --scan-dir <dir>    Override the scan root (default: packages/*/src).
+//   --baseline <file>   Override the baseline path (default: tools/dispatcher-key-baseline.txt).
+//
+// History: gate introduced in WP4 (framework-wide dead-subscriber sweep,
+// audit-remediation batch 2026-07-01/02) after the sweep found three live
+// instances of this bug (ai-observability x2, field) beyond the one #1852
+// had already fixed for relationship, plus one deliberately-parked instance
+// (media, #1742) that is baselined with a rationale rather than fixed.
+
+$mode = 'verify';
+$customScanDir = null;
+$customBaseline = null;
+
+for ($i = 1; $i < $argc; ++$i) {
+    $arg = $argv[$i];
+    if ($arg === '--generate-baseline') {
+        $mode = 'generate';
+    } elseif ($arg === '--verify') {
+        $mode = 'verify';
+    } elseif ($arg === '--scan-dir') {
+        $customScanDir = $argv[++$i] ?? null;
+    } elseif ($arg === '--baseline') {
+        $customBaseline = $argv[++$i] ?? null;
+    }
+}
+
+$repoRoot = dirname(__DIR__);
+$baselineFile = $customBaseline ?? ($repoRoot . '/tools/dispatcher-key-baseline.txt');
+
+if ($customScanDir !== null) {
+    $scanDirs = [$customScanDir];
+} else {
+    $scanDirs = glob($repoRoot . '/packages/*/src', GLOB_ONLYDIR) ?: [];
+}
+
+// The one FQCN the production bus actually serves the dispatcher under.
+// See packages/foundation/src/Kernel/Bootstrap/ProviderRegistryKernelServices.php.
+const SERVED_DISPATCHER_FQCN = 'Symfony\\Contracts\\EventDispatcher\\EventDispatcherInterface';
+
+$offenders = findOffenders($scanDirs, $repoRoot);
+
+if ($mode === 'generate') {
+    generateBaseline($offenders, $baselineFile);
+    $count = count($offenders);
+    echo "Generated baseline with {$count} entr" . ($count === 1 ? 'y' : 'ies') . ".\n";
+    echo "File: {$baselineFile}\n";
+    echo "IMPORTANT: Review each entry and add a mandatory inline comment (# <reason>).\n";
+    echo "           Entries without inline comments will fail CI.\n";
+    exit(0);
+}
+
+// Verify mode
+if (!file_exists($baselineFile)) {
+    if ($offenders === []) {
+        echo "check-dispatcher-keys: OK (no baseline, no offenders found)\n";
+        exit(0);
+    }
+    echo "ERROR: Baseline file not found: {$baselineFile}\n";
+    echo "Run 'php bin/check-dispatcher-keys --generate-baseline' to create it.\n";
+    echo count($offenders) . " offending site(s) found:\n";
+    foreach ($offenders as $entry => $detail) {
+        echo "  {$entry}  ({$detail})\n";
+    }
+    exit(1);
+}
+
+$baseline = loadBaseline($baselineFile);
+
+$incomplete = validateBaselineComments($baselineFile);
+if ($incomplete !== []) {
+    echo "ERROR: Incomplete baseline entries (missing mandatory inline comment):\n";
+    foreach ($incomplete as $line) {
+        echo "  {$line}\n";
+    }
+    echo "Each entry MUST have an inline comment: <path>:<line>  # <reason>\n";
+    exit(1);
+}
+
+$offenderKeys = array_keys($offenders);
+$newOffenders = array_diff($offenderKeys, $baseline);
+if ($newOffenders !== []) {
+    foreach ($newOffenders as $entry) {
+        echo "NEW unserved-dispatcher-key registration: {$entry}  ({$offenders[$entry]})\n";
+    }
+    $count = count($newOffenders);
+    echo "{$count} new offending site(s) found.\n";
+    echo "Re-key the resolve() call to " . SERVED_DISPATCHER_FQCN . "::class (the #1852 pattern),\n";
+    echo "or — if the registration is deliberately parked — add it to {$baselineFile}\n";
+    echo "with a mandatory rationale comment.\n";
+    exit(1);
+}
+
+$baselineCount = count($baseline);
+echo "check-dispatcher-keys: OK ({$baselineCount} known exemption(s), 0 new offenders)\n";
+exit(0);
+
+// ---------------------------------------------------------------------------
+// Functions
+// ---------------------------------------------------------------------------
+
+/**
+ * Walk all .php files under $scanDirs and return a map of
+ * "relative/path:line" => "short description" for every register()/boot()
+ * method that resolves a dispatcher under an unserved FQCN and then calls
+ * addListener()/addSubscriber() in the same method body.
+ *
+ * @param string[] $scanDirs
+ * @return array<string, string>
+ */
+function findOffenders(array $scanDirs, string $repoRoot): array
+{
+    $offenders = [];
+
+    foreach ($scanDirs as $dir) {
+        $iter = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::LEAVES_ONLY,
+        );
+
+        foreach ($iter as $file) {
+            if ($file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $filePath = $file->getPathname();
+            $source = file_get_contents($filePath);
+            if ($source === false) {
+                continue;
+            }
+
+            // Fast guard: skip files that can't possibly match.
+            if (!str_contains($source, 'EventDispatcherInterface')
+                || (!str_contains($source, 'addListener(') && !str_contains($source, 'addSubscriber('))
+            ) {
+                continue;
+            }
+
+            $relPath = str_replace('\\', '/', ltrim(str_replace($repoRoot, '', $filePath), '/\\'));
+            $imports = extractImportMap($source);
+
+            foreach (extractMethodBodies($source, ['register', 'boot']) as $method) {
+                if (!str_contains($method['body'], 'addListener(') && !str_contains($method['body'], 'addSubscriber(')) {
+                    continue;
+                }
+
+                $resolutions = findDispatcherResolutions($method['body']);
+
+                // A method that ALSO resolves the served contracts FQCN
+                // (defensive multi-key fallback, listing-style) can actually
+                // reach its registration in a real boot — skip the whole
+                // method rather than flagging its unserved fallback keys.
+                foreach ($resolutions as $resolution) {
+                    if (resolveFqcn($resolution['token'], $imports) === SERVED_DISPATCHER_FQCN) {
+                        continue 2;
+                    }
+                }
+
+                foreach ($resolutions as $resolution) {
+                    $fqcn = resolveFqcn($resolution['token'], $imports);
+                    if ($fqcn === null) {
+                        continue;
+                    }
+                    if (!str_ends_with($fqcn, '\\EventDispatcherInterface')) {
+                        continue;
+                    }
+
+                    $lineNumber = $method['startLine'] + substr_count(substr($method['body'], 0, $resolution['offset']), "\n");
+                    $key = $relPath . ':' . $lineNumber;
+                    $offenders[$key] = "resolves {$fqcn} then addListener/addSubscriber in {$method['name']}()";
+                }
+            }
+        }
+    }
+
+    ksort($offenders);
+
+    return $offenders;
+}
+
+/**
+ * @return array<string, string> alias (short class name) => FQCN (no leading backslash)
+ */
+function extractImportMap(string $source): array
+{
+    $imports = [];
+    if (preg_match_all('/^use\s+([\w\\\\]+)(?:\s+as\s+(\w+))?;/m', $source, $matches, PREG_SET_ORDER)) {
+        foreach ($matches as $match) {
+            $fqcn = ltrim($match[1], '\\');
+            $parts = explode('\\', $fqcn);
+            $asAlias = $match[2] ?? '';
+            $alias = $asAlias !== '' ? $asAlias : end($parts);
+            $imports[$alias] = $fqcn;
+        }
+    }
+
+    return $imports;
+}
+
+/**
+ * Extract top-level method bodies (by brace matching) for the given method
+ * names, scanning the whole file for `function <name>(...)  { ... }`
+ * declarations regardless of visibility modifiers.
+ *
+ * @param string[] $names
+ * @return list<array{name: string, startLine: int, body: string}>
+ */
+function extractMethodBodies(string $source, array $names): array
+{
+    $results = [];
+    $pattern = '/function\s+(' . implode('|', array_map('preg_quote', $names)) . ')\s*\([^)]*\)\s*(?::\s*[\w?|\\\\]+\s*)?\{/';
+
+    if (!preg_match_all($pattern, $source, $matches, PREG_OFFSET_CAPTURE)) {
+        return $results;
+    }
+
+    foreach ($matches[0] as $i => $wholeMatch) {
+        [$matchText, $matchOffset] = $wholeMatch;
+        $braceStart = $matchOffset + strlen($matchText) - 1; // position of the opening '{'
+        $bodyEnd = findMatchingBrace($source, $braceStart);
+        if ($bodyEnd === null) {
+            continue;
+        }
+
+        $body = substr($source, $braceStart + 1, $bodyEnd - $braceStart - 1);
+        $startLine = substr_count(substr($source, 0, $braceStart), "\n") + 1;
+
+        $results[] = [
+            'name' => $matches[1][$i][0],
+            'startLine' => $startLine,
+            'body' => $body,
+        ];
+    }
+
+    return $results;
+}
+
+/**
+ * Given the offset of an opening '{' in $source, return the offset of its
+ * matching closing '}', or null if unbalanced.
+ */
+function findMatchingBrace(string $source, int $openOffset): ?int
+{
+    $depth = 0;
+    $len = strlen($source);
+    for ($i = $openOffset; $i < $len; ++$i) {
+        if ($source[$i] === '{') {
+            ++$depth;
+        } elseif ($source[$i] === '}') {
+            --$depth;
+            if ($depth === 0) {
+                return $i;
+            }
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Find dispatcher-resolution calls within a method body and return their
+ * class-reference token plus byte offset. Recognized resolution idioms:
+ *
+ *   - `$this->resolve(...EventDispatcherInterface::class)`
+ *   - `$this->resolveOptional(...EventDispatcherInterface::class)`
+ *   - `$this->kernelServices->get(...EventDispatcherInterface::class)`
+ *     (also the nullsafe `?->get(` form — the direct bus-access shape
+ *     packages/listing uses; the bus serves the identical key set).
+ *
+ * @return list<array{token: string, offset: int}>
+ */
+function findDispatcherResolutions(string $methodBody): array
+{
+    $results = [];
+    $regex = '/(?:resolve(?:Optional)?|kernelServices\??->get)\(\s*(\\\\?[\w\\\\]*EventDispatcherInterface)::class\s*\)/';
+    if (preg_match_all($regex, $methodBody, $matches, PREG_OFFSET_CAPTURE)) {
+        foreach ($matches[1] as $match) {
+            $results[] = ['token' => $match[0], 'offset' => $match[1]];
+        }
+    }
+
+    return $results;
+}
+
+/**
+ * Resolve a class-reference token (as written in source: bare short name,
+ * aliased short name, or fully-qualified with a leading backslash) to its
+ * FQCN using the file's import map. Returns null when the token is a bare
+ * short name with no matching import (ambiguous — skipped to avoid false
+ * positives rather than guessing the current namespace).
+ *
+ * @param array<string, string> $imports
+ */
+function resolveFqcn(string $token, array $imports): ?string
+{
+    if (str_starts_with($token, '\\')) {
+        return ltrim($token, '\\');
+    }
+
+    $parts = explode('\\', $token);
+    $shortName = $parts[0];
+
+    if (isset($imports[$shortName])) {
+        $rest = array_slice($parts, 1);
+
+        return $rest === [] ? $imports[$shortName] : $imports[$shortName] . '\\' . implode('\\', $rest);
+    }
+
+    return null;
+}
+
+/**
+ * Load baseline entries (path:line) from a baseline file.
+ *
+ * @return string[]
+ */
+function loadBaseline(string $baselineFile): array
+{
+    $lines = file($baselineFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if ($lines === false) {
+        return [];
+    }
+
+    $entries = [];
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if (str_starts_with($line, '#')) {
+            continue;
+        }
+        $pos = strpos($line, '  #');
+        if ($pos !== false) {
+            $line = trim(substr($line, 0, $pos));
+        }
+        if ($line !== '') {
+            $entries[] = $line;
+        }
+    }
+
+    return $entries;
+}
+
+/**
+ * Return all non-comment data lines that lack a mandatory inline comment.
+ *
+ * @return string[]
+ */
+function validateBaselineComments(string $baselineFile): array
+{
+    $lines = file($baselineFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if ($lines === false) {
+        return [];
+    }
+
+    $incomplete = [];
+    foreach ($lines as $rawLine) {
+        $line = trim($rawLine);
+        if ($line === '' || str_starts_with($line, '#')) {
+            continue;
+        }
+        if (!preg_match('/  # .+/', $rawLine)) {
+            $incomplete[] = $rawLine;
+        }
+    }
+
+    return $incomplete;
+}
+
+/**
+ * @param array<string, string> $offenders
+ */
+function generateBaseline(array $offenders, string $baselineFile): void
+{
+    $date = date('Y-m-d');
+    $header = <<<EOH
+        # Baseline: dispatcher-key registrations exempt from CI gate
+        # Format: <relative-path-from-repo-root>:<line>  # <mandatory-exemption-reason>
+        # Generated by: php bin/check-dispatcher-keys --generate-baseline
+        # Last generated: {$date}
+        #
+        # Rules:
+        # - One entry per offending site (path:line sorted ascending).
+        # - Every entry MUST have an inline comment explaining the exemption.
+        # - An entry WITHOUT a comment causes CI to fail with "incomplete baseline entry".
+        # - To add an exemption: append <path>:<line>  # <reason>, verify with
+        #   php bin/check-dispatcher-keys --verify
+        # - To regenerate after a codebase change:
+        #   php bin/check-dispatcher-keys --generate-baseline
+        #
+        EOH;
+
+    $lines = [$header];
+    foreach (array_keys($offenders) as $entry) {
+        $lines[] = $entry . '  # TODO: add exemption reason';
+    }
+
+    $content = implode("\n", $lines) . "\n";
+
+    $tmpFile = $baselineFile . '.tmp.' . getmypid();
+    file_put_contents($tmpFile, $content);
+    rename($tmpFile, $baselineFile);
+}

@@ -170,7 +170,16 @@ final class FieldServiceProvider extends ServiceProvider
         $compiler->compile([]);
 
         // --- Classification substrate: wire the lifecycle subscriber ---
-        $dispatcher = $this->resolveOptional(EventDispatcherInterface::class);
+        //
+        // The kernel-services bus serves the dispatcher ONLY under the
+        // Symfony-contracts FQCN (ProviderRegistryKernelServices::get());
+        // resolving the foundation FQCN returns null and silently skips
+        // registration — the classification-label lifecycle subscriber
+        // (and its audit trail) never ran in a real kernel boot. Same
+        // gotcha RelationshipServiceProvider::boot() fixed for the delete
+        // guard (#1852). Resolve the served key, then type-check against
+        // the foundation contract.
+        $dispatcher = $this->resolveOptional(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
         if (!$dispatcher instanceof EventDispatcherInterface) {
             return;
         }

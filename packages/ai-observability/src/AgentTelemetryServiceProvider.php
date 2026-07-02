@@ -66,7 +66,18 @@ final class AgentTelemetryServiceProvider extends ServiceProvider
     public function boot(): void
     {
         try {
-            $dispatcher = $this->resolve(EventDispatcherInterface::class);
+            // The kernel-services bus serves the dispatcher ONLY under the
+            // Symfony-contracts FQCN (ProviderRegistryKernelServices::get());
+            // resolving the foundation FQCN throws, and this try/catch
+            // silently swallowed the miss — the telemetry listener never
+            // registered in a real kernel boot. Same gotcha
+            // RelationshipServiceProvider::boot() fixed for the delete
+            // guard (#1852). Resolve the served key, then type-check
+            // against the foundation contract.
+            $dispatcher = $this->resolve(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
+            if (!$dispatcher instanceof EventDispatcherInterface) {
+                return;
+            }
             $listener = $this->resolve(AgentRunTelemetryListener::class);
             $dispatcher->addSubscriber($listener);
         } catch (\Throwable) {

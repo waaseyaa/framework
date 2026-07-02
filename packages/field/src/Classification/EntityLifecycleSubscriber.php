@@ -8,6 +8,7 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -62,8 +63,29 @@ final class EntityLifecycleSubscriber implements EventSubscriberInterface
             // Resolve the effective classification decision.
             $decision = $this->resolver->resolve($entity, $previousLabel);
 
-            // Write resolved values back to entity columns.
+            // Skip the write-back entirely when there is nothing real to
+            // record: the decision is all-null, no previous label needs
+            // clearing, and the entity carries no stray classification value.
+            // Now that this subscriber is live framework-wide (WP4
+            // dead-subscriber sweep), unconditionally writing three NULL keys
+            // would pollute EVERY entity's value bag — and thus the sql-blob
+            // `_data` column — including entity types with zero classification
+            // involvement (the common case). An all-null decision is still
+            // written when it CLEARS something (a previous label, or a stale
+            // in-memory classification value), so cleared labels never
+            // silently survive in storage.
             $storage = $decision->toStorageArray();
+            $decisionIsAllNull = $decision->label === null
+                && $decision->inheritedFromUuid === null
+                && $decision->overriddenAt === null;
+            if ($decisionIsAllNull
+                && $previousLabel === null
+                && !$this->carriesClassificationValue($entity, array_keys($storage))
+            ) {
+                return;
+            }
+
+            // Write resolved values back to entity columns.
             foreach ($storage as $column => $value) {
                 $entity->set($column, $value);
             }
@@ -115,5 +137,25 @@ final class EntityLifecycleSubscriber implements EventSubscriberInterface
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Whether the entity currently carries a non-empty value under any of the
+     * classification storage keys (e.g. stale hydrated provenance whose
+     * parent lost its label) — if so, an all-null decision must still be
+     * written to clear it.
+     *
+     * @param list<string> $keys
+     */
+    private function carriesClassificationValue(EntityInterface $entity, array $keys): bool
+    {
+        foreach ($keys as $key) {
+            $value = $entity->get($key);
+            if ($value !== null && $value !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

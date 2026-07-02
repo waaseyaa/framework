@@ -96,6 +96,87 @@ final class EntityLifecycleSubscriberTest extends TestCase
     // ---------------------------------------------------------------------------
 
     #[Test]
+    public function classification_uninvolved_entity_gets_no_stray_keys_written(): void
+    {
+        // The common case framework-wide now that the subscriber is live on
+        // every save (WP4 dead-subscriber sweep): an entity with no explicit
+        // label, no registered parent resolver, and no prior classification
+        // state. The subscriber must not pollute its value bag (and thus the
+        // sql-blob `_data` column) with three stray NULL keys.
+        $entity = $this->makeEntity('plain_widget', ['title' => 'hello']);
+
+        $auditWriter = new class implements AuditWriterInterface {
+            /** @var list<AuditEventDescriptor> */
+            public array $recorded = [];
+            public function record(AuditEventDescriptor $descriptor): void
+            {
+                $this->recorded[] = $descriptor;
+            }
+        };
+
+        $subscriber = new EntityLifecycleSubscriber(new LabelInheritanceResolver(), $auditWriter);
+        $subscriber->onPreSave(new EntityEvent($entity));
+
+        self::assertArrayNotHasKey('classification_label', $entity->fields);
+        self::assertArrayNotHasKey('classification_inherited_from', $entity->fields);
+        self::assertArrayNotHasKey('classification_overridden_at', $entity->fields);
+        self::assertCount(0, $auditWriter->recorded);
+    }
+
+    #[Test]
+    public function clearing_a_previously_labelled_entity_still_writes_nulls_and_audits(): void
+    {
+        // Counter-case for the skip: an all-null decision must STILL be
+        // written (and audited) when a previous label exists — otherwise a
+        // cleared label would silently survive in storage.
+        $original = $this->makeEntity('node', ['classification_label' => 'confidential']);
+        $entity = $this->makeEntity('node', []);
+
+        $auditWriter = new class implements AuditWriterInterface {
+            /** @var list<AuditEventDescriptor> */
+            public array $recorded = [];
+            public function record(AuditEventDescriptor $descriptor): void
+            {
+                $this->recorded[] = $descriptor;
+            }
+        };
+
+        $subscriber = new EntityLifecycleSubscriber(new LabelInheritanceResolver(), $auditWriter);
+        $subscriber->onPreSave(new EntityEvent($entity, $original));
+
+        self::assertArrayHasKey('classification_label', $entity->fields);
+        self::assertNull($entity->fields['classification_label']);
+        self::assertCount(1, $auditWriter->recorded);
+        self::assertSame('confidential', $auditWriter->recorded[0]->attributes['previous_label']);
+        self::assertNull($auditWriter->recorded[0]->attributes['new_label']);
+    }
+
+    #[Test]
+    public function stale_in_memory_classification_value_is_cleared_not_skipped(): void
+    {
+        // An entity carrying a stray non-null classification value (e.g.
+        // hydrated provenance whose parent lost its label) with an all-null
+        // decision and no previous label must still get the nulls written so
+        // the stale value does not survive.
+        $entity = $this->makeEntity('node', ['classification_inherited_from' => 'ghost-parent-uuid']);
+
+        $auditWriter = new class implements AuditWriterInterface {
+            /** @var list<AuditEventDescriptor> */
+            public array $recorded = [];
+            public function record(AuditEventDescriptor $descriptor): void
+            {
+                $this->recorded[] = $descriptor;
+            }
+        };
+
+        $subscriber = new EntityLifecycleSubscriber(new LabelInheritanceResolver(), $auditWriter);
+        $subscriber->onPreSave(new EntityEvent($entity));
+
+        self::assertArrayHasKey('classification_inherited_from', $entity->fields);
+        self::assertNull($entity->fields['classification_inherited_from']);
+    }
+
+    #[Test]
     public function on_pre_save_writes_resolved_label_back_to_entity(): void
     {
         $entity = $this->makeEntity('node', ['classification_label' => 'confidential']);

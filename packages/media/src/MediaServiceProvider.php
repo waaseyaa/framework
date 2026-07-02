@@ -63,6 +63,29 @@ final class MediaServiceProvider extends ServiceProvider implements HasHttpDomai
     public function boot(): void
     {
         // WP02 (versioned-blob-media-abstraction-01KSEFTJ): wire versioning subscribers.
+        //
+        // KNOWINGLY LEFT DEAD (WP4 framework-wide dead-subscriber sweep,
+        // audit-remediation batch 2026-07-01/02): this resolves the
+        // foundation `Waaseyaa\Foundation\Event\EventDispatcherInterface`
+        // FQCN, which `ProviderRegistryKernelServices::get()` never serves
+        // (the bus serves the dispatcher only under the Symfony-contracts
+        // FQCN — see RelationshipServiceProvider::boot() / #1852 for the
+        // working pattern). `resolveOptional()` therefore returns null here
+        // and MediaVersionStorageDriver + MediaCascadeDeleteSubscriber never
+        // register in a real kernel boot.
+        //
+        // This is deliberate, not an oversight: re-keying this resolution to
+        // the served Symfony-contracts FQCN would part-activate the
+        // versioned-blob-media subsystem (WP01/WP02 of
+        // versioned-blob-media-abstraction-01KSEFTJ) — including cascade
+        // deletes of media version blobs — before the finish-or-park
+        // decision tracked in #1742 is resolved. Activating a data-lossy
+        // cascade-delete subscriber as a side effect of an unrelated
+        // dispatcher-key sweep is out of scope and unsafe. WP4 explicitly
+        // chose to leave this dead until #1742 lands a real decision.
+        //
+        // Do NOT re-key this resolution without first reading #1742 and the
+        // versioned-blob-media-abstraction-01KSEFTJ spec.
         $dispatcher = $this->resolveOptional(EventDispatcherInterface::class);
         if (!$dispatcher instanceof EventDispatcherInterface) {
             return;
