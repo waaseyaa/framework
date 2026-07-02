@@ -237,8 +237,9 @@ final class PackageManifestCompiler
 1. Read `vendor/composer/installed.json` for coarse-grained manifest data (providers, commands, routes, migrations, permissions)
 2. Scan for Waaseyaa-namespaced classes using a two-tier strategy (see below)
 3. Reflect each class, checking for discovery attributes
-4. Sort middleware and listeners by priority (descending -- highest priority first)
-5. Produce `PackageManifest` instance
+4. Discover `ScheduleEntriesInterface` implementors (a filter over the same scanned-class set, not a second scan — see "Single-scan memoization" below)
+5. Sort middleware and listeners by priority (descending -- highest priority first)
+6. Produce `PackageManifest` instance
 
 **Class scanning strategy (step 2):**
 
@@ -247,7 +248,11 @@ The compiler uses a classmap-first approach with PSR-4 fallback:
 1. **Classmap (preferred):** Read `vendor/composer/autoload_classmap.php` and filter to `Waaseyaa\` entries. This is populated by `composer dump-autoload --optimize` and is the fastest, most reliable path.
 2. **PSR-4 fallback:** If the classmap has no `Waaseyaa\` entries (default `composer install` only includes Composer internals and polyfill stubs), fall back to reading `vendor/composer/autoload_psr4.php`. For each `Waaseyaa\` namespace (excluding `Tests\` namespaces), recursively scan directories for `.php` files and derive class names from namespace prefix + relative path.
 
-The fallback logs a warning via `error_log()` recommending `composer dump-autoload --optimize`. The PSR-4 path is protected by try-catch for corrupt map files.
+The fallback logs a warning via the injected `LoggerInterface` (not `error_log()`) recommending `composer dump-autoload --optimize`. The PSR-4 path is protected by try-catch for corrupt map files.
+
+**Single-scan memoization (WP7 audit remediation):** `scanClasses()` is memoized per `PackageManifestCompiler` instance (`private ?array $scannedClasses`). Without memoization, `compile()` ran the full classmap/PSR-4 scan and per-class `ReflectionClass` construction TWICE — once directly for the attribute-scan loop, once indirectly via `scanScheduleEntryClasses()` for the schedule-entries pass, since `filterDiscoveryClasses()` already admits `ScheduleEntriesInterface` implementors into the same discovery-class set the attribute loop iterates. `scanScheduleEntryClasses()` remains a separate logical pass over that shared set (a deliberate decision, not an oversight) — with `scanClasses()` memoized, it is a cheap in-memory `foreach`/`class_implements()` filter, not a second reflective scan. Compiler instances are created fresh per boot (one instance per request/CLI invocation), so the memo has no cross-request staleness window: it lives exactly as long as the one compile it serves.
+
+**Corrupt-cache self-heal logging:** `load()`'s corrupt-cache recovery path (a cache file that throws on `require`, e.g. `<?php throw new \RuntimeException(...)`) logs a `warning()` naming the cache path, the exception class, and the exception message before falling through to recompile — an operator can see WHY a recompile happened instead of it being silent. A cache file that returns a wrong-shaped value without throwing (e.g. `<?php return "not an array";`) is a different code path (`is_array($data)` is simply false) and still self-heals without a warning, since no exception was thrown to log.
 
 **Attribute scanning details:**
 
@@ -418,6 +423,8 @@ foreach ($ref->getAttributes(self::POLICY_ATTRIBUTE) as $attr) {
 ```
 
 `ReflectionClass::getAttributes()` accepts string class names, so no import is needed. This preserves strict layer discipline.
+
+The same technique applies beyond attribute scanning wherever `PackageManifestCompiler` needs to test a class against a higher-layer type — e.g. `ENTITY_TYPE_DEFINITION_INTERFACE = 'Waaseyaa\\Entity\\DefinesEntityType'` (L1), used with `interface_exists()` / `is_subclass_of()` in `compile()`'s `AsEntityType` handling instead of an inline `\Waaseyaa\Entity\DefinesEntityType::class` reference. `::class` on an unimported FQCN is a compile-time string literal (PHP never autoloads to resolve it), so the string-constant form is behaviourally identical — it exists purely for convention consistency and to keep `bin/check-package-layers`' PL008 scan (see the infrastructure spec) from having to allowlist an inline `::class` token instead of a named constant.
 
 ## Layer Discipline
 

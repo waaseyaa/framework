@@ -26,6 +26,14 @@ final class ControllerDispatcher
 {
     use JsonApiResponseTrait;
 
+    /**
+     * @internal String FQN avoids upward layer import (Foundation/L0 must not import
+     * from SSR/L6). `::class` on an unimported FQCN does not autoload — this string
+     * constant is behaviourally identical to the inline `\Waaseyaa\SSR\SsrPageHandler::class`
+     * it replaces (WP7 audit remediation — pattern PL008 was extended to catch).
+     */
+    private const SSR_PAGE_HANDLER = 'Waaseyaa\\SSR\\SsrPageHandler';
+
     private readonly LoggerInterface $logger;
 
     private readonly ?InertiaFullPageRendererInterface $inertiaFullPageRenderer;
@@ -48,7 +56,7 @@ final class ControllerDispatcher
     {
         $controller = $request->attributes->get('_controller', '');
 
-        if ($controller === 'render.page' && !\class_exists(\Waaseyaa\SSR\SsrPageHandler::class)) {
+        if ($controller === 'render.page' && !\class_exists(self::SSR_PAGE_HANDLER)) {
             return $this->jsonApiResponse(501, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [[

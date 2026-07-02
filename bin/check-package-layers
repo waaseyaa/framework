@@ -18,12 +18,25 @@ declare(strict_types=1);
  *   PL005 – PHP file-level `use Waaseyaa\…` import violates layer order (upward)
  *   PL006 – same-layer dependency cycle (WARN only)
  *   PL007 – undeclared same-or-lower-layer dependency (fail-on-new, baselined)
- *   PL008 – Layer-0 src/ file contains a string-literal FQCN for a higher-layer
- *            package (catches routing/bootstrapping coupling hidden from PL005
- *            because string literals bypass `use` statement analysis). Only
- *            non-kernel-exempt Layer-0 files are scanned; kernel/boot files are
- *            already trusted to wire all layers. New violations fail; pre-existing
- *            legitimate ones are baselined in tools/package-layers-string-literal-baseline.txt.
+ *   PL008 – Layer-0 src/ file references a higher-layer package's FQCN in a way
+ *            PL005 cannot see (no plain `use` import). Only non-kernel-exempt
+ *            Layer-0 files are scanned; kernel/boot files are already trusted to
+ *            wire all layers. New violations fail; pre-existing legitimate ones
+ *            are baselined in tools/package-layers-string-literal-baseline.txt.
+ *            The scan is TOKENIZER-BASED (token_get_all; comments are dropped as
+ *            whole tokens, so FQCNs in comments/docblocks never fire). Two
+ *            sub-patterns are matched under the same PL008 rule ID (same
+ *            finding/baseline/emit path — a file with either pattern needs the
+ *            same fix: move the reference to the owning higher-layer package or
+ *            switch to the string-constant mechanism, then baseline if intentional):
+ *              (a) FQCNs inside string scalars (quoted strings, interpolated
+ *                  parts, heredoc/nowdoc), separator-tolerant: 'Waaseyaa\\Node\\Foo',
+ *                  'Waaseyaa\Node\Foo', and '\Waaseyaa\Node\Foo' all match.
+ *              (b) fully-qualified name tokens (T_NAME_FULLY_QUALIFIED) with no
+ *                  `use` import — \Waaseyaa\Node\Foo::class / ::make() / ::CONST,
+ *                  new \Waaseyaa\Node\Foo(), instanceof, type hints. Added
+ *                  audit-remediation WP7; broadened from `::class`-only to any
+ *                  usage shape in the same WP's adversarial-review fix round.
  */
 
 $rootEnv = getenv('WAASEYAA_LAYER_ROOT');
@@ -320,14 +333,55 @@ $loadStringLiteralBaseline = static function (string $baselinePath): array {
 $stringLiteralBaseline = $loadStringLiteralBaseline($stringLiteralBaselinePath);
 
 /**
- * Scan a Layer-0 package's src/ for string-literal FQCNs referencing packages
- * at higher layers (PL008). Kernel-exempt files are skipped (they are trusted
- * bootstrapping orchestrators, same as for PL005). Multi-line block comments
- * and single-line comments are stripped before matching to avoid false positives.
+ * Scan a Layer-0 package's src/ for FQCNs referencing packages at higher
+ * layers, hidden from PL005 (which only sees plain `use` imports).
+ * Kernel-exempt files are skipped (they are trusted bootstrapping
+ * orchestrators, same as for PL005), as are files allowlisted in the
+ * PL008 baseline.
  *
- * Pattern matched in raw PHP file text: a single- or double-quoted literal that
- * starts with `Waaseyaa\<NamespaceSegment>\` (encoded in the file as two
- * backslashes per separator: `Waaseyaa\\<NS>\\`).
+ * TOKENIZER-BASED (token_get_all, purely lexical — no full parse needed).
+ * The original raw-text regex implementation was rewritten in the
+ * audit-remediation WP7 fix round after adversarial review found evasions
+ * and a false positive: static access `\Waaseyaa\Node\Foo::make()` passed
+ * (only the literal `::class` suffix was matched); `'\Waaseyaa\Node\Foo'`
+ * (leading backslash inside the quotes) and single-backslash
+ * `'Waaseyaa\Node\Foo'` quoted forms passed (the regex anchored
+ * quote-then-`Waaseyaa` and required raw double-backslash separators); and
+ * a trailing same-line comment mentioning an FQCN FAILED the gate on
+ * legitimate code (only whole-comment lines were stripped). Tokenizing
+ * makes comment removal exact — T_COMMENT / T_DOC_COMMENT are whole
+ * tokens, dropped entirely — and matches on token text instead of raw
+ * file bytes.
+ *
+ * Two sub-patterns are matched (both raised as PL008 — see rule-ID doc at
+ * the top of this file):
+ *
+ *   (a) String scalars — T_CONSTANT_ENCAPSED_STRING and
+ *       T_ENCAPSED_AND_WHITESPACE tokens (single/double-quoted strings,
+ *       interpolated string parts, heredoc/nowdoc bodies) — containing a
+ *       `Waaseyaa\<Ns>\…` FQCN anywhere in the scalar. The separator is
+ *       tolerant: ONE or TWO raw backslashes, with up to two leading
+ *       backslashes allowed (covers 'Waaseyaa\\Node\\Foo',
+ *       'Waaseyaa\Node\Foo', and '\Waaseyaa\Node\Foo' alike).
+ *
+ *   (b) Fully-qualified name tokens — T_NAME_FULLY_QUALIFIED starting with
+ *       `\Waaseyaa\`. This flags ::class, ::method(), ::CONST, ::$prop,
+ *       `new \Waaseyaa\…\Foo()`, `instanceof`, fully-qualified type hints,
+ *       and even leading-backslash `use \Waaseyaa\…;` imports (which
+ *       PL005's regex does not match) — every one of which is upward
+ *       coupling with no plain `use` import for PL005 to see. Relative
+ *       qualified names (T_NAME_QUALIFIED) are deliberately NOT flagged:
+ *       they resolve against the current namespace, and any enabling `use`
+ *       import is already PL005's job. A name split across lines before
+ *       `::class` is caught for free — the match is on the name token
+ *       itself, regardless of what follows it.
+ *
+ * Known accepted misses: lowercase FQCNs ('waaseyaa\node\foo') evade both
+ * sub-patterns — acceptable because Composer's PSR-4 prefix matching is
+ * case-sensitive, so a lowercase string cannot trigger upward autoloading
+ * (class_exists() on it returns false unless the canonical-case class is
+ * already loaded). Dynamically assembled FQCNs (sprintf/concat) are
+ * inherently invisible to a lexical scan.
  *
  * @return list<array{relative: string, dep: string, depLayer: int}>
  */
@@ -375,47 +429,52 @@ $scanStringLiteralFqcns = static function (string $packageDirectory, int $selfLa
             continue;
         }
 
-        // Strip comments conservatively to avoid false positives. We process
-        // line-by-line: skip pure-comment lines (// …, # …, * … for block
-        // comment bodies) and track /* … */ block comment regions.
-        $filteredLines = [];
-        $inBlock = false;
-        foreach (explode("\n", $rawText) as $line) {
-            $trimmed = ltrim($line);
-            if ($inBlock) {
-                if (str_contains($line, '*/')) {
-                    $inBlock = false;
-                }
+        /** @var list<array{string, string|null}> $candidateSegments [firstSegment, secondSegment|null] */
+        $candidateSegments = [];
+        foreach (token_get_all($rawText) as $token) {
+            if (!is_array($token)) {
                 continue;
             }
-            // Block comment open (/** or /* without closing */ on same line).
-            if (str_starts_with($trimmed, '/*') || str_starts_with($trimmed, '/**')) {
-                if (!str_contains($line, '*/')) {
-                    $inBlock = true;
-                }
-                continue;
-            }
-            // Single-line comment or block comment continuation line.
-            if (str_starts_with($trimmed, '//') || str_starts_with($trimmed, '#') || str_starts_with($trimmed, '*')) {
-                continue;
-            }
-            $filteredLines[] = $line;
-        }
-        $text = implode("\n", $filteredLines);
+            [$id, $text] = $token;
 
-        // Match quoted string literals containing Waaseyaa\\<Ns>\\  patterns.
-        // In raw PHP file text, namespace separators appear as \\ (two backslashes),
-        // so the regex matches the literal byte sequence `Waaseyaa` + `\\` + CapLetter.
-        preg_match_all(
-            '#[\'"]Waaseyaa\\\\\\\\([A-Z][A-Za-z0-9]*)(?:\\\\\\\\([A-Z][A-Za-z0-9]*))?#',
-            $text,
-            $matches,
-            PREG_SET_ORDER,
-        );
+            // Exact comment stripping: comments and docblocks are whole tokens,
+            // so dropping them here can never clip code or leak a trailing
+            // same-line comment into the scan (the retired line-based stripper did).
+            if ($id === T_COMMENT || $id === T_DOC_COMMENT) {
+                continue;
+            }
+
+            if ($id === T_NAME_FULLY_QUALIFIED) {
+                // Sub-pattern (b): inline fully-qualified name token — any
+                // usage shape (::class, ::method(), ::CONST, new, instanceof,
+                // type hint) is flagged from the name token alone.
+                if (preg_match('#^\\\\Waaseyaa\\\\([A-Z][A-Za-z0-9]*)(?:\\\\([A-Z][A-Za-z0-9]*))?#', $text, $m) === 1) {
+                    $candidateSegments[] = [$m[1], $m[2] ?? null];
+                }
+                continue;
+            }
+
+            if ($id === T_CONSTANT_ENCAPSED_STRING || $id === T_ENCAPSED_AND_WHITESPACE) {
+                // Sub-pattern (a): FQCN anywhere inside a string scalar. Token
+                // text is raw source (quotes/escapes included), so separators
+                // appear as one raw backslash (single-quoted / nowdoc source)
+                // or two (escaped form); up to two leading backslashes are
+                // tolerated so '\Waaseyaa\…' and "\\Waaseyaa\\…" both match.
+                preg_match_all(
+                    '#\\\\{0,2}Waaseyaa\\\\{1,2}([A-Z][A-Za-z0-9]*)(?:\\\\{1,2}([A-Z][A-Za-z0-9]*))?#',
+                    $text,
+                    $stringMatches,
+                    PREG_SET_ORDER,
+                );
+                foreach ($stringMatches as $m) {
+                    $candidateSegments[] = [$m[1], $m[2] ?? null];
+                }
+            }
+        }
 
         $seen = [];
-        foreach ($matches as $match) {
-            $depShort = $shortForNamespace($match[1], $match[2] ?? null);
+        foreach ($candidateSegments as $match) {
+            $depShort = $shortForNamespace($match[0], $match[1]);
             if ($depShort === null || !isset($layerByShort[$depShort]) || $depShort === $selfShort) {
                 continue;
             }
@@ -474,8 +533,12 @@ $scanPhpImports = static function (string $packageDirectory, int $selfLayer, str
             continue;
         }
 
+        // The optional leading \ covers `use \Waaseyaa\…;` — valid PHP, identical
+        // semantics to the unprefixed form, and previously invisible to this scan
+        // in every layer (WP7 adversarial-review finding; the PL008 tokenizer scan
+        // only covers Layer-0 packages, so PL005 must catch it everywhere else).
         preg_match_all(
-            '/^\s*use(?:\s+function|\s+const)?\s+Waaseyaa\\\\([A-Z][A-Za-z0-9]*)(?:\\\\([A-Z][A-Za-z0-9]*))?/m',
+            '/^\s*use(?:\s+function|\s+const)?\s+\\\\?Waaseyaa\\\\([A-Z][A-Za-z0-9]*)(?:\\\\([A-Z][A-Za-z0-9]*))?/m',
             $text,
             $matches,
             PREG_SET_ORDER,
@@ -638,20 +701,25 @@ foreach ($packageDirectories as $packageDirectory) {
         $violations[] = ['source' => $short, 'target' => $depShort, 'edge' => 'undeclared'];
     }
 
-    // PL008: string-literal FQCN layer gate (Layer-0 only). De-dup per dep.
+    // PL008: string-literal FQCN layer gate (Layer-0 only). One error per dep,
+    // but list EVERY violating file — keeping only the first example hid the
+    // rest behind alphabetically-earlier files (WP7 adversarial-review finding).
     $stringLiteralEdges = [];
     foreach ($scanStringLiteralFqcns($packageDirectory, $selfLayer, $short) as $finding) {
-        if (!isset($stringLiteralEdges[$finding['dep']])) {
-            $stringLiteralEdges[$finding['dep']] = $finding['relative'];
-        }
+        $stringLiteralEdges[$finding['dep']][$finding['relative']] = true;
     }
-    foreach ($stringLiteralEdges as $depShort => $exampleRelative) {
+    foreach ($stringLiteralEdges as $depShort => $relativeSet) {
         ++$errors;
+        $fileList = implode(', ', array_map(
+            static fn(string $rel): string => "packages/{$rel}",
+            array_keys($relativeSet),
+        ));
         $emit(
-            "FAIL [PL008] packages/{$exampleRelative}: string-literal layer violation - "
-            . "{$short} (layer {$selfLayer}) contains a quoted Waaseyaa\\\\{$depShort}\\\\… FQCN "
-            . "(layer {$layerByShort[$depShort]}). Move the route/binding to the owning higher-layer "
-            . "provider, or baseline the file in tools/package-layers-string-literal-baseline.txt "
+            "FAIL [PL008] {$fileList}: string-literal layer violation - "
+            . "{$short} (layer {$selfLayer}) references a Waaseyaa\\{$depShort}\\… FQCN "
+            . "(layer {$layerByShort[$depShort]}) as a fully-qualified name in code or inside "
+            . "a string scalar. Move the route/binding to the owning higher-layer provider, "
+            . "or baseline the file in tools/package-layers-string-literal-baseline.txt "
             . "with a mandatory rationale comment.",
         );
         $violations[] = ['source' => $short, 'target' => $depShort, 'edge' => 'string-literal'];
