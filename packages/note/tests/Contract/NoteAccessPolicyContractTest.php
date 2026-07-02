@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Waaseyaa\Note\Tests\Contract;
 
 use Waaseyaa\Access\AccessPolicyInterface;
-use Waaseyaa\Access\Tests\Contract\AccessPolicyContractTest;
+use Waaseyaa\Access\Tests\Contract\AbstractAccessPolicyContract;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Note\NoteAccessPolicy;
 
-final class NoteAccessPolicyContractTest extends AccessPolicyContractTest
+final class NoteAccessPolicyContractTest extends AbstractAccessPolicyContract
 {
     protected function createPolicy(): AccessPolicyInterface
     {

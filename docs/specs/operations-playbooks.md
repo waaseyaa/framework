@@ -96,12 +96,21 @@ Both **merge** the skeleton `config/frankenphp/php.ini` (SSE / error settings) o
 | `composer phpstan` | PHPStan max-level static analysis (1053 files, zero baseline tolerance) |
 | `composer check-composer-policy` | Composer manifest invariants — sort-packages, `@dev` forbidden in published manifests, `self.version` scoped to root metapackage, no wildcard internal versions, tight pre-release floor in non-root manifests |
 | `composer check-package-layers` | Seven-layer architecture enforcement at composer.json edges and PHP file imports; kernel-adjacent exemptions are in `KERNEL_EXEMPT_FILES` in the script itself |
+| `composer check-contract-suite-coverage` | Asserts `phpunit.xml.dist`'s `Unit` testsuite globs `packages/*/tests/Contract` (not a hand-enumerated subset) and that no abstract contract base class under those directories is named with the `*Test` suffix — see "Contract-suite coverage" below |
 | `composer check-no-secrets` | Repo-wide secret scan for committed credentials |
 | `composer check-ingestion-defaults` | Ingestion default fixtures match contract |
 | `composer test` | PHPUnit Unit + Integration suites, no coverage |
 | `composer verify` | Run all of the above sequentially; first failure aborts |
 
 CI must invoke `composer verify` rather than re-implement these checks individually, so a new gate added to the script propagates automatically without a workflow edit. Locally, run `composer verify` before requesting review to catch the same regressions CI would report.
+
+### Contract-suite coverage
+
+`phpunit.xml.dist`'s `Unit` testsuite covers every `packages/*/tests/Contract` directory by construction, via a single `<directory>packages/*/tests/Contract</directory>` glob — it does not hand-enumerate individual packages. (Before WP2 of the 2026-07-02 audit-remediation batch, the list named exactly 7 packages; the other 12 — including `note` and `taxonomy`'s access-policy contract tests — silently never ran in CI. A missing `<directory>` line produces no error, just fewer tests, which is why the glob and the gate below both exist now.)
+
+The glob is safe only because of one naming convention: `phpunit.xml.dist` sets `failOnWarning="true"`, and PHPUnit's default directory collection matches any `*Test.php` file and reflects every class it declares — including abstract ones. Scanning an abstract `FooContractTest` class emits a fatal "Class Foo is abstract" warning under that setting. **Abstract contract base classes must therefore be named `Abstract<X>Contract` (no `Test` suffix)**, so the default `Test.php` collection skips the file entirely; concrete subclasses keep the ordinary `*Test` suffix. `packages/queue/tests/Contract/AbstractTransportContract.php` is the canonical exemplar to model a new abstract contract base on.
+
+`composer check-contract-suite-coverage` (`bin/check-contract-suite-coverage`) guards both halves of this invariant so neither can regress silently: it fails if `phpunit.xml.dist` stops globbing `packages/*/tests/Contract` in the `Unit` testsuite (e.g. a future refactor reintroducing a hand-enumerated list), and it fails if any abstract class under `packages/*/tests/Contract/*.php` is named with the `*Test` suffix.
 
 ## Upgrade Playbooks
 

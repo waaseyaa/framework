@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Field\FieldFormatterInterface;
 
 #[CoversNothing]
-abstract class FieldFormatterContractTest extends TestCase
+abstract class AbstractFieldFormatterContract extends TestCase
 {
     abstract protected function createFormatter(): FieldFormatterInterface;
 

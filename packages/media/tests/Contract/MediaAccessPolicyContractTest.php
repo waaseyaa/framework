@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Media\Tests\Contract;
 
 use Waaseyaa\Access\AccessPolicyInterface;
-use Waaseyaa\Access\Tests\Contract\AccessPolicyContractTest;
+use Waaseyaa\Access\Tests\Contract\AbstractAccessPolicyContract;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Media\Media;
 use Waaseyaa\Media\MediaAccessPolicy;
@@ -14,7 +14,7 @@ use Waaseyaa\Media\MediaAccessPolicy;
  * MediaAccessPolicy casts the entity to Media in access() for view/edit/delete.
  * We provide a real Media instance to satisfy the assertion.
  */
-final class MediaAccessPolicyContractTest extends AccessPolicyContractTest
+final class MediaAccessPolicyContractTest extends AbstractAccessPolicyContract
 {
     protected function createPolicy(): AccessPolicyInterface
     {

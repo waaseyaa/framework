@@ -12,13 +12,7 @@
         <testsuite name="Unit">
             <directory>packages/*/tests/Unit</directory>
             <directory>packages/*/tests/Backend</directory>
-            <directory>packages/ai-agent/tests/Contract</directory>
-            <directory>packages/api/tests/Contract</directory>
-            <directory>packages/config/tests/Contract</directory>
-            <directory>packages/entity/tests/Contract</directory>
-            <directory>packages/foundation/tests/Contract</directory>
-            <directory>packages/migration/tests/Contract</directory>
-            <directory>packages/queue/tests/Contract</directory>
+            <directory>packages/*/tests/Contract</directory>
             <file>packages/bimaaji/tests/SmokeTest.php</file>
         </testsuite>
         <testsuite name="GitHub">

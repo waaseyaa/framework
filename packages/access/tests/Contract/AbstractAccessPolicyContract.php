@@ -20,7 +20,7 @@ use Waaseyaa\Entity\EntityInterface;
  * the interface behavioural contract.
  */
 #[CoversNothing]
-abstract class AccessPolicyContractTest extends TestCase
+abstract class AbstractAccessPolicyContract extends TestCase
 {
     /**
      * Create the policy under test.
