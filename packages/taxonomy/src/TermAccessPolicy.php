@@ -73,8 +73,11 @@ final class TermAccessPolicy implements AccessPolicyInterface
      */
     private function checkViewAccess(EntityInterface $entity, AccountInterface $account): AccessResult
     {
-        // Absent status defaults to published — mirrors Term::isPublished().
-        $published = (bool) ($entity->get('status') ?? true);
+        // Absent status fails closed (treated as unpublished): a term whose status
+        // cannot be determined must not be publicly viewable. The entity-side default
+        // (Term seeds status = true in its constructor) is a separate product decision
+        // and is deliberately unchanged — this only hardens the access-check fallback.
+        $published = (bool) ($entity->get('status') ?? false);
 
         if ($published) {
             if ($account->hasPermission('access content')) {

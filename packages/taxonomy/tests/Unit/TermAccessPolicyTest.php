@@ -41,7 +41,14 @@ class TermAccessPolicyTest extends TestCase
         $entity = $this->createMock(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn('taxonomy_term');
         $entity->method('bundle')->willReturn($vocabularyId);
-        // Mirror Term::isPublished() — absent status defaults to published (true).
+        // NOTE: $published defaults to null (absent/undetermined status), NOT
+        // "published". TermAccessPolicy::checkViewAccess() fails closed on a
+        // missing status — absent is treated as unpublished. Callers that want
+        // a published term for the assertion must pass published: true
+        // explicitly (see testViewOfPublishedTermStillAllowedWithAccessContent).
+        // The entity-side default (Term::isPublished()) is a separate, unrelated
+        // product decision and stays published-by-default — this mock exists to
+        // exercise the access-check fallback, not to mirror Term's constructor.
         $entity->method('get')->willReturnCallback(
             static fn(string $field): mixed => $field === 'status' ? $published : null,
         );
@@ -76,7 +83,11 @@ class TermAccessPolicyTest extends TestCase
 
     public function testViewAccessAllowedWithAccessContentPermission(): void
     {
-        $entity = $this->createTermEntity();
+        // Explicitly published — the previous version of this test relied on
+        // the (now fail-closed) absent-status default to reach the published
+        // branch. See testViewAccessDeniedWhenStatusAbsentFailsClosed for the
+        // absent-status case.
+        $entity = $this->createTermEntity('tags', published: true);
         $account = $this->createAccount(['access content']);
 
         $result = $this->policy->access($entity, 'view', $account);
@@ -86,7 +97,10 @@ class TermAccessPolicyTest extends TestCase
 
     public function testViewAccessNeutralWithoutPermission(): void
     {
-        $entity = $this->createTermEntity();
+        // Explicitly published; a reader with no permissions at all is neutral
+        // regardless of the published/unpublished branch, so this is unaffected
+        // by the fail-closed status change. Pinned to published: true for clarity.
+        $entity = $this->createTermEntity('tags', published: true);
         $account = $this->createAccount([]);
 
         $result = $this->policy->access($entity, 'view', $account);
@@ -136,6 +150,46 @@ class TermAccessPolicyTest extends TestCase
         $result = $this->policy->access($entity, 'view', $account);
 
         $this->assertTrue($result->isAllowed(), 'published terms remain viewable with access content');
+    }
+
+    // --- Absent-status view access (security: policy-side fail-closed default) ---
+
+    public function testViewAccessDeniedWhenStatusAbsentFailsClosed(): void
+    {
+        // Absent/undeterminable status must be treated as unpublished — a
+        // regular reader with only 'access content' must NOT see it. Pre-fix
+        // this returned allowed (the fail-open `?? true` default) and this
+        // test would fail red against that code.
+        $entity = $this->createTermEntity('tags', published: null);
+        $account = $this->createAccount(['access content']);
+
+        $result = $this->policy->access($entity, 'view', $account);
+
+        $this->assertTrue($result->isNeutral(), 'a term with absent status must not be publicly viewable');
+    }
+
+    public function testViewAccessAllowedForAdminWhenStatusAbsent(): void
+    {
+        // 'administer taxonomy' bypasses checkViewAccess entirely (handled in
+        // access()), so it must still see a term whose status is absent.
+        $entity = $this->createTermEntity('tags', published: null);
+        $account = $this->createAccount(['administer taxonomy']);
+
+        $result = $this->policy->access($entity, 'view', $account);
+
+        $this->assertTrue($result->isAllowed(), 'an admin may still view a term with absent status');
+    }
+
+    public function testViewAccessAllowedForVocabularyEditorWhenStatusAbsent(): void
+    {
+        // Absent status is treated as unpublished, and the unpublished branch
+        // grants view access to an editor of the term's vocabulary.
+        $entity = $this->createTermEntity('tags', published: null);
+        $account = $this->createAccount(['access content', 'edit terms in tags']);
+
+        $result = $this->policy->access($entity, 'view', $account);
+
+        $this->assertTrue($result->isAllowed(), 'a vocabulary editor may view a term with absent status');
     }
 
     // ---------------------------------------------------------------
