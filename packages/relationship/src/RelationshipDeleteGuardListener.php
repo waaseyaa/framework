@@ -44,15 +44,21 @@ final class RelationshipDeleteGuardListener
         $relationshipRepository = $this->entityTypeManager->getRepository('relationship');
         $idString = (string) $entityId;
 
+        // Endpoints may reference the entity by primary id OR by uuid
+        // (RelationshipValidator accepts both) — match both identifiers or
+        // UUID-referenced edges would orphan straight through the guard.
+        $uuid = trim($entity->uuid());
+        $endpointIds = ($uuid !== '' && $uuid !== $idString) ? [$idString, $uuid] : [$idString];
+
         $outbound = $relationshipRepository->getQuery()
             ->condition('from_entity_type', $entityType)
-            ->condition('from_entity_id', $idString)
+            ->condition('from_entity_id', $endpointIds, 'IN')
             // system context: referential-integrity check spans access boundaries
             ->accessCheck(false)
             ->execute();
         $inbound = $relationshipRepository->getQuery()
             ->condition('to_entity_type', $entityType)
-            ->condition('to_entity_id', $idString)
+            ->condition('to_entity_id', $endpointIds, 'IN')
             // system context: referential-integrity check spans access boundaries
             ->accessCheck(false)
             ->execute();

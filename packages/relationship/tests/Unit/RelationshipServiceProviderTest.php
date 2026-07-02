@@ -9,7 +9,6 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Event\EntityEvents;
-use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Relationship\RelationshipDeleteGuardListener;
@@ -37,9 +36,15 @@ final class RelationshipServiceProviderTest extends TestCase
         $dispatcher = new SymfonyEventDispatcherAdapter();
         $entityTypeManager = new StubEntityTypeManager();
 
+        // The stub bus mirrors the PRODUCTION ProviderRegistryKernelServices
+        // contract: the dispatcher is served ONLY under the Symfony-contracts
+        // FQCN (the foundation FQCN resolves to null), the entity type
+        // manager under EntityTypeManager::class. A stub keyed on the
+        // foundation FQCN previously masked a boot() that never resolved the
+        // dispatcher in a real kernel and silently registered nothing.
         $provider = new RelationshipServiceProvider();
         $provider->setKernelServices($this->kernelServices([
-            EventDispatcherInterface::class => $dispatcher,
+            \Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class => $dispatcher,
             EntityTypeManager::class => $entityTypeManager,
         ]));
         $provider->register();

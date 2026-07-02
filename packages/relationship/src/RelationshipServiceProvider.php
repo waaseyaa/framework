@@ -36,7 +36,13 @@ final class RelationshipServiceProvider extends ServiceProvider
         // is still referenced as a relationship endpoint must fail loudly, not
         // silently orphan edge rows. (Historically this listener existed but
         // was never registered.)
-        $dispatcher = $this->resolveOptional(EventDispatcherInterface::class);
+        //
+        // The kernel-services bus serves the dispatcher ONLY under the
+        // Symfony-contracts FQCN (ProviderRegistryKernelServices::get());
+        // resolving the foundation FQCN returns null and would silently skip
+        // registration. Resolve the served key, then type-check against the
+        // foundation contract (pattern per AuditServiceProvider::boot()).
+        $dispatcher = $this->resolveOptional(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
         if (!$dispatcher instanceof EventDispatcherInterface) {
             return;
         }

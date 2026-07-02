@@ -144,6 +144,42 @@ final class RelationshipDeleteGuardListenerTest extends TestCase
         }
     }
 
+    #[Test]
+    public function guard_matches_endpoints_by_uuid_as_well_as_primary_id(): void
+    {
+        // Relationship endpoints may legitimately reference an entity by UUID
+        // (RelationshipValidator::validateEndpoint accepts them via its
+        // entityExistsByUuid fallback), so the guard must match BOTH
+        // identifiers — matching only the primary id lets a UUID-referenced
+        // entity delete straight through, silently orphaning the edge.
+        $entity = $this->makeEntity('node', 5, uuid: 'abc-uuid-123');
+        $query = new ConditionRecordingEntityQuery([[], []]);
+        $storage = new StubEntityStorage(
+            loadHandler: static fn() => null,
+            query: $query,
+            entityTypeId: 'relationship',
+        );
+        $manager = new StubEntityTypeManager(
+            knownTypes: [],
+            storage: $storage,
+            hasDefinitionOverride: static fn(string $typeId): bool => true,
+        );
+        $listener = new RelationshipDeleteGuardListener($manager);
+
+        $listener(new EntityEvent($entity));
+
+        $endpointIdConditions = array_values(array_filter(
+            $query->conditions,
+            static fn(array $condition): bool => in_array($condition[0], ['from_entity_id', 'to_entity_id'], true),
+        ));
+        $this->assertCount(2, $endpointIdConditions, 'one endpoint-id condition per direction');
+        foreach ($endpointIdConditions as [$field, $value, $operator]) {
+            $this->assertSame('IN', $operator);
+            $this->assertContains('5', (array) $value, $field . ' must match the primary id');
+            $this->assertContains('abc-uuid-123', (array) $value, $field . ' must match the uuid');
+        }
+    }
+
     /**
      * @param list<int|string> $outboundIds IDs returned for first query (outbound)
      * @param list<int|string> $inboundIds  IDs returned for second query (inbound)
@@ -171,12 +207,13 @@ final class RelationshipDeleteGuardListenerTest extends TestCase
         );
     }
 
-    private function makeEntity(string $entityTypeId, int|string|null $id): EntityInterface
+    private function makeEntity(string $entityTypeId, int|string|null $id, string $uuid = ''): EntityInterface
     {
-        return new class ($entityTypeId, $id) implements EntityInterface {
+        return new class ($entityTypeId, $id, $uuid) implements EntityInterface {
             public function __construct(
                 private readonly string $entityTypeId,
                 private readonly int|string|null $id,
+                private readonly string $uuid,
             ) {}
 
             public function id(): int|string|null
@@ -186,7 +223,7 @@ final class RelationshipDeleteGuardListenerTest extends TestCase
 
             public function uuid(): string
             {
-                return '';
+                return $this->uuid;
             }
 
             public function label(): string
@@ -229,5 +266,21 @@ final class RelationshipDeleteGuardListenerTest extends TestCase
                 return 'en';
             }
         };
+    }
+}
+
+/**
+ * Records every condition() call so tests can pin the guard's query shape.
+ */
+final class ConditionRecordingEntityQuery extends FixedResultEntityQuery
+{
+    /** @var list<array{0: string, 1: mixed, 2: string}> */
+    public array $conditions = [];
+
+    public function condition(string $field, mixed $value, string $operator = '='): static
+    {
+        $this->conditions[] = [$field, $value, $operator];
+
+        return parent::condition($field, $value, $operator);
     }
 }

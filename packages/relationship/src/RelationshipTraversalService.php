@@ -94,6 +94,14 @@ final class RelationshipTraversalService
             return $relationships;
         }
 
+        // With no filter wired we can prove NOTHING about endpoint visibility
+        // in either direction, so both modes fail fully closed. (Published
+        // mode would drop every edge below anyway; unpublished mode must not
+        // become fail-open — "not provably public" is not "provably draft".)
+        if ($this->visibilityFilter === null) {
+            return [];
+        }
+
         /** @var array<string, array{label: string, is_public: bool}> $entitySummaryCache */
         $entitySummaryCache = [];
 

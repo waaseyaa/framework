@@ -292,6 +292,110 @@ final class RelationshipTraversalServiceTest extends TestCase
         $this->assertCount(2, $result);
     }
 
+    public function testTraverseUnpublishedFailsClosedWithoutVisibilityFilter(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $this->createRelationshipTable($database);
+
+        // An unpublished relationship pointing at a draft node.
+        $this->insertRelationship($database, 1, 'node', '1', 'node', '2', 0);
+
+        $relationshipStorage = new TraversalRelationshipStorage([
+            1 => new Relationship([
+                'rid' => 1,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '2',
+                'directionality' => 'directed',
+                'status' => 0,
+            ]),
+        ]);
+        $nodeStorage = new TraversalEntityStorage([
+            '2' => new TraversalTestEntity('node', 'article', 2, 'Draft Node', [
+                'nid' => 2,
+                'type' => 'article',
+                'status' => 0,
+                'workflow_state' => 'draft',
+            ]),
+        ]);
+        $manager = new TraversalEntityTypeManager([
+            'relationship' => $relationshipStorage,
+            'node' => $nodeStorage,
+        ]);
+
+        // No visibility filter wired: with nothing provable about endpoint
+        // visibility in EITHER direction, unpublished mode must be as
+        // fail-closed as published mode — "not provably public" is NOT
+        // "provably draft", so returning the edges would leak draft endpoint
+        // identities to an unwired caller.
+        $service = new RelationshipTraversalService($manager, $database);
+
+        $result = $service->traverse('node', 1, ['status' => 'unpublished']);
+
+        $this->assertSame([], $result, 'Unwired visibility filter must fail closed for unpublished mode too');
+    }
+
+    public function testTraverseUnpublishedReturnsDraftEndpointsWithWiredFilter(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $this->createRelationshipTable($database);
+
+        $this->insertRelationship($database, 1, 'node', '1', 'node', '2', 0);
+        $this->insertRelationship($database, 2, 'node', '1', 'node', '3', 0);
+
+        $relationshipStorage = new TraversalRelationshipStorage([
+            1 => new Relationship([
+                'rid' => 1,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '2',
+                'directionality' => 'directed',
+                'status' => 0,
+            ]),
+            2 => new Relationship([
+                'rid' => 2,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '3',
+                'directionality' => 'directed',
+                'status' => 0,
+            ]),
+        ]);
+        $nodeStorage = new TraversalEntityStorage([
+            '2' => new TraversalTestEntity('node', 'article', 2, 'Draft Node', [
+                'nid' => 2,
+                'type' => 'article',
+                'status' => 0,
+                'workflow_state' => 'draft',
+            ]),
+            '3' => new TraversalTestEntity('node', 'article', 3, 'Published Node', [
+                'nid' => 3,
+                'type' => 'article',
+                'status' => 1,
+                'workflow_state' => 'published',
+            ]),
+        ]);
+        $manager = new TraversalEntityTypeManager([
+            'relationship' => $relationshipStorage,
+            'node' => $nodeStorage,
+        ]);
+
+        // Wired filter, browse parity: unpublished mode keeps provably
+        // NON-public endpoints and drops provably public ones.
+        $service = new RelationshipTraversalService($manager, $database, new TraversalVisibilityFilter());
+
+        $result = $service->traverse('node', 1, ['status' => 'unpublished']);
+
+        $this->assertCount(1, $result);
+        $this->assertSame('2', (string) $result[0]->get('to_entity_id'));
+    }
+
     public function testBrowseAllIncludesMixedStateEndpointsDeterministically(): void
     {
         $database = DBALDatabase::createSqlite();
