@@ -319,6 +319,41 @@ final class MediaRouterTest extends TestCase
     }
 
     #[Test]
+    public function upload_retains_non_ascii_original_filename_in_metadata(): void
+    {
+        [$tmpDir, $filesRoot] = $this->makeUploadWorkspace();
+
+        $tmpFile = $tmpDir . '/source.png';
+        file_put_contents($tmpFile, $this->pngBytes());
+
+        // Anishinaabemowin filename: the glottal ʼ (U+02BC) and Canadian
+        // syllabics are destroyed by generateSafeFilename() for the DISK name,
+        // so the original must be preserved as stored metadata.
+        $originalName = 'Ozhibiiʼigan ᐊᓂᔑᓈᐯᒧᐎᓐ.png';
+
+        $router = $this->createRouter(config: ['files_root' => $filesRoot]);
+        $response = $router->handle($this->makeUploadRequest($tmpFile, $originalName, 'image/png'));
+
+        self::assertSame(201, $response->getStatusCode());
+        $decoded = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+
+        // Disk name stays sanitized (ASCII-safe, random-suffixed; the 2-byte
+        // glottal ʼ becomes two underscores under the byte-wise sanitizer) …
+        $storedName = $decoded['data']['id'];
+        self::assertMatchesRegularExpression('/^Ozhibii__igan_[0-9a-f]{8}\.png$/', $storedName);
+        self::assertSame($storedName, $decoded['data']['attributes']['filename']);
+
+        // … while the original name survives in the response and the sidecar.
+        self::assertSame($originalName, $decoded['data']['attributes']['original_filename']);
+
+        $sidecar = new \Waaseyaa\Media\LocalFileRepository($filesRoot)->load('public://' . $storedName);
+        self::assertNotNull($sidecar);
+        self::assertSame($originalName, $sidecar->originalName);
+
+        $this->removeDirectory($tmpDir);
+    }
+
+    #[Test]
     public function resolve_allowed_upload_mime_types_excludes_svg_and_octet_stream_by_default(): void
     {
         $router = $this->createRouter();

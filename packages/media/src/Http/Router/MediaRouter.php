@@ -97,7 +97,13 @@ final class MediaRouter implements DomainRouterInterface
             ]);
         }
 
-        $safeName = $uploadHandler->generateSafeFilename($uploadedFile->getClientOriginalName());
+        $clientOriginalName = $uploadedFile->getClientOriginalName();
+        $safeName = $uploadHandler->generateSafeFilename($clientOriginalName);
+        // Retain the client's original (possibly non-ASCII, e.g.
+        // Anishinaabemowin) filename as display metadata — the sanitized
+        // $safeName destroys it and is only for disk paths. Invalid UTF-8
+        // would poison the JSON sidecar, so it is dropped rather than stored.
+        $originalName = mb_check_encoding($clientOriginalName, 'UTF-8') ? $clientOriginalName : null;
 
         if (!is_dir($filesRoot) && !@mkdir($filesRoot, 0o755, true) && !is_dir($filesRoot)) {
             return $this->uploadStorageFailureResponse();
@@ -122,6 +128,7 @@ final class MediaRouter implements DomainRouterInterface
             size: (int) filesize($destPath),
             ownerId: $ctx->account->isAuthenticated() ? (int) $ctx->account->id() : null,
             createdTime: time(),
+            originalName: $originalName,
         );
 
         $repo = new LocalFileRepository($filesRoot);
@@ -133,6 +140,7 @@ final class MediaRouter implements DomainRouterInterface
             'type' => 'file',
             'attributes' => [
                 'filename' => $file->filename,
+                'original_filename' => $file->originalName,
                 'uri' => $file->uri,
                 'url' => $fileUrl,
                 'mime_type' => $file->mimeType,

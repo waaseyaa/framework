@@ -44,6 +44,36 @@ final class LocalFileRepositoryTest extends TestCase
         $this->assertInstanceOf(FileRepositoryInterface::class, $this->repository);
     }
 
+    public function testSaveAndLoadRoundTripsOriginalName(): void
+    {
+        // Non-ASCII (Anishinaabemowin) original names must survive the JSON
+        // sidecar byte-for-byte while the disk-facing filename stays sanitized.
+        $file = new File(
+            uri: 'public://Ozhibii_igan_ab12cd34.png',
+            filename: 'Ozhibii_igan_ab12cd34.png',
+            mimeType: 'image/png',
+            originalName: 'Ozhibiiʼigan ᐊᓂᔑᓈᐯᒧᐎᓐ.png',
+        );
+
+        $this->repository->save($file);
+        $loaded = $this->repository->load('public://Ozhibii_igan_ab12cd34.png');
+
+        $this->assertNotNull($loaded);
+        $this->assertSame('Ozhibiiʼigan ᐊᓂᔑᓈᐯᒧᐎᓐ.png', $loaded->originalName);
+        $this->assertSame('Ozhibii_igan_ab12cd34.png', $loaded->filename);
+    }
+
+    public function testLoadWithoutOriginalNameYieldsNull(): void
+    {
+        $file = new File(uri: 'public://plain.txt', filename: 'plain.txt');
+
+        $this->repository->save($file);
+        $loaded = $this->repository->load('public://plain.txt');
+
+        $this->assertNotNull($loaded);
+        $this->assertNull($loaded->originalName);
+    }
+
     public function testConstructorCreatesRootDirectory(): void
     {
         $this->assertDirectoryExists($this->rootDir);

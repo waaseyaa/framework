@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Media\Version;
 
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\Uid\Uuid;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
@@ -32,6 +33,14 @@ use Waaseyaa\Media\Media;
  */
 final class MediaVersionStorageDriver implements EventSubscriberInterface
 {
+    /**
+     * Bounded retries for the MAX+1 vid allocation race: the
+     * (media_uuid, vid) unique index rejects a concurrent duplicate and we
+     * re-read MAX rather than surfacing it (pattern per #1706,
+     * RevisionableStorageDriver). Single-threaded, the loop runs exactly once.
+     */
+    private const int MAX_VID_ALLOCATION_ATTEMPTS = 5;
+
     private readonly LoggerInterface $logger;
 
     /**
@@ -105,23 +114,8 @@ final class MediaVersionStorageDriver implements EventSubscriberInterface
         // 1. Write blob to CAS (deduplicates by sha256).
         $result = $this->cas->write($pending->bytes, $pending->mime);
 
-        // 2. Compute next vid.
-        $nextVid = $this->versionRepo->nextVid($mediaUuid);
-
-        // 3. Create MediaVersion entity.
-        $version = new MediaVersion([
-            'uuid'       => (string) Uuid::v4(),
-            'media_uuid' => $mediaUuid,
-            'vid'        => $nextVid,
-            'blob_uri'   => $result->blobUri,
-            'mime'       => $result->mime,
-            'size'       => $result->sizeBytes,
-            'sha256'     => $result->sha256,
-            'created_at' => time(),
-            'created_by' => $pending->accountUid,
-        ]);
-        $version->enforceIsNew(true);
-        $this->versionRepo->save($version);
+        // 2+3. Allocate the next vid and insert (race-safe, bounded retry).
+        $nextVid = $this->saveVersionWithAllocatedVid($mediaUuid, $pending, $result);
 
         // 4. Emit audit events.
         $this->auditWriter->record(new AuditEventDescriptor(
@@ -155,6 +149,50 @@ final class MediaVersionStorageDriver implements EventSubscriberInterface
                     'blob_uri' => $result->blobUri,
                 ],
             ));
+        }
+    }
+
+    /**
+     * Allocate the next vid and insert the version row, retrying past races.
+     *
+     * nextVid() is MAX+1, not atomic; the (media_uuid, vid) unique index
+     * rejects a concurrent duplicate and we retry with a freshly re-read MAX
+     * (and a fresh entity) rather than dropping the version or duplicating
+     * history.
+     *
+     * @return int The vid the version row was saved with.
+     */
+    private function saveVersionWithAllocatedVid(
+        string $mediaUuid,
+        PendingUpload $pending,
+        FileWriteResult $result,
+    ): int {
+        for ($attempt = 1; ; $attempt++) {
+            $nextVid = $this->versionRepo->nextVid($mediaUuid);
+
+            $version = new MediaVersion([
+                'uuid'       => (string) Uuid::v4(),
+                'media_uuid' => $mediaUuid,
+                'vid'        => $nextVid,
+                'blob_uri'   => $result->blobUri,
+                'mime'       => $result->mime,
+                'size'       => $result->sizeBytes,
+                'sha256'     => $result->sha256,
+                'created_at' => time(),
+                'created_by' => $pending->accountUid,
+            ]);
+            $version->enforceIsNew(true);
+
+            try {
+                $this->versionRepo->save($version);
+
+                return $nextVid;
+            } catch (UniqueConstraintViolationException $e) {
+                // A concurrent writer claimed this (media_uuid, vid).
+                if ($attempt >= self::MAX_VID_ALLOCATION_ATTEMPTS) {
+                    throw $e;
+                }
+            }
         }
     }
 }
