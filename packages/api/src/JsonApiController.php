@@ -63,14 +63,17 @@ final class JsonApiController
         $parser = new QueryParser();
         $parsedQuery = $parser->parse($query);
 
-        // Reject filtering/sorting on internal/credential fields. Without this, an anonymous
-        // collection request can filter on a secret field (pass, two_factor_secret, etc.) and
-        // use match/no-match as a value-enumeration oracle even though the field is never
-        // serialised. We mirror the serializer's internal-field policy rather than impose a
-        // full field allowlist, because entities legitimately filter on undeclared _data fields.
-        $internalFieldError = $this->rejectInternalQueryFields($parsedQuery, $entityTypeId);
-        if ($internalFieldError !== null) {
-            return $internalFieldError;
+        // Validate filter/sort field names against the declared-field allowlist (audit R2 WP1).
+        // Without this, an anonymous collection request could pass an arbitrary query-string
+        // key straight through QueryParser -> QueryApplier -> SqlEntityQuery::resolveField(),
+        // which interpolates the field name RAW into a json_extract('$.<field>') SQL fragment.
+        // A field name containing a single quote breaks out of that string literal — anonymous
+        // SQL injection. Only a declared field (resolveFieldDefinitions()) or an entity key
+        // (id/uuid/label/bundle/langcode/...) may be filtered or sorted on; everything else is
+        // rejected, even before the internal/credential check below.
+        $queryFieldError = $this->validateQueryFields($parsedQuery, $entityTypeId);
+        if ($queryFieldError !== null) {
+            return $queryFieldError;
         }
 
         $applier = new QueryApplier();
@@ -666,18 +669,41 @@ final class JsonApiController
     }
 
     /**
-     * Reject a collection query that filters or sorts on an internal/credential field.
+     * Validate that a collection query only filters/sorts on allowlisted field names.
      *
-     * A field is rejected when it is in {@see self::ALWAYS_INTERNAL_FIELDS} (credential keys,
-     * caught even when stored as an undeclared `_data` key) or its FieldDefinition sets
-     * `settings['internal'] => true`. Returns an error document to short-circuit `index()`,
-     * or null when every filter/sort field is permitted.
+     * A field is allowed when it is either a declared field (a key of
+     * {@see EntityTypeManagerInterface::resolveFieldDefinitions()}) or one of the entity
+     * type's structural keys ({@see \Waaseyaa\Entity\EntityTypeInterface::getKeys()} —
+     * id/uuid/label/bundle/langcode/revision/...). Every other field name is REJECTED with a
+     * 400, even if it would otherwise resolve to a harmless no-op `_data` lookup: an
+     * unvalidated field name is what let an anonymous request reach
+     * {@see \Waaseyaa\EntityStorage\SqlEntityQuery}'s raw `json_extract('$.<field>')`
+     * interpolation (audit R2 WP1 — anonymous SQL injection via filter/sort field name). This
+     * is an allowlist, not a denylist: previously only {@see self::ALWAYS_INTERNAL_FIELDS} and
+     * `settings['internal'] => true` fields were rejected, which let any other undeclared
+     * `_data` key (and any SQL metacharacter payload disguised as one) through untouched.
+     *
+     * A field that passes the allowlist is still rejected when it is in
+     * {@see self::ALWAYS_INTERNAL_FIELDS} (credential keys, mirrored even for a legitimately
+     * declared field) or when its FieldDefinition sets `settings['internal'] => true` — a
+     * declared field can still be a secret the caller must not use as a filter/sort oracle.
+     *
+     * Returns an error document to short-circuit `index()`, or null when every filter/sort
+     * field is permitted.
      */
-    private function rejectInternalQueryFields(ParsedQuery $parsedQuery, string $entityTypeId): ?JsonApiDocument
+    private function validateQueryFields(ParsedQuery $parsedQuery, string $entityTypeId): ?JsonApiDocument
     {
         $fieldDefinitions = $this->entityTypeManager->resolveFieldDefinitions($entityTypeId);
+        $keys = $this->entityTypeManager->getDefinition($entityTypeId)->getKeys();
 
-        $isInternal = static function (string $field) use ($fieldDefinitions): bool {
+        /** @var array<string, true> $allowedFields */
+        $allowedFields = array_fill_keys(array_keys($fieldDefinitions), true)
+            + array_fill_keys(array_values($keys), true);
+
+        $isRejected = static function (string $field) use ($allowedFields, $fieldDefinitions): bool {
+            if (!isset($allowedFields[$field])) {
+                return true;
+            }
             if (in_array($field, self::ALWAYS_INTERNAL_FIELDS, true)) {
                 return true;
             }
@@ -687,13 +713,13 @@ final class JsonApiController
         };
 
         foreach ($parsedQuery->filters as $filter) {
-            if ($isInternal($filter->field)) {
+            if ($isRejected($filter->field)) {
                 return $this->errorDocument(JsonApiError::badRequest("Cannot filter by field '{$filter->field}'."));
             }
         }
 
         foreach ($parsedQuery->sorts as $sort) {
-            if ($isInternal($sort->field)) {
+            if ($isRejected($sort->field)) {
                 return $this->errorDocument(JsonApiError::badRequest("Cannot sort by field '{$sort->field}'."));
             }
         }

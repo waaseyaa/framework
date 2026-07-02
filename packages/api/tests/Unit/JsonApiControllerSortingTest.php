@@ -15,6 +15,7 @@ use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Field\FieldDefinition;
 
 #[CoversClass(JsonApiController::class)]
 final class JsonApiControllerSortingTest extends TestCase
@@ -39,6 +40,12 @@ final class JsonApiControllerSortingTest extends TestCase
             label: 'Article',
             class: TestEntity::class,
             keys: TestEntity::definitionKeys(),
+            // Declared so the JSON:API field allowlist (audit R2 WP1) permits sorting/filtering
+            // on these undeclared-column _data fields exercised below.
+            _fieldDefinitions: [
+                'body' => new FieldDefinition(name: 'body', type: 'string', targetEntityTypeId: 'article'),
+                'weight' => new FieldDefinition(name: 'weight', type: 'integer', targetEntityTypeId: 'article'),
+            ],
         ));
 
         $this->serializer = new ResourceSerializer($this->entityTypeManager);
@@ -236,20 +243,22 @@ final class JsonApiControllerSortingTest extends TestCase
     // --- Sort by nonexistent field ---
 
     #[Test]
-    public function indexSortByNonexistentFieldReturnsDefaultOrder(): void
+    public function indexSortByNonexistentFieldIsRejected(): void
     {
-        $first = $this->createAndSaveEntity(['title' => 'Zulu']);
-        $second = $this->createAndSaveEntity(['title' => 'Alpha']);
+        // Audit R2 WP1: an undeclared field name is now rejected by the JSON:API allowlist
+        // rather than silently ignored. Silently passing an undeclared field through to
+        // SqlEntityQuery::resolveField() is exactly the shape that let a raw SQL-metacharacter
+        // payload reach the json_extract() interpolation sink.
+        $this->createAndSaveEntity(['title' => 'Zulu']);
+        $this->createAndSaveEntity(['title' => 'Alpha']);
 
         $doc = $this->controller->index('article', [
             'sort' => 'nonexistent_field',
         ]);
         $array = $doc->toArray();
 
-        // Sorting by a nonexistent field is a silent no-op — insertion order preserved.
-        $this->assertCount(2, $array['data']);
-        $this->assertSame($first->uuid(), $array['data'][0]['id']);
-        $this->assertSame($second->uuid(), $array['data'][1]['id']);
+        $this->assertArrayHasKey('errors', $array);
+        $this->assertSame('400', $array['errors'][0]['status']);
     }
 
     // --- Helpers ---

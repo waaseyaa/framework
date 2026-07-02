@@ -285,6 +285,8 @@ final class SqlEntityQuery implements EntityQueryInterface
             // the same FieldDefinition->getStored() hint, so reads cannot
             // shadow writes.
             if ($bundle === null && isset($this->getDataStoredCoreFieldNames()[$field])) {
+                $this->assertQueryableJsonFieldName($field);
+
                 return ResolvedField::expression(
                     'json_extract(' . $quotedAlias . '._data, \'$.' . $field . '\')',
                     isJsonExtract: true,
@@ -301,6 +303,8 @@ final class SqlEntityQuery implements EntityQueryInterface
                 return ResolvedField::identifier($targetTable . '.' . $field);
             }
 
+            $this->assertQueryableJsonFieldName($field);
+
             return ResolvedField::expression(
                 'json_extract(' . $quotedAlias . '._data, \'$.' . $field . '\')',
                 isJsonExtract: true,
@@ -316,10 +320,26 @@ final class SqlEntityQuery implements EntityQueryInterface
             return ResolvedField::identifier($field);
         }
 
+        $this->assertQueryableJsonFieldName($field);
+
         return ResolvedField::expression(
             "json_extract(_data, '\$." . $field . "')",
             isJsonExtract: true,
         );
+    }
+
+    /**
+     * Guards the raw `json_extract(...)` interpolation sink against SQL
+     * metacharacters in a field name. Thin wrapper over the shared
+     * {@see \Waaseyaa\EntityStorage\Query\JsonFieldName::assertQueryable()} so
+     * this sink and {@see \Waaseyaa\EntityStorage\Driver\SqlStorageDriver}'s
+     * twin sink use one identical implementation (audit R2 WP1).
+     *
+     * @throws \InvalidArgumentException If `$field` is not a safe identifier.
+     */
+    private function assertQueryableJsonFieldName(string $field): void
+    {
+        \Waaseyaa\EntityStorage\Query\JsonFieldName::assertQueryable($field);
     }
 
     /**
