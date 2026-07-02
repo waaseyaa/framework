@@ -8,7 +8,6 @@ use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
-use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Field\FieldStorage;
 use Waaseyaa\Foundation\Ingestion\IngestionLogger;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -31,6 +30,7 @@ final class HealthChecker implements HealthCheckerInterface
     private const int LOG_SIZE_WARN_THRESHOLD = 10000;
 
     private readonly LoggerInterface $logger;
+    private readonly IngestionLogger $ingestionLogger;
 
     public function __construct(
         private readonly BootDiagnosticReport $bootReport,
@@ -39,8 +39,14 @@ final class HealthChecker implements HealthCheckerInterface
         private readonly string $projectRoot,
         ?LoggerInterface $logger = null,
         private readonly ?FieldDefinitionRegistryInterface $fieldRegistry = null,
+        ?IngestionLogger $ingestionLogger = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        // PHP 8.4 can't call `new IngestionLogger($projectRoot)` as a parameter
+        // default (constructor promotion doesn't see the other params yet), so
+        // resolve the nullable default in the body — see CLAUDE.md "PHP 8.4
+        // parameter defaults can't call static methods" gotcha (same shape).
+        $this->ingestionLogger = $ingestionLogger ?? new IngestionLogger($projectRoot);
     }
 
     /** @return list<HealthCheckResult> */
@@ -120,8 +126,7 @@ final class HealthChecker implements HealthCheckerInterface
     {
         $results = [];
 
-        $logger = new IngestionLogger($this->projectRoot);
-        $entries = $logger->read();
+        $entries = $this->ingestionLogger->read();
         $total = count($entries);
 
         if ($total === 0) {
@@ -193,12 +198,14 @@ final class HealthChecker implements HealthCheckerInterface
         $definitions = $this->entityTypeManager->getDefinitions();
         $schema = $this->database->schema();
         $driftFound = false;
+        $skippedCount = 0;
 
         foreach ($definitions as $id => $type) {
             $tableName = $id;
 
             if (!$schema->tableExists($tableName)) {
                 // Table doesn't exist yet (lazy creation) — not drift, just uninitialized.
+                $skippedCount++;
                 $this->logger->info(sprintf('Schema drift: skipping %s — table %s does not exist (lazy creation)', $id, $tableName));
                 continue;
             }
@@ -229,7 +236,24 @@ final class HealthChecker implements HealthCheckerInterface
         }
 
         if (!$driftFound && $results === []) {
-            $results[] = HealthCheckResult::pass('Schema drift', 'All entity table schemas match expected definitions.');
+            if ($definitions !== [] && $skippedCount === count($definitions)) {
+                // Every registered table was lazily uninitialized — nothing was
+                // actually compared. A blanket "pass" here would be dishonest;
+                // report the skip explicitly instead (warn, not fail — an
+                // uninitialized table is a legitimate pre-boot state, not an
+                // error, matching the per-table "not drift" log line above).
+                $results[] = HealthCheckResult::warn(
+                    'Schema drift',
+                    DiagnosticCode::SCHEMA_DRIFT_CHECK_SKIPPED,
+                    sprintf(
+                        'Schema drift not verified: all %d registered entity table(s) are not yet materialized (lazy creation).',
+                        $skippedCount,
+                    ),
+                    context: ['skipped' => $skippedCount, 'total' => count($definitions)],
+                );
+            } else {
+                $results[] = HealthCheckResult::pass('Schema drift', 'All entity table schemas match expected definitions.');
+            }
         }
 
         return $results;
@@ -307,7 +331,8 @@ final class HealthChecker implements HealthCheckerInterface
     private function columnExists(string $tableName, string $columnName): bool
     {
         try {
-            foreach ($this->database->query("PRAGMA table_info(\"{$tableName}\")", []) as $row) {
+            $quotedTable = $this->database->quoteIdentifier($tableName);
+            foreach ($this->database->query("PRAGMA table_info({$quotedTable})", []) as $row) {
                 if (($row['name'] ?? null) === $columnName) {
                     return true;
                 }
@@ -432,7 +457,8 @@ final class HealthChecker implements HealthCheckerInterface
     private function detectSubtableColumnDrift(string $subtableName, array $expectedFieldNames): array
     {
         $actualColumns = [];
-        foreach ($this->database->query("PRAGMA table_info(\"{$subtableName}\")", []) as $row) {
+        $quotedSubtable = $this->database->quoteIdentifier($subtableName);
+        foreach ($this->database->query("PRAGMA table_info({$quotedSubtable})", []) as $row) {
             $actualColumns[$row['name']] = true;
         }
 
@@ -513,7 +539,8 @@ final class HealthChecker implements HealthCheckerInterface
     }
 
     /**
-     * Compare actual table columns against what SqlSchemaHandler.buildTableSpec() expects.
+     * Compare actual table columns against what
+     * Waaseyaa\EntityStorage\SqlSchemaHandler::buildTableSpec() expects.
      *
      * @return list<array{column: string, issue: string}>
      */
@@ -523,7 +550,8 @@ final class HealthChecker implements HealthCheckerInterface
 
         // Get actual columns from SQLite PRAGMA.
         $actualColumns = [];
-        foreach ($this->database->query("PRAGMA table_info(\"{$tableName}\")", []) as $row) {
+        $quotedTable = $this->database->quoteIdentifier($tableName);
+        foreach ($this->database->query("PRAGMA table_info({$quotedTable})", []) as $row) {
             $actualColumns[$row['name']] = [
                 'type' => strtoupper($row['type']),
                 'notnull' => (bool) $row['notnull'],

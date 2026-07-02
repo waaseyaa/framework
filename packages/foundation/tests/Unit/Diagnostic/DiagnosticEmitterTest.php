@@ -37,6 +37,7 @@ final class DiagnosticEmitterTest extends TestCase
             'STORAGE_DIRECTORY_MISSING'   => ['STORAGE_DIRECTORY_MISSING'],
             'INGESTION_LOG_OVERSIZED'     => ['INGESTION_LOG_OVERSIZED'],
             'INGESTION_RECENT_FAILURES'   => ['INGESTION_RECENT_FAILURES'],
+            'SCHEMA_DRIFT_CHECK_SKIPPED'  => ['SCHEMA_DRIFT_CHECK_SKIPPED'],
         ];
     }
 
@@ -70,6 +71,20 @@ final class DiagnosticEmitterTest extends TestCase
     {
         $code = DiagnosticCode::from($name);
         $this->assertContains($code->severity(), ['error', 'warning']);
+    }
+
+    #[Test]
+    public function remediationTextDoesNotReferenceAPersonalHandle(): void
+    {
+        // Remediation copy is operator-facing and ships in every consumer's
+        // health-check output; it must not point at one maintainer's handle.
+        foreach (DiagnosticCode::cases() as $code) {
+            $this->assertStringNotContainsString(
+                '@jonesrussell',
+                $code->remediation(),
+                sprintf('%s remediation text must not hardcode a personal handle.', $code->name),
+            );
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -167,5 +182,41 @@ final class DiagnosticEmitterTest extends TestCase
         $this->assertArrayHasKey('code', $decoded);
         $this->assertArrayHasKey('message', $decoded);
         $this->assertArrayHasKey('remediation', $decoded);
+    }
+
+    #[Test]
+    public function emitEncodesUnicodeCharactersUnescaped(): void
+    {
+        $lines = [];
+        $logger = new \Waaseyaa\Foundation\Log\LogManager(new \Waaseyaa\Foundation\Log\Handler\ErrorLogHandler(writer: static function (string $line) use (&$lines): void {
+            $lines[] = $line;
+        }));
+        $emitter = new DiagnosticEmitter($logger);
+
+        $emitter->emit(DiagnosticCode::NAMESPACE_RESERVED, 'blocked: ᐊᓂᔑᓈᐯᒡ', []);
+
+        $raw = implode("\n", $lines);
+        $this->assertStringContainsString('ᐊᓂᔑᓈᐯᒡ', $raw, 'JSON_UNESCAPED_UNICODE must keep non-ASCII characters literal.');
+        $this->assertStringNotContainsString('\u0', $raw, 'Message must not be \\uXXXX-escaped.');
+    }
+
+    #[Test]
+    public function emitNeverThrowsWhenContextFailsToJsonEncode(): void
+    {
+        $lines = [];
+        $logger = new \Waaseyaa\Foundation\Log\LogManager(new \Waaseyaa\Foundation\Log\Handler\ErrorLogHandler(writer: static function (string $line) use (&$lines): void {
+            $lines[] = $line;
+        }));
+        $emitter = new DiagnosticEmitter($logger);
+
+        // NAN cannot be JSON-encoded; json_encode() throws JsonException under
+        // JSON_THROW_ON_ERROR. The diagnostic path itself must never throw —
+        // it runs from best-effort observability code, not the request's
+        // critical path.
+        $entry = $emitter->emit(DiagnosticCode::DATABASE_UNREACHABLE, 'unreachable', ['rate' => NAN]);
+
+        $this->assertSame(DiagnosticCode::DATABASE_UNREACHABLE, $entry->code);
+        $this->assertNotEmpty($lines, 'A hardcoded-safe fallback line must still be emitted.');
+        $this->assertStringContainsString('DATABASE_UNREACHABLE', implode("\n", $lines));
     }
 }

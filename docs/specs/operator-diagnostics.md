@@ -19,14 +19,20 @@ BootDiagnosticReport ─→ HealthChecker ─→ HealthCheckResult[] ─→ CLI 
 |-------|---------|---------|
 | `DiagnosticCode` | foundation | Enum of all operator-facing diagnostic codes |
 | `DiagnosticEntry` | foundation | Structured log entry with code, message, context, remediation |
-| `DiagnosticEmitter` | foundation | Writes DiagnosticEntry to `error_log()` as JSON |
-| `BootDiagnosticReport` | foundation | Snapshot of entity type registry status at boot |
-| `HealthChecker` | foundation | Runs all health checks, returns structured results |
+| `DiagnosticEmitter` | foundation | Writes `DiagnosticEntry` to `LoggerInterface::warning()` as a single-line JSON object. Encodes with `JSON_UNESCAPED_SLASHES \| JSON_UNESCAPED_UNICODE`; if `json_encode()` itself throws `JsonException` (e.g. a `NAN`/`INF` context value), catches it and falls back to a minimal hardcoded-safe line built only from the code's own ASCII backing value — the diagnostic path is best-effort observability and must never throw into its caller. |
+| `BootDiagnosticReport` | foundation | Snapshot of entity type registry status at boot. Constructed only by `AbstractKernel::getBootReport()` (Kernel/-exempt); imports `Waaseyaa\Entity\EntityTypeInterface` — see "Kernel-adjacent codification" below. |
+| `HealthChecker` | foundation | Runs all health checks, returns structured results. Constructed only by `AbstractKernel::buildHandlerContainer()` (Kernel/-exempt); imports `Waaseyaa\Entity\*` and `Waaseyaa\Field\FieldStorage` — see "Kernel-adjacent codification" below. `checkIngestion()` reads from an injected `Waaseyaa\Foundation\Ingestion\IngestionLogger` (optional constructor param, defaulting to `new IngestionLogger($projectRoot)`) rather than constructing one inline, so tests can substitute a logger pointed at a different root. |
 | `HealthCheckerInterface` | foundation | Interface for testability (HealthChecker is final) |
 | `HealthCheckResult` | foundation | Value object with pass/warn/fail factories |
 | `HealthCheckCommand` | cli | `health:check` — fast health probe with table/JSON output; registered via `HasNativeCommandsInterface` |
 | `HealthReportCommand` | cli | `health:report` — full diagnostic report with system info; registered via `HasNativeCommandsInterface` |
 | `SchemaCheckCommand` | cli | `schema:check` — standalone schema drift detection; registered via `HasNativeCommandsInterface` |
+
+### Kernel-adjacent codification (`HealthChecker`, `BootDiagnosticReport`)
+
+`HealthChecker` and `BootDiagnosticReport` live in `waaseyaa/foundation` (Layer 0) but import `Waaseyaa\Entity\*` / `Waaseyaa\Field\FieldStorage` (Layer 1) — an architecturally upward reference. This was deliberately **codified as kernel-adjacent rather than relocated** in mission #1257 K6(c) (see `docs/specs/infrastructure.md` "Kernel exemption surface"): both classes are constructed exclusively by `Waaseyaa\Foundation\Kernel\AbstractKernel` (itself already exempt from the layer-import rule as an entry-point orchestrator per CLAUDE.md "Exemption"), and their only non-test consumers are `cli` (Layer 6, downward-safe from any layer). The upward import is allowlisted with a one-line rationale in both `bin/check-package-layers` (`$kernelExemptFiles`) and `packages/foundation/tests/Unit/LayerDependencyTest.php` (`SRC_SCAN_EXEMPT_FILES`) — keep the two lists in sync.
+
+This was revisited (not re-decided) during the WP6 foundation layer-gate scope work (#1855–#1863 batch): `HealthChecker` spans both `entity` (`EntityTypeManagerInterface`, `EntityTypeInterface`, `FieldDefinitionRegistryInterface`) and `field` (`FieldStorage`) concerns, so unlike the `CacheConfigResolver` L0→L4 relocation (#1807/#1836, one obvious destination package already required by every consumer), there is no single non-arbitrary Layer-1 home to relocate it to in one PR. Splitting `Diagnostic/` across packages (enum/DTOs/interface staying in foundation, impl classes moving) was judged a larger design call than a drift-cleanup PR should make unilaterally — see the file-scanning discussion above for the current allowlist shape.
 
 ## Diagnostic Codes
 
@@ -55,6 +61,7 @@ BootDiagnosticReport ─→ HealthChecker ─→ HealthCheckResult[] ─→ CLI 
 | `INGESTION_LOG_OVERSIZED` | warning | Ingestion log exceeds 10,000 entries |
 | `INGESTION_RECENT_FAILURES` | warning | >25% of ingestion attempts rejected |
 | `COLUMN_DATA_STORAGE_DRIFT` | warning | A field registered with `FieldStorage::Data` still has a backing column on the base table or a registered bundle subtable. New writes go to `_data`; the column holds stale values. Author a migration to drop the column or revert the storage hint. |
+| `SCHEMA_DRIFT_CHECK_SKIPPED` | warning | Every registered entity table is lazily uninitialized (none exist yet), so schema drift could not actually be verified for any of them. Distinct from the `DATABASE_SCHEMA_DRIFT` pass state — see "Schema Drift Detection" below. |
 
 ### Code Structure
 
@@ -75,7 +82,7 @@ Each `DiagnosticCode` case provides:
 ### 2. Runtime Checks
 
 - **Database** — `SELECT 1` connectivity test via `DBALDatabase::query()`
-- **Schema drift** — compares `PRAGMA table_info()` against `SqlSchemaHandler.buildTableSpec()` expected columns for each registered entity type. Multi-bundle types additionally enumerate their `{base_table}__{bundle}` subtables (see below).
+- **Schema drift** — compares `PRAGMA table_info()` against `SqlSchemaHandler.buildTableSpec()` expected columns for each registered entity type. Multi-bundle types additionally enumerate their `{base_table}__{bundle}` subtables (see below). Table/subtable identifiers passed into `PRAGMA table_info(...)` are quoted via `DatabaseInterface::quoteIdentifier()` (not hand-built `"..."` string interpolation) — the same identifier-quoting hardening pattern as database-legacy #1816, since an entity type id / bundle name is not guaranteed to be free of quote or metacharacter content.
 - **Column-vs-data storage drift** — for each entity type with a registered `FieldStorage::Data` field, probes `PRAGMA table_info()` for a column whose name matches the field on the base table (core fields) or the matching `{base_table}__{bundle}` subtable (bundle fields). Emits `COLUMN_DATA_STORAGE_DRIFT` per occurrence. Skipped silently when no `FieldDefinitionRegistry` is injected. SQLite-only at present — orphan detection went portable in #1301; column-data drift's PRAGMA path is tracked separately for dialect parity.
 - **Foreign key enforcement** — SQLite only: checks `PRAGMA foreign_keys`; emits `FK_ENFORCEMENT_DISABLED` when off. Skipped for dialects with default-on enforcement.
 - **Storage directory** — `storage/framework/` existence check
@@ -96,14 +103,16 @@ For multi-bundle entity types with registered bundle-scoped fields, drift detect
 ### Algorithm
 
 1. Iterate all registered entity types via `EntityTypeManagerInterface::getDefinitions()`
-2. Skip types whose table doesn't exist yet (lazy creation, not drift)
-3. For each existing table, run `PRAGMA table_info("{table}")` to get actual columns
+2. Skip types whose table doesn't exist yet (lazy creation, not drift) — tracked per run as a skip count
+3. For each existing table, run `PRAGMA table_info({quoted table})` to get actual columns
 4. Build expected columns from `EntityTypeInterface::getKeys()`:
    - Content entities (has `uuid` key): ID column = `INTEGER` (serial), plus `uuid` = `TEXT`
    - Config entities (no `uuid` key): ID column = `TEXT` (varchar)
    - Common columns: bundle, label, langcode, `_data` — all `TEXT`
 5. Compare actual vs expected: check for missing columns, type mismatches
 6. SQLite type normalization: `varchar` → `TEXT`, `serial` → `INTEGER` (affinity rules)
+
+**Reporting the all-skipped case honestly.** If at least one registered entity type exists, no drift was found among the tables that *were* checked, but every single registered table was skipped as lazily-uninitialized (skip count equals the number of registered definitions), `checkSchemaDrift()` does **not** emit a blanket "Schema drift: pass" — that would claim a comparison happened when none did. Instead it emits a single `SCHEMA_DRIFT_CHECK_SKIPPED` **warn** result under the name `Schema drift`, with a message naming the skip count (`"Schema drift not verified: all N registered entity table(s) are not yet materialized (lazy creation)."`) and `context.skipped` / `context.total`. Warn (not fail) because an uninitialized table pre-`waaseyaa install` is a legitimate transitional state, not an error — same severity class as `STORAGE_DIRECTORY_MISSING`. A **partial** skip (some tables exist and match, others are still lazy) is unaffected and continues to report a plain pass — only the all-skipped case is ambiguous enough to require a distinct signal.
 
 ### Drift Entry Shape
 

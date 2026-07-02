@@ -29,7 +29,21 @@ final class DiagnosticEmitter
     {
         $entry = new DiagnosticEntry($code, $message, $context);
 
-        $this->logger->warning(json_encode($entry->toArray(), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+        try {
+            $json = json_encode(
+                $entry->toArray(),
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
+            );
+        } catch (\JsonException) {
+            // Diagnostics are best-effort observability, never a critical
+            // path — an unencodable context (e.g. NAN/INF in a numeric
+            // context value) must not crash the caller. Fall back to a
+            // minimal, hardcoded-safe line built only from the enum's own
+            // backing value, which is always a plain ASCII identifier.
+            $json = sprintf('{"code":"%s","message":"diagnostic entry failed to JSON-encode"}', $code->value);
+        }
+
+        $this->logger->warning($json);
 
         return $entry;
     }

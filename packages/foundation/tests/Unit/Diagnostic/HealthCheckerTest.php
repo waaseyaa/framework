@@ -12,8 +12,10 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Foundation\Diagnostic\BootDiagnosticReport;
+use Waaseyaa\Foundation\Diagnostic\DiagnosticCode;
 use Waaseyaa\Foundation\Diagnostic\HealthChecker;
 use Waaseyaa\Foundation\Diagnostic\HealthCheckResult;
+use Waaseyaa\Foundation\Ingestion\IngestionLogger;
 
 #[CoversClass(HealthChecker::class)]
 #[CoversClass(HealthCheckResult::class)]
@@ -143,16 +145,49 @@ final class HealthCheckerTest extends TestCase
     }
 
     #[Test]
-    public function schemaDriftSkipsNonExistentTables(): void
+    public function schemaDriftReportsSkippedStateHonestlyWhenEveryTableIsLazy(): void
     {
         $nodeType = $this->makeContentEntityType('node');
         $manager = $this->createMock(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn(['node' => $nodeType]);
 
-        // Don't create the table — simulate lazy initialization.
+        // Don't create the table — simulate lazy initialization. A blanket
+        // "pass" here would be dishonest: nothing was actually compared.
         $checker = $this->createCheckerWith($manager);
         $results = $checker->checkSchemaDrift();
 
+        $this->assertCount(1, $results);
+        $this->assertNotSame(
+            'pass',
+            $results[0]->status,
+            'Must not report a green pass when every registered table was skipped as lazy/uninitialized.',
+        );
+        $this->assertSame('warn', $results[0]->status);
+        $this->assertSame(DiagnosticCode::SCHEMA_DRIFT_CHECK_SKIPPED, $results[0]->code);
+        $this->assertStringContainsString('1', $results[0]->message, 'Message must name how many tables were skipped.');
+        $this->assertSame(['skipped' => 1, 'total' => 1], $results[0]->context);
+    }
+
+    #[Test]
+    public function schemaDriftPassesWhenSomeTablesExistAndSomeAreLazy(): void
+    {
+        $nodeType = $this->makeContentEntityType('node');
+        $userType = $this->makeContentEntityType('user_profile');
+        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager->method('getDefinitions')->willReturn([
+            'node' => $nodeType,
+            'user_profile' => $userType,
+        ]);
+
+        // Only "node" is materialized; "user_profile" is lazily uninitialized.
+        $schemaHandler = new SqlSchemaHandler($nodeType, $this->database);
+        $schemaHandler->ensureTable();
+
+        $checker = $this->createCheckerWith($manager);
+        $results = $checker->checkSchemaDrift();
+
+        // A partial skip is still a legitimate pass — only an *all-skipped*
+        // run is dishonest to report as green.
         $this->assertCount(1, $results);
         $this->assertSame('pass', $results[0]->status);
     }
@@ -219,6 +254,77 @@ final class HealthCheckerTest extends TestCase
         $errorRateResult = $this->findResult($results, 'Ingestion error rate');
         $this->assertNotNull($errorRateResult);
         $this->assertSame('warn', $errorRateResult->status);
+    }
+
+    #[Test]
+    public function checkIngestionUsesInjectedIngestionLoggerInsteadOfConstructingItsOwn(): void
+    {
+        // Deliberately point projectRoot at an empty directory with no
+        // ingestion.jsonl, so the only way this test can pass is if
+        // checkIngestion() actually reads from the *injected* logger below.
+        $emptyRoot = sys_get_temp_dir() . '/waaseyaa_health_empty_' . uniqid();
+        mkdir($emptyRoot . '/storage/framework', 0755, true);
+
+        $injectedLogger = new IngestionLogger($this->projectRoot);
+        file_put_contents(
+            $this->projectRoot . '/storage/framework/ingestion.jsonl',
+            json_encode(['status' => 'accepted', 'logged_at' => '2026-03-08T12:00:00+00:00']) . "\n",
+        );
+
+        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager->method('getDefinitions')->willReturn([]);
+        $bootReport = new BootDiagnosticReport(registeredTypes: [], disabledTypeIds: [], schemaCompatibility: []);
+
+        $checker = new HealthChecker(
+            bootReport: $bootReport,
+            database: $this->database,
+            entityTypeManager: $manager,
+            projectRoot: $emptyRoot,
+            ingestionLogger: $injectedLogger,
+        );
+
+        $results = $checker->checkIngestion();
+
+        $sizeResult = $this->findResult($results, 'Ingestion log size');
+        $this->assertNotNull($sizeResult, 'Expected the injected IngestionLogger (with 1 entry) to be consulted, not a fresh one built from projectRoot.');
+        $this->assertSame('pass', $sizeResult->status);
+        $this->assertStringContainsString('1 entries', $sizeResult->message);
+
+        $this->removeDir($emptyRoot);
+    }
+
+    // --- Identifier quoting (PRAGMA table_info) ---
+
+    #[Test]
+    public function schemaDriftHandlesTableNamesWithEmbeddedQuoteCharacters(): void
+    {
+        // A naive `"{$tableName}"` string interpolation breaks (or worse,
+        // mis-parses) once the identifier itself contains a `"`. The
+        // PRAGMA calls must go through DatabaseInterface::quoteIdentifier(),
+        // which doubles embedded quotes, the same hardening pattern as #1816.
+        $weirdId = 'weird"type';
+        $weirdType = $this->makeConfigEntityType($weirdId);
+        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager->method('getDefinitions')->willReturn([$weirdId => $weirdType]);
+
+        // Build the table with raw SQL, quoting identifiers ourselves — the
+        // Doctrine Schema/Table builder used elsewhere in this test class
+        // (see schemaDriftDetectsTypeMismatch) does not accept a `"` inside
+        // a table name, so it cannot be used here; this only proves out the
+        // HealthChecker PRAGMA path under test, not table creation.
+        $quotedTable = $this->database->quoteIdentifier($weirdId);
+        $columns = ['type', 'bundle', 'name', 'langcode', '_data'];
+        $columnSql = implode(', ', array_map(
+            fn(string $c): string => $this->database->quoteIdentifier($c) . ' TEXT' . ($c === 'type' ? ' PRIMARY KEY' : ''),
+            $columns,
+        ));
+        $this->database->query("CREATE TABLE {$quotedTable} ({$columnSql})", []);
+
+        $checker = $this->createCheckerWith($manager);
+        $results = $checker->checkSchemaDrift();
+
+        $this->assertCount(1, $results, 'PRAGMA table_info() must not throw for a quote-embedded identifier.');
+        $this->assertSame('pass', $results[0]->status);
     }
 
     // --- runAll ---

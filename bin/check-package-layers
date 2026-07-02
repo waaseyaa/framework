@@ -141,7 +141,6 @@ $kernelExemptFiles = array_fill_keys([
     'foundation/src/Http/Inbound/SubscriberObserver.php',
     'foundation/src/MercureMonitorServiceProvider.php',
     'foundation/src/Kernel/EventListenerRegistrar.php',
-    'foundation/src/ServiceProvider/Capability/HasCommandsInterface.php',
     'foundation/src/ServiceProvider/Capability/HasMiddlewareInterface.php',
     'foundation/src/ServiceProvider/Capability/HasGraphqlMutationOverridesInterface.php',
     // cache (L0) event-decoupled cache-invalidation listeners — subscribe by string
