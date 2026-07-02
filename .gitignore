@@ -163,3 +163,6 @@ packages/**/tests/**/sfn-*
 kitty-specs/**/status.events.jsonl
 kitty-specs/**/mission-events.jsonl
 .kittify/sync-state.json
+
+# Local credentials restored from a dropped stash (WP4 2026-07-02 incident) — never commit.
+.sofa/
