@@ -23,6 +23,36 @@ final class DiscoveryRouter implements DomainRouterInterface
         private readonly EntityTypeManager $entityTypeManager,
     ) {}
 
+    /**
+     * Clamp the requested discovery `status` to what the caller is
+     * authorized to see.
+     *
+     * `status=all` bypasses RelationshipTraversalService::browse()'s
+     * per-account visibility filter entirely (it is the "system-context,
+     * unfiltered" spelling), and `status=unpublished` surfaces draft edges.
+     * Both are privileged views — an anonymous or unauthorized caller must
+     * only ever get 'published' regardless of what it requested, otherwise
+     * it receives unpublished/private related-entity identities
+     * (`to_entity_type`/`to_entity_id`) and edge metadata it must not see
+     * (audit R2 WP2).
+     *
+     * The gate mirrors RelationshipAccessPolicy's own admin bypass
+     * (`hasPermission('administer nodes')`, see
+     * packages/relationship/src/RelationshipAccessPolicy.php), so the
+     * discovery status gate stays consistent with the entity-level
+     * relationship access policy.
+     */
+    private function resolveDiscoveryStatus(WaaseyaaContext $ctx): string
+    {
+        $requested = is_string($ctx->query['status'] ?? null) ? trim((string) $ctx->query['status']) : 'published';
+        $authorized = $ctx->account->isAuthenticated() && $ctx->account->hasPermission('administer nodes');
+        if (!$authorized && $requested !== 'published') {
+            return 'published';
+        }
+
+        return $requested;
+    }
+
     public function supports(Request $request): bool
     {
         $controller = $request->attributes->get('_controller', '');
@@ -70,7 +100,7 @@ final class DiscoveryRouter implements DomainRouterInterface
         $relationshipTypes = $this->discoveryHandler->parseRelationshipTypesQuery($ctx->query['relationship_types'] ?? null);
         $resolvedOptions = [
             'relationship_types' => $relationshipTypes,
-            'status' => is_string($ctx->query['status'] ?? null) ? trim((string) $ctx->query['status']) : 'published',
+            'status' => $this->resolveDiscoveryStatus($ctx),
             'at' => $ctx->query['at'] ?? null,
             'limit' => is_numeric($ctx->query['limit'] ?? null) ? (int) $ctx->query['limit'] : null,
             'offset' => is_numeric($ctx->query['offset'] ?? null) ? (int) $ctx->query['offset'] : null,
@@ -106,7 +136,7 @@ final class DiscoveryRouter implements DomainRouterInterface
         $relationshipTypes = $this->discoveryHandler->parseRelationshipTypesQuery($ctx->query['relationship_types'] ?? null);
         $resolvedOptions = [
             'relationship_types' => $relationshipTypes,
-            'status' => is_string($ctx->query['status'] ?? null) ? trim((string) $ctx->query['status']) : 'published',
+            'status' => $this->resolveDiscoveryStatus($ctx),
             'at' => $ctx->query['at'] ?? null,
             'limit' => is_numeric($ctx->query['limit'] ?? null) ? (int) $ctx->query['limit'] : null,
             'offset' => is_numeric($ctx->query['offset'] ?? null) ? (int) $ctx->query['offset'] : null,
@@ -143,7 +173,7 @@ final class DiscoveryRouter implements DomainRouterInterface
         $resolvedOptions = [
             'direction' => is_string($ctx->query['direction'] ?? null) ? trim((string) $ctx->query['direction']) : 'both',
             'relationship_types' => $relationshipTypes,
-            'status' => is_string($ctx->query['status'] ?? null) ? trim((string) $ctx->query['status']) : 'published',
+            'status' => $this->resolveDiscoveryStatus($ctx),
             'at' => $ctx->query['at'] ?? null,
             'from' => $ctx->query['from'] ?? null,
             'to' => $ctx->query['to'] ?? null,
@@ -190,7 +220,7 @@ final class DiscoveryRouter implements DomainRouterInterface
         $relationshipTypes = $this->discoveryHandler->parseRelationshipTypesQuery($ctx->query['relationship_types'] ?? null);
         $resolvedOptions = [
             'relationship_types' => $relationshipTypes,
-            'status' => is_string($ctx->query['status'] ?? null) ? trim((string) $ctx->query['status']) : 'published',
+            'status' => $this->resolveDiscoveryStatus($ctx),
             'at' => $ctx->query['at'] ?? null,
             'limit' => is_numeric($ctx->query['limit'] ?? null) ? (int) $ctx->query['limit'] : null,
         ];
