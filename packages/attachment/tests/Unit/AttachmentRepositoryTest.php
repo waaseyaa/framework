@@ -17,6 +17,8 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\LogLevel;
 
 #[CoversClass(AttachmentRepository::class)]
 #[CoversClass(Attachment::class)]
@@ -212,5 +214,181 @@ final class AttachmentRepositoryTest extends TestCase
         // Should not throw.
         $this->repository->delete('99999');
         self::assertTrue(true); // Reached without exception.
+    }
+
+    // ── At-most-one-active invariant (WP2) ───────────────────────────────────
+
+    /**
+     * Direct AttachmentRepository::save() of a second is_active=1 attachment
+     * alongside an existing active row must demote the first — the
+     * invariant holds even when the caller never touches setActive().
+     */
+    #[Test]
+    public function saveOfSecondActiveAttachmentDemotesThePreviousActive(): void
+    {
+        $first = $this->makeAttachment('node', '1', 1, 'first.pdf');
+
+        $second = new Attachment([
+            'parent_entity_type' => 'node',
+            'parent_entity_id' => '1',
+            'is_active' => 1,
+            'filename' => 'second.pdf',
+            'created_at' => time(),
+            'updated_at' => time(),
+        ]);
+        $second->enforceIsNew();
+        $this->repository->save($second);
+
+        $activeRows = iterator_to_array($this->database->select('attachment')
+            ->fields('attachment', ['id'])
+            ->condition('parent_entity_type', 'node')
+            ->condition('parent_entity_id', '1')
+            ->condition('is_active', 1)
+            ->execute());
+
+        self::assertCount(1, $activeRows, 'Exactly one active attachment must remain after save().');
+        self::assertSame((string) $second->id(), (string) $activeRows[0]['id']);
+
+        $reloadedFirst = $this->entityRepository->find((string) $first->id());
+        self::assertInstanceOf(Attachment::class, $reloadedFirst);
+        self::assertSame(0, (int) $reloadedFirst->get('is_active'), 'Previously active attachment must be demoted.');
+    }
+
+    /**
+     * Saving an inactive attachment must not touch siblings or open a
+     * transaction guard — identical to pre-fix behavior.
+     */
+    #[Test]
+    public function saveOfInactiveAttachmentDoesNotTouchSiblings(): void
+    {
+        $active = $this->makeAttachment('node', '1', 1, 'active.pdf');
+
+        $inactive = new Attachment([
+            'parent_entity_type' => 'node',
+            'parent_entity_id' => '1',
+            'is_active' => 0,
+            'filename' => 'inactive2.pdf',
+            'created_at' => time(),
+            'updated_at' => time(),
+        ]);
+        $inactive->enforceIsNew();
+        $this->repository->save($inactive);
+
+        $reloadedActive = $this->entityRepository->find((string) $active->id());
+        self::assertInstanceOf(Attachment::class, $reloadedActive);
+        self::assertSame(1, (int) $reloadedActive->get('is_active'), 'Existing active attachment must be unaffected.');
+    }
+
+    /**
+     * getActive() must detect (and log) a multi-active state manufactured by
+     * bypassing every save-path guard via a raw DatabaseInterface UPDATE —
+     * simulating the residual cross-process race the guards do not fully
+     * close — and still return a deterministic winner (highest id).
+     *
+     * The SQLite partial unique index (AttachmentSchema) actually PREVENTS
+     * this exact bypass once it exists — that is the point of adding it.
+     * This test drops the index first to reach the state it exists to guard
+     * against on platforms where it is unavailable: MySQL/MariaDB (no
+     * partial-index support at all) and a pre-existing install whose data
+     * already violated the invariant before the index could be created
+     * (AttachmentSchema logs a warning and skips index creation rather than
+     * failing install in that case — see ensureActivePartialUniqueIndex()).
+     * getActive() detection is what actually covers those cases.
+     */
+    #[Test]
+    public function getActiveDetectsAndLogsMultipleActiveRowsAndReturnsDeterministicWinner(): void
+    {
+        $first = $this->makeAttachment('node', '1', 1, 'first.pdf');
+        $second = $this->makeAttachment('node', '1', 0, 'second.pdf');
+
+        // Simulate a platform/legacy install without the partial unique
+        // index (see docblock above) so the raw bypass below is reachable.
+        $this->database->schema()->dropIndex('attachment', 'attachment_one_active_per_parent');
+
+        // Bypass every guard: flip $second active directly via raw SQL,
+        // manufacturing the invariant-violated state.
+        $this->database->update('attachment')
+            ->fields(['is_active' => 1])
+            ->condition('id', (string) $second->id())
+            ->execute();
+
+        $spyLogger = new SpyLogger();
+        $repository = new AttachmentRepository(
+            entityRepository: $this->entityRepository,
+            database: $this->database,
+            logger: $spyLogger,
+        );
+
+        $result = $repository->getActive('node', '1');
+
+        self::assertInstanceOf(Attachment::class, $result);
+        self::assertSame(
+            (string) $second->id(),
+            (string) $result->id(),
+            'Higher id (newest) must win deterministically.',
+        );
+
+        self::assertCount(1, $spyLogger->errors, 'Multi-active state must be logged at ERROR.');
+        self::assertStringContainsString('node', $spyLogger->errors[0]);
+        self::assertStringContainsString((string) $first->id(), $spyLogger->errors[0]);
+        self::assertStringContainsString((string) $second->id(), $spyLogger->errors[0]);
+    }
+
+    /**
+     * The single-active happy path must never log — no false positives.
+     */
+    #[Test]
+    public function getActiveDoesNotLogWhenExactlyOneActive(): void
+    {
+        $this->makeAttachment('node', '1', 0, 'inactive.pdf');
+        $this->makeAttachment('node', '1', 1, 'active.pdf');
+
+        $spyLogger = new SpyLogger();
+        $repository = new AttachmentRepository(
+            entityRepository: $this->entityRepository,
+            database: $this->database,
+            logger: $spyLogger,
+        );
+
+        $repository->getActive('node', '1');
+
+        self::assertSame([], $spyLogger->errors);
+    }
+}
+
+/**
+ * In-memory spy logger that records `error` calls (with rendered message
+ * text — the multi-active detection message interpolates the parent and ids
+ * directly into the message, not via PSR-3 placeholders).
+ */
+final class SpyLogger implements LoggerInterface
+{
+    /** @var list<string> */
+    public array $errors = [];
+
+    public function emergency(string|\Stringable $message, array $context = []): void {}
+
+    public function alert(string|\Stringable $message, array $context = []): void {}
+
+    public function critical(string|\Stringable $message, array $context = []): void {}
+
+    public function error(string|\Stringable $message, array $context = []): void
+    {
+        $this->errors[] = (string) $message;
+    }
+
+    public function warning(string|\Stringable $message, array $context = []): void {}
+
+    public function notice(string|\Stringable $message, array $context = []): void {}
+
+    public function info(string|\Stringable $message, array $context = []): void {}
+
+    public function debug(string|\Stringable $message, array $context = []): void {}
+
+    public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
+    {
+        if ($level === LogLevel::Error) {
+            $this->errors[] = (string) $message;
+        }
     }
 }

@@ -314,6 +314,7 @@ The `$accessHandler` and `$account` follow the **paired nullable** pattern: both
 4. Checks field edit access for each submitted attribute.
 5. Applies updates via `$entity->set($field, $value)` (requires `FieldableInterface`).
 6. Saves through `getRepository()->save($entity)` in both cases (C-22 WP3 unified the two save paths onto the canonical repository) — **without** an expectation, the plain form; **with** an expectation, `getRepository()->save($entity, context: SaveContext::default()->withExpectedRevisionId($n))` — and returns the updated resource.
+7. **Both save paths catch `Doctrine\DBAL\Exception\UniqueConstraintViolationException` → 409** (added 2026-07-02, audit-remediation WP2 review — previously only `store()` had this mapping and a PATCH tripping a uniqueness constraint, e.g. the attachment one-active-per-parent partial index under a race, surfaced a raw 500 with driver SQL). Same status/title shape as `store()`'s duplicate-ID 409, codeless (so `code: 'REVISION_CONFLICT'` stays the discriminator for the optimistic-locking 409), detail `"Updating entity of type '<type>' with ID '<id>' violated a uniqueness constraint."` — names the REAL entity id, not the request locator (locator honesty, contract §15). Pinned by `JsonApiControllerConflictTest::patchWithoutExpectationMapsUniqueConstraintViolationTo409` / `::patchWithExpectationMapsUniqueConstraintViolationTo409`.
 
 **`destroy(string $entityTypeId, int|string $id): JsonApiDocument`**
 
@@ -385,11 +386,13 @@ whether the caller stated an expectation.
 `current_revision_id` is `null` when no readable head exists (the row vanished
 concurrently, or a pre-backfill row carries no revision pointer). Deterministic
 and assertable: the two revision ids plus static identity, no timestamps
-(NFR-003). **409 catalogue:** this controller now emits two 409 shapes — the
-pre-existing codeless `data.id`-vs-uuid mismatch and this one; `code:
-'REVISION_CONFLICT'` is the machine-readable discriminator. **Locator
-honesty:** uuid-routed PATCHes resolve to the real entity id before the save;
-the conflict payload names the real id, not the request locator.
+(NFR-003). **409 catalogue:** this controller now emits three 409 shapes — the
+pre-existing codeless `data.id`-vs-uuid mismatch, the codeless
+uniqueness-constraint trip on create/update saves (2026-07-02, WP2 review —
+see `update()` step 7 above), and this one; `code: 'REVISION_CONFLICT'` is
+the machine-readable discriminator. **Locator honesty:** uuid-routed PATCHes
+resolve to the real entity id before the save; the conflict payload names the
+real id, not the request locator.
 
 **`revision_id` is a load-bearing read attribute (FR-008).** `GET
 /api/{type}/{id}` (and collection reads) emit `revision_id` as an attribute on

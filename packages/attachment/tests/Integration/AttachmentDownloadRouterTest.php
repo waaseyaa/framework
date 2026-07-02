@@ -283,7 +283,7 @@ final class AttachmentDownloadRouterTest extends TestCase
 
     private function parentPolicy(int $allowedAccountId): AccessPolicyInterface
     {
-        return new class($allowedAccountId) implements AccessPolicyInterface {
+        return new class ($allowedAccountId) implements AccessPolicyInterface {
             public function __construct(private readonly int $allowedAccountId) {}
 
             public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
@@ -316,7 +316,7 @@ final class AttachmentDownloadRouterTest extends TestCase
 
     private function account(int $id): AccountInterface
     {
-        return new class($id) implements AccountInterface {
+        return new class ($id) implements AccountInterface {
             public function __construct(private readonly int $accountId) {}
 
             public function id(): int|string

@@ -4,28 +4,28 @@ declare(strict_types=1);
 
 namespace Waaseyaa\EntityStorage\Tests\Unit;
 
-use Waaseyaa\Database\DBALDatabase;
-use Waaseyaa\Entity\EntityConstants;
-use Waaseyaa\Entity\EntityType;
-use Waaseyaa\Entity\Event\EntityEvent;
-use Waaseyaa\Entity\Event\EntityEvents;
-use Waaseyaa\EntityStorage\Tests\Fixtures\AttributeFirstEntities\RequiredLabelFixture;
-use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
-use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
-use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
-use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\SqlSchemaHandler;
-use Waaseyaa\EntityStorage\Tests\Fixtures\HydratableFromStorageTestEntity;
-use Waaseyaa\EntityStorage\Tests\Fixtures\LifecycleTrackingEntity;
-use Waaseyaa\EntityStorage\Tests\Fixtures\SpyEntityEventFactory;
-use Waaseyaa\EntityStorage\Tests\Fixtures\TestEnumCastStorageEntity;
-use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Validator\Constraints\Type;
+use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\EntityConstants;
+use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\Event\EntityEvent;
+use Waaseyaa\Entity\Event\EntityEvents;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\EntityStorage\SqlSchemaHandler;
+use Waaseyaa\EntityStorage\Tests\Fixtures\AttributeFirstEntities\RequiredLabelFixture;
 use Waaseyaa\EntityStorage\Tests\Fixtures\CastPersistenceStringEnum;
+use Waaseyaa\EntityStorage\Tests\Fixtures\HydratableFromStorageTestEntity;
+use Waaseyaa\EntityStorage\Tests\Fixtures\LifecycleTrackingEntity;
+use Waaseyaa\EntityStorage\Tests\Fixtures\SpyEntityEventFactory;
+use Waaseyaa\EntityStorage\Tests\Fixtures\TestEnumCastStorageEntity;
+use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 
 require_once __DIR__ . '/../Fixtures/AttributeFirstEntities/RequiredLabelFixture.php';
 
@@ -455,7 +455,7 @@ final class EntityRepositoryTest extends TestCase
     {
         $db = DBALDatabase::createSqlite();
         $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
-        (new SqlSchemaHandler($this->entityType, $db))->ensureTable();
+        new SqlSchemaHandler($this->entityType, $db)->ensureTable();
 
         return new EntityRepository(
             $this->entityType,
@@ -495,8 +495,16 @@ final class EntityRepositoryTest extends TestCase
         $this->assertSame([], $repository->saveMany([]));
     }
 
+    /**
+     * Renamed from saveManyDispatchesEventsAfterCommit (audit-remediation
+     * batch 2026-07-02, WP2 review): its order assertion always held, but
+     * the name pinned the old ALL-events-buffered semantics. The contract
+     * is now split — PRE_SAVE fires immediately inside the batch
+     * transaction (see saveManyDispatchesPreWriteEventsBeforeRowsAreWritten
+     * for the pre-write pin), POST_SAVE stays buffered until after commit.
+     */
     #[Test]
-    public function saveManyDispatchesEventsAfterCommit(): void
+    public function saveManyDispatchesPreDuringAndPostAfterCommit(): void
     {
         $repository = $this->createSqlRepository();
 
@@ -518,6 +526,117 @@ final class EntityRepositoryTest extends TestCase
     {
         $this->expectException(\LogicException::class);
         $this->repository->saveMany([$this->newEntity('1')]);
+    }
+
+    /**
+     * PRE-write events (EntityEvents::PRE_SAVE + BeforeSaveEvent) must fire
+     * IMMEDIATELY during saveMany — inside the batch transaction, BEFORE the
+     * entity's row is written — not buffered until after commit.
+     *
+     * Contract rationale (audit-remediation batch 2026-07-02, WP2 review):
+     * a PRE event announces intent; listeners that mutate the entity or
+     * issue guarding DB writes (e.g. the attachment active-invariant
+     * demote, the classification label resolver's $entity->set() calls)
+     * only work if they run before the write. Post-commit buffering exists
+     * so listeners never observe rolled-back work — but an immediate PRE
+     * listener's DB writes JOIN the batch transaction and roll back with
+     * it, which satisfies that goal without breaking the pre-write
+     * contract. Buffering PRE events until after commit silently broke
+     * both (a listener's entity mutations were never persisted in batches,
+     * and BeforeSaveEvent's abort contract was unfulfillable).
+     *
+     * The listener here records the observed table row-count at dispatch
+     * time: entity 1's PRE events must see 0 rows, entity 2's must see 1.
+     */
+    #[Test]
+    public function saveManyDispatchesPreWriteEventsBeforeRowsAreWritten(): void
+    {
+        $db = DBALDatabase::createSqlite();
+        $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
+        new SqlSchemaHandler($this->entityType, $db)->ensureTable();
+        $repository = new EntityRepository(
+            $this->entityType,
+            $driver,
+            $this->eventDispatcher,
+            database: $db,
+        );
+
+        $rowCount = function () use ($db): int {
+            foreach ($db->query('SELECT COUNT(*) AS c FROM test_entity') as $row) {
+                return (int) $row['c'];
+            }
+
+            return -1;
+        };
+
+        $observed = [];
+        $this->eventDispatcher->addListener(
+            EntityEvents::PRE_SAVE->value,
+            function (EntityEvent $event) use (&$observed, $rowCount): void {
+                $observed[] = ['pre_save', (string) $event->entity->id(), $rowCount()];
+            },
+        );
+        $this->eventDispatcher->addListener(
+            \Waaseyaa\EntityStorage\Event\BeforeSaveEvent::class,
+            function (\Waaseyaa\EntityStorage\Event\BeforeSaveEvent $event) use (&$observed, $rowCount): void {
+                $observed[] = ['before_save', (string) $event->entity()->id(), $rowCount()];
+            },
+        );
+
+        $repository->saveMany([$this->newEntity('1', 'First'), $this->newEntity('2', 'Second')]);
+
+        $this->assertSame(
+            [
+                ['pre_save', '1', 0],
+                ['before_save', '1', 0],
+                ['pre_save', '2', 1],
+                ['before_save', '2', 1],
+            ],
+            $observed,
+            'PRE-write events must fire before each entity\'s row is written, inside the batch transaction.',
+        );
+    }
+
+    /**
+     * BeforeSaveEvent's documented abort contract ("subscribers may abort
+     * via AbortOperationException; no write occurs") must hold inside
+     * saveMany: an abort thrown for the SECOND entity of a batch rolls back
+     * the WHOLE batch — no partial writes. Under the old post-commit
+     * buffering this was unfulfillable: the abort fired after both rows had
+     * already committed.
+     */
+    #[Test]
+    public function saveManyAbortFromBeforeSaveOnSecondEntityRollsBackWholeBatch(): void
+    {
+        $db = DBALDatabase::createSqlite();
+        $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
+        new SqlSchemaHandler($this->entityType, $db)->ensureTable();
+        $repository = new EntityRepository(
+            $this->entityType,
+            $driver,
+            $this->eventDispatcher,
+            database: $db,
+        );
+
+        $this->eventDispatcher->addListener(
+            \Waaseyaa\EntityStorage\Event\BeforeSaveEvent::class,
+            function (\Waaseyaa\EntityStorage\Event\BeforeSaveEvent $event): void {
+                if ((string) $event->entity()->id() === '2') {
+                    throw new \Waaseyaa\EntityStorage\Event\AbortOperationException('second entity refused');
+                }
+            },
+        );
+
+        try {
+            $repository->saveMany([$this->newEntity('1', 'First'), $this->newEntity('2', 'Second')]);
+            $this->fail('AbortOperationException should have propagated out of saveMany().');
+        } catch (\Waaseyaa\EntityStorage\Event\AbortOperationException $e) {
+            $this->assertSame('second entity refused', $e->reason);
+        }
+
+        foreach ($db->query('SELECT COUNT(*) AS c FROM test_entity') as $row) {
+            $this->assertSame(0, (int) $row['c'], 'An abort mid-batch must roll back the WHOLE batch — no partial writes.');
+        }
     }
 
     #[Test]
@@ -565,7 +684,7 @@ final class EntityRepositoryTest extends TestCase
 
         $db = DBALDatabase::createSqlite();
         $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
-        (new SqlSchemaHandler($lifecycleType, $db))->ensureTable();
+        new SqlSchemaHandler($lifecycleType, $db)->ensureTable();
 
         $repository = new EntityRepository(
             $lifecycleType,
@@ -598,7 +717,7 @@ final class EntityRepositoryTest extends TestCase
 
         $db = DBALDatabase::createSqlite();
         $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
-        (new SqlSchemaHandler($lifecycleType, $db))->ensureTable();
+        new SqlSchemaHandler($lifecycleType, $db)->ensureTable();
 
         $repository = new EntityRepository(
             $lifecycleType,
@@ -633,7 +752,7 @@ final class EntityRepositoryTest extends TestCase
 
         $db = DBALDatabase::createSqlite();
         $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
-        (new SqlSchemaHandler($lifecycleType, $db))->ensureTable();
+        new SqlSchemaHandler($lifecycleType, $db)->ensureTable();
 
         $repository = new EntityRepository(
             $lifecycleType,
@@ -711,7 +830,7 @@ final class EntityRepositoryTest extends TestCase
 
         $db = DBALDatabase::createSqlite();
         $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
-        (new SqlSchemaHandler($constrainedType, $db))->ensureTable();
+        new SqlSchemaHandler($constrainedType, $db)->ensureTable();
 
         $validator = new \Waaseyaa\Entity\Validation\EntityValidator(
             \Symfony\Component\Validator\Validation::createValidator(),
@@ -751,7 +870,7 @@ final class EntityRepositoryTest extends TestCase
 
         $db = DBALDatabase::createSqlite();
         $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
-        (new SqlSchemaHandler($constrainedType, $db))->ensureTable();
+        new SqlSchemaHandler($constrainedType, $db)->ensureTable();
 
         $validator = new \Waaseyaa\Entity\Validation\EntityValidator(
             \Symfony\Component\Validator\Validation::createValidator(),
@@ -784,7 +903,7 @@ final class EntityRepositoryTest extends TestCase
 
         $db = DBALDatabase::createSqlite();
         $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
-        (new SqlSchemaHandler($type, $db))->ensureTable();
+        new SqlSchemaHandler($type, $db)->ensureTable();
 
         $validator = new \Waaseyaa\Entity\Validation\EntityValidator(
             \Symfony\Component\Validator\Validation::createValidator(),
@@ -818,7 +937,7 @@ final class EntityRepositoryTest extends TestCase
 
         $db = DBALDatabase::createSqlite();
         $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
-        (new SqlSchemaHandler($type, $db))->ensureTable();
+        new SqlSchemaHandler($type, $db)->ensureTable();
 
         $validator = new \Waaseyaa\Entity\Validation\EntityValidator(
             \Symfony\Component\Validator\Validation::createValidator(),
