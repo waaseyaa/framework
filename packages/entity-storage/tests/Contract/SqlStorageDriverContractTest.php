@@ -9,7 +9,7 @@ use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 
-final class SqlStorageDriverContractTest extends EntityStorageDriverContractTest
+final class SqlStorageDriverContractTest extends AbstractEntityStorageDriverContract
 {
     private DBALDatabase $database;
 

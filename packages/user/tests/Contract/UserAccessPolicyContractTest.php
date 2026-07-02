@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\User\Tests\Contract;
 
 use Waaseyaa\Access\AccessPolicyInterface;
-use Waaseyaa\Access\Tests\Contract\AccessPolicyContractTest;
+use Waaseyaa\Access\Tests\Contract\AbstractAccessPolicyContract;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\User\User;
 use Waaseyaa\User\UserAccessPolicy;
@@ -14,7 +14,7 @@ use Waaseyaa\User\UserAccessPolicy;
  * UserAccessPolicy casts the entity to User in access() for view/update.
  * We provide a real User instance to satisfy the assertion.
  */
-final class UserAccessPolicyContractTest extends AccessPolicyContractTest
+final class UserAccessPolicyContractTest extends AbstractAccessPolicyContract
 {
     protected function createPolicy(): AccessPolicyInterface
     {

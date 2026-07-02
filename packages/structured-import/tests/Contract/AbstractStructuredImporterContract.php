@@ -7,10 +7,6 @@ namespace Waaseyaa\StructuredImport\Tests\Contract;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
-use Waaseyaa\StructuredImport\Gfm\GfmTableImporter;
-use Waaseyaa\StructuredImport\Gfm\GfmTableParser;
-use Waaseyaa\StructuredImport\Gfm\PromptNormalizer;
 use Waaseyaa\StructuredImport\ImportResult;
 use Waaseyaa\StructuredImport\StructuredImporterInterface;
 
@@ -22,7 +18,7 @@ use Waaseyaa\StructuredImport\StructuredImporterInterface;
  * contract only — no coverage annotations so subclasses choose their own.
  */
 #[CoversNothing]
-abstract class StructuredImporterContractTest extends TestCase
+abstract class AbstractStructuredImporterContract extends TestCase
 {
     abstract protected function createImporter(): StructuredImporterInterface;
 
@@ -87,49 +83,5 @@ abstract class StructuredImporterContractTest extends TestCase
         $result = $importer->import('', 'article', null);
 
         self::assertInstanceOf(ImportResult::class, $result);
-    }
-}
-
-/**
- * Concrete contract test for GfmTableImporter.
- */
-#[CoversNothing]
-final class GfmTableImporterContractTest extends StructuredImporterContractTest
-{
-    protected function createImporter(): StructuredImporterInterface
-    {
-        $registry = new class implements FieldDefinitionRegistryInterface {
-            public function bundleFieldsFor(string $entityTypeId, string $bundle): array
-            {
-                return [];
-            }
-
-            public function registerCoreFields(string $entityTypeId, array $fields): void {}
-
-            public function mergeCoreFields(string $entityTypeId, array $fields): void {}
-
-            public function registerBundleFields(string $entityTypeId, string $bundle, array $fields): void {}
-
-            public function coreFieldsFor(string $entityTypeId): array
-            {
-                return [];
-            }
-
-            public function bundleNamesFor(string $entityTypeId): array
-            {
-                return [];
-            }
-
-            public function bundlesDefiningField(string $entityTypeId, string $fieldName): array
-            {
-                return [];
-            }
-        };
-
-        return new GfmTableImporter(
-            registry: $registry,
-            parser: new GfmTableParser(),
-            normalizer: new PromptNormalizer(),
-        );
     }
 }

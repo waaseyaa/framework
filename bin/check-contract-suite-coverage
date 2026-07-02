@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+#
+# check-contract-suite-coverage — enforce the Contract-suite coverage
+# invariant: every `packages/*/tests/Contract` directory on disk must be
+# exercised by the phpunit `Unit` testsuite, and no abstract base class
+# under those directories may collide with failOnWarning.
+#
+# Historical gap: phpunit.xml.dist used to hand-enumerate exactly 7 packages'
+# tests/Contract dirs (ai-agent, api, config, entity, foundation, migration,
+# queue). The other packages with a tests/Contract dir — including note and
+# taxonomy's access-policy contract tests — silently never ran in CI. Nobody
+# noticed because a missing `<directory>` line produces no error, just fewer
+# tests. Fixed by replacing the enumeration with a single
+# `packages/*/tests/Contract` glob (WP2, 2026-07).
+#
+# The complication that made a naive glob unsafe: phpunit.xml.dist sets
+# failOnWarning="true", and PHPUnit's default directory collection matches
+# any `*Test.php` file, then loads every class declared in it — including
+# abstract ones. Scanning an abstract `FooContractTest` class emits a fatal
+# "Class Foo is abstract" warning. The fix is a naming convention, not a
+# suffix exclusion: abstract contract base classes must be named
+# `Abstract<X>Contract` (no `Test` suffix), so PHPUnit's default `Test.php`
+# collection skips the file entirely. `packages/queue/tests/Contract/
+# AbstractTransportContract.php` is the canonical exemplar — model any new
+# abstract contract base on it. Concrete subclasses keep the `*Test` suffix
+# as normal.
+#
+# This gate guards both halves of the fix against silent regression:
+#   (a) phpunit.xml.dist must still glob packages/*/tests/Contract in Unit —
+#       a future refactor that reintroduces a hand-enumerated list (or drops
+#       the line) would silently re-orphan every other package's tests.
+#   (b) no `abstract class ...Test` may exist under packages/*/tests/Contract —
+#       reintroducing one would trip failOnWarning and fail the whole suite.
+#
+# Exit codes:
+#   0 — phpunit.xml.dist globs the Contract suites, and no offending abstract
+#       *Test class exists under packages/*/tests/Contract
+#   1 — either invariant is violated
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+export ROOT_DIR
+
+python3 - <<'PY'
+import os
+import pathlib
+import re
+import sys
+
+root = pathlib.Path(os.environ["ROOT_DIR"])
+failures: list[str] = []
+
+# (a) phpunit.xml.dist must glob packages/*/tests/Contract inside the Unit
+# testsuite. Parse the Unit <testsuite> block only, so a Contract glob under
+# a different testsuite doesn't count.
+phpunit_xml = (root / "phpunit.xml.dist").read_text(encoding="utf-8")
+
+unit_match = re.search(
+    r'<testsuite name="Unit">(.*?)</testsuite>', phpunit_xml, re.DOTALL
+)
+unit_block = unit_match.group(1) if unit_match else ""
+
+if not re.search(r"<directory>\s*packages/\*/tests/Contract\s*</directory>", unit_block):
+    failures.append(
+        "phpunit.xml.dist does not glob `packages/*/tests/Contract` inside the "
+        "Unit testsuite. Every packages/*/tests/Contract directory must be "
+        "covered by construction — do not go back to hand-enumerating "
+        "individual packages (that is exactly the regression this gate "
+        "exists to catch)."
+    )
+
+# (b) no abstract class under packages/*/tests/Contract/*.php may be named
+# with the `*Test` suffix — PHPUnit's default directory collection matches
+# `*Test.php` files and instantiates every declared class via reflection,
+# and failOnWarning="true" turns "Class X is abstract" into a fatal.
+abstract_test_re = re.compile(r"^\s*abstract\s+(?:final\s+)?class\s+(\w*Test)\b", re.MULTILINE)
+
+offenders: list[str] = []
+for contract_dir in sorted(root.glob("packages/*/tests/Contract")):
+    if not contract_dir.is_dir():
+        continue
+    for php_file in sorted(contract_dir.rglob("*.php")):
+        text = php_file.read_text(encoding="utf-8")
+        for m in abstract_test_re.finditer(text):
+            offenders.append(f"{php_file.relative_to(root)}: abstract class {m.group(1)}")
+
+if offenders:
+    failures.append(
+        "Found abstract classes named with the `*Test` suffix under "
+        "packages/*/tests/Contract — these trip failOnWarning (\"Class X is "
+        "abstract\") the moment PHPUnit's default directory collection scans "
+        "the file. Rename to the `Abstract<X>Contract` convention (no `Test` "
+        "suffix) instead — see packages/queue/tests/Contract/"
+        "AbstractTransportContract.php for the canonical exemplar. Concrete "
+        "subclasses keep their `*Test` suffix as normal.\n\n"
+        + "\n".join(f"  {o}" for o in offenders)
+    )
+
+if failures:
+    print("Contract-suite coverage gate failed:\n")
+    for f in failures:
+        print(f)
+        print()
+    sys.exit(1)
+
+contract_dirs = sorted(p for p in root.glob("packages/*/tests/Contract") if p.is_dir())
+print(
+    f"OK — phpunit.xml.dist globs packages/*/tests/Contract, and no abstract "
+    f"*Test class exists among the {len(contract_dirs)} Contract directories "
+    f"on disk."
+)
+PY

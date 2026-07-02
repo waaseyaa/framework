@@ -7,7 +7,7 @@ namespace Waaseyaa\EntityStorage\Tests\Contract;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
 use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
 
-final class InMemoryStorageDriverContractTest extends EntityStorageDriverContractTest
+final class InMemoryStorageDriverContractTest extends AbstractEntityStorageDriverContract
 {
     protected function createDriver(): EntityStorageDriverInterface
     {

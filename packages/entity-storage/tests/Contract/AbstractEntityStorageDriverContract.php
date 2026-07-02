@@ -16,7 +16,7 @@ use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
  * guaranteeing behavioural consistency across drivers.
  */
 #[CoversNothing]
-abstract class EntityStorageDriverContractTest extends TestCase
+abstract class AbstractEntityStorageDriverContract extends TestCase
 {
     protected EntityStorageDriverInterface $driver;
 
