@@ -21,17 +21,26 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
  *
  * Registers the Attachment entity type, binds AttachmentRepository, and wires the
  * authorized private-file download surface (`GET /attachment/{id}/download` →
- * {@see AttachmentDownloadRouter}). Schema creation (AttachmentSchema::ensureTable())
- * is invoked separately during install/migration — see EntitySchemaSync.
+ * {@see AttachmentDownloadRouter}).
  *
  * The access policy ({@see Policy\ParentDelegatedAccessPolicy}) is auto-discovered
  * via the #[PolicyAttribute] attribute; no registration is needed here.
  *
- * {@see boot()} additionally wires {@see AttachmentActiveGuardListener} onto
- * `EntityEvents::PRE_SAVE` — the at-most-one-active guard for the generic
- * entity API (`getRepository('attachment')->save()`), which bypasses
- * {@see AttachmentRepository} entirely and therefore needs its own
- * enforcement point.
+ * {@see boot()} wires TWO cross-cutting concerns:
+ *
+ *   - {@see AttachmentSchema::ensureTable()} — the canonical schema
+ *     materializer for this package's `#[Field]`-declared columns and
+ *     composite/partial indexes, which the generic sql-blob schema-sync
+ *     path does NOT create on its own (see {@see AttachmentSchema}'s
+ *     docblock for the full rationale). Called on every kernel boot,
+ *     database availability permitting; idempotent and self-healing
+ *     regardless of whether the generic path already materialized the
+ *     base-only table.
+ *   - {@see AttachmentActiveGuardListener} onto `EntityEvents::PRE_SAVE` —
+ *     the at-most-one-active guard for the generic entity API
+ *     (`getRepository('attachment')->save()`), which bypasses
+ *     {@see AttachmentRepository} entirely and therefore needs its own
+ *     enforcement point.
  */
 final class AttachmentServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface
 {
@@ -64,7 +73,15 @@ final class AttachmentServiceProvider extends ServiceProvider implements HasHttp
     }
 
     /**
-     * Wires {@see AttachmentActiveGuardListener} onto `EntityEvents::PRE_SAVE`.
+     * Materializes the canonical attachment schema, then wires
+     * {@see AttachmentActiveGuardListener} onto `EntityEvents::PRE_SAVE`.
+     *
+     * Schema materialization runs whenever a database is available,
+     * independent of the dispatcher — a CLI/migration context may boot this
+     * provider without an event dispatcher wired, and the table must still
+     * get its attachment-specific columns/indexes in that context (e.g.
+     * `db:init`). The listener wiring additionally needs the dispatcher, so
+     * it stays gated on both.
      *
      * The kernel-services bus serves the event dispatcher ONLY under the
      * Symfony-contracts FQCN (`ProviderRegistryKernelServices::get()`);
@@ -75,13 +92,15 @@ final class AttachmentServiceProvider extends ServiceProvider implements HasHttp
      */
     public function boot(): void
     {
-        $dispatcher = $this->resolveOptional(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
-        if (!$dispatcher instanceof \Waaseyaa\Foundation\Event\EventDispatcherInterface) {
+        $database = $this->resolveOptional(DatabaseInterface::class);
+        if (!$database instanceof DatabaseInterface) {
             return;
         }
 
-        $database = $this->resolveOptional(DatabaseInterface::class);
-        if (!$database instanceof DatabaseInterface) {
+        $this->resolve(AttachmentSchema::class)->ensureTable();
+
+        $dispatcher = $this->resolveOptional(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
+        if (!$dispatcher instanceof \Waaseyaa\Foundation\Event\EventDispatcherInterface) {
             return;
         }
 

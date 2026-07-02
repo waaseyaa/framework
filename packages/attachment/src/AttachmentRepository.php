@@ -51,6 +51,31 @@ final class AttachmentRepository
     /**
      * Returns all attachments for the given parent entity, ordered by id ASC.
      *
+     * ACCESS-CHECK CONTRACT (audit-remediation batch, 2026-07-01): this uses
+     * `EntityRepositoryInterface::findBy()`, which — unlike
+     * `EntityRepository::getQuery()` — does NOT apply a per-account access
+     * check (verified by reading `EntityRepository::findBy()`: it calls
+     * `$this->driver->findBy()` directly, with no `setAccount()`/
+     * `accessCheck()` gate at all). This is a DELIBERATE low-level-primitive
+     * shape, not an oversight papered over: `AttachmentRepository` is `@api`
+     * public surface with no production caller in THIS repository today
+     * (verified by a repo-wide grep for `listFor(`/`getActive(` — the only
+     * production usages of `AttachmentRepository` are within the attachment
+     * package itself). Any caller — in this codebase or a downstream
+     * consumer — that exposes these results to an end user MUST apply its
+     * own per-result access check before doing so, the same way
+     * `AttachmentDownloadRouter` gates its own (single-row) `find()` call
+     * with `EntityAccessHandler::check($attachment, 'view', $account)
+     * ->isAllowed()` before streaming bytes. `listFor()`/`getActive()` do
+     * NOT perform that check themselves because they have no `$account`
+     * parameter to check against — inventing one with no current caller to
+     * supply it would be speculative, not a fix. See
+     * `docs/specs/work-surface.md` § F4 for the caller-must-gate contract
+     * this documents. NOTE: this contract is a documented convention with
+     * NO mechanical enforcement — findBy() callsites are invisible to the
+     * check-getquery-bindings CI gate (it only sees getQuery() chains), so
+     * reviewers of new consumers must check compliance by hand.
+     *
      * @return list<Attachment>
      */
     public function listFor(string $parentEntityType, string $parentId): array
@@ -64,6 +89,13 @@ final class AttachmentRepository
 
     /**
      * Returns the single active attachment for the given parent entity, or null.
+     *
+     * ACCESS-CHECK CONTRACT: same unguarded-primitive shape as
+     * {@see listFor()} — `findBy()` applies no per-account access check, and
+     * this method has no `$account` parameter to check against. See
+     * {@see listFor()}'s docblock for the full rationale (no current
+     * production caller; downstream `@api` consumers must gate their own
+     * results the way `AttachmentDownloadRouter` does).
      *
      * Orders by id DESC (newest wins) and fetches up to 2 rows so a
      * multi-active state — which should never happen, but the save-path
@@ -174,6 +206,13 @@ final class AttachmentRepository
      *   1. SET is_active = 0 on all siblings (same parent_entity_type + parent_entity_id).
      *   2. SET is_active = 1 on the target attachment.
      *
+     * Both UPDATEs also stamp `updated_at` (unix timestamp — there is no
+     * injectable clock convention elsewhere in the framework to mirror;
+     * `time()` matches how raw-SQL writes stamp timestamps in other packages,
+     * e.g. `media`'s version rows) so a row's audit trail reflects the
+     * `is_active` change these UPDATEs make, on both the demoted siblings
+     * and the newly-activated row.
+     *
      * Entity events are NOT fired for deactivated siblings — intentional.
      *
      * @throws AttachmentNotFoundException If no attachment with $attachmentId exists.
@@ -187,19 +226,20 @@ final class AttachmentRepository
 
         $parentType = (string) $attachment->get('parent_entity_type');
         $parentId = (string) $attachment->get('parent_entity_id');
+        $now = time();
 
         $transaction = $this->database->transaction();
         try {
             // Clear active flag on all attachments for this parent.
             $this->database->update('attachment')
-                ->fields(['is_active' => 0])
+                ->fields(['is_active' => 0, 'updated_at' => $now])
                 ->condition('parent_entity_type', $parentType)
                 ->condition('parent_entity_id', $parentId)
                 ->execute();
 
             // Set active flag on the target attachment.
             $this->database->update('attachment')
-                ->fields(['is_active' => 1])
+                ->fields(['is_active' => 1, 'updated_at' => $now])
                 ->condition('id', $attachmentId)
                 ->execute();
 

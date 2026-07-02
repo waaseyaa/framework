@@ -69,6 +69,55 @@ final class AttachmentServiceProviderTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
+    /**
+     * The generic sql-blob schema-sync path (SqlSchemaHandler) never
+     * materializes this package's `#[Field]`-declared columns or its
+     * composite/partial indexes for a sql-blob backend entity type — see
+     * AttachmentSchema's docblock. boot() must materialize the canonical
+     * attachment shape itself so a real kernel boot (which never calls
+     * AttachmentSchema::ensureTable() any other way) actually gets it.
+     */
+    #[Test]
+    public function bootMaterializesAttachmentSpecificSchema(): void
+    {
+        $dispatcher = new SymfonyEventDispatcherAdapter();
+        $database = DBALDatabase::createSqlite();
+
+        $provider = new AttachmentServiceProvider();
+        $provider->setKernelServices($this->kernelServices([
+            \Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class => $dispatcher,
+            DatabaseInterface::class => $database,
+        ]));
+        $provider->register();
+        $provider->boot();
+
+        $schema = $database->schema();
+        $this->assertTrue($schema->tableExists('attachment'));
+        foreach (['parent_entity_type', 'parent_entity_id', 'is_active', 'created_at', 'updated_at'] as $column) {
+            $this->assertTrue($schema->fieldExists('attachment', $column), "Missing column: {$column}");
+        }
+    }
+
+    /**
+     * Schema materialization must not depend on the event dispatcher being
+     * available — a CLI/migration boot may have a database but no
+     * dispatcher wired, and the table still needs its columns/indexes.
+     */
+    #[Test]
+    public function bootMaterializesSchemaEvenWithoutDispatcher(): void
+    {
+        $database = DBALDatabase::createSqlite();
+
+        $provider = new AttachmentServiceProvider();
+        $provider->setKernelServices($this->kernelServices([
+            DatabaseInterface::class => $database,
+        ]));
+        $provider->register();
+        $provider->boot();
+
+        $this->assertTrue($database->schema()->fieldExists('attachment', 'is_active'));
+    }
+
     #[Test]
     public function bootWithoutDatabaseIsANoOp(): void
     {
