@@ -46,6 +46,13 @@ final class AttachmentActiveInvariant
      * Clears `is_active` on every attachment for the given parent, except
      * $exceptId (when given). $exceptId is null for a not-yet-persisted new
      * attachment — it has no row yet, so every existing sibling is demoted.
+     *
+     * Stamps `updated_at` (unix timestamp, matching the convention used
+     * elsewhere in the framework for raw-SQL writes that bypass
+     * EntityRepository — e.g. `media`'s version rows — since there is no
+     * injectable clock convention to mirror) on every demoted row so a
+     * demotion is visible in the row's own audit trail, not just via
+     * `is_active` flipping to 0.
      */
     public static function demoteSiblings(
         DatabaseInterface $database,
@@ -54,7 +61,7 @@ final class AttachmentActiveInvariant
         ?string $exceptId,
     ): void {
         $update = $database->update('attachment')
-            ->fields(['is_active' => 0])
+            ->fields(['is_active' => 0, 'updated_at' => time()])
             ->condition('parent_entity_type', $parentEntityType)
             ->condition('parent_entity_id', $parentEntityId);
 

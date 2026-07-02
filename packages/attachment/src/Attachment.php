@@ -16,10 +16,19 @@ use Waaseyaa\Entity\ContentEntityBase;
  * at-most-one-active invariant via {@see AttachmentRepository::setActive()}.
  *
  * The parent linkage and active flag are declared as `#[Field]`s so the
- * framework's schema-sync materializes their columns — `AttachmentRepository`
- * reads and updates them as real columns (e.g. `setActive()`). Other
- * descriptive fields (filename, content_type, size, storage_uri, checksum)
- * live in the `_data` JSON blob.
+ * entity hydration/validation layer treats them as real, typed properties —
+ * `AttachmentRepository` reads and updates them as real columns (e.g.
+ * `setActive()`). NOTE: for this entity type's `sql-blob` storage backend,
+ * the GENERIC entity-storage schema-sync path (`SqlSchemaHandler`) does NOT
+ * materialize entity-level `#[Field]` columns from these attributes alone —
+ * that only happens for the `sql-column` backend. The columns these three
+ * fields need (plus `created_at`/`updated_at` and the composite/partial
+ * indexes) are materialized by this package's own
+ * {@see \Waaseyaa\Attachment\Schema\AttachmentSchema}, wired into every
+ * kernel boot by {@see \Waaseyaa\Attachment\AttachmentServiceProvider::boot()}.
+ * See {@see \Waaseyaa\Attachment\Schema\AttachmentSchema} for the full
+ * canonical-shape rationale. Other descriptive fields (filename, content_type,
+ * size, storage_uri, checksum) live in the `_data` JSON blob.
  */
 #[ContentEntityType(id: 'attachment', label: 'Attachment', description: 'File attachment linked to a parent entity.')]
 #[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'filename')]

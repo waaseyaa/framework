@@ -175,6 +175,51 @@ final class AttachmentRepositoryTest extends TestCase
         self::assertSame(1, (int) $reloadedB->get('is_active'), 'Target must now be active');
     }
 
+    /**
+     * setActive() issues two raw UPDATEs (demote siblings, activate target)
+     * that must both stamp `updated_at` — otherwise a row's audit trail
+     * freezes at whatever value the last EntityRepository::save() wrote,
+     * even though setActive() just changed its `is_active` state.
+     */
+    #[Test]
+    public function setActiveStampsUpdatedAtOnBothTheDemotedSiblingAndTheActivatedTarget(): void
+    {
+        $staleTimestamp = 1_000;
+        $a = $this->makeAttachment('node', '1', 1, 'a.pdf');
+        $b = $this->makeAttachment('node', '1', 0, 'b.pdf');
+
+        // Force both rows to a known-stale updated_at via a raw UPDATE — the
+        // entity repository's save() path (used by makeAttachment()) does
+        // not itself auto-stamp updated_at, so this simulates a row last
+        // touched some time ago.
+        $this->database->update('attachment')
+            ->fields(['updated_at' => $staleTimestamp])
+            ->condition('id', (string) $a->id())
+            ->execute();
+        $this->database->update('attachment')
+            ->fields(['updated_at' => $staleTimestamp])
+            ->condition('id', (string) $b->id())
+            ->execute();
+
+        $before = time();
+        $this->repository->setActive((string) $b->id());
+
+        $rows = iterator_to_array($this->database->select('attachment')
+            ->fields('attachment', ['id', 'updated_at'])
+            ->condition('parent_entity_type', 'node')
+            ->condition('parent_entity_id', '1')
+            ->execute());
+
+        self::assertCount(2, $rows);
+        foreach ($rows as $row) {
+            self::assertGreaterThanOrEqual(
+                $before,
+                (int) $row['updated_at'],
+                "Row {$row['id']} updated_at must be bumped from the stale seed value.",
+            );
+        }
+    }
+
     #[Test]
     public function setActiveOnNonExistentIdThrowsNotFoundException(): void
     {

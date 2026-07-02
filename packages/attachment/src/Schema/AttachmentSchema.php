@@ -17,6 +17,32 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * (matching what SqlSchemaHandler would auto-generate for this entity type)
  * and the attachment-specific columns and composite indexes.
  *
+ * **Canonical schema authority.** For a `sql-blob` backend entity type (the
+ * default, and what `Attachment` uses — see {@see \Waaseyaa\Attachment\Attachment}),
+ * the generic entity-storage schema-sync path (`SqlSchemaHandler`, driven by
+ * `EntityTypeManagerFactory` at kernel boot and by `EntitySchemaSync` at
+ * CLI `db:init`/`schema:sync`) materializes ONLY the framework-standard base
+ * columns every content entity gets — `id`, `uuid`, `bundle`, the label
+ * column (`filename` here), `langcode`, `_data` — because it has no
+ * knowledge of any package's `#[Field]`-declared entity-level columns for
+ * that backend (that materialization path exists only for the `sql-column`
+ * backend, via `SqlColumnSchemaBuilder`). This class is the CANONICAL and
+ * ONLY provider of the attachment-specific columns
+ * (`parent_entity_type`, `parent_entity_id`, `is_active`, `created_at`,
+ * `updated_at`) and the composite/partial indexes below. It is wired into
+ * every real kernel boot by {@see \Waaseyaa\Attachment\AttachmentServiceProvider::boot()}.
+ *
+ * {@see ensureTable()} is written to converge to this canonical shape
+ * regardless of which path creates the base table first: if the table does
+ * not exist yet, {@see createTable()} builds it complete (base + attachment
+ * columns + composite indexes) in one call; if the table already exists —
+ * e.g. because the generic sql-blob path materialized the base-only table
+ * first (a lazy `getRepository('attachment')` call racing ahead of this
+ * package's `boot()`, or a pre-existing install from before this class was
+ * wired in) — {@see ensureColumns()} / {@see ensureIndexes()} additively
+ * backfill the missing attachment-specific columns/indexes onto the
+ * existing table. Either ordering converges to the same final shape.
+ *
  * Columns:
  *   - id               INTEGER PK AUTOINCREMENT
  *   - uuid             VARCHAR(128) UNIQUE NOT NULL
@@ -58,7 +84,13 @@ final class AttachmentSchema
     /**
      * Ensures the attachment table exists with all required columns and indexes.
      *
-     * Idempotent: no-op if the table already exists.
+     * Idempotent, and self-healing regardless of call order: when the table
+     * does not exist, {@see createTable()} builds the complete canonical
+     * shape in one call. When it already exists — most likely because the
+     * generic sql-blob schema-sync path materialized the base-only table
+     * first (see the class docblock) — {@see ensureColumns()} and
+     * {@see ensureIndexes()} additively backfill the attachment-specific
+     * columns/indexes rather than silently no-op'ing on an incomplete table.
      */
     public function ensureTable(): void
     {
@@ -66,6 +98,9 @@ final class AttachmentSchema
 
         if (!$schema->tableExists(self::TABLE)) {
             $this->createTable($schema);
+        } else {
+            $this->ensureColumns($schema);
+            $this->ensureIndexes($schema);
         }
 
         // Idempotent (CREATE ... IF NOT EXISTS) regardless of whether the
@@ -149,6 +184,90 @@ final class AttachmentSchema
                 self::TABLE . '_parent_active' => ['parent_entity_type', 'parent_entity_id', 'is_active'],
             ],
         ]);
+    }
+
+    /**
+     * Additively backfills the attachment-specific columns onto an
+     * ALREADY-EXISTING `attachment` table (see {@see ensureTable()}).
+     * Mirrors the base-column shapes in {@see createTable()} exactly;
+     * skips any column that is already present.
+     */
+    private function ensureColumns(SchemaInterface $schema): void
+    {
+        $columns = [
+            'parent_entity_type' => [
+                'type' => 'varchar',
+                'length' => 64,
+                'not null' => true,
+                'default' => '',
+            ],
+            'parent_entity_id' => [
+                'type' => 'varchar',
+                'length' => 255,
+                'not null' => true,
+                'default' => '',
+            ],
+            'is_active' => [
+                'type' => 'int',
+                'not null' => true,
+                'default' => 0,
+            ],
+            'created_at' => [
+                'type' => 'int',
+                'not null' => true,
+                'default' => 0,
+            ],
+            'updated_at' => [
+                'type' => 'int',
+                'not null' => true,
+                'default' => 0,
+            ],
+        ];
+
+        foreach ($columns as $name => $spec) {
+            if ($schema->fieldExists(self::TABLE, $name)) {
+                continue;
+            }
+            $schema->addField(self::TABLE, $name, $spec);
+        }
+    }
+
+    /**
+     * Additively backfills the two composite indexes onto an
+     * ALREADY-EXISTING `attachment` table (see {@see ensureTable()}).
+     * The partial unique active-row index is handled separately by
+     * {@see ensureActivePartialUniqueIndex()} — it is always (re)ensured,
+     * not just on this branch.
+     */
+    private function ensureIndexes(SchemaInterface $schema): void
+    {
+        $indexes = [
+            self::TABLE . '_parent' => ['parent_entity_type', 'parent_entity_id'],
+            self::TABLE . '_parent_active' => ['parent_entity_type', 'parent_entity_id', 'is_active'],
+        ];
+
+        foreach ($indexes as $name => $fields) {
+            if ($this->indexExists($name)) {
+                continue;
+            }
+            $schema->addIndex(self::TABLE, $name, $fields);
+        }
+    }
+
+    /**
+     * `sqlite_master` existence probe for a named index — mirrors
+     * {@see \Waaseyaa\Relationship\RelationshipSchemaManager::indexExists()},
+     * the established precedent for additive package-owned index backfill.
+     */
+    private function indexExists(string $name): bool
+    {
+        $rows = $this->database->query(
+            "SELECT COUNT(*) AS cnt FROM sqlite_master WHERE type = 'index' AND name = ?",
+            [$name],
+        );
+        $data = iterator_to_array($rows, false);
+
+        return (int) ($data[0]['cnt'] ?? 0) > 0;
     }
 
     /**

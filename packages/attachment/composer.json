@@ -31,11 +31,12 @@
         "waaseyaa/access": "^0.1.0-alpha.250",
         "waaseyaa/database-legacy": "^0.1.0-alpha.250",
         "waaseyaa/entity": "^0.1.0-alpha.250",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.250",
         "waaseyaa/foundation": "^0.1.0-alpha.250"
     },
     "require-dev": {
-        "phpunit/phpunit": "^10.5"
+        "phpunit/phpunit": "^10.5",
+        "symfony/event-dispatcher": "^7.0",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.250"
     },
     "autoload": {
         "psr-4": {
