@@ -200,14 +200,170 @@ final class CheckPackageLayersGateTest extends TestCase
         self::assertStringContainsString('OK', $out);
     }
 
+    #[Test]
+    public function flags_static_method_access_on_inline_fq_name_pl008(): void
+    {
+        // Adversarial-review MAJOR-1: \Waaseyaa\Node\Something::make() is REAL runtime
+        // coupling (autoloads the class, unlike ::class) yet has no `use` import for
+        // PL005 and no `::class` suffix for the original sub-pattern (b) regex.
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'src/Demo.php',
+            useStatements: [],
+            rawBody: <<<'BODY'
+                public function boot(): void { \Waaseyaa\Node\Something::make(); }
+                BODY,
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+        self::assertSame(1, $exit, "Gate must fail on an inline fully-qualified static-method access.\n{$out}");
+        self::assertStringContainsString('PL008', $out);
+        self::assertStringContainsString('node', $out);
+    }
+
+    #[Test]
+    public function flags_leading_backslash_quoted_fqcn_pl008(): void
+    {
+        // Adversarial-review MAJOR-2: '\Waaseyaa\Node\Something' — the leading
+        // backslash inside the quotes evaded the original quote-anchored regex.
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'src/Demo.php',
+            useStatements: [],
+            rawBody: <<<'BODY'
+                private const FQCN = '\Waaseyaa\Node\Something';
+                BODY,
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+        self::assertSame(1, $exit, "Gate must fail on a leading-backslash quoted higher-layer FQCN.\n{$out}");
+        self::assertStringContainsString('PL008', $out);
+        self::assertStringContainsString('node', $out);
+    }
+
+    #[Test]
+    public function flags_single_backslash_quoted_fqcn_pl008(): void
+    {
+        // Adversarial-review MAJOR-2 (related): 'Waaseyaa\Node\Something' with SINGLE
+        // backslash separators is valid PHP in a single-quoted string ('\N' is a literal
+        // backslash + N) and evaded the original regex, which required raw double
+        // backslashes as separators.
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'src/Demo.php',
+            useStatements: [],
+            rawBody: <<<'BODY'
+                private const FQCN = 'Waaseyaa\Node\Something';
+                BODY,
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+        self::assertSame(1, $exit, "Gate must fail on a single-backslash quoted higher-layer FQCN.\n{$out}");
+        self::assertStringContainsString('PL008', $out);
+        self::assertStringContainsString('node', $out);
+    }
+
+    #[Test]
+    public function flags_inline_fq_instantiation_pl008(): void
+    {
+        // new \Waaseyaa\Node\Something() — fully-qualified instantiation, no `use`
+        // import, no ::class suffix: invisible to both PL005 and the original PL008.
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'src/Demo.php',
+            useStatements: [],
+            rawBody: <<<'BODY'
+                public function make(): object { return new \Waaseyaa\Node\Something(); }
+                BODY,
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+        self::assertSame(1, $exit, "Gate must fail on an inline fully-qualified instantiation.\n{$out}");
+        self::assertStringContainsString('PL008', $out);
+        self::assertStringContainsString('node', $out);
+    }
+
+    #[Test]
+    public function does_not_flag_fqcn_in_trailing_line_comment(): void
+    {
+        // Adversarial-review MAJOR-3: the original line-based comment stripping only
+        // skipped WHOLE comment lines, so a trailing same-line // comment mentioning a
+        // higher-layer FQCN failed the gate on legitimate code.
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'src/Demo.php',
+            useStatements: [],
+            rawBody: <<<'BODY'
+                private int $x = 1; // see \Waaseyaa\Node\Something::class for the L2 counterpart
+                BODY,
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+        self::assertSame(0, $exit, "An FQCN inside a trailing same-line // comment must not fail PL008.\n{$out}");
+        self::assertStringContainsString('OK', $out);
+    }
+
+    #[Test]
+    public function does_not_flag_fqcn_in_trailing_block_comment(): void
+    {
+        // Adversarial-review MAJOR-3 (block-comment variant).
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'src/Demo.php',
+            useStatements: [],
+            rawBody: <<<'BODY'
+                private int $x = 1; /* \Waaseyaa\Node\Something::class */
+                BODY,
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+        self::assertSame(0, $exit, "An FQCN inside a trailing same-line /* */ comment must not fail PL008.\n{$out}");
+        self::assertStringContainsString('OK', $out);
+    }
+
+    #[Test]
+    public function does_not_flag_fqcn_in_docblock_see_reference(): void
+    {
+        // Docblock @see references are documentation, not coupling — pin that they pass.
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'src/Demo.php',
+            useStatements: [],
+            rawBody: <<<'BODY'
+                /** @see \Waaseyaa\Node\Something::class */
+                private int $x = 1;
+                BODY,
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+        self::assertSame(0, $exit, "An FQCN inside a docblock @see must not fail PL008.\n{$out}");
+        self::assertStringContainsString('OK', $out);
+    }
+
     /**
      * @param array<string, string> $require
      * @param list<string>          $useStatements FQCNs to `use` from the src file
      * @param string                $rawBody       Arbitrary raw text placed inside the class
-     *                                              body — used to plant PL008 string-literal /
-     *                                              inline `::class` fixtures. The gate scans raw
-     *                                              file text with regexes, so this need not be
-     *                                              syntactically valid PHP.
+     *                                              body — used to plant PL008 string-scalar /
+     *                                              inline fully-qualified-name fixtures. The
+     *                                              gate tokenizes files lexically
+     *                                              (token_get_all), which does not require a
+     *                                              full parse, so this need only be lexically
+     *                                              valid PHP.
      */
     private function writeFixturePackage(
         string $short,
