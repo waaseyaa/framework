@@ -61,6 +61,39 @@ final class WaaseyaaRouterTest extends TestCase
     }
 
     #[Test]
+    public function matches_percent_encoded_unicode_slug_and_decodes_param(): void
+    {
+        // Unicode slugs (Indigenous orthography — syllabics, long-vowel
+        // diacritics) arrive percent-encoded on the wire; the matcher must
+        // decode them back to the stored slug so alias/entity lookups match.
+        $slug = 'ᐊᓂᔑᓈᐯᒧᐎᓐ-ākí';
+        $router = new WaaseyaaRouter(new RequestContext('', 'GET'));
+        $router->addRoute(
+            'content.view',
+            RouteBuilder::create('/content/{slug}')->controller('X')->methods('GET')->build(),
+        );
+
+        $params = $router->match('/content/' . rawurlencode($slug));
+        $this->assertSame('content.view', $params['_route']);
+        $this->assertSame($slug, $params['slug']);
+    }
+
+    #[Test]
+    public function generates_percent_encoded_url_for_unicode_slug(): void
+    {
+        $slug = 'ᐊᓂᔑᓈᐯᒧᐎᓐ-ākí';
+        $router = new WaaseyaaRouter(new RequestContext('', 'GET'));
+        $router->addRoute(
+            'content.view',
+            RouteBuilder::create('/content/{slug}')->controller('X')->methods('GET')->build(),
+        );
+
+        $url = $router->generate('content.view', ['slug' => $slug]);
+        $this->assertSame('/content/' . rawurlencode($slug), $url);
+        $this->assertSame($slug, rawurldecode(basename($url)), 'generated URL must round-trip to the original slug');
+    }
+
+    #[Test]
     public function match_throws_route_not_found_for_unknown_path(): void
     {
         $router = new WaaseyaaRouter(new RequestContext('', 'GET'));
