@@ -254,6 +254,195 @@ final class AttachmentSchemaSelfHealTest extends TestCase
             'A mid-heal DDL failure must log a warning, not crash boot.',
         );
     }
+
+    /**
+     * Retry-boot convergence on REAL SQLite (final review round, reviewer-
+     * required): a mid-backfill failure on boot 1 must roll the column adds
+     * back (SQLite DDL is transactional) so boot 2 re-detects them as
+     * missing and the WHOLE heal — columns, value backfill, composite
+     * indexes, partial index — retries cleanly and converges. The first cut
+     * committed each DDL statement individually and created the partial
+     * index even after a failed heal, which left boot 2's
+     * DBALSchema::addIndex() introspect-diff-RECREATE path to strip the
+     * partial index's WHERE clause and silently DROP the uuid unique
+     * constraint — non-convergent and destructive on every subsequent boot.
+     */
+    #[Test]
+    public function midHealFailureRollsBackAndTheNextBootConvergesFully(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $entityType = EntityType::fromClass(Attachment::class);
+        new SqlSchemaHandler($entityType, $database)->ensureTable();
+
+        // Two degraded-era rows (distinct parents, distinct uuids) whose
+        // attachment data lives only in the `_data` blob.
+        foreach ([['node', '42', 'uuid-aaaa'], ['node', '77', 'uuid-bbbb']] as [$parentType, $parentId, $uuid]) {
+            $row = [
+                'uuid' => $uuid,
+                'bundle' => 'attachment',
+                'filename' => "degraded-{$parentId}.pdf",
+                'langcode' => 'en',
+                '_data' => json_encode([
+                    'parent_entity_type' => $parentType,
+                    'parent_entity_id' => $parentId,
+                    'is_active' => 1,
+                    'created_at' => 2_222,
+                    'updated_at' => 2_222,
+                ], \JSON_THROW_ON_ERROR),
+            ];
+            $database->insert('attachment')->fields(array_keys($row))->values($row)->execute();
+        }
+
+        // ── Boot 1: the backfill dies on its SECOND row UPDATE. ──────────
+        $boot1Logger = new SchemaSpyLogger();
+        $killer = new FailNthUpdateDatabaseDecorator($database, failOnCall: 2);
+        new AttachmentSchema($killer, $boot1Logger)->ensureTable(); // must not throw
+
+        self::assertNotEmpty($boot1Logger->warnings, 'Boot 1 must survive with a logged warning.');
+        self::assertStringContainsString(
+            'retry automatically',
+            implode(' ', $boot1Logger->warnings),
+            'The warning must state the actual (transactional-platform) recovery path.',
+        );
+        self::assertFalse(
+            $database->schema()->fieldExists('attachment', 'parent_entity_type'),
+            'Boot 1 column adds must be ROLLED BACK with the failed backfill (SQLite DDL is transactional) '
+            . 'so the heal re-triggers on the next boot.',
+        );
+
+        // ── Boot 2: healthy database → the whole heal retries and converges.
+        $boot2Logger = new SchemaSpyLogger();
+        new AttachmentSchema($database, $boot2Logger)->ensureTable();
+
+        // Every row fully backfilled, real-column level.
+        $rows = iterator_to_array($database->select('attachment', 'a')
+            ->fields('a', ['uuid', 'parent_entity_type', 'parent_entity_id', 'is_active', 'created_at'])
+            ->orderBy('id')
+            ->execute());
+        self::assertCount(2, $rows);
+        self::assertSame(['node', '42', 1, 2_222], [
+            (string) $rows[0]['parent_entity_type'],
+            (string) $rows[0]['parent_entity_id'],
+            (int) $rows[0]['is_active'],
+            (int) $rows[0]['created_at'],
+        ]);
+        self::assertSame(['node', '77', 1], [
+            (string) $rows[1]['parent_entity_type'],
+            (string) $rows[1]['parent_entity_id'],
+            (int) $rows[1]['is_active'],
+        ]);
+        self::assertNotEmpty($boot2Logger->infosAndNotices, 'Boot 2 must log the healed row count.');
+
+        // ALL five indexes present — including the uuid unique the first-cut
+        // recreate path silently dropped, and the partial WHERE clause the
+        // DBAL introspection stripped.
+        $indexes = [];
+        foreach ($database->query("SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'attachment'") as $row) {
+            $indexes[(string) $row['name']] = (string) ($row['sql'] ?? '');
+        }
+        foreach (
+            [
+                'attachment_uuid',
+                'attachment_bundle',
+                'attachment_parent',
+                'attachment_parent_active',
+                'attachment_one_active_per_parent',
+            ] as $expected
+        ) {
+            self::assertArrayHasKey($expected, $indexes, "Index '{$expected}' missing after the converged heal.");
+        }
+        self::assertStringContainsString(
+            'WHERE',
+            $indexes['attachment_one_active_per_parent'],
+            'The active-row backstop must still be a PARTIAL unique index.',
+        );
+
+        // The uuid unique constraint must actually enforce.
+        $duplicate = [
+            'uuid' => 'uuid-aaaa',
+            'bundle' => 'attachment',
+            'filename' => 'dupe.pdf',
+            'langcode' => 'en',
+            'parent_entity_type' => 'node',
+            'parent_entity_id' => '99',
+            'is_active' => 0,
+            'created_at' => 3,
+            'updated_at' => 3,
+            '_data' => '{}',
+        ];
+        try {
+            $database->insert('attachment')->fields(array_keys($duplicate))->values($duplicate)->execute();
+            self::fail('Duplicate-uuid INSERT must be rejected by the surviving unique index.');
+        } catch (\Throwable) {
+            $this->addToAssertionCount(1);
+        }
+
+        // ── Boot 3: pure no-op. ───────────────────────────────────────────
+        $boot3Logger = new SchemaSpyLogger();
+        new AttachmentSchema($database, $boot3Logger)->ensureTable();
+        self::assertSame([], $boot3Logger->warnings, 'Boot 3 must not warn.');
+        self::assertSame([], $boot3Logger->infosAndNotices, 'Boot 3 must not re-heal anything.');
+    }
+}
+
+/**
+ * Decorator over a REAL database that kills the Nth update() call —
+ * simulates the backfill dying mid-heal while everything else (schema DDL,
+ * selects, the transaction handle) runs against the real SQLite connection,
+ * so the rollback behavior under test is the real platform's, not a stub's.
+ */
+final class FailNthUpdateDatabaseDecorator implements DatabaseInterface
+{
+    private int $updateCalls = 0;
+
+    public function __construct(
+        private readonly DatabaseInterface $inner,
+        private readonly int $failOnCall,
+    ) {}
+
+    public function select(string $table, string $alias = ''): SelectInterface
+    {
+        return $this->inner->select($table, $alias);
+    }
+
+    public function insert(string $table): InsertInterface
+    {
+        return $this->inner->insert($table);
+    }
+
+    public function update(string $table): UpdateInterface
+    {
+        if (++$this->updateCalls === $this->failOnCall) {
+            throw new \RuntimeException('backfill UPDATE killed mid-heal (decorator)');
+        }
+
+        return $this->inner->update($table);
+    }
+
+    public function delete(string $table): DeleteInterface
+    {
+        return $this->inner->delete($table);
+    }
+
+    public function schema(): SchemaInterface
+    {
+        return $this->inner->schema();
+    }
+
+    public function transaction(string $name = ''): TransactionInterface
+    {
+        return $this->inner->transaction($name);
+    }
+
+    public function query(string $sql, array $args = []): \Traversable
+    {
+        return $this->inner->query($sql, $args);
+    }
+
+    public function quoteIdentifier(string $identifier): string
+    {
+        return $this->inner->quoteIdentifier($identifier);
+    }
 }
 
 /**
@@ -341,7 +530,13 @@ final class NonSqliteThrowingDatabaseStub implements DatabaseInterface
 
     public function transaction(string $name = ''): TransactionInterface
     {
-        throw new \LogicException('transaction() not expected in the heal path');
+        // The transactional heal opens one before adding columns; a no-op
+        // handle keeps the stub focused on the DDL/catalog failure shapes.
+        return new class implements TransactionInterface {
+            public function commit(): void {}
+
+            public function rollBack(): void {}
+        };
     }
 
     public function query(string $sql, array $args = []): \Traversable

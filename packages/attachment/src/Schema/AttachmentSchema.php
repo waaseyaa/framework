@@ -39,12 +39,12 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * e.g. because the generic sql-blob path materialized the base-only table
  * first (a lazy `getRepository('attachment')` call racing ahead of this
  * package's `boot()`, or a pre-existing install from before this class was
- * wired in) — {@see ensureColumns()} / {@see ensureIndexes()} additively
- * add the missing attachment-specific columns/indexes onto the existing
- * table, and {@see backfillNewColumnsFromDataBlob()} copies pre-existing
- * rows' values for those columns out of the `_data` JSON blob so healed
- * rows keep their data (real columns win over `_data` at read time).
- * Either ordering converges to the same final shape and data.
+ * wired in) — {@see healMissingColumns()} / {@see ensureIndexes()}
+ * additively add the missing attachment-specific columns/indexes onto the
+ * existing table, and {@see backfillNewColumnsFromDataBlob()} copies
+ * pre-existing rows' values for those columns out of the `_data` JSON blob
+ * so healed rows keep their data (real columns win over `_data` at read
+ * time). Either ordering converges to the same final shape and data.
  *
  * Columns:
  *   - id               INTEGER PK AUTOINCREMENT
@@ -75,6 +75,41 @@ final class AttachmentSchema
 {
     private const TABLE = 'attachment';
 
+    /**
+     * The attachment-specific columns this class owns — mirrors the shapes
+     * in {@see createTable()} exactly; used by the heal branch to detect
+     * and add whatever the generic base-only table is missing.
+     */
+    private const HEAL_COLUMNS = [
+        'parent_entity_type' => [
+            'type' => 'varchar',
+            'length' => 64,
+            'not null' => true,
+            'default' => '',
+        ],
+        'parent_entity_id' => [
+            'type' => 'varchar',
+            'length' => 255,
+            'not null' => true,
+            'default' => '',
+        ],
+        'is_active' => [
+            'type' => 'int',
+            'not null' => true,
+            'default' => 0,
+        ],
+        'created_at' => [
+            'type' => 'int',
+            'not null' => true,
+            'default' => 0,
+        ],
+        'updated_at' => [
+            'type' => 'int',
+            'not null' => true,
+            'default' => 0,
+        ],
+    ];
+
     private readonly LoggerInterface $logger;
 
     public function __construct(
@@ -103,13 +138,36 @@ final class AttachmentSchema
      * blank every pre-existing row at hydration (listFor() stops finding it;
      * the download router's parent-delegated access check 404s it forever).
      *
-     * The whole heal is best-effort (try/catch + logged warning, mirroring
-     * {@see ensureActivePartialUniqueIndex()}'s posture): it runs on every
-     * kernel boot via `AttachmentServiceProvider::boot()`, and a platform
-     * quirk or partial failure must degrade loudly in the log — never crash
-     * boot. Cost when there is nothing to heal: a fresh table skips the
+     * Failure posture (final review round):
+     *
+     *   - Column adds + value backfill run in ONE database transaction
+     *     ({@see healMissingColumns()}). On SQLite and PostgreSQL, DDL is
+     *     transactional, so a mid-backfill failure rolls the column adds
+     *     back too — the next boot re-detects the missing columns and the
+     *     whole heal retries cleanly (convergent). On MySQL/MariaDB, DDL
+     *     implicitly commits, so a mid-backfill failure strands the added
+     *     columns and the backfill cannot re-trigger; the warning states
+     *     the honest per-platform recovery (automatic retry vs. manual
+     *     blob→column copy).
+     *   - The partial backstop index is created LAST, inside the same
+     *     try/catch — a failed heal must never leave the partial index in
+     *     place ahead of the composite indexes: the first cut did exactly
+     *     that, and the next boot's DBALSchema::addIndex()
+     *     introspect-diff-RECREATE then stripped the partial index's WHERE
+     *     clause and silently dropped the uuid unique constraint
+     *     mid-rebuild. Heal-path index creation therefore NEVER routes
+     *     through DBAL's recreate machinery — see {@see ensureIndexes()}.
+     *   - The whole heal is best-effort (try/catch + logged warning,
+     *     mirroring {@see ensureActivePartialUniqueIndex()}'s posture): it
+     *     runs on every kernel boot via `AttachmentServiceProvider::boot()`,
+     *     and a platform quirk or partial failure must degrade loudly in
+     *     the log — never crash boot.
+     *
+     * Cost when there is nothing to heal: a fresh table skips the heal
      * branch entirely; an already-healed table does five fieldExists()
-     * probes and two index-catalog COUNTs, no row reads.
+     * probes plus idempotent CREATE INDEX IF NOT EXISTS statements (or one
+     * catalog probe per index on MySQL/MariaDB) — no row reads, no
+     * transaction.
      */
     public function ensureTable(): void
     {
@@ -117,30 +175,77 @@ final class AttachmentSchema
 
         if (!$schema->tableExists(self::TABLE)) {
             $this->createTable($schema);
-        } else {
-            try {
-                $addedColumns = $this->ensureColumns($schema);
-                if ($addedColumns !== []) {
-                    $this->backfillNewColumnsFromDataBlob($addedColumns);
-                }
-                $this->ensureIndexes($schema);
-            } catch (\Throwable $e) {
-                $this->logger->warning(\sprintf(
-                    'AttachmentSchema: best-effort self-heal of the "%s" table failed: %s. '
-                    . 'The table may be missing attachment-specific columns/indexes or '
-                    . 'backfilled values; AttachmentRepository raw-column operations '
-                    . '(setActive(), demoteSiblings()) may misbehave until the schema is '
-                    . 'healed — re-run db:init or fix the underlying error.',
-                    self::TABLE,
-                    $e->getMessage(),
-                ));
+            $this->ensureActivePartialUniqueIndex();
+
+            return;
+        }
+
+        try {
+            $this->healMissingColumns($schema);
+            $this->ensureIndexes();
+            // Deliberately LAST: the partial backstop may only materialize
+            // once the column backfill and composite indexes succeeded.
+            $this->ensureActivePartialUniqueIndex();
+        } catch (\Throwable $e) {
+            $recovery = match ($this->detectDatabasePlatform()) {
+                'sqlite', 'postgresql' => 'DDL is transactional on this platform: the partial heal '
+                    . 'was rolled back atomically and will retry automatically on the next boot.',
+                'mysql', 'mariadb' => 'MySQL/MariaDB DDL implicitly commits: columns already added '
+                    . 'cannot be rolled back, and the value backfill will NOT re-run once the '
+                    . 'columns exist. Pre-existing rows keep their values in the _data JSON blob '
+                    . 'but read as blank — heal them manually by copying blob values into the real '
+                    . 'columns (per row: UPDATE attachment SET parent_entity_type/parent_entity_id/'
+                    . 'created_at/updated_at from the matching _data keys; set is_active = 1 only '
+                    . 'when the blob value is true, 1, or "1").',
+                default => 'Unknown platform: verify the attachment table schema and row values manually.',
+            };
+            $this->logger->warning(\sprintf(
+                'AttachmentSchema: best-effort self-heal of the "%s" table failed: %s. %s',
+                self::TABLE,
+                $e->getMessage(),
+                $recovery,
+            ));
+        }
+    }
+
+    /**
+     * Detects attachment-specific columns missing from an already-existing
+     * table and — when any are missing — adds them AND backfills their
+     * values from `_data` inside ONE database transaction, so on
+     * transactional-DDL platforms (SQLite, PostgreSQL) a mid-backfill
+     * failure rolls everything back and the heal retries convergently on
+     * the next boot. See {@see ensureTable()} for the MySQL/MariaDB caveat
+     * (implicit DDL commit makes the rollback partial there).
+     *
+     * No transaction is opened when nothing is missing — the steady state
+     * from the boot after a successful heal onward.
+     */
+    private function healMissingColumns(SchemaInterface $schema): void
+    {
+        $missing = [];
+        foreach (self::HEAL_COLUMNS as $name => $spec) {
+            if (!$schema->fieldExists(self::TABLE, $name)) {
+                $missing[$name] = $spec;
             }
         }
 
-        // Idempotent (CREATE ... IF NOT EXISTS) regardless of whether the
-        // table already existed — re-running against a pre-existing install
-        // materializes the backstop index without touching table creation.
-        $this->ensureActivePartialUniqueIndex();
+        if ($missing === []) {
+            return;
+        }
+
+        $transaction = $this->database->transaction();
+        try {
+            foreach ($missing as $name => $spec) {
+                $schema->addField(self::TABLE, $name, $spec);
+            }
+            $this->backfillNewColumnsFromDataBlob(array_keys($missing));
+
+            $transaction->commit();
+        } catch (\Throwable $e) {
+            $transaction->rollBack();
+
+            throw $e;
+        }
     }
 
     private function createTable(SchemaInterface $schema): void
@@ -218,60 +323,6 @@ final class AttachmentSchema
                 self::TABLE . '_parent_active' => ['parent_entity_type', 'parent_entity_id', 'is_active'],
             ],
         ]);
-    }
-
-    /**
-     * Additively adds the attachment-specific columns onto an
-     * ALREADY-EXISTING `attachment` table (see {@see ensureTable()}).
-     * Mirrors the base-column shapes in {@see createTable()} exactly;
-     * skips any column that is already present.
-     *
-     * @return list<string> The names of the columns that were actually
-     *   added (empty when the table was already complete) — the caller
-     *   backfills exactly these from the `_data` blob.
-     */
-    private function ensureColumns(SchemaInterface $schema): array
-    {
-        $columns = [
-            'parent_entity_type' => [
-                'type' => 'varchar',
-                'length' => 64,
-                'not null' => true,
-                'default' => '',
-            ],
-            'parent_entity_id' => [
-                'type' => 'varchar',
-                'length' => 255,
-                'not null' => true,
-                'default' => '',
-            ],
-            'is_active' => [
-                'type' => 'int',
-                'not null' => true,
-                'default' => 0,
-            ],
-            'created_at' => [
-                'type' => 'int',
-                'not null' => true,
-                'default' => 0,
-            ],
-            'updated_at' => [
-                'type' => 'int',
-                'not null' => true,
-                'default' => 0,
-            ],
-        ];
-
-        $added = [];
-        foreach ($columns as $name => $spec) {
-            if ($schema->fieldExists(self::TABLE, $name)) {
-                continue;
-            }
-            $schema->addField(self::TABLE, $name, $spec);
-            $added[] = $name;
-        }
-
-        return $added;
     }
 
     /**
@@ -370,75 +421,83 @@ final class AttachmentSchema
      * Additively adds the two composite indexes onto an ALREADY-EXISTING
      * `attachment` table (see {@see ensureTable()}). The partial unique
      * active-row index is handled separately by
-     * {@see ensureActivePartialUniqueIndex()} — it is always (re)ensured,
-     * not just on this branch.
+     * {@see ensureActivePartialUniqueIndex()}, which the caller runs LAST.
+     *
+     * Deliberately raw platform-aware SQL, NEVER `SchemaInterface::addIndex()`
+     * (final review round): `DBALSchema::addIndex()` implements index
+     * addition as introspect-diff-RECREATE-TABLE on SQLite, and DBAL's
+     * introspection STRIPS a partial index's WHERE clause — replaying it as
+     * a FULL unique index that fails on legitimately-duplicate inactive
+     * rows, mid-rebuild, silently dropping whichever indexes had not been
+     * recreated yet (the uuid unique constraint, in the reproduced
+     * sequence). Raw `CREATE INDEX IF NOT EXISTS` (SQLite ≥3.8,
+     * PostgreSQL ≥9.5) touches nothing but the one index; MySQL/MariaDB
+     * (no `IF NOT EXISTS` on stock MySQL 8) get an
+     * `information_schema.statistics` existence probe (scoped by
+     * `DATABASE()`, so no cross-schema false positives) followed by a plain
+     * `CREATE INDEX`.
      *
      * On a platform this class cannot identify, index backfill is SKIPPED
      * with a logged warning (indexes are a performance concern, not a
-     * correctness one — better to run without them than to gamble on a
-     * catalog query that may explode). Note: this and
-     * `RelationshipSchemaManager::ensureIndexes()` share the
-     * additive-backfill shape, but that class has no production caller —
+     * correctness one — better to run without them than to gamble on
+     * unknown catalog/DDL syntax). Note: `RelationshipSchemaManager` shares
+     * the additive-index idea, but that class has no production caller —
      * this heal path is the first LIVE use of the pattern, hence the
      * platform hardening here that its inspiration never needed.
      */
-    private function ensureIndexes(SchemaInterface $schema): void
+    private function ensureIndexes(): void
     {
+        $platform = $this->detectDatabasePlatform();
+        if ($platform === 'unknown') {
+            $this->logger->warning(\sprintf(
+                'AttachmentSchema: unrecognized database platform; skipping composite-index '
+                . 'backfill on "%s" (queries still work, unindexed).',
+                self::TABLE,
+            ));
+
+            return;
+        }
+
         $indexes = [
             self::TABLE . '_parent' => ['parent_entity_type', 'parent_entity_id'],
             self::TABLE . '_parent_active' => ['parent_entity_type', 'parent_entity_id', 'is_active'],
         ];
 
-        foreach ($indexes as $name => $fields) {
-            $exists = $this->indexExists($name);
-            if ($exists === null) {
-                $this->logger->warning(\sprintf(
-                    'AttachmentSchema: cannot probe index existence on unrecognized platform; '
-                    . 'skipping composite-index backfill on "%s" (queries still work, unindexed).',
-                    self::TABLE,
-                ));
+        $isMysqlFamily = $platform === 'mysql' || $platform === 'mariadb';
 
-                return;
-            }
-            if ($exists) {
+        foreach ($indexes as $name => $fields) {
+            if ($isMysqlFamily && $this->mysqlIndexExists($name)) {
                 continue;
             }
-            $schema->addIndex(self::TABLE, $name, $fields);
+
+            $this->database->query(\sprintf(
+                'CREATE INDEX %s%s ON %s (%s)',
+                $isMysqlFamily ? '' : 'IF NOT EXISTS ',
+                $this->database->quoteIdentifier($name),
+                $this->database->quoteIdentifier(self::TABLE),
+                implode(', ', array_map(
+                    fn(string $field): string => $this->database->quoteIdentifier($field),
+                    $fields,
+                )),
+            ));
         }
     }
 
     /**
-     * Platform-aware existence probe for a named index, following the same
-     * platform-detection approach as {@see ensureActivePartialUniqueIndex()}:
-     * each supported platform gets its own catalog query (`sqlite_master`
-     * exists ONLY on SQLite — the naive first cut of this probe crashed
-     * kernel boot on PostgreSQL/MySQL). Returns null when the platform is
-     * unrecognized so the caller can skip rather than guess.
+     * Index-existence probe for the MySQL family only — stock MySQL 8 has
+     * no `CREATE INDEX IF NOT EXISTS`, so {@see ensureIndexes()} probes
+     * first there. SQLite/PostgreSQL use `IF NOT EXISTS` directly and never
+     * call this (which also removes the first cut's `sqlite_master`-
+     * everywhere crash and its `pg_indexes` multi-schema false positive —
+     * this probe is scoped to the current schema via `DATABASE()`).
      */
-    private function indexExists(string $name): ?bool
+    private function mysqlIndexExists(string $name): bool
     {
-        [$sql, $args] = match ($this->detectDatabasePlatform()) {
-            'sqlite' => [
-                "SELECT COUNT(*) AS cnt FROM sqlite_master WHERE type = 'index' AND name = ?",
-                [$name],
-            ],
-            'postgresql' => [
-                'SELECT COUNT(*) AS cnt FROM pg_indexes WHERE tablename = ? AND indexname = ?',
-                [self::TABLE, $name],
-            ],
-            'mysql', 'mariadb' => [
-                'SELECT COUNT(*) AS cnt FROM information_schema.statistics '
-                . 'WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?',
-                [self::TABLE, $name],
-            ],
-            default => [null, []],
-        };
-
-        if ($sql === null) {
-            return null;
-        }
-
-        $data = iterator_to_array($this->database->query($sql, $args), false);
+        $data = iterator_to_array($this->database->query(
+            'SELECT COUNT(*) AS cnt FROM information_schema.statistics '
+            . 'WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?',
+            [self::TABLE, $name],
+        ), false);
 
         return (int) ($data[0]['cnt'] ?? 0) > 0;
     }
@@ -456,8 +515,10 @@ final class AttachmentSchema
      * additional hard backstop available where the platform supports
      * partial indexes:
      *
-     *   - SQLite (>=3.8) and PostgreSQL (>=9.0) support partial indexes
-     *     natively — a second concurrent writer attempting to set
+     *   - SQLite (>=3.8) and PostgreSQL (>=9.5 — partial indexes exist
+     *     since 9.0, but the `CREATE INDEX IF NOT EXISTS` form this method
+     *     emits needs 9.5) support this natively — a second concurrent
+     *     writer attempting to set
      *     `is_active = 1` for a parent that already has an active row fails
      *     the INSERT/UPDATE outright with a unique-constraint violation,
      *     which closes the residual cross-process race documented on
