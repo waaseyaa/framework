@@ -498,6 +498,7 @@
         "check-admin-coercion-self-test": "bash bin/check-admin-coercion-patterns --self-test",
         "check-dead-code": "php bin/check-dead-code",
         "check-getquery-bindings": "php bin/check-getquery-bindings",
+        "check-dispatcher-keys": "php bin/check-dispatcher-keys",
         "check-admin-dist-fresh": "php bin/check-admin-dist-fresh",
         "test": "php -d memory_limit=512M vendor/bin/phpunit --no-coverage",
         "verify": [
@@ -513,6 +514,7 @@
             "@check-symfony-imports",
             "@check-dead-code",
             "@check-getquery-bindings",
+            "@check-dispatcher-keys",
             "@check-admin-coercion-patterns",
             "@check-admin-coercion-self-test",
             "@check-admin-dist-fresh",
@@ -526,6 +528,7 @@
         "check-admin-coercion-self-test": "Meta-test for the admin coercion gate (audit D-5). Runs bin/check-admin-coercion-patterns --self-test: plants a synthetic violator and asserts the scanner exits non-zero, proving the gate is not a silent no-op. Wired into verify and the ci/verify-gates job so the self-test actually runs in CI.",
         "check-dead-code": "Fail-on-new dead-code gate (Phase 4 of the dead-code cleanup audit). Runs phpstan-dead-code.neon with shipmonk's detector; pre-existing baseline entries are suppressed, only NEW findings fail. See docs/audits/2026-05-17-dead-code-baseline-audit.md and bin/check-dead-code header for how to handle a new finding.",
         "check-getquery-bindings": "Fail-on-new gate for unbound getQuery()->execute() callsites. Baseline at tools/getquery-bindings-baseline.txt. New callsites fail CI; add to baseline with mandatory exemption comment if legitimately exempt. See CLAUDE.md § CI gates.",
+        "check-dispatcher-keys": "Fail-on-new gate for provider register()/boot() methods that resolve an event dispatcher under an FQCN the production kernel-services bus does not serve (only Symfony\\Contracts\\EventDispatcher\\EventDispatcherInterface is served — see ProviderRegistryKernelServices::get()) and then addListener()/addSubscriber() with it, silently registering nothing. Baseline at tools/dispatcher-key-baseline.txt. Introduced in WP4 (framework-wide dead-subscriber sweep, audit-remediation batch 2026-07-01/02) after #1852 fixed the first live instance (relationship delete guard).",
         "check-admin-dist-fresh": "Admin dist freshness gate (D6). Fails when packages/admin/app source changes without rebuilding the committed packages/admin-surface/dist bundle, by comparing a line-ending-normalised content signature (packages/admin-surface/dist.signature) against a freshly computed one. Rebuild + refresh with bin/build-admin-dist. Prevents shipping a stale prebuilt admin SPA (e.g. the alpha.226 Edit-feedback feature that never reached the served bundle).",
         "check-openapi": "Spectral-lint the hand-maintained agent-run sub-spec packages/api/openapi.yaml (3 SSE endpoints + pending_approval shape) for YAML/OpenAPI structural validity. Syntax/shape lint of that one file only — does NOT check route parity against live routes. Requires Node.js + npx; exits 0 with SKIP notice when npx is unavailable (CI-safe). Wired as a hard gate in verify per NFR-004 (WP02, mission agent-executor-v1-1-audit-followups-01KS3S5M).",
         "check-symfony-imports": "Enforce the Path R-narrow Symfony-import boundary (mission #1107 C-005 (b)). Fails when `use Symfony\\…` appears outside the framework allowlist. Allowlist lives in .symfony-import-allowlist.json — see docs/specs/api-layer.md §Symfony Import Boundary.",

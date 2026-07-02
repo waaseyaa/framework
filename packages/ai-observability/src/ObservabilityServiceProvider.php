@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Observability;
 
-use Symfony\Component\EventDispatcher\EventDispatcher;
-use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\AI\Observability\Analysis\AnomalyDetector;
 use Waaseyaa\AI\Observability\Cost\BudgetManager;
 use Waaseyaa\AI\Observability\Cost\CostTracker;
@@ -19,6 +17,7 @@ use Waaseyaa\AI\Observability\Recorder\TraceRecorderInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 final class ObservabilityServiceProvider extends ServiceProvider
@@ -74,13 +73,18 @@ final class ObservabilityServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        try {
-            $dispatcher = $this->resolve(EventDispatcherInterface::class);
-        } catch (\RuntimeException) {
-            return;
-        }
-
-        if (!$dispatcher instanceof EventDispatcher) {
+        // The kernel-services bus serves the dispatcher ONLY under the
+        // Symfony-contracts FQCN (ProviderRegistryKernelServices::get()).
+        // This previously resolved the Symfony *Component* FQCN (never
+        // served — the bus matches on exact abstract string) and then
+        // instanceof-checked the concrete `Symfony\Component\EventDispatcher\
+        // EventDispatcher` class, which the served `SymfonyEventDispatcherAdapter`
+        // is not — so both the key and the type-check were wrong, and the
+        // LLM-call/tool-call telemetry listeners never registered in a real
+        // kernel boot. Resolve the served key, then type-check against the
+        // foundation contract (#1852 pattern).
+        $dispatcher = $this->resolveOptional(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
+        if (!$dispatcher instanceof EventDispatcherInterface) {
             return;
         }
 

@@ -45,6 +45,18 @@ supplies the label and `classification_inherited_from = parent_uuid` is recorded
 Cascade is re-evaluate-on-next-write (no eager downward cascade — bounded scope,
 C-003). Every effective-label change writes a `classification.change` audit event.
 
+> **Wiring note (fixed in WP4, audit-remediation batch 2026-07-01/02):**
+> `FieldServiceProvider::boot()` resolved the event dispatcher under the
+> foundation `Waaseyaa\Foundation\Event\EventDispatcherInterface` FQCN, which
+> the production kernel-services bus (`ProviderRegistryKernelServices::get()`)
+> never serves — only `Symfony\Contracts\EventDispatcher\EventDispatcherInterface`
+> is served. `resolveOptional()` therefore returned null and
+> `EntityLifecycleSubscriber` never actually registered in a real kernel boot,
+> so the "on every save" behavior described above was **not happening** for
+> any deployed application until this fix (same bug class as #1852). `boot()`
+> now resolves the served key; see `FieldServiceProviderClassificationWiringTest`
+> for the production-mirroring wiring test.
+
 ## Access (`ClassificationFieldAccessPolicy`)
 
 Registered cross-cutting via `#[PolicyAttribute(entityType: '*')]` (the kernel
