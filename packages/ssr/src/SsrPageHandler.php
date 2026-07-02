@@ -262,7 +262,7 @@ final class SsrPageHandler
             $twigEntityContext['schema_org_jsonld'] = $this->buildSchemaOrgScript($entity, $normalizedPath);
 
             $response = $mediaType === MediaTypeAcceptNegotiator::MARKDOWN
-                ? $this->renderEntityMarkdown($entity, $viewMode, $viewModeConfig, $normalizedPath)
+                ? $this->renderEntityMarkdown($entity, $viewMode, $viewModeConfig, $normalizedPath, $account)
                 : new RenderController($twig, $entityRenderer)->renderEntity($entity, $viewMode, $twigEntityContext);
             if (
                 !$account->isAuthenticated()
@@ -838,20 +838,43 @@ final class SsrPageHandler
     /**
      * Render an entity as a Markdown HTTP response via the shared
      * {@see EntityMarkdownPresenter} — the same bytes the `?raw` toggle returns.
+     *
+     * $account is threaded through to {@see EntityMarkdownPresenter::present()}
+     * together with $this->accessHandler so the per-account field-access filter
+     * is always applied — Markdown must never expose a field the HTML/JSON:API
+     * representations would hide for the same account.
      */
     private function renderEntityMarkdown(
         EntityInterface $entity,
         ViewMode $viewMode,
         ArrayViewModeConfig $viewModeConfig,
         string $canonicalUrl,
+        AccountInterface $account,
     ): HttpResponse {
+        if ($this->accessHandler === null) {
+            // Fail closed: EntityMarkdownPresenter::present() requires a
+            // non-null access handler to apply the per-account field filter.
+            // Without one we must refuse to render rather than fall back to
+            // unfiltered output. Unreachable in production — SsrServiceProvider
+            // always wires accessHandler from the kernel's non-nullable
+            // getAccessHandler() — this guards direct/test construction of
+            // SsrPageHandler without it.
+            $this->logger->error('Markdown render requested with no access handler wired; refusing to render unfiltered content.');
+
+            return new HttpResponse(
+                'Internal Server Error',
+                500,
+                ['Content-Type' => 'text/plain; charset=UTF-8'],
+            );
+        }
+
         $presenter = new EntityMarkdownPresenter(
             new ResourceSerializer($this->entityTypeManager),
             $this->entityTypeManager,
             $viewModeConfig,
         );
 
-        $markdown = $presenter->present($entity, $viewMode->name, null, null, $canonicalUrl);
+        $markdown = $presenter->present($entity, $viewMode->name, $this->accessHandler, $account, $canonicalUrl);
 
         return new HttpResponse(
             $markdown,
