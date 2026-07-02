@@ -10,6 +10,7 @@ use Waaseyaa\Api\JsonApiDocument;
 use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Field\FieldDefinitionInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
@@ -67,9 +68,22 @@ final class SchemaController
         $entity = null;
         if ($this->accessHandler !== null && $this->account !== null) {
             $class = $entityType->getClass();
-            // Build the prototype entity with the requested bundle so field
-            // access checks evaluate against the right content type.
+            // Build the prototype entity. Seed a non-null placeholder for every
+            // declared field and entity key so that entity constructors which
+            // require certain fields to be present (isset()-gated invariants —
+            // e.g. UserBlock's blocker_id, engagement Comment's user_id/body)
+            // still construct; without this a strict constructor would throw and
+            // — via the fail-closed backstop below — 500 the schema endpoint for
+            // an otherwise-valid type. Presence is what constructor gates test,
+            // so the placeholder value is a type-appropriate zero, not a valid
+            // domain value. The requested bundle overrides the bundle-key seed.
             $protoValues = [];
+            foreach (array_values($entityType->getKeys()) as $keyColumn) {
+                $protoValues[$keyColumn] = '';
+            }
+            foreach ($this->entityTypeManager->resolveFieldDefinitions($entityTypeId, $bundle) as $fieldName => $definition) {
+                $protoValues[$fieldName] = $this->placeholderForField($definition);
+            }
             $bundleKey = $entityType->getKeys()['bundle'] ?? null;
             if ($bundle !== null && $bundleKey !== null) {
                 $protoValues[$bundleKey] = $bundle;
@@ -77,12 +91,23 @@ final class SchemaController
             try {
                 $entity = new $class($protoValues);
             } catch (\Throwable $e) {
-                $this->logger->warning(sprintf(
-                    'SchemaController: failed to create prototype entity for %s (%s): %s',
+                // Fail CLOSED: without a prototype entity, SchemaPresenter::present()
+                // cannot run its field-access-filtering block (it is gated on
+                // $entity !== null) and would emit an unfiltered schema — leaking
+                // access-restricted field metadata. Refuse to emit any schema
+                // instead of falling through with $entity left null. The exception
+                // detail stays server-side only; the client gets a generic message.
+                $this->logger->error(sprintf(
+                    'SchemaController: refusing to emit an unfiltered schema for %s (%s) — failed to construct the access-check prototype entity: %s',
                     $entityTypeId,
                     $class,
                     $e->getMessage(),
                 ));
+
+                return JsonApiDocument::fromErrors(
+                    [JsonApiError::internalError("Could not generate the access-filtered schema for '{$entityTypeId}'.")],
+                    statusCode: 500,
+                );
             }
         }
 
@@ -108,5 +133,26 @@ final class SchemaController
             ],
             statusCode: 200,
         );
+    }
+
+    /**
+     * A non-null, type-appropriate placeholder used only to satisfy a strict
+     * entity constructor's presence (isset) checks when building the prototype
+     * for field-access evaluation. The value is never persisted or surfaced —
+     * only its presence matters.
+     *
+     * @param FieldDefinitionInterface|array<string, mixed> $definition
+     */
+    private function placeholderForField(FieldDefinitionInterface|array $definition): string|int|bool
+    {
+        $type = $definition instanceof FieldDefinitionInterface
+            ? $definition->getType()
+            : (string) ($definition['type'] ?? 'string');
+
+        return match ($type) {
+            'boolean' => false,
+            'integer', 'list_integer' => 0,
+            default => '',
+        };
     }
 }
