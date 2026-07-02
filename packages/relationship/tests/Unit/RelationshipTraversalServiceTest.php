@@ -133,6 +133,269 @@ final class RelationshipTraversalServiceTest extends TestCase
         $this->assertNotContains('2', $relatedIds, 'Draft node leaked through unfiltered traversal');
     }
 
+    public function testTraversePublishedFailsClosedWithoutVisibilityFilter(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $this->createRelationshipTable($database);
+
+        // A published relationship pointing at an unpublished (draft) node.
+        $this->insertRelationship($database, 1, 'node', '1', 'node', '2', 1);
+
+        $relationshipStorage = new TraversalRelationshipStorage([
+            1 => new Relationship([
+                'rid' => 1,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '2',
+                'directionality' => 'directed',
+                'status' => 1,
+            ]),
+        ]);
+        $nodeStorage = new TraversalEntityStorage([
+            '2' => new TraversalTestEntity('node', 'article', 2, 'Draft Node', [
+                'nid' => 2,
+                'type' => 'article',
+                'status' => 0,
+                'workflow_state' => 'draft',
+            ]),
+        ]);
+        $manager = new TraversalEntityTypeManager([
+            'relationship' => $relationshipStorage,
+            'node' => $nodeStorage,
+        ]);
+
+        // No visibility filter wired — traverse() must fail closed exactly like
+        // browse(): withhold the edge rather than leak the draft endpoint's
+        // identity (to_entity_type/to_entity_id) through the returned
+        // Relationship entities. Pre-fix traverse() returned the edge.
+        $service = new RelationshipTraversalService($manager, $database);
+
+        $result = $service->traverse('node', 1, ['status' => 'published']);
+
+        $this->assertSame([], $result, 'Unwired visibility filter must fail closed for traverse()');
+    }
+
+    public function testTraversePublishedExcludesEdgesToUnpublishedEndpoints(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $this->createRelationshipTable($database);
+
+        $this->insertRelationship($database, 1, 'node', '1', 'node', '2', 1);
+        $this->insertRelationship($database, 2, 'node', '1', 'node', '3', 1);
+
+        $relationshipStorage = new TraversalRelationshipStorage([
+            1 => new Relationship([
+                'rid' => 1,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '2',
+                'directionality' => 'directed',
+                'status' => 1,
+            ]),
+            2 => new Relationship([
+                'rid' => 2,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '3',
+                'directionality' => 'directed',
+                'status' => 1,
+            ]),
+        ]);
+        $nodeStorage = new TraversalEntityStorage([
+            '2' => new TraversalTestEntity('node', 'article', 2, 'Draft Node', [
+                'nid' => 2,
+                'type' => 'article',
+                'status' => 0,
+                'workflow_state' => 'draft',
+            ]),
+            '3' => new TraversalTestEntity('node', 'article', 3, 'Published Node', [
+                'nid' => 3,
+                'type' => 'article',
+                'status' => 1,
+                'workflow_state' => 'published',
+            ]),
+        ]);
+        $manager = new TraversalEntityTypeManager([
+            'relationship' => $relationshipStorage,
+            'node' => $nodeStorage,
+        ]);
+
+        $service = new RelationshipTraversalService($manager, $database, new TraversalVisibilityFilter());
+
+        $result = $service->traverse('node', 1, ['status' => 'published']);
+
+        $this->assertCount(1, $result, 'Edge to the draft endpoint must be withheld');
+        $this->assertSame('3', (string) $result[0]->get('to_entity_id'));
+    }
+
+    public function testTraverseAllModeReturnsMixedStateEdgesUnfiltered(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $this->createRelationshipTable($database);
+
+        $this->insertRelationship($database, 1, 'node', '1', 'node', '2', 1);
+        $this->insertRelationship($database, 2, 'node', '1', 'node', '3', 1);
+
+        $relationshipStorage = new TraversalRelationshipStorage([
+            1 => new Relationship([
+                'rid' => 1,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '2',
+                'directionality' => 'directed',
+                'status' => 1,
+            ]),
+            2 => new Relationship([
+                'rid' => 2,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '3',
+                'directionality' => 'directed',
+                'status' => 1,
+            ]),
+        ]);
+        $nodeStorage = new TraversalEntityStorage([
+            '2' => new TraversalTestEntity('node', 'article', 2, 'Draft Node', [
+                'nid' => 2,
+                'type' => 'article',
+                'status' => 0,
+                'workflow_state' => 'draft',
+            ]),
+            '3' => new TraversalTestEntity('node', 'article', 3, 'Published Node', [
+                'nid' => 3,
+                'type' => 'article',
+                'status' => 1,
+                'workflow_state' => 'published',
+            ]),
+        ]);
+        $manager = new TraversalEntityTypeManager([
+            'relationship' => $relationshipStorage,
+            'node' => $nodeStorage,
+        ]);
+
+        // Explicit 'all' mode keeps browse() parity: no endpoint filtering.
+        // Callers opting into 'all' own the exposure decision.
+        $service = new RelationshipTraversalService($manager, $database);
+
+        $result = $service->traverse('node', 1, ['status' => 'all']);
+
+        $this->assertCount(2, $result);
+    }
+
+    public function testTraverseUnpublishedFailsClosedWithoutVisibilityFilter(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $this->createRelationshipTable($database);
+
+        // An unpublished relationship pointing at a draft node.
+        $this->insertRelationship($database, 1, 'node', '1', 'node', '2', 0);
+
+        $relationshipStorage = new TraversalRelationshipStorage([
+            1 => new Relationship([
+                'rid' => 1,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '2',
+                'directionality' => 'directed',
+                'status' => 0,
+            ]),
+        ]);
+        $nodeStorage = new TraversalEntityStorage([
+            '2' => new TraversalTestEntity('node', 'article', 2, 'Draft Node', [
+                'nid' => 2,
+                'type' => 'article',
+                'status' => 0,
+                'workflow_state' => 'draft',
+            ]),
+        ]);
+        $manager = new TraversalEntityTypeManager([
+            'relationship' => $relationshipStorage,
+            'node' => $nodeStorage,
+        ]);
+
+        // No visibility filter wired: with nothing provable about endpoint
+        // visibility in EITHER direction, unpublished mode must be as
+        // fail-closed as published mode — "not provably public" is NOT
+        // "provably draft", so returning the edges would leak draft endpoint
+        // identities to an unwired caller.
+        $service = new RelationshipTraversalService($manager, $database);
+
+        $result = $service->traverse('node', 1, ['status' => 'unpublished']);
+
+        $this->assertSame([], $result, 'Unwired visibility filter must fail closed for unpublished mode too');
+    }
+
+    public function testTraverseUnpublishedReturnsDraftEndpointsWithWiredFilter(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $this->createRelationshipTable($database);
+
+        $this->insertRelationship($database, 1, 'node', '1', 'node', '2', 0);
+        $this->insertRelationship($database, 2, 'node', '1', 'node', '3', 0);
+
+        $relationshipStorage = new TraversalRelationshipStorage([
+            1 => new Relationship([
+                'rid' => 1,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '2',
+                'directionality' => 'directed',
+                'status' => 0,
+            ]),
+            2 => new Relationship([
+                'rid' => 2,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '3',
+                'directionality' => 'directed',
+                'status' => 0,
+            ]),
+        ]);
+        $nodeStorage = new TraversalEntityStorage([
+            '2' => new TraversalTestEntity('node', 'article', 2, 'Draft Node', [
+                'nid' => 2,
+                'type' => 'article',
+                'status' => 0,
+                'workflow_state' => 'draft',
+            ]),
+            '3' => new TraversalTestEntity('node', 'article', 3, 'Published Node', [
+                'nid' => 3,
+                'type' => 'article',
+                'status' => 1,
+                'workflow_state' => 'published',
+            ]),
+        ]);
+        $manager = new TraversalEntityTypeManager([
+            'relationship' => $relationshipStorage,
+            'node' => $nodeStorage,
+        ]);
+
+        // Wired filter, browse parity: unpublished mode keeps provably
+        // NON-public endpoints and drops provably public ones.
+        $service = new RelationshipTraversalService($manager, $database, new TraversalVisibilityFilter());
+
+        $result = $service->traverse('node', 1, ['status' => 'unpublished']);
+
+        $this->assertCount(1, $result);
+        $this->assertSame('2', (string) $result[0]->get('to_entity_id'));
+    }
+
     public function testBrowseAllIncludesMixedStateEndpointsDeterministically(): void
     {
         $database = DBALDatabase::createSqlite();
@@ -304,21 +567,21 @@ final class RelationshipTraversalServiceTest extends TestCase
     private function createRelationshipTable(DBALDatabase $database): void
     {
         $database->getConnection()->getNativeConnection()->exec(<<<SQL
-CREATE TABLE relationship (
-  rid INTEGER PRIMARY KEY,
-  relationship_type TEXT NOT NULL,
-  from_entity_type TEXT NOT NULL,
-  from_entity_id TEXT NOT NULL,
-  to_entity_type TEXT NOT NULL,
-  to_entity_id TEXT NOT NULL,
-  directionality TEXT NOT NULL DEFAULT 'directed',
-  status INTEGER NOT NULL DEFAULT 1,
-  weight REAL DEFAULT NULL,
-  confidence REAL DEFAULT NULL,
-  start_date INTEGER DEFAULT NULL,
-  end_date INTEGER DEFAULT NULL
-)
-SQL);
+            CREATE TABLE relationship (
+              rid INTEGER PRIMARY KEY,
+              relationship_type TEXT NOT NULL,
+              from_entity_type TEXT NOT NULL,
+              from_entity_id TEXT NOT NULL,
+              to_entity_type TEXT NOT NULL,
+              to_entity_id TEXT NOT NULL,
+              directionality TEXT NOT NULL DEFAULT 'directed',
+              status INTEGER NOT NULL DEFAULT 1,
+              weight REAL DEFAULT NULL,
+              confidence REAL DEFAULT NULL,
+              start_date INTEGER DEFAULT NULL,
+              end_date INTEGER DEFAULT NULL
+            )
+            SQL);
     }
 
     private function insertRelationship(
@@ -339,7 +602,10 @@ SQL);
 
 final class TraversalEntityTypeManager implements EntityTypeManagerInterface
 {
-            public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array { return []; }
+    public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array
+    {
+        return [];
+    }
     /**
      * @param array<string, EntityStorageInterface> $storages
      */
@@ -404,7 +670,10 @@ final class TraversalRelationshipStorage implements EntityStorageInterface
         return $this->entities[$resolved] ?? null;
     }
 
-    public function loadByKey(string $key, mixed $value): ?EntityInterface { return null; }
+    public function loadByKey(string $key, mixed $value): ?EntityInterface
+    {
+        return null;
+    }
 
     public function loadMultiple(array $ids = []): array
     {
@@ -469,7 +738,10 @@ final class TraversalEntityStorage implements EntityStorageInterface
         return $this->entities[(string) $id] ?? null;
     }
 
-    public function loadByKey(string $key, mixed $value): ?EntityInterface { return null; }
+    public function loadByKey(string $key, mixed $value): ?EntityInterface
+    {
+        return null;
+    }
 
     public function loadMultiple(array $ids = []): array
     {
@@ -567,8 +839,15 @@ final class TraversalTestEntity implements EntityInterface
         return false;
     }
 
-    public function get(string $name): mixed { return $this->values[$name] ?? null; }
-    public function set(string $name, mixed $value): static { $this->values[$name] = $value; return $this; }
+    public function get(string $name): mixed
+    {
+        return $this->values[$name] ?? null;
+    }
+    public function set(string $name, mixed $value): static
+    {
+        $this->values[$name] = $value;
+        return $this;
+    }
 
     public function toArray(): array
     {
