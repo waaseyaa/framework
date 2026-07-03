@@ -83,6 +83,11 @@ final class ReRecordTrailTool extends AbstractTrailTool
             return $beacons;
         }
 
+        $denied = $this->requireTrailUpdateAccess($trailId, $langcode, $account, 'wayfinding_rerecord_trail');
+        if ($denied !== null) {
+            return $denied;
+        }
+
         try {
             $result = $this->store()->reRecord($trailId, $langcode, $title, $beacons);
         } catch (\Throwable $e) {
