@@ -25,12 +25,6 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 )]
 final class EntityReadTool extends AbstractAgentTool
 {
-    /**
-     * Field names never returned, even without a FieldDefinition — defense in
-     * depth for raw `_data` credential keys (mirrors ResourceSerializer).
-     */
-    private const array ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
-
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
     ) {}
@@ -151,23 +145,7 @@ final class EntityReadTool extends AbstractAgentTool
      */
     private function filterReadableValues(EntityInterface $entity, array $values, AccountInterface $account): array
     {
-        if ($values === []) {
-            return $values;
-        }
-
-        foreach (self::ALWAYS_INTERNAL_FIELDS as $credentialKey) {
-            unset($values[$credentialKey]);
-        }
-
-        $fieldDefinitions = $this->entityTypeManager->resolveFieldDefinitions(
-            $entity->getEntityTypeId(),
-            $entity->bundle(),
-        );
-        foreach (array_keys($values) as $name) {
-            if (isset($fieldDefinitions[$name]) && $fieldDefinitions[$name]->getSetting('internal') === true) {
-                unset($values[$name]);
-            }
-        }
+        $values = EntityFieldRedaction::stripInternal($this->entityTypeManager, $entity, $values);
 
         return $this->applyFieldAccessFilter($entity, $values, $account);
     }

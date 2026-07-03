@@ -81,6 +81,23 @@ final class EntityRollbackTool extends AbstractAgentTool
             if ($forbidden !== null) {
                 return $forbidden;
             }
+            // Security: rollback() writes the WHOLE target-revision row back
+            // over the current entity, so it can silently re-apply a
+            // privileged field (e.g. user.roles) the caller could never set
+            // through entity.update directly. Gate only the fields the
+            // restore would actually CHANGE — mirrors requireFieldEditAccess()
+            // in EntityUpdateTool, run BEFORE the write.
+            $targetRevision = $repository->loadRevision((string) $id, $targetRevisionId);
+            if ($targetRevision !== null) {
+                $changedValues = EntityRevisionRestoreGuard::changedValues(
+                    EntityRevisionRestoreGuard::values($entity),
+                    EntityRevisionRestoreGuard::values($targetRevision),
+                );
+                $fieldDenied = $this->requireFieldEditAccess($entity, $changedValues, $account);
+                if ($fieldDenied !== null) {
+                    return $fieldDenied;
+                }
+            }
             $reverted = $repository->rollback((string) $id, $targetRevisionId);
         } catch (\LogicException $e) {
             return AgentToolResult::error(sprintf('entity.rollback: %s is not revisionable (%s)', $entityType, $e->getMessage()));
