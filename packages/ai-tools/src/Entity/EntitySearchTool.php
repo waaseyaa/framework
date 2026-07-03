@@ -93,7 +93,7 @@ final class EntitySearchTool extends AbstractAgentTool
             if (!$this->canViewEntity($entity, $account)) {
                 continue;
             }
-            if ($this->matches($entity, $needle)) {
+            if ($this->matches($entity, $needle, $account)) {
                 $matches[] = ['entity_type' => $entity->getEntityTypeId(), 'id' => $entity->id()];
             }
         }
@@ -109,7 +109,7 @@ final class EntitySearchTool extends AbstractAgentTool
         return $this->execute($arguments, $account);
     }
 
-    private function matches(EntityInterface $entity, string $needle): bool
+    private function matches(EntityInterface $entity, string $needle, AccountInterface $account): bool
     {
         // Use a curated getValues() when present, else the guaranteed toArray(),
         // so search works for every entity type, not only those defining
@@ -122,6 +122,14 @@ final class EntitySearchTool extends AbstractAgentTool
         if ($values === []) {
             $values = $entity->toArray();
         }
+
+        // Security (R4 PR1 WP1): never let a credential, internal, or
+        // field-access-forbidden field into the search haystack — the same
+        // boundary EntityReadTool applies to a single read. Without this a
+        // caller who cannot see a field can still learn its content via
+        // match/no-match on a needle unique to that field (a content oracle).
+        $values = EntityFieldRedaction::stripInternal($this->entityTypeManager, $entity, $values);
+        $values = $this->applyFieldAccessFilter($entity, $values, $account);
 
         return $this->haystackMatches($values, $needle);
     }

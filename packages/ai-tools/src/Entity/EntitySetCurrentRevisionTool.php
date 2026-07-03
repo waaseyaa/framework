@@ -81,6 +81,23 @@ final class EntitySetCurrentRevisionTool extends AbstractAgentTool
             if ($forbidden !== null) {
                 return $forbidden;
             }
+            // Security: setCurrentRevision() re-points the base table at the
+            // WHOLE target-revision row, so it can silently re-apply a
+            // privileged field (e.g. user.roles) the caller could never set
+            // through entity.update directly. Gate only the fields the
+            // restore would actually CHANGE — mirrors requireFieldEditAccess()
+            // in EntityUpdateTool, run BEFORE the write.
+            $targetRevision = $repository->loadRevision((string) $id, $revisionId);
+            if ($targetRevision !== null) {
+                $changedValues = EntityRevisionRestoreGuard::changedValues(
+                    EntityRevisionRestoreGuard::values($entity),
+                    EntityRevisionRestoreGuard::values($targetRevision),
+                );
+                $fieldDenied = $this->requireFieldEditAccess($entity, $changedValues, $account);
+                if ($fieldDenied !== null) {
+                    return $fieldDenied;
+                }
+            }
             $current = $repository->setCurrentRevision((string) $id, $revisionId);
             unset($current);
         } catch (\LogicException $e) {
