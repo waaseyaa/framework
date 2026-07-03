@@ -34,7 +34,19 @@ final class RenderCacheTest extends TestCase
     #[Test]
     public function keyMatchesRequiredFormat(): void
     {
-        $this->assertSame('render:node:12:teaser:fr', RenderCache::buildKey('node', 12, 'teaser', 'fr'));
+        $this->assertSame('render:v2:node:12:teaser:fr', RenderCache::buildKey('node', 12, 'teaser', 'fr'));
+    }
+
+    #[Test]
+    public function keyIncludesSchemaVersionSoPreFixEntriesAreUnreachable(): void
+    {
+        // R6 PR1: the SSR HTML render path became field-access-aware; bumping
+        // SCHEMA_VERSION means any cache entry written under the old
+        // (unversioned) key format can never be looked up again — it is
+        // effectively invalidated by becoming unreachable, forcing a re-render
+        // through the fixed, field-filtering path.
+        $this->assertStringContainsString(':' . RenderCache::SCHEMA_VERSION . ':', RenderCache::buildKey('node', 1, 'full', 'en'));
+        $this->assertStringNotContainsString('render:node:1:full:en', RenderCache::buildKey('node', 1, 'full', 'en'));
     }
 
     #[Test]

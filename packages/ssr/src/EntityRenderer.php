@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\SSR;
 
+use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\EntityValues;
@@ -19,14 +21,46 @@ final class EntityRenderer
      */
     private const ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
 
+    /**
+     * $accessHandler is optional so existing call sites that render without a
+     * request context (fixtures, previews with no account) keep working
+     * unchanged. When {@see render()} is called WITH an $account (the real
+     * SSR HTML request path — see {@see SsrPageHandler}), field-level access
+     * control is enforced and fails closed if no handler is wired (see
+     * {@see render()}).
+     */
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly FieldFormatterRegistry $formatterRegistry,
         private readonly ViewModeConfigInterface $viewModeConfig,
+        private readonly ?EntityAccessHandler $accessHandler = null,
     ) {}
 
     /**
      * Build Twig variable bag for an entity + view mode.
+     *
+     * When $account is provided (the real SSR HTML request path), field-level
+     * access control is enforced on the FIELDS BAG, on top of the
+     * always-internal/`internal`-setting exclusions below: fields the viewing
+     * account is forbidden from ('view') per
+     * {@see EntityAccessHandler::filterFields()} are dropped from the bag
+     * entirely — matching {@see \Waaseyaa\Api\ResourceSerializer::serialize()}
+     * and {@see SsrPageHandler::renderEntityMarkdown()} for the field content
+     * these templates print. This fails CLOSED: if $account is given but no
+     * $accessHandler is wired, every field is dropped rather than rendered
+     * unfiltered (defense in depth — production always wires accessHandler;
+     * see {@see SsrPageHandler::renderEntityHtml()} for the primary fail-closed
+     * guard that refuses to render at all in that case).
+     *
+     * SCOPE CAVEAT: this filters only the `fields` bag. The entity LABEL/TITLE
+     * is NOT filtered here — it is read directly from raw storage by the
+     * template's `<title>` block ({@see \Waaseyaa\Entity\EntityInterface::label()})
+     * and by the schema.org JSON-LD ({@see \Waaseyaa\Seo\SchemaOrg\EntitySchemaOrgMapper}),
+     * bypassing this bag. A policy that forbids the label-key field on 'view'
+     * would still expose the title (identical to the Markdown H1's existing
+     * behavior; JSON:API's ResourceSerializer, by contrast, DOES filter the
+     * label). Closing that cross-package label channel is tracked as a
+     * follow-up (R7); it is not part of this change.
      *
      * @return array{
      *   entity: EntityInterface,
@@ -37,7 +71,7 @@ final class EntityRenderer
      *   fields: array<string, array{raw: mixed, formatted: string, type: string}>
      * }
      */
-    public function render(EntityInterface $entity, ViewMode|string $viewMode = 'full'): array
+    public function render(EntityInterface $entity, ViewMode|string $viewMode = 'full', ?AccountInterface $account = null): array
     {
         $mode = $viewMode instanceof ViewMode ? $viewMode->name : (string) $viewMode;
         if ($mode === '') {
@@ -77,6 +111,22 @@ final class EntityRenderer
                 'formatted' => $this->formatterRegistry->format($formatterType, $raw, $settings),
                 'type' => $fieldType,
             ];
+        }
+
+        if ($account !== null) {
+            if ($this->accessHandler !== null) {
+                $allowedFieldNames = $this->accessHandler->filterFields($entity, array_keys($fields), 'view', $account);
+                $fields = array_intersect_key($fields, array_flip($allowedFieldNames));
+            } else {
+                // Fail closed (defense in depth): enforcement was requested
+                // (an $account was supplied) but no access handler is
+                // available to evaluate it. Deny all fields rather than risk
+                // a leak. Production never reaches this branch —
+                // SsrPageHandler::renderEntityHtml() refuses to render at all
+                // (500) before constructing an entity bag when its
+                // accessHandler is null.
+                $fields = [];
+            }
         }
 
         return [
