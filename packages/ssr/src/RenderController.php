@@ -98,15 +98,22 @@ final class RenderController
     }
 
     /**
+     * $account is forwarded to {@see EntityRenderer::render()} so field-level
+     * access control is enforced on the entity's field bag (distinct from
+     * `$context['account']`, which — when present — is merged into the Twig
+     * context for template-level `account` checks; see
+     * {@see SsrPageHandler::renderEntityHtml()} for the production caller,
+     * which passes the same account both ways).
+     *
      * @param array<string, mixed> $context
      */
-    public function renderEntity(EntityInterface $entity, ViewMode|string $viewMode = 'full', array $context = []): Response
+    public function renderEntity(EntityInterface $entity, ViewMode|string $viewMode = 'full', array $context = [], ?AccountInterface $account = null): Response
     {
         if ($this->entityRenderer === null) {
             throw new \RuntimeException('EntityRenderer is required for entity rendering.');
         }
 
-        $bag = $this->entityRenderer->render($entity, $viewMode);
+        $bag = $this->entityRenderer->render($entity, $viewMode, $account);
         foreach ($context as $key => $value) {
             if (is_string($key) && $key !== '') {
                 $bag[$key] = $value;

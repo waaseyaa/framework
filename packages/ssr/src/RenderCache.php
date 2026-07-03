@@ -10,6 +10,17 @@ use Waaseyaa\Cache\TagAwareCacheInterface;
 
 final class RenderCache
 {
+    /**
+     * Cache-key schema version. Bump this whenever the SHAPE of the rendered
+     * payload changes in a way that makes previously-cached entries unsafe to
+     * keep serving — e.g. the R6 PR1 fix that made anonymous HTML rendering
+     * field-access-aware (see CHANGELOG "Security"). Folding this into
+     * {@see buildKey()} makes every pre-fix cache entry unreachable under the
+     * new key, so already-cached field-leaky pages are re-rendered through
+     * the fixed path instead of continuing to serve stale, unfiltered HTML.
+     */
+    public const string SCHEMA_VERSION = 'v2';
+
     public function __construct(
         private readonly CacheBackendInterface $backend,
     ) {}
@@ -80,7 +91,7 @@ final class RenderCache
 
     public static function buildKey(string $entityTypeId, int|string $entityId, string $viewMode, string $langcode): string
     {
-        return sprintf('render:%s:%s:%s:%s', $entityTypeId, (string) $entityId, $viewMode, $langcode);
+        return sprintf('render:%s:%s:%s:%s:%s', self::SCHEMA_VERSION, $entityTypeId, (string) $entityId, $viewMode, $langcode);
     }
 
     /**

@@ -7,6 +7,11 @@ namespace Waaseyaa\SSR\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Access\AccessPolicyInterface;
+use Waaseyaa\Access\AccessResult;
+use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\Tests\Helper\TestEntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -145,6 +150,174 @@ final class EntityRendererTest extends TestCase
 
         // The always-internal credential field must be dropped even without a FieldDefinition.
         $this->assertArrayNotHasKey('password', $bag['fields'], 'Field named "password" must always be dropped from rendered output.');
+    }
+
+    /**
+     * Audit M1 / R6 PR1 exploit-closed regression: before the fix,
+     * {@see EntityRenderer::render()} had no $account/$accessHandler
+     * parameters at all, so a field-access-forbidden field of an otherwise
+     * viewable entity was unconditionally included in the Twig field bag —
+     * the shipped `entity.html.twig` then printed it via `{{ field.formatted|raw }}`
+     * for every anonymous HTML request. This mirrors the field policy shape
+     * of {@see \Waaseyaa\Field\Classification\Policy\ClassificationFieldAccessPolicy}
+     * (an anonymous class implementing both AccessPolicyInterface and
+     * FieldAccessPolicyInterface, since PHPUnit's createMock() cannot mock
+     * intersection types).
+     */
+    #[Test]
+    public function drops_a_field_access_forbidden_field_for_the_viewing_account(): void
+    {
+        $definition = TestEntityType::stub(
+            id: 'node',
+            class: RendererTestEntity::class,
+            keys: ['id' => 'id', 'label' => 'title'],
+            label: 'Node',
+            fieldDefinitions: [
+                'title' => ['type' => 'string'],
+                'secret' => ['type' => 'string'],
+            ],
+        );
+
+        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager->method('getDefinition')->with('node')->willReturn($definition);
+
+        $config = new ArrayViewModeConfig([
+            'node' => [
+                'full' => [
+                    'title' => ['formatter' => 'string', 'weight' => 0],
+                    'secret' => ['formatter' => 'string', 'weight' => 1],
+                ],
+            ],
+        ]);
+
+        $accessHandler = new EntityAccessHandler([
+            new class implements AccessPolicyInterface, FieldAccessPolicyInterface {
+                public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+                {
+                    return AccessResult::neutral();
+                }
+
+                public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+                {
+                    return AccessResult::neutral();
+                }
+
+                public function appliesTo(string $entityTypeId): bool
+                {
+                    return $entityTypeId === 'node';
+                }
+
+                public function fieldAccess(EntityInterface $entity, string $fieldName, string $operation, AccountInterface $account): AccessResult
+                {
+                    return $fieldName === 'secret' ? AccessResult::forbidden() : AccessResult::neutral();
+                }
+            },
+        ]);
+
+        $renderer = new EntityRenderer($manager, new FieldFormatterRegistry(), $config, $accessHandler);
+        $entity = new RendererTestEntity('node', [
+            'id' => 1,
+            'title' => 'Public headline',
+            'secret' => 'classified payload',
+        ]);
+        $account = $this->createMock(AccountInterface::class);
+
+        $bag = $renderer->render($entity, ViewMode::full(), $account);
+
+        $this->assertArrayHasKey('title', $bag['fields'], 'Viewable field must still render for anonymous.');
+        $this->assertSame('Public headline', $bag['fields']['title']['formatted']);
+        $this->assertArrayNotHasKey('secret', $bag['fields'], 'Field-access-forbidden field must never reach the Twig bag.');
+    }
+
+    /**
+     * Positive regression companion to the test above: enforcing field access
+     * must not over-filter. When every field is allowed (no policy opines, or
+     * only Neutral results), the account still sees the full field set.
+     */
+    #[Test]
+    public function renders_all_fields_for_the_account_when_none_are_restricted(): void
+    {
+        $definition = TestEntityType::stub(
+            id: 'node',
+            class: RendererTestEntity::class,
+            keys: ['id' => 'id', 'label' => 'title'],
+            label: 'Node',
+            fieldDefinitions: [
+                'title' => ['type' => 'string'],
+                'body' => ['type' => 'text_long'],
+            ],
+        );
+
+        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager->method('getDefinition')->with('node')->willReturn($definition);
+
+        $config = new ArrayViewModeConfig([
+            'node' => [
+                'full' => [
+                    'title' => ['formatter' => 'string', 'weight' => 0],
+                    'body' => ['formatter' => 'string', 'weight' => 1],
+                ],
+            ],
+        ]);
+
+        // Open-by-default: an EntityAccessHandler with no policies at all
+        // opines Neutral on every field, and filterFields() only drops
+        // Forbidden — so nothing is filtered out.
+        $accessHandler = new EntityAccessHandler([]);
+
+        $renderer = new EntityRenderer($manager, new FieldFormatterRegistry(), $config, $accessHandler);
+        $entity = new RendererTestEntity('node', [
+            'id' => 1,
+            'title' => 'Hello',
+            'body' => 'World',
+        ]);
+        $account = $this->createMock(AccountInterface::class);
+
+        $bag = $renderer->render($entity, ViewMode::full(), $account);
+
+        $this->assertSame(['title', 'body'], array_keys($bag['fields']));
+    }
+
+    /**
+     * Defense in depth: if $account is supplied (enforcement requested) but no
+     * $accessHandler was wired into the renderer, every field must be dropped
+     * rather than rendered unfiltered. In production this branch is
+     * unreachable — {@see \Waaseyaa\SSR\SsrPageHandler::renderEntityHtml()}
+     * refuses to render at all (500) before ever constructing the bag when its
+     * own accessHandler is null — but EntityRenderer must not silently trust
+     * a caller that skips that guard.
+     */
+    #[Test]
+    public function fails_closed_and_drops_all_fields_when_account_given_but_no_access_handler_wired(): void
+    {
+        $definition = TestEntityType::stub(
+            id: 'node',
+            class: RendererTestEntity::class,
+            keys: ['id' => 'id', 'label' => 'title'],
+            label: 'Node',
+            fieldDefinitions: [
+                'title' => ['type' => 'string'],
+            ],
+        );
+
+        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager->method('getDefinition')->with('node')->willReturn($definition);
+
+        $config = new ArrayViewModeConfig([
+            'node' => [
+                'full' => [
+                    'title' => ['formatter' => 'string', 'weight' => 0],
+                ],
+            ],
+        ]);
+
+        $renderer = new EntityRenderer($manager, new FieldFormatterRegistry(), $config);
+        $entity = new RendererTestEntity('node', ['id' => 1, 'title' => 'Hello']);
+        $account = $this->createMock(AccountInterface::class);
+
+        $bag = $renderer->render($entity, ViewMode::full(), $account);
+
+        $this->assertSame([], $bag['fields'], 'No access handler wired => fail closed, drop every field.');
     }
 }
 

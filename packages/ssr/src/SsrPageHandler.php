@@ -201,7 +201,7 @@ final class SsrPageHandler
             $viewModeConfig = new ArrayViewModeConfig(
                 is_array($this->config['view_modes'] ?? null) ? $this->config['view_modes'] : [],
             );
-            $entityRenderer = new EntityRenderer($this->entityTypeManager, $formatterRegistry, $viewModeConfig);
+            $entityRenderer = new EntityRenderer($this->entityTypeManager, $formatterRegistry, $viewModeConfig, $this->accessHandler);
             $safeViewMode = preg_replace('/[^a-z0-9_]+/i', '', strtolower($requestedViewMode)) ?: 'full';
             $viewMode = new ViewMode($safeViewMode);
             // Content negotiation on the SAME URL: text/markdown for agents (or the
@@ -263,7 +263,7 @@ final class SsrPageHandler
 
             $response = $mediaType === MediaTypeAcceptNegotiator::MARKDOWN
                 ? $this->renderEntityMarkdown($entity, $viewMode, $viewModeConfig, $normalizedPath, $account)
-                : new RenderController($twig, $entityRenderer)->renderEntity($entity, $viewMode, $twigEntityContext);
+                : $this->renderEntityHtml($entity, $viewMode, $entityRenderer, $twig, $twigEntityContext, $account);
             if (
                 !$account->isAuthenticated()
                 && !$previewRequested
@@ -881,6 +881,53 @@ final class SsrPageHandler
             200,
             ['Content-Type' => 'text/markdown; charset=UTF-8'],
         );
+    }
+
+    /**
+     * Render an entity as an HTML HTTP response via {@see RenderController}.
+     *
+     * $account is threaded through to $entityRenderer (which was constructed
+     * with $this->accessHandler) so the per-account field-access filter is
+     * always applied to the FIELDS BAG — HTML must not expose a restricted
+     * field's content in the field loop that the Markdown/JSON:API
+     * representations would hide for the same account (audit M1 / R6 PR1).
+     *
+     * SCOPE CAVEAT: the filter covers the `fields` bag only. The entity
+     * label/title is emitted separately (the template's `<title>` block and
+     * the schema.org JSON-LD from {@see buildSchemaOrgScript()}) straight from
+     * {@see EntityInterface::label()}, so a policy forbidding the label field
+     * on 'view' would still expose the title — the same pre-existing gap the
+     * Markdown H1 has. That cross-package label channel is a follow-up (R7)
+     * and is out of scope here.
+     *
+     * Mirrors {@see renderEntityMarkdown()}'s fail-closed discipline exactly:
+     * when no access handler is wired we refuse to render rather than fall
+     * back to unfiltered output. Unreachable in production —
+     * SsrServiceProvider always wires accessHandler from the kernel's
+     * non-nullable getAccessHandler() — this guards direct/test construction
+     * of SsrPageHandler without it.
+     *
+     * @param array<string, mixed> $context
+     */
+    private function renderEntityHtml(
+        EntityInterface $entity,
+        ViewMode $viewMode,
+        EntityRenderer $entityRenderer,
+        \Twig\Environment $twig,
+        array $context,
+        AccountInterface $account,
+    ): HttpResponse {
+        if ($this->accessHandler === null) {
+            $this->logger->error('HTML render requested with no access handler wired; refusing to render unfiltered content.');
+
+            return new HttpResponse(
+                'Internal Server Error',
+                500,
+                ['Content-Type' => 'text/plain; charset=UTF-8'],
+            );
+        }
+
+        return new RenderController($twig, $entityRenderer)->renderEntity($entity, $viewMode, $context, $account);
     }
 
     public function sanitizeCacheToken(string $value, string $fallback): string
