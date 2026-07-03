@@ -86,6 +86,11 @@ final class EditTrailTool extends AbstractTrailTool
             return $beacons;
         }
 
+        $denied = $this->requireTrailUpdateAccess($trailId, $langcode, $account, 'wayfinding_edit_trail');
+        if ($denied !== null) {
+            return $denied;
+        }
+
         try {
             $trail = $this->store()->editAsHuman($trailId, $langcode, $title, $beacons);
         } catch (\Throwable $e) {

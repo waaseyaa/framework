@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Agent\Tool\Wayfinding;
 
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -38,6 +39,42 @@ abstract class AbstractTrailTool extends AbstractAgentTool
 
     protected function store(): TrailStore
     {
+        return new TrailStore($this->repository());
+    }
+
+    /**
+     * Load the target trail and enforce the per-entity 'update' AccessPolicy
+     * ({@see \Waaseyaa\Wayfinding\Access\TrailAccessPolicy}, owner-only for
+     * `update`) BEFORE a write tool touches it. Closes the cross-account
+     * overwrite hole: {@see EditTrailTool} and {@see ReRecordTrailTool} used to
+     * gate only the coarse `present guided content` capability and then write
+     * to whatever `trail_id` was supplied, so any capability holder could edit
+     * or re-record another account's trail. `requireEntityAccess()` fails
+     * closed (denies) when enforcement is required but no access handler is
+     * wired, so a wiring gap can never silently degrade to "allow all".
+     *
+     * Mirrors {@see \Waaseyaa\Wayfinding\Trail\TrailStore::resolveOwner()}: try
+     * the language-specific peer row first (the row the write would touch),
+     * then fall back to the entity's default-language row — a trail's
+     * ownership is inherited from that row and does not vary per language, so
+     * either row carries the correct `owner_uid` for the policy check.
+     */
+    protected function requireTrailUpdateAccess(string $trailId, string $langcode, AccountInterface $account, string $toolName): ?AgentToolResult
+    {
+        $repository = $this->repository();
+        $trail = $repository->loadTranslation($trailId, $langcode) ?? $repository->find($trailId);
+        if ($trail === null) {
+            return AgentToolResult::error(
+                message: sprintf('%s: trail "%s" not found.', $toolName, $trailId),
+                summary: 'not found',
+            );
+        }
+
+        return $this->requireEntityAccess($trail, 'update', $account);
+    }
+
+    private function repository(): EntityRepository
+    {
         $repository = $this->entityTypeManager->getRepository(self::TRAIL_ENTITY_TYPE);
         if (!$repository instanceof EntityRepository) {
             throw new \LogicException(sprintf(
@@ -48,7 +85,7 @@ abstract class AbstractTrailTool extends AbstractAgentTool
             ));
         }
 
-        return new TrailStore($repository);
+        return $repository;
     }
 
     /**

@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Agent\Tests\Support\FakeEntityTypeManager;
 use Waaseyaa\AI\Agent\Tool\Wayfinding\EditTrailTool;
 use Waaseyaa\AI\Agent\Tool\Wayfinding\GetTrailTool;
@@ -21,6 +22,7 @@ use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
+use Waaseyaa\Wayfinding\Access\TrailAccessPolicy;
 use Waaseyaa\Wayfinding\Entity\Trail;
 use Waaseyaa\Wayfinding\Http\EmitBeaconController;
 use Waaseyaa\Wayfinding\Trail\TrailStore;
@@ -235,14 +237,127 @@ final class WayfindingTrailToolsTest extends TestCase
         );
     }
 
-    private function account(bool $hasCapability): AccountInterface
+    private function account(bool $hasCapability, int $id = 42): AccountInterface
     {
         $account = $this->createMock(AccountInterface::class);
-        $account->method('id')->willReturn(42);
+        $account->method('id')->willReturn($id);
         $account->method('hasPermission')->willReturnCallback(
             static fn(string $permission): bool => $hasCapability && $permission === EmitBeaconController::CAPABILITY,
         );
 
         return $account;
+    }
+
+    /**
+     * WP4 (ai-agent M1): cross-account trail-overwrite hole. Wires a REAL
+     * {@see EntityAccessHandler} with the REAL {@see TrailAccessPolicy}
+     * registered, then attaches it via {@see EditTrailTool::setAccessHandler()}
+     * / {@see ReRecordTrailTool::setAccessHandler()} so per-entity enforcement
+     * is ON (capability-only mode intentionally no-ops the per-entity gate —
+     * see the other tests in this class — so this suite must wire a handler to
+     * observe the fix).
+     */
+    #[Test]
+    public function edit_is_forbidden_for_a_non_owner_even_with_the_capability(): void
+    {
+        $handler = new EntityAccessHandler([new TrailAccessPolicy()]);
+        $owner = $this->account(hasCapability: true, id: 100);
+        $attacker = $this->account(hasCapability: true, id: 200);
+
+        $recordTool = new RecordTrailTool($this->entityTypeManager);
+        $recordTool->setAccessHandler($handler);
+        $recorded = $recordTool->execute([
+            'title' => 'Owner trail',
+            'beacons' => [['anchor_id' => 'a', 'content' => 'owner content', 'order' => 0]],
+        ], $owner);
+        self::assertFalse($recorded->isError);
+        $trailId = $recorded->content[0]['data']['trail_id'];
+
+        $editTool = new EditTrailTool($this->entityTypeManager);
+        $editTool->setAccessHandler($handler);
+        $result = $editTool->execute([
+            'trail_id' => $trailId,
+            'title' => 'pwned',
+            'langcode' => 'en',
+            'beacons' => [['anchor_id' => 'any', 'content' => 'attacker text', 'order' => 0]],
+        ], $attacker);
+
+        self::assertTrue($result->isError, 'a non-owner capability holder must be refused, not allowed to overwrite');
+        self::assertSame('forbidden', $result->summary);
+
+        // The victim's trail content is unchanged — no write happened.
+        $got = new GetTrailTool($this->entityTypeManager)->execute(['trail_id' => $trailId], $owner);
+        self::assertSame('Owner trail', $got->content[0]['data']['title']);
+        self::assertSame('owner content', $got->content[0]['data']['beacons'][0]['content']);
+    }
+
+    #[Test]
+    public function rerecord_is_forbidden_for_a_non_owner_even_with_the_capability(): void
+    {
+        $handler = new EntityAccessHandler([new TrailAccessPolicy()]);
+        $owner = $this->account(hasCapability: true, id: 100);
+        $attacker = $this->account(hasCapability: true, id: 200);
+
+        $recordTool = new RecordTrailTool($this->entityTypeManager);
+        $recordTool->setAccessHandler($handler);
+        $recorded = $recordTool->execute([
+            'title' => 'Owner trail',
+            'beacons' => [['anchor_id' => 'a', 'content' => 'owner content', 'order' => 0]],
+        ], $owner);
+        self::assertFalse($recorded->isError);
+        $trailId = $recorded->content[0]['data']['trail_id'];
+
+        $reRecordTool = new ReRecordTrailTool($this->entityTypeManager);
+        $reRecordTool->setAccessHandler($handler);
+        $result = $reRecordTool->execute([
+            'trail_id' => $trailId,
+            'title' => 'pwned',
+            'langcode' => 'en',
+            'beacons' => [['anchor_id' => 'any', 'content' => 'attacker text', 'order' => 0]],
+        ], $attacker);
+
+        self::assertTrue($result->isError, 'a non-owner capability holder must be refused, not allowed to overwrite');
+        self::assertSame('forbidden', $result->summary);
+
+        // The victim's trail content is unchanged — no write happened.
+        $got = new GetTrailTool($this->entityTypeManager)->execute(['trail_id' => $trailId], $owner);
+        self::assertSame('Owner trail', $got->content[0]['data']['title']);
+        self::assertSame('owner content', $got->content[0]['data']['beacons'][0]['content']);
+    }
+
+    #[Test]
+    public function edit_and_rerecord_still_work_for_the_owner_with_a_real_handler_attached(): void
+    {
+        $handler = new EntityAccessHandler([new TrailAccessPolicy()]);
+        $owner = $this->account(hasCapability: true, id: 100);
+
+        $recordTool = new RecordTrailTool($this->entityTypeManager);
+        $recordTool->setAccessHandler($handler);
+        $recorded = $recordTool->execute([
+            'title' => 'Owner trail',
+            'beacons' => [['anchor_id' => 'a', 'content' => 'v1', 'order' => 0]],
+        ], $owner);
+        $trailId = $recorded->content[0]['data']['trail_id'];
+
+        $editTool = new EditTrailTool($this->entityTypeManager);
+        $editTool->setAccessHandler($handler);
+        $edited = $editTool->execute([
+            'trail_id' => $trailId,
+            'title' => 'Owner edit',
+            'langcode' => 'en',
+            'beacons' => [['anchor_id' => 'a', 'content' => 'v2', 'order' => 0]],
+        ], $owner);
+        self::assertFalse($edited->isError, 'the owner must still be able to edit their own trail');
+        self::assertSame('Owner edit', $edited->content[0]['data']['title']);
+
+        $reRecordTool = new ReRecordTrailTool($this->entityTypeManager);
+        $reRecordTool->setAccessHandler($handler);
+        $reRecorded = $reRecordTool->execute([
+            'trail_id' => $trailId,
+            'title' => 'Owner re-record',
+            'langcode' => 'en',
+            'beacons' => [['anchor_id' => 'a', 'content' => 'v3', 'order' => 0]],
+        ], $owner);
+        self::assertFalse($reRecorded->isError, 'the owner must still be able to re-record their own trail');
     }
 }
