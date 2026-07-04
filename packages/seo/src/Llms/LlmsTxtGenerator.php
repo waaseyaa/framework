@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Seo\Llms;
 
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 
 /**
@@ -78,15 +79,23 @@ final class LlmsTxtGenerator
      * Derive the default topic set: one topic per public content entity type.
      *
      * Mirrors {@see \Waaseyaa\Seo\SitemapGenerator::collectFromEntityTypes()} —
-     * member IDs are enumerated with `accessCheck(false)` because this builds a
-     * public crawler inventory; per-entity access is enforced when the entity's
-     * page is subsequently rendered (C-004 audited bypass).
+     * enumeration is ACCESS-AWARE (R6/M3, closes the C-004 bypass for this
+     * callsite): member IDs are enumerated with `setAccount($account)` so a
+     * published-but-access-restricted entity is excluded from the public
+     * crawler inventory, not just unpublished ones.
      *
      * @param callable(string $entityTypeId): ?array{title: string, summary: string} $describeType
      *        Returns topic metadata for a public content type, or null to skip the
      *        type (i.e. it is not part of the public agent-readable surface).
      * @param callable(string $entityTypeId, int|string $id, string $label): ?array{title: string, url: string} $buildLink
      *        Builds the per-entity Markdown link, or null/empty to skip the entity.
+     * @param ?AccountInterface $account The account the enumeration is performed on behalf of
+     *   (e.g. an anonymous crawler). Bound via `setAccount()` so the underlying entity query
+     *   runs the SAME `AccessPolicyInterface` pipeline the rest of the framework uses. When
+     *   null, no account is bound and the query is left at its fail-closed default (an
+     *   unbound, access-checked query throws `MissingQueryAccountException`) — callers
+     *   building a PUBLIC crawler surface MUST pass an account (typically
+     *   `Waaseyaa\User\AnonymousUser`); this is not an opt-out bypass.
      *
      * @return list<LlmsTopic>
      */
@@ -95,6 +104,7 @@ final class LlmsTxtGenerator
         callable $describeType,
         callable $buildLink,
         int $maxPerType = 1000,
+        ?AccountInterface $account = null,
     ): array {
         $topics = [];
 
@@ -107,14 +117,17 @@ final class LlmsTxtGenerator
             // C-22 WP2: the query builder now lives on the repository.
             $query = $entityTypeManager
                 ->getRepository($entityTypeId)
-                ->getQuery()
-                ->accessCheck(false);
+                ->getQuery();
 
-            // A public llms.txt must only advertise PUBLISHED content — the
-            // accessCheck(false) bypass (C-004) is for URL generation, not a
-            // licence to leak unpublished/draft URLs to anonymous crawlers.
-            // Types declaring a `status` (published) field are filtered to
-            // published rows; types with no published concept are listed as-is.
+            if ($account !== null) {
+                $query->setAccount($account);
+            }
+
+            // A public llms.txt must only advertise PUBLISHED content — types
+            // declaring a `status` (published) field are filtered to published
+            // rows; types with no published concept are listed as-is. This is
+            // in addition to, not instead of, the access-aware setAccount()
+            // filtering above.
             if (array_key_exists('status', $definition->getFieldDefinitions())) {
                 $query->condition('status', 1);
             }

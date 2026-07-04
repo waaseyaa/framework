@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Seo;
 
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 
 /**
@@ -56,6 +57,14 @@ final class SitemapGenerator
      * @param list<string>|null $includeEntityTypes When null, all registered types (from getDefinitions) are considered.
      * @param list<string> $excludeEntityTypes
      * @param array<string, array<string, mixed>> $perTypeOptions Optional keys: `changefreq`, `priority`, `max`.
+     * @param ?AccountInterface $account The account the enumeration is performed on behalf of
+     *   (e.g. an anonymous crawler). Bound via `setAccount()` so the underlying entity query
+     *   runs the SAME `AccessPolicyInterface` pipeline the rest of the framework uses — a
+     *   published-but-access-restricted entity (a classification hold, a genealogy privacy
+     *   rule, etc.) is excluded, not just unpublished ones. When null, no account is bound and
+     *   the query is left at its fail-closed default (an unbound, access-checked query throws
+     *   `MissingQueryAccountException`) — callers building a PUBLIC crawler surface MUST pass
+     *   an account (typically `Waaseyaa\User\AnonymousUser`); this is not an opt-out bypass.
      *
      * @return list<SitemapUrl>
      */
@@ -66,6 +75,7 @@ final class SitemapGenerator
         array $excludeEntityTypes = [],
         int $maxUrlsPerType = 50000,
         array $perTypeOptions = [],
+        ?AccountInterface $account = null,
     ): array {
         $exclude = array_flip($excludeEntityTypes);
         $include = $includeEntityTypes !== null ? array_flip($includeEntityTypes) : null;
@@ -92,13 +102,22 @@ final class SitemapGenerator
                 continue;
             }
 
-            // System-context bypass: sitemap generation enumerates public URLs for
-            // crawlers and runs without a request-scoped account. Mirrors
-            // PathAliasResolver — entity-level access is enforced when the caller
-            // subsequently loads the entity to render its page.
-            // See docs/security/sql-entity-query-access-check-bypass-audit.md (C-004).
+            // R6/M3 (audit M3, closes the C-004 bypass for this callsite):
+            // enumeration must be ACCESS-AWARE, not a blanket bypass — a
+            // published-but-access-restricted entity (a classification hold,
+            // a genealogy privacy rule, etc.) must not be enumerated to an
+            // anonymous crawler. Binding $account runs SqlEntityQuery's
+            // per-candidate EntityAccessHandler::check() (the SAME pipeline
+            // single-entity loads use), so a Forbidden/Neutral policy result
+            // excludes the row. When no account is supplied the query is left
+            // at its fail-closed default rather than falling back to
+            // accessCheck(false) — see the $account param doc above.
             // C-22 WP2: the query builder now lives on the repository.
-            $query = $entityTypeManager->getRepository($entityTypeId)->getQuery()->accessCheck(false);
+            $query = $entityTypeManager->getRepository($entityTypeId)->getQuery();
+
+            if ($account !== null) {
+                $query->setAccount($account);
+            }
 
             // ...but a *public* sitemap must still only advertise PUBLISHED content:
             // the accessCheck(false) bypass is for URL-generation performance, not a

@@ -7,11 +7,13 @@ namespace Waaseyaa\Seo\Tests\Unit\Llms;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
+use Waaseyaa\Entity\Testing\RecordingEntityQuery;
 use Waaseyaa\Seo\Llms\LlmsTopic;
 use Waaseyaa\Seo\Llms\LlmsTxtGenerator;
 
@@ -83,31 +85,62 @@ final class LlmsTxtGeneratorTest extends TestCase
     }
 
     #[Test]
-    public function collect_topics_enumerates_with_access_check_disabled(): void
+    public function collect_topics_binds_the_given_account_instead_of_bypassing_access(): void
     {
-        // The public crawler inventory must bypass per-request access; assert the
-        // query is built with accessCheck(false).
-        $query = $this->createMock(EntityQueryInterface::class);
-        $query->expects(self::once())->method('accessCheck')->with(false)->willReturnSelf();
-        $query->method('range')->willReturnSelf();
-        $query->method('execute')->willReturn([1]);
+        // R6/M3 (audit M3): the public crawler inventory must be
+        // ACCESS-AWARE — setAccount() (not accessCheck(false)) is the
+        // mechanism, so a published-but-access-restricted entity is excluded
+        // via the same EntityAccessHandler pipeline the rest of the
+        // framework uses.
+        $query = (new RecordingEntityQuery())->withResults([1]);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('getQuery')->willReturn($query);
 
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn(['node' => $this->createStub(\Waaseyaa\Entity\EntityTypeInterface::class)]);
         $manager->method('getStorage')->willReturn($storage);
         // C-22: the query builder now lives on the repository.
         $manager->method('getRepository')->willReturn(new QueryOnlyStubRepository($query));
 
+        $account = $this->createStub(AccountInterface::class);
+
         $topics = new LlmsTxtGenerator()->collectTopics(
+            $manager,
+            static fn(string $type): array => ['title' => 'Articles', 'summary' => ''],
+            static fn(string $type, int|string $id, string $label): array => ['title' => "n{$id}", 'url' => "/n/{$id}.md"],
+            account: $account,
+        );
+
+        self::assertCount(1, $topics);
+        self::assertSame([], $query->accessChecks, 'must not call accessCheck(false) when an account is supplied');
+        self::assertSame($account, $query->boundAccount, 'must bind the caller-supplied account via setAccount()');
+    }
+
+    #[Test]
+    public function collect_topics_does_not_bind_an_account_when_none_is_supplied(): void
+    {
+        // Fail-closed default: no account => no setAccount(), no
+        // accessCheck(false) — callers building a public crawler surface
+        // MUST pass an account.
+        $query = (new RecordingEntityQuery())->withResults([1]);
+
+        $storage = $this->createStub(EntityStorageInterface::class);
+        $storage->method('getQuery')->willReturn($query);
+
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
+        $manager->method('getDefinitions')->willReturn(['node' => $this->createStub(\Waaseyaa\Entity\EntityTypeInterface::class)]);
+        $manager->method('getStorage')->willReturn($storage);
+        $manager->method('getRepository')->willReturn(new QueryOnlyStubRepository($query));
+
+        new LlmsTxtGenerator()->collectTopics(
             $manager,
             static fn(string $type): array => ['title' => 'Articles', 'summary' => ''],
             static fn(string $type, int|string $id, string $label): array => ['title' => "n{$id}", 'url' => "/n/{$id}.md"],
         );
 
-        self::assertCount(1, $topics);
+        self::assertSame([], $query->accessChecks);
+        self::assertNull($query->boundAccount);
     }
 
     // --- Injection hardening tests (§2.8 residual-security-sweep) ---
