@@ -8,8 +8,11 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\Access\AccessPolicyInterface;
+use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Access\Policy\PublishedContentAccessPolicy;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Routing\CacheConfigResolver;
@@ -21,14 +24,20 @@ use Waaseyaa\Node\Node;
 use Waaseyaa\SSR\SsrPageHandler;
 
 /**
- * The canonical published gate for the SSR render path (author-path FR-006).
+ * The canonical published/entity-view gate for the SSR render path
+ * (author-path FR-006; audit M2 / R6 PR2).
  *
- * The node-centric {@see \Waaseyaa\Workflows\EditorialVisibilityResolver} allows
- * any non-`node` type outright, so a generic `make:content-type` entity would
- * otherwise serve drafts to anonymous visitors via HTML/Markdown even though MCP
- * and JSON:API deny them. {@see SsrPageHandler::shouldDenyContentGroupRender()}
- * closes that gap by deferring to the SAME per-entity AccessPolicy
- * ({@see PublishedContentAccessPolicy}) the other read surfaces use.
+ * The node-centric {@see \Waaseyaa\Workflows\EditorialVisibilityResolver} only
+ * covers publish/preview/workflow state, so a generic `make:content-type`
+ * entity would otherwise serve drafts to anonymous visitors via HTML/Markdown
+ * even though MCP and JSON:API deny them — and, before R6 PR2, a `node` was
+ * EXCLUDED from this gate entirely, so a published-but-access-restricted node
+ * (e.g. a classification hold) never ran the entity-level access check at all.
+ * {@see SsrPageHandler::shouldDenyContentGroupRender()} closes both gaps by
+ * deferring every `content`-group entity — including `node` — to the SAME
+ * per-entity AccessPolicy ({@see PublishedContentAccessPolicy},
+ * `NodeAccessPolicy`, `ClassificationFieldAccessPolicy`, etc.) the other read
+ * surfaces use.
  */
 #[CoversClass(SsrPageHandler::class)]
 final class SsrContentPublishedGateTest extends TestCase
@@ -38,8 +47,43 @@ final class SsrContentPublishedGateTest extends TestCase
         $etm = new EntityTypeManager(new EventDispatcher());
         $etm->registerEntityType(new EntityType(id: 'story', label: 'Story', class: Node::class, group: 'content'));
         $etm->registerEntityType(new EntityType(id: 'profile', label: 'Profile', class: Node::class, group: 'people'));
+        $etm->registerEntityType(new EntityType(id: 'node', label: 'Content', class: Node::class, group: 'content'));
 
         return $etm;
+    }
+
+    /**
+     * Mirrors ClassificationFieldAccessPolicy's entity-level Forbidden for a
+     * legal-hold / insufficient-clearance node: applies to 'node', returns
+     * Forbidden for 'view' regardless of account or publish status.
+     */
+    private function forbidNodeViewHandler(): EntityAccessHandler
+    {
+        return new EntityAccessHandler([
+            new class implements AccessPolicyInterface, FieldAccessPolicyInterface {
+                public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+                {
+                    return $operation === 'view'
+                        ? AccessResult::forbidden('Entity is under legal hold.')
+                        : AccessResult::neutral();
+                }
+
+                public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+                {
+                    return AccessResult::neutral();
+                }
+
+                public function appliesTo(string $entityTypeId): bool
+                {
+                    return $entityTypeId === 'node';
+                }
+
+                public function fieldAccess(EntityInterface $entity, string $fieldName, string $operation, AccountInterface $account): AccessResult
+                {
+                    return AccessResult::neutral();
+                }
+            },
+        ]);
     }
 
     private function handler(EntityTypeManager $etm, ?EntityAccessHandler $accessHandler): SsrPageHandler
@@ -134,15 +178,41 @@ final class SsrContentPublishedGateTest extends TestCase
     }
 
     #[Test]
-    public function never_gates_nodes_here(): void
+    public function allows_a_published_node_with_no_restrictive_policy(): void
     {
-        // Nodes keep their published/preview/workflow nuance in the editorial
-        // resolver; this gate must be a no-op for them regardless of status.
+        // Regression guard: nodes are NO LONGER excluded from this gate (R6
+        // PR2), but a standard published node with only PublishedContentAccessPolicy
+        // opining must still render — this gate must not over-deny the common case.
         $etm = $this->entityTypeManager();
         $handler = $this->handler($etm, $this->accessHandler($etm));
 
-        self::assertFalse($this->shouldDeny($handler, 'node', $this->entity('node', false), $this->anon()));
-        self::assertFalse($this->shouldDeny($handler, 'node', $this->entity('node', true), $this->anon()));
+        self::assertFalse(
+            $this->shouldDeny($handler, 'node', $this->entity('node', true), $this->anon()),
+            'a published node with no restrictive access policy must still render',
+        );
+    }
+
+    #[Test]
+    public function gates_a_view_forbidden_node(): void
+    {
+        // Audit M2 / R6 PR2 exploit-closed regression: before the fix, this
+        // method opened with `$entityTypeId === 'node' || ...` and returned
+        // false unconditionally for nodes, so a published-but-access-restricted
+        // node (e.g. a classification hold) NEVER ran the entity-level
+        // accessHandler->check() gate and rendered 200 to anonymous. Nodes now
+        // go through the same per-entity AccessPolicy check as any other
+        // content-group type.
+        $etm = $this->entityTypeManager();
+        $handler = $this->handler($etm, $this->forbidNodeViewHandler());
+
+        self::assertTrue(
+            $this->shouldDeny($handler, 'node', $this->entity('node', true), $this->anon()),
+            'a published node forbidden by entity-level access policy must be gated here — it was previously excluded',
+        );
+        self::assertTrue(
+            $this->shouldDeny($handler, 'node', $this->entity('node', false), $this->anon()),
+            'an unpublished, view-forbidden node must also be gated',
+        );
     }
 
     #[Test]
