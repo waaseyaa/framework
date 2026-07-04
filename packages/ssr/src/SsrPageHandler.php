@@ -186,9 +186,11 @@ final class SsrPageHandler
                 $headers['Cache-Control'] = $cacheControlHeader;
                 return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
             }
-            // Canonical published gate for generic content the node-centric
-            // EditorialVisibilityResolver does not cover (it allows any non-`node`
-            // type outright). See {@see shouldDenyContentGroupRender()}.
+            // Canonical entity-level view-access gate for the `content` group
+            // (audit M2, R6 PR2). Runs AFTER the editorial publish/preview gate
+            // above: a node must be published-or-previewable AND pass the
+            // per-entity AccessPolicy view check — neither gate alone is
+            // sufficient. See {@see shouldDenyContentGroupRender()}.
             if ($this->shouldDenyContentGroupRender($entityTypeId, $entity, $account)) {
                 $response = new RenderController($twig)->renderForbidden($aliasLookupPath, $account);
                 $headers = $this->extractHeaders($response);
@@ -209,7 +211,7 @@ final class SsrPageHandler
             // into the cache variant below so the two representations never share a
             // cache entry.
             $mediaType = $this->negotiateMediaType($httpRequest);
-            $relationshipContext = $this->buildRelationshipRenderContext($entity);
+            $relationshipContext = $this->buildRelationshipRenderContext($entity, $account);
             $renderContext = $relationshipContext;
             $renderContext['workflow_visibility'] = $visibilityResolver->buildRenderContext($entity, $previewRequested);
             $cacheVariantLangcode = $this->buildSsrCacheVariantLangcode(
@@ -549,9 +551,22 @@ final class SsrPageHandler
     }
 
     /**
+     * Build the additive relationship-navigation render context for an entity.
+     *
+     * $account is threaded through so every related endpoint the context would
+     * DISCLOSE (its type/id/path/label) is re-checked against the SAME
+     * per-entity view AccessPolicy the primary-entity gate uses, then dropped
+     * when not viewable — see {@see canViewRelatedEndpoint()} /
+     * {@see filterBrowseEndpoints()}. Without this, the underlying
+     * {@see WorkflowVisibilityFilter} gates related endpoints on PUBLISH STATUS
+     * only, so a PUBLISHED-BUT-ACCESS-RESTRICTED related entity still leaks its
+     * identity through the navigation context of a page the account can see
+     * (audit m1, R6 PR2 — the same disclosure class the primary-entity gate
+     * closes, on the same rendered page).
+     *
      * @return array<string, mixed>
      */
-    public function buildRelationshipRenderContext(EntityInterface $entity): array
+    public function buildRelationshipRenderContext(EntityInterface $entity, AccountInterface $account): array
     {
         if (!$this->entityTypeManager->hasDefinition('relationship') || $entity->id() === null) {
             return [];
@@ -579,10 +594,13 @@ final class SsrPageHandler
                             'stability' => self::DISCOVERY_CONTRACT_STABILITY,
                             'surface' => 'ssr_relationship_navigation',
                         ],
-                        'entity' => $discovery->endpointPage($entityType, $entityId, [
-                            'status' => 'published',
-                            'limit' => 12,
-                        ])['browse'],
+                        'entity' => $this->filterBrowseEndpoints(
+                            $discovery->endpointPage($entityType, $entityId, [
+                                'status' => 'published',
+                                'limit' => 12,
+                            ])['browse'],
+                            $account,
+                        ),
                     ],
                 ];
             }
@@ -600,6 +618,20 @@ final class SsrPageHandler
                 return [];
             }
 
+            $fromType = (string) ($endpoint['from_endpoint']['endpoint']['type'] ?? '');
+            $fromId = (string) ($endpoint['from_endpoint']['endpoint']['id'] ?? '');
+            $toType = (string) ($endpoint['to_endpoint']['endpoint']['type'] ?? '');
+            $toId = (string) ($endpoint['to_endpoint']['endpoint']['id'] ?? '');
+            // Fail closed, never partially: the rendered relationship edge
+            // discloses BOTH endpoints' identities, so if the account cannot
+            // view either one, withhold the whole navigation context.
+            if (
+                !$this->canViewRelatedEndpoint($fromType, $fromId, $account)
+                || !$this->canViewRelatedEndpoint($toType, $toId, $account)
+            ) {
+                return [];
+            }
+
             return [
                 'relationship_navigation' => [
                     'contract' => [
@@ -608,16 +640,22 @@ final class SsrPageHandler
                         'surface' => 'ssr_relationship_navigation',
                     ],
                     'from_endpoint' => [
-                        'type' => (string) ($endpoint['from_endpoint']['endpoint']['type'] ?? ''),
-                        'id' => (string) ($endpoint['from_endpoint']['endpoint']['id'] ?? ''),
+                        'type' => $fromType,
+                        'id' => $fromId,
                         'path' => (string) ($endpoint['from_endpoint']['endpoint']['path'] ?? ''),
-                        'browse' => $endpoint['from_endpoint']['browse'] ?? [],
+                        'browse' => $this->filterBrowseEndpoints(
+                            is_array($endpoint['from_endpoint']['browse'] ?? null) ? $endpoint['from_endpoint']['browse'] : [],
+                            $account,
+                        ),
                     ],
                     'to_endpoint' => [
-                        'type' => (string) ($endpoint['to_endpoint']['endpoint']['type'] ?? ''),
-                        'id' => (string) ($endpoint['to_endpoint']['endpoint']['id'] ?? ''),
+                        'type' => $toType,
+                        'id' => $toId,
                         'path' => (string) ($endpoint['to_endpoint']['endpoint']['path'] ?? ''),
-                        'browse' => $endpoint['to_endpoint']['browse'] ?? [],
+                        'browse' => $this->filterBrowseEndpoints(
+                            is_array($endpoint['to_endpoint']['browse'] ?? null) ? $endpoint['to_endpoint']['browse'] : [],
+                            $account,
+                        ),
                     ],
                     'edge_context' => $endpoint['edge_context'],
                 ],
@@ -627,6 +665,82 @@ final class SsrPageHandler
             $this->logger->warning(sprintf('Relationship render context failed: %s', $e->getMessage()));
             return [];
         }
+    }
+
+    /**
+     * Drop every related edge in a `browse` result whose disclosed endpoint the
+     * account cannot view, and recompute the disclosed counts to match. The
+     * source entity of the browse is the page being rendered (already gated by
+     * the primary-entity gate), so only the OTHER endpoint of each edge —
+     * `related_entity_type`/`related_entity_id` — is re-checked here.
+     *
+     * @param array<string, mixed> $browse
+     * @return array<string, mixed>
+     */
+    private function filterBrowseEndpoints(array $browse, AccountInterface $account): array
+    {
+        foreach (['outbound', 'inbound'] as $direction) {
+            if (!is_array($browse[$direction] ?? null)) {
+                continue;
+            }
+            $browse[$direction] = array_values(array_filter(
+                $browse[$direction],
+                fn(mixed $edge): bool => is_array($edge) && $this->canViewRelatedEndpoint(
+                    (string) ($edge['related_entity_type'] ?? ''),
+                    (string) ($edge['related_entity_id'] ?? ''),
+                    $account,
+                ),
+            ));
+        }
+
+        $outbound = is_array($browse['outbound'] ?? null) ? $browse['outbound'] : [];
+        $inbound = is_array($browse['inbound'] ?? null) ? $browse['inbound'] : [];
+        if (isset($browse['counts']) && is_array($browse['counts'])) {
+            $browse['counts'] = [
+                'outbound' => count($outbound),
+                'inbound' => count($inbound),
+                'total' => count($outbound) + count($inbound),
+            ];
+        }
+
+        return $browse;
+    }
+
+    /**
+     * Fail-closed per-account view gate for a related endpoint entity the
+     * relationship-navigation context would disclose (audit m1, R6 PR2).
+     *
+     * Mirrors {@see \Waaseyaa\AI\Tools\Relationship\RelationshipTraverseTool}'s
+     * `canViewEndpoint()` "prove NOTHING -> drop" contract at the SSR boundary:
+     * returns false — so the caller drops the whole edge, never partially
+     * disclosing it — when no access handler is wired, the type/id is empty,
+     * the type is unregistered, the entity fails to load, or the per-entity
+     * `AccessPolicy` denies 'view'. Only a positively-Allowed view keeps the
+     * endpoint in the emitted context.
+     *
+     * N+1 note: each disclosed endpoint is re-loaded here (accepted tradeoff —
+     * the leak is closed now; a future optimization could push the per-account
+     * filter into RelationshipTraversalService's own visibility resolution).
+     */
+    private function canViewRelatedEndpoint(string $type, string $id, AccountInterface $account): bool
+    {
+        if ($this->accessHandler === null || $type === '' || $id === '') {
+            return false;
+        }
+        if (!$this->entityTypeManager->hasDefinition($type)) {
+            return false;
+        }
+
+        try {
+            $endpoint = $this->entityTypeManager->getRepository($type)->find($id);
+        } catch (\Throwable) {
+            return false;
+        }
+        if ($endpoint === null) {
+            return false;
+        }
+
+        return $this->accessHandler->check($endpoint, 'view', $account)->isAllowed();
     }
 
     public function getLanguageResolver(): LanguageResolver
@@ -787,22 +901,31 @@ final class SsrPageHandler
     }
 
     /**
-     * The canonical published gate for generic content the node-centric
-     * {@see EditorialVisibilityResolver} does not cover (it allows any non-`node`
-     * type outright). Returns true when a content-group entity that is not a
-     * `node` must be denied for ($account, 'view') per the SAME per-entity
-     * AccessPolicy the MCP and JSON:API paths use — PublishedContentAccessPolicy
-     * grants anonymous `view` only for published items — so HTML/Markdown can
-     * never serve an unpublished draft the other surfaces deny.
+     * The canonical published/access gate for the `content` group. Returns true
+     * when a content-group entity must be denied for ($account, 'view') per the
+     * SAME per-entity AccessPolicy the MCP and JSON:API paths use — so
+     * HTML/Markdown can never serve an entity the other surfaces deny.
      *
-     * Nodes are excluded: their published/preview/workflow nuance stays with the
-     * editorial resolver, preserving the shipped node behavior. Fails closed —
-     * when no access handler is wired, a content render is denied rather than
-     * risk leaking a draft through a wiring gap.
+     * Nodes ARE included (audit M2, R6 PR2): a published-but-access-restricted
+     * node (e.g. a legal-hold/insufficient-clearance classification policy
+     * returning entity-level Forbidden for 'view') must still be denied here
+     * even though {@see EditorialVisibilityResolver::canRender()} — run FIRST at
+     * {@see SsrPageHandler::handleRenderPage()} — already allowed it on
+     * publish-state alone. Both gates must pass for a node to render: the
+     * editorial resolver owns publish/preview/workflow nuance, this gate owns
+     * per-account entity-level view access (`NodeAccessPolicy`,
+     * `ClassificationFieldAccessPolicy`, etc.). A standard published node with no
+     * restrictive policy and an anonymous account holding `access content` is
+     * unaffected — `NodeAccessPolicy::access()` grants it — so ordinary content
+     * keeps rendering exactly as before.
+     *
+     * Fails closed — when no access handler is wired, a content render is
+     * denied rather than risk leaking a draft (or a held node) through a wiring
+     * gap.
      */
     private function shouldDenyContentGroupRender(string $entityTypeId, EntityInterface $entity, AccountInterface $account): bool
     {
-        if ($entityTypeId === 'node' || !$this->isContentGroupEntity($entityTypeId)) {
+        if (!$this->isContentGroupEntity($entityTypeId)) {
             return false;
         }
 
