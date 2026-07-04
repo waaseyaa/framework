@@ -7,6 +7,7 @@ namespace Waaseyaa\Seo\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
 use Waaseyaa\Entity\Testing\RecordingEntityQuery;
@@ -198,14 +199,14 @@ final class SitemapGeneratorTest extends TestCase
     }
 
     #[Test]
-    public function collect_disables_access_check_per_entity_type(): void
+    public function collect_binds_the_given_account_per_entity_type_instead_of_bypassing_access(): void
     {
-        // Sitemap generation enumerates public URLs for crawlers and runs
-        // without a request-scoped account. Same shape as PathAliasResolver
-        // (#1518) and AuthController (#1525): without ->accessCheck(false),
-        // SqlEntityQuery::execute() throws MissingQueryAccountException under
-        // the fail-closed default introduced in v0.1.0-alpha.181, returning
-        // HTTP 500 on /sitemap.xml.
+        // R6/M3 (audit M3): sitemap generation must be ACCESS-AWARE, not a
+        // blanket bypass — a published-but-access-restricted entity must not
+        // be enumerable to an anonymous crawler. setAccount() (not
+        // accessCheck(false)) is the mechanism: SqlEntityQuery::execute()
+        // runs EntityAccessHandler::check() per candidate when an account is
+        // bound, so a Forbidden/Neutral policy result excludes the row.
 
         $query = (new RecordingEntityQuery())->withResults([1]);
 
@@ -223,16 +224,53 @@ final class SitemapGeneratorTest extends TestCase
         // C-22: the query builder now lives on the repository.
         $etm->method('getRepository')->willReturn(new QueryOnlyStubRepository($query));
 
+        $account = $this->createStub(AccountInterface::class);
+
+        $gen = new SitemapGenerator();
+        $gen->collectFromEntityTypes(
+            $etm,
+            static fn (string $type, int|string $id): string => 'https://example.com/' . $type . '/' . $id,
+            account: $account,
+        );
+
+        $this->assertSame(
+            [],
+            $query->accessChecks,
+            'collectFromEntityTypes must not call accessCheck(false) when an account is supplied — access checking stays enabled.',
+        );
+        $this->assertSame(
+            $account,
+            $query->boundAccount,
+            'collectFromEntityTypes must bind the caller-supplied account via setAccount() so access policies are enforced.',
+        );
+    }
+
+    #[Test]
+    public function collect_does_not_bind_an_account_when_none_is_supplied(): void
+    {
+        // Fail-closed default: when no account is passed, the query is left
+        // unbound (no setAccount(), no accessCheck(false)) rather than
+        // silently reintroducing the C-004 bypass. Callers building a public
+        // crawler surface MUST pass an account.
+        $query = (new RecordingEntityQuery())->withResults([1]);
+
+        $storage = $this->createStub(EntityStorageInterface::class);
+        $storage->method('getQuery')->willReturn($query);
+
+        $def = $this->createStub(EntityTypeInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
+        $etm->method('getDefinitions')->willReturn(['article' => $def]);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getStorage')->willReturn($storage);
+        $etm->method('getRepository')->willReturn(new QueryOnlyStubRepository($query));
+
         $gen = new SitemapGenerator();
         $gen->collectFromEntityTypes(
             $etm,
             static fn (string $type, int|string $id): string => 'https://example.com/' . $type . '/' . $id,
         );
 
-        $this->assertSame(
-            [false, false],
-            $query->accessChecks,
-            'collectFromEntityTypes must call accessCheck(false) for every entity type (pre-auth system context).',
-        );
+        $this->assertSame([], $query->accessChecks);
+        $this->assertNull($query->boundAccount);
     }
 }

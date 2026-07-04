@@ -9,6 +9,7 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Seo\Llms\LlmsTxtGenerator;
 use Waaseyaa\Seo\RobotsTxtGenerator;
 use Waaseyaa\Seo\SitemapGenerator;
+use Waaseyaa\User\AnonymousUser;
 
 /**
  * Serves the public, crawler-facing SEO/agent artifacts on stable URLs:
@@ -16,8 +17,14 @@ use Waaseyaa\Seo\SitemapGenerator;
  *
  * Route wiring lives in {@see \Waaseyaa\SSR\SsrServiceProvider::routes()} (L6),
  * not in the L3 `seo` package, which owns only the generators — `seo` must not
- * depend on routing (L4). Enumeration is a public inventory: it uses
- * `accessCheck(false)` (inside the generators) and is best-effort — any failure
+ * depend on routing (L4). Enumeration is a public inventory scoped to what an
+ * ANONYMOUS caller may view: the generators are called with an explicit
+ * {@see AnonymousUser} (R6/M3, closes the audit-M3 leak where a
+ * published-but-access-restricted entity — a classification hold, a
+ * genealogy privacy rule, etc. — was enumerated regardless of who could
+ * actually view it) rather than the requesting session's own account, so the
+ * sitemap/llms.txt always reflects the public, unauthenticated surface no
+ * matter who (or what bot) requests these routes. Best-effort: any failure
  * degrades to a valid-but-empty document rather than a 500.
  *
  * The default topic/URL model uses system paths (`/{type}/{id}`) and the
@@ -68,6 +75,7 @@ final class SeoPublicController
                 fn(string $type, int|string $id): ?string => $this->isPublicType($type)
                     ? sprintf('/%s/%s', $type, rawurlencode((string) $id))
                     : null,
+                account: new AnonymousUser(),
             );
         } catch (\Throwable) {
             $urls = [];
@@ -91,6 +99,7 @@ final class SeoPublicController
                     // Same-URL Markdown representation (Accept negotiation / ?format=md).
                     'url' => sprintf('/%s/%s?format=md', $type, rawurlencode((string) $id)),
                 ],
+                account: new AnonymousUser(),
             );
         } catch (\Throwable) {
             $topics = [];
