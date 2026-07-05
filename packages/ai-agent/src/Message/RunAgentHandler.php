@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\AI\Agent\Message;
 
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Agent\Account\InitiatorAccountLoaderInterface;
 use Waaseyaa\AI\Agent\AgentDefinition;
 use Waaseyaa\AI\Agent\AgentDefinitionRegistry;
@@ -112,6 +113,12 @@ final class RunAgentHandler
             $definition = $this->resolveBundle($run);
             $account = $this->accountLoader->load($run->getAccountId());
 
+            if (!$this->isCapabilityGranted($definition, $account)) {
+                $this->refuseForMissingCapability($runId, (string) $definition->requiresCapability);
+
+                return;
+            }
+
             $messages = [
                 ['role' => 'user', 'content' => (string) $run->get('prompt')],
             ];
@@ -199,6 +206,78 @@ final class RunAgentHandler
                 'error_message' => $errorMessage,
             ]);
         }
+    }
+
+    /**
+     * Enforce {@see AgentDefinition::$requiresCapability} against the
+     * initiator account (A7 audit F2).
+     *
+     * `requiresCapability` is a declared, author-facing access gate that
+     * used to be plumbed end-to-end (attribute → manifest → registry →
+     * definition) and then silently dropped: neither the CLI (`ai:run`)
+     * nor the API (`POST /api/ai/agent/run`) entry point ever consulted
+     * it before running the agent. Both entries funnel through this
+     * handler, so the check lives here — the single chokepoint that
+     * cannot be bypassed by either caller.
+     *
+     * Fail-closed: a null/empty `requiresCapability` means no gate (the
+     * common case). Otherwise the initiator MUST have the capability;
+     * this covers anonymous and permission-less accounts identically,
+     * since {@see \Waaseyaa\Access\AccountInterface::hasPermission()}
+     * returns `false` for both.
+     */
+    private function isCapabilityGranted(AgentDefinition $definition, AccountInterface $account): bool
+    {
+        $required = $definition->requiresCapability;
+        if ($required === null || $required === '') {
+            return true;
+        }
+
+        return $account->hasPermission($required);
+    }
+
+    /**
+     * Refuse to execute the run: mark it terminal Failed without ever
+     * invoking {@see AgentExecutor::executeRun()} — no tool call, no
+     * provider call, no LLM invocation. Mirrors the handler's own
+     * exception-path refusal (terminal status + `AgentRunTerminated` +
+     * `run_failed` broadcast) but is reached deliberately, not via
+     * `catch`.
+     */
+    private function refuseForMissingCapability(string $runId, string $capability): void
+    {
+        $errorCode = 'missing_capability';
+        $errorMessage = \sprintf(
+            'Initiator account lacks required capability "%s"; run refused before execution.',
+            $capability,
+        );
+
+        $this->logger->warning(\sprintf(
+            'RunAgentHandler: run "%s" refused — missing capability "%s".',
+            $runId,
+            $capability,
+        ));
+
+        $finishedAt = ($this->now)();
+        $this->runRepository->markTerminal(
+            $runId,
+            RunStatus::Failed,
+            $finishedAt,
+            errorCode: $errorCode,
+            errorMessage: $errorMessage,
+        );
+
+        $this->dispatchSafely(new AgentRunTerminated(
+            runId: $runId,
+            status: RunStatus::Failed->value,
+            errorCode: $errorCode,
+            finishedAt: $finishedAt,
+        ));
+
+        $this->broadcast($runId, 'run_failed', [
+            'error_code' => $errorCode,
+            'error_message' => $errorMessage,
+        ]);
     }
 
     /**
