@@ -1038,4 +1038,17 @@ the missing half is producer dispatch, tracked as a follow-up issue.
 
 ## Implementation gotchas
 
+- **`RunAgentHandler` enforces `AgentDefinition::$requiresCapability`** (audit
+  A7 F2 / R10 WP2, 2026-07-05): this field used to be plumbed end-to-end
+  (attribute → manifest → registry → definition) but never checked before
+  execution — an agent declaring `requiresCapability` ran for any caller
+  regardless of permissions, reachable via both `ai:run` (CLI) and
+  `POST /api/ai/agent/run` (API). Both entries dispatch a `RunAgent` message
+  handled by the same `RunAgentHandler::__invoke()`, so the fix lives there,
+  once, after the initiator account is resolved and before
+  `AgentExecutor::executeRun()` is called: a missing capability now marks the
+  run terminal `failed` (`error_code='missing_capability'`) with zero
+  `AgentAuditLog` rows, instead of running. See
+  `docs/specs/agent-executor.md` "Identity & permissions" for the full gate
+  inventory.
 - **`AnthropicProvider` cURL streaming**: `CURLOPT_WRITEFUNCTION` callbacks must not throw — wrap `json_decode(..., JSON_THROW_ON_ERROR)` in try-catch inside callbacks. Error handling in `httpPostStreaming` must match `httpPost` (parse error body, handle 429 with `RateLimitException`).
