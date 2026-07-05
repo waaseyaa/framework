@@ -133,10 +133,17 @@ final class GraphQlEndpoint
         );
         $entityResolver = new EntityResolver($this->entityTypeManager, $guard, $this->account);
 
+        // R12 (audit A10, SECURITY): the per-request, account-bound
+        // collaborators (entityResolver, referenceLoader) travel as the
+        // GraphQL execution contextValue below, NOT as SchemaFactory
+        // constructor args. SchemaFactory::build() may return a Schema
+        // CACHED from an earlier request/account, so anything captured by
+        // its resolver closures would leak across requests under
+        // worker-mode process reuse. See GraphQlExecutionContext.
+        $executionContext = new GraphQlExecutionContext($entityResolver, $referenceLoader);
+
         $schemaFactory = new SchemaFactory(
             entityTypeManager: $this->entityTypeManager,
-            entityResolver: $entityResolver,
-            referenceLoader: $referenceLoader,
         );
 
         if ($this->mutationOverrides !== []) {
@@ -158,6 +165,7 @@ final class GraphQlEndpoint
             $result = GraphQL::executeQuery(
                 schema: $schema,
                 source: $query,
+                contextValue: $executionContext,
                 variableValues: $variables,
                 operationName: $operationName,
                 validationRules: $validationRules,

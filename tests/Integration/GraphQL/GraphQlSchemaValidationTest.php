@@ -7,9 +7,6 @@ namespace Waaseyaa\Tests\Integration\GraphQL;
 use GraphQL\GraphQL;
 use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\NonNull;
-use Waaseyaa\GraphQL\Access\GraphQlAccessGuard;
-use Waaseyaa\GraphQL\Resolver\EntityResolver;
-use Waaseyaa\GraphQL\Resolver\ReferenceLoader;
 use Waaseyaa\GraphQL\Schema\SchemaFactory;
 
 /**
@@ -24,15 +21,13 @@ final class GraphQlSchemaValidationTest extends GraphQlIntegrationTestBase
     {
         parent::setUp();
 
-        $guard = new GraphQlAccessGuard($this->accessHandler, $this->createAccount(1));
-        $referenceLoader = new ReferenceLoader($this->entityTypeManager, $guard, 3);
-        $entityResolver = new EntityResolver($this->entityTypeManager, $guard);
-
-        $factory = new SchemaFactory(
-            entityTypeManager: $this->entityTypeManager,
-            entityResolver: $entityResolver,
-            referenceLoader: $referenceLoader,
-        );
+        // R12: SchemaFactory holds no per-request collaborators (the built
+        // Schema is cached across requests/accounts), only entityTypeManager
+        // is needed to build the structural schema shape. These tests only
+        // introspect `$this->schema` or use `$this->query()` (the full
+        // per-request endpoint stack), never execute a real query directly
+        // against `$this->schema`.
+        $factory = new SchemaFactory(entityTypeManager: $this->entityTypeManager);
         $this->schema = $factory->build();
     }
 

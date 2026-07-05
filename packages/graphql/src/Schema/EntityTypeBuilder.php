@@ -9,13 +9,19 @@ use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\GraphQL\Resolver\ReferenceLoader;
+use Waaseyaa\GraphQL\GraphQlExecutionContext;
 
 /**
  * Builds GraphQL ObjectType and InputObjectType from EntityType definitions.
  *
  * Uses lazy field thunks (fn() => [...]) so circular entity references
  * (node → taxonomy → node) resolve correctly via TypeRegistry.
+ *
+ * R12 (audit A10, SECURITY): like SchemaFactory, the ObjectTypes built here
+ * are cached inside a schema that is itself cached across requests. The
+ * entity-reference field resolver therefore reads the per-request
+ * ReferenceLoader from the GraphQL execution context, never from a captured
+ * constructor property -- see SchemaFactory's class doc for why.
  */
 final class EntityTypeBuilder
 {
@@ -29,7 +35,6 @@ final class EntityTypeBuilder
     public function __construct(
         private readonly TypeRegistry $registry,
         private readonly FieldTypeMapper $fieldTypeMapper,
-        private readonly ReferenceLoader $referenceLoader,
         private readonly EntityTypeManagerInterface $entityTypeManager,
     ) {}
 
@@ -173,7 +178,6 @@ final class EntityTypeBuilder
         bool $isMultiple,
     ): array {
         $registry = $this->registry;
-        $referenceLoader = $this->referenceLoader;
         $targetTypeName = self::toPascalCase($targetEntityTypeId);
 
         // Lazy type resolution — by the time webonyx evaluates this,
@@ -194,12 +198,13 @@ final class EntityTypeBuilder
             'type' => $isMultiple
                 ? static fn(): Type => Type::listOf($getType())
                 : $getType,
-            'resolve' => static function (array $data) use ($fieldName, $targetEntityTypeId, $referenceLoader, $isMultiple): mixed {
+            'resolve' => static function (array $data, array $args, GraphQlExecutionContext $context) use ($fieldName, $targetEntityTypeId, $isMultiple): mixed {
                 $value = $data[$fieldName] ?? null;
                 if ($value === null) {
                     return null;
                 }
 
+                $referenceLoader = $context->referenceLoader;
                 $depth = (int) (($data['_graphql_depth'] ?? 0) + 1);
 
                 if ($isMultiple) {

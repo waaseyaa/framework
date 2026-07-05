@@ -9,12 +9,7 @@ use GraphQL\Type\Definition\Type;
 use GraphQL\Type\Schema;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
-use Waaseyaa\Access\AccountInterface;
-use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\GraphQL\Access\GraphQlAccessGuard;
-use Waaseyaa\GraphQL\Resolver\EntityResolver;
-use Waaseyaa\GraphQL\Resolver\ReferenceLoader;
 use Waaseyaa\GraphQL\Schema\SchemaFactory;
 
 /**
@@ -38,16 +33,10 @@ abstract class AbstractGraphQlSchemaContractTestCase extends TestCase
 
     protected function buildSchema(): Schema
     {
-        $accessHandler = new EntityAccessHandler([]);
-        $account = $this->createStub(AccountInterface::class);
-        $guard = new GraphQlAccessGuard($accessHandler, $account);
-        $resolver = new EntityResolver($this->entityTypeManager, $guard);
-        $referenceLoader = new ReferenceLoader($this->entityTypeManager, $guard);
-        $factory = new SchemaFactory(
-            entityTypeManager: $this->entityTypeManager,
-            entityResolver: $resolver,
-            referenceLoader: $referenceLoader,
-        );
+        // R12: SchemaFactory holds no per-request collaborators (the built
+        // Schema is cached across requests/accounts), only entityTypeManager
+        // is needed to build the structural schema shape.
+        $factory = new SchemaFactory(entityTypeManager: $this->entityTypeManager);
 
         return $factory->build();
     }
