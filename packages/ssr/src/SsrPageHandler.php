@@ -186,12 +186,13 @@ final class SsrPageHandler
                 $headers['Cache-Control'] = $cacheControlHeader;
                 return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
             }
-            // Canonical entity-level view-access gate for the `content` group
-            // (audit M2, R6 PR2). Runs AFTER the editorial publish/preview gate
+            // Canonical entity-level view-access gate for EVERY entity type
+            // reachable via SSR render (audit M2 / R6 PR2, generalized to all
+            // types in R8-a). Runs AFTER the editorial publish/preview gate
             // above: a node must be published-or-previewable AND pass the
             // per-entity AccessPolicy view check — neither gate alone is
-            // sufficient. See {@see shouldDenyContentGroupRender()}.
-            if ($this->shouldDenyContentGroupRender($entityTypeId, $entity, $account)) {
+            // sufficient. See {@see shouldDenyEntityRender()}.
+            if ($this->shouldDenyEntityRender($entityTypeId, $entity, $account)) {
                 $response = new RenderController($twig)->renderForbidden($aliasLookupPath, $account);
                 $headers = $this->extractHeaders($response);
                 $headers['Cache-Control'] = $cacheControlHeader;
@@ -886,7 +887,7 @@ final class SsrPageHandler
      *
      * `accessCheck(false)` — identity resolution only. Authorization stays with
      * the SSR visibility gates in the caller (`EditorialVisibilityResolver` +
-     * {@see shouldDenyContentGroupRender()}), exactly as on the numeric path
+     * {@see shouldDenyEntityRender()}), exactly as on the numeric path
      * (`load()` does not access-check either), so the uuid and numeric paths are
      * symmetric and the uuid path cannot leak a draft.
      */
@@ -915,10 +916,12 @@ final class SsrPageHandler
     }
 
     /**
-     * The canonical published/access gate for the `content` group. Returns true
-     * when a content-group entity must be denied for ($account, 'view') per the
-     * SAME per-entity AccessPolicy the MCP and JSON:API paths use — so
-     * HTML/Markdown can never serve an entity the other surfaces deny.
+     * The canonical entity-level view-access gate for EVERY entity type
+     * reachable via SSR render (audit M2 / R6 PR2 for the `content` group;
+     * generalized to all types in R8-a). Returns true when the entity must be
+     * denied for ($account, 'view') per the SAME per-entity AccessPolicy the
+     * MCP and JSON:API paths use — so HTML/Markdown can never serve an entity
+     * the other surfaces deny.
      *
      * Nodes ARE included (audit M2, R6 PR2): a published-but-access-restricted
      * node (e.g. a legal-hold/insufficient-clearance classification policy
@@ -933,47 +936,47 @@ final class SsrPageHandler
      * unaffected — `NodeAccessPolicy::access()` grants it — so ordinary content
      * keeps rendering exactly as before.
      *
-     * Fails closed — when no access handler is wired, a content render is
-     * denied rather than risk leaking a draft (or a held node) through a wiring
+     * R8-a (generalized beyond the `content` group): this gate used to
+     * early-return `false` (i.e. NOT deny) for any entity type outside the
+     * `content` group, via a now-removed `isContentGroupEntity()` guard. That
+     * left a whole-entity disclosure hole — {@see EditorialVisibilityResolver}
+     * allows any non-`node` type outright, so a `path_alias` pointing at a
+     * non-content-group type (e.g. `oidc_client`, whose `AccessPolicy` returns
+     * Neutral/deny-by-default for anonymous 'view') rendered with NO
+     * entity-level check at all once an admin-created alias to it existed. The
+     * generalization is deny-by-default and INTENTIONALLY enforces the access
+     * model uniformly (Option A): the SSR render path now matches what `/api`
+     * already enforces for every type.
+     *
+     * INTENDED CONSEQUENCE (documented, tested, shipped — not an accident): a
+     * `content`-group entity stays anonymously viewable when published, because
+     * the framework-default {@see \Waaseyaa\Access\Policy\PublishedContentAccessPolicy}
+     * grants that group's `view` with NO permission required. But the
+     * non-content-group types whose only `view` grant is PERMISSION-gated —
+     * `taxonomy_term` (`TermAccessPolicy` needs `access content`), `media`
+     * (`MediaAccessPolicy` needs `access media`), `user` (`UserAccessPolicy`
+     * needs `access user profiles`) — are now DENIED for a bare anonymous
+     * account (which holds none of those), exactly as `/api` already denies
+     * them. Types with no granting policy at all (admin/config entities via
+     * `ConfigEntityAccessPolicy`, `oidc_client`) were never publicly reachable
+     * and are likewise denied. No permission-free public render regresses.
+     *
+     * R9 (product decision, DEFERRED — not a bug): decide whether the framework
+     * should ship permission-free published/public `view` grants for
+     * `taxonomy_term` (and possibly `media`/`user`) so those SSR pages are
+     * anonymously viewable BY DEFAULT, extending the `PublishedContentAccessPolicy`
+     * pattern to those groups. Until that product decision is made, anonymous
+     * visibility of those types requires a SITE-PROVIDED granting `AccessPolicy`
+     * (the same requirement `/api` already imposes). See CHANGELOG R8-a / R9.
+     *
+     * Fails closed — when no access handler is wired, a render is denied rather
+     * than risk leaking a draft (or a held/restricted entity) through a wiring
      * gap.
      */
-    private function shouldDenyContentGroupRender(string $entityTypeId, EntityInterface $entity, AccountInterface $account): bool
+    private function shouldDenyEntityRender(string $entityTypeId, EntityInterface $entity, AccountInterface $account): bool
     {
-        if (!$this->isContentGroupEntity($entityTypeId)) {
-            return false;
-        }
-
         return $this->accessHandler === null
             || !$this->accessHandler->check($entity, 'view', $account)->isAllowed();
-    }
-
-    /**
-     * Whether an entity type belongs to the `content` group — the set of
-     * publishable, anonymously-readable-when-published types. Used to scope the
-     * canonical published gate so non-content types (user, taxonomy, …) keep
-     * their existing visibility behavior.
-     *
-     * TRACKED-FOR-R8 (non-content-group entity-level SSR bypass): scoping the
-     * entity-level view gate to the `content` group leaves a gap — a
-     * `path_alias` pointing at a NON-content-group, non-`node` entity type
-     * renders via SSR with NO entity-level `view` check at all
-     * ({@see \Waaseyaa\Workflows\EditorialVisibilityResolver} allows non-`node`
-     * types outright, and {@see shouldDenyContentGroupRender()} only gates the
-     * `content` group here), so a type whose `AccessPolicy` returns Neutral /
-     * deny-by-default (e.g. `oidc_client`) is disclosed whole-entity to
-     * anonymous once an admin-created alias to it exists. Whole-entity
-     * disclosure, broader than the R7 WP1 label channel, low practical
-     * reachability (needs an admin-created alias to such a type). The R8 fix is
-     * the entity-level generalization of this gate to every aliased entity
-     * type; see CHANGELOG R7 WP1 "Tracked-for-R8 residuals (R8-a)".
-     */
-    private function isContentGroupEntity(string $entityTypeId): bool
-    {
-        if (!$this->entityTypeManager->hasDefinition($entityTypeId)) {
-            return false;
-        }
-
-        return $this->entityTypeManager->getDefinition($entityTypeId)->getGroup() === 'content';
     }
 
     /**

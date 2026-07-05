@@ -39,7 +39,7 @@ use Waaseyaa\SSR\SsrServiceProvider;
  * directly at the HTML `<title>` block (`entity.html.twig`) and the
  * schema.org JSON-LD `name` ({@see \Waaseyaa\Seo\SchemaOrg\EntitySchemaOrgMapper}),
  * bypassing field-level access entirely. R6 PR2's entity-level view gate
- * ({@see SsrPageHandler::shouldDenyContentGroupRender()}) only closes the
+ * ({@see SsrPageHandler::shouldDenyEntityRender()}) only closes the
  * FULLY-restricted case (entity-level Forbidden -> 403, nothing rendered). A
  * node that IS viewable at the entity level, but whose label-key field
  * ('title') is field-access-Forbidden, still rendered 200 with its real title

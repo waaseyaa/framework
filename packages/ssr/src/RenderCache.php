@@ -15,15 +15,18 @@ final class RenderCache
      * payload changes in a way that makes previously-cached entries unsafe to
      * keep serving — e.g. the R6 PR1 fix that made anonymous HTML rendering
      * field-access-aware, the R6 PR2 fix that made the SSR node render gate
-     * entity-view-access-aware, or the R7 WP1 fix that made the HTML `<title>`
-     * and schema.org JSON-LD `name` field-access-aware for the entity label
+     * entity-view-access-aware, the R7 WP1 fix that made the HTML `<title>`
+     * and schema.org JSON-LD `name` field-access-aware for the entity label,
+     * or the R8-a fix that generalized the entity-level view gate
+     * ({@see \Waaseyaa\SSR\SsrPageHandler::shouldDenyEntityRender()}) from the
+     * `content` group to every entity type reachable via SSR render
      * (see CHANGELOG "Security"). Folding this into {@see buildKey()} makes
      * every pre-fix cache entry unreachable under the new key, so already-
-     * cached leaky pages — including any label-restricted entity whose real
-     * title rendered before the R7 WP1 fix — are re-rendered through the
-     * fixed path instead of continuing to serve stale, unfiltered HTML.
+     * cached leaky pages — including any non-content-group entity that leaked
+     * whole-entity to anonymous before the R8-a fix — are re-rendered through
+     * the fixed path instead of continuing to serve stale, unfiltered HTML.
      */
-    public const string SCHEMA_VERSION = 'v4';
+    public const string SCHEMA_VERSION = 'v5';
 
     public function __construct(
         private readonly CacheBackendInterface $backend,
