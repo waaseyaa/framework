@@ -86,11 +86,21 @@ final class EntityListRevisionsTool extends AbstractAgentTool
 
         $rows = [];
         foreach ($revisions as $revision) {
-            $rows[] = [
+            $row = [
                 'revision_id' => method_exists($revision, 'getRevisionId') ? $revision->getRevisionId() : null,
-                'label' => $revision->label(),
                 'is_current' => method_exists($revision, 'isCurrentRevision') ? $revision->isCurrentRevision() : null,
             ];
+            // Field-access-checked label (R7 WP1): $revision->label() bypasses
+            // field-level access, so under enforcement a restricted label-key
+            // field is omitted rather than leaked. This tool's `tool.entity.read`
+            // capability IS on the public MCP anonymous read tier
+            // (PublicAnonymousAuth::DEFAULT_READ_CAPABILITIES), so this was an
+            // anonymous-reachable label leak.
+            $label = $this->viewableLabel($revision, $account, $this->entityTypeManager);
+            if ($label !== null) {
+                $row['label'] = $label;
+            }
+            $rows[] = $row;
         }
 
         return AgentToolResult::success(

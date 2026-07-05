@@ -14,14 +14,16 @@ final class RenderCache
      * Cache-key schema version. Bump this whenever the SHAPE of the rendered
      * payload changes in a way that makes previously-cached entries unsafe to
      * keep serving — e.g. the R6 PR1 fix that made anonymous HTML rendering
-     * field-access-aware, or the R6 PR2 fix that made the SSR node render gate
-     * entity-view-access-aware (see CHANGELOG "Security"). Folding this into
-     * {@see buildKey()} makes every pre-fix cache entry unreachable under the
-     * new key, so already-cached leaky pages — including any held/access-
-     * restricted node that rendered 200 before PR2 — are re-rendered through
-     * the fixed path instead of continuing to serve stale, unfiltered HTML.
+     * field-access-aware, the R6 PR2 fix that made the SSR node render gate
+     * entity-view-access-aware, or the R7 WP1 fix that made the HTML `<title>`
+     * and schema.org JSON-LD `name` field-access-aware for the entity label
+     * (see CHANGELOG "Security"). Folding this into {@see buildKey()} makes
+     * every pre-fix cache entry unreachable under the new key, so already-
+     * cached leaky pages — including any label-restricted entity whose real
+     * title rendered before the R7 WP1 fix — are re-rendered through the
+     * fixed path instead of continuing to serve stale, unfiltered HTML.
      */
-    public const string SCHEMA_VERSION = 'v3';
+    public const string SCHEMA_VERSION = 'v4';
 
     public function __construct(
         private readonly CacheBackendInterface $backend,

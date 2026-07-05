@@ -291,6 +291,39 @@ final class EntityMarkdownPresenterTest extends TestCase
         );
     }
 
+    /**
+     * R7 WP1 exploit-closed regression: before the fix, present() built the H1
+     * from $entity->label() directly, bypassing field-level access entirely.
+     * A viewable entity (entity-level access allowed) whose label-key field
+     * ('title', for this fixture) is Forbidden still leaked the real title
+     * into the H1 even though the rest of the document was already field-
+     * access-filtered via ResourceSerializer.
+     */
+    #[Test]
+    public function label_is_replaced_with_a_placeholder_when_the_label_field_is_forbidden(): void
+    {
+        $entity = $this->sampleEntity();
+        $account = $this->createMock(AccountInterface::class);
+        $handler = new EntityAccessHandler([$this->forbidField('article', 'title')]);
+
+        $md = $this->presenter($this->emptyDisplay())->present($entity, 'full', $handler, $account);
+
+        self::assertStringNotContainsString('My Title', $md);
+        self::assertStringNotContainsString('# My Title', $md);
+        // Fail-closed placeholder: the entity type id, never the raw label.
+        self::assertStringContainsString('# article', $md);
+    }
+
+    #[Test]
+    public function label_still_renders_for_real_when_the_label_field_is_not_restricted(): void
+    {
+        // Positive control: a genuinely public/unrestricted label must still
+        // show the real title, not the placeholder.
+        $md = $this->presenter($this->emptyDisplay())->present($this->sampleEntity(), 'full', $this->allowAllHandler(), $this->anyAccount());
+
+        self::assertStringContainsString('# My Title', $md);
+    }
+
     private function forbidField(string $entityTypeId, string $field): AccessPolicyInterface&FieldAccessPolicyInterface
     {
         return new class ($entityTypeId, $field) implements AccessPolicyInterface, FieldAccessPolicyInterface {

@@ -7,6 +7,7 @@ namespace Waaseyaa\Access;
 use Waaseyaa\Access\Attribute\AccessPolicy;
 use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
 
 /**
  * Checks entity access by running all registered AccessPolicy plugins.
@@ -217,6 +218,48 @@ class EntityAccessHandler
             $fieldNames,
             fn(string $field): bool => !$this->checkFieldAccess($entity, $field, $operation, $account)->isForbidden(),
         ));
+    }
+
+    /**
+     * Resolve the entity's LABEL/TITLE the way it is safe to emit to the
+     * viewing account: {@see EntityInterface::label()} when the entity type's
+     * `label` entity-key field is not Forbidden for 'view', `null` when it is.
+     *
+     * This closes the label/title channel that entity-level view access and
+     * the fields-bag filter (see {@see filterFields()}) both miss: SSR's
+     * `<title>`, schema.org JSON-LD `name`, and the Markdown H1 all read
+     * {@see EntityInterface::label()} directly rather than going through the
+     * fields bag, so a policy forbidding the label-key field on 'view' would
+     * otherwise still leak it on an entity that is viewable at the entity
+     * level (R7 WP1; see CHANGELOG "Security").
+     *
+     * Open-by-default, matching field-access semantics elsewhere: a label
+     * field with no opinionated policy (Neutral) is shown. Entity types with
+     * no `label` entity key have nothing to gate — the label is returned
+     * unchanged.
+     *
+     * Callers MUST fail closed on a `null` return (render a non-identifying
+     * placeholder, e.g. the entity type id — never fall back to the raw
+     * label).
+     */
+    public function viewableLabel(
+        EntityInterface $entity,
+        AccountInterface $account,
+        EntityTypeManagerInterface $entityTypeManager,
+    ): ?string {
+        $label = $entity->label();
+        $entityTypeId = $entity->getEntityTypeId();
+
+        if (!$entityTypeManager->hasDefinition($entityTypeId)) {
+            return $label;
+        }
+
+        $labelFieldName = $entityTypeManager->getDefinition($entityTypeId)->getKeys()['label'] ?? null;
+        if ($labelFieldName === null || $labelFieldName === '') {
+            return $label;
+        }
+
+        return $this->checkFieldAccess($entity, $labelFieldName, 'view', $account)->isForbidden() ? null : $label;
     }
 
     /**

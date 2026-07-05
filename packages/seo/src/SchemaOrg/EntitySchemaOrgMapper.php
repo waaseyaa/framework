@@ -12,8 +12,10 @@ use Waaseyaa\Entity\EntityInterface;
  * The schema.org `@type` is resolved per entity type / bundle from a mapping
  * (overridable), falling back to `WebPage`. Only non-sensitive, presentation
  * data is included — callers pass the canonical URL and may pass an
- * already-access-filtered description; this mapper never reads raw entity
- * storage beyond the public label.
+ * already-access-filtered description and label override (see `$labelOverride`
+ * on {@see map()}); with no override this mapper reads the entity's raw
+ * `label()`, so callers rendering to an untrusted audience MUST pass an
+ * access-checked label (R7 WP1).
  *
  * @api
  */
@@ -54,6 +56,16 @@ final class EntitySchemaOrgMapper
      *
      * @param ?string $description Optional, already-access-filtered summary text.
      * @param ?string $dateModified Optional ISO-8601 last-modified timestamp.
+     * @param ?string $labelOverride Optional access-checked replacement for
+     *                               `$entity->label()`. Callers that have already
+     *                               resolved the label through
+     *                               {@see \Waaseyaa\Access\EntityAccessHandler::viewableLabel()}
+     *                               (e.g. `SsrPageHandler`) pass the checked value
+     *                               here so the JSON-LD `name` never leaks a
+     *                               field-access-restricted label (R7 WP1).
+     *                               Defaults to the raw `$entity->label()` for
+     *                               backward compatibility with callers that have
+     *                               no access context.
      *
      * @return array<string, mixed>
      */
@@ -62,11 +74,12 @@ final class EntitySchemaOrgMapper
         string $url,
         ?string $description = null,
         ?string $dateModified = null,
+        ?string $labelOverride = null,
     ): array {
         $node = [
             '@context' => self::CONTEXT,
             '@type' => $this->resolveType($entity),
-            'name' => $entity->label(),
+            'name' => $labelOverride ?? $entity->label(),
         ];
 
         if ($url !== '') {

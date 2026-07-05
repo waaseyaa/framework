@@ -7,6 +7,7 @@ namespace Waaseyaa\AI\Tools;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
 
 /**
  * Convenience base for {@see AgentToolInterface} implementations.
@@ -208,6 +209,37 @@ abstract class AbstractAgentTool implements AgentToolInterface
         }
 
         return $this->accessHandler->check($entity, 'view', $account)->isAllowed();
+    }
+
+    /**
+     * Field-access-checked entity LABEL/TITLE for enumeration output, mirroring
+     * {@see applyFieldAccessFilter()} for the single label-key field.
+     * `EntityInterface::label()` reads the label-key field directly and bypasses
+     * {@see FieldAccessPolicyInterface}, so a tool that emits a bare `label()`
+     * per listed entity leaks a field-access-restricted label even after the
+     * entity-level `view` gate ({@see canViewEntity()}) has passed — the same
+     * label channel closed on the SSR/JSON-LD/Markdown surfaces in R7 WP1.
+     * Delegates to {@see EntityAccessHandler::viewableLabel()} (open-by-default;
+     * `null` on a Forbidden label field). Callers MUST omit the label key or use
+     * a non-identifying placeholder on a `null` return — never emit the raw
+     * label.
+     *
+     * Capability-only mode (no handler AND enforcement not required) returns the
+     * raw label unchanged, preserving prior behavior — no field gate was ever
+     * applied there and entity-level access is the caller's responsibility.
+     * Enforced mode with no handler fails closed (`null`), matching
+     * {@see canViewEntity()}'s wiring-gap contract.
+     */
+    protected function viewableLabel(
+        EntityInterface $entity,
+        AccountInterface $account,
+        EntityTypeManagerInterface $entityTypeManager,
+    ): ?string {
+        if ($this->accessHandler === null) {
+            return $this->accessEnforced ? null : $entity->label();
+        }
+
+        return $this->accessHandler->viewableLabel($entity, $account, $entityTypeManager);
     }
 
     /**

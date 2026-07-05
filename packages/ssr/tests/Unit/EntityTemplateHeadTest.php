@@ -43,6 +43,10 @@ final class EntityTemplateHeadTest extends TestCase
             'fields' => [
                 'body' => ['raw' => 'x', 'formatted' => '<p>Body text</p>', 'type' => 'text_long'],
             ],
+            // `title` is the access-checked label the caller (SsrPageHandler)
+            // resolves via EntityAccessHandler::viewableLabel() (R7 WP1) — the
+            // template no longer reads entity.label directly.
+            'title' => 'Hello World',
             'schema_org_jsonld' => '<script type="application/ld+json">{"@type":"Article"}</script>',
         ]);
 

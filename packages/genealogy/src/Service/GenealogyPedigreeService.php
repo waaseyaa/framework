@@ -121,6 +121,18 @@ final class GenealogyPedigreeService
     /**
      * Neighbor list for SSR: never exposes numeric ids the viewer cannot load directly.
      *
+     * TRACKED-FOR-R8 (genealogy pedigree label channel): the `label` emitted
+     * here (and in {@see ancestorGenerationsRedacted()}) on the anonymous-
+     * reachable public pedigree pages is gated ONLY at the entity level (the
+     * `$gate->allows('view', …)` check), reading `$person->label()` directly —
+     * the same field-access-bypassing label channel R7 WP1 closed on the SSR /
+     * schema.org / Markdown surfaces. This is NOT live today: the wired
+     * `GenealogyContentAccessPolicy::fieldAccess()` always returns Neutral, so
+     * there is no entity-viewable-but-label-field-restricted split to exploit —
+     * it is a defense-in-depth landmine only. R8 fix (optional): swap the
+     * `$person->label()` reads for `EntityAccessHandler::viewableLabel()`. See
+     * CHANGELOG R7 WP1 "Tracked-for-R8 residuals (R8-b)".
+     *
      * @param list<string> $personIds
      * @return list<array{redacted: bool, label: string, id: ?string}>
      */

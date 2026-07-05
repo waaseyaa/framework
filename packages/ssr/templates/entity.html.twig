@@ -1,6 +1,9 @@
 {% extends "layouts/base.html.twig" %}
 
-{% block title %}{{ entity.label }}{% endblock %}
+{# `title` is the access-checked label (SsrPageHandler::handleRenderPage() via
+   EntityAccessHandler::viewableLabel(), R7 WP1) — never read entity.label
+   directly here, it bypasses field-level access. #}
+{% block title %}{{ title }}{% endblock %}
 
 {% block meta %}
   {# schema.org JSON-LD for agents/crawlers (FR-014); built by EntitySchemaOrgMapper. #}
