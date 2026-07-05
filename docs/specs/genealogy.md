@@ -7,6 +7,8 @@
 
 # Genealogy package (v0.1)
 
+<!-- Spec reviewed 2026-07-05 - audit-remediation batch R8 WP3 (defense-in-depth, completes the R7 WP1 label channel here too): GenealogyPedigreeService.php:150,192 (neighborSlots()/ancestorGenerationsRedacted()) previously read $person->label()/$subject->label() directly once the entity-level `$gate->allows('view', ...)` check passed, bypassing label-field-access the way the three sites R7 WP1 fixed (SSR <title>, schema.org, Markdown H1) did. Not live exploitable pre-fix — GenealogyContentAccessPolicy::fieldAccess() always returns Neutral, so there was no entity-viewable-but-label-forbidden split to exploit — but the same landmine shape. Fixed by threading an optional EntityAccessHandler into GenealogyPedigreeService's constructor (wired via GenealogyServiceProvider's kernel-services resolve(), same pattern SearchServiceProvider/OidcServiceProvider use) and swapping both label reads for EntityAccessHandler::viewableLabel(); a Forbidden (or unwired-handler) result now falls back to the SAME redacted-placeholder shape a fully-concealed neighbor/subject already uses ("Private living relative" / "Private ancestor" / "Private profile") rather than the raw label. See "Domain services" § below and CHANGELOG "Security". -->
+
 Greenfield genealogy modeling for Waaseyaa, inspired by public feature areas of HuMo-genealogy (person/family views, charts, relationships) without schema or code migration from HuMo.
 
 ## Entity types
@@ -60,7 +62,7 @@ Templates live in `packages/genealogy/templates/` (`*.html.twig`).
 
 ## Domain services
 
-- `GenealogyPedigreeService` — parents, children, spouses, ordered ancestor generations (deterministic ordering by numeric id tie-break).
+- `GenealogyPedigreeService` — parents, children, spouses, ordered ancestor generations (deterministic ordering by numeric id tie-break). Its public-SSR-facing `neighborSlots()`/`ancestorGenerationsRedacted()` label emission is gated at BOTH the entity level (`$gate->allows('view', ...)`) and the label-field level (`EntityAccessHandler::viewableLabel()`, R8 WP3, defense-in-depth) — a person entity-viewable but with a field-access-Forbidden label field (or with no access handler wired) renders the same redacted placeholder a fully-concealed neighbor uses, never the raw label.
 - `GenealogyFamilyService` — members of a family via `genealogy_member_of_family`.
 
 ## Cross-references

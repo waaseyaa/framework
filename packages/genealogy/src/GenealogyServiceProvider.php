@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Genealogy;
 
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
@@ -33,7 +34,10 @@ final class GenealogyServiceProvider extends ServiceProvider implements Configur
             /** @var EntityTypeManager $manager */
             $manager = $this->resolve(EntityTypeManager::class);
 
-            return new GenealogyPedigreeService($manager);
+            // R8 WP3: wire the kernel access handler so pedigree label
+            // emission is field-access-gated too (defense-in-depth for the
+            // R7 WP1 label channel), not just entity-level-gated.
+            return new GenealogyPedigreeService($manager, $this->resolve(EntityAccessHandler::class));
         });
 
         $this->singleton(GenealogyFamilyService::class, function (): GenealogyFamilyService {

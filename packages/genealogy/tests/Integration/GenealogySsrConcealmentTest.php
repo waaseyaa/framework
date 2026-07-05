@@ -81,7 +81,11 @@ final class GenealogySsrConcealmentTest extends TestCase
         $this->accessHandler = new EntityAccessHandler([new GenealogyContentAccessPolicy()]);
         $this->accessHandler->addPolicy(new GenealogyRelationshipAccessPolicy($this->manager, $this->accessHandler));
 
-        $pedigree = new GenealogyPedigreeService($this->manager);
+        // R8 WP3: wire the real access handler so pedigree label emission is
+        // exercised through the same field-access gate production wires
+        // (GenealogyContentAccessPolicy::fieldAccess() is Neutral today, so
+        // this does not change any of the below assertions).
+        $pedigree = new GenealogyPedigreeService($this->manager, $this->accessHandler);
         $familyService = new GenealogyFamilyService($this->manager);
 
         $this->controller = new GenealogySsrController(

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Genealogy\Service;
 
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
@@ -20,6 +21,10 @@ final class GenealogyPedigreeService
 {
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
+        // Nullable/defensive (mirrors SsrPageHandler): when unwired, label
+        // emission fails closed to the redacted placeholder rather than
+        // falling back to the raw, field-access-unfiltered label.
+        private readonly ?EntityAccessHandler $accessHandler = null,
     ) {}
 
     /**
@@ -121,17 +126,18 @@ final class GenealogyPedigreeService
     /**
      * Neighbor list for SSR: never exposes numeric ids the viewer cannot load directly.
      *
-     * TRACKED-FOR-R8 (genealogy pedigree label channel): the `label` emitted
-     * here (and in {@see ancestorGenerationsRedacted()}) on the anonymous-
-     * reachable public pedigree pages is gated ONLY at the entity level (the
-     * `$gate->allows('view', …)` check), reading `$person->label()` directly —
-     * the same field-access-bypassing label channel R7 WP1 closed on the SSR /
-     * schema.org / Markdown surfaces. This is NOT live today: the wired
-     * `GenealogyContentAccessPolicy::fieldAccess()` always returns Neutral, so
-     * there is no entity-viewable-but-label-field-restricted split to exploit —
-     * it is a defense-in-depth landmine only. R8 fix (optional): swap the
-     * `$person->label()` reads for `EntityAccessHandler::viewableLabel()`. See
-     * CHANGELOG R7 WP1 "Tracked-for-R8 residuals (R8-b)".
+     * R8 WP3 (defense-in-depth, closes the R7 WP1 label channel here too): the
+     * `label` emitted here (and in {@see ancestorGenerationsRedacted()}) on the
+     * anonymous-reachable public pedigree pages is gated at the entity level
+     * (`$gate->allows('view', …)`) AND, additionally, at the label field level
+     * via {@see EntityAccessHandler::viewableLabel()} — a person who is
+     * entity-viewable but whose label-key field is field-access-Forbidden (or
+     * when no access handler is wired) is emitted as a redacted placeholder
+     * slot, matching the existing entity-level-redaction shape, rather than
+     * leaking the raw label. This was NOT live exploitable before this fix:
+     * the wired `GenealogyContentAccessPolicy::fieldAccess()` always returns
+     * Neutral, so there was no entity-viewable-but-label-restricted split to
+     * exploit — see CHANGELOG R7 WP1 "Tracked-for-R8 residuals (R8-b)".
      *
      * @param list<string> $personIds
      * @return list<array{redacted: bool, label: string, id: ?string}>
@@ -145,13 +151,19 @@ final class GenealogyPedigreeService
                 continue;
             }
             if ($gate->allows('view', $person, $account)) {
-                $slots[] = [
-                    'redacted' => false,
-                    'label' => $person->label(),
-                    'id' => (string) $person->id(),
-                ];
+                $label = $this->accessHandler?->viewableLabel($person, $account, $this->entityTypeManager);
+                if ($label !== null && $label !== '') {
+                    $slots[] = [
+                        'redacted' => false,
+                        'label' => $label,
+                        'id' => (string) $person->id(),
+                    ];
 
-                continue;
+                    continue;
+                }
+                // Label field is Forbidden (or no access handler is wired):
+                // fail closed to the same placeholder shape a fully-concealed
+                // slot uses — never the raw label.
             }
 
             $slots[] = [
@@ -186,13 +198,19 @@ final class GenealogyPedigreeService
         foreach ($levels as $i => $idsAtLevel) {
             if ($i === 0) {
                 $subject = $this->loadPerson($idsAtLevel[0] ?? $personId);
-                if ($subject !== null && $gate->allows('view', $subject, $account)) {
+                $label = $subject !== null && $gate->allows('view', $subject, $account)
+                    ? $this->accessHandler?->viewableLabel($subject, $account, $this->entityTypeManager)
+                    : null;
+                if ($subject !== null && $label !== null && $label !== '') {
                     $out[] = [[
                         'redacted' => false,
-                        'label' => $subject->label(),
+                        'label' => $label,
                         'id' => (string) $subject->id(),
                     ]];
                 } else {
+                    // Entity-level denied, OR entity-viewable but the label
+                    // field is Forbidden (or no access handler is wired): fail
+                    // closed to the same "Private profile" placeholder either way.
                     $out[] = [[
                         'redacted' => true,
                         'label' => 'Private profile',
