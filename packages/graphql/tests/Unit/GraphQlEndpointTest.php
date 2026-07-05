@@ -32,6 +32,7 @@ final class GraphQlEndpointTest extends TestCase
         // Authenticated user (id !== 0) by default.
         $authenticatedAccount = $this->createStub(AccountInterface::class);
         $authenticatedAccount->method('id')->willReturn(1);
+        $authenticatedAccount->method('isAuthenticated')->willReturn(true);
 
         $this->endpoint = new GraphQlEndpoint(
             entityTypeManager: $this->entityTypeManager,
@@ -208,5 +209,74 @@ final class GraphQlEndpointTest extends TestCase
 
         self::assertSame(200, $result['statusCode']);
         self::assertSame('Query', $result['body']['data']['__typename']);
+    }
+
+    // --- R11 (audit A9): anonymous-mutation gate closes the existence oracle ---
+
+    #[Test]
+    public function anonymousPostMutationIsRejectedBeforeExecution(): void
+    {
+        $anonymousAccount = $this->createStub(AccountInterface::class);
+        $anonymousAccount->method('id')->willReturn(0);
+        $anonymousAccount->method('isAuthenticated')->willReturn(false);
+        $endpoint = $this->createEndpointWithAccount($anonymousAccount);
+
+        $result = $endpoint->handle(
+            'POST',
+            json_encode(['query' => 'mutation { deletePage(id: "1") { deleted } }']),
+        );
+
+        self::assertSame(401, $result['statusCode']);
+        self::assertArrayNotHasKey('data', $result['body'], 'The mutation must not execute for an anonymous caller.');
+        self::assertNotEmpty($result['body']['errors']);
+        self::assertStringNotContainsString('1', $result['body']['errors'][0]['message']);
+        self::assertStringNotContainsString('Page', $result['body']['errors'][0]['message']);
+    }
+
+    #[Test]
+    public function anonymousGetMutationIsRejectedBeforeExecution(): void
+    {
+        // A GET mutation from an anonymous caller is caught by the pre-existing
+        // GET-mutation CSRF guard (405, "Mutations are not allowed over GET") which
+        // runs BEFORE the R11 anonymous-mutation gate (401), so for GET the 405
+        // message wins. The anonymous gate is what covers POST (the only method a
+        // real mutation client uses); either way the mutation is rejected before
+        // any resolver runs. Accept either rejection status rather than pinning the
+        // ordering of the two guards.
+        $anonymousAccount = $this->createStub(AccountInterface::class);
+        $anonymousAccount->method('id')->willReturn(0);
+        $anonymousAccount->method('isAuthenticated')->willReturn(false);
+        $endpoint = $this->createEndpointWithAccount($anonymousAccount);
+
+        $result = $endpoint->handle('GET', '', ['query' => 'mutation { deletePage(id: "1") { deleted } }']);
+
+        self::assertContains($result['statusCode'], [401, 405], 'A GET mutation from anonymous must be rejected.');
+        self::assertArrayNotHasKey('data', $result['body']);
+    }
+
+    #[Test]
+    public function anonymousQueryIsNotAffectedByTheMutationGate(): void
+    {
+        $anonymousAccount = $this->createStub(AccountInterface::class);
+        $anonymousAccount->method('id')->willReturn(0);
+        $anonymousAccount->method('isAuthenticated')->willReturn(false);
+        $endpoint = $this->createEndpointWithAccount($anonymousAccount);
+
+        $result = $endpoint->handle('POST', json_encode(['query' => '{ __typename }']));
+
+        self::assertSame(200, $result['statusCode']);
+        self::assertSame('Query', $result['body']['data']['__typename']);
+    }
+
+    #[Test]
+    public function authenticatedPostMutationIsNotBlockedByTheAnonymousGate(): void
+    {
+        // $this->endpoint is authenticated (id 1, isAuthenticated() true) by setUp().
+        $result = $this->endpoint->handle(
+            'POST',
+            json_encode(['query' => 'mutation { deletePage(id: "1") { deleted } }']),
+        );
+
+        self::assertNotSame(401, $result['statusCode'], 'An authenticated caller must not be rejected by the anonymous-mutation gate.');
     }
 }

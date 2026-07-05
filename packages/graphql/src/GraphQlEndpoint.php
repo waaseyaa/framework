@@ -97,6 +97,33 @@ final class GraphQlEndpoint
             ];
         }
 
+        // R11 (audit A9): `/graphql` is registered allowAll() (anonymous-reachable)
+        // and, unlike this class's REST sibling (PATCH/DELETE gated by
+        // requireAuthentication()), had no operation-type-aware auth gate of its
+        // own -- every generated update{Type}/delete{Type} mutation executed for
+        // the anonymous account and then relied on the entity-level access policy
+        // to deny it. Because the resolver's "entity absent" and "access denied"
+        // errors were textually distinct, an anonymous caller could enumerate the
+        // existence of any entity id by diffing the two error messages, even when
+        // every per-entity access policy was itself correct. Reject BEFORE any
+        // resolver runs, for every HTTP method, not just GET, so an anonymous
+        // caller never reaches entity-loading code at all: no distinguishable
+        // error, no timing side channel. The rejection is intentionally UNIFORM
+        // (no entity id/type in the message) and identical for every mutation
+        // shape (aliases, named operations, create/update/delete) because
+        // selectsMutation() gates at the operation-type level, not per-field.
+        // `parseRequest()` accepts only a single `{query, variables, operationName}`
+        // object (`is_array($data)` on a JSON *list* body finds no 'query' key and
+        // falls through to the "Missing query" 400) -- this endpoint does not
+        // support GraphQL request batching, so there is no batched-array path that
+        // could smuggle a mutation past this single-document check.
+        if (!$this->account->isAuthenticated() && $this->selectsMutation($query, $operationName)) {
+            return [
+                'statusCode' => 401,
+                'body' => ['errors' => [['message' => 'Authentication required for mutation operations.']]],
+            ];
+        }
+
         $guard = new GraphQlAccessGuard($this->accessHandler, $this->account);
         // New ReferenceLoader per request — buffers entity_reference IDs for DataLoader-style batching.
         $referenceLoader = new ReferenceLoader(

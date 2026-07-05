@@ -470,13 +470,52 @@ final class EntityResolverTest extends TestCase
     #[Test]
     public function resolveUpdateThrowsWhenAccessDenied(): void
     {
+        // R11 (audit A9): access-denied and entity-absent now converge on the
+        // SAME "Entity not found" message (see resolveUpdateDeniedAndAbsentAreIndistinguishable
+        // below) -- a forbidden-but-real id is no longer distinguishable from a
+        // genuinely-nonexistent one. Previously this asserted the distinct
+        // "Access denied: cannot update entity" message, which is exactly the
+        // existence-oracle shape closed by this fix.
         $entity = $this->seedArticle('Protected');
         $resolver = $this->createResolver(new EntityAccessHandler([]));
 
         $this->expectException(UserError::class);
-        $this->expectExceptionMessage('cannot update');
+        $this->expectExceptionMessage('Entity not found');
 
         $resolver->resolveUpdate('article', $entity->id(), ['title' => 'Hacked']);
+    }
+
+    #[Test]
+    public function resolveUpdateDeniedAndAbsentAreIndistinguishable(): void
+    {
+        // The two ids necessarily differ in the rendered message (the caller
+        // supplied both ids themselves, so echoing an id back leaks nothing new)
+        // -- what must NOT differ is the WORDING: "denied" vs "not found". Before
+        // the fix, an absent id produced "Entity not found: ..." while a real but
+        // forbidden id produced the textually distinct "Access denied: cannot
+        // update entity", letting a caller enumerate existence by wording alone.
+        $entity = $this->seedArticle('Protected');
+        $resolver = $this->createResolver(new EntityAccessHandler([]));
+
+        $absentMessage = null;
+        try {
+            $resolver->resolveUpdate('article', 999999, ['title' => 'Ghost']);
+        } catch (UserError $e) {
+            $absentMessage = $e->getMessage();
+        }
+
+        $deniedMessage = null;
+        try {
+            $resolver->resolveUpdate('article', $entity->id(), ['title' => 'Hacked']);
+        } catch (UserError $e) {
+            $deniedMessage = $e->getMessage();
+        }
+
+        self::assertNotNull($absentMessage);
+        self::assertNotNull($deniedMessage);
+        self::assertStringStartsWith('Entity not found:', $absentMessage);
+        self::assertStringStartsWith('Entity not found:', $deniedMessage);
+        self::assertStringNotContainsString('denied', strtolower($deniedMessage));
     }
 
     // ── resolveDelete ────────────────────────────────────────────
@@ -507,12 +546,42 @@ final class EntityResolverTest extends TestCase
     #[Test]
     public function resolveDeleteThrowsWhenAccessDenied(): void
     {
+        // R11 (audit A9): see resolveUpdateThrowsWhenAccessDenied -- same collapse,
+        // delete side. Previously asserted the distinct "Access denied: cannot
+        // delete entity" message.
         $entity = $this->seedArticle('Protected');
         $resolver = $this->createResolver(new EntityAccessHandler([]));
 
         $this->expectException(UserError::class);
-        $this->expectExceptionMessage('cannot delete');
+        $this->expectExceptionMessage('Entity not found');
 
         $resolver->resolveDelete('article', $entity->id());
+    }
+
+    #[Test]
+    public function resolveDeleteDeniedAndAbsentAreIndistinguishable(): void
+    {
+        $entity = $this->seedArticle('Protected');
+        $resolver = $this->createResolver(new EntityAccessHandler([]));
+
+        $absentMessage = null;
+        try {
+            $resolver->resolveDelete('article', 999999);
+        } catch (UserError $e) {
+            $absentMessage = $e->getMessage();
+        }
+
+        $deniedMessage = null;
+        try {
+            $resolver->resolveDelete('article', $entity->id());
+        } catch (UserError $e) {
+            $deniedMessage = $e->getMessage();
+        }
+
+        self::assertNotNull($absentMessage);
+        self::assertNotNull($deniedMessage);
+        self::assertStringStartsWith('Entity not found:', $absentMessage);
+        self::assertStringStartsWith('Entity not found:', $deniedMessage);
+        self::assertStringNotContainsString('denied', strtolower($deniedMessage));
     }
 }

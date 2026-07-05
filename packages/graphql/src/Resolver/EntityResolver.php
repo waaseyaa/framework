@@ -200,10 +200,34 @@ final class EntityResolver
             throw new UserError("Entity not found: {$entityTypeId}/{$id}");
         }
 
-        $this->guard->assertUpdateAccess($entity);
-
-        foreach (array_keys($input) as $fieldName) {
-            $this->guard->assertFieldEditAccess($entity, $fieldName);
+        // R11 (audit A9, defense-in-depth): collapse "access denied" into the SAME
+        // not-found error thrown above for an absent entity. Without this, an
+        // authenticated-but-unauthorized caller could distinguish "this id does
+        // not exist" from "this id exists but you may not modify it" by diffing
+        // the two error messages -- an existence oracle over every entity id,
+        // independent of the endpoint-level anonymous-mutation gate (which only
+        // covers UNauthenticated callers). Mirrors the resolveSingle() read path,
+        // which has always returned null for both cases uniformly.
+        //
+        // The FIELD-edit loop is inside this same try/catch on purpose (R11
+        // follow-up). Entity-level `update` can be ALLOWED while a specific field's
+        // `edit` is FORBIDDEN (e.g. NodeAccessPolicy grants `edit any {type}
+        // content` at the entity level but field-forbids `uid`/`created`/`changed`
+        // for non-admins). Those field denials fire only for a REAL entity (the
+        // absent branch returned "not found" above), so a distinguishable
+        // "cannot edit field" message would re-open the exact same existence oracle
+        // for any ordinary editor. Both access-guard calls therefore collapse to
+        // the identical not-found error. Only the two access checks belong inside:
+        // the FieldableInterface support check and the set()/save() field-VALIDATION
+        // below stay OUTSIDE, so a genuine validation/support error for an
+        // AUTHORIZED caller is surfaced accurately and never masked as "not found".
+        try {
+            $this->guard->assertUpdateAccess($entity);
+            foreach (array_keys($input) as $fieldName) {
+                $this->guard->assertFieldEditAccess($entity, $fieldName);
+            }
+        } catch (UserError) {
+            throw new UserError("Entity not found: {$entityTypeId}/{$id}");
         }
 
         if (!$entity instanceof FieldableInterface) {
@@ -229,7 +253,12 @@ final class EntityResolver
             throw new UserError("Entity not found: {$entityTypeId}/{$id}");
         }
 
-        $this->guard->assertDeleteAccess($entity);
+        // R11 (audit A9, defense-in-depth): same not-found collapse as resolveUpdate() above.
+        try {
+            $this->guard->assertDeleteAccess($entity);
+        } catch (UserError) {
+            throw new UserError("Entity not found: {$entityTypeId}/{$id}");
+        }
 
         // C-22 WP3: delete path now goes through the canonical repository.
         $this->entityTypeManager->getRepository($entityTypeId)->delete($entity);
