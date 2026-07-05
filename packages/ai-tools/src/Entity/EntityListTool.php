@@ -85,12 +85,22 @@ final class EntityListTool extends AbstractAgentTool
             fn(EntityInterface $e): bool => $this->canViewEntity($e, $account),
         ));
 
-        $items = array_map(static function (EntityInterface $e): array {
+        $items = array_map(function (EntityInterface $e) use ($account): array {
             $item = [
                 'entity_type' => $e->getEntityTypeId(),
                 'id' => $e->id(),
-                'label' => $e->label(),
             ];
+            // Field-access-checked label (R7 WP1): $e->label() bypasses
+            // field-level access, so under enforcement a restricted label-key
+            // field is omitted rather than leaked. Defense in depth — this
+            // tool's `tool.entity.list` capability is NOT on the public MCP
+            // anonymous read tier (unlike entity.list_revisions), so this is
+            // not anonymous-reachable, but the label channel is closed here too
+            // for consistency.
+            $label = $this->viewableLabel($e, $account, $this->entityTypeManager);
+            if ($label !== null) {
+                $item['label'] = $label;
+            }
             // FR-008 (optimistic-locking-01KTXCHY): per-item current head so
             // a caller can form an expectation without a per-entity re-read
             // (entities are already loaded — zero added queries). Omitted when

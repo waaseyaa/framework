@@ -98,8 +98,18 @@ final class EntityMarkdownPresenter
             $front['url'] = $canonicalUrl;
         }
 
+        // Access-checked label (R7 WP1): $entity->label() bypasses field-level
+        // access entirely, so a policy forbidding the label-key field on
+        // 'view' would otherwise still leak it into the H1 even though the
+        // rest of the document is field-access-filtered via $safe above.
+        // viewableLabel() returns null when Forbidden — fall back to the
+        // entity type id (never the raw label), matching the pre-existing
+        // empty-label fallback shape.
+        $viewableLabel = $accessHandler->viewableLabel($entity, $account, $this->entityTypeManager);
+        $safeLabel = ($viewableLabel !== null && $viewableLabel !== '') ? $viewableLabel : $entityTypeId;
+
         $out = $this->renderFrontMatter($front);
-        $out .= '# ' . $this->escapeInline($entity->label() !== '' ? $entity->label() : $entityTypeId) . "\n";
+        $out .= '# ' . $this->escapeInline($safeLabel) . "\n";
 
         foreach ($display as $fieldName => $item) {
             // Render only fields that survived access filtering (present in $safe).

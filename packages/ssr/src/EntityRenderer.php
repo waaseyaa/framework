@@ -52,15 +52,14 @@ final class EntityRenderer
      * see {@see SsrPageHandler::renderEntityHtml()} for the primary fail-closed
      * guard that refuses to render at all in that case).
      *
-     * SCOPE CAVEAT: this filters only the `fields` bag. The entity LABEL/TITLE
-     * is NOT filtered here — it is read directly from raw storage by the
-     * template's `<title>` block ({@see \Waaseyaa\Entity\EntityInterface::label()})
-     * and by the schema.org JSON-LD ({@see \Waaseyaa\Seo\SchemaOrg\EntitySchemaOrgMapper}),
-     * bypassing this bag. A policy that forbids the label-key field on 'view'
-     * would still expose the title (identical to the Markdown H1's existing
-     * behavior; JSON:API's ResourceSerializer, by contrast, DOES filter the
-     * label). Closing that cross-package label channel is tracked as a
-     * follow-up (R7); it is not part of this change.
+     * SCOPE: this filters only the `fields` bag. The entity LABEL/TITLE is NOT
+     * filtered here — it bypasses this bag entirely and is resolved separately
+     * by {@see \Waaseyaa\SSR\SsrPageHandler::handleRenderPage()} via
+     * {@see \Waaseyaa\Access\EntityAccessHandler::viewableLabel()} before being
+     * threaded into the Twig `title` context var and the schema.org JSON-LD
+     * (R7 WP1) — so a policy that forbids the label-key field on 'view' is
+     * honored for the title/JSON-LD `name` exactly as it is for the fields bag,
+     * just via a different seam.
      *
      * @return array{
      *   entity: EntityInterface,

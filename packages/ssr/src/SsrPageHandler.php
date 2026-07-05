@@ -257,11 +257,25 @@ final class SsrPageHandler
                 }
             }
 
+            // Access-checked label/title for the entity (R7 WP1): the entity-level
+            // view gate above and the fields-bag filter in EntityRenderer/
+            // ResourceSerializer both leave a gap where the SSR <title>, the
+            // schema.org JSON-LD `name`, and the Markdown H1 read
+            // EntityInterface::label() directly, bypassing field-level access.
+            // Resolve once here and thread it into every site that would
+            // otherwise read the raw label. Fails closed: no access handler, or
+            // a Forbidden label field, falls back to the entity type id — never
+            // the raw label — while a genuinely public/unrestricted label still
+            // renders for real (see EntityAccessHandler::viewableLabel()).
+            $viewableLabel = $this->accessHandler?->viewableLabel($entity, $account, $this->entityTypeManager);
+            $safeTitle = ($viewableLabel !== null && $viewableLabel !== '') ? $viewableLabel : $entityTypeId;
+
             $twigEntityContext = $renderContext;
             $twigEntityContext['account'] = $account;
+            $twigEntityContext['title'] = $safeTitle;
             // schema.org JSON-LD for the HTML <head> (FR-014); ignored by the
             // Markdown branch.
-            $twigEntityContext['schema_org_jsonld'] = $this->buildSchemaOrgScript($entity, $normalizedPath);
+            $twigEntityContext['schema_org_jsonld'] = $this->buildSchemaOrgScript($entity, $normalizedPath, $safeTitle);
 
             $response = $mediaType === MediaTypeAcceptNegotiator::MARKDOWN
                 ? $this->renderEntityMarkdown($entity, $viewMode, $viewModeConfig, $normalizedPath, $account)
@@ -938,6 +952,20 @@ final class SsrPageHandler
      * publishable, anonymously-readable-when-published types. Used to scope the
      * canonical published gate so non-content types (user, taxonomy, …) keep
      * their existing visibility behavior.
+     *
+     * TRACKED-FOR-R8 (non-content-group entity-level SSR bypass): scoping the
+     * entity-level view gate to the `content` group leaves a gap — a
+     * `path_alias` pointing at a NON-content-group, non-`node` entity type
+     * renders via SSR with NO entity-level `view` check at all
+     * ({@see \Waaseyaa\Workflows\EditorialVisibilityResolver} allows non-`node`
+     * types outright, and {@see shouldDenyContentGroupRender()} only gates the
+     * `content` group here), so a type whose `AccessPolicy` returns Neutral /
+     * deny-by-default (e.g. `oidc_client`) is disclosed whole-entity to
+     * anonymous once an admin-created alias to it exists. Whole-entity
+     * disclosure, broader than the R7 WP1 label channel, low practical
+     * reachability (needs an admin-created alias to such a type). The R8 fix is
+     * the entity-level generalization of this gate to every aliased entity
+     * type; see CHANGELOG R7 WP1 "Tracked-for-R8 residuals (R8-a)".
      */
     private function isContentGroupEntity(string $entityTypeId): bool
     {
@@ -950,12 +978,17 @@ final class SsrPageHandler
 
     /**
      * Build the schema.org JSON-LD `<script>` block for an entity's HTML `<head>`.
+     *
+     * $safeLabel is the access-checked label resolved by the caller (see
+     * {@see EntityAccessHandler::viewableLabel()} via `handleRenderPage()`) —
+     * passed through to {@see EntitySchemaOrgMapper::map()}'s `$labelOverride`
+     * so the JSON-LD `name` never leaks a field-access-restricted label (R7 WP1).
      */
-    private function buildSchemaOrgScript(EntityInterface $entity, string $canonicalUrl): string
+    private function buildSchemaOrgScript(EntityInterface $entity, string $canonicalUrl, string $safeLabel): string
     {
         $mapper = new EntitySchemaOrgMapper();
 
-        return $mapper->toScriptTag($mapper->map($entity, $canonicalUrl));
+        return $mapper->toScriptTag($mapper->map($entity, $canonicalUrl, labelOverride: $safeLabel));
     }
 
     /**
@@ -1015,13 +1048,14 @@ final class SsrPageHandler
      * field's content in the field loop that the Markdown/JSON:API
      * representations would hide for the same account (audit M1 / R6 PR1).
      *
-     * SCOPE CAVEAT: the filter covers the `fields` bag only. The entity
-     * label/title is emitted separately (the template's `<title>` block and
-     * the schema.org JSON-LD from {@see buildSchemaOrgScript()}) straight from
-     * {@see EntityInterface::label()}, so a policy forbidding the label field
-     * on 'view' would still expose the title — the same pre-existing gap the
-     * Markdown H1 has. That cross-package label channel is a follow-up (R7)
-     * and is out of scope here.
+     * LABEL CHANNEL (R7 WP1): the label/title emitted via the template's
+     * `<title>` block and the schema.org JSON-LD from
+     * {@see buildSchemaOrgScript()} is NOT part of the `fields` bag this method
+     * filters — both are populated by the caller ({@see handleRenderPage()})
+     * from the access-checked `$safeTitle` (see
+     * {@see \Waaseyaa\Access\EntityAccessHandler::viewableLabel()}) before this
+     * method ever runs, so a policy forbidding the label field on 'view' is
+     * honored identically to the Markdown H1 (see {@see renderEntityMarkdown()}).
      *
      * Mirrors {@see renderEntityMarkdown()}'s fail-closed discipline exactly:
      * when no access handler is wired we refuse to render rather than fall
