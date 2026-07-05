@@ -24,8 +24,9 @@ use Waaseyaa\Node\Node;
 use Waaseyaa\SSR\SsrPageHandler;
 
 /**
- * The canonical published/entity-view gate for the SSR render path
- * (author-path FR-006; audit M2 / R6 PR2).
+ * The canonical entity-level view-access gate for the SSR render path
+ * (author-path FR-006; audit M2 / R6 PR2; generalized to every entity type in
+ * R8-a).
  *
  * The node-centric {@see \Waaseyaa\Workflows\EditorialVisibilityResolver} only
  * covers publish/preview/workflow state, so a generic `make:content-type`
@@ -33,11 +34,17 @@ use Waaseyaa\SSR\SsrPageHandler;
  * even though MCP and JSON:API deny them — and, before R6 PR2, a `node` was
  * EXCLUDED from this gate entirely, so a published-but-access-restricted node
  * (e.g. a classification hold) never ran the entity-level access check at all.
- * {@see SsrPageHandler::shouldDenyContentGroupRender()} closes both gaps by
- * deferring every `content`-group entity — including `node` — to the SAME
- * per-entity AccessPolicy ({@see PublishedContentAccessPolicy},
- * `NodeAccessPolicy`, `ClassificationFieldAccessPolicy`, etc.) the other read
- * surfaces use.
+ * {@see SsrPageHandler::shouldDenyEntityRender()} (formerly
+ * `shouldDenyContentGroupRender()`) closes both gaps by deferring every
+ * entity — `content`-group or not, `node` included — to the SAME per-entity
+ * AccessPolicy ({@see PublishedContentAccessPolicy}, `NodeAccessPolicy`,
+ * `ClassificationFieldAccessPolicy`, etc.) the other read surfaces use.
+ *
+ * R8-a: this method used to early-return `false` (never deny) for any entity
+ * type outside the `content` group, via a now-removed `isContentGroupEntity()`
+ * guard — see {@see never_gates_non_content_group_types_with_a_granting_policy()}
+ * and {@see gates_non_content_group_types_with_no_granting_policy()} below for
+ * the corrected invariant.
  */
 #[CoversClass(SsrPageHandler::class)]
 final class SsrContentPublishedGateTest extends TestCase
@@ -136,7 +143,7 @@ final class SsrContentPublishedGateTest extends TestCase
 
     private function shouldDeny(SsrPageHandler $handler, string $entityTypeId, EntityInterface $entity, AccountInterface $account): bool
     {
-        $method = new \ReflectionMethod(SsrPageHandler::class, 'shouldDenyContentGroupRender');
+        $method = new \ReflectionMethod(SsrPageHandler::class, 'shouldDenyEntityRender');
 
         return (bool) $method->invoke($handler, $entityTypeId, $entity, $account);
     }
@@ -216,15 +223,67 @@ final class SsrContentPublishedGateTest extends TestCase
     }
 
     #[Test]
-    public function never_gates_non_content_group_types(): void
+    public function gates_non_content_group_types_with_no_granting_policy(): void
     {
-        // People/taxonomy/etc. keep their existing visibility behavior.
+        // R8-a: before the fix, this method opened with
+        // `if (!$this->isContentGroupEntity($entityTypeId)) { return false; }`,
+        // so ANY non-content-group type (e.g. `profile`, here standing in for
+        // `oidc_client`) was NEVER gated regardless of what its AccessPolicy
+        // said — a whole-entity disclosure once an alias to it existed. The
+        // `content`-group-only `PublishedContentAccessPolicy` has no opinion on
+        // `profile`, so with no other policy granting view, the generalized
+        // gate now correctly denies it (deny-by-default, matching every other
+        // read surface).
         $etm = $this->entityTypeManager();
         $handler = $this->handler($etm, $this->accessHandler($etm));
 
-        self::assertFalse(
+        self::assertTrue(
+            $this->shouldDeny($handler, 'profile', $this->entity('profile', true), $this->anon()),
+            'a non-content-group type with no policy granting view must be gated — it was previously excluded entirely',
+        );
+        self::assertTrue(
             $this->shouldDeny($handler, 'profile', $this->entity('profile', false), $this->anon()),
-            'non-content-group types are out of scope for the published gate',
+            'an unpublished non-content-group type must also be gated',
+        );
+    }
+
+    #[Test]
+    public function never_gates_non_content_group_types_with_a_granting_policy(): void
+    {
+        // Regression guard companion: a non-content-group type IS still
+        // rendered when SOME policy actively grants 'view' for it (mirrors
+        // MediaAccessPolicy/TermAccessPolicy/UserAccessPolicy's shape — an
+        // explicit grant, not a free pass from group membership).
+        $etm = $this->entityTypeManager();
+        $handler = new EntityAccessHandler([
+            new class implements AccessPolicyInterface, FieldAccessPolicyInterface {
+                public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+                {
+                    return $operation === 'view'
+                        ? AccessResult::allowed('Profiles are publicly viewable in this test policy.')
+                        : AccessResult::neutral();
+                }
+
+                public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+                {
+                    return AccessResult::neutral();
+                }
+
+                public function appliesTo(string $entityTypeId): bool
+                {
+                    return $entityTypeId === 'profile';
+                }
+
+                public function fieldAccess(EntityInterface $entity, string $fieldName, string $operation, AccountInterface $account): AccessResult
+                {
+                    return AccessResult::neutral();
+                }
+            },
+        ]);
+
+        self::assertFalse(
+            $this->shouldDeny($this->handler($etm, $handler), 'profile', $this->entity('profile', true), $this->anon()),
+            'a non-content-group type must still render when its own AccessPolicy actively grants view',
         );
     }
 

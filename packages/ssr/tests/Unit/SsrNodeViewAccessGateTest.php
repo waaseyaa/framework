@@ -35,8 +35,9 @@ use Waaseyaa\SSR\SsrServiceProvider;
 /**
  * Full-pipeline exploit-closed regression for audit M2 / R6 PR2.
  *
- * Before the fix, {@see SsrPageHandler::shouldDenyContentGroupRender()} opened
- * with `if ($entityTypeId === 'node' || ...) { return false; }`, so a `node`
+ * Before the fix, {@see SsrPageHandler::shouldDenyEntityRender()} (formerly
+ * `shouldDenyContentGroupRender()`) opened with
+ * `if ($entityTypeId === 'node' || ...) { return false; }`, so a `node`
  * NEVER ran the entity-level `accessHandler->check($entity, 'view', $account)`
  * gate on the SSR HTML render path — the only node gate was
  * {@see \Waaseyaa\Workflows\EditorialVisibilityResolver::canRender()}, which
@@ -49,7 +50,7 @@ use Waaseyaa\SSR\SsrServiceProvider;
  * against a REAL, SQL-backed `node` entity (mirroring
  * {@see SsrPageHandlerUuidResolutionTest}'s storage wiring) so the fix is
  * verified at the same seam a real HTTP request hits, not just at the private
- * `shouldDenyContentGroupRender()` method (see {@see SsrContentPublishedGateTest}
+ * `shouldDenyEntityRender()` method (see {@see SsrContentPublishedGateTest}
  * for that unit-level coverage).
  */
 #[CoversClass(SsrPageHandler::class)]

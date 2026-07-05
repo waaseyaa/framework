@@ -34,7 +34,7 @@ final class RenderCacheTest extends TestCase
     #[Test]
     public function keyMatchesRequiredFormat(): void
     {
-        $this->assertSame('render:v4:node:12:teaser:fr', RenderCache::buildKey('node', 12, 'teaser', 'fr'));
+        $this->assertSame('render:v5:node:12:teaser:fr', RenderCache::buildKey('node', 12, 'teaser', 'fr'));
     }
 
     #[Test]
@@ -43,10 +43,12 @@ final class RenderCacheTest extends TestCase
         // R6 PR1/PR2: the SSR HTML render path became field-access-aware (PR1)
         // and the node render gate became entity-view-access-aware (PR2); R7
         // WP1: the HTML <title> and schema.org JSON-LD `name` became
-        // field-access-aware for the entity label. Each bump of SCHEMA_VERSION
-        // means any cache entry written under an older key format can never be
-        // looked up again — it is effectively invalidated by becoming
-        // unreachable, forcing a re-render through the fixed path.
+        // field-access-aware for the entity label; R8-a: the entity-level view
+        // gate was generalized from the `content` group to every entity type.
+        // Each bump of SCHEMA_VERSION means any cache entry written under an
+        // older key format can never be looked up again — it is effectively
+        // invalidated by becoming unreachable, forcing a re-render through the
+        // fixed path.
         $this->assertStringContainsString(':' . RenderCache::SCHEMA_VERSION . ':', RenderCache::buildKey('node', 1, 'full', 'en'));
         $this->assertStringNotContainsString('render:node:1:full:en', RenderCache::buildKey('node', 1, 'full', 'en'));
     }
