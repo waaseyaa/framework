@@ -31,7 +31,7 @@ use Waaseyaa\Migration\MigrationIdMap;
  *     idMap: $this->resolve(MigrationIdMap::class),
  *     repository: $repositoryForUser,
  *     account: $systemAccount,
- *     fieldMap: ['email_address' => 'email'],
+ *     fieldMap: ['email_address' => 'mail'],
  * );
  * ```
  *

@@ -397,7 +397,9 @@ final class CliCommandIntegrationTest extends TestCase
         $admin = $this->userStorage->load(1);
         $this->assertNotNull($admin);
         $this->assertSame('admin', $admin->get('name'));
-        $this->assertSame('admin@example.com', $admin->get('email'));
+        // F1 (audit A7): the admin email must land in the `mail` entity key,
+        // not `email` (an unrecognized key that routes into the `_data` blob).
+        $this->assertSame('admin@example.com', $admin->get('mail'));
         $this->assertSame(['administrator'], $admin->get('roles'));
     }
 
