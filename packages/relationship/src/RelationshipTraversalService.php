@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Relationship;
 
+use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\EntityValues;
 
@@ -20,11 +23,31 @@ final class RelationshipTraversalService
      *        treated as **non-public** (fail-closed), so an unwired caller
      *        leaks nothing — callers that surface related labels/paths to
      *        end users (the discovery API, SSR node pages) MUST pass a filter.
+     * @param ?EntityAccessHandler $accessHandler Paired with $account to add a
+     *        per-account 'view' gate on top of $visibilityFilter's publish-status
+     *        gate (audit R5 residual #1, R7 WP2). The two gates are independent
+     *        and both must pass: publish-status decides whether an endpoint
+     *        matches the requested `published`/`unpublished` scope, while this
+     *        gate decides whether the CALLER may see it at all — a published
+     *        endpoint can still be access-restricted (e.g. a private node), and
+     *        without this gate WorkflowVisibilityFilter alone would disclose its
+     *        identity to anyone. When either $accessHandler or $account is
+     *        null (the default), this gate is OFF and every endpoint is treated
+     *        as viewable — exactly matching pre-fix behavior for callers that
+     *        do not opt in (SSR nav applies its own post-filter instead; see
+     *        SsrPageHandler::canViewRelatedEndpoint()). Fail-closed when
+     *        engaged: an endpoint with an empty id/type, an unregistered
+     *        entity type, or that fails to load is treated as NOT viewable.
+     * @param ?AccountInterface $account The account the $accessHandler gate
+     *        checks 'view' access against. Required together with
+     *        $accessHandler to engage the gate.
      */
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly DatabaseInterface $database,
         private readonly ?VisibilityFilterInterface $visibilityFilter = null,
+        private readonly ?EntityAccessHandler $accessHandler = null,
+        private readonly ?AccountInterface $account = null,
     ) {}
 
     /**
@@ -102,7 +125,7 @@ final class RelationshipTraversalService
             return [];
         }
 
-        /** @var array<string, array{label: string, is_public: bool}> $entitySummaryCache */
+        /** @var array<string, array{label: string, is_public: bool, is_viewable: bool}> $entitySummaryCache */
         $entitySummaryCache = [];
 
         $pendingPairs = [];
@@ -123,6 +146,15 @@ final class RelationshipTraversalService
                     break;
                 }
                 if ($statusMode === 'unpublished' && $summary['is_public']) {
+                    $keep = false;
+                    break;
+                }
+                // Access gate is ADDITIONAL to the publish-status gate above,
+                // independent of $statusMode: a published-but-access-restricted
+                // endpoint must still be withheld from a caller who cannot view
+                // it (audit R5 residual #1). No-op when $accessHandler/$account
+                // are not wired — see the constructor docblock.
+                if (!$summary['is_viewable']) {
                     $keep = false;
                     break;
                 }
@@ -227,7 +259,7 @@ final class RelationshipTraversalService
         ];
         $temporalFrom = $this->normalizeTemporal($options['temporal_from'] ?? null);
         $temporalTo = $this->normalizeTemporal($options['temporal_to'] ?? null);
-        /** @var array<string, array{label: string, is_public: bool}> $entitySummaryCache */
+        /** @var array<string, array{label: string, is_public: bool, is_viewable: bool}> $entitySummaryCache */
         $entitySummaryCache = [];
 
         $allRelationships = $this->queryRelationshipsForDirection(
@@ -494,7 +526,7 @@ final class RelationshipTraversalService
     /**
      * @param list<Relationship> $relationships
      * @param 'published'|'unpublished'|'all' $statusMode
-     * @param array<string, array{label: string, is_public: bool}> $entitySummaryCache
+     * @param array<string, array{label: string, is_public: bool, is_viewable: bool}> $entitySummaryCache
      * @return list<array{
      *   relationship_id: string,
      *   relationship_type: string,
@@ -588,6 +620,12 @@ final class RelationshipTraversalService
             if ($statusMode === 'unpublished' && $relatedSummary['is_public']) {
                 continue;
             }
+            // Access gate is ADDITIONAL to the publish-status gate above,
+            // independent of $statusMode (see filterByEndpointVisibility()'s
+            // matching comment and the constructor docblock).
+            if (!$relatedSummary['is_viewable']) {
+                continue;
+            }
 
             $edges[] = [
                 'relationship_id' => (string) $relationship->id(),
@@ -660,7 +698,7 @@ final class RelationshipTraversalService
      * entity type instead of one per edge (N+1 avoidance).
      *
      * @param list<array{0: string, 1: string}> $pairs
-     * @param array<string, array{label: string, is_public: bool}> $summaryCache
+     * @param array<string, array{label: string, is_public: bool, is_viewable: bool}> $summaryCache
      */
     private function warmEntitySummariesForKeys(array $pairs, array &$summaryCache): void
     {
@@ -680,6 +718,7 @@ final class RelationshipTraversalService
                 $summaryCache[$cacheKey] = [
                     'label' => sprintf('%s:%s', $entityType, $entityId),
                     'is_public' => false,
+                    'is_viewable' => false,
                 ];
 
                 continue;
@@ -711,6 +750,7 @@ final class RelationshipTraversalService
                         $summaryCache[$cacheKey] = [
                             'label' => sprintf('%s:%s', $entityType, $entityId),
                             'is_public' => false,
+                            'is_viewable' => false,
                         ];
                     }
                 }
@@ -741,11 +781,13 @@ final class RelationshipTraversalService
                     $summaryCache[$cacheKey] = [
                         'label' => $label,
                         'is_public' => $this->isEntityPublic($entityType, EntityValues::toCastAwareMap($entity)),
+                        'is_viewable' => $this->isEntityViewable($entity),
                     ];
                 } else {
                     $summaryCache[$cacheKey] = [
                         'label' => sprintf('%s:%s', $entityType, $entityId),
                         'is_public' => false,
+                        'is_viewable' => false,
                     ];
                 }
             }
@@ -753,7 +795,7 @@ final class RelationshipTraversalService
     }
 
     /**
-     * @return array{label: string, is_public: bool}
+     * @return array{label: string, is_public: bool, is_viewable: bool}
      */
     private function loadEntitySummary(string $entityType, string $entityId): array
     {
@@ -761,6 +803,7 @@ final class RelationshipTraversalService
             return [
                 'label' => sprintf('%s:%s', $entityType, $entityId),
                 'is_public' => false,
+                'is_viewable' => false,
             ];
         }
 
@@ -775,6 +818,7 @@ final class RelationshipTraversalService
                 return [
                     'label' => $label,
                     'is_public' => $this->isEntityPublic($entityType, EntityValues::toCastAwareMap($entity)),
+                    'is_viewable' => $this->isEntityViewable($entity),
                 ];
             }
         } catch (\Throwable) {
@@ -784,12 +828,13 @@ final class RelationshipTraversalService
         return [
             'label' => sprintf('%s:%s', $entityType, $entityId),
             'is_public' => false,
+            'is_viewable' => false,
         ];
     }
 
     /**
-     * @param array<string, array{label: string, is_public: bool}> $summaryCache
-     * @return array{label: string, is_public: bool}
+     * @param array<string, array{label: string, is_public: bool, is_viewable: bool}> $summaryCache
+     * @return array{label: string, is_public: bool, is_viewable: bool}
      */
     private function loadEntitySummaryCached(string $entityType, string $entityId, array &$summaryCache): array
     {
@@ -812,6 +857,27 @@ final class RelationshipTraversalService
         // related entity is public, so it is treated as non-public and its
         // label/path is withheld from published/unpublished browse results.
         return $this->visibilityFilter?->isEntityPublic($entityType, $values) ?? false;
+    }
+
+    /**
+     * Per-account view gate for an endpoint entity the caller would otherwise
+     * disclose (audit R5 residual #1, R7 WP2). Independent of publish status —
+     * mirrors {@see \Waaseyaa\Relationship\RelationshipEndpointVisibilityPolicy}'s
+     * and SsrPageHandler::canViewRelatedEndpoint()'s fail-closed "prove
+     * viewable, else drop" contract.
+     *
+     * When $accessHandler/$account are not wired (the default), this gate is
+     * OFF: every endpoint is treated as viewable, exactly matching pre-fix
+     * behavior for callers that don't opt in. Opting in is additive to, never
+     * a replacement for, the publish-status gate above.
+     */
+    private function isEntityViewable(EntityInterface $entity): bool
+    {
+        if ($this->accessHandler === null || $this->account === null) {
+            return true;
+        }
+
+        return $this->accessHandler->check($entity, 'view', $this->account)->isAllowed();
     }
 
     private function normalizeDirection(mixed $direction): string

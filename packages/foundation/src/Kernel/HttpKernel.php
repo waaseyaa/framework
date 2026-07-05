@@ -127,7 +127,12 @@ final class HttpKernel extends AbstractKernel
         $this->discoveryCache = $cacheFactory->get('discovery');
         $this->mcpReadCache = $cacheFactory->get('mcp_read');
 
-        $this->discoveryHandler = new DiscoveryApiHandler($this->entityTypeManager, $this->database, $this->discoveryCache);
+        // $this->accessHandler is populated by discoverAccessPolicies() earlier
+        // in AbstractKernel::boot(), before finalizeBoot() runs — threading it
+        // here makes the discovery/browse API path gate disclosed endpoint
+        // identities on per-account 'view' access, not publish status alone
+        // (audit R5 residual #1, R7 WP2).
+        $this->discoveryHandler = new DiscoveryApiHandler($this->entityTypeManager, $this->database, $this->discoveryCache, $this->accessHandler);
 
         $listenerRegistrar = new EventListenerRegistrar($this->dispatcher, $this->logger);
         foreach ($this->providers as $provider) {

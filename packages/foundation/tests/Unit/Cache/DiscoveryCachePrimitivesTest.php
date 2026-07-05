@@ -34,6 +34,30 @@ final class DiscoveryCachePrimitivesTest extends TestCase
     }
 
     #[Test]
+    public function keyDiffersFromPreGenerationBumpShape(): void
+    {
+        // R7 WP2 (audit R5 residual #1): the discovery/browse
+        // endpoint-visibility gate became access-aware, so a cache entry
+        // written under the OLD key shape (no 'generation' field) must be an
+        // orphaned miss under the new buildKey() — otherwise a stale,
+        // over-permissive cached response could keep being served.
+        $primitives = new DiscoveryCachePrimitives();
+        $options = ['status' => 'published'];
+
+        $newKey = $primitives->buildKey('hub', 'node', '1', $options);
+
+        $preBumpSerialized = json_encode([
+            'surface' => 'hub',
+            'entity_type' => 'node',
+            'entity_id' => '1',
+            'options' => $primitives->normalizeForCacheKey($options),
+        ], JSON_THROW_ON_ERROR);
+        $preBumpKey = 'discovery:' . sha1((string) $preBumpSerialized);
+
+        $this->assertNotSame($preBumpKey, $newKey, 'Cache-key generation bump must invalidate pre-fix entries');
+    }
+
+    #[Test]
     public function tagBuilderIncludesSourceAndRelatedEntitiesAcrossDiscoveryShapes(): void
     {
         $primitives = new DiscoveryCachePrimitives();

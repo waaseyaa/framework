@@ -115,7 +115,7 @@ final class DiscoveryRouter implements DomainRouterInterface
             ]);
         }
 
-        $service = $this->discoveryHandler->createDiscoveryService();
+        $service = $this->discoveryHandler->createDiscoveryService($ctx->account);
         $payload = $service->topicHub($entityType, (string) $entityId, $resolvedOptions);
         [$dPayload, $dHeaders] = $this->discoveryHandler->prepareDiscoveryResponse(200, ['data' => $payload], $cacheKey, $ctx->account);
 
@@ -151,7 +151,7 @@ final class DiscoveryRouter implements DomainRouterInterface
             ]);
         }
 
-        $service = $this->discoveryHandler->createDiscoveryService();
+        $service = $this->discoveryHandler->createDiscoveryService($ctx->account);
         $payload = $service->clusterPage($entityType, (string) $entityId, $resolvedOptions);
         [$dPayload, $dHeaders] = $this->discoveryHandler->prepareDiscoveryResponse(200, ['data' => $payload], $cacheKey, $ctx->account);
 
@@ -190,7 +190,7 @@ final class DiscoveryRouter implements DomainRouterInterface
             ]);
         }
 
-        $service = $this->discoveryHandler->createDiscoveryService();
+        $service = $this->discoveryHandler->createDiscoveryService($ctx->account);
         $payload = $service->timeline($entityType, (string) $entityId, $resolvedOptions);
         [$dPayload, $dHeaders] = $this->discoveryHandler->prepareDiscoveryResponse(200, ['data' => $payload], $cacheKey, $ctx->account);
 
@@ -210,7 +210,7 @@ final class DiscoveryRouter implements DomainRouterInterface
 
         $resolvedId = (string) $entityId;
         $resolvedEntity = $this->discoveryHandler->loadDiscoveryEntity($entityType, $resolvedId);
-        if ($resolvedEntity === null || !$this->discoveryHandler->isDiscoveryEntityPublic($entityType, EntityValues::toCastAwareMap($resolvedEntity))) {
+        if ($resolvedEntity === null || !$this->discoveryHandler->isDiscoveryEntityPublic($resolvedEntity, $ctx->account)) {
             return $this->jsonApiResponse(404, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => sprintf('Discovery endpoint not publicly visible: %s:%s', $entityType, $resolvedId)]],
@@ -234,7 +234,7 @@ final class DiscoveryRouter implements DomainRouterInterface
             ]);
         }
 
-        $service = $this->discoveryHandler->createDiscoveryService();
+        $service = $this->discoveryHandler->createDiscoveryService($ctx->account);
 
         if ($entityType !== 'relationship') {
             $payload = $service->endpointPage($entityType, $resolvedId, $resolvedOptions);
@@ -253,7 +253,7 @@ final class DiscoveryRouter implements DomainRouterInterface
             || $fromId === ''
             || $toType === ''
             || $toId === ''
-            || !$this->discoveryHandler->isDiscoveryEndpointPairPublic($fromType, $fromId, $toType, $toId)
+            || !$this->discoveryHandler->isDiscoveryEndpointPairPublic($fromType, $fromId, $toType, $toId, $ctx->account)
         ) {
             return $this->jsonApiResponse(404, [
                 'jsonapi' => ['version' => '1.1'],

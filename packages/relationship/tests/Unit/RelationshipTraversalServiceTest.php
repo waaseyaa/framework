@@ -10,6 +10,10 @@ require_once __DIR__ . '/../../src/RelationshipTraversalService.php';
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Access\AccessPolicyInterface;
+use Waaseyaa\Access\AccessResult;
+use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
@@ -564,6 +568,197 @@ final class RelationshipTraversalServiceTest extends TestCase
         $this->assertSame([4], $nodeStorage->loadMultipleBatchSizes);
     }
 
+    // --- R7 WP2 (audit R5 residual #1): access-aware endpoint visibility ---
+
+    public function testBrowsePublishedDropsPublishedButAccessRestrictedEndpoint(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $this->createRelationshipTable($database);
+
+        $this->insertRelationship($database, 1, 'node', '1', 'node', '2', 1);
+
+        $relationshipStorage = new TraversalRelationshipStorage([
+            1 => new Relationship([
+                'rid' => 1,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '2',
+                'directionality' => 'directed',
+                'status' => 1,
+            ]),
+        ]);
+        // Node 2 is PUBLISHED (workflow-public) but access-restricted for this
+        // account — the leak this PR closes: WorkflowVisibilityFilter alone
+        // would disclose it because it only ever checks publish status.
+        $nodeStorage = new TraversalEntityStorage([
+            '2' => new TraversalTestEntity('node', 'article', 2, 'Restricted Node', [
+                'nid' => 2,
+                'type' => 'article',
+                'status' => 1,
+                'workflow_state' => 'published',
+            ]),
+        ]);
+        $manager = new TraversalEntityTypeManager([
+            'relationship' => $relationshipStorage,
+            'node' => $nodeStorage,
+        ]);
+
+        $accessHandler = new EntityAccessHandler([new TraversalForbidNodeAccessPolicy(['2'])]);
+        $account = new TraversalTestAccount();
+        $service = new RelationshipTraversalService(
+            $manager,
+            $database,
+            new TraversalVisibilityFilter(),
+            $accessHandler,
+            $account,
+        );
+
+        $result = $service->browse('node', 1, ['status' => 'published']);
+
+        $this->assertSame(0, $result['counts']['total'], 'Published-but-access-restricted endpoint must not leak through discovery');
+        $this->assertSame([], $result['outbound']);
+    }
+
+    public function testBrowsePublishedKeepsViewableEndpointWithAccessHandlerWired(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $this->createRelationshipTable($database);
+
+        $this->insertRelationship($database, 1, 'node', '1', 'node', '2', 1);
+
+        $relationshipStorage = new TraversalRelationshipStorage([
+            1 => new Relationship([
+                'rid' => 1,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '2',
+                'directionality' => 'directed',
+                'status' => 1,
+            ]),
+        ]);
+        $nodeStorage = new TraversalEntityStorage([
+            '2' => new TraversalTestEntity('node', 'article', 2, 'Viewable Node', [
+                'nid' => 2,
+                'type' => 'article',
+                'status' => 1,
+                'workflow_state' => 'published',
+            ]),
+        ]);
+        $manager = new TraversalEntityTypeManager([
+            'relationship' => $relationshipStorage,
+            'node' => $nodeStorage,
+        ]);
+
+        // Positive control: nothing is forbidden, so wiring the access gate
+        // must not over-drop a legitimately viewable published endpoint.
+        $accessHandler = new EntityAccessHandler([new TraversalForbidNodeAccessPolicy([])]);
+        $account = new TraversalTestAccount();
+        $service = new RelationshipTraversalService(
+            $manager,
+            $database,
+            new TraversalVisibilityFilter(),
+            $accessHandler,
+            $account,
+        );
+
+        $result = $service->browse('node', 1, ['status' => 'published']);
+
+        $this->assertSame(1, $result['counts']['total']);
+        $this->assertSame('2', $result['outbound'][0]['related_entity_id']);
+    }
+
+    public function testBrowsePublishedFailsClosedWhenAccessGateWiredButEndpointUnloadable(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $this->createRelationshipTable($database);
+
+        $this->insertRelationship($database, 1, 'node', '1', 'node', '404', 1);
+
+        $relationshipStorage = new TraversalRelationshipStorage([
+            1 => new Relationship([
+                'rid' => 1,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '404',
+                'directionality' => 'directed',
+                'status' => 1,
+            ]),
+        ]);
+        // Endpoint node 404 does not exist in storage.
+        $nodeStorage = new TraversalEntityStorage([]);
+        $manager = new TraversalEntityTypeManager([
+            'relationship' => $relationshipStorage,
+            'node' => $nodeStorage,
+        ]);
+
+        $accessHandler = new EntityAccessHandler([new TraversalForbidNodeAccessPolicy([])]);
+        $account = new TraversalTestAccount();
+        $service = new RelationshipTraversalService(
+            $manager,
+            $database,
+            new TraversalVisibilityFilter(),
+            $accessHandler,
+            $account,
+        );
+
+        $result = $service->browse('node', 1, ['status' => 'published']);
+
+        $this->assertSame(0, $result['counts']['total'], 'Unloadable endpoint must fail closed, never disclosed');
+    }
+
+    public function testTraversePublishedDropsPublishedButAccessRestrictedEndpoint(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $this->createRelationshipTable($database);
+
+        $this->insertRelationship($database, 1, 'node', '1', 'node', '2', 1);
+
+        $relationshipStorage = new TraversalRelationshipStorage([
+            1 => new Relationship([
+                'rid' => 1,
+                'relationship_type' => 'references',
+                'from_entity_type' => 'node',
+                'from_entity_id' => '1',
+                'to_entity_type' => 'node',
+                'to_entity_id' => '2',
+                'directionality' => 'directed',
+                'status' => 1,
+            ]),
+        ]);
+        $nodeStorage = new TraversalEntityStorage([
+            '2' => new TraversalTestEntity('node', 'article', 2, 'Restricted Node', [
+                'nid' => 2,
+                'type' => 'article',
+                'status' => 1,
+                'workflow_state' => 'published',
+            ]),
+        ]);
+        $manager = new TraversalEntityTypeManager([
+            'relationship' => $relationshipStorage,
+            'node' => $nodeStorage,
+        ]);
+
+        $accessHandler = new EntityAccessHandler([new TraversalForbidNodeAccessPolicy(['2'])]);
+        $account = new TraversalTestAccount();
+        $service = new RelationshipTraversalService(
+            $manager,
+            $database,
+            new TraversalVisibilityFilter(),
+            $accessHandler,
+            $account,
+        );
+
+        $result = $service->traverse('node', 1, ['status' => 'published']);
+
+        $this->assertSame([], $result, 'Published-but-access-restricted endpoint must not leak via traverse() either');
+    }
+
     private function createRelationshipTable(DBALDatabase $database): void
     {
         $database->getConnection()->getNativeConnection()->exec(<<<SQL
@@ -793,6 +988,66 @@ final class TraversalVisibilityFilter implements VisibilityFilterInterface
         }
 
         return true;
+    }
+}
+
+final class TraversalTestAccount implements AccountInterface
+{
+    public function id(): int|string
+    {
+        return 42;
+    }
+
+    public function hasPermission(string $permission): bool
+    {
+        return false;
+    }
+
+    public function getRoles(): array
+    {
+        return ['authenticated'];
+    }
+
+    public function isAuthenticated(): bool
+    {
+        return true;
+    }
+}
+
+/**
+ * Allows 'view' on every 'node' entity except the ids listed in
+ * $forbiddenIds — mirrors a real restrictive AccessPolicyInterface
+ * (e.g. NodeAccessPolicy denying a private node) without depending on
+ * waaseyaa/node from this package's tests.
+ */
+final class TraversalForbidNodeAccessPolicy implements AccessPolicyInterface
+{
+    /**
+     * @param list<string> $forbiddenIds
+     */
+    public function __construct(private readonly array $forbiddenIds) {}
+
+    public function appliesTo(string $entityTypeId): bool
+    {
+        return $entityTypeId === 'node';
+    }
+
+    public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+    {
+        if ($operation !== 'view') {
+            return AccessResult::neutral();
+        }
+
+        if (in_array((string) $entity->id(), $this->forbiddenIds, true)) {
+            return AccessResult::forbidden('Node is access-restricted for this test.');
+        }
+
+        return AccessResult::allowed('Node is viewable.');
+    }
+
+    public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+    {
+        return AccessResult::neutral();
     }
 }
 

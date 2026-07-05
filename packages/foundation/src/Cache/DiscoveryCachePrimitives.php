@@ -10,11 +10,33 @@ final class DiscoveryCachePrimitives
     public const string CONTRACT_STABILITY = 'stable';
 
     /**
+     * Internal cache-KEY generation, distinct from CONTRACT_VERSION (which is
+     * the public response-shape contract). Never appears in a response
+     * payload or cache tag — only its VALUE changing matters: any change
+     * alters every hashed key in buildKey(), so every pre-bump cache entry
+     * becomes an orphaned miss instead of being read back.
+     *
+     * Bumped 1 -> 2 for R7 WP2 (audit R5 residual #1): the discovery/browse
+     * endpoint-visibility gate became per-account-access-aware, not just
+     * publish-status-aware (see RelationshipTraversalService's
+     * $accessHandler/$account constructor params and
+     * DiscoveryApiHandler::createDiscoveryService()). A response cached
+     * under generation 1 could have been computed while a published-but-
+     * access-restricted endpoint was still disclosed. The anonymous
+     * discovery cache (populated only for unauthenticated callers — see
+     * getDiscoveryCachedResponse()) has a short 120s TTL regardless, but
+     * this bump makes the fix effective immediately on deploy instead of
+     * waiting out that window.
+     */
+    private const string CACHE_KEY_GENERATION = '2';
+
+    /**
      * @param array<string, mixed> $options
      */
     public function buildKey(string $surface, string $entityType, string $entityId, array $options): string
     {
         $serialized = json_encode([
+            'generation' => self::CACHE_KEY_GENERATION,
             'surface' => $surface,
             'entity_type' => $entityType,
             'entity_id' => $entityId,

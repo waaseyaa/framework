@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Api\Http;
 
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityInterface;
@@ -25,10 +26,22 @@ use Waaseyaa\Workflows\WorkflowVisibilityFilter;
  */
 final class DiscoveryApiHandler
 {
+    /**
+     * @param ?EntityAccessHandler $accessHandler Threaded into
+     *        RelationshipTraversalService (via createDiscoveryService()) and
+     *        into isDiscoveryEntityPublic()/isDiscoveryEndpointPairPublic() so
+     *        the discovery/browse API path gates disclosed endpoint identities
+     *        on per-account 'view' access, not publish status alone (audit R5
+     *        residual #1, R7 WP2). When null (e.g. legacy/unwired test
+     *        construction), the access gate is OFF and behavior matches
+     *        pre-fix publish-status-only filtering — production wiring
+     *        (HttpKernel::finalizeBoot()) always passes the real handler.
+     */
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
         private readonly DatabaseInterface $database,
         private readonly ?CacheBackendInterface $discoveryCache = null,
+        private readonly ?EntityAccessHandler $accessHandler = null,
     ) {}
 
     /**
@@ -152,8 +165,13 @@ final class DiscoveryApiHandler
         return $this->discoveryCachePrimitives()->buildTags($payload);
     }
 
-    public function isDiscoveryEndpointPairPublic(string $fromType, string $fromId, string $toType, string $toId): bool
-    {
+    public function isDiscoveryEndpointPairPublic(
+        string $fromType,
+        string $fromId,
+        string $toType,
+        string $toId,
+        ?AccountInterface $account = null,
+    ): bool {
         $from = $this->loadDiscoveryEntity($fromType, $fromId);
         $to = $this->loadDiscoveryEntity($toType, $toId);
 
@@ -161,8 +179,8 @@ final class DiscoveryApiHandler
             return false;
         }
 
-        return $this->isDiscoveryEntityPublic($fromType, EntityValues::toCastAwareMap($from))
-            && $this->isDiscoveryEntityPublic($toType, EntityValues::toCastAwareMap($to));
+        return $this->isDiscoveryEntityPublic($from, $account)
+            && $this->isDiscoveryEntityPublic($to, $account);
     }
 
     public function loadDiscoveryEntity(string $entityType, string $entityId): ?EntityInterface
@@ -185,23 +203,46 @@ final class DiscoveryApiHandler
     }
 
     /**
-     * @param array<string, mixed> $values
+     * Is $entity allowed to anchor a discovery/browse response — publicly
+     * (workflow status) AND, when $account is supplied and an access handler
+     * is wired, viewable by that account.
+     *
+     * Gates the discovery "endpoint" route's OWN primary entity (and, via
+     * isDiscoveryEndpointPairPublic(), a relationship entity's own from/to
+     * endpoint pair) — this is a source-entity/identity-disclosure check, the
+     * same disclosure class RelationshipTraversalService's endpoint-visibility
+     * gate closes for RELATED entities (audit R5 residual #1, R7 WP2): a
+     * published-but-access-restricted entity must not be discoverable just
+     * because it is published.
      */
-    public function isDiscoveryEntityPublic(string $entityType, array $values): bool
+    public function isDiscoveryEntityPublic(EntityInterface $entity, ?AccountInterface $account = null): bool
     {
-        return new WorkflowVisibility()->isEntityPublic($entityType, $values);
+        if (!new WorkflowVisibility()->isEntityPublic($entity->getEntityTypeId(), EntityValues::toCastAwareMap($entity))) {
+            return false;
+        }
+
+        if ($account === null || $this->accessHandler === null) {
+            return true;
+        }
+
+        return $this->accessHandler->check($entity, 'view', $account)->isAllowed();
     }
 
-    public function createDiscoveryService(): RelationshipDiscoveryService
+    public function createDiscoveryService(AccountInterface $account): RelationshipDiscoveryService
     {
         return new RelationshipDiscoveryService(
             // Pass the visibility filter so related entities are gated on
             // publication state — without it the traversal service fails closed
-            // and would withhold every related label/path.
+            // and would withhold every related label/path. $accessHandler +
+            // $account layer a per-account 'view' gate ON TOP of the publish-
+            // status gate (audit R5 residual #1, R7 WP2): a published-but-
+            // access-restricted related entity must still be withheld.
             new RelationshipTraversalService(
                 $this->entityTypeManager,
                 $this->database,
                 new WorkflowVisibilityFilter(),
+                $this->accessHandler,
+                $account,
             ),
         );
     }
