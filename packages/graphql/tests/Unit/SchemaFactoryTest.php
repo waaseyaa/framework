@@ -9,13 +9,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccessResult;
-use Waaseyaa\Access\AccountInterface;
-use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\GraphQL\Access\GraphQlAccessGuard;
-use Waaseyaa\GraphQL\Resolver\EntityResolver;
-use Waaseyaa\GraphQL\Resolver\ReferenceLoader;
 use Waaseyaa\GraphQL\Schema\SchemaFactory;
 use Waaseyaa\GraphQL\Tests\Fixtures\AttributeFirstEntities\ArticleSchemaFixture;
 use Waaseyaa\GraphQL\Tests\Fixtures\AttributeFirstEntities\LogEntrySchemaFixture;
@@ -30,8 +25,6 @@ require_once __DIR__ . '/../Fixtures/AttributeFirstEntities/PageSchemaFixture.ph
 final class SchemaFactoryTest extends TestCase
 {
     private EntityTypeManager $entityTypeManager;
-    private EntityAccessHandler $accessHandler;
-    private AccountInterface $account;
 
     protected function setUp(): void
     {
@@ -41,24 +34,15 @@ final class SchemaFactoryTest extends TestCase
         $this->entityTypeManager = new EntityTypeManager(new EventDispatcher());
 
         $this->entityTypeManager->registerCoreEntityType(EntityType::fromClass(ArticleSchemaFixture::class));
-
-        // Open access — allow everything
-        $this->accessHandler = new EntityAccessHandler([]);
-        $this->account = $this->createStub(AccountInterface::class);
     }
 
     #[Test]
     public function buildProducesValidSchema(): void
     {
-        $guard = new GraphQlAccessGuard($this->accessHandler, $this->account);
-        $referenceLoader = new ReferenceLoader($this->entityTypeManager, $guard);
-        $entityResolver = new EntityResolver($this->entityTypeManager, $guard);
-
-        $factory = new SchemaFactory(
-            entityTypeManager: $this->entityTypeManager,
-            entityResolver: $entityResolver,
-            referenceLoader: $referenceLoader,
-        );
+        // R12: SchemaFactory holds no per-request collaborators (the built
+        // Schema is cached across requests/accounts), only entityTypeManager
+        // is needed to build the structural schema shape.
+        $factory = new SchemaFactory(entityTypeManager: $this->entityTypeManager);
 
         $schema = $factory->build();
 
@@ -78,15 +62,10 @@ final class SchemaFactoryTest extends TestCase
     #[Test]
     public function objectTypeHasCorrectFields(): void
     {
-        $guard = new GraphQlAccessGuard($this->accessHandler, $this->account);
-        $referenceLoader = new ReferenceLoader($this->entityTypeManager, $guard);
-        $entityResolver = new EntityResolver($this->entityTypeManager, $guard);
-
-        $factory = new SchemaFactory(
-            entityTypeManager: $this->entityTypeManager,
-            entityResolver: $entityResolver,
-            referenceLoader: $referenceLoader,
-        );
+        // R12: SchemaFactory holds no per-request collaborators (the built
+        // Schema is cached across requests/accounts), only entityTypeManager
+        // is needed to build the structural schema shape.
+        $factory = new SchemaFactory(entityTypeManager: $this->entityTypeManager);
 
         $schema = $factory->build();
         $queryType = $schema->getQueryType();
@@ -109,15 +88,10 @@ final class SchemaFactoryTest extends TestCase
     #[Test]
     public function introspectionQuerySucceeds(): void
     {
-        $guard = new GraphQlAccessGuard($this->accessHandler, $this->account);
-        $referenceLoader = new ReferenceLoader($this->entityTypeManager, $guard);
-        $entityResolver = new EntityResolver($this->entityTypeManager, $guard);
-
-        $factory = new SchemaFactory(
-            entityTypeManager: $this->entityTypeManager,
-            entityResolver: $entityResolver,
-            referenceLoader: $referenceLoader,
-        );
+        // R12: SchemaFactory holds no per-request collaborators (the built
+        // Schema is cached across requests/accounts), only entityTypeManager
+        // is needed to build the structural schema shape.
+        $factory = new SchemaFactory(entityTypeManager: $this->entityTypeManager);
 
         $schema = $factory->build();
 
@@ -131,15 +105,10 @@ final class SchemaFactoryTest extends TestCase
     #[Test]
     public function listResultTypeHasItemsAndTotal(): void
     {
-        $guard = new GraphQlAccessGuard($this->accessHandler, $this->account);
-        $referenceLoader = new ReferenceLoader($this->entityTypeManager, $guard);
-        $entityResolver = new EntityResolver($this->entityTypeManager, $guard);
-
-        $factory = new SchemaFactory(
-            entityTypeManager: $this->entityTypeManager,
-            entityResolver: $entityResolver,
-            referenceLoader: $referenceLoader,
-        );
+        // R12: SchemaFactory holds no per-request collaborators (the built
+        // Schema is cached across requests/accounts), only entityTypeManager
+        // is needed to build the structural schema shape.
+        $factory = new SchemaFactory(entityTypeManager: $this->entityTypeManager);
 
         $schema = $factory->build();
         $queryType = $schema->getQueryType();
@@ -155,15 +124,10 @@ final class SchemaFactoryTest extends TestCase
     #[Test]
     public function buildReturnsCachedSchemaOnSecondCall(): void
     {
-        $guard = new GraphQlAccessGuard($this->accessHandler, $this->account);
-        $referenceLoader = new ReferenceLoader($this->entityTypeManager, $guard);
-        $entityResolver = new EntityResolver($this->entityTypeManager, $guard);
-
-        $factory = new SchemaFactory(
-            entityTypeManager: $this->entityTypeManager,
-            entityResolver: $entityResolver,
-            referenceLoader: $referenceLoader,
-        );
+        // R12: SchemaFactory holds no per-request collaborators (the built
+        // Schema is cached across requests/accounts), only entityTypeManager
+        // is needed to build the structural schema shape.
+        $factory = new SchemaFactory(entityTypeManager: $this->entityTypeManager);
 
         $schema1 = $factory->build();
         $schema2 = $factory->build();
@@ -174,15 +138,10 @@ final class SchemaFactoryTest extends TestCase
     #[Test]
     public function resetCacheInvalidatesStaticCache(): void
     {
-        $guard = new GraphQlAccessGuard($this->accessHandler, $this->account);
-        $referenceLoader = new ReferenceLoader($this->entityTypeManager, $guard);
-        $entityResolver = new EntityResolver($this->entityTypeManager, $guard);
-
-        $factory = new SchemaFactory(
-            entityTypeManager: $this->entityTypeManager,
-            entityResolver: $entityResolver,
-            referenceLoader: $referenceLoader,
-        );
+        // R12: SchemaFactory holds no per-request collaborators (the built
+        // Schema is cached across requests/accounts), only entityTypeManager
+        // is needed to build the structural schema shape.
+        $factory = new SchemaFactory(entityTypeManager: $this->entityTypeManager);
 
         $schema1 = $factory->build();
 
@@ -196,15 +155,10 @@ final class SchemaFactoryTest extends TestCase
     #[Test]
     public function cacheKeyIncludesEntityTypeIds(): void
     {
-        $guard = new GraphQlAccessGuard($this->accessHandler, $this->account);
-        $referenceLoader = new ReferenceLoader($this->entityTypeManager, $guard);
-        $entityResolver = new EntityResolver($this->entityTypeManager, $guard);
-
-        $factory = new SchemaFactory(
-            entityTypeManager: $this->entityTypeManager,
-            entityResolver: $entityResolver,
-            referenceLoader: $referenceLoader,
-        );
+        // R12: SchemaFactory holds no per-request collaborators (the built
+        // Schema is cached across requests/accounts), only entityTypeManager
+        // is needed to build the structural schema shape.
+        $factory = new SchemaFactory(entityTypeManager: $this->entityTypeManager);
 
         $schema1 = $factory->build();
 
@@ -222,15 +176,10 @@ final class SchemaFactoryTest extends TestCase
         // Register a type with a readOnly field
         $this->entityTypeManager->registerCoreEntityType(EntityType::fromClass(LogEntrySchemaFixture::class));
 
-        $guard = new GraphQlAccessGuard($this->accessHandler, $this->account);
-        $referenceLoader = new ReferenceLoader($this->entityTypeManager, $guard);
-        $entityResolver = new EntityResolver($this->entityTypeManager, $guard);
-
-        $factory = new SchemaFactory(
-            entityTypeManager: $this->entityTypeManager,
-            entityResolver: $entityResolver,
-            referenceLoader: $referenceLoader,
-        );
+        // R12: SchemaFactory holds no per-request collaborators (the built
+        // Schema is cached across requests/accounts), only entityTypeManager
+        // is needed to build the structural schema shape.
+        $factory = new SchemaFactory(entityTypeManager: $this->entityTypeManager);
 
         $schema = $factory->build();
         $mutationType = $schema->getMutationType();

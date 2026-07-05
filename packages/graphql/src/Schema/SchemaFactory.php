@@ -11,8 +11,7 @@ use GraphQL\Type\Schema;
 use GraphQL\Type\SchemaConfig;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\GraphQL\Resolver\EntityResolver;
-use Waaseyaa\GraphQL\Resolver\ReferenceLoader;
+use Waaseyaa\GraphQL\GraphQlExecutionContext;
 
 /**
  * Builds a complete GraphQL Schema from EntityTypeManager definitions.
@@ -25,6 +24,16 @@ use Waaseyaa\GraphQL\Resolver\ReferenceLoader;
  * to add custom args or replace the default resolver.
  *
  * Filter/sort/pagination reuses the same QueryApplier as JSON:API.
+ *
+ * R12 (audit A10, SECURITY): the built Schema is cached across requests (see
+ * $schemaCache) and MUST hold no per-request/account-bound state. The
+ * query/mutation resolver closures below therefore read the per-request
+ * EntityResolver from the GraphQL execution context (the resolver's 3rd
+ * argument, a {@see GraphQlExecutionContext} constructed fresh per request
+ * by {@see \Waaseyaa\GraphQL\GraphQlEndpoint::handle()}), never from a
+ * captured `$this->entityResolver` -- a per-request collaborator captured by
+ * closure would otherwise leak the FIRST request's account/data to every
+ * later request that hits this cache, under worker-mode process reuse.
  * @api
  */
 final class SchemaFactory
@@ -40,8 +49,6 @@ final class SchemaFactory
 
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
-        private readonly EntityResolver $entityResolver,
-        private readonly ReferenceLoader $referenceLoader,
     ) {}
 
     /**
@@ -88,7 +95,6 @@ final class SchemaFactory
         $entityTypeBuilder = new EntityTypeBuilder(
             registry: $registry,
             fieldTypeMapper: $fieldTypeMapper,
-            referenceLoader: $this->referenceLoader,
             entityTypeManager: $this->entityTypeManager,
         );
 
@@ -130,7 +136,8 @@ final class SchemaFactory
                 'args' => [
                     'id' => Type::nonNull(Type::id()),
                 ],
-                'resolve' => fn(mixed $root, array $args): ?array => $this->entityResolver->resolveSingle($typeId, $args['id']),
+                'resolve' => static fn(mixed $root, array $args, GraphQlExecutionContext $context): ?array =>
+                    $context->entityResolver->resolveSingle($typeId, $args['id']),
             ];
 
             // Query: entity list with filter/sort/pagination
@@ -142,7 +149,8 @@ final class SchemaFactory
                     'offset' => Type::int(),
                     'limit' => Type::int(),
                 ],
-                'resolve' => fn(mixed $root, array $args): array => $this->entityResolver->resolveList($typeId, $args),
+                'resolve' => static fn(mixed $root, array $args, GraphQlExecutionContext $context): array =>
+                    $context->entityResolver->resolveList($typeId, $args),
             ];
 
             // Mutation: create
@@ -152,7 +160,8 @@ final class SchemaFactory
                 'args' => [
                     'input' => Type::nonNull($createInputType),
                 ],
-                'resolve' => fn(mixed $root, array $args): array => $this->entityResolver->resolveCreate($typeId, $args['input']),
+                'resolve' => static fn(mixed $root, array $args, GraphQlExecutionContext $context): array =>
+                    $context->entityResolver->resolveCreate($typeId, $args['input']),
             ]);
 
             // Mutation: update
@@ -163,7 +172,8 @@ final class SchemaFactory
                     'id' => Type::nonNull(Type::id()),
                     'input' => Type::nonNull($updateInputType),
                 ],
-                'resolve' => fn(mixed $root, array $args): array => $this->entityResolver->resolveUpdate($typeId, $args['id'], $args['input']),
+                'resolve' => static fn(mixed $root, array $args, GraphQlExecutionContext $context): array =>
+                    $context->entityResolver->resolveUpdate($typeId, $args['id'], $args['input']),
             ]);
 
             // Mutation: delete
@@ -173,8 +183,8 @@ final class SchemaFactory
                 'args' => [
                     'id' => Type::nonNull(Type::id()),
                 ],
-                'resolve' => fn(mixed $root, array $args): array => [
-                    'deleted' => $this->entityResolver->resolveDelete($typeId, $args['id']),
+                'resolve' => static fn(mixed $root, array $args, GraphQlExecutionContext $context): array => [
+                    'deleted' => $context->entityResolver->resolveDelete($typeId, $args['id']),
                 ],
             ]);
         }
