@@ -32,6 +32,34 @@ final class MakePolicyCommandTest extends TestCase
         $this->assertStringContainsString('declare(strict_types=1);', $output);
     }
 
+    #[Test]
+    public function it_rejects_a_quote_breakout_payload_in_name(): void
+    {
+        $tester = $this->createTester();
+        $tester->execute(["foo', system('touch pwned'); //"]);
+
+        $this->assertSame(1, $tester->getExitCode());
+        $this->assertStringNotContainsString('system(', $tester->getStdout());
+    }
+
+    #[Test]
+    public function it_rejects_a_path_traversal_name(): void
+    {
+        $tester = $this->createTester();
+        $tester->execute(['../evil']);
+
+        $this->assertSame(1, $tester->getExitCode());
+    }
+
+    #[Test]
+    public function it_rejects_a_newline_injected_name(): void
+    {
+        $tester = $this->createTester();
+        $tester->execute(["Foo\n}\nclass Evil {"]);
+
+        $this->assertSame(1, $tester->getExitCode());
+    }
+
     private function createTester(): CliTester
     {
         $provider = new MakeServiceProviderA();

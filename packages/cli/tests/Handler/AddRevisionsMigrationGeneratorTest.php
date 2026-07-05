@@ -148,6 +148,86 @@ final class AddRevisionsMigrationGeneratorTest extends TestCase
     }
 
     #[Test]
+    public function singleAxisGenerationEscapesAMaliciousEntityTypeIdIntoInertData(): void
+    {
+        $generator = new AddRevisionsMigrationGenerator();
+        // A quote would break out of the single-quoted INDEX_NAME literal; a
+        // `*/` would terminate the doc-comment early and expose the remainder
+        // as top-level executable PHP on autoload. The generator is
+        // defense-in-depth for a consumer holding an EntityTypeInterface
+        // directly (the entity layer does not itself constrain ids), so the
+        // phpStringLiteral()/commentSafe() escaping must hold here.
+        [$php, $sentinel] = $this->generateWithBreakoutPayload(
+            isTranslatable: false,
+            generate: fn(EntityTypeInterface $e): string =>
+                $generator->generate($e, 'en', nonTranslatableColumns: ['title']),
+        );
+
+        $this->assertGeneratedPhpIsValidAndInert($php, $sentinel);
+    }
+
+    #[Test]
+    public function twoAxisGenerationEscapesAMaliciousEntityTypeIdIntoInertData(): void
+    {
+        $generator = new AddRevisionsMigrationGenerator();
+        // isTranslatable: true routes generate() through renderTwoAxisFromTranslatable().
+        [$php, $sentinel] = $this->generateWithBreakoutPayload(
+            isTranslatable: true,
+            generate: fn(EntityTypeInterface $e): string =>
+                $generator->generate($e, 'en', nonTranslatableColumns: ['community_id'], translatableColumns: ['title']),
+        );
+
+        $this->assertGeneratedPhpIsValidAndInert($php, $sentinel);
+    }
+
+    /**
+     * Build an entity type whose id embeds a breakout payload targeting BOTH
+     * sinks (a single-quote for the single-quoted index-name literal, a
+     * comment-close sequence for the doc-comment) and, if the payload ever
+     * executes, touches a unique sentinel file. Returns [generated PHP,
+     * sentinel path].
+     *
+     * @param callable(EntityTypeInterface): string $generate
+     * @return array{0: string, 1: string}
+     */
+    private function generateWithBreakoutPayload(bool $isTranslatable, callable $generate): array
+    {
+        $sentinel = sys_get_temp_dir() . '/waaseyaa_addrev_pwned_' . bin2hex(random_bytes(6));
+        // Index-literal breakout via `');`, doc-comment breakout via `*/`, both
+        // followed by a `touch <sentinel>` that runs at require-time iff either
+        // sink is unescaped.
+        $maliciousId = "evil'); system('touch " . $sentinel . "'); */ system('touch " . $sentinel . "'); //";
+        $entityType = $this->makeEntityType($maliciousId, isRevisionable: false, isTranslatable: $isTranslatable);
+
+        return [$generate($entityType), $sentinel];
+    }
+
+    /**
+     * Assert the generated migration is syntactically valid PHP (catches a
+     * literal breakout, which becomes a parse error in const position) AND that
+     * requiring it never runs the injected side effect (catches a doc-comment
+     * breakout, which would be valid-but-executable and pass `php -l`).
+     */
+    private function assertGeneratedPhpIsValidAndInert(string $php, string $sentinel): void
+    {
+        $tmp = tempnam(sys_get_temp_dir(), 'waaseyaa_addrev_lint_') . '.php';
+        file_put_contents($tmp, $php);
+        try {
+            exec('php -l ' . escapeshellarg($tmp) . ' 2>&1', $lintOutput, $exitCode);
+            self::assertSame(0, $exitCode, 'Generated migration must be valid PHP: ' . implode("\n", $lintOutput));
+
+            // Requiring runs all top-level code; if either sink broke out, the
+            // injected system('touch <sentinel>') fires here.
+            $migration = require $tmp;
+            self::assertInstanceOf(\Waaseyaa\Foundation\Migration\Migration::class, $migration);
+            self::assertFileDoesNotExist($sentinel, 'Injected payload executed — breakout not contained.');
+        } finally {
+            @unlink($tmp);
+            @unlink($sentinel);
+        }
+    }
+
+    #[Test]
     public function nonTranslatableColumnsHelperFiltersByTranslatableFlag(): void
     {
         $generator = new AddRevisionsMigrationGenerator();

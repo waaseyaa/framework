@@ -49,6 +49,50 @@ final class MakeListenerCommandTest extends TestCase
         $this->assertStringContainsString('async dispatch', $output);
     }
 
+    #[Test]
+    public function it_rejects_a_quote_breakout_payload_in_name(): void
+    {
+        $tester = $this->createTester();
+        $tester->execute(["foo', system('touch pwned'); //"]);
+
+        $this->assertSame(1, $tester->getExitCode());
+        $this->assertStringNotContainsString('system(', $tester->getStdout());
+    }
+
+    #[Test]
+    public function it_rejects_a_breakout_payload_in_event(): void
+    {
+        $tester = $this->createTester();
+        // Without a backslash this lands raw in the `__invoke(... $event)`
+        // type-hint position — a closing paren + brace would splice
+        // arbitrary top-level PHP into the generated listener file.
+        $tester->execute(['NotifyOnPublish', "--event=Foo) { system('touch pwned'); } //"]);
+
+        $this->assertSame(1, $tester->getExitCode());
+        $this->assertStringNotContainsString('system(', $tester->getStdout());
+    }
+
+    #[Test]
+    public function it_rejects_a_breakout_payload_in_a_fully_qualified_event(): void
+    {
+        $tester = $this->createTester();
+        // With a backslash this also lands raw inside a bare `use ...;`
+        // statement above the class — a semicolon terminates it early.
+        $tester->execute(['NotifyOnPublish', "--event=Foo\\Bar; system('touch pwned'); //"]);
+
+        $this->assertSame(1, $tester->getExitCode());
+        $this->assertStringNotContainsString('system(', $tester->getStdout());
+    }
+
+    #[Test]
+    public function it_still_accepts_the_default_event_type(): void
+    {
+        $tester = $this->createTester();
+        $tester->execute(['NotifyOnPublish']);
+
+        $this->assertSame(0, $tester->getExitCode(), $tester->getStderr());
+    }
+
     private function createTester(): CliTester
     {
         $provider = new MakeServiceProviderA();

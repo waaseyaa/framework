@@ -15,10 +15,24 @@ final class MakeEntityTypeHandler extends AbstractMakeHandler
     public function execute(SymfonyCommandIO $io): int
     {
         $name = (string) $io->argument('name');
+        try {
+            $this->validateIdentifier($name, 'name');
+        } catch (\RuntimeException $e) {
+            $io->error($e->getMessage());
+
+            return 1;
+        }
         $isContent = (bool) $io->option('content');
 
-        $className = str_replace('_', '', ucwords($name, '_'));
+        $className = $this->toPascalCase($name);
         $typeId = strtolower($name);
+        try {
+            $this->validateMachineName($typeId, 'entity type id');
+        } catch (\RuntimeException $e) {
+            $io->error($e->getMessage());
+
+            return 1;
+        }
         $label = ucwords(strtr($name, '_', ' '));
 
         $template = $isContent
@@ -35,6 +49,11 @@ final class MakeEntityTypeHandler extends AbstractMakeHandler
      */
     private function renderContentTemplate(string $className, string $typeId, string $label): string
     {
+        // $label is derived from an already-validated identifier, but escape
+        // it anyway before it lands in a single-quoted attribute literal —
+        // escape-at-the-sink, independent of upstream validation.
+        $safeLabel = addslashes($label);
+
         return <<<PHP
             <?php
 
@@ -47,7 +66,7 @@ final class MakeEntityTypeHandler extends AbstractMakeHandler
             use Waaseyaa\\Entity\\Attribute\\Field;
             use Waaseyaa\\Entity\\ContentEntityBase;
 
-            #[ContentEntityType(id: '{$typeId}', label: '{$label}')]
+            #[ContentEntityType(id: '{$typeId}', label: '{$safeLabel}')]
             #[ContentEntityKeys(label: 'title')]
             final class {$className} extends ContentEntityBase
             {

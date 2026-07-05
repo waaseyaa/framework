@@ -47,8 +47,23 @@ final class MakeContentTypeHandler extends AbstractMakeHandler
         $cwd = getcwd();
         $root = $this->projectRoot ?? ($cwd !== false ? $cwd : '.');
 
+        try {
+            $this->validateIdentifier($name, 'name');
+        } catch (\RuntimeException $e) {
+            $io->error($e->getMessage());
+
+            return 1;
+        }
+
         $className = $this->toPascalCase($name);
         $typeId = strtolower($name);
+        try {
+            $this->validateMachineName($typeId, 'entity type id');
+        } catch (\RuntimeException $e) {
+            $io->error($e->getMessage());
+
+            return 1;
+        }
         $label = ucwords(strtr($name, '_', ' '));
 
         try {
@@ -128,8 +143,20 @@ final class MakeContentTypeHandler extends AbstractMakeHandler
             if (!isset(self::TYPE_MAP[$type])) {
                 throw new \RuntimeException(sprintf('Unknown field type "%s" for "%s". Allowed: %s.', $type, $fieldName, implode(', ', array_keys(self::TYPE_MAP))));
             }
-            if ($type === 'entity_reference' && ($target === null || $target === '')) {
-                throw new \RuntimeException(sprintf('entity_reference field "%s" needs a target: %s:entity_reference:<target_type>.', $fieldName, $fieldName));
+            if ($type === 'entity_reference') {
+                if ($target === null || $target === '') {
+                    throw new \RuntimeException(sprintf('entity_reference field "%s" needs a target: %s:entity_reference:<target_type>.', $fieldName, $fieldName));
+                }
+                // $target is interpolated raw into a generated
+                // `settings: ['target_entity_type_id' => '...']` PHP attribute
+                // literal below — it needs a machine-name allowlist, or a quote
+                // here breaks out of that literal. Unicode-aware (a reference
+                // target may be an Indigenous-orthography entity-type id created
+                // by make:entity-type); the `u`+`D` flags keep it injection-safe
+                // (no quote/backslash/newline/`.`/`/` in `\p{L}\p{N}_`).
+                if (!preg_match(self::MACHINE_NAME_PATTERN, $target)) {
+                    throw new \RuntimeException(sprintf('Invalid entity_reference target "%s" for "%s".', $target, $fieldName));
+                }
             }
 
             $fields[] = ['name' => $fieldName, 'type' => $type, 'target' => $target];
@@ -165,16 +192,29 @@ final class MakeContentTypeHandler extends AbstractMakeHandler
 
         foreach ($fields as $field) {
             [$phpType, $default] = self::TYPE_MAP[$field['type']];
-            $fieldLabel = ucwords(strtr($field['name'], '_', ' '));
+            // $field['name']/['type']/['target'] are already allowlist-validated
+            // in parseFields(); $fieldLabel is derived from an already-validated
+            // name. Escape all of them anyway before they land in single-quoted
+            // attribute literals — escape-at-the-sink, independent of upstream
+            // validation (matches the ExtensionScaffoldHandler pattern).
+            // $field['name']/['type']/['target'] are already allowlist-validated
+            // in parseFields(); $fieldLabel is derived from an already-validated
+            // name. Escape all of them anyway before they land in single-quoted
+            // attribute literals — escape-at-the-sink, independent of upstream
+            // validation (matches the ExtensionScaffoldHandler pattern).
+            $fieldLabel = addslashes(ucwords(strtr($field['name'], '_', ' ')));
             $attrArgs = "type: '{$field['type']}', label: '{$fieldLabel}'";
             if ($field['type'] === 'entity_reference') {
-                $attrArgs .= ", settings: ['target_entity_type_id' => '{$field['target']}']";
+                $safeTarget = addslashes((string) $field['target']);
+                $attrArgs .= ", settings: ['target_entity_type_id' => '{$safeTarget}']";
             }
             $lines[] = "    #[Field({$attrArgs})]";
             $lines[] = "    public {$phpType} \${$field['name']} = {$default};";
             $lines[] = '';
         }
         $fieldBlock = rtrim(implode("\n", $lines));
+        $safeLabel = addslashes($label);
+        $safeLabelField = addslashes($labelField);
 
         return <<<PHP
             <?php
@@ -188,8 +228,8 @@ final class MakeContentTypeHandler extends AbstractMakeHandler
             use Waaseyaa\\Entity\\Attribute\\Field;
             use Waaseyaa\\Entity\\ContentEntityBase;
 
-            #[ContentEntityType(id: '{$typeId}', label: '{$label}')]
-            #[ContentEntityKeys(label: '{$labelField}')]
+            #[ContentEntityType(id: '{$typeId}', label: '{$safeLabel}')]
+            #[ContentEntityKeys(label: '{$safeLabelField}')]
             final class {$className} extends ContentEntityBase
             {
             {$fieldBlock}

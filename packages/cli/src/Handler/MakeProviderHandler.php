@@ -15,6 +15,13 @@ final class MakeProviderHandler extends AbstractMakeHandler
     public function execute(SymfonyCommandIO $io): int
     {
         $name = (string) $io->argument('name');
+        try {
+            $this->validateIdentifier($name, 'name');
+        } catch (\RuntimeException $e) {
+            $io->error($e->getMessage());
+
+            return 1;
+        }
         $isDomain = (bool) $io->option('domain');
 
         // Normalize: "Blog" → "BlogServiceProvider", "BlogServiceProvider" → as-is.
@@ -28,6 +35,13 @@ final class MakeProviderHandler extends AbstractMakeHandler
 
         if ($isDomain) {
             $entityTypeId = strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $domain) ?? $domain);
+            try {
+                $this->validateMachineName($entityTypeId, 'entity type id');
+            } catch (\RuntimeException $e) {
+                $io->error($e->getMessage());
+
+                return 1;
+            }
             $rendered = $this->renderStub('provider-domain', [
                 'class' => $className,
                 'domain' => $domain,

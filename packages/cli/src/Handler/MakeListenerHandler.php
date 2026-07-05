@@ -15,8 +15,20 @@ final class MakeListenerHandler extends AbstractMakeHandler
     public function execute(SymfonyCommandIO $io): int
     {
         $name = (string) $io->argument('name');
-        $className = $this->toPascalCase($name);
         $event = (string) $io->option('event');
+        try {
+            $this->validateIdentifier($name, 'name');
+            // $event ends up as a bare type-hint token and inside a top-level
+            // `use ...;` statement in the generated listener — the FQCN
+            // allowlist keeps it to valid namespace segments so it cannot
+            // close the parameter list or terminate the use-statement early.
+            $this->validateIdentifier($event, 'event', self::FQCN_PATTERN);
+        } catch (\RuntimeException $e) {
+            $io->error($e->getMessage());
+
+            return 1;
+        }
+        $className = $this->toPascalCase($name);
 
         // Determine if the event is a fully-qualified class name or a short name.
         if (str_contains($event, '\\')) {

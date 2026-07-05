@@ -75,6 +75,65 @@ final class MakeProviderCommandTest extends TestCase
         $this->assertStringContainsString("group: 'user_profile'", $output);
     }
 
+    #[Test]
+    public function it_rejects_a_quote_breakout_payload_in_name(): void
+    {
+        $tester = $this->createTester();
+        $tester->execute(["foo', system('touch pwned'); //"]);
+
+        $this->assertSame(1, $tester->getExitCode());
+        $this->assertStringNotContainsString('system(', $tester->getStdout());
+    }
+
+    #[Test]
+    public function it_rejects_a_quote_breakout_payload_with_domain_flag(): void
+    {
+        $tester = $this->createTester();
+        $tester->execute(["foo', system('touch pwned'); //", '--domain']);
+
+        $this->assertSame(1, $tester->getExitCode());
+        $this->assertStringNotContainsString('system(', $tester->getStdout());
+    }
+
+    #[Test]
+    public function it_rejects_a_path_traversal_name(): void
+    {
+        $tester = $this->createTester();
+        $tester->execute(['../evil']);
+
+        $this->assertSame(1, $tester->getExitCode());
+    }
+
+    #[Test]
+    public function it_rejects_a_trailing_newline_name(): void
+    {
+        // make:provider (without --domain) validates only the name — no
+        // downstream machine-name gate — so a trailing `\n` that slips past a
+        // non-`D`-anchored allowlist would exit 0 and emit
+        // `final class Foo\nServiceProvider` (a php -l parse error). The `D`
+        // modifier on IDENTIFIER_PATTERN rejects it.
+        $tester = $this->createTester();
+        $tester->execute(["Blog\n"]);
+
+        $this->assertSame(1, $tester->getExitCode());
+        $this->assertStringContainsString('Invalid name', $tester->getStderr());
+        $this->assertStringNotContainsString('class Blog', $tester->getStdout());
+    }
+
+    #[Test]
+    public function it_accepts_an_indigenous_orthography_name(): void
+    {
+        // Charter regression-guard: a name with Canadian Aboriginal Syllabics
+        // is a valid PHP identifier byte sequence that must still generate a
+        // valid provider class (Unicode-aware allowlist, orthography preserved).
+        $name = "\u{140A}\u{14C2}\u{1450}"; // ᐊᓂᔑ
+        $tester = $this->createTester();
+        $tester->execute([$name]);
+
+        $this->assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        $this->assertStringContainsString('class ' . $name . 'ServiceProvider extends ServiceProvider', $tester->getStdout());
+    }
+
     private function createTester(): CliTester
     {
         $provider = new MakeServiceProviderB();

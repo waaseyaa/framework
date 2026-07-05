@@ -160,6 +160,25 @@ final class MakeMigrationAddTranslationsTest extends TestCase
     }
 
     #[Test]
+    public function it_rejects_a_malicious_entity_type_id_even_if_registered(): void
+    {
+        // The entity layer does not itself constrain registered ids to a
+        // machine-name shape (see Waaseyaa\Entity\Tests\Helper\TestEntityType),
+        // so this handler must defend itself: the id feeds both the generated
+        // migration filename and doc-comments inside the generated file.
+        $maliciousId = "article'); system('touch pwned'); //";
+        $manager = $this->buildManager($maliciousId, translatable: true, backend: 'sql-column');
+        $tester = $this->createTester($manager);
+
+        $tester->execute(['unused_name', "--add-translations={$maliciousId}", '--default-langcode=en']);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('Invalid entity type id', $tester->getStderr());
+        $files = glob($this->tempDir . '/migrations/*.php') ?: [];
+        self::assertCount(0, $files);
+    }
+
+    #[Test]
     public function missing_langcode_column_exception_carries_table_name(): void
     {
         $exception = new MissingLangcodeColumnException('article');

@@ -64,6 +64,24 @@ final class MakeStorageMigrationHandler
             return 1;
         }
 
+        // Exit code 1 — defense in depth. $entityTypeId feeds the generated
+        // migration filename and doc-comments (StorageMigrationTemplate). A
+        // registered entity type is expected to already be a machine name,
+        // but the entity layer does not itself enforce that format, so this
+        // handler must not trust it blindly before building a filesystem
+        // path from it.
+        // Unicode-aware machine-name allowlist; `u`+`D` flags keep it
+        // injection-safe (no quote/backslash/newline/`.`/`/` can appear in
+        // `\p{L}\p{N}_`, and `D` stops a trailing-`\n` bypass) while accepting
+        // Indigenous-orthography entity-type ids.
+        if (preg_match('/^[\p{L}_][\p{L}\p{N}_]*$/uD', $entityTypeId) !== 1) {
+            $io->error(sprintf(
+                'Entity type id "%s" is not a safe machine name (expected Unicode letters/digits/underscore, letter/underscore start).',
+                $entityTypeId,
+            ));
+            return 1;
+        }
+
         // Exit code 4 — unmapped field type.
         try {
             $columnMap = $this->emitter->emitColumnMap($entityType, TypeMapping::PLATFORM_SQLITE);

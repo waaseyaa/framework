@@ -15,6 +15,13 @@ final class MakePolicyHandler extends AbstractMakeHandler
     public function execute(SymfonyCommandIO $io): int
     {
         $name = (string) $io->argument('name');
+        try {
+            $this->validateIdentifier($name, 'name');
+        } catch (\RuntimeException $e) {
+            $io->error($e->getMessage());
+
+            return 1;
+        }
         $className = $this->toPascalCase($name);
 
         $rendered = $this->renderStub('policy', [
