@@ -130,6 +130,55 @@ final class MakeMigrationCommandTest extends TestCase
         $this->assertStringContainsString('PackageManifest not available', $tester->getStderr());
     }
 
+    #[Test]
+    public function it_rejects_a_quote_breakout_payload_in_name_and_writes_no_file(): void
+    {
+        $tester = $this->createTester();
+        $tester->execute(["foo', system('touch pwned'); //"]);
+
+        $this->assertSame(1, $tester->getExitCode());
+        $this->assertStringContainsString('Invalid name', $tester->getStderr());
+        $this->assertDirectoryDoesNotExist($this->tempDir . '/migrations');
+    }
+
+    #[Test]
+    public function it_rejects_a_path_traversal_name_and_writes_no_file(): void
+    {
+        $tester = $this->createTester();
+        $tester->execute(['../evil']);
+
+        $this->assertSame(1, $tester->getExitCode());
+        $this->assertFileDoesNotExist($this->tempDir . '/evil.php');
+    }
+
+    #[Test]
+    public function it_rejects_a_quote_breakout_payload_in_create_table_and_writes_no_file(): void
+    {
+        $tester = $this->createTester();
+        // Interpolated raw into `$schema->create('...', ...)` in the stub —
+        // a quote here breaks out of the string literal into arbitrary PHP
+        // that runs on autoload of the generated migration.
+        $tester->execute(['create_evil_table', "--create=comments'); system('touch pwned'); //"]);
+
+        $this->assertSame(1, $tester->getExitCode());
+        $this->assertStringContainsString('Invalid table name', $tester->getStderr());
+        $files = glob($this->tempDir . '/migrations/*.php') ?: [];
+        $this->assertCount(0, $files);
+    }
+
+    #[Test]
+    public function generated_migration_is_syntactically_valid_php(): void
+    {
+        $tester = $this->createTester();
+        $tester->execute(['create_lint_table', '--create=lint_table']);
+
+        $this->assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        $files = glob($this->tempDir . '/migrations/*.php') ?: [];
+        $this->assertCount(1, $files);
+        exec('php -l ' . escapeshellarg($files[0]) . ' 2>&1', $lintOutput, $exitCode);
+        $this->assertSame(0, $exitCode, sprintf('%s failed php -l: %s', $files[0], implode("\n", $lintOutput)));
+    }
+
     private function createTester(?PackageManifest $manifest = null): CliTester
     {
         $provider = new MakeServiceProviderA();

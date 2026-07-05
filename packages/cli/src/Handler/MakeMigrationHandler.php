@@ -29,14 +29,34 @@ final class MakeMigrationHandler extends AbstractMakeHandler
         }
 
         $name = (string) $io->argument('name');
+        try {
+            // $name becomes the migration filename below — validating it here
+            // (before any path is built) closes off "../evil" traversal.
+            $this->validateIdentifier($name, 'name');
+        } catch (\RuntimeException $e) {
+            $io->error($e->getMessage());
+
+            return 1;
+        }
         $createTable = $io->option('create');
         $modifyTable = $io->option('table');
         $package = $io->option('package');
 
-        $table = $createTable ?? $modifyTable ?? $this->guessTableName($name);
+        $table = (string) ($createTable ?? $modifyTable ?? $this->guessTableName($name));
+        try {
+            // $table is interpolated raw into a single-quoted
+            // `$schema->create('...', ...)` / `dropIfExists('...')` literal in
+            // the generated migration stub — a quote here breaks out into
+            // arbitrary PHP that runs on autoload.
+            $this->validateMachineName($table, 'table name');
+        } catch (\RuntimeException $e) {
+            $io->error($e->getMessage());
+
+            return 1;
+        }
 
         $rendered = $this->renderStub('migration', [
-            'table' => (string) $table,
+            'table' => $table,
         ]);
 
         $timestamp = date('Ymd_His');
@@ -95,6 +115,18 @@ final class MakeMigrationHandler extends AbstractMakeHandler
 
         if (!$this->entityTypeManager->hasDefinition($entityTypeId)) {
             $io->error(sprintf('Entity type "%s" is not registered. Boot the application and try again.', $entityTypeId));
+            return 1;
+        }
+
+        try {
+            // Defense in depth: $entityTypeId feeds the generated migration
+            // filename below and is interpolated into doc-comments in the
+            // generated migration source (AddTranslationsMigrationGenerator).
+            // A registered entity type is expected to already be a machine
+            // name, but this handler must not trust that invariant blindly.
+            $this->validateMachineName($entityTypeId, 'entity type id');
+        } catch (\RuntimeException $e) {
+            $io->error($e->getMessage());
             return 1;
         }
 

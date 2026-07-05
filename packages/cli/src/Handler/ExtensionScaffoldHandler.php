@@ -102,24 +102,31 @@ final class ExtensionScaffoldHandler
         return 0;
     }
 
+    // The `D` modifier on each allowlist below anchors `$` to the true end of
+    // string; without it PHP's `$` matches before a trailing `\n`, so a payload
+    // with a trailing newline would slip past the anchor and land (unescaped
+    // for the class/namespace) in the generated PHP template. These stay
+    // ASCII-only by design — extension package/class/namespace names are
+    // developer-facing SDK infrastructure, not Indigenous-orthography content.
+
     private function isValidPluginId(string $id): bool
     {
-        return (bool) preg_match('/^[a-z][a-z0-9_]*$/', $id);
+        return (bool) preg_match('/^[a-z][a-z0-9_]*$/D', $id);
     }
 
     private function isValidPackageName(string $package): bool
     {
-        return (bool) preg_match('/^[a-z0-9_.-]+\/[a-z0-9_.-]+$/', $package);
+        return (bool) preg_match('/^[a-z0-9_.-]+\/[a-z0-9_.-]+$/D', $package);
     }
 
     private function isValidClassName(string $class): bool
     {
-        return (bool) preg_match('/^[A-Z][A-Za-z0-9]*$/', $class);
+        return (bool) preg_match('/^[A-Z][A-Za-z0-9]*$/D', $class);
     }
 
     private function isValidNamespace(string $namespace): bool
     {
-        return (bool) preg_match('/^[A-Za-z_][A-Za-z0-9_]*(\\\\[A-Za-z_][A-Za-z0-9_]*)*$/', $namespace);
+        return (bool) preg_match('/^[A-Za-z_][A-Za-z0-9_]*(\\\\[A-Za-z_][A-Za-z0-9_]*)*$/D', $namespace);
     }
 
     private function deriveNamespaceFromPackage(string $package): string

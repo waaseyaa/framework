@@ -38,6 +38,25 @@ final class MakeTestCommandTest extends TestCase
         $this->assertStringContainsString('namespace App\\Tests\\Unit;', $output);
     }
 
+    #[Test]
+    public function it_rejects_a_quote_breakout_payload_in_name(): void
+    {
+        $tester = $this->createTester();
+        $tester->execute(["foo', system('touch pwned'); //"]);
+
+        $this->assertSame(1, $tester->getExitCode());
+        $this->assertStringNotContainsString('system(', $tester->getStdout());
+    }
+
+    #[Test]
+    public function it_rejects_a_path_traversal_name(): void
+    {
+        $tester = $this->createTester();
+        $tester->execute(['../evil']);
+
+        $this->assertSame(1, $tester->getExitCode());
+    }
+
     private function createTester(): CliTester
     {
         $provider = new MakeServiceProviderB();

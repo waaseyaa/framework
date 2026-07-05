@@ -212,6 +212,45 @@ final class EndToEndTest extends TestCase
     }
 
     // -------------------------------------------------------------------------
+    // Defense in depth — malicious entity type id, even if already registered
+    // -------------------------------------------------------------------------
+
+    #[Test]
+    public function it_rejects_a_malicious_entity_type_id_even_if_registered(): void
+    {
+        // TestEntityType::stub() does not itself constrain ids to a
+        // machine-name shape, so a consumer app could register one with
+        // arbitrary characters. The id feeds the generated migration
+        // filename and doc-comments (StorageMigrationTemplate); this handler
+        // must not trust it blindly.
+        $maliciousId = "fixture'); system('touch pwned'); //";
+        $entityType = TestEntityType::stub(
+            id: $maliciousId,
+            fieldDefinitions: [
+                'title' => new FieldDefinition(name: 'title', type: 'string'),
+            ],
+        );
+
+        $entityTypeManager = new EntityTypeManager(new EventDispatcher());
+        $entityTypeManager->registerEntityType($entityType);
+
+        $handler = new MakeStorageMigrationHandler(
+            projectRoot: $this->tempDir,
+            entityTypeManager: $entityTypeManager,
+            emitter: new StorageMigrationEmitter(),
+            template: new StorageMigrationTemplate(),
+        );
+
+        $tester = $this->createTesterFor($handler);
+        $tester->execute([$maliciousId]);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('not a safe machine name', $tester->getStderr());
+        $files = glob($this->tempDir . '/migrations/*.php') ?: [];
+        self::assertCount(0, $files);
+    }
+
+    // -------------------------------------------------------------------------
     // Exit code 2 — unsupported target
     // -------------------------------------------------------------------------
 
