@@ -97,6 +97,14 @@ final class DiscoveryRouter implements DomainRouterInterface
             ]);
         }
 
+        $resolvedEntity = $this->discoveryHandler->loadDiscoveryEntity($entityType, (string) $entityId);
+        if ($resolvedEntity === null || !$this->discoveryHandler->isDiscoveryEntityPublic($resolvedEntity, $ctx->account)) {
+            return $this->jsonApiResponse(404, [
+                'jsonapi' => ['version' => '1.1'],
+                'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => sprintf('Discovery hub not publicly visible: %s:%s', $entityType, (string) $entityId)]],
+            ]);
+        }
+
         $relationshipTypes = $this->discoveryHandler->parseRelationshipTypesQuery($ctx->query['relationship_types'] ?? null);
         $resolvedOptions = [
             'relationship_types' => $relationshipTypes,
@@ -133,6 +141,14 @@ final class DiscoveryRouter implements DomainRouterInterface
             ]);
         }
 
+        $resolvedEntity = $this->discoveryHandler->loadDiscoveryEntity($entityType, (string) $entityId);
+        if ($resolvedEntity === null || !$this->discoveryHandler->isDiscoveryEntityPublic($resolvedEntity, $ctx->account)) {
+            return $this->jsonApiResponse(404, [
+                'jsonapi' => ['version' => '1.1'],
+                'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => sprintf('Discovery cluster not publicly visible: %s:%s', $entityType, (string) $entityId)]],
+            ]);
+        }
+
         $relationshipTypes = $this->discoveryHandler->parseRelationshipTypesQuery($ctx->query['relationship_types'] ?? null);
         $resolvedOptions = [
             'relationship_types' => $relationshipTypes,
@@ -166,6 +182,14 @@ final class DiscoveryRouter implements DomainRouterInterface
             return $this->jsonApiResponse(400, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [['status' => '400', 'title' => 'Bad Request', 'detail' => 'Discovery timeline requires route params "entity_type" and "id".']],
+            ]);
+        }
+
+        $resolvedEntity = $this->discoveryHandler->loadDiscoveryEntity($entityType, (string) $entityId);
+        if ($resolvedEntity === null || !$this->discoveryHandler->isDiscoveryEntityPublic($resolvedEntity, $ctx->account)) {
+            return $this->jsonApiResponse(404, [
+                'jsonapi' => ['version' => '1.1'],
+                'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => sprintf('Discovery timeline not publicly visible: %s:%s', $entityType, (string) $entityId)]],
             ]);
         }
 

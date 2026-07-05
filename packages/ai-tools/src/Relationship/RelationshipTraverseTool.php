@@ -78,6 +78,26 @@ final class RelationshipTraverseTool extends AbstractAgentTool
             );
         }
 
+        // Source-entity 'view' gate (R8-c, MCP surface): the source is the
+        // caller's own query INPUT, but supplying an id does NOT imply the
+        // caller may view that entity — treating it as "implied viewable" is
+        // the confused-deputy / existence-oracle pattern this closes.
+        // `tool.relationship.traverse` is in the DEFAULT anonymous MCP read
+        // allowlist (PublicAnonymousAuth::DEFAULT_READ_CAPABILITIES), so an
+        // anonymous caller could otherwise supply a restricted source id and,
+        // if it has any published edge to a viewable entity, receive a
+        // non-empty edges array echoing that restricted source id — confirming
+        // the restricted entity exists and has that relationship (the same
+        // disclosure the DiscoveryRouter hub/cluster/timeline gate closes on
+        // HTTP). When the source is not viewable, not loadable, or its type is
+        // unknown, return an EMPTY result — INDISTINGUISHABLE from "source has
+        // no relationships" / "source absent". Fail-closed under enforcement
+        // with no handler; capability-only mode (no handler, not enforced)
+        // keeps prior behavior via canViewEntity()/isAccessEnforced().
+        if (!$this->canViewSource($sourceType, $sourceId, $account)) {
+            return $this->emptyTraversalResult($sourceType, $sourceId);
+        }
+
         $relationshipType = isset($arguments['relationship_type']) && is_string($arguments['relationship_type'])
             ? $arguments['relationship_type']
             : null;
@@ -120,9 +140,10 @@ final class RelationshipTraverseTool extends AbstractAgentTool
             // Endpoint-identity gate: the edge record's own AccessPolicy says
             // nothing about whether the account may view the ENDPOINT entity
             // whose identity this row discloses (to_entity_type/to_entity_id
-            // for an out-direction query — the source endpoint is the
-            // caller's own query input, so its visibility is implied and is
-            // not separately checked). Mirrors
+            // for an out-direction query). The SOURCE endpoint is gated up
+            // front by canViewSource() above (R8-c) — supplying its id is NOT
+            // proof the caller may view it, so it is no longer treated as
+            // "implied viewable". Mirrors
             // RelationshipTraversalService::filterByEndpointVisibility()'s
             // fail-closed "prove NOTHING -> drop" contract at the tool layer:
             // an edge whose endpoint cannot be proven viewable is dropped
@@ -167,6 +188,52 @@ final class RelationshipTraverseTool extends AbstractAgentTool
         }
 
         return $values;
+    }
+
+    /**
+     * Fail-closed 'view' gate on the SOURCE entity the caller named (R8-c).
+     * Returns false (→ empty result) whenever the source cannot be proven
+     * viewable: its type is unknown, it fails to load, or its AccessPolicy
+     * denies 'view'. Mirrors {@see canViewEndpoint()} exactly — the source is
+     * NOT special-cased as "implied viewable" just because the caller supplied
+     * its id. In capability-only mode (no handler, enforcement not required)
+     * this allows, preserving prior behavior; enforced-with-no-handler fails
+     * closed.
+     */
+    private function canViewSource(string $sourceType, string|int $sourceId, AccountInterface $account): bool
+    {
+        if ($sourceType === '' || (string) $sourceId === '') {
+            return !$this->isAccessEnforced();
+        }
+
+        if (!$this->entityTypeManager->hasDefinition($sourceType)) {
+            return !$this->isAccessEnforced();
+        }
+
+        try {
+            $source = $this->entityTypeManager->getRepository($sourceType)->find((string) $sourceId);
+        } catch (\Throwable) {
+            $source = null;
+        }
+        if ($source === null) {
+            return !$this->isAccessEnforced();
+        }
+
+        return $this->canViewEntity($source, $account);
+    }
+
+    /**
+     * The empty-edges success result returned when the source is not viewable.
+     * Byte-identical in `data` to a source with genuinely zero relationships,
+     * so a restricted source is indistinguishable from an empty/absent one (no
+     * existence oracle). The summary echoes only the caller's own input id.
+     */
+    private function emptyTraversalResult(string $sourceType, string|int $sourceId): AgentToolResult
+    {
+        return AgentToolResult::success(
+            content: [['type' => 'json', 'data' => ['edges' => [], 'count' => 0]]],
+            summary: sprintf('Found 0 relationships from %s/%s', $sourceType, (string) $sourceId),
+        );
     }
 
     /**

@@ -103,7 +103,13 @@ final class EntityToolFailClosedTest extends TestCase
         $result = $tool->execute(['entity_type' => 'tool_test', 'id' => '1'], $this->account(['tool.entity.read']));
 
         $this->assertTrue($result->isError);
-        $this->assertSame('forbidden', $result->summary, 'read must fail closed without a resolvable handler');
+        // R8-c: read still fails closed without a resolvable handler, but on
+        // this anonymous-reachable read tier the refusal collapses to the SAME
+        // not-found error an absent id returns (indistinguishable from absent),
+        // rather than a distinguishable 'forbidden' — no existence oracle. The
+        // entity data is still withheld (isError=true), which is the fail-closed
+        // guarantee this test pins.
+        $this->assertSame('entity.read: tool_test/1 not found', $result->summary, 'read must fail closed (indistinguishably) without a resolvable handler');
     }
 
     #[Test]

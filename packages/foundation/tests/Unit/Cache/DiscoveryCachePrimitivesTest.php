@@ -58,6 +58,33 @@ final class DiscoveryCachePrimitivesTest extends TestCase
     }
 
     #[Test]
+    public function keyDiffersFromGenerationTwoShape(): void
+    {
+        // R8 WP2 (audit R8-c): DiscoveryRouter's hub/cluster/timeline actions
+        // gained a source-entity view gate (mirroring handleEndpoint's
+        // pre-existing one). A response computed and cached under generation
+        // 2 could have disclosed a 200 hub/cluster/timeline payload for a
+        // source the caller could not view — this generation bump must
+        // orphan every such pre-fix cache entry, not just the original
+        // (pre-generation-field) generation-1 shape covered above.
+        $primitives = new DiscoveryCachePrimitives();
+        $options = ['status' => 'published'];
+
+        $newKey = $primitives->buildKey('hub', 'node', '1', $options);
+
+        $generationTwoSerialized = json_encode([
+            'generation' => '2',
+            'surface' => 'hub',
+            'entity_type' => 'node',
+            'entity_id' => '1',
+            'options' => $primitives->normalizeForCacheKey($options),
+        ], JSON_THROW_ON_ERROR);
+        $generationTwoKey = 'discovery:' . sha1((string) $generationTwoSerialized);
+
+        $this->assertNotSame($generationTwoKey, $newKey, 'Cache-key generation bump (2 -> 3) must invalidate R7 WP2-era entries');
+    }
+
+    #[Test]
     public function tagBuilderIncludesSourceAndRelatedEntitiesAcrossDiscoveryShapes(): void
     {
         $primitives = new DiscoveryCachePrimitives();

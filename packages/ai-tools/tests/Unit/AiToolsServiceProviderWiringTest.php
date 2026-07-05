@@ -80,7 +80,13 @@ final class AiToolsServiceProviderWiringTest extends TestCase
         );
 
         $this->assertTrue($result->isError, 'the provider-wired handler must refuse a forbidden read');
-        $this->assertSame('forbidden', $result->summary);
+        // R8-c: a view-forbidden read on the anonymous-reachable entity.read
+        // tool now collapses to the SAME not-found error an absent id returns,
+        // so an anonymous caller cannot tell "forbidden" from "absent". The
+        // wiring is still proven: without a wired handler (capability-only) the
+        // read would SUCCEED and return the entity, so isError=true confirms the
+        // handler is enforcing.
+        $this->assertSame('entity.read: tool_test/1 not found', $result->summary);
     }
 
     private function bus(PackageManifest $manifest, ContainerInterface $container, EntityAccessHandler $handler): KernelServicesInterface

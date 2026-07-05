@@ -172,6 +172,9 @@ final class RelationshipTraverseAccessFilterTest extends TestCase
     #[Test]
     public function traverse_excludes_a_view_forbidden_relationship(): void
     {
+        // Source must be viewable so the source gate (R8-c) passes and this
+        // test exercises the EDGE-level filter it is about.
+        $this->nodeRepo->seed(new ToolTestEntity(['id' => '10', 'title' => 'viewable source']));
         $this->nodeRepo->seed(new ToolTestEntity(['id' => 'visible-1', 'title' => 'visible target']));
         $this->edgeRepo->seed(new ToolTestEntity([
             'id' => '1', 'title' => 'visible edge',
@@ -230,6 +233,9 @@ final class RelationshipTraverseAccessFilterTest extends TestCase
         // That edge (both its id and the endpoint identity it discloses) must
         // never be returned, while a sibling edge pointing at a viewable
         // endpoint is unaffected (no over-drop).
+        // Source must be viewable so the source gate (R8-c) passes and this
+        // test exercises the ENDPOINT-level filter it is about.
+        $this->nodeRepo->seed(new ToolTestEntity(['id' => '10', 'title' => 'viewable source']));
         $this->nodeRepo->seed(new ToolTestEntity(['id' => 'visible-1', 'title' => 'visible target']));
         $this->nodeRepo->seed(new ToolTestEntity(['id' => 'secret-1', 'title' => 'secret target']));
 
@@ -269,12 +275,137 @@ final class RelationshipTraverseAccessFilterTest extends TestCase
     }
 
     #[Test]
+    public function traverse_returns_empty_when_the_source_entity_is_view_forbidden(): void
+    {
+        // R8-c (MCP surface): the SOURCE entity is the caller's own query
+        // INPUT — supplying its id does NOT imply the caller may view it
+        // (confused-deputy / existence oracle). The source node '2' is
+        // view-forbidden, yet it has a published edge to a fully-VIEWABLE
+        // target. Pre-fix the tool returned that edge — echoing the restricted
+        // source id ('2', in from_entity_id) plus the relationship — confirming
+        // the restricted entity exists and has that relationship. The gate must
+        // return an EMPTY result, indistinguishable from "source has no
+        // relationships" / "source absent".
+        $this->nodeRepo->seed(new ToolTestEntity(['id' => '2', 'title' => 'restricted source']));
+        $this->nodeRepo->seed(new ToolTestEntity(['id' => 'visible-1', 'title' => 'visible target']));
+        $this->edgeRepo->seed(new ToolTestEntity([
+            'id' => 'edge-from-secret-source', 'title' => 'published edge from a restricted source',
+            'from_entity_type' => 'node', 'from_entity_id' => '2',
+            'to_entity_type' => 'node', 'to_entity_id' => 'visible-1',
+        ]));
+
+        $tool = new RelationshipTraverseTool($this->etm());
+        $tool->setAccessHandler($this->handler);
+
+        $result = $tool->execute(
+            ['source_entity_type' => 'node', 'source_id' => '2'],
+            $this->account(['tool.relationship.traverse']),
+        );
+
+        $this->assertFalse($result->isError);
+        $data = $result->content[0]['data'] ?? [];
+        $this->assertSame([], $data['edges'] ?? null, 'a view-forbidden source must disclose no edges (no existence oracle)');
+        $this->assertSame(0, $data['count'] ?? null);
+    }
+
+    #[Test]
+    public function forbidden_source_is_indistinguishable_from_an_absent_source(): void
+    {
+        // The forbidden-source result MUST be byte-identical to a source with
+        // no relationships at all — an attacker cannot tell "restricted" apart
+        // from "genuinely empty / absent".
+        $this->nodeRepo->seed(new ToolTestEntity(['id' => '2', 'title' => 'restricted source']));
+        $this->nodeRepo->seed(new ToolTestEntity(['id' => 'visible-1', 'title' => 'visible target']));
+        $this->edgeRepo->seed(new ToolTestEntity([
+            'id' => 'edge-from-secret-source', 'title' => 'published edge from a restricted source',
+            'from_entity_type' => 'node', 'from_entity_id' => '2',
+            'to_entity_type' => 'node', 'to_entity_id' => 'visible-1',
+        ]));
+
+        $tool = new RelationshipTraverseTool($this->etm());
+        $tool->setAccessHandler($this->handler);
+
+        $forbidden = $tool->execute(
+            ['source_entity_type' => 'node', 'source_id' => '2'],
+            $this->account(['tool.relationship.traverse']),
+        );
+
+        // A genuinely absent source: fresh, entirely EMPTY fixtures (the edge
+        // repo double returns every seeded row regardless of criteria, so a
+        // truly-empty result needs an empty edge store rather than a
+        // non-matching id against the shared repo).
+        $emptyEdgeRepo = new RelationshipEdgeRepository();
+        $emptyNodeRepo = new InMemoryToolRepository();
+        $emptyNodeRepo->seed(new ToolTestEntity(['id' => 'absent-but-viewable', 'title' => 'viewable, no edges']));
+        $relationshipType = new EntityType(
+            id: 'relationship',
+            label: 'Relationship',
+            class: ToolTestEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title'],
+        );
+        $nodeType = new EntityType(
+            id: 'node',
+            label: 'Node',
+            class: ToolTestEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title'],
+        );
+        $absentTool = new RelationshipTraverseTool(new MultiTypeEntityTypeManager([
+            'relationship' => [$relationshipType, $emptyEdgeRepo],
+            'node' => [$nodeType, $emptyNodeRepo],
+        ]));
+        $absentTool->setAccessHandler($this->handler);
+        $absent = $absentTool->execute(
+            ['source_entity_type' => 'node', 'source_id' => 'absent-but-viewable'],
+            $this->account(['tool.relationship.traverse']),
+        );
+
+        $this->assertFalse($forbidden->isError);
+        $this->assertFalse($absent->isError);
+        $this->assertSame(
+            $absent->content[0]['data'] ?? null,
+            $forbidden->content[0]['data'] ?? null,
+            'restricted-source and empty/absent-source results must be indistinguishable',
+        );
+    }
+
+    #[Test]
+    public function traverse_returns_the_edge_when_the_source_entity_is_viewable(): void
+    {
+        // Positive control: a viewable source with the SAME edge shape still
+        // returns the edge — the source gate must not over-block.
+        $this->nodeRepo->seed(new ToolTestEntity(['id' => '1', 'title' => 'viewable source']));
+        $this->nodeRepo->seed(new ToolTestEntity(['id' => 'visible-1', 'title' => 'visible target']));
+        $this->edgeRepo->seed(new ToolTestEntity([
+            'id' => 'edge-from-visible-source', 'title' => 'published edge from a viewable source',
+            'from_entity_type' => 'node', 'from_entity_id' => '1',
+            'to_entity_type' => 'node', 'to_entity_id' => 'visible-1',
+        ]));
+
+        $tool = new RelationshipTraverseTool($this->etm());
+        $tool->setAccessHandler($this->handler);
+
+        $result = $tool->execute(
+            ['source_entity_type' => 'node', 'source_id' => '1'],
+            $this->account(['tool.relationship.traverse']),
+        );
+
+        $this->assertFalse($result->isError);
+        $data = $result->content[0]['data'] ?? [];
+        $ids = $this->edgeIds($data['edges'] ?? []);
+        $this->assertContains('edge-from-visible-source', $ids, 'a viewable source must still surface its edges (no over-block)');
+        $this->assertSame(1, $data['count'] ?? null);
+    }
+
+    #[Test]
     public function traverse_fails_closed_when_the_endpoint_entity_cannot_be_loaded(): void
     {
         // The edge references an endpoint type the ETM has no definition for
         // (e.g. a dangling/foreign reference). Under enforcement this must be
         // dropped, not disclosed: the tool cannot prove the endpoint is
         // viewable, so "cannot check" must read identically to "forbidden".
+        // Source is seeded viewable so the source gate (R8-c) passes and this
+        // test exercises the ENDPOINT fail-closed path it is about.
+        $this->nodeRepo->seed(new ToolTestEntity(['id' => '10', 'title' => 'viewable source']));
         $this->edgeRepo->seed(new ToolTestEntity([
             'id' => 'edge-dangling', 'title' => 'edge to unresolvable type',
             'from_entity_type' => 'node', 'from_entity_id' => '10',
