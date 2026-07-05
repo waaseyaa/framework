@@ -27,8 +27,18 @@ final class DiscoveryCachePrimitives
      * getDiscoveryCachedResponse()) has a short 120s TTL regardless, but
      * this bump makes the fix effective immediately on deploy instead of
      * waiting out that window.
+     *
+     * Bumped 2 -> 3 for R8 WP2 (audit R8-c): DiscoveryRouter::handleTopicHub/
+     * handleCluster/handleTimeline did not gate the SOURCE entity's own view
+     * access before this fix (see DiscoveryRouter's source-entity gate,
+     * mirroring handleEndpoint's pre-existing one) — a restricted-but-existing
+     * source could be cached under generation 2 with a 200 hub/cluster/
+     * timeline payload, an existence/access oracle that would keep being
+     * served for up to the 120s TTL. The new source-entity gate runs before
+     * the cache read going forward, so this bump only needs to orphan the
+     * pre-fix backlog.
      */
-    private const string CACHE_KEY_GENERATION = '2';
+    private const string CACHE_KEY_GENERATION = '3';
 
     /**
      * @param array<string, mixed> $options

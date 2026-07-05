@@ -75,13 +75,22 @@ final class EntityReadTool extends AbstractAgentTool
             return AgentToolResult::error(sprintf('entity.read: %s', $e->getMessage()));
         }
 
-        if ($entity === null) {
+        // Absent-vs-forbidden indistinguishability (R8-c): `tool.entity.read`
+        // is on PublicAnonymousAuth::DEFAULT_READ_CAPABILITIES, so this tool is
+        // anonymous-reachable. A distinguishable "not permitted to view" (from
+        // requireEntityAccess()) vs "not found" would let an anonymous caller
+        // enumerate ids and learn "exists but forbidden" apart from "absent" —
+        // an existence oracle (the same class the DiscoveryRouter and
+        // relationship.traverse gates close). Collapse BOTH the absent and the
+        // view-forbidden outcomes into the IDENTICAL not-found error so the two
+        // are byte-indistinguishable. canViewEntity() fails closed under
+        // enforcement with no handler and preserves capability-only behavior
+        // (allow) — we deliberately do NOT use requireEntityAccess() here (its
+        // 'forbidden' message is wire-distinguishable), and that shared helper
+        // is left unchanged for the write tools, which are not on the anonymous
+        // read tier.
+        if ($entity === null || !$this->canViewEntity($entity, $account)) {
             return AgentToolResult::error(sprintf('entity.read: %s/%s not found', $entityType, $id));
-        }
-
-        $forbidden = $this->requireEntityAccess($entity, 'view', $account);
-        if ($forbidden !== null) {
-            return $forbidden;
         }
 
         return AgentToolResult::success(

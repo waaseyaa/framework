@@ -70,12 +70,17 @@ final class EntityListRevisionsTool extends AbstractAgentTool
         try {
             $repository = $this->entityTypeManager->getRepository($entityType);
             $entity = $repository->find((string) $id);
-            if ($entity === null) {
+            // Absent-vs-forbidden indistinguishability (R8-c): `tool.entity.read`
+            // is on the anonymous MCP read tier (see EntityReadTool for the full
+            // rationale). Collapse both the absent and the view-forbidden
+            // outcomes into the IDENTICAL not-found error so an anonymous caller
+            // cannot tell "exists but forbidden" from "absent". canViewEntity()
+            // fails closed under enforcement with no handler; capability-only
+            // mode keeps prior behavior. requireEntityAccess() is intentionally
+            // not used here (distinguishable 'forbidden' message) and stays
+            // unchanged for the write tools off the anonymous tier.
+            if ($entity === null || !$this->canViewEntity($entity, $account)) {
                 return AgentToolResult::error(sprintf('entity.list_revisions: %s/%s not found', $entityType, (string) $id));
-            }
-            $forbidden = $this->requireEntityAccess($entity, 'view', $account);
-            if ($forbidden !== null) {
-                return $forbidden;
             }
             $revisions = $repository->listRevisions((string) $id);
         } catch (\LogicException $e) {

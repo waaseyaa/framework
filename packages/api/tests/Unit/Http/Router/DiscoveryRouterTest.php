@@ -274,6 +274,266 @@ final class DiscoveryRouterTest extends TestCase
         self::assertSame(0, $payload['data']['page']['total'], 'an unloadable related entity must fail closed, never disclosed');
     }
 
+    // --- R8-c (audit R8 WP2): discovery source-entity view gate ---
+    //
+    // handleEndpoint already gated its OWN source entity (loadDiscoveryEntity
+    // + isDiscoveryEntityPublic) before doing any work — see the tests above
+    // this block are unaffected by that gate. handleTopicHub/handleCluster/
+    // handleTimeline did NOT: a caller who cannot view the source entity
+    // itself still got a 200 (existence-oracle / access-restriction oracle).
+    // These tests prove the same gate now runs for all three, BEFORE the
+    // cache read, and that a restricted-but-existing source is indistinguishable
+    // from a truly-absent source (same status, same response body).
+
+    #[Test]
+    public function hub_returns_not_found_when_source_entity_is_access_restricted(): void
+    {
+        $this->assertSourceGateReturnsNotFoundAndIndistinguishableFromAbsent('discovery.topic_hub');
+    }
+
+    #[Test]
+    public function cluster_returns_not_found_when_source_entity_is_access_restricted(): void
+    {
+        $this->assertSourceGateReturnsNotFoundAndIndistinguishableFromAbsent('discovery.cluster');
+    }
+
+    #[Test]
+    public function timeline_returns_not_found_when_source_entity_is_access_restricted(): void
+    {
+        $this->assertSourceGateReturnsNotFoundAndIndistinguishableFromAbsent('discovery.timeline');
+    }
+
+    #[Test]
+    public function hub_returns_200_with_data_when_source_entity_is_viewable(): void
+    {
+        [$router, $ids] = $this->createRouterWithSourceAccessFixture(forbidSource: false);
+        $request = $this->createDiscoveryActionRequest('discovery.topic_hub', (string) $ids['source'], $this->createAccount(authenticated: false), []);
+
+        $response = $router->handle($request);
+
+        self::assertSame(200, $response->getStatusCode());
+        $payload = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $relatedIds = array_map(
+            static fn(array $item): string => (string) $item['related_entity_id'],
+            $payload['data']['items'],
+        );
+        self::assertContains(
+            (string) $ids['related'],
+            $relatedIds,
+            'a viewable source must still serve hub data (the gate must not over-block)',
+        );
+    }
+
+    #[Test]
+    public function cluster_returns_200_with_data_when_source_entity_is_viewable(): void
+    {
+        [$router, $ids] = $this->createRouterWithSourceAccessFixture(forbidSource: false);
+        $request = $this->createDiscoveryActionRequest('discovery.cluster', (string) $ids['source'], $this->createAccount(authenticated: false), []);
+
+        $response = $router->handle($request);
+
+        self::assertSame(200, $response->getStatusCode());
+        $payload = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(
+            1,
+            $payload['data']['page']['total'],
+            'a viewable source must still serve cluster data (the gate must not over-block)',
+        );
+    }
+
+    #[Test]
+    public function timeline_returns_200_with_data_when_source_entity_is_viewable(): void
+    {
+        [$router, $ids] = $this->createRouterWithSourceAccessFixture(forbidSource: false);
+        $request = $this->createDiscoveryActionRequest('discovery.timeline', (string) $ids['source'], $this->createAccount(authenticated: false), []);
+
+        $response = $router->handle($request);
+
+        self::assertSame(200, $response->getStatusCode());
+        $payload = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $relatedIds = array_map(
+            static fn(array $item): string => (string) $item['related_entity_id'],
+            $payload['data']['items'],
+        );
+        self::assertContains(
+            (string) $ids['related'],
+            $relatedIds,
+            'a viewable source must still serve timeline data (the gate must not over-block)',
+        );
+    }
+
+    /**
+     * Shared assertion for the three cache-fronted discovery actions: a
+     * restricted-but-existing source must 404 with the SAME status and SAME
+     * response body a truly-absent source id would produce. Both requests
+     * use the identical entity type + entity id string so any wording
+     * difference in the 404 detail (which would leak "exists but denied" vs
+     * "does not exist" to an attacker) is caught byte-for-byte.
+     */
+    private function assertSourceGateReturnsNotFoundAndIndistinguishableFromAbsent(string $controller): void
+    {
+        [$router, $ids] = $this->createRouterWithSourceAccessFixture(forbidSource: true);
+        $sourceId = (string) $ids['source'];
+        $account = $this->createAccount(authenticated: false);
+
+        $restrictedRequest = $this->createDiscoveryActionRequest($controller, $sourceId, $account, []);
+        $restrictedResponse = $router->handle($restrictedRequest);
+
+        self::assertSame(404, $restrictedResponse->getStatusCode(), 'a source the caller cannot view must 404, not disclose hub/cluster/timeline data');
+
+        $absentRouter = $this->createRouterWithEmptyNodeEntityType();
+        $absentRequest = $this->createDiscoveryActionRequest($controller, $sourceId, $account, []);
+        $absentResponse = $absentRouter->handle($absentRequest);
+
+        self::assertSame(404, $absentResponse->getStatusCode(), 'a truly-absent source must also 404');
+        self::assertSame(
+            (string) $absentResponse->getContent(),
+            (string) $restrictedResponse->getContent(),
+            'a restricted (existing) source and a truly-absent source must be indistinguishable to the caller',
+        );
+        // Headers must also match — a differing Cache-Control/X-Waaseyaa-*
+        // header would let an attacker distinguish absent from denied even
+        // with identical bodies. (Already identical; pinned here.) The `date`
+        // header is the current wall-clock time on each response and cannot
+        // distinguish the two cases, so it is excluded to avoid a second-
+        // boundary flake.
+        $absentHeaders = $absentResponse->headers->all();
+        $restrictedHeaders = $restrictedResponse->headers->all();
+        unset($absentHeaders['date'], $restrictedHeaders['date']);
+        self::assertSame(
+            $absentHeaders,
+            $restrictedHeaders,
+            'response headers must not distinguish an absent source from a denied one',
+        );
+    }
+
+    /**
+     * Builds a router with a real EntityAccessHandler that forbids 'view' on
+     * the SOURCE node itself (not a related entity — see
+     * createRouterWithAccessRestrictedFixtures() above for the related-entity
+     * variant covered by R7 WP2). A published, unrestricted related node is
+     * linked via a published relationship edge so the positive-control tests
+     * (forbidSource: false) can prove the gate does not over-block a
+     * legitimately viewable source.
+     *
+     * @return array{0: DiscoveryRouter, 1: array{source: int|string, related: int|string}}
+     */
+    private function createRouterWithSourceAccessFixture(bool $forbidSource): array
+    {
+        $database = DBALDatabase::createSqlite();
+        $dispatcher = new EventDispatcher();
+        $resolver = new SingleConnectionResolver($database);
+        $entityTypeManager = new EntityTypeManager(
+            $dispatcher,
+            null,
+            function (string $_id, EntityType $definition) use ($dispatcher, $resolver, $database): EntityRepository {
+                new SqlSchemaHandler($definition, $database)->ensureTable();
+                $idKey = $definition->getKeys()['id'] ?? 'id';
+
+                return new EntityRepository(
+                    $definition,
+                    new SqlStorageDriver($resolver, $idKey),
+                    $dispatcher,
+                    database: $database,
+                );
+            },
+        );
+
+        $entityTypeManager->registerEntityType(new EntityType(
+            id: 'node',
+            label: 'Node',
+            class: NodeContentTestEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
+            _fieldDefinitions: [
+                'title' => ['type' => 'string'],
+                'status' => ['type' => 'boolean'],
+            ],
+        ));
+        $entityTypeManager->registerEntityType(new EntityType(
+            id: 'relationship',
+            label: 'Relationship',
+            class: Relationship::class,
+            keys: ['id' => 'rid', 'uuid' => 'uuid', 'label' => 'relationship_type', 'bundle' => 'relationship_type'],
+            _fieldDefinitions: [
+                'relationship_type' => ['type' => 'string'],
+                'from_entity_type' => ['type' => 'string'],
+                'from_entity_id' => ['type' => 'string'],
+                'to_entity_type' => ['type' => 'string'],
+                'to_entity_id' => ['type' => 'string'],
+                'status' => ['type' => 'boolean'],
+            ],
+        ));
+
+        $nodeRepository = $entityTypeManager->getRepository('node');
+        $source = $nodeRepository->create(['title' => 'Source', 'type' => 'article', 'status' => 1]);
+        $nodeRepository->save($source, validate: false);
+        $related = $nodeRepository->create(['title' => 'Related', 'type' => 'article', 'status' => 1]);
+        $nodeRepository->save($related, validate: false);
+
+        $relationshipRepository = $entityTypeManager->getRepository('relationship');
+        new RelationshipSchemaManager($database)->ensure();
+        $relationship = $relationshipRepository->create([
+            'relationship_type' => 'references',
+            'from_entity_type' => 'node',
+            'from_entity_id' => (string) $source->id(),
+            'to_entity_type' => 'node',
+            'to_entity_id' => (string) $related->id(),
+            'status' => 1,
+        ]);
+        $relationshipRepository->save($relationship, validate: false);
+
+        $accessHandler = new EntityAccessHandler([
+            new DiscoveryForbidNodeAccessPolicy($forbidSource ? [(string) $source->id()] : []),
+        ]);
+        $handler = new DiscoveryApiHandler($entityTypeManager, $database, null, $accessHandler);
+
+        return [new DiscoveryRouter($handler, $entityTypeManager), ['source' => $source->id(), 'related' => $related->id()]];
+    }
+
+    /**
+     * A router wired to a 'node' entity type with real (empty) storage and no
+     * access handler — used as the "truly absent" control for the source-gate
+     * indistinguishability tests. loadDiscoveryEntity() returns null for any
+     * id here, taking the identical `$resolvedEntity === null` branch a
+     * forbidden-but-existing source takes via `!isDiscoveryEntityPublic()`.
+     */
+    private function createRouterWithEmptyNodeEntityType(): DiscoveryRouter
+    {
+        $database = DBALDatabase::createSqlite();
+        $dispatcher = new EventDispatcher();
+        $resolver = new SingleConnectionResolver($database);
+        $entityTypeManager = new EntityTypeManager(
+            $dispatcher,
+            null,
+            function (string $_id, EntityType $definition) use ($dispatcher, $resolver, $database): EntityRepository {
+                new SqlSchemaHandler($definition, $database)->ensureTable();
+                $idKey = $definition->getKeys()['id'] ?? 'id';
+
+                return new EntityRepository(
+                    $definition,
+                    new SqlStorageDriver($resolver, $idKey),
+                    $dispatcher,
+                    database: $database,
+                );
+            },
+        );
+
+        $entityTypeManager->registerEntityType(new EntityType(
+            id: 'node',
+            label: 'Node',
+            class: NodeContentTestEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
+            _fieldDefinitions: [
+                'title' => ['type' => 'string'],
+                'status' => ['type' => 'boolean'],
+            ],
+        ));
+
+        $handler = new DiscoveryApiHandler($entityTypeManager, $database);
+
+        return new DiscoveryRouter($handler, $entityTypeManager);
+    }
+
     // --- Helpers ---
 
     /**
