@@ -40,11 +40,16 @@ final class InstallHandler
         $repository = $this->entityTypeManager->getRepository('user');
         $userValues = [
             'name' => 'admin',
-            'email' => $adminEmail,
+            // Waaseyaa\User\User uses the entity keys `mail`/`pass`, not
+            // `email`/`password` — the latter are unrecognized by
+            // SqlStorageDriver::splitForWrite() and route verbatim into the
+            // `_data` JSON blob (audit A7 F1). The password MUST be hashed
+            // here (mirroring UserCreateHandler) — never persist plaintext.
+            'mail' => $adminEmail,
             'roles' => ['administrator'],
         ];
         if (is_string($adminPassword) && $adminPassword !== '') {
-            $userValues['password'] = $adminPassword;
+            $userValues['pass'] = password_hash($adminPassword, PASSWORD_DEFAULT);
         }
         $entity = $repository->create($userValues);
         $repository->save($entity);
