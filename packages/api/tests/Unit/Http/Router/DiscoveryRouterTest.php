@@ -9,12 +9,16 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request;
+use Waaseyaa\Access\AccessPolicyInterface;
+use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Api\Http\Router\DiscoveryRouter;
 use Waaseyaa\Api\Tests\Fixtures\NodeContentTestEntity;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
@@ -197,6 +201,79 @@ final class DiscoveryRouterTest extends TestCase
         );
     }
 
+    // --- R7 WP2 (audit R5 residual #1): access-aware endpoint visibility ---
+
+    #[Test]
+    public function hub_hides_published_but_access_restricted_related_entity(): void
+    {
+        [$router, $ids] = $this->createRouterWithAccessRestrictedFixtures(restrictSecret: true);
+        $request = $this->createTopicHubRequest(
+            (string) $ids['source'],
+            $this->createAccount(authenticated: false),
+        );
+
+        $response = $router->handle($request);
+
+        self::assertSame(200, $response->getStatusCode());
+        $payload = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $relatedIds = array_map(
+            static fn(array $item): string => (string) $item['related_entity_id'],
+            $payload['data']['items'],
+        );
+        self::assertNotContains(
+            (string) $ids['secret'],
+            $relatedIds,
+            'a published-but-access-restricted related entity must not leak its identity through discovery',
+        );
+        self::assertSame(0, $payload['data']['page']['total']);
+    }
+
+    #[Test]
+    public function hub_keeps_published_and_viewable_related_entity_with_access_handler_wired(): void
+    {
+        // Positive control: wiring the access handler must not over-drop a
+        // legitimately viewable published related entity.
+        [$router, $ids] = $this->createRouterWithAccessRestrictedFixtures(restrictSecret: false);
+        $request = $this->createTopicHubRequest(
+            (string) $ids['source'],
+            $this->createAccount(authenticated: false),
+        );
+
+        $response = $router->handle($request);
+
+        self::assertSame(200, $response->getStatusCode());
+        $payload = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $relatedIds = array_map(
+            static fn(array $item): string => (string) $item['related_entity_id'],
+            $payload['data']['items'],
+        );
+        self::assertContains(
+            (string) $ids['secret'],
+            $relatedIds,
+            'a viewable published related entity must still surface once access-awareness is wired',
+        );
+        self::assertSame(1, $payload['data']['page']['total']);
+    }
+
+    #[Test]
+    public function hub_fails_closed_when_related_entity_is_unloadable_with_access_handler_wired(): void
+    {
+        [$router, $ids] = $this->createRouterWithAccessRestrictedFixtures(
+            restrictSecret: false,
+            dropSecretNode: true,
+        );
+        $request = $this->createTopicHubRequest(
+            (string) $ids['source'],
+            $this->createAccount(authenticated: false),
+        );
+
+        $response = $router->handle($request);
+
+        self::assertSame(200, $response->getStatusCode());
+        $payload = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(0, $payload['data']['page']['total'], 'an unloadable related entity must fail closed, never disclosed');
+    }
+
     // --- Helpers ---
 
     /**
@@ -293,6 +370,105 @@ final class DiscoveryRouterTest extends TestCase
     }
 
     /**
+     * Builds a router wired to real entity-storage-backed 'node' and
+     * 'relationship' entity types PLUS a real {@see EntityAccessHandler},
+     * seeded with a PUBLISHED source node, a PUBLISHED "secret" related node,
+     * and a PUBLISHED relationship edge between them.
+     *
+     * Unlike createRouterWithRelationshipFixtures() (which proves the
+     * publish-STATUS gate via an unpublished secret node), this fixture
+     * proves the R7 WP2 per-account ACCESS gate (audit R5 residual #1): the
+     * secret node is fully PUBLISHED, so WorkflowVisibilityFilter alone would
+     * disclose it — only an access-aware gate can withhold it.
+     *
+     * @return array{0: DiscoveryRouter, 1: array{source: int|string, secret: string}}
+     */
+    private function createRouterWithAccessRestrictedFixtures(bool $restrictSecret, bool $dropSecretNode = false): array
+    {
+        $database = DBALDatabase::createSqlite();
+        $dispatcher = new EventDispatcher();
+        $resolver = new SingleConnectionResolver($database);
+        $entityTypeManager = new EntityTypeManager(
+            $dispatcher,
+            null,
+            function (string $_id, EntityType $definition) use ($dispatcher, $resolver, $database): EntityRepository {
+                new SqlSchemaHandler($definition, $database)->ensureTable();
+                $idKey = $definition->getKeys()['id'] ?? 'id';
+
+                return new EntityRepository(
+                    $definition,
+                    new SqlStorageDriver($resolver, $idKey),
+                    $dispatcher,
+                    database: $database,
+                );
+            },
+        );
+
+        $entityTypeManager->registerEntityType(new EntityType(
+            id: 'node',
+            label: 'Node',
+            class: NodeContentTestEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
+            _fieldDefinitions: [
+                'title' => ['type' => 'string'],
+                'status' => ['type' => 'boolean'],
+            ],
+        ));
+        $entityTypeManager->registerEntityType(new EntityType(
+            id: 'relationship',
+            label: 'Relationship',
+            class: Relationship::class,
+            keys: ['id' => 'rid', 'uuid' => 'uuid', 'label' => 'relationship_type', 'bundle' => 'relationship_type'],
+            _fieldDefinitions: [
+                'relationship_type' => ['type' => 'string'],
+                'from_entity_type' => ['type' => 'string'],
+                'from_entity_id' => ['type' => 'string'],
+                'to_entity_type' => ['type' => 'string'],
+                'to_entity_id' => ['type' => 'string'],
+                'status' => ['type' => 'boolean'],
+            ],
+        ));
+
+        $nodeRepository = $entityTypeManager->getRepository('node');
+        $source = $nodeRepository->create(['title' => 'Source', 'type' => 'article', 'status' => 1]);
+        $nodeRepository->save($source, validate: false);
+
+        if ($dropSecretNode) {
+            // Never persisted — the relationship below points at an id nothing
+            // can load, exercising the fail-closed "unloadable endpoint" path.
+            $secretId = '999999';
+        } else {
+            $secret = $nodeRepository->create(['title' => 'Secret Node', 'type' => 'article', 'status' => 1]);
+            $nodeRepository->save($secret, validate: false);
+            $secretId = (string) $secret->id();
+        }
+
+        // getRepository('relationship') lazily creates the bare entity table
+        // (id/uuid/_data) via the factory's ensureTable() call above; ensure()
+        // must run AFTER that so it finds an existing table to extend with the
+        // physical from_entity_type/to_entity_type/status/etc. columns that
+        // RelationshipTraversalService queries with raw SQL.
+        $relationshipRepository = $entityTypeManager->getRepository('relationship');
+        new RelationshipSchemaManager($database)->ensure();
+        $relationship = $relationshipRepository->create([
+            'relationship_type' => 'references',
+            'from_entity_type' => 'node',
+            'from_entity_id' => (string) $source->id(),
+            'to_entity_type' => 'node',
+            'to_entity_id' => $secretId,
+            'status' => 1,
+        ]);
+        $relationshipRepository->save($relationship, validate: false);
+
+        $accessHandler = new EntityAccessHandler([
+            new DiscoveryForbidNodeAccessPolicy($restrictSecret ? [$secretId] : []),
+        ]);
+        $handler = new DiscoveryApiHandler($entityTypeManager, $database, null, $accessHandler);
+
+        return [new DiscoveryRouter($handler, $entityTypeManager), ['source' => $source->id(), 'secret' => $secretId]];
+    }
+
+    /**
      * @param array<string, mixed> $query
      */
     private function createTopicHubRequest(string $entityId, AccountInterface $account, array $query = []): Request
@@ -380,5 +556,43 @@ final class DiscoveryRouterTest extends TestCase
                 return $this->authenticated;
             }
         };
+    }
+}
+
+/**
+ * Allows 'view' on every 'node' entity except the ids listed in
+ * $forbiddenIds — mirrors a real restrictive AccessPolicyInterface (e.g.
+ * NodeAccessPolicy denying a private node) for the R7 WP2 discovery-path
+ * access-awareness tests without depending on waaseyaa/node from this
+ * package's tests.
+ */
+final class DiscoveryForbidNodeAccessPolicy implements AccessPolicyInterface
+{
+    /**
+     * @param list<string> $forbiddenIds
+     */
+    public function __construct(private readonly array $forbiddenIds) {}
+
+    public function appliesTo(string $entityTypeId): bool
+    {
+        return $entityTypeId === 'node';
+    }
+
+    public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+    {
+        if ($operation !== 'view') {
+            return AccessResult::neutral();
+        }
+
+        if (in_array((string) $entity->id(), $this->forbiddenIds, true)) {
+            return AccessResult::forbidden('Node is access-restricted for this test.');
+        }
+
+        return AccessResult::allowed('Node is viewable.');
+    }
+
+    public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+    {
+        return AccessResult::neutral();
     }
 }
