@@ -19,6 +19,9 @@ final readonly class WorkflowTransition
      * @param string[] $from Source state IDs that this transition can originate from.
      * @param string $to Target state ID.
      * @param int $weight Sort weight for ordering.
+     * @param string $permission Permission required to fire this transition. Empty
+     *   string means "derive from workflow id + transition id" — see
+     *   {@see Workflow::permissionFor()} (CW-v1 WP-1, docs/specs/content-workflow.md).
      */
     public function __construct(
         public string $id,
@@ -26,5 +29,6 @@ final readonly class WorkflowTransition
         public array $from,
         public string $to,
         public int $weight = 0,
+        public string $permission = '',
     ) {}
 }
