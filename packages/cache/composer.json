@@ -5,11 +5,11 @@
     "license": "GPL-2.0-or-later",
     "require": {
         "php": ">=8.5",
-        "waaseyaa/foundation": "^0.1.0-alpha.255"
+        "waaseyaa/foundation": "^0.1.0-alpha.256"
     },
     "suggest": {
-        "waaseyaa/entity": "^0.1.0-alpha.255",
-        "waaseyaa/config": "^0.1.0-alpha.255"
+        "waaseyaa/entity": "^0.1.0-alpha.256",
+        "waaseyaa/config": "^0.1.0-alpha.256"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
