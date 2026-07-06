@@ -51,7 +51,7 @@ final class WorkflowVisibility
         }
 
         if (!array_key_exists('status', $values)) {
-            return true;
+            return false;
         }
 
         return $this->isStatusPublic($values['status']);

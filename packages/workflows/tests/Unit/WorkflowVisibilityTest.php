@@ -51,7 +51,40 @@ final class WorkflowVisibilityTest extends TestCase
         $this->assertTrue($visibility->isEntityPublic('relationship', ['status' => 1]));
         $this->assertFalse($visibility->isEntityPublic('relationship', ['status' => 0]));
         $this->assertTrue($visibility->isEntityPublic('relationship', ['status' => 'yes']));
-        $this->assertTrue($visibility->isEntityPublic('taxonomy_term', []));
+
+        // A non-node entity type without a `status` key at all must fail closed
+        // (not-visibly-published), the same as a present-but-garbage status value.
+        // Previously this returned true (fail-open); audit #1915 R16.
+        $this->assertFalse($visibility->isEntityPublic('taxonomy_term', []));
+    }
+
+    #[Test]
+    public function nonNodeEntityMissingStatusKeyFailsClosed(): void
+    {
+        $visibility = new WorkflowVisibility();
+
+        $this->assertFalse($visibility->isEntityPublic('workflow', []));
+        $this->assertFalse($visibility->isEntityPublic('workflow', ['other_field' => 'x']));
+    }
+
+    #[Test]
+    public function nonNodeEntityRecognizedPublishedStatusValuesArePublic(): void
+    {
+        $visibility = new WorkflowVisibility();
+
+        $this->assertTrue($visibility->isEntityPublic('workflow', ['status' => 1]));
+        $this->assertTrue($visibility->isEntityPublic('workflow', ['status' => true]));
+        $this->assertTrue($visibility->isEntityPublic('workflow', ['status' => 'published']));
+    }
+
+    #[Test]
+    public function nonNodeEntityUnrecognizedStatusValuesAreNotPublic(): void
+    {
+        $visibility = new WorkflowVisibility();
+
+        $this->assertFalse($visibility->isEntityPublic('workflow', ['status' => 0]));
+        $this->assertFalse($visibility->isEntityPublic('workflow', ['status' => false]));
+        $this->assertFalse($visibility->isEntityPublic('workflow', ['status' => 'garbage']));
     }
 
     #[Test]
