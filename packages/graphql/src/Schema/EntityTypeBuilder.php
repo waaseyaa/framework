@@ -7,6 +7,7 @@ namespace Waaseyaa\GraphQL\Schema;
 use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
+use Waaseyaa\Api\Sanitizer\RichTextSanitizer;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\GraphQL\GraphQlExecutionContext;
@@ -22,6 +23,15 @@ use Waaseyaa\GraphQL\GraphQlExecutionContext;
  * entity-reference field resolver therefore reads the per-request
  * ReferenceLoader from the GraphQL execution context, never from a captured
  * constructor property -- see SchemaFactory's class doc for why.
+ *
+ * R13 WP2 (audit A11, SECURITY): the plain-field resolver built in
+ * {@see buildOutputFields()} sanitizes text_long ("richtext") values via
+ * {@see RichTextSanitizer} before returning them. Unlike the R12 concern
+ * above, this IS safe to capture in the cached closure: RichTextSanitizer
+ * carries no per-request/account state (it is a stateless wrapper around a
+ * fixed symfony/html-sanitizer allowlist config), so reusing one instance
+ * across every cached request is the intended, cheap-to-construct-once
+ * behavior (see the class doc on RichTextSanitizer).
  */
 final class EntityTypeBuilder
 {
@@ -32,11 +42,19 @@ final class EntityTypeBuilder
      * entities that store credential material in raw `_data` keys.
      */
     private const ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
+
+    private readonly RichTextSanitizer $richTextSanitizer;
+
     public function __construct(
         private readonly TypeRegistry $registry,
         private readonly FieldTypeMapper $fieldTypeMapper,
         private readonly EntityTypeManagerInterface $entityTypeManager,
-    ) {}
+        ?RichTextSanitizer $richTextSanitizer = null,
+    ) {
+        // PHP 8.4 constructor-default gotcha (see CLAUDE.md): resolve in the
+        // body, not as a parameter default, so existing callsites keep working.
+        $this->richTextSanitizer = $richTextSanitizer ?? new RichTextSanitizer();
+    }
 
     /**
      * Build the GraphQL ObjectType for an entity type, optionally scoped to a
@@ -159,10 +177,28 @@ final class EntityTypeBuilder
                 );
             } else {
                 $graphqlType = $this->fieldTypeMapper->toOutputType($fieldType, $isMultiple);
-                $fields[$fieldName] = [
-                    'type' => $graphqlType,
-                    'resolve' => static fn(array $data) => $data[$fieldName] ?? null,
-                ];
+
+                // R13 WP2 (audit A11, SECURITY): text_long ("richtext") values
+                // must be sanitized before GraphQL serves them -- this is the
+                // GraphQL counterpart of ResourceSerializer::castAttributes().
+                // The type check happens once here at schema-build time (not
+                // per-resolve); only the stateless sanitizer instance is
+                // captured into the closure (see class doc on why that is
+                // safe to share across the cached, cross-request schema).
+                if (RichTextSanitizer::isHtmlFieldType($fieldType)) {
+                    $richTextSanitizer = $this->richTextSanitizer;
+                    $fields[$fieldName] = [
+                        'type' => $graphqlType,
+                        'resolve' => static fn(array $data) => $richTextSanitizer->sanitizeValue(
+                            $data[$fieldName] ?? null,
+                        ),
+                    ];
+                } else {
+                    $fields[$fieldName] = [
+                        'type' => $graphqlType,
+                        'resolve' => static fn(array $data) => $data[$fieldName] ?? null,
+                    ];
+                }
             }
         }
 

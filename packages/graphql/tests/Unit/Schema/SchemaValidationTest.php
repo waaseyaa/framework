@@ -37,6 +37,10 @@ final class SchemaValidationTest extends TestCase
     protected function setUp(): void
     {
         EntityType::clearFromClassCache();
+        // Start from a clean static schema cache: SchemaFactory keys its cache
+        // by entity-type id, so a prior test that built an "article" schema
+        // under the same id would otherwise be served to us on a cache hit.
+        SchemaFactory::resetCache();
         $this->entityTypeManager = new EntityTypeManager(new EventDispatcher());
 
         $this->entityTypeManager->registerCoreEntityType(EntityType::fromClass(ArticleSchemaFixture::class));

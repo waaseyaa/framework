@@ -75,6 +75,7 @@
     ],
     "require": {
         "php": ">=8.5",
+        "symfony/html-sanitizer": "^8.0",
         "waaseyaa/access": "^0.1.0-alpha.254",
         "waaseyaa/audit": "^0.1.0-alpha.254",
         "waaseyaa/cache": "^0.1.0-alpha.254",

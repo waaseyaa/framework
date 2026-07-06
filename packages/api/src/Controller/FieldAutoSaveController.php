@@ -9,6 +9,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Http\JsonApiResponse;
+use Waaseyaa\Api\Sanitizer\RichTextSanitizer;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 
@@ -36,12 +37,19 @@ use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
  */
 final class FieldAutoSaveController
 {
+    private readonly RichTextSanitizer $richTextSanitizer;
+
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly EntityAccessHandler $accessHandler,
         private readonly FieldDefinitionRegistryInterface $fieldRegistry,
         private readonly int $maxBodyBytes = 65536,
-    ) {}
+        ?RichTextSanitizer $richTextSanitizer = null,
+    ) {
+        // PHP 8.4 constructor-default gotcha (see CLAUDE.md): resolve in the
+        // body, not as a parameter default, so existing callsites keep working.
+        $this->richTextSanitizer = $richTextSanitizer ?? new RichTextSanitizer();
+    }
 
     public function update(Request $request, string $entityType, string $id, string $key): Response
     {
@@ -128,16 +136,29 @@ final class FieldAutoSaveController
             return $this->error(403, 'field_forbidden', "Update denied for field '{$key}'");
         }
 
-        // 9. Persist.
+        // 9. Persist. The RAW, author-submitted value is what gets stored:
+        //    sanitization (below) is a read/response-boundary concern only,
+        //    so the stored value stays byte-for-byte as authored (non-lossy).
         $entity->set($key, $body['value']);
         $repository->save($entity);
 
         // 10. 200 response per contracts/README.md F3.
+        // R13 WP2 (audit A11, SECURITY): this response ECHOES the just-saved
+        // value back to the caller. For a text_long ("richtext") field that
+        // echo is a third read/serialization boundary (alongside JSON:API's
+        // ResourceSerializer and the GraphQL plain-field resolver) that a
+        // stored <script>/event-handler payload would otherwise reach
+        // unsanitized. $allFields[$key] is guaranteed set (checked in step 5).
+        $fieldType = $allFields[$key]->getType();
+        $responseValue = RichTextSanitizer::isHtmlFieldType($fieldType)
+            ? $this->richTextSanitizer->sanitizeValue($entity->get($key))
+            : $entity->get($key);
+
         return new JsonApiResponse([
             'data' => [
                 'id' => (string) $entity->id(),
                 'type' => $entityType,
-                'attributes' => [$key => $entity->get($key)],
+                'attributes' => [$key => $responseValue],
             ],
         ]);
     }
