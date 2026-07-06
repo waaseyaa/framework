@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`Waaseyaa\Config\ConfigFactoryInterface` was bound in NO production ServiceProvider, so any consumer reaching for it via `resolveOptional()` silently no-opped in a real boot** (#1920, CW-v1 WP-1 follow-up). Grepping the framework confirmed the gap: neither `packages/config` nor any other package's `ServiceProvider::register()` bound `ConfigFactoryInterface`/`ConfigFactory` anywhere — `Waaseyaa\SSR\ThemeServiceProvider` even carried a dead comment noting the factory "will be available at runtime," but it never was. This made the CW-v1 engine's forthcoming `WorkflowServiceProvider` guard/seed wiring — which depends on `resolveOptional(ConfigFactoryInterface::class)` — unreachable in production once #1929 (WP-1) merges. New `Waaseyaa\Config\ConfigServiceProvider` (`packages/config/src/ConfigServiceProvider.php`, registered via `packages/config/composer.json`'s `extra.waaseyaa.providers`) binds `ConfigFactoryInterface` as a container singleton backed by `FileStorage` at `<projectRoot>/config/active` — the same active store `OptimizeServiceProvider` already compiles for `optimize:config`, so this does not construct a second store instance. New integration test `tests/Integration/Config/ConfigFactoryProductionBindingTest.php` boots a real kernel (mirrors `DefinitionValidatorBootTest`'s pattern) and proves a third-party consumer provider's `resolveOptional(ConfigFactoryInterface::class)` resolves to a working factory, and that `get()`/`getEditable()->set()->save()`/`get()` round-trips through the active store.
+
 ## [0.1.0-alpha.255] - 2026-07-06
 
 ### Security
