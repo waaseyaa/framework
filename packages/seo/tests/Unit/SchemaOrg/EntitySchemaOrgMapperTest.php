@@ -107,4 +107,63 @@ final class EntitySchemaOrgMapperTest extends TestCase
         $decoded = json_decode($json, true, 512, \JSON_THROW_ON_ERROR);
         self::assertSame('</script><img src=x onerror=alert(1)>', $decoded['name']);
     }
+
+    #[Test]
+    public function invalid_utf8_label_is_scrubbed_instead_of_crashing_the_page(): void
+    {
+        // Storable via the entity system (no UTF-8 validation gate on field
+        // values); previously this threw JsonException from json_encode's
+        // JSON_THROW_ON_ERROR and 500'd the whole page render (audit
+        // L3-seo.md, MAJOR finding).
+        $invalidLabel = "Hello \xB1\x31 World";
+        self::assertFalse(mb_check_encoding($invalidLabel, 'UTF-8'));
+
+        $mapper = new EntitySchemaOrgMapper();
+        $node = $mapper->map($this->entity('node', 'article', $invalidLabel), 'https://x.test/hello');
+
+        self::assertTrue(mb_check_encoding($node['name'], 'UTF-8'));
+
+        // Must not throw, and must produce valid, parseable JSON-LD.
+        $tag = $mapper->toScriptTag($node);
+        $json = substr($tag, \strlen('<script type="application/ld+json">'), -\strlen('</script>'));
+        $decoded = json_decode($json, true, 512, \JSON_THROW_ON_ERROR);
+        self::assertIsString($decoded['name']);
+    }
+
+    #[Test]
+    public function invalid_utf8_description_is_scrubbed_instead_of_crashing_the_page(): void
+    {
+        $invalidDescription = "A summary \xFF\xFE with bad bytes.";
+        self::assertFalse(mb_check_encoding($invalidDescription, 'UTF-8'));
+
+        $mapper = new EntitySchemaOrgMapper();
+        $node = $mapper->map(
+            $this->entity('node', 'article', 'Hello'),
+            'https://x.test/hello',
+            $invalidDescription,
+        );
+
+        self::assertTrue(mb_check_encoding($node['description'], 'UTF-8'));
+
+        $tag = $mapper->toScriptTag($node);
+        $json = substr($tag, \strlen('<script type="application/ld+json">'), -\strlen('</script>'));
+        json_decode($json, true, 512, \JSON_THROW_ON_ERROR);
+    }
+
+    #[Test]
+    public function invalid_utf8_label_override_is_scrubbed(): void
+    {
+        $invalidOverride = "Safe \xC0\xAF Label";
+        self::assertFalse(mb_check_encoding($invalidOverride, 'UTF-8'));
+
+        $mapper = new EntitySchemaOrgMapper();
+        $node = $mapper->map(
+            $this->entity('node', 'article', 'Original'),
+            'https://x.test/hello',
+            labelOverride: $invalidOverride,
+        );
+
+        self::assertTrue(mb_check_encoding($node['name'], 'UTF-8'));
+        $mapper->toScriptTag($node);
+    }
 }
