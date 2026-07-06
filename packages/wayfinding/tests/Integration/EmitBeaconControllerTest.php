@@ -12,8 +12,11 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Http\Router\SessionChannel;
+use Waaseyaa\Wayfinding\Anchor\AnchorRegistry;
 use Waaseyaa\Wayfinding\Http\EmitBeaconController;
+use Waaseyaa\Wayfinding\Tests\Support\CountingEntityTypeManager;
 use Waaseyaa\Wayfinding\Tests\Support\InMemoryEntityTypeManager;
 use Waaseyaa\Wayfinding\Tests\Support\WidgetEntity;
 
@@ -94,10 +97,38 @@ final class EmitBeaconControllerTest extends TestCase
         self::assertCount(0, $this->storage->poll(0, [SessionChannel::forToken('tokenA')]));
     }
 
+    #[Test]
+    public function emit_reuses_the_injected_registry_instead_of_rebuilding_per_request(): void
+    {
+        // Sibling of AnchorCatalogControllerTest's reuse test (audit
+        // L4-wayfinding.md, MAJOR finding): emit-time anchor validation used
+        // to `new AnchorRegistry(...)` per request; it must now reuse one
+        // injected registry's memoized catalog across repeated emits.
+        $etm = new CountingEntityTypeManager($this->entityTypeManager());
+        $controller = new EmitBeaconController(new AnchorRegistry($etm));
+
+        $body = ['session' => 'tokenA', 'anchor_id' => 'field:widget:title', 'content' => 'Hi', 'order' => 1];
+        $first = $controller->emit($this->request($this->account(hasCapability: true), $body));
+        $second = $controller->emit($this->request($this->account(hasCapability: true), $body));
+
+        self::assertSame(202, $first->getStatusCode());
+        self::assertSame(202, $second->getStatusCode());
+        // A per-request catalog rebuild (the pre-fix behavior) would report 2.
+        self::assertSame(1, $etm->getDefinitionsCallCount);
+        self::assertSame(1, $etm->resolveFieldDefinitionsCallCount);
+    }
+
     /**
      * @param array<string, mixed> $body
      */
     private function emit(AccountInterface $account, array $body): \Symfony\Component\HttpFoundation\Response
+    {
+        $controller = new EmitBeaconController(new AnchorRegistry($this->entityTypeManager()));
+
+        return $controller->emit($this->request($account, $body));
+    }
+
+    private function entityTypeManager(): EntityTypeManagerInterface
     {
         $widget = new EntityType(
             id: 'widget',
@@ -107,17 +138,24 @@ final class EmitBeaconControllerTest extends TestCase
             translatable: false,
             revisionable: false,
         );
-        $etm = new InMemoryEntityTypeManager(
+
+        return new InMemoryEntityTypeManager(
             ['widget' => $widget],
             ['widget' => ['body' => ['type' => 'text_long', 'label' => 'Body']]],
         );
+    }
 
+    /**
+     * @param array<string, mixed> $body
+     */
+    private function request(AccountInterface $account, array $body): Request
+    {
         $request = Request::create('/api/wayfinding/beacons', 'POST');
         $request->attributes->set('_account', $account);
         $request->attributes->set('_parsed_body', $body);
         $request->attributes->set('_broadcast_storage', $this->storage);
 
-        return new EmitBeaconController($etm)->emit($request);
+        return $request;
     }
 
     private function account(bool $hasCapability): AccountInterface

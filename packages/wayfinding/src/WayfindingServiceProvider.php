@@ -33,9 +33,11 @@ final class WayfindingServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        // The canonical registry instance, shared by later phases (emit-time
-        // anchor validation, FR-005). The Phase-1 catalog controller resolves
-        // its own from the kernel-bound EntityTypeManager.
+        // The canonical registry instance, constructor-injected into both
+        // AnchorCatalogController (public catalog, FR-007) and
+        // EmitBeaconController (emit-time anchor validation, FR-005) so both
+        // endpoints reuse this singleton's memoized catalog() instead of
+        // rebuilding it per request.
         $this->singleton(AnchorRegistry::class, fn(): AnchorRegistry => new AnchorRegistry(
             $this->resolve(EntityTypeManager::class),
         ));

@@ -29,6 +29,9 @@ final class AnchorRegistry
 {
     private readonly SchemaPresenter $schemaPresenter;
 
+    /** @var list<Anchor>|null memoised catalog */
+    private ?array $catalog = null;
+
     /** @var array<string, true>|null memoised membership set */
     private ?array $idSet = null;
 
@@ -44,10 +47,23 @@ final class AnchorRegistry
     /**
      * The full anchor catalog across every registered entity type.
      *
+     * Memoized per instance. The catalog derives only from entity-type
+     * definitions and their schema fields, which are boot-stable (fixed once
+     * the kernel has finished registering entity types) and never vary by
+     * request, record, or account — so caching it on `$this` is safe even
+     * under a long-lived worker process (e.g. FrankenPHP worker mode) where
+     * the same `AnchorRegistry` instance serves many requests: there is no
+     * per-request or per-account state to bleed between requests, only a
+     * derivation that would otherwise be wastefully repeated.
+     *
      * @return list<Anchor>
      */
     public function catalog(): array
     {
+        if ($this->catalog !== null) {
+            return $this->catalog;
+        }
+
         $anchors = [];
 
         foreach ($this->entityTypeManager->getDefinitions() as $typeId => $type) {
@@ -73,7 +89,7 @@ final class AnchorRegistry
             }
         }
 
-        return $anchors;
+        return $this->catalog = $anchors;
     }
 
     /**

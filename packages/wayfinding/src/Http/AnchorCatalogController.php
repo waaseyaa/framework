@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Waaseyaa\Wayfinding\Http;
 
 use Symfony\Component\HttpFoundation\Response;
-use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Wayfinding\Anchor\AnchorRegistry;
 
 /**
@@ -18,22 +17,28 @@ use Waaseyaa\Wayfinding\Anchor\AnchorRegistry;
  * type-level anchor scheme. Route wiring lives in
  * {@see \Waaseyaa\Wayfinding\WayfindingServiceProvider::routes()}.
  *
+ * Takes the shared {@see AnchorRegistry} singleton (bound in
+ * {@see \Waaseyaa\Wayfinding\WayfindingServiceProvider::register()}) via
+ * constructor injection rather than constructing its own, so this public
+ * anonymous endpoint reuses the registry's per-instance memoized catalog
+ * instead of re-deriving it (iterating every entity type and field through
+ * `SchemaPresenter`) on every single request (audit L4-wayfinding.md, MAJOR
+ * finding).
+ *
  * @api
  */
 final class AnchorCatalogController
 {
     public function __construct(
-        private readonly EntityTypeManagerInterface $entityTypeManager,
+        private readonly AnchorRegistry $anchorRegistry,
     ) {}
 
     public function catalog(): Response
     {
-        $registry = new AnchorRegistry($this->entityTypeManager);
-
         try {
             $anchors = array_map(
                 static fn($anchor): array => $anchor->toArray(),
-                $registry->catalog(),
+                $this->anchorRegistry->catalog(),
             );
         } catch (\Throwable) {
             // Best-effort public inventory, mirroring the SEO/llms.txt surface:
