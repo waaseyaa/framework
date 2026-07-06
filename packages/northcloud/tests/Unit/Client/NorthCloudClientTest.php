@@ -7,6 +7,9 @@ namespace Waaseyaa\NorthCloud\Tests\Unit\Client;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\HttpClient\HttpClientInterface;
+use Waaseyaa\HttpClient\HttpResponse;
+use Waaseyaa\NorthCloud\Client\NorthCloudCache;
 use Waaseyaa\NorthCloud\Client\NorthCloudClient;
 
 /**
@@ -16,14 +19,76 @@ use Waaseyaa\NorthCloud\Client\NorthCloudClient;
 final class NorthCloudClientTest extends TestCase
 {
     #[Test]
+    public function getRecentContentReturnsNullOnNon2xxStatus(): void
+    {
+        $client = new NorthCloudClient(
+            baseUrl: 'https://nc.test',
+            httpClient: FakeHttpClient::withResponse(new HttpResponse(500, '{"error":"boom"}')),
+        );
+
+        $this->assertNull($client->getRecentContent());
+    }
+
+    #[Test]
+    public function getRecentContentReturnsHitsOn2xxStatus(): void
+    {
+        $client = new NorthCloudClient(
+            baseUrl: 'https://nc.test',
+            httpClient: FakeHttpClient::withResponse(new HttpResponse(200, (string) json_encode([
+                'hits' => [['title' => 'Hit 1']],
+                'total_hits' => 1,
+            ]))),
+        );
+
+        $result = $client->getRecentContent();
+
+        $this->assertNotNull($result);
+        $this->assertCount(1, $result['hits']);
+        $this->assertSame(1, $result['total_hits']);
+    }
+
+    #[Test]
+    public function authenticatedRequestReturnsNullOnNon2xxStatus(): void
+    {
+        $client = new NorthCloudClient(
+            baseUrl: 'https://nc.test',
+            httpClient: FakeHttpClient::withResponse(new HttpResponse(403, '{"error":"forbidden"}')),
+            apiToken: 'secret',
+        );
+
+        $this->assertNull($client->linkSources(dryRun: false));
+    }
+
+    #[Test]
+    public function nonSuccessResponseIsNotCached(): void
+    {
+        $cache = new NorthCloudCache(new \PDO('sqlite::memory:'));
+        $capturedUrl = '';
+        $client = new NorthCloudClient(
+            baseUrl: 'https://nc.test',
+            httpClient: new FakeHttpClient(
+                static function (string $method, string $url) use (&$capturedUrl): HttpResponse {
+                    $capturedUrl = $url;
+                    return new HttpResponse(500, '{"error":"boom"}');
+                },
+            ),
+            cache: $cache,
+        );
+
+        $this->assertNull($client->getRecentContent());
+        $this->assertNotSame('', $capturedUrl, 'Fake HTTP client should have been called');
+        $this->assertNull($cache->get($capturedUrl), 'A non-2xx response must never be written to the cache');
+    }
+
+    #[Test]
     public function getRecentContentReturnsHitsAndTotal(): void
     {
         $client = new NorthCloudClient(
             baseUrl: 'https://nc.test',
-            httpClient: static fn(string $url): string => (string) json_encode([
+            httpClient: FakeHttpClient::withResponse(new HttpResponse(200, (string) json_encode([
                 'hits' => [['title' => 'Hit 1'], ['title' => 'Hit 2']],
                 'total_hits' => 2,
-            ]),
+            ]))),
         );
 
         $result = $client->getRecentContent();
@@ -38,7 +103,7 @@ final class NorthCloudClientTest extends TestCase
     {
         $client = new NorthCloudClient(
             baseUrl: 'https://nc.test',
-            httpClient: static fn(string $url): string => '{"not_hits": []}',
+            httpClient: FakeHttpClient::withResponse(new HttpResponse(200, '{"not_hits": []}')),
         );
 
         $this->assertNull($client->getRecentContent());
@@ -50,10 +115,12 @@ final class NorthCloudClientTest extends TestCase
         $capturedUrl = '';
         $client = new NorthCloudClient(
             baseUrl: 'https://nc.test',
-            httpClient: static function (string $url) use (&$capturedUrl): string {
-                $capturedUrl = $url;
-                return (string) json_encode(['hits' => [], 'total_hits' => 0]);
-            },
+            httpClient: new FakeHttpClient(
+                static function (string $method, string $url) use (&$capturedUrl): HttpResponse {
+                    $capturedUrl = $url;
+                    return new HttpResponse(200, (string) json_encode(['hits' => [], 'total_hits' => 0]));
+                },
+            ),
         );
 
         $client->getRecentContent(limit: 10, since: '2026-01-01', topics: ['indigenous', 'governance']);
@@ -69,11 +136,11 @@ final class NorthCloudClientTest extends TestCase
     {
         $client = new NorthCloudClient(
             baseUrl: 'https://nc.test',
-            httpClient: static fn(string $url): string => (string) json_encode([
+            httpClient: FakeHttpClient::withResponse(new HttpResponse(200, (string) json_encode([
                 'people' => [
                     ['id' => '1', 'name' => 'Chief Test', 'role' => 'chief', 'verified' => true],
                 ],
-            ]),
+            ]))),
         );
 
         $people = $client->getPeople('nc-community-123');
@@ -88,10 +155,10 @@ final class NorthCloudClientTest extends TestCase
     {
         $client = new NorthCloudClient(
             baseUrl: 'https://nc.test',
-            httpClient: static fn(string $url): string => (string) json_encode([
+            httpClient: FakeHttpClient::withResponse(new HttpResponse(200, (string) json_encode([
                 'entries' => [['word' => 'aanii']],
                 'total' => 1,
-            ]),
+            ]))),
         );
 
         $result = $client->searchDictionary('aanii');
@@ -107,7 +174,7 @@ final class NorthCloudClientTest extends TestCase
     {
         $client = new NorthCloudClient(baseUrl: 'https://nc.test');
 
-        // No custom httpClient — forces the real authenticated path, which bails when token is empty.
+        // No custom httpClient, no api token: forces the real authenticated path, which bails before any transport call.
         $this->assertNull($client->linkSources());
     }
 
@@ -117,10 +184,12 @@ final class NorthCloudClientTest extends TestCase
         $capturedMethod = '';
         $client = new NorthCloudClient(
             baseUrl: 'https://nc.test',
-            httpClient: static function (string $url, string $method = 'GET', ?string $body = null, array $headers = []) use (&$capturedMethod): string {
-                $capturedMethod = $method;
-                return (string) json_encode(['ok' => true]);
-            },
+            httpClient: new FakeHttpClient(
+                static function (string $method) use (&$capturedMethod): HttpResponse {
+                    $capturedMethod = $method;
+                    return new HttpResponse(200, (string) json_encode(['ok' => true]));
+                },
+            ),
             apiToken: 'secret',
         );
 
@@ -136,17 +205,19 @@ final class NorthCloudClientTest extends TestCase
         $capturedHeaders = [];
         $client = new NorthCloudClient(
             baseUrl: 'https://nc.test',
-            httpClient: static function (string $url, string $method = 'GET', ?string $body = null, array $headers = []) use (&$capturedHeaders): string {
-                $capturedHeaders = $headers;
-                return (string) json_encode(['ok' => true]);
-            },
+            httpClient: new FakeHttpClient(
+                static function (string $method, string $url, array $headers) use (&$capturedHeaders): HttpResponse {
+                    $capturedHeaders = $headers;
+                    return new HttpResponse(200, (string) json_encode(['ok' => true]));
+                },
+            ),
             apiToken: 'secret-token',
         );
 
         $client->linkSources(dryRun: false);
 
-        $this->assertContains('Authorization: Bearer secret-token', $capturedHeaders);
-        $this->assertContains('Content-Type: application/json', $capturedHeaders);
+        $this->assertSame('Bearer secret-token', $capturedHeaders['Authorization'] ?? null);
+        $this->assertSame('application/json', $capturedHeaders['Content-Type'] ?? null);
     }
 
     #[Test]
@@ -155,10 +226,12 @@ final class NorthCloudClientTest extends TestCase
         $called = false;
         $client = new NorthCloudClient(
             baseUrl: 'https://nc.test',
-            httpClient: static function () use (&$called): string {
-                $called = true;
-                return '{"ok": true}';
-            },
+            httpClient: new FakeHttpClient(
+                static function () use (&$called): HttpResponse {
+                    $called = true;
+                    return new HttpResponse(200, '{"ok": true}');
+                },
+            ),
         );
 
         $this->assertNull($client->linkSources());
@@ -192,10 +265,12 @@ final class NorthCloudClientTest extends TestCase
         $capturedUrl = '';
         $client = new NorthCloudClient(
             baseUrl: 'https://nc.test',
-            httpClient: static function (string $url) use (&$capturedUrl): string {
-                $capturedUrl = $url;
-                return (string) json_encode(['hits' => [['id' => 'x']], 'total_hits' => 1]);
-            },
+            httpClient: new FakeHttpClient(
+                static function (string $method, string $url) use (&$capturedUrl): HttpResponse {
+                    $capturedUrl = $url;
+                    return new HttpResponse(200, (string) json_encode(['hits' => [['id' => 'x']], 'total_hits' => 1]));
+                },
+            ),
         );
 
         $result = $client->search([
@@ -210,5 +285,42 @@ final class NorthCloudClientTest extends TestCase
         $this->assertStringContainsString('page=1', $capturedUrl);
         $this->assertStringContainsString('topics%5B%5D=indigenous', $capturedUrl);
         $this->assertStringContainsString('topics%5B%5D=governance', $capturedUrl);
+    }
+}
+
+/**
+ * Test double for HttpClientInterface, local to this file (northcloud has no
+ * wired autoload-dev namespace for a shared tests/Support/ fake, so each test
+ * file that needs one declares its own, matching the FakeMapper/WorkerFakeMapper
+ * convention already used under tests/Unit/Sync).
+ */
+final class FakeHttpClient implements HttpClientInterface
+{
+    /** @var \Closure(string, string, array<string, string>, array<string, mixed>|string|null): HttpResponse */
+    private readonly \Closure $handler;
+
+    public function __construct(callable $handler)
+    {
+        $this->handler = $handler(...);
+    }
+
+    public static function withResponse(HttpResponse $response): self
+    {
+        return new self(static fn(): HttpResponse => $response);
+    }
+
+    public function request(string $method, string $url, array $headers = [], array|string|null $body = null): HttpResponse
+    {
+        return ($this->handler)($method, $url, $headers, $body);
+    }
+
+    public function get(string $url, array $headers = []): HttpResponse
+    {
+        return $this->request('GET', $url, $headers);
+    }
+
+    public function post(string $url, array $headers = [], array|string|null $body = null): HttpResponse
+    {
+        return $this->request('POST', $url, $headers, $body);
     }
 }

@@ -11,6 +11,9 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\HttpClient\HttpClientInterface;
+use Waaseyaa\HttpClient\HttpRequestException;
+use Waaseyaa\HttpClient\HttpResponse;
 use Waaseyaa\NorthCloud\Client\NorthCloudClient;
 use Waaseyaa\NorthCloud\Sync\NcHitSupportDiagnosticsInterface;
 use Waaseyaa\NorthCloud\Sync\MapperRegistry;
@@ -285,14 +288,8 @@ final class NcSyncServiceTest extends TestCase
             $registry,
         );
 
-        // Silence error_log output during test
-        $originalErrorLog = ini_get('error_log');
-        ini_set('error_log', '/dev/null');
-        try {
-            $result = $service->sync();
-        } finally {
-            ini_set('error_log', $originalErrorLog === false ? '' : $originalErrorLog);
-        }
+        // NcSyncService defaults to a NullLogger, so no error_log silencing is needed here.
+        $result = $service->sync();
 
         $this->assertSame(1, $result->failed);
         $this->assertSame(0, $result->created);
@@ -302,7 +299,9 @@ final class NcSyncServiceTest extends TestCase
     {
         return new NorthCloudClient(
             baseUrl: 'https://nc.test',
-            httpClient: static fn(): string|false => $response === null ? false : (string) json_encode($response),
+            httpClient: $response === null
+                ? SyncFakeHttpClient::throwing(new HttpRequestException('stub transport failure', 'https://nc.test', 'GET'))
+                : SyncFakeHttpClient::withResponse(new HttpResponse(200, (string) json_encode($response))),
         );
     }
 
@@ -479,5 +478,49 @@ final class DiagnosticRejectingMapper implements NcHitToEntityMapperInterface, N
     public function dedupField(): string
     {
         return 'source_url';
+    }
+}
+
+/**
+ * Test double for HttpClientInterface, local to this file. Named "Sync" (not
+ * plain FakeHttpClient) because NcSyncWorkerTest.php shares this namespace
+ * (Unit\Sync) and declares its own WorkerFakeHttpClient to avoid a class-name
+ * collision when both files load in the same PHPUnit run.
+ */
+final class SyncFakeHttpClient implements HttpClientInterface
+{
+    /** @var \Closure(string, string, array<string, string>, array<string, mixed>|string|null): HttpResponse */
+    private readonly \Closure $handler;
+
+    public function __construct(callable $handler)
+    {
+        $this->handler = $handler(...);
+    }
+
+    public static function withResponse(HttpResponse $response): self
+    {
+        return new self(static fn(): HttpResponse => $response);
+    }
+
+    public static function throwing(\Throwable $exception): self
+    {
+        return new self(static function () use ($exception): never {
+            throw $exception;
+        });
+    }
+
+    public function request(string $method, string $url, array $headers = [], array|string|null $body = null): HttpResponse
+    {
+        return ($this->handler)($method, $url, $headers, $body);
+    }
+
+    public function get(string $url, array $headers = []): HttpResponse
+    {
+        return $this->request('GET', $url, $headers);
+    }
+
+    public function post(string $url, array $headers = [], array|string|null $body = null): HttpResponse
+    {
+        return $this->request('POST', $url, $headers, $body);
     }
 }

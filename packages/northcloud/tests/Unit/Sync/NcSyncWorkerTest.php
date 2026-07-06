@@ -11,6 +11,9 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\HttpClient\HttpClientInterface;
+use Waaseyaa\HttpClient\HttpRequestException;
+use Waaseyaa\HttpClient\HttpResponse;
 use Waaseyaa\NorthCloud\Client\NorthCloudClient;
 use Waaseyaa\NorthCloud\Sync\MapperRegistry;
 use Waaseyaa\NorthCloud\Sync\NcHitToEntityMapperInterface;
@@ -156,15 +159,19 @@ final class NcSyncWorkerTest extends TestCase
     ): NcSyncService {
         $client = new NorthCloudClient(
             baseUrl: 'https://nc.test',
-            httpClient: static function () use ($response, $onSync): string|false {
-                if ($onSync !== null) {
-                    $onSync();
-                }
+            httpClient: new WorkerFakeHttpClient(
+                static function () use ($response, $onSync): HttpResponse {
+                    if ($onSync !== null) {
+                        $onSync();
+                    }
 
-                return $response === null
-                    ? false
-                    : (string) json_encode($response);
-            },
+                    if ($response === null) {
+                        throw new HttpRequestException('stub transport failure', 'https://nc.test', 'GET');
+                    }
+
+                    return new HttpResponse(200, (string) json_encode($response));
+                },
+            ),
         );
 
         $storages = [];
@@ -278,5 +285,37 @@ final class WorkerFakeMapper implements NcHitToEntityMapperInterface
     public function dedupField(): string
     {
         return $this->dedup;
+    }
+}
+
+/**
+ * Test double for HttpClientInterface, local to this file. Named "Worker" (not
+ * plain FakeHttpClient) because NcSyncServiceTest.php shares this namespace
+ * (Unit\Sync) and declares its own SyncFakeHttpClient to avoid a class-name
+ * collision when both files load in the same PHPUnit run.
+ */
+final class WorkerFakeHttpClient implements HttpClientInterface
+{
+    /** @var \Closure(string, string, array<string, string>, array<string, mixed>|string|null): HttpResponse */
+    private readonly \Closure $handler;
+
+    public function __construct(callable $handler)
+    {
+        $this->handler = $handler(...);
+    }
+
+    public function request(string $method, string $url, array $headers = [], array|string|null $body = null): HttpResponse
+    {
+        return ($this->handler)($method, $url, $headers, $body);
+    }
+
+    public function get(string $url, array $headers = []): HttpResponse
+    {
+        return $this->request('GET', $url, $headers);
+    }
+
+    public function post(string $url, array $headers = [], array|string|null $body = null): HttpResponse
+    {
+        return $this->request('POST', $url, $headers, $body);
     }
 }
