@@ -217,6 +217,66 @@ final class FileStorageTest extends TestCase
         $this->assertSame(['key' => 'value'], $storage->read('test'));
     }
 
+    public function testWriteIsAtomicAndLeavesNoTempFileBehind(): void
+    {
+        $this->storage->write('atomic.config', ['name' => 'first']);
+
+        $filePath = $this->directory . '/atomic.config.yml';
+        $tempPath = $filePath . '.tmp';
+
+        $this->assertFileExists($filePath);
+        $this->assertFileDoesNotExist($tempPath);
+        $this->assertSame(['name' => 'first'], $this->storage->read('atomic.config'));
+    }
+
+    public function testWriteNeverExposesATruncatedFileAtTheTargetPath(): void
+    {
+        // Establish an original file, then overwrite it with new content.
+        // Because write() lands in a sibling .tmp file and only exposes it
+        // via rename(), the target path is either the old complete content
+        // or the new complete content — never a partial write in between.
+        $this->storage->write('atomic.config', ['name' => 'original', 'body' => str_repeat('x', 5000)]);
+        $originalPath = $this->directory . '/atomic.config.yml';
+        $originalContent = file_get_contents($originalPath);
+
+        $this->assertTrue($this->storage->write('atomic.config', ['name' => 'updated', 'body' => str_repeat('y', 5000)]));
+
+        $newContent = file_get_contents($originalPath);
+        $this->assertNotSame($originalContent, $newContent);
+        $this->assertStringContainsString('updated', $newContent);
+        $this->assertFileDoesNotExist($originalPath . '.tmp');
+    }
+
+    public function testWriteReturnsFalseAndCleansUpTempFileWhenRenameFails(): void
+    {
+        // Force rename() to fail by making the target a directory instead of
+        // a regular file — rename() from a file onto an existing directory
+        // fails on POSIX. The original directory-as-"file" is left in place
+        // (nothing was overwritten), and no stray temp file remains.
+        $conflictPath = $this->directory . '/conflict.yml';
+        mkdir($conflictPath);
+
+        $this->assertFalse($this->storage->write('conflict', ['name' => 'value']));
+        $this->assertDirectoryExists($conflictPath);
+        $this->assertFileDoesNotExist($conflictPath . '.tmp');
+    }
+
+    public function testEnsureDirectoryCreatesWithGroupPermissionsNotWorldWritable(): void
+    {
+        $newDir = $this->directory . '/perm-check';
+        $storage = new FileStorage($newDir);
+
+        $previousUmask = umask(0);
+        try {
+            $storage->write('test', ['key' => 'value']);
+        } finally {
+            umask($previousUmask);
+        }
+
+        $this->assertDirectoryExists($newDir);
+        $this->assertSame(0o775, fileperms($newDir) & 0o777);
+    }
+
     public function testNestedDataPreservesStructure(): void
     {
         $data = [

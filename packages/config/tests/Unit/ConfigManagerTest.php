@@ -9,7 +9,9 @@ use Waaseyaa\Config\ConfigManager;
 use Waaseyaa\Config\ConfigManagerInterface;
 use Waaseyaa\Config\Event\ConfigEvent;
 use Waaseyaa\Config\Event\ConfigEvents;
+use Waaseyaa\Config\Exception\ConfigImportFailedException;
 use Waaseyaa\Config\Storage\MemoryStorage;
+use Waaseyaa\Config\StorageInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
@@ -138,6 +140,164 @@ final class ConfigManagerTest extends TestCase
         $this->manager->import();
 
         $this->assertTrue($eventFired, 'IMPORT event was not dispatched');
+    }
+
+    public function testImportThrowsAndAbortsOnFirstWriteFailure(): void
+    {
+        $failingActive = $this->makeFailOnNameStorage(failWriteNames: ['b.second']);
+
+        $this->syncStorage->write('a.first', ['v' => 1]);
+        $this->syncStorage->write('b.second', ['v' => 2]);
+        $this->syncStorage->write('c.third', ['v' => 3]);
+
+        $manager = new ConfigManager($failingActive, $this->syncStorage, $this->eventDispatcher);
+
+        try {
+            $manager->import();
+            $this->fail('Expected ConfigImportFailedException was not thrown.');
+        } catch (ConfigImportFailedException $e) {
+            $this->assertSame('b.second', $e->ref);
+            $this->assertSame(ConfigImportFailedException::CODE_APPLY_FAILED, $e->errorCode);
+            $this->assertStringContainsString('b.second', $e->getMessage());
+            $this->assertStringContainsString('a.first', $e->getMessage());
+        }
+
+        // Entries before the failing key were actually applied ...
+        $this->assertSame(['a.first', 'b.second'], $failingActive->writeCalls);
+        $this->assertSame(['v' => 1], $failingActive->read('a.first'));
+        // ... entries after the failing key were never attempted.
+        $this->assertNotContains('c.third', $failingActive->writeCalls);
+        $this->assertFalse($failingActive->read('c.third'));
+    }
+
+    public function testImportThrowsAndAbortsOnFirstDeleteFailure(): void
+    {
+        $failingActive = $this->makeFailOnNameStorage(failDeleteNames: ['old.second']);
+        $failingActive->seed('old.first', ['legacy' => true]);
+        $failingActive->seed('old.second', ['legacy' => true]);
+        $failingActive->seed('old.third', ['legacy' => true]);
+
+        // Nothing in sync — all three are pending deletes, alphabetically ordered.
+        $manager = new ConfigManager($failingActive, $this->syncStorage, $this->eventDispatcher);
+
+        try {
+            $manager->import();
+            $this->fail('Expected ConfigImportFailedException was not thrown.');
+        } catch (ConfigImportFailedException $e) {
+            $this->assertSame('old.second', $e->ref);
+            $this->assertSame(ConfigImportFailedException::CODE_APPLY_FAILED, $e->errorCode);
+        }
+
+        $this->assertSame(['old.first', 'old.second'], $failingActive->deleteCalls);
+        $this->assertFalse($failingActive->read('old.first'), 'old.first should have actually been deleted');
+        $this->assertSame(['legacy' => true], $failingActive->read('old.second'), 'failed delete must leave data intact');
+        $this->assertNotContains('old.third', $failingActive->deleteCalls);
+        $this->assertSame(['legacy' => true], $failingActive->read('old.third'), 'entries after the failure must never be attempted');
+    }
+
+    public function testImportSucceedsWithoutThrowingWhenAllWritesAndDeletesSucceed(): void
+    {
+        $this->syncStorage->write('system.site', ['name' => 'Test']);
+
+        $result = $this->manager->import();
+
+        $this->assertInstanceOf(ConfigImportResult::class, $result);
+        $this->assertFalse($result->hasErrors());
+    }
+
+    /**
+     * @param string[] $failWriteNames
+     * @param string[] $failDeleteNames
+     */
+    private function makeFailOnNameStorage(array $failWriteNames = [], array $failDeleteNames = [])
+    {
+        return new class($failWriteNames, $failDeleteNames) implements StorageInterface {
+            private MemoryStorage $inner;
+
+            /** @var list<string> */
+            public array $writeCalls = [];
+
+            /** @var list<string> */
+            public array $deleteCalls = [];
+
+            public function __construct(
+                private readonly array $failWriteNames,
+                private readonly array $failDeleteNames,
+            ) {
+                $this->inner = new MemoryStorage();
+            }
+
+            /** Seeds data directly, bypassing failure tracking — for test setup only. */
+            public function seed(string $name, array $data): void
+            {
+                $this->inner->write($name, $data);
+            }
+
+            public function exists(string $name): bool
+            {
+                return $this->inner->exists($name);
+            }
+
+            public function read(string $name): array|false
+            {
+                return $this->inner->read($name);
+            }
+
+            public function readMultiple(array $names): array
+            {
+                return $this->inner->readMultiple($names);
+            }
+
+            public function write(string $name, array $data): bool
+            {
+                $this->writeCalls[] = $name;
+                if (in_array($name, $this->failWriteNames, true)) {
+                    return false;
+                }
+
+                return $this->inner->write($name, $data);
+            }
+
+            public function delete(string $name): bool
+            {
+                $this->deleteCalls[] = $name;
+                if (in_array($name, $this->failDeleteNames, true)) {
+                    return false;
+                }
+
+                return $this->inner->delete($name);
+            }
+
+            public function rename(string $name, string $newName): bool
+            {
+                return $this->inner->rename($name, $newName);
+            }
+
+            public function listAll(string $prefix = ''): array
+            {
+                return $this->inner->listAll($prefix);
+            }
+
+            public function deleteAll(string $prefix = ''): bool
+            {
+                return $this->inner->deleteAll($prefix);
+            }
+
+            public function createCollection(string $collection): static
+            {
+                throw new \LogicException('Collections are not supported by this test double.');
+            }
+
+            public function getCollectionName(): string
+            {
+                return $this->inner->getCollectionName();
+            }
+
+            public function getAllCollectionNames(): array
+            {
+                return $this->inner->getAllCollectionNames();
+            }
+        };
     }
 
     public function testExportCopiesActiveToSync(): void
