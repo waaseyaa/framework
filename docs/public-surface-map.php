@@ -521,7 +521,6 @@ return [
     'Waaseyaa\Telescope\Storage\TelescopeStoreInterface' => 'internal',
     'Waaseyaa\Telescope\CodifiedContext\Validator\EmbeddingProviderInterface' => 'internal',
     'Waaseyaa\Telescope\CodifiedContext\Storage\CodifiedContextStoreInterface' => 'internal',
-    'Waaseyaa\CLI\Command\Make\AbstractMakeCommand' => 'internal',
     'Waaseyaa\CLI\Command\Make\AbstractMakeHandler' => 'internal',
     'Waaseyaa\CLI\Command\HandlerArgumentMode' => 'public',
     'Waaseyaa\CLI\Command\HandlerOptionMode' => 'public',
