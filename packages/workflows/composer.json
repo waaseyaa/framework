@@ -27,6 +27,18 @@
         {
             "type": "path",
             "url": "../relationship"
+        },
+        {
+            "type": "path",
+            "url": "../audit"
+        },
+        {
+            "type": "path",
+            "url": "../entity-storage"
+        },
+        {
+            "type": "path",
+            "url": "../database-legacy"
         }
     ],
     "require": {
@@ -34,10 +46,14 @@
         "waaseyaa/access": "^0.1.0-alpha.255",
         "waaseyaa/entity": "^0.1.0-alpha.255",
         "waaseyaa/relationship": "^0.1.0-alpha.255",
-        "waaseyaa/foundation": "^0.1.0-alpha.255"
+        "waaseyaa/foundation": "^0.1.0-alpha.255",
+        "waaseyaa/config": "^0.1.0-alpha.255",
+        "waaseyaa/audit": "^0.1.0-alpha.255"
     },
     "require-dev": {
-        "phpunit/phpunit": "^10.5"
+        "phpunit/phpunit": "^10.5",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.255",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.255"
     },
     "autoload": {
         "psr-4": {

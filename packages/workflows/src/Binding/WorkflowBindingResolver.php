@@ -1,0 +1,85 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Waaseyaa\Workflows\Binding;
+
+use Waaseyaa\Config\ConfigFactoryInterface;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Workflows\Workflow;
+
+/**
+ * Resolves the {@see Workflow} bound to an entity type + bundle, per the
+ * `workflows.assignments` config (CW-v1, docs/specs/content-workflow.md).
+ *
+ * Raw config shape: `['node.article' => 'editorial', 'node.*' => 'editorial']`
+ * — an exact `{entity_type}.{bundle}` key wins over the `{entity_type}.*`
+ * wildcard. No entry for either key means the type/bundle is unbound (a
+ * workflow-agnostic entity type — this is the common case for most content).
+ *
+ * Resolved workflows are memoized per (entityTypeId, bundle) pair for the
+ * lifetime of this instance. This is boot-stable, not process-stable: a new
+ * request/worker constructs a new resolver (via the service container), so
+ * there is no cross-request staleness — the same pattern used by the
+ * wayfinding anchor registry for its boot-scoped caches.
+ *
+ * @api
+ */
+final class WorkflowBindingResolver
+{
+    private const string ASSIGNMENTS_CONFIG_NAME = 'workflows.assignments';
+
+    /** @var array<string, ?Workflow> */
+    private array $resolved = [];
+
+    public function __construct(
+        private readonly ConfigFactoryInterface $configFactory,
+        private readonly EntityTypeManagerInterface $entityTypeManager,
+    ) {}
+
+    /**
+     * @throws \RuntimeException When a binding names a non-revisionable entity
+     *   type, or an unknown workflow id.
+     */
+    public function resolve(string $entityTypeId, string $bundle): ?Workflow
+    {
+        $cacheKey = $entityTypeId . '.' . $bundle;
+        if (\array_key_exists($cacheKey, $this->resolved)) {
+            return $this->resolved[$cacheKey];
+        }
+
+        $assignments = $this->configFactory->get(self::ASSIGNMENTS_CONFIG_NAME)->getRawData();
+
+        $workflowId = $assignments[$entityTypeId . '.' . $bundle]
+            ?? $assignments[$entityTypeId . '.*']
+            ?? null;
+
+        if (!\is_string($workflowId) || $workflowId === '') {
+            return $this->resolved[$cacheKey] = null;
+        }
+
+        $definition = $this->entityTypeManager->getDefinition($entityTypeId);
+        if (!$definition->isRevisionable()) {
+            throw new \RuntimeException(\sprintf(
+                "Workflow binding '%s.%s' => '%s' is invalid: entity type '%s' is not revisionable. "
+                . 'Workflow bindings require revisionable storage (docs/specs/content-workflow.md).',
+                $entityTypeId,
+                $bundle,
+                $workflowId,
+                $entityTypeId,
+            ));
+        }
+
+        $workflow = $this->entityTypeManager->getStorage('workflow')->load($workflowId);
+        if (!$workflow instanceof Workflow) {
+            throw new \RuntimeException(\sprintf(
+                "Workflow binding '%s.%s' names unknown workflow '%s'.",
+                $entityTypeId,
+                $bundle,
+                $workflowId,
+            ));
+        }
+
+        return $this->resolved[$cacheKey] = $workflow;
+    }
+}
