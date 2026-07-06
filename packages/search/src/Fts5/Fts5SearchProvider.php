@@ -100,28 +100,60 @@ final class Fts5SearchProvider implements SearchProviderInterface
 
         $whereSQL = implode(' AND ', $whereClauses);
 
-        // Count total hits and build facets.
+        // Sort. Relevance uses the FTS5 bm25 rank, optionally re-weighted so a
+        // title-column match outranks a body-only match (see rankExpression()).
+        // Computed up front (not just for the fetch) because the access-filtered
+        // path below must scan and paginate in this SAME order.
+        $rankExpr = $this->rankExpression();
+        $orderBy = $rankExpr;
+        if ($request->filters->sortField !== 'relevance' && in_array($request->filters->sortField, self::ALLOWED_SORT_COLUMNS, true)) {
+            $direction = strtoupper($request->filters->sortOrder) === 'ASC' ? 'ASC' : 'DESC';
+            $orderBy = "m.{$request->filters->sortField} $direction";
+        }
+
+        // Count total hits, the requested page's rows, and facets.
         //
         // When no access checker is wired (doc-only index, no filtering anywhere)
-        // use the fast SQL COUNT + buildFacets() path unchanged — no behaviour or
-        // performance change.
+        // use the fast SQL COUNT + LIMIT/OFFSET + buildFacets() path unchanged —
+        // no behaviour or performance change.
         //
-        // When a checker is wired, totalHits and facets must reflect only the
-        // documents the acting account may view. We derive both from a single
-        // bounded PHP scan (accessFilteredCountAndFacets) instead of raw SQL, so
-        // the count/facet oracle is closed for anonymous visitors on entity-backed
-        // restricted documents (WP03 / §2.2).
+        // When a checker is wired, totalHits, the page, AND facets must all
+        // reflect only the documents the acting account may view — and, just as
+        // importantly, must all come from the SAME ordered, access-filtered
+        // basis. Deriving totalHits/facets from one access-filtered scan while
+        // fetching the page from an independent, unfiltered ORDER BY/LIMIT/OFFSET
+        // query (the pre-#1915-R16 shape) let a fixed-size OFFSET walk the wrong
+        // sequence: an accessible document sharing a page window with a
+        // forbidden one was silently dropped from every page, while totalPages
+        // (measured against the filtered count) promised a page that could never
+        // fully materialize. accessFilteredSearch() below runs ONE bounded,
+        // ordered, access-filtered scan and slices the requested page out of it,
+        // so paging always agrees with the total it is measured against.
         if ($this->accessChecker !== null) {
-            [$totalHits, $facets] = $this->accessFilteredCountAndFacets(
+            [$totalHits, $pageRows, $facets] = $this->accessFilteredSearch(
                 $whereSQL,
                 $params,
+                $orderBy,
+                $rankExpr,
+                $request->page,
+                $request->pageSize,
                 $request->includeFacets,
             );
         } else {
             $countSQL = "SELECT COUNT(*) as cnt FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE $whereSQL";
             $countRows = iterator_to_array($this->database->query($countSQL, $params));
             $totalHits = (int) ($countRows[0]['cnt'] ?? 0);
-            $facets = null; // deferred to SQL buildFacets below
+
+            $fetchParams = $params;
+            $fetchParams['limit'] = $request->pageSize;
+            $fetchParams['offset'] = ($request->page - 1) * $request->pageSize;
+            $sql = "SELECT m.*, si.title, snippet(search_index, 2, '<b>', '</b>', '…', 32) as highlight, $rankExpr as rank FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE $whereSQL ORDER BY $orderBy LIMIT :limit OFFSET :offset";
+            $pageRows = iterator_to_array($this->database->query($sql, $fetchParams));
+
+            // Facets — run the three GROUP BY queries here, gated behind
+            // includeFacets (audit D-36: skips the json_each cross-join for
+            // callers that never render facets).
+            $facets = $request->includeFacets ? $this->buildFacets($whereSQL, $params) : [];
         }
 
         if ($totalHits === 0) {
@@ -137,36 +169,12 @@ final class Fts5SearchProvider implements SearchProviderInterface
         }
 
         $totalPages = (int) ceil($totalHits / $request->pageSize);
-        $offset = ($request->page - 1) * $request->pageSize;
-
-        // Sort. Relevance uses the FTS5 bm25 rank, optionally re-weighted so a
-        // title-column match outranks a body-only match (see rankExpression()).
-        $rankExpr = $this->rankExpression();
-        $orderBy = $rankExpr;
-        if ($request->filters->sortField !== 'relevance' && in_array($request->filters->sortField, self::ALLOWED_SORT_COLUMNS, true)) {
-            $direction = strtoupper($request->filters->sortOrder) === 'ASC' ? 'ASC' : 'DESC';
-            $orderBy = "m.{$request->filters->sortField} $direction";
-        }
-
-        // Fetch page
-        $sql = "SELECT m.*, si.title, snippet(search_index, 2, '<b>', '</b>', '…', 32) as highlight, $rankExpr as rank FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE $whereSQL ORDER BY $orderBy LIMIT :limit OFFSET :offset";
-        $params['limit'] = $request->pageSize;
-        $params['offset'] = $offset;
 
         $hits = [];
         $staleDetected = false;
         $currentVersion = $this->indexer->getSchemaVersion();
 
-        foreach ($this->database->query($sql, $params) as $row) {
-            // Per-document access enforcement: the index is populated
-            // automatically on entity save, so it can hold documents the acting
-            // account may not view. Drop those before they reach the caller.
-            if ($this->accessChecker !== null
-                && !$this->accessChecker->canView((string) $row['document_id'], (string) ($row['entity_type'] ?? ''))
-            ) {
-                continue;
-            }
-
+        foreach ($pageRows as $row) {
             if ($row['schema_version'] !== $currentVersion) {
                 $staleDetected = true;
             }
@@ -190,15 +198,6 @@ final class Fts5SearchProvider implements SearchProviderInterface
 
         if ($staleDetected) {
             $this->logger->warning('Search index contains stale documents. Run search:reindex to rebuild.');
-        }
-
-        // Facets — when the access checker path ran, $facets is already built
-        // from the PHP scan. For the no-checker (fast SQL) path, $facets is null
-        // and we run the three GROUP BY queries here, gated behind includeFacets
-        // (audit D-36: skips the json_each cross-join for callers that never
-        // render facets).
-        if ($facets === null) {
-            $facets = $request->includeFacets ? $this->buildFacets($whereSQL, $params) : [];
         }
 
         $tookMs = (int) ((hrtime(true) - $startTime) / 1_000_000);
@@ -302,37 +301,63 @@ final class Fts5SearchProvider implements SearchProviderInterface
     }
 
     /**
-     * Derives access-filtered totalHits and (optionally) facets from a single
-     * bounded PHP scan over the full candidate set when an access checker is
-     * wired. This closes the count/facet metadata oracle for anonymous visitors
-     * on entity-backed restricted documents (WP03 / §2.2).
+     * Runs ONE bounded, ordered, access-filtered scan and derives totalHits,
+     * the requested page's rows, and (optionally) facets all from the SAME
+     * filtered basis (#1915, R16 — audit L3-search.md "count vs fetch
+     * pagination split"). Previously totalHits/facets came from an
+     * access-filtered scan while the page was fetched by an independent,
+     * unfiltered `ORDER BY ... LIMIT/OFFSET` query over ALL candidate rows
+     * (forbidden included), so a fixed-size OFFSET walked the wrong sequence:
+     * an accessible document sharing a page window with a forbidden one was
+     * silently dropped from every page, while totalPages (measured against
+     * the filtered count) promised a page that could never fully materialize.
      *
      * The scan is bounded by MAX_ACCESS_SCAN to prevent unbounded entity loads
-     * on broad anonymous queries. When capped, totalHits is a conservative
-     * under-count (never an over-count), so the oracle stays closed.
+     * on broad anonymous queries. When capped, totalHits (and therefore the
+     * pages reachable from it) is a conservative under-count — never an
+     * over-count — so the existence oracle stays closed; a page whose offset
+     * falls beyond the scanned window simply returns fewer than pageSize rows
+     * rather than fabricating more.
      *
      * @param array<string,mixed> $params
-     * @return array{0:int,1:SearchFacet[]}
+     * @return array{0:int,1:list<array<string,mixed>>,2:SearchFacet[]}
      */
-    private function accessFilteredCountAndFacets(string $whereSQL, array $params, bool $buildFacets): array
-    {
-        // Remove pagination params — this is the full-set scan.
+    private function accessFilteredSearch(
+        string $whereSQL,
+        array $params,
+        string $orderBy,
+        string $rankExpr,
+        int $page,
+        int $pageSize,
+        bool $buildFacets,
+    ): array {
+        // Remove pagination params — this is the bounded, ordered full-candidate scan.
         unset($params['limit'], $params['offset']);
 
-        $candidateSQL = "SELECT m.document_id, m.entity_type, m.content_type, m.source_name, m.topics FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE $whereSQL LIMIT :scanCap";
+        $sql = "SELECT m.*, si.title, snippet(search_index, 2, '<b>', '</b>', '…', 32) as highlight, $rankExpr as rank FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE $whereSQL ORDER BY $orderBy LIMIT :scanCap";
         $params['scanCap'] = self::MAX_ACCESS_SCAN;
 
+        $offset = ($page - 1) * $pageSize;
+
         $totalHits = 0;
+        $pageRows = [];
         $contentTypeCounts = [];
         $sourceNameCounts = [];
         $topicCounts = [];
 
-        foreach ($this->database->query($candidateSQL, $params) as $row) {
+        foreach ($this->database->query($sql, $params) as $row) {
             $documentId = (string) $row['document_id'];
             $entityType = (string) ($row['entity_type'] ?? '');
 
             if (!$this->accessChecker->canView($documentId, $entityType)) {
                 continue;
+            }
+
+            // $totalHits doubles as the accessible row's 0-based rank position
+            // in the filtered, ordered sequence: it lands on the requested
+            // page iff that position falls inside [offset, offset + pageSize).
+            if ($totalHits >= $offset && $totalHits < $offset + $pageSize) {
+                $pageRows[] = $row;
             }
 
             ++$totalHits;
@@ -360,40 +385,38 @@ final class Fts5SearchProvider implements SearchProviderInterface
             }
         }
 
-        if (!$buildFacets) {
-            return [$totalHits, []];
-        }
-
         $facets = [];
 
-        if ($contentTypeCounts !== []) {
-            arsort($contentTypeCounts);
-            $buckets = [];
-            foreach ($contentTypeCounts as $key => $count) {
-                $buckets[] = new FacetBucket($key, $count);
+        if ($buildFacets) {
+            if ($contentTypeCounts !== []) {
+                arsort($contentTypeCounts);
+                $buckets = [];
+                foreach ($contentTypeCounts as $key => $count) {
+                    $buckets[] = new FacetBucket($key, $count);
+                }
+                $facets[] = new SearchFacet('content_type', $buckets);
             }
-            $facets[] = new SearchFacet('content_type', $buckets);
+
+            if ($sourceNameCounts !== []) {
+                arsort($sourceNameCounts);
+                $buckets = [];
+                foreach ($sourceNameCounts as $key => $count) {
+                    $buckets[] = new FacetBucket($key, $count);
+                }
+                $facets[] = new SearchFacet('source_name', $buckets);
+            }
+
+            if ($topicCounts !== []) {
+                arsort($topicCounts);
+                $buckets = [];
+                foreach ($topicCounts as $key => $count) {
+                    $buckets[] = new FacetBucket($key, $count);
+                }
+                $facets[] = new SearchFacet('topics', $buckets);
+            }
         }
 
-        if ($sourceNameCounts !== []) {
-            arsort($sourceNameCounts);
-            $buckets = [];
-            foreach ($sourceNameCounts as $key => $count) {
-                $buckets[] = new FacetBucket($key, $count);
-            }
-            $facets[] = new SearchFacet('source_name', $buckets);
-        }
-
-        if ($topicCounts !== []) {
-            arsort($topicCounts);
-            $buckets = [];
-            foreach ($topicCounts as $key => $count) {
-                $buckets[] = new FacetBucket($key, $count);
-            }
-            $facets[] = new SearchFacet('topics', $buckets);
-        }
-
-        return [$totalHits, $facets];
+        return [$totalHits, $pageRows, $facets];
     }
 
     /**
