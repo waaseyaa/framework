@@ -126,6 +126,7 @@ declare -A PATTERN_TO_SPEC=(
   ["packages/graphql/"]="docs/specs/api-layer.md"
   ["packages/routing/"]="docs/specs/api-layer.md"
   ["packages/wayfinding/"]="docs/specs/wayfinding.md"
+  ["packages/workflows/"]="docs/specs/content-workflow.md"
   ["packages/foundation/"]="docs/specs/infrastructure.md"
   ["packages/cache/"]="docs/specs/infrastructure.md"
   ["packages/debug/"]="docs/specs/debugging-dx.md"
