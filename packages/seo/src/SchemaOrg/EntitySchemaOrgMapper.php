@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\Seo\SchemaOrg;
 
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 
 /**
  * Maps an entity to a schema.org JSON-LD node for injection into a page `<head>`.
@@ -43,12 +45,15 @@ final class EntitySchemaOrgMapper
     /** @var array<string, string> */
     private array $typeMap;
 
+    private readonly LoggerInterface $logger;
+
     /**
      * @param array<string, string> $typeMapOverrides Merged over the defaults.
      */
-    public function __construct(array $typeMapOverrides = [])
+    public function __construct(array $typeMapOverrides = [], ?LoggerInterface $logger = null)
     {
         $this->typeMap = array_merge(self::DEFAULT_TYPE_MAP, $typeMapOverrides);
+        $this->logger = $logger ?? new NullLogger();
     }
 
     /**
@@ -79,14 +84,14 @@ final class EntitySchemaOrgMapper
         $node = [
             '@context' => self::CONTEXT,
             '@type' => $this->resolveType($entity),
-            'name' => $labelOverride ?? $entity->label(),
+            'name' => $this->sanitizeUtf8($labelOverride ?? $entity->label()),
         ];
 
         if ($url !== '') {
             $node['url'] = $url;
         }
         if ($description !== null && $description !== '') {
-            $node['description'] = $description;
+            $node['description'] = $this->sanitizeUtf8($description);
         }
         if ($dateModified !== null && $dateModified !== '') {
             $node['dateModified'] = $dateModified;
@@ -105,12 +110,44 @@ final class EntitySchemaOrgMapper
         // JSON_HEX_TAG|JSON_HEX_AMP hex-escape `<`, `>`, `&` so hostile entity
         // data (e.g. a `</script>` in a label) cannot break out of the
         // `<script>` element and inject markup.
-        $json = json_encode(
-            $node,
-            \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE | \JSON_HEX_TAG | \JSON_HEX_AMP | \JSON_THROW_ON_ERROR,
-        );
+        //
+        // `name`/`description` are already scrubbed by sanitizeUtf8() in
+        // map(), but toScriptTag() also accepts a caller-built $node
+        // directly, so this is a second line of defense: an invalid-UTF-8
+        // entity label must degrade the JSON-LD block, never 500 the page
+        // (audit L3-seo.md, MAJOR finding).
+        try {
+            $json = json_encode(
+                $node,
+                \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE | \JSON_HEX_TAG | \JSON_HEX_AMP | \JSON_THROW_ON_ERROR,
+            );
+        } catch (\JsonException $exception) {
+            // Best-effort side effect: degrade to no JSON-LD block, but never
+            // silently — log so a recurring bad node is diagnosable.
+            $this->logger->warning('Schema.org JSON-LD encoding failed; omitting the JSON-LD block: {message}', [
+                'message' => $exception->getMessage(),
+                'exception' => $exception,
+            ]);
+
+            return '';
+        }
 
         return '<script type="application/ld+json">' . $json . '</script>';
+    }
+
+    /**
+     * Scrub ill-formed UTF-8 byte sequences so a corrupt/invalid entity
+     * string can never reach json_encode()'s JSON_THROW_ON_ERROR and crash
+     * the page render. Valid UTF-8 (including non-ASCII scripts, e.g.
+     * Anishinaabemowin diacritics/syllabics) passes through unchanged.
+     */
+    private function sanitizeUtf8(string $value): string
+    {
+        if ($value === '' || mb_check_encoding($value, 'UTF-8')) {
+            return $value;
+        }
+
+        return mb_scrub($value, 'UTF-8');
     }
 
     private function resolveType(EntityInterface $entity): string
