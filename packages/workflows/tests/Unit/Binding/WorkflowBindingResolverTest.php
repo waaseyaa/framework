@@ -74,30 +74,43 @@ final class WorkflowBindingResolverTest extends TestCase
             public function getDefinitions(): array { return $this->definitions; }
             public function hasDefinition(string $entityTypeId): bool { return isset($this->definitions[$entityTypeId]); }
 
-            public function getStorage(string $entityTypeId): EntityStorageInterface
+            public function getStorage(string $entityTypeId): EntityStorageInterface { throw new \LogicException('not needed: production getStorage() has no storageFactory (C-22 WP4), so the binding resolver uses getRepository()'); }
+
+            public function getRepository(string $entityTypeId): EntityRepositoryInterface
             {
                 $workflows = $this->workflows;
 
-                return new class ($workflows) implements EntityStorageInterface {
+                return new class ($workflows) implements EntityRepositoryInterface {
                     public function __construct(private readonly array $workflows) {}
 
                     public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
 
-                    public function load(int|string $id): ?EntityInterface
+                    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
                     {
                         return $this->workflows[$id] ?? null;
                     }
 
-                    public function loadByKey(string $key, mixed $value): ?EntityInterface { return null; }
-                    public function loadMultiple(array $ids = []): array { return []; }
-                    public function save(EntityInterface $entity): int { throw new \LogicException('not needed'); }
-                    public function delete(array $entities): void {}
+                    public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
+                    public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
                     public function getQuery(): EntityQueryInterface { throw new \LogicException('not needed'); }
-                    public function getEntityTypeId(): string { return 'workflow'; }
+                    public function save(EntityInterface $entity, bool $validate = true): int { throw new \LogicException('not needed'); }
+                    public function delete(EntityInterface $entity): void {}
+                    public function exists(string $id): bool { return isset($this->workflows[$id]); }
+                    public function count(array $criteria = []): int { return \count($this->workflows); }
+                    public function loadRevision(string $entityId, int $revisionId): ?EntityInterface { return null; }
+                    public function rollback(string $entityId, int $targetRevisionId): EntityInterface { throw new \LogicException('not needed'); }
+                    public function listRevisions(string $entityId): array { return []; }
+                    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+                    public function loadPublishedRevision(string $entityId): ?EntityInterface { return null; }
+                    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+                    public function saveMany(array $entities, bool $validate = true): array { return []; }
+                    public function deleteMany(array $entities): int { return 0; }
+                    public function findTranslations(EntityInterface $entity): array { return []; }
+                    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int { return 0; }
+                    public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
+                    public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
                 };
             }
-
-            public function getRepository(string $entityTypeId): EntityRepositoryInterface { throw new \LogicException('not needed'); }
         };
     }
 

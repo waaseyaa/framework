@@ -70,7 +70,14 @@ final class WorkflowBindingResolver
             ));
         }
 
-        $workflow = $this->entityTypeManager->getStorage('workflow')->load($workflowId);
+        // Deviation from the plan's literal text (getStorage()->load()):
+        // production kernel wiring passes storageFactory: null to
+        // EntityTypeManager (EntityTypeManagerFactory::build(), C-22 WP4 —
+        // "the legacy SqlEntityStorage engine is removed"), so getStorage()
+        // throws for any entity type without an explicit storageClass, which
+        // 'workflow' does not declare. getRepository()->find() is the live
+        // pipeline for every entity type, config entities included.
+        $workflow = $this->entityTypeManager->getRepository('workflow')->find($workflowId);
         if (!$workflow instanceof Workflow) {
             throw new \RuntimeException(\sprintf(
                 "Workflow binding '%s.%s' names unknown workflow '%s'.",
