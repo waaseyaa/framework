@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Wayfinding\Anchor\AnchorRegistry;
+use Waaseyaa\Wayfinding\Tests\Support\CountingEntityTypeManager;
 use Waaseyaa\Wayfinding\Tests\Support\InMemoryEntityTypeManager;
 use Waaseyaa\Wayfinding\Tests\Support\WidgetEntity;
 
@@ -95,5 +96,44 @@ final class AnchorRegistryTest extends TestCase
         self::assertFalse($registry->isValid('field:widget:nonexistent'));
         self::assertFalse($registry->isValid('list:other_type'));
         self::assertFalse($registry->isValid('not-an-anchor'));
+    }
+
+    #[Test]
+    public function catalog_is_memoized_per_instance(): void
+    {
+        // MAJOR perf finding (audit L4-wayfinding.md): a public anonymous
+        // endpoint was rebuilding the full catalog, iterating every entity
+        // type and field through SchemaPresenter, on every request. Prove
+        // catalog() only derives the anchor set once per AnchorRegistry
+        // instance no matter how many times it (or isValid()/anchorIds(),
+        // which call it internally) are invoked.
+        $widget = new EntityType(
+            id: 'widget',
+            label: 'Widget',
+            class: WidgetEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title'],
+            translatable: false,
+            revisionable: false,
+        );
+
+        $etm = new CountingEntityTypeManager(new InMemoryEntityTypeManager(
+            ['widget' => $widget],
+            ['widget' => ['body' => ['type' => 'text_long', 'label' => 'Body']]],
+        ));
+
+        $registry = new AnchorRegistry($etm);
+
+        $first = $registry->catalog();
+        $second = $registry->catalog();
+        self::assertTrue($registry->isValid('field:widget:body'));
+        $registry->anchorIds();
+
+        self::assertSame($first, $second);
+        // One entity type ("widget"): resolveFieldDefinitions() is called
+        // exactly once per type per catalog build, immediately preceding the
+        // SchemaPresenter::present() call it feeds. A rebuild on every one of
+        // the four calls above would report 4, not 1.
+        self::assertSame(1, $etm->getDefinitionsCallCount);
+        self::assertSame(1, $etm->resolveFieldDefinitionsCallCount);
     }
 }
