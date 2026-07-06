@@ -499,6 +499,18 @@ final class JsonApiController
                     );
                 }
             }
+
+            // CW-v1 WP-0 (docs/specs/content-workflow.md): an entity constructor
+            // may default `status` to published (Node does), but an account
+            // forbidden from editing `status` must not create born-published
+            // content. Applies only when the client did not supply `status` (a
+            // supplied value was already access-checked above).
+            if ($entity instanceof FieldableInterface
+                && !\array_key_exists('status', $attributes)
+                && $entity->get('status') !== null
+                && $this->accessHandler->checkFieldAccess($entity, 'status', 'edit', $this->account)->isForbidden()) {
+                $entity->set('status', 0);
+            }
         }
 
         try {

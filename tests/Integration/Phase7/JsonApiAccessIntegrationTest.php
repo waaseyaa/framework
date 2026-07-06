@@ -147,6 +147,13 @@ final class JsonApiAccessIntegrationTest extends TestCase
     #[Test]
     public function userWithCreatePermissionCanStoreNewNode(): void
     {
+        // CW-v1 WP-0: this account has no NodeAccessPolicy::PUBLISH_PERMISSION,
+        // so it may no longer supply an explicit `status` attribute (that is
+        // now edit-forbidden without the publish permission — see
+        // createWithoutStatusDefaultsUnpublishedForAccountsThatMayNotPublish
+        // below for the create-without-status floor this test used to cover
+        // incidentally). Omit `status` here; this test's own point is that a
+        // plain create-permission account can still create at all.
         $user = new User([
             'uid' => 5,
             'name' => 'author',
@@ -162,7 +169,6 @@ final class JsonApiAccessIntegrationTest extends TestCase
                     'title' => 'New Article',
                     'type' => 'article',
                     'uid' => 5,
-                    'status' => 1,
                     'bundle' => 'article',
                 ],
             ],
@@ -171,6 +177,70 @@ final class JsonApiAccessIntegrationTest extends TestCase
         $this->assertSame(201, $doc->statusCode);
         $array = $doc->toArray();
         $this->assertSame('New Article', $array['data']['attributes']['title']);
+    }
+
+    #[Test]
+    public function createWithoutStatusDefaultsUnpublishedForAccountsThatMayNotPublish(): void
+    {
+        // CW-v1 WP-0 (docs/specs/content-workflow.md): Node defaults `status`
+        // to published (1) in its constructor when the caller omits it. An
+        // account that may create but not edit `status`/`workflow_state` must
+        // not get born-published content out of that constructor default.
+        $author = new User([
+            'uid' => 5,
+            'name' => 'author',
+            'permissions' => ['access content', 'create article content'],
+            'roles' => ['authenticated'],
+        ]);
+
+        $controller = $this->buildController($author);
+        $doc = $controller->store('node', [
+            'data' => [
+                'type' => 'node',
+                'attributes' => [
+                    'title' => 'Draft by author',
+                    'type' => 'article',
+                    'uid' => 5,
+                    'bundle' => 'article',
+                    // No 'status' attribute supplied.
+                ],
+            ],
+        ]);
+
+        $this->assertSame(201, $doc->statusCode);
+        $uuid = $doc->toArray()['data']['id'];
+        $stored = $this->storage->load($this->findNodeIdByUuid($uuid));
+        $this->assertSame(0, (int) $stored->get('status'));
+    }
+
+    #[Test]
+    public function createWithoutStatusStaysPublishedForPublishers(): void
+    {
+        $publisher = new User([
+            'uid' => 6,
+            'name' => 'editor',
+            'permissions' => ['access content', 'create article content', NodeAccessPolicy::PUBLISH_PERMISSION],
+            'roles' => ['authenticated'],
+        ]);
+
+        $controller = $this->buildController($publisher);
+        $doc = $controller->store('node', [
+            'data' => [
+                'type' => 'node',
+                'attributes' => [
+                    'title' => 'Published by editor',
+                    'type' => 'article',
+                    'uid' => 6,
+                    'bundle' => 'article',
+                    // No 'status' attribute supplied.
+                ],
+            ],
+        ]);
+
+        $this->assertSame(201, $doc->statusCode);
+        $uuid = $doc->toArray()['data']['id'];
+        $stored = $this->storage->load($this->findNodeIdByUuid($uuid));
+        $this->assertSame(1, (int) $stored->get('status'));
     }
 
     #[Test]
