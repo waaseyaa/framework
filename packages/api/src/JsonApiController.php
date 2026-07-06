@@ -108,13 +108,22 @@ final class JsonApiController
         $ids = $entityQuery->execute();
         $entities = $ids !== [] ? $repository->findMany($ids) : [];
 
+        // R14 (audit A11): the fields a caller filters or sorts on. A field can
+        // pass validateQueryFields() (declared, not internal) yet be view-Forbidden
+        // for THIS account by a dynamic FieldAccessPolicy (e.g. a classification /
+        // clearance field). The raw storage filter/sort still evaluates its value,
+        // so meta.total and the row set become a presence/ordering oracle for a
+        // field the caller may not read. Gate them per entity below, fail closed.
+        $gatedQueryFields = $this->queryFieldNames($parsedQuery);
+
         // Filter the current page by view access if an access handler is
         // available. Entity-level access is deny-by-default (isAllowed): a
         // Neutral row is not visible. This mirrors show() (single read).
         if ($this->accessHandler !== null && $this->account !== null) {
             $entities = array_filter(
                 $entities,
-                fn($entity) => $this->accessHandler->check($entity, 'view', $this->account)->isAllowed(),
+                fn($entity) => $this->accessHandler->check($entity, 'view', $this->account)->isAllowed()
+                    && !$this->queryFieldForbidden($entity, $gatedQueryFields),
             );
             // meta.total must reflect the access-filtered total ACROSS all
             // pages, not the size of the current page. The storage COUNT alone
@@ -122,8 +131,9 @@ final class JsonApiController
             // rows (open-by-default), whereas the collection contract is
             // deny-by-default (isAllowed), so Neutral rows would inflate it.
             // Recompute the true total by re-running the filter set without
-            // pagination and counting rows this account may actually view.
-            $total = $this->accessFilteredTotal($repository, $parsedQuery);
+            // pagination and counting rows this account may actually view AND
+            // whose filter/sort fields it may read (R14).
+            $total = $this->accessFilteredTotal($repository, $parsedQuery, $gatedQueryFields);
         }
 
         $resources = $this->serializer->serializeCollection($entities, $this->accessHandler, $this->account);
@@ -173,10 +183,16 @@ final class JsonApiController
      * system / no-account path keeps the storage COUNT computed in index().
      *
      * @param \Waaseyaa\Entity\Repository\EntityRepositoryInterface $repository
+     * @param list<string> $gatedQueryFields Filter/sort field names to gate through
+     *                                        field-level view access (R14). An entity
+     *                                        with any of these Forbidden is excluded
+     *                                        value-independently, so a probed value can
+     *                                        never move the count.
      */
     private function accessFilteredTotal(
         \Waaseyaa\Entity\Repository\EntityRepositoryInterface $repository,
         ParsedQuery $parsedQuery,
+        array $gatedQueryFields = [],
     ): int {
         \assert($this->accessHandler !== null && $this->account !== null);
 
@@ -194,12 +210,64 @@ final class JsonApiController
 
         $total = 0;
         foreach ($repository->findMany($ids) as $entity) {
-            if ($this->accessHandler->check($entity, 'view', $this->account)->isAllowed()) {
+            if ($this->accessHandler->check($entity, 'view', $this->account)->isAllowed()
+                && !$this->queryFieldForbidden($entity, $gatedQueryFields)) {
                 $total++;
             }
         }
 
         return $total;
+    }
+
+    /**
+     * The distinct field names a collection request filters or sorts on.
+     *
+     * @return list<string>
+     */
+    private function queryFieldNames(ParsedQuery $parsedQuery): array
+    {
+        $fields = [];
+        foreach ($parsedQuery->filters as $filter) {
+            $fields[$filter->field] = true;
+        }
+        foreach ($parsedQuery->sorts as $sort) {
+            $fields[$sort->field] = true;
+        }
+
+        return array_keys($fields);
+    }
+
+    /**
+     * True when ANY of the caller's filter/sort fields is view-Forbidden for
+     * this entity (R14, audit A11).
+     *
+     * The exclusion is value-independent: an entity is dropped because the
+     * caller may not READ the field it filtered/sorted on, never because of the
+     * field's value, so no operator (including NOT_EQUALS) and no probe value
+     * can turn the row set or meta.total into a presence/ordering oracle. This
+     * is the per-entity companion to the structural {@see validateQueryFields()}
+     * allowlist, mirroring R13 WP1's admin-surface shape: a field can be
+     * Forbidden only for SOME entities of the type (classification/clearance
+     * gating varies per row), which a static allowlist cannot express.
+     *
+     * Only reached on the access-handler+account path; the no-account system
+     * context keeps the storage-derived total computed in {@see index()}.
+     *
+     * @param list<string> $gatedQueryFields
+     */
+    private function queryFieldForbidden(EntityInterface $entity, array $gatedQueryFields): bool
+    {
+        if ($gatedQueryFields === [] || $this->accessHandler === null || $this->account === null) {
+            return false;
+        }
+
+        foreach ($gatedQueryFields as $field) {
+            if ($this->accessHandler->checkFieldAccess($entity, $field, 'view', $this->account)->isForbidden()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

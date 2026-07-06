@@ -62,6 +62,16 @@ final class EntityResolver
         $offset = isset($args['offset']) ? max(0, (int) $args['offset']) : 0;
         $limit = isset($args['limit']) ? min(self::MAX_LIMIT, max(1, (int) $args['limit'])) : self::DEFAULT_LIMIT;
 
+        // R14 (audit A11): fields the caller filters/sorts on. A field can be
+        // view-Forbidden for THIS account by a dynamic FieldAccessPolicy (a
+        // classification / clearance field) while `canView()` (entity-level)
+        // still admits the row, so the raw storage filter/sort turns `total`
+        // and the item set into a presence/ordering oracle for a field the
+        // caller may not read. Gated per entity below, value-independently.
+        // Empty in system context (no bound account): that path keeps the raw
+        // storage COUNT and does no field gating, exactly as before.
+        $gatedQueryFields = $this->account !== null ? $this->queryFieldNames($filters, $sorts) : [];
+
         // Total — filters only, no sorts/pagination.
         $countQuery = $repository->getQuery();
         if ($this->account !== null) {
@@ -82,7 +92,8 @@ final class EntityResolver
             $total = 0;
             if ($countIds !== []) {
                 foreach ($repository->findMany($countIds) as $countEntity) {
-                    if ($this->guard->canView($countEntity)) {
+                    if ($this->guard->canView($countEntity)
+                        && !$this->queryFieldForbidden($countEntity, $gatedQueryFields)) {
                         ++$total;
                     }
                 }
@@ -125,6 +136,13 @@ final class EntityResolver
         $items = [];
         foreach ($entities as $entity) {
             if (!$this->guard->canView($entity)) {
+                continue;
+            }
+            // R14: value-independent exclusion — a row whose filter/sort field
+            // the caller may not read never surfaces, so its position/presence
+            // cannot encode the hidden value. Mirrors the count loop above and
+            // JsonApiController::index()'s per-entity gate.
+            if ($this->queryFieldForbidden($entity, $gatedQueryFields)) {
                 continue;
             }
             $values = EntityValues::toCastAwareMap($entity);
@@ -292,6 +310,44 @@ final class EntityResolver
         }
 
         return $repository->find((string) $id);
+    }
+
+    /**
+     * The distinct field names a list query filters or sorts on (R14).
+     *
+     * @param list<QueryFilter> $filters
+     * @param list<QuerySort>   $sorts
+     * @return list<string>
+     */
+    private function queryFieldNames(array $filters, array $sorts): array
+    {
+        $fields = [];
+        foreach ($filters as $filter) {
+            $fields[$filter->field] = true;
+        }
+        foreach ($sorts as $sort) {
+            $fields[$sort->field] = true;
+        }
+
+        return array_keys($fields);
+    }
+
+    /**
+     * True when ANY caller-supplied filter/sort field is view-Forbidden for
+     * this entity (R14, audit A11). Value-independent, evaluated per entity —
+     * see {@see GraphQlAccessGuard::isFieldViewForbidden()}.
+     *
+     * @param list<string> $gatedQueryFields
+     */
+    private function queryFieldForbidden(EntityInterface $entity, array $gatedQueryFields): bool
+    {
+        foreach ($gatedQueryFields as $field) {
+            if ($this->guard->isFieldViewForbidden($entity, $field)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
