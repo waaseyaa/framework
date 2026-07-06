@@ -12,12 +12,18 @@ use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 /**
  * `bin/waaseyaa ai:purge-runs [--retention-days=<int>]` — drop
  * {@see \Waaseyaa\AI\Agent\Entity\AgentRun} rows whose `queued_at` is
- * older than the retention threshold, together with their owning
+ * older than the retention threshold AND whose status is terminal
+ * (`completed`, `failed`, `cancelled`), together with their owning
  * {@see \Waaseyaa\AI\Agent\Entity\AgentAuditLog} rows (FR-006, FR-030).
+ *
+ * A run still in `queued`, `running`, `awaiting_approval`, or `cancelling`
+ * is never age-purged, even past retention: it is logically live, and the
+ * `StalledRunReaper` (not this command) is responsible for detecting a
+ * stalled `running` row (audit A7 F8).
  *
  * Algorithm:
  *  1. `threshold = now() - retentionDays`
- *  2. Find run ids via {@see AgentRunRepository::findOldByQueuedAt()}.
+ *  2. Find terminal run ids via {@see AgentRunRepository::findOldByQueuedAt()}.
  *  3. Delete those run rows from the `agent_run` table.
  *  4. Delete all audit rows whose `occurred_at < threshold` via
  *     {@see AgentAuditLogRepository::purgeOlderThan()}.

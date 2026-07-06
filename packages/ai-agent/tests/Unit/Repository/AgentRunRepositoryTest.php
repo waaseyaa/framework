@@ -173,19 +173,21 @@ final class AgentRunRepositoryTest extends TestCase
     }
 
     #[Test]
-    public function findOldByQueuedAtReturnsRunsQueuedBeforeThreshold(): void
+    public function findOldByQueuedAtReturnsTerminalRunsQueuedBeforeThreshold(): void
     {
         $old = $this->makeQueuedRun(
             'old',
             1,
             'p',
             queuedAt: new \DateTimeImmutable('2026-01-01T00:00:00+00:00'),
+            status: RunStatus::Completed,
         );
         $fresh = $this->makeQueuedRun(
             'fresh',
             1,
             'p',
             queuedAt: new \DateTimeImmutable('2026-05-18T00:00:00+00:00'),
+            status: RunStatus::Completed,
         );
 
         $this->repository->save($old);
@@ -197,11 +199,39 @@ final class AgentRunRepositoryTest extends TestCase
         self::assertSame('old', $result[0]->id());
     }
 
+    #[Test]
+    public function findOldByQueuedAtExcludesNonTerminalRunsRegardlessOfAge(): void
+    {
+        // Derive the non-terminal set from the enum itself so a future case
+        // added to RunStatus is covered here automatically.
+        $nonTerminals = array_values(array_filter(
+            RunStatus::cases(),
+            static fn(RunStatus $status): bool => !$status->isTerminal(),
+        ));
+        self::assertNotEmpty($nonTerminals);
+
+        foreach ($nonTerminals as $status) {
+            $run = $this->makeQueuedRun(
+                'old-' . $status->value,
+                1,
+                'p',
+                queuedAt: new \DateTimeImmutable('2026-01-01T00:00:00+00:00'),
+                status: $status,
+            );
+            $this->repository->save($run);
+        }
+
+        $result = $this->repository->findOldByQueuedAt(new \DateTimeImmutable('2026-03-01T00:00:00+00:00'));
+
+        self::assertSame([], $result);
+    }
+
     private function makeQueuedRun(
         string $id,
         int $accountId,
         string $prompt,
         ?\DateTimeImmutable $queuedAt = null,
+        RunStatus $status = RunStatus::Queued,
     ): AgentRun {
         $queuedAt ??= new \DateTimeImmutable('2026-05-18T11:30:00+00:00');
 
@@ -210,7 +240,7 @@ final class AgentRunRepositoryTest extends TestCase
             'account_id' => $accountId,
             'agent_definition_id' => null,
             'bundle_json' => '{}',
-            'status' => RunStatus::Queued->value,
+            'status' => $status->value,
             'destructive_approval' => HitlMode::None->value,
             'pending_approval_call_id' => null,
             'prompt' => $prompt,
