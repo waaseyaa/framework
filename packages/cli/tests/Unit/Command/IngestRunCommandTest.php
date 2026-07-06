@@ -541,12 +541,17 @@ final class IngestRunCommandTest extends TestCase
         $key = $keys[0];
         $this->assertNotSame('', $key);
         $this->assertMatchesRegularExpression('/^[a-z0-9_-]+$/', $key);
+        // Pins key stability across upgrades; legitimately breaks if a future ICU adds a Syllabics-to-Latin transform.
         $this->assertSame('k79e16c7e13db8628', $key);
     }
 
     #[Test]
     public function it_normalizes_diacritic_titles_to_latinized_ascii_keys(): void
     {
+        if (!\extension_loaded('intl')) {
+            self::markTestSkipped('requires ext-intl for ICU transliteration');
+        }
+
         $inputPath = $this->tempDir . '/diacritics.json';
         file_put_contents($inputPath, json_encode([
             'items' => [
@@ -574,7 +579,6 @@ final class IngestRunCommandTest extends TestCase
         $this->assertCount(1, $keys);
         $key = $keys[0];
         $this->assertMatchesRegularExpression('/^[a-z0-9_-]+$/', $key);
-        $this->assertStringStartsWith('waseyaa', $key);
         $this->assertSame('waseyaa_ziibi', $key);
     }
 
@@ -613,8 +617,54 @@ final class IngestRunCommandTest extends TestCase
 
         $this->assertSame(2, $decoded['meta']['node_count']);
         $this->assertSame(1, $decoded['meta']['relationship_count']);
+        // Pins key stability across upgrades; legitimately breaks if a future ICU adds a Syllabics-to-Latin transform.
         $this->assertArrayHasKey('k79e16c7e13db8628', $decoded['nodes']);
         $this->assertSame('k79e16c7e13db8628', $decoded['relationships'][0]['to']);
+    }
+
+    #[Test]
+    public function it_deduplicates_fallback_source_uris_when_transliteration_collides(): void
+    {
+        $inputPath = $this->tempDir . '/transliteration-collision.json';
+        file_put_contents($inputPath, json_encode([
+            'items' => [
+                [
+                    'title' => 'Café',
+                    'workflow_state' => 'published',
+                    'body' => 'First cafe record body with enough tokens to publish cleanly.',
+                ],
+                [
+                    'title' => 'Cafe',
+                    'workflow_state' => 'published',
+                    'body' => 'Second cafe record body with enough tokens to publish cleanly.',
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        $mappedPath = $this->tempDir . '/mapped-transliteration-collision.json';
+        $snapshotPath = $this->tempDir . '/snapshot-transliteration-collision.json';
+        $tester = $this->makeTester();
+        $tester->executeMap([
+            '--input' => $inputPath,
+            '--format' => 'structured',
+            '--source' => 'dataset://collision',
+            '--output' => $mappedPath,
+            '--refresh-snapshot-output' => $snapshotPath,
+        ]);
+
+        $this->assertSame(0, $tester->getExitCode());
+        $decoded = json_decode((string) file_get_contents($mappedPath), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $decoded['meta']['error_count']);
+        $this->assertSame(2, $decoded['meta']['node_count']);
+
+        $snapshot = json_decode((string) file_get_contents($snapshotPath), true, 512, JSON_THROW_ON_ERROR);
+        $sourceUris = array_map(
+            static fn(array $item): string => (string) $item['source_uri'],
+            $snapshot['envelope']['items'],
+        );
+        $this->assertCount(2, $sourceUris);
+        $this->assertCount(2, array_unique($sourceUris), 'Fallback source_uris must be deduplicated per record.');
     }
 
     #[Test]
@@ -638,7 +688,7 @@ final class IngestRunCommandTest extends TestCase
     }
 
     #[Test]
-    public function it_still_errors_on_whitespace_only_title_with_a_cause_naming_diagnostic(): void
+    public function it_still_errors_on_whitespace_only_title_as_missing_title(): void
     {
         $inputPath = $this->tempDir . '/blank-title.json';
         file_put_contents($inputPath, json_encode([

@@ -442,6 +442,8 @@ final class IngestRunHandler
             $keySeed = trim((string) ($record['key'] ?? ''));
             $key = $this->normalizeKey($keySeed !== '' ? $keySeed : $title);
             if ($key === '') {
+                // Defensive invariant, unreachable in practice: normalizeKey() is total for
+                // non-blank input (hash fallback), and a blank title is rejected above.
                 $diagnostics['errors'][] = sprintf('Record %d produced an empty key: source title/key is empty.', $index);
                 continue;
             }
@@ -547,6 +549,7 @@ final class IngestRunHandler
         int $timestamp,
     ): array {
         $items = [];
+        $fallbackSourceUris = [];
         foreach ($records as $record) {
             $sourceUri = trim((string) ($record['source_uri'] ?? ''));
             if ($sourceUri === '') {
@@ -554,6 +557,16 @@ final class IngestRunHandler
             }
             if ($sourceUri === '') {
                 $sourceUri = $this->normalizeKey((string) ($record['title'] ?? ''));
+                if ($sourceUri !== '') {
+                    // Title-derived fallback only: transliteration can collapse distinct
+                    // titles ("Café" / "Cafe") onto the same normalized value, and
+                    // SchemaValidator treats duplicate source_uris as a batch-level error.
+                    // Salt collisions deterministically by record order, mirroring
+                    // dedupeKey() for node keys. Explicit source_uri/key duplicates are
+                    // NOT salted; those stay a real schema error.
+                    $sourceUri = $this->dedupeKey($sourceUri, $fallbackSourceUris);
+                    $fallbackSourceUris[$sourceUri] = true;
+                }
             }
             if ($sourceUri !== '' && !str_contains($sourceUri, '://')) {
                 $sourceUri = 'item://' . $sourceUri;
@@ -734,7 +747,7 @@ final class IngestRunHandler
     }
 
     /**
-     * @param array<string, array<string, mixed>> $nodes
+     * @param array<string, mixed> $nodes Map whose string keys are the already-taken values.
      */
     private function dedupeKey(string $baseKey, array $nodes): string
     {
