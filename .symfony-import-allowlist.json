@@ -136,6 +136,7 @@
     "packages/user/src/Middleware/CsrfMiddleware.php",
     "packages/user/src/Middleware/SessionMiddleware.php",
     "packages/user/src/Session/NativeSession.php",
+    "packages/workflows/src/Event/WorkflowTransitionEvent.php",
     "packages/wayfinding/src/Http/AnchorCatalogController.php",
     "packages/wayfinding/src/Http/EmitBeaconController.php",
     "packages/wayfinding/src/Http/SessionTokenController.php",
