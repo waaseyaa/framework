@@ -19,7 +19,7 @@ final class IngestRunCommandTest extends TestCase
     protected function setUp(): void
     {
         $this->tempDir = sys_get_temp_dir() . '/waaseyaa_ingest_' . uniqid();
-        mkdir($this->tempDir, 0755, true);
+        mkdir($this->tempDir, 0o755, true);
     }
 
     protected function tearDown(): void
@@ -112,17 +112,17 @@ final class IngestRunCommandTest extends TestCase
     {
         $inputPath = $this->tempDir . '/unstructured.txt';
         file_put_contents($inputPath, <<<TXT
-Water Ceremony
-Bundle: teaching
-Workflow: published
-Relates: language_memory supports
-Seasonal water ceremony protocol preserves intergenerational knowledge practices.
+            Water Ceremony
+            Bundle: teaching
+            Workflow: published
+            Relates: language_memory supports
+            Seasonal water ceremony protocol preserves intergenerational knowledge practices.
 
-Language Memory
-Bundle: story
-Workflow: published
-Intergenerational language memory notes preserve oral teaching continuity.
-TXT);
+            Language Memory
+            Bundle: story
+            Workflow: published
+            Intergenerational language memory notes preserve oral teaching continuity.
+            TXT);
 
         $mappedPath = $this->tempDir . '/mapped-unstructured.json';
         $tester = $this->makeTester();
@@ -307,17 +307,17 @@ TXT);
     {
         $inputPath = $this->tempDir . '/atomic-validation-gate-failure.txt';
         file_put_contents($inputPath, <<<TXT
-Public Story
-Bundle: story
-Workflow: published
-Relates: draft_story supports
-tiny
+            Public Story
+            Bundle: story
+            Workflow: published
+            Relates: draft_story supports
+            tiny
 
-Draft Story
-Bundle: teaching
-Workflow: draft
-Has enough words here to avoid semantic gate issues.
-TXT);
+            Draft Story
+            Bundle: teaching
+            Workflow: draft
+            Has enough words here to avoid semantic gate issues.
+            TXT);
 
         $mappedPath = $this->tempDir . '/mapped-atomic-validation-gate-failure.json';
         $tester = $this->makeTester();
@@ -505,5 +505,216 @@ TXT);
             ['primary_cue', 'supporting_cues', 'inference_edges_used', 'validation_signals'],
             array_keys($decoded['assist']['suggestions'][0]['explainability']),
         );
+    }
+
+    #[Test]
+    public function it_maps_syllabics_titled_record_without_producing_an_empty_key(): void
+    {
+        $inputPath = $this->tempDir . '/syllabics.json';
+        file_put_contents($inputPath, json_encode([
+            'items' => [
+                [
+                    'title' => 'ᐊᓂᔑᓈᐯᒧᐎᓐ',
+                    'workflow_state' => 'published',
+                    'body' => 'Anishinaabemowin teaching preserves seasonal ceremony memory practice.',
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        $mappedPath = $this->tempDir . '/mapped-syllabics.json';
+        $tester = $this->makeTester();
+        $tester->executeMap([
+            '--input' => $inputPath,
+            '--format' => 'structured',
+            '--source' => 'dataset://syllabics',
+            '--output' => $mappedPath,
+        ]);
+
+        $this->assertSame(0, $tester->getExitCode());
+        $decoded = json_decode((string) file_get_contents($mappedPath), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $decoded['meta']['error_count']);
+        $this->assertSame(1, $decoded['meta']['node_count']);
+        $this->assertCount(1, $decoded['nodes']);
+
+        $keys = array_keys($decoded['nodes']);
+        $key = $keys[0];
+        $this->assertNotSame('', $key);
+        $this->assertMatchesRegularExpression('/^[a-z0-9_-]+$/', $key);
+        // Pins key stability across upgrades; legitimately breaks if a future ICU adds a Syllabics-to-Latin transform.
+        $this->assertSame('k79e16c7e13db8628', $key);
+    }
+
+    #[Test]
+    public function it_normalizes_diacritic_titles_to_latinized_ascii_keys(): void
+    {
+        if (!\extension_loaded('intl')) {
+            self::markTestSkipped('requires ext-intl for ICU transliteration');
+        }
+
+        $inputPath = $this->tempDir . '/diacritics.json';
+        file_put_contents($inputPath, json_encode([
+            'items' => [
+                [
+                    'title' => 'Wâsēyâa Ziibi',
+                    'workflow_state' => 'published',
+                    'body' => 'Wâsēyâa Ziibi teachings preserve stewardship and community memory continuity.',
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        $mappedPath = $this->tempDir . '/mapped-diacritics.json';
+        $tester = $this->makeTester();
+        $tester->executeMap([
+            '--input' => $inputPath,
+            '--format' => 'structured',
+            '--source' => 'dataset://diacritics',
+            '--output' => $mappedPath,
+        ]);
+
+        $this->assertSame(0, $tester->getExitCode());
+        $decoded = json_decode((string) file_get_contents($mappedPath), true, 512, JSON_THROW_ON_ERROR);
+
+        $keys = array_keys($decoded['nodes']);
+        $this->assertCount(1, $keys);
+        $key = $keys[0];
+        $this->assertMatchesRegularExpression('/^[a-z0-9_-]+$/', $key);
+        $this->assertSame('waseyaa_ziibi', $key);
+    }
+
+    #[Test]
+    public function it_produces_deterministic_keys_for_matching_non_latin_titles_across_relationships(): void
+    {
+        $syllabicsTitle = 'ᐊᓂᔑᓈᐯᒧᐎᓐ';
+        $inputPath = $this->tempDir . '/determinism.json';
+        file_put_contents($inputPath, json_encode([
+            'items' => [
+                [
+                    'title' => $syllabicsTitle,
+                    'workflow_state' => 'published',
+                    'body' => 'Anishinaabemowin teaching preserves seasonal ceremony memory practice.',
+                ],
+                [
+                    'title' => 'Companion Story',
+                    'workflow_state' => 'published',
+                    'body' => 'Companion story teachings preserve memory across generations here.',
+                    'relationships' => [['to' => $syllabicsTitle, 'type' => 'supports']],
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        $mappedPath = $this->tempDir . '/mapped-determinism.json';
+        $tester = $this->makeTester();
+        $tester->executeMap([
+            '--input' => $inputPath,
+            '--format' => 'structured',
+            '--source' => 'dataset://determinism',
+            '--output' => $mappedPath,
+        ]);
+
+        $this->assertSame(0, $tester->getExitCode());
+        $decoded = json_decode((string) file_get_contents($mappedPath), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(2, $decoded['meta']['node_count']);
+        $this->assertSame(1, $decoded['meta']['relationship_count']);
+        // Pins key stability across upgrades; legitimately breaks if a future ICU adds a Syllabics-to-Latin transform.
+        $this->assertArrayHasKey('k79e16c7e13db8628', $decoded['nodes']);
+        $this->assertSame('k79e16c7e13db8628', $decoded['relationships'][0]['to']);
+    }
+
+    #[Test]
+    public function it_deduplicates_fallback_source_uris_when_transliteration_collides(): void
+    {
+        $inputPath = $this->tempDir . '/transliteration-collision.json';
+        file_put_contents($inputPath, json_encode([
+            'items' => [
+                [
+                    'title' => 'Café',
+                    'workflow_state' => 'published',
+                    'body' => 'First cafe record body with enough tokens to publish cleanly.',
+                ],
+                [
+                    'title' => 'Cafe',
+                    'workflow_state' => 'published',
+                    'body' => 'Second cafe record body with enough tokens to publish cleanly.',
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        $mappedPath = $this->tempDir . '/mapped-transliteration-collision.json';
+        $snapshotPath = $this->tempDir . '/snapshot-transliteration-collision.json';
+        $tester = $this->makeTester();
+        $tester->executeMap([
+            '--input' => $inputPath,
+            '--format' => 'structured',
+            '--source' => 'dataset://collision',
+            '--output' => $mappedPath,
+            '--refresh-snapshot-output' => $snapshotPath,
+        ]);
+
+        $this->assertSame(0, $tester->getExitCode());
+        $decoded = json_decode((string) file_get_contents($mappedPath), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $decoded['meta']['error_count']);
+        $this->assertSame(2, $decoded['meta']['node_count']);
+
+        $snapshot = json_decode((string) file_get_contents($snapshotPath), true, 512, JSON_THROW_ON_ERROR);
+        $sourceUris = array_map(
+            static fn(array $item): string => (string) $item['source_uri'],
+            $snapshot['envelope']['items'],
+        );
+        $this->assertCount(2, $sourceUris);
+        $this->assertCount(2, array_unique($sourceUris), 'Fallback source_uris must be deduplicated per record.');
+    }
+
+    #[Test]
+    public function normalize_key_returns_stable_ascii_output_matching_pre_fix_behavior(): void
+    {
+        $handler = new IngestRunHandler();
+        $method = new \ReflectionMethod($handler, 'normalizeKey');
+
+        $this->assertSame('water_anchor', $method->invoke($handler, 'Water Anchor'));
+        $this->assertSame('story_node', $method->invoke($handler, 'Story Node'));
+    }
+
+    #[Test]
+    public function normalize_key_still_returns_empty_string_for_blank_or_whitespace_only_input(): void
+    {
+        $handler = new IngestRunHandler();
+        $method = new \ReflectionMethod($handler, 'normalizeKey');
+
+        $this->assertSame('', $method->invoke($handler, ''));
+        $this->assertSame('', $method->invoke($handler, '   '));
+    }
+
+    #[Test]
+    public function it_still_errors_on_whitespace_only_title_as_missing_title(): void
+    {
+        $inputPath = $this->tempDir . '/blank-title.json';
+        file_put_contents($inputPath, json_encode([
+            'items' => [
+                [
+                    'title' => '   ',
+                    'workflow_state' => 'published',
+                    'source_uri' => 'item://blank-title',
+                    'body' => 'Anything at all here for the body field to satisfy shape.',
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        $mappedPath = $this->tempDir . '/mapped-blank-title.json';
+        $tester = $this->makeTester();
+        $tester->executeMap([
+            '--input' => $inputPath,
+            '--format' => 'structured',
+            '--source' => 'dataset://blank-title',
+            '--output' => $mappedPath,
+        ]);
+
+        $this->assertSame(1, $tester->getExitCode());
+        $decoded = json_decode((string) file_get_contents($mappedPath), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertGreaterThan(0, $decoded['meta']['error_count']);
+        $this->assertStringContainsString('Record 0 is missing title.', $decoded['diagnostics']['errors'][0]);
     }
 }

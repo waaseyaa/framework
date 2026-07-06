@@ -96,6 +96,7 @@
         "waaseyaa/workflows": "^0.1.0-alpha.254"
     },
     "suggest": {
+        "ext-intl": "For ICU transliteration of diacritic titles to readable Latin ingest keys; a deterministic hash key is used otherwise",
         "ext-pcntl": "Required for clean SIGINT handling in --watch mode"
     },
     "require-dev": {

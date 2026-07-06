@@ -442,7 +442,9 @@ final class IngestRunHandler
             $keySeed = trim((string) ($record['key'] ?? ''));
             $key = $this->normalizeKey($keySeed !== '' ? $keySeed : $title);
             if ($key === '') {
-                $diagnostics['errors'][] = sprintf('Record %d produced an empty key.', $index);
+                // Defensive invariant, unreachable in practice: normalizeKey() is total for
+                // non-blank input (hash fallback), and a blank title is rejected above.
+                $diagnostics['errors'][] = sprintf('Record %d produced an empty key: source title/key is empty.', $index);
                 continue;
             }
             $key = $this->dedupeKey($key, $nodes);
@@ -547,6 +549,7 @@ final class IngestRunHandler
         int $timestamp,
     ): array {
         $items = [];
+        $fallbackSourceUris = [];
         foreach ($records as $record) {
             $sourceUri = trim((string) ($record['source_uri'] ?? ''));
             if ($sourceUri === '') {
@@ -554,6 +557,16 @@ final class IngestRunHandler
             }
             if ($sourceUri === '') {
                 $sourceUri = $this->normalizeKey((string) ($record['title'] ?? ''));
+                if ($sourceUri !== '') {
+                    // Title-derived fallback only: transliteration can collapse distinct
+                    // titles ("Café" / "Cafe") onto the same normalized value, and
+                    // SchemaValidator treats duplicate source_uris as a batch-level error.
+                    // Salt collisions deterministically by record order, mirroring
+                    // dedupeKey() for node keys. Explicit source_uri/key duplicates are
+                    // NOT salted; those stay a real schema error.
+                    $sourceUri = $this->dedupeKey($sourceUri, $fallbackSourceUris);
+                    $fallbackSourceUris[$sourceUri] = true;
+                }
             }
             if ($sourceUri !== '' && !str_contains($sourceUri, '://')) {
                 $sourceUri = 'item://' . $sourceUri;
@@ -734,7 +747,7 @@ final class IngestRunHandler
     }
 
     /**
-     * @param array<string, array<string, mixed>> $nodes
+     * @param array<string, mixed> $nodes Map whose string keys are the already-taken values.
      */
     private function dedupeKey(string $baseKey, array $nodes): string
     {
@@ -752,11 +765,68 @@ final class IngestRunHandler
 
     private function normalizeKey(string $raw): string
     {
-        $value = strtolower(trim($raw));
-        $value = preg_replace('/[^a-z0-9_-]+/', '_', $value) ?? '';
-        $value = trim($value, '_-');
+        $trimmedRaw = trim($raw);
+        if ($trimmedRaw === '') {
+            return '';
+        }
 
-        return $value;
+        $isPureAscii = preg_match('/[\x80-\xFF]/', $trimmedRaw) !== 1;
+        if ($isPureAscii) {
+            // Byte-identical to the pre-fix pipeline for ASCII input: no transliteration
+            // step needed or wanted, existing keys must not shift.
+            $value = $this->slugify($trimmedRaw);
+            if ($value !== '') {
+                return $value;
+            }
+        } else {
+            // Non-ASCII raw: prefer transliteration so diacritics ("Wâsēyâa") resolve to
+            // readable Latin-ASCII keys ("waseyaa") instead of the underscore-mangled result
+            // a plain slugify pass produces one codepoint at a time.
+            if (class_exists(\Transliterator::class)) {
+                $transliterator = \Transliterator::create('Any-Latin; Latin-ASCII');
+                $transliterated = $transliterator?->transliterate($trimmedRaw);
+                if (is_string($transliterated)) {
+                    $value = $this->slugify($transliterated);
+                    if ($value !== '') {
+                        return $value;
+                    }
+                }
+            }
+
+            // Transliteration unavailable or produced nothing usable (e.g. Canadian
+            // Aboriginal Syllabics have no Any-Latin mapping in ICU): fall back to a plain
+            // slugify of the original raw value in case it had some ASCII content.
+            $value = $this->slugify($trimmedRaw);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        // Nothing latinizable survived: deterministic encoded fallback so the same
+        // non-Latin-script title always yields the same key, instead of an empty one that
+        // fails the whole ingest batch (audit A7 F7).
+        $normalizedForHash = $trimmedRaw;
+        if (class_exists(\Normalizer::class)) {
+            $nfcNormalized = \Normalizer::normalize($trimmedRaw, \Normalizer::FORM_C);
+            if (is_string($nfcNormalized) && $nfcNormalized !== '') {
+                $normalizedForHash = $nfcNormalized;
+            }
+        }
+
+        return 'k' . substr(hash('sha256', $normalizedForHash), 0, 16);
+    }
+
+    /**
+     * ASCII-only lowercase/collapse pass, unicode-safe (mb + /u regex so multibyte input is
+     * never split mid-codepoint). Non-Latin-script input intentionally collapses to '' here so
+     * normalizeKey() can fall through to transliteration or the deterministic hash fallback.
+     */
+    private function slugify(string $raw): string
+    {
+        $value = mb_strtolower($raw, 'UTF-8');
+        $value = preg_replace('/[^a-z0-9_-]+/u', '_', $value) ?? '';
+
+        return trim($value, '_-');
     }
 
     private function writeFile(string $path, string $contents, SymfonyCommandIO $io): bool
