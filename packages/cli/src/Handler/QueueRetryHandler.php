@@ -27,7 +27,7 @@ final class QueueRetryHandler
             return $this->retryAll($io);
         }
 
-        $record = $this->failedJobRepository->retry($id);
+        $record = $this->failedJobRepository->find($id);
         if ($record === null) {
             $io->writeln("Failed job [{$id}] not found.");
 
@@ -41,7 +41,15 @@ final class QueueRetryHandler
             return 1;
         }
 
-        $this->queue->dispatch($message);
+        try {
+            $this->queue->dispatch($message);
+        } catch (\Throwable $e) {
+            $io->writeln("Failed to retry job [{$id}]: {$e->getMessage()}");
+
+            return 1;
+        }
+
+        $this->failedJobRepository->retry($id);
         $io->writeln("Retrying failed job [{$id}].");
 
         return 0;
@@ -57,24 +65,32 @@ final class QueueRetryHandler
         }
 
         $retried = 0;
+        $failed = 0;
         foreach ($all as $record) {
-            $retrieved = $this->failedJobRepository->retry($record['id']);
-            if ($retrieved === null) {
-                continue;
-            }
-
-            $message = @unserialize($retrieved['payload']);
+            $message = @unserialize($record['payload']);
             if ($message === false || !is_object($message)) {
-                $io->writeln("Skipping job [{$record['id']}] — corrupt payload.");
+                $io->writeln("Skipping job [{$record['id']}]: corrupt payload.");
+                $failed++;
                 continue;
             }
 
-            $this->queue->dispatch($message);
+            try {
+                $this->queue->dispatch($message);
+            } catch (\Throwable $e) {
+                $io->writeln("Failed to retry job [{$record['id']}]: {$e->getMessage()}");
+                $failed++;
+                continue;
+            }
+
+            $this->failedJobRepository->retry($record['id']);
             $retried++;
         }
 
         $io->writeln("Retried {$retried} failed job(s).");
+        if ($failed > 0) {
+            $io->writeln("{$failed} failed job(s) could not be re-dispatched and remain queued for retry.");
+        }
 
-        return 0;
+        return $failed > 0 ? 1 : 0;
     }
 }
