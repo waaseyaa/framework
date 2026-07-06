@@ -698,6 +698,58 @@ final class PruneCommandTest extends TestCase
             $writer->recorded[0]->attributes['deleted_count'],
             'deleted_count must equal the ACTUAL rows deleted (5), not the kind-filtered match count (3)',
         );
+        self::assertSame(
+            3,
+            $writer->recorded[0]->attributes['kind_filtered_match_count'],
+            'the legacy kind-filtered number must be preserved under kind_filtered_match_count',
+        );
+    }
+
+    #[Test]
+    public function selfAuditDeletedCountSumsSealedAndUnsealedWithSurvivors(): void
+    {
+        // End-to-end exercise of realTotal = sealedCount + unsealedCount with
+        // BOTH operands nonzero plus survivors: 5 sealed mixed-kind rows
+        // (3 entity.write, 2 entity.read) plus an unsealed tail of 3 old
+        // entity.write and 2 old entity.read rows. With --kind=entity.write:
+        //  - Path A deletes all 5 sealed rows (kind-agnostic, chain integrity),
+        //  - Path B deletes only the 3 kind-matching unsealed-tail rows,
+        //  - the 2 entity.read tail rows survive.
+        $db = $this->makeSealedRealDb();
+        $this->seedMixedKindSealedSegment($db);
+
+        $past = new \DateTimeImmutable('-2 days')->format('Y-m-d H:i:s');
+        $this->insertRealEvent($db, 'f10-tail-write-1', 'entity.write', $past);
+        $this->insertRealEvent($db, 'f10-tail-write-2', 'entity.write', $past);
+        $this->insertRealEvent($db, 'f10-tail-write-3', 'entity.write', $past);
+        $this->insertRealEvent($db, 'f10-tail-read-1', 'entity.read', $past);
+        $this->insertRealEvent($db, 'f10-tail-read-2', 'entity.read', $past);
+        self::assertSame(10, $this->countRealEventRows($db), 'sanity: 5 sealed + 5 unsealed rows seeded');
+
+        $writer = $this->makeNullWriter();
+        $auditQuery = new AuditEventQuery($db);
+        $io = $this->makeIo(['older-than' => 'P1D', 'kind' => 'entity.write', 'confirm' => true]);
+        $command = new PruneCommand($auditQuery, $writer, $db);
+
+        $exitCode = $command->execute($io);
+
+        self::assertSame(0, $exitCode);
+        self::assertCount(1, $writer->recorded);
+        self::assertSame(
+            2,
+            $this->countRealEventRows($db),
+            'the 2 kind-mismatched unsealed-tail rows must survive',
+        );
+        self::assertSame(
+            8,
+            $writer->recorded[0]->attributes['deleted_count'],
+            'deleted_count must be 8: 5 sealed (all kinds) + 3 unsealed kind-filtered',
+        );
+        self::assertSame(
+            3,
+            $writer->recorded[0]->attributes['unsealed_deleted_count'],
+            'unsealed_deleted_count must be the kind-filtered tail count (3)',
+        );
     }
 
     #[Test]
@@ -716,9 +768,14 @@ final class PruneCommandTest extends TestCase
         self::assertSame(5, $this->countRealEventRows($db), 'nothing may be deleted without --confirm');
         $output = implode("\n", $io->outputLines());
         self::assertStringContainsString(
-            '5',
+            'Refusing to prune 5 audit events',
             $output,
             'refusal message must report the real total (5) that would actually be deleted',
+        );
+        self::assertStringContainsString(
+            'sealed: 5, unsealed: 0',
+            $output,
+            'refusal message must include the sealed/unsealed breakdown',
         );
         self::assertStringNotContainsString(
             'Refusing to prune 3 ',
@@ -746,6 +803,11 @@ final class PruneCommandTest extends TestCase
         self::assertSame(0, $exitCode);
         self::assertCount(1, $writer->recorded);
         self::assertSame(5, $writer->recorded[0]->attributes['deleted_count']);
+        self::assertSame(
+            5,
+            $writer->recorded[0]->attributes['kind_filtered_match_count'],
+            'with kind=* the kind-filtered count coincides with the real total',
+        );
         self::assertSame(0, $this->countRealEventRows($db));
     }
 

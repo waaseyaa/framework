@@ -387,7 +387,7 @@ final class PruneCommand
 
         if ($kindPattern !== '*') {
             $kindValues = array_map(static fn(AuditEventKind $k): string => $k->value, $kinds);
-            $select->condition('event_kind', $kindValues, 'IN');
+            $select = $select->condition('event_kind', $kindValues, 'IN');
         }
 
         return count(iterator_to_array($select->execute(), false));
