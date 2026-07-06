@@ -20,6 +20,8 @@ use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Genealogy\Access\GenealogyContentAccessPolicy;
+use Waaseyaa\Genealogy\Entity\GenealogyEvent;
+use Waaseyaa\Genealogy\Entity\GenealogyFamily;
 use Waaseyaa\Genealogy\Entity\GenealogyPerson;
 use Waaseyaa\Genealogy\Entity\GenealogyTree;
 use Waaseyaa\Genealogy\GenealogyBootstrap;
@@ -114,6 +116,37 @@ final class GenealogySeoEnumerationTest extends TestCase
         self::assertStringNotContainsString('/genealogy_person/' . $deceasedUnderPrivateTree->id(), $body);
     }
 
+    #[Test]
+    public function sitemap_and_llms_never_enumerate_genealogy_family_or_event(): void
+    {
+        // genealogy m-a: family/event carry a free-text display_name that names
+        // living people with no per-row living/deceased axis, so they are
+        // excluded from the crawler surface wholesale (SeoPublicController::
+        // NON_PUBLIC_TYPES) rather than access-filtered like genealogy_person.
+        $publicTree = $this->createTree(published: true);
+        $family = $this->manager->getRepository('genealogy_family')->create([
+            'display_name' => 'Wedding of Living Alice',
+            'tree_id' => (int) $publicTree,
+            'status' => true,
+        ]);
+        $this->manager->getRepository('genealogy_family')->save($family);
+        $event = $this->manager->getRepository('genealogy_event')->create([
+            'display_name' => 'Baptism of Living Bob',
+            'tree_id' => (int) $publicTree,
+            'status' => true,
+        ]);
+        $this->manager->getRepository('genealogy_event')->save($event);
+
+        $controller = new SeoPublicController($this->manager);
+        $sitemap = (string) $controller->sitemapXml()->getContent();
+        $llms = (string) $controller->llmsTxt()->getContent();
+
+        foreach ([$sitemap, $llms] as $body) {
+            self::assertStringNotContainsString('/genealogy_family/', $body, 'family must never be crawler-enumerated');
+            self::assertStringNotContainsString('/genealogy_event/', $body, 'event must never be crawler-enumerated');
+        }
+    }
+
     private function makeManager(): EntityTypeManager
     {
         \Waaseyaa\Entity\EntityType::clearFromClassCache();
@@ -167,6 +200,8 @@ final class GenealogySeoEnumerationTest extends TestCase
 
         $manager->registerEntityType(\Waaseyaa\Entity\EntityType::fromClass(GenealogyTree::class, group: 'content'));
         $manager->registerEntityType(\Waaseyaa\Entity\EntityType::fromClass(GenealogyPerson::class, group: 'content'));
+        $manager->registerEntityType(\Waaseyaa\Entity\EntityType::fromClass(GenealogyFamily::class, group: 'content'));
+        $manager->registerEntityType(\Waaseyaa\Entity\EntityType::fromClass(GenealogyEvent::class, group: 'content'));
 
         return $manager;
     }
