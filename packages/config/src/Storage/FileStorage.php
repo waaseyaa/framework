@@ -63,13 +63,37 @@ final class FileStorage implements StorageInterface
         return $result;
     }
 
+    /**
+     * Writes via temp-then-rename so a crash mid-write never leaves a
+     * truncated file visible at the real target path: the write lands in a
+     * writer-unique sibling temp file first, and only an atomic `rename()`
+     * exposes it at the final name. The temp name must be unique per writer
+     * (a fixed suffix would let two concurrent writers to the same key
+     * overwrite each other's in-flight temp file, publishing one writer's
+     * bytes under the other's rename) and must stay in the same directory
+     * (so `rename()` remains an atomic same-filesystem operation).
+     */
     public function write(string $name, array $data): bool
     {
         $this->ensureDirectory();
 
         $yaml = Yaml::dump($data, 8, 2);
+        $target = $this->getFilePath($name);
+        $temp = $target . '.' . uniqid('tmp', true);
 
-        return file_put_contents($this->getFilePath($name), $yaml) !== false;
+        if (file_put_contents($temp, $yaml, \LOCK_EX) === false) {
+            @unlink($temp);
+
+            return false;
+        }
+
+        if (!@rename($temp, $target)) {
+            @unlink($temp);
+
+            return false;
+        }
+
+        return true;
     }
 
     public function delete(string $name): bool
@@ -188,7 +212,7 @@ final class FileStorage implements StorageInterface
     private function ensureDirectory(): void
     {
         if (!is_dir($this->directory)) {
-            mkdir($this->directory, 0o777, true);
+            mkdir($this->directory, 0o775, true);
         }
     }
 }

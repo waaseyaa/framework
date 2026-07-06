@@ -217,6 +217,104 @@ final class FileStorageTest extends TestCase
         $this->assertSame(['key' => 'value'], $storage->read('test'));
     }
 
+    public function testWriteIsAtomicAndLeavesNoTempFileBehind(): void
+    {
+        $this->storage->write('atomic.config', ['name' => 'first']);
+
+        $filePath = $this->directory . '/atomic.config.yml';
+
+        $this->assertFileExists($filePath);
+        $this->assertNoStrayTempFiles($this->directory);
+        $this->assertSame(['name' => 'first'], $this->storage->read('atomic.config'));
+    }
+
+    public function testWriteNeverExposesATruncatedFileAtTheTargetPath(): void
+    {
+        // Establish an original file, then overwrite it with new content.
+        // Because write() lands in a writer-unique sibling temp file and only
+        // exposes it via rename(), the target path is either the old complete
+        // content or the new complete content — never a partial write in
+        // between.
+        $this->storage->write('atomic.config', ['name' => 'original', 'body' => str_repeat('x', 5000)]);
+        $originalPath = $this->directory . '/atomic.config.yml';
+        $originalContent = file_get_contents($originalPath);
+
+        $this->assertTrue($this->storage->write('atomic.config', ['name' => 'updated', 'body' => str_repeat('y', 5000)]));
+
+        $newContent = file_get_contents($originalPath);
+        $this->assertNotSame($originalContent, $newContent);
+        $this->assertStringContainsString('updated', $newContent);
+        $this->assertNoStrayTempFiles($this->directory);
+    }
+
+    public function testWriteReturnsFalseAndCleansUpTempFileWhenRenameFails(): void
+    {
+        // Force rename() to fail by making the target a directory instead of
+        // a regular file — rename() from a file onto an existing directory
+        // fails on POSIX. The original directory-as-"file" is left in place
+        // (nothing was overwritten), and no stray temp file remains.
+        $conflictPath = $this->directory . '/conflict.yml';
+        mkdir($conflictPath);
+
+        $this->assertFalse($this->storage->write('conflict', ['name' => 'value']));
+        $this->assertDirectoryExists($conflictPath);
+        $this->assertNoStrayTempFiles($this->directory);
+    }
+
+    public function testTwoWritersOnTheSameKeyLeaveCompleteContentAndNoTempLitter(): void
+    {
+        // Two FileStorage instances pointed at the same directory simulate
+        // two writer processes on the same key. With writer-unique temp
+        // names neither writer can overwrite the other's in-flight temp
+        // file, so each rename() publishes exactly the bytes that writer
+        // wrote; the target ends up as one writer's complete content and no
+        // temp litter remains. (True interleaving needs multiple processes;
+        // this pins the observable invariants — complete content, no litter.)
+        $writerA = new FileStorage($this->directory);
+        $writerB = new FileStorage($this->directory);
+
+        $this->assertTrue($writerA->write('raced.config', ['writer' => 'A']));
+        $this->assertTrue($writerB->write('raced.config', ['writer' => 'B']));
+
+        $this->assertSame(['writer' => 'B'], $this->storage->read('raced.config'));
+        $this->assertNoStrayTempFiles($this->directory);
+    }
+
+    /**
+     * Asserts no leftover temp file (any file whose name continues past the
+     * `.yml` extension, e.g. `name.yml.tmp<unique>`) remains in the directory.
+     */
+    private function assertNoStrayTempFiles(string $dir): void
+    {
+        $stray = [];
+        foreach (new \DirectoryIterator($dir) as $fileInfo) {
+            if ($fileInfo->isDot() || $fileInfo->isDir()) {
+                continue;
+            }
+            if (!str_ends_with($fileInfo->getFilename(), '.yml')) {
+                $stray[] = $fileInfo->getFilename();
+            }
+        }
+
+        $this->assertSame([], $stray, 'Temp files leaked into the config directory');
+    }
+
+    public function testEnsureDirectoryCreatesWithGroupPermissionsNotWorldWritable(): void
+    {
+        $newDir = $this->directory . '/perm-check';
+        $storage = new FileStorage($newDir);
+
+        $previousUmask = umask(0);
+        try {
+            $storage->write('test', ['key' => 'value']);
+        } finally {
+            umask($previousUmask);
+        }
+
+        $this->assertDirectoryExists($newDir);
+        $this->assertSame(0o775, fileperms($newDir) & 0o777);
+    }
+
     public function testNestedDataPreservesStructure(): void
     {
         $data = [

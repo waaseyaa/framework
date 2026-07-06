@@ -12,6 +12,7 @@ use Waaseyaa\CLI\Handler\ConfigImportHandler;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Config\ConfigImportResult;
 use Waaseyaa\Config\ConfigManagerInterface;
+use Waaseyaa\Config\Exception\ConfigImportFailedException;
 
 #[CoversClass(ConfigImportHandler::class)]
 final class ConfigImportHandlerTest extends TestCase
@@ -57,6 +58,25 @@ final class ConfigImportHandlerTest extends TestCase
 
         $this->assertSame(1, $tester->getExitCode());
         $this->assertStringContainsString('Failed to import system.site', $tester->getStderr());
+    }
+
+    #[Test]
+    public function returnsFailureAndReportsMessageWhenImportThrows(): void
+    {
+        $exception = ConfigImportFailedException::applyFailed(
+            'system.site',
+            'write failed while creating this entry (entry 1 of 2 this pass; already applied — created: none; updated: none; deleted: none)',
+        );
+
+        $mockManager = $this->createMock(ConfigManagerInterface::class);
+        $mockManager->expects($this->once())->method('import')->willThrowException($exception);
+
+        $tester = $this->createTester($mockManager);
+        $tester->execute([]);
+
+        $this->assertSame(1, $tester->getExitCode());
+        $this->assertStringContainsString('system.site', $tester->getStderr());
+        $this->assertStringContainsString('write failed while creating this entry', $tester->getStderr());
     }
 
     private function createTester(ConfigManagerInterface $manager): CliTester

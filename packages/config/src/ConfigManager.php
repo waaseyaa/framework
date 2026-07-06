@@ -7,6 +7,7 @@ namespace Waaseyaa\Config;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Config\Event\ConfigEvent;
 use Waaseyaa\Config\Event\ConfigEvents;
+use Waaseyaa\Config\Exception\ConfigImportFailedException;
 
 /**
  * @api
@@ -29,9 +30,16 @@ final class ConfigManager implements ConfigManagerInterface
         return $this->syncStorage;
     }
 
+    /**
+     * @throws ConfigImportFailedException if a write or delete fails partway through
+     *         applying the sync store to the active store. The exception names the
+     *         key that failed and reports what had already been applied so far, so
+     *         the caller can surface a precise, actionable error instead of a
+     *         silently partial import.
+     */
     public function import(): ConfigImportResult
     {
-        $syncNames = $this->syncStorage->listAll();
+        $syncNames = array_values($this->syncStorage->listAll());
         $activeNames = $this->activeStorage->listAll();
 
         $created = [];
@@ -39,10 +47,16 @@ final class ConfigManager implements ConfigManagerInterface
         $deleted = [];
         $errors = [];
 
+        $totalSyncNames = count($syncNames);
+
         // Determine creates and updates.
-        foreach ($syncNames as $name) {
+        foreach ($syncNames as $position => $name) {
             $syncData = $this->syncStorage->read($name);
             if ($syncData === false) {
+                // A sync-side read failure means this entry was never going to be
+                // applied in the first place: there is nothing partially applied
+                // to protect, unlike a write/delete failure mid-apply. Record and
+                // continue rather than aborting the whole import.
                 $errors[] = sprintf('Failed to read sync config: %s', $name);
                 continue;
             }
@@ -54,25 +68,56 @@ final class ConfigManager implements ConfigManagerInterface
                 if ($this->activeStorage->write($name, $syncData)) {
                     $created[] = $name;
                 } else {
-                    $errors[] = sprintf('Failed to create config: %s', $name);
+                    throw ConfigImportFailedException::applyFailed(
+                        $name,
+                        $this->describePartialApply(
+                            'write failed while creating this entry',
+                            $position + 1,
+                            $totalSyncNames,
+                            $created,
+                            $updated,
+                            $deleted,
+                        ),
+                    );
                 }
             } elseif ($syncData !== $activeData) {
                 // Updated config.
                 if ($this->activeStorage->write($name, $syncData)) {
                     $updated[] = $name;
                 } else {
-                    $errors[] = sprintf('Failed to update config: %s', $name);
+                    throw ConfigImportFailedException::applyFailed(
+                        $name,
+                        $this->describePartialApply(
+                            'write failed while updating this entry',
+                            $position + 1,
+                            $totalSyncNames,
+                            $created,
+                            $updated,
+                            $deleted,
+                        ),
+                    );
                 }
             }
         }
 
         // Determine deletes: configs in active but not in sync.
-        $toDelete = array_diff($activeNames, $syncNames);
-        foreach ($toDelete as $name) {
+        $toDelete = array_values(array_diff($activeNames, $syncNames));
+        $totalToDelete = count($toDelete);
+        foreach ($toDelete as $position => $name) {
             if ($this->activeStorage->delete($name)) {
                 $deleted[] = $name;
             } else {
-                $errors[] = sprintf('Failed to delete config: %s', $name);
+                throw ConfigImportFailedException::applyFailed(
+                    $name,
+                    $this->describePartialApply(
+                        'delete failed while removing this entry',
+                        $position + 1,
+                        $totalToDelete,
+                        $created,
+                        $updated,
+                        $deleted,
+                    ),
+                );
             }
         }
 
@@ -117,5 +162,33 @@ final class ConfigManager implements ConfigManagerInterface
             'sync' => $syncData !== false ? $syncData : null,
             'has_changes' => $activeData !== $syncData,
         ];
+    }
+
+    /**
+     * Builds a human-readable reason describing a fail-fast abort mid-import:
+     * which pass position the failure occurred at, and what had already been
+     * applied to the active store before the failure.
+     *
+     * @param string[] $created
+     * @param string[] $updated
+     * @param string[] $deleted
+     */
+    private function describePartialApply(
+        string $stage,
+        int $position,
+        int $total,
+        array $created,
+        array $updated,
+        array $deleted,
+    ): string {
+        return sprintf(
+            '%s (entry %d of %d this pass; already applied — created: %s; updated: %s; deleted: %s)',
+            $stage,
+            $position,
+            $total,
+            $created === [] ? 'none' : implode(', ', $created),
+            $updated === [] ? 'none' : implode(', ', $updated),
+            $deleted === [] ? 'none' : implode(', ', $deleted),
+        );
     }
 }

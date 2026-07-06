@@ -6,6 +6,7 @@ namespace Waaseyaa\CLI\Handler;
 
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Config\ConfigManagerInterface;
+use Waaseyaa\Config\Exception\ConfigImportFailedException;
 
 /**
  * @api
@@ -18,7 +19,13 @@ final class ConfigImportHandler
 
     public function execute(SymfonyCommandIO $io): int
     {
-        $result = $this->configManager->import();
+        try {
+            $result = $this->configManager->import();
+        } catch (ConfigImportFailedException $e) {
+            $io->error($e->getMessage());
+
+            return 1;
+        }
 
         $io->writeln(sprintf('Created: %d', count($result->created)));
         $io->writeln(sprintf('Updated: %d', count($result->updated)));
