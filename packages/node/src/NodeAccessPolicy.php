@@ -25,12 +25,23 @@ use Waaseyaa\Entity\EntityInterface;
  * (which run `checkFieldAccess('edit')` open-by-default) let any account that
  * passes the entity `update` check — e.g. an author with `edit own {type}
  * content` — reassign authorship, change the bundle, or forge timestamps via
- * `PATCH /api/node/{id}`. The editorial booleans `status`/`promote`/`sticky`
- * are intentionally NOT gated here (a separate permission-model decision).
+ * `PATCH /api/node/{id}`. The publication fields `status`/`workflow_state`
+ * are permission-gated (CW-v1 WP-0, `docs/specs/content-workflow.md`);
+ * `promote`/`sticky` remain ungated pending the engine.
  */
 #[PolicyAttribute(entityType: 'node')]
 final class NodeAccessPolicy implements AccessPolicyInterface, FieldAccessPolicyInterface
 {
+    /**
+     * Interim CW-v1 publish gate (WP-0, spec: docs/specs/content-workflow.md).
+     * Named after the engine's editorial publish transition so nothing renames
+     * when TransitionService lands.
+     */
+    public const string PUBLISH_PERMISSION = 'use editorial transition publish';
+
+    /** @var list<string> */
+    private const PUBLISH_GATED_FIELDS = ['status', 'workflow_state'];
+
     /**
      * System/identity fields that only an `administer nodes` admin may edit.
      *
@@ -52,6 +63,19 @@ final class NodeAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
 
         if ($account->hasPermission('administer nodes')) {
             return AccessResult::neutral('Admin may edit any node field.');
+        }
+
+        // CW-v1 WP-0: publication is permission-gated on create AND update. An
+        // account with only edit/create permissions must not self-publish to
+        // anonymous visibility (audit D1). Unlike ADMIN_ONLY_EDIT_FIELDS below,
+        // this gate has no isNew() carve-out.
+        if (\in_array($fieldName, self::PUBLISH_GATED_FIELDS, true)
+            && !$account->hasPermission(self::PUBLISH_PERMISSION)) {
+            return AccessResult::forbidden(\sprintf(
+                "Field '%s' requires the '%s' permission.",
+                $fieldName,
+                self::PUBLISH_PERMISSION,
+            ));
         }
 
         // These fields are settable at CREATE (authoring a new node — `type` is

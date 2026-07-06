@@ -24,9 +24,11 @@ use Waaseyaa\Node\NodeAccessPolicy;
  * `PATCH /api/node/{id}` reassign authorship, change the bundle (despite
  * readOnly), or forge timestamps — none of which `edit own` should permit.
  *
- * Scope note: the editorial booleans `status` (publish), `promote`, and
- * `sticky` are intentionally NOT forbidden here — whether an author may
- * self-publish/promote is a permission-model decision recorded separately.
+ * Scope note: `status` and `workflow_state` are permission-gated separately
+ * below (CW-v1 WP-0, `docs/specs/content-workflow.md`) — an account needs
+ * `NodeAccessPolicy::PUBLISH_PERMISSION` to edit them, on both create and
+ * update. `promote`/`sticky` remain intentionally NOT forbidden here pending
+ * the engine.
  */
 #[CoversClass(NodeAccessPolicy::class)]
 final class NodeFieldAccessPolicyTest extends TestCase
@@ -124,16 +126,60 @@ final class NodeFieldAccessPolicyTest extends TestCase
     #[Test]
     public function content_and_editorial_fields_stay_writable_for_the_author(): void
     {
+        // CW-v1 WP-0: `status` moved out of this list — it is now
+        // permission-gated below. `promote`/`sticky` remain ungated.
         $author = $this->createAccount(5, ['edit own article content', 'access content']);
 
-        // Authoring + editorial fields are not restricted by this policy.
-        foreach (['title', 'slug', 'body', 'status', 'promote', 'sticky'] as $field) {
+        foreach (['title', 'slug', 'body', 'promote', 'sticky'] as $field) {
             $result = $this->policy->fieldAccess($this->node(), $field, 'edit', $author);
             $this->assertFalse(
                 $result->isForbidden(),
                 "Field '{$field}' must not be forbidden by NodeAccessPolicy field gate",
             );
         }
+    }
+
+    // -----------------------------------------------------------------
+    // CW-v1 WP-0: publish gate on `status` / `workflow_state`
+    // -----------------------------------------------------------------
+
+    #[Test]
+    public function status_edit_is_forbidden_without_the_publish_permission(): void
+    {
+        $node = new Node(['nid' => 1, 'type' => 'article', 'uid' => 7, 'status' => 0]);
+        $account = $this->createAccount(7, ['edit own article content']);
+
+        $result = $this->policy->fieldAccess($node, 'status', 'edit', $account);
+
+        $this->assertTrue($result->isForbidden());
+    }
+
+    #[Test]
+    public function workflow_state_edit_is_forbidden_without_the_publish_permission(): void
+    {
+        $node = new Node(['nid' => 1, 'type' => 'article', 'uid' => 7]);
+        $account = $this->createAccount(7, ['edit own article content']);
+
+        $this->assertTrue($this->policy->fieldAccess($node, 'workflow_state', 'edit', $account)->isForbidden());
+    }
+
+    #[Test]
+    public function status_edit_is_open_with_the_publish_permission(): void
+    {
+        $node = new Node(['nid' => 1, 'type' => 'article', 'uid' => 7, 'status' => 0]);
+        $account = $this->createAccount(7, ['edit own article content', NodeAccessPolicy::PUBLISH_PERMISSION]);
+
+        $this->assertFalse($this->policy->fieldAccess($node, 'status', 'edit', $account)->isForbidden());
+    }
+
+    #[Test]
+    public function status_gate_applies_on_create_too(): void
+    {
+        $node = new Node(['type' => 'article', 'uid' => 7, 'status' => 1]);
+        $node->enforceIsNew();
+        $account = $this->createAccount(7, ['create article content']);
+
+        $this->assertTrue($this->policy->fieldAccess($node, 'status', 'edit', $account)->isForbidden());
     }
 
     #[Test]
