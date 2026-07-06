@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\GraphQL\Tests\Unit\Resolver;
 
+use GraphQL\Error\UserError;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -146,5 +147,31 @@ final class EntityResolverFieldFilterOracleTest extends TestCase
 
         self::assertSame(1, $result['total']);
         self::assertCount(1, $result['items']);
+    }
+
+    #[Test]
+    public function sortingOnViewForbiddenFieldIsRejected(): void
+    {
+        $this->seed();
+
+        // Storage sort/pagination run before the value-independent drop, so a
+        // sort on a view-forbidden field is rejected rather than allowed to
+        // order rows into observable pagination ranks.
+        $this->expectException(UserError::class);
+        $this->expectExceptionMessage("Cannot sort by field 'secret'");
+
+        $this->resolver()->resolveList('article', ['sort' => 'secret']);
+    }
+
+    #[Test]
+    public function sortingOnReadableFieldStillWorks(): void
+    {
+        $this->seed();
+
+        // No availability regression: sorting on a readable field is unaffected.
+        $result = $this->resolver()->resolveList('article', ['sort' => 'title']);
+
+        self::assertSame(3, $result['total']);
+        self::assertCount(3, $result['items']);
     }
 }

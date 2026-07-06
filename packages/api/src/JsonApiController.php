@@ -76,6 +76,21 @@ final class JsonApiController
             return $queryFieldError;
         }
 
+        // R14 (audit A11): reject a SORT on a field the caller may not read on
+        // some matched row. The value-independent per-entity drop below closes
+        // the filter oracle and the field's VALUE never reaches the wire, but
+        // `sort()`/`range()` run in storage BEFORE that drop, so a forbidden
+        // row still occupies a pagination RANK: scanning offsets with a small
+        // page turns the empty-vs-populated pattern into an ordering oracle on
+        // the hidden value. Failing the sort closed is the value-independent
+        // fix (the reject depends only on WHICH rows the caller may field-read,
+        // never on the field's value or the sort direction), and avoids moving
+        // sort/pagination out of storage.
+        $sortRejection = $this->rejectForbiddenSort($repository, $parsedQuery);
+        if ($sortRejection !== null) {
+            return $sortRejection;
+        }
+
         $applier = new QueryApplier();
 
         // Count total matching entities (before pagination). Bind the request's
@@ -235,6 +250,63 @@ final class JsonApiController
         }
 
         return array_keys($fields);
+    }
+
+    /**
+     * Reject (400) a collection request that sorts on a field the caller may
+     * not read on some entity-level-viewable matched row (R14, audit A11).
+     *
+     * This is the pagination-position companion to {@see queryFieldForbidden()}:
+     * that drop keeps a forbidden field's VALUE off the wire, but `sort()` and
+     * `range()` execute in storage over the full match set BEFORE the drop, so
+     * a forbidden row still occupies a sort RANK and its empty pagination slot
+     * leaks its ordering relative to readable rows. Because storage cannot
+     * evaluate per-row field-access policy, the fail-closed fix is to refuse the
+     * sort rather than order rows the caller cannot fully read.
+     *
+     * The decision is VALUE-INDEPENDENT: it depends only on which viewable rows
+     * carry a Forbidden sort field, never on the field's value or the sort
+     * direction, so it adds no oracle beyond what {@see show()} already exposes
+     * (a per-row "you may not read this field" boundary — the caller's own
+     * clearance). No sort, no account, or an all-readable sort field returns
+     * null and the request proceeds unchanged.
+     *
+     * @param \Waaseyaa\Entity\Repository\EntityRepositoryInterface $repository
+     */
+    private function rejectForbiddenSort(
+        \Waaseyaa\Entity\Repository\EntityRepositoryInterface $repository,
+        ParsedQuery $parsedQuery,
+    ): ?JsonApiDocument {
+        if ($parsedQuery->sorts === [] || $this->accessHandler === null || $this->account === null) {
+            return null;
+        }
+
+        // The entity-level-viewable rows matching the filters (no sort, no range
+        // — span the whole match set the sort would order).
+        $idQuery = $repository->getQuery();
+        $idQuery->setAccount($this->account);
+        foreach ($parsedQuery->filters as $filter) {
+            $idQuery->condition($filter->field, $filter->value, $filter->operator);
+        }
+        $ids = $idQuery->execute();
+        if ($ids === []) {
+            return null;
+        }
+
+        foreach ($repository->findMany($ids) as $entity) {
+            if (!$this->accessHandler->check($entity, 'view', $this->account)->isAllowed()) {
+                continue;
+            }
+            foreach ($parsedQuery->sorts as $sort) {
+                if ($this->accessHandler->checkFieldAccess($entity, $sort->field, 'view', $this->account)->isForbidden()) {
+                    return $this->errorDocument(
+                        JsonApiError::badRequest("Cannot sort by field '{$sort->field}'."),
+                    );
+                }
+            }
+        }
+
+        return null;
     }
 
     /**

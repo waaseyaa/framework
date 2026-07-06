@@ -154,17 +154,80 @@ final class JsonApiControllerFieldFilterOracleTest extends TestCase
     }
 
     #[Test]
-    public function sortingOnViewForbiddenFieldLeaksNoOrderingSignal(): void
+    public function sortingOnViewForbiddenFieldIsRejected(): void
     {
         $this->seed();
 
+        // A sort on a field the caller cannot read is rejected outright: storage
+        // sort/pagination run before the value-independent drop, so a forbidden
+        // row would otherwise still occupy an observable pagination rank.
         $doc = $this->controller->index('article', ['sort' => 'secret']);
-        $array = $doc->toArray();
 
-        // Ordering by a field the caller cannot read must not expose rows whose
-        // position would encode the hidden value.
-        $this->assertCount(0, $array['data'], 'sorting by a view-forbidden field must not surface its rows');
-        $this->assertSame(0, $array['meta']['total']);
+        $this->assertSame(400, $doc->statusCode, 'sorting by a view-forbidden field must be rejected, never ordered');
+        $this->assertStringContainsString('secret', $doc->toArray()['errors'][0]['detail']);
+    }
+
+    #[Test]
+    public function paginatedSortOnForbiddenFieldAcrossOffsetsLeaksNoOrdering(): void
+    {
+        // The mixed per-row case the single-page test does not reach: `secret`
+        // is view-Forbidden only on SOME rows (those whose title starts with
+        // 'H'). Pre-fix, sort=secret + limit=1 across offsets produced an
+        // empty-vs-populated page pattern that reconstructed the hidden values'
+        // sort ranks (adversarial-review PoC). The sort must now be rejected at
+        // EVERY offset, value-independently, so no rank slot is observable.
+        $controller = $this->controllerWithPerRowSecretPolicy();
+        $this->save(['title' => 'Anchor10', 'secret' => '10']);
+        $this->save(['title' => 'Hidden15', 'secret' => '15']);
+        $this->save(['title' => 'Hidden20', 'secret' => '20']);
+        $this->save(['title' => 'Anchor30', 'secret' => '30']);
+
+        foreach ([0, 1, 2, 3] as $offset) {
+            $doc = $controller->index('article', ['sort' => 'secret', 'page' => ['offset' => $offset, 'limit' => 1]]);
+            $this->assertSame(
+                400,
+                $doc->statusCode,
+                "offset {$offset}: a sort touching a per-row-forbidden field must be rejected, not paginated",
+            );
+        }
+    }
+
+    private function controllerWithPerRowSecretPolicy(): JsonApiController
+    {
+        // Entity-level view ALLOWED for all; field 'secret' Forbidden only on
+        // rows whose title starts with 'H' — a per-row classification split.
+        $policy = new class () implements AccessPolicyInterface, FieldAccessPolicyInterface {
+            public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+            {
+                return AccessResult::allowed();
+            }
+
+            public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+            {
+                return AccessResult::allowed();
+            }
+
+            public function appliesTo(string $entityTypeId): bool
+            {
+                return $entityTypeId === 'article';
+            }
+
+            public function fieldAccess(EntityInterface $entity, string $fieldName, string $operation, AccountInterface $account): AccessResult
+            {
+                if ($fieldName === 'secret' && $operation === 'view' && str_starts_with((string) $entity->get('title'), 'H')) {
+                    return AccessResult::forbidden('No view access to secret on this row');
+                }
+
+                return AccessResult::neutral();
+            }
+        };
+
+        return new JsonApiController(
+            $this->entityTypeManager,
+            new ResourceSerializer($this->entityTypeManager),
+            new EntityAccessHandler([$policy]),
+            $this->createMock(AccountInterface::class),
+        );
     }
 
     // --- Positive control: readable fields still filter/sort normally ---
@@ -179,6 +242,21 @@ final class JsonApiControllerFieldFilterOracleTest extends TestCase
 
         $this->assertSame(1, $array['meta']['total']);
         $this->assertCount(1, $array['data']);
+    }
+
+    #[Test]
+    public function sortingOnReadableFieldStillWorks(): void
+    {
+        $this->seed();
+
+        // A sort on a field the caller CAN read is never rejected — no
+        // availability regression from the forbidden-sort guard.
+        $doc = $this->controller->index('article', ['sort' => '-title']);
+        $array = $doc->toArray();
+
+        $this->assertSame(200, $doc->statusCode);
+        $this->assertSame(4, $array['meta']['total']);
+        $this->assertSame('D', $array['data'][0]['attributes']['title']);
     }
 
     // --- Regression: credential floor stays blocked outright ---

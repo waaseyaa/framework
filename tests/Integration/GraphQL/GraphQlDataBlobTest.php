@@ -152,13 +152,14 @@ final class GraphQlDataBlobTest extends GraphQlIntegrationTestBase
         $this->assertSame('Alice', $items[1]['name']);
     }
 
-    public function testSortOnFieldForbiddenBlobFieldYieldsNothing(): void
+    public function testSortOnFieldForbiddenBlobFieldIsRejected(): void
     {
         // R14 (audit A11): `secret` is a plain _data blob field field-forbidden
         // for this account (RestrictFieldPolicy('author', 'secret')). Sorting on
-        // it must not order the author list by the hidden value — the rows are
-        // excluded value-independently, closing the ordering oracle. Full-stack
-        // companion to EntityResolverFieldFilterOracleTest.
+        // it must be rejected outright: storage sort/pagination run before the
+        // value-independent drop, so a forbidden row would otherwise occupy an
+        // observable pagination rank (empty-vs-populated page = ordering oracle).
+        // Full-stack companion to EntityResolverFieldFilterOracleTest.
         $response = $this->query('
             {
                 authorList(sort: "secret") {
@@ -168,8 +169,6 @@ final class GraphQlDataBlobTest extends GraphQlIntegrationTestBase
             }
         ');
 
-        $this->assertNoErrors($response);
-        $this->assertCount(0, $response['data']['authorList']['items']);
-        $this->assertSame(0, $response['data']['authorList']['total']);
+        $this->assertHasError($response, "Cannot sort by field 'secret'");
     }
 }
