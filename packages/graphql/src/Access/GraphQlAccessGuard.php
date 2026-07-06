@@ -68,4 +68,19 @@ final class GraphQlAccessGuard
             throw new UserError("Access denied: cannot edit field '{$fieldName}'");
         }
     }
+
+    /**
+     * True when the field is view-Forbidden for this entity (R14, audit A11).
+     *
+     * Used by {@see \Waaseyaa\GraphQL\Resolver\EntityResolver::resolveList()} to
+     * exclude, value-independently, a row whose caller-supplied filter/sort
+     * field the account may not READ — otherwise `total` and the item set leak a
+     * presence/ordering oracle for a classification/clearance field that
+     * `canView()` (entity-level) admits. Field access is per-entity, so this
+     * must be evaluated per row, not once for the request.
+     */
+    public function isFieldViewForbidden(EntityInterface $entity, string $fieldName): bool
+    {
+        return $this->handler->checkFieldAccess($entity, $fieldName, 'view', $this->account)->isForbidden();
+    }
 }

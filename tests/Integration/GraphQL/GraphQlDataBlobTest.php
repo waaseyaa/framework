@@ -125,11 +125,20 @@ final class GraphQlDataBlobTest extends GraphQlIntegrationTestBase
 
     public function testSortOnDataBlobFieldWithMultipleEntities(): void
     {
-        // Authors: Alice (secret=classified) and Bob (secret=redacted). Both visible.
-        // Sort by secret ascending → 'classified' before 'redacted'.
+        // Sort mechanics on a _data blob field, exercised on a field the account
+        // MAY read. `bio` is a plain _data blob field (not an entity key, not
+        // field-restricted): Alice bio='Writer', Bob bio='Editor'.
+        // Sort by bio ascending → 'Editor' before 'Writer' → Bob before Alice.
+        //
+        // NOTE: this test previously sorted on `secret`, which the harness's
+        // RestrictFieldPolicy('author', 'secret') field-forbids for this account.
+        // That relied on the R14 ordering oracle (ordering the list by a value
+        // the caller cannot read); the fix now excludes such rows
+        // value-independently (see testSortOnFieldForbiddenBlobFieldYieldsNothing
+        // and packages/graphql .../EntityResolverFieldFilterOracleTest).
         $response = $this->query('
             {
-                authorList(sort: "secret") {
+                authorList(sort: "bio") {
                     items { name }
                 }
             }
@@ -138,8 +147,28 @@ final class GraphQlDataBlobTest extends GraphQlIntegrationTestBase
         $this->assertNoErrors($response);
         $items = $response['data']['authorList']['items'];
         $this->assertCount(2, $items);
-        // 'classified' < 'redacted' alphabetically.
-        $this->assertSame('Alice', $items[0]['name']);
-        $this->assertSame('Bob', $items[1]['name']);
+        // 'Editor' < 'Writer' alphabetically.
+        $this->assertSame('Bob', $items[0]['name']);
+        $this->assertSame('Alice', $items[1]['name']);
+    }
+
+    public function testSortOnFieldForbiddenBlobFieldIsRejected(): void
+    {
+        // R14 (audit A11): `secret` is a plain _data blob field field-forbidden
+        // for this account (RestrictFieldPolicy('author', 'secret')). Sorting on
+        // it must be rejected outright: storage sort/pagination run before the
+        // value-independent drop, so a forbidden row would otherwise occupy an
+        // observable pagination rank (empty-vs-populated page = ordering oracle).
+        // Full-stack companion to EntityResolverFieldFilterOracleTest.
+        $response = $this->query('
+            {
+                authorList(sort: "secret") {
+                    items { name }
+                    total
+                }
+            }
+        ');
+
+        $this->assertHasError($response, "Cannot sort by field 'secret'");
     }
 }

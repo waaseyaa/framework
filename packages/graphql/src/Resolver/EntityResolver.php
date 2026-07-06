@@ -62,6 +62,26 @@ final class EntityResolver
         $offset = isset($args['offset']) ? max(0, (int) $args['offset']) : 0;
         $limit = isset($args['limit']) ? min(self::MAX_LIMIT, max(1, (int) $args['limit'])) : self::DEFAULT_LIMIT;
 
+        // R14 (audit A11): fields the caller filters/sorts on. A field can be
+        // view-Forbidden for THIS account by a dynamic FieldAccessPolicy (a
+        // classification / clearance field) while `canView()` (entity-level)
+        // still admits the row, so the raw storage filter/sort turns `total`
+        // and the item set into a presence/ordering oracle for a field the
+        // caller may not read. Gated per entity below, value-independently.
+        // Empty in system context (no bound account): that path keeps the raw
+        // storage COUNT and does no field gating, exactly as before.
+        $gatedQueryFields = $this->account !== null ? $this->queryFieldNames($filters, $sorts) : [];
+
+        // R14 (audit A11): reject a SORT on a field the caller may not read on
+        // some matched row. The value-independent drop below closes the filter
+        // oracle and keeps the value off the wire, but sort()/range() run in
+        // storage BEFORE the drop, so a forbidden row still occupies an
+        // observable pagination RANK (empty-vs-populated page across offsets =
+        // ordering oracle). Fail the sort closed; the decision is
+        // value-independent (depends only on which viewable rows carry a
+        // Forbidden sort field). Mirrors JsonApiController::rejectForbiddenSort().
+        $this->rejectForbiddenSort($repository, $filters, $sorts);
+
         // Total — filters only, no sorts/pagination.
         $countQuery = $repository->getQuery();
         if ($this->account !== null) {
@@ -82,7 +102,8 @@ final class EntityResolver
             $total = 0;
             if ($countIds !== []) {
                 foreach ($repository->findMany($countIds) as $countEntity) {
-                    if ($this->guard->canView($countEntity)) {
+                    if ($this->guard->canView($countEntity)
+                        && !$this->queryFieldForbidden($countEntity, $gatedQueryFields)) {
                         ++$total;
                     }
                 }
@@ -125,6 +146,13 @@ final class EntityResolver
         $items = [];
         foreach ($entities as $entity) {
             if (!$this->guard->canView($entity)) {
+                continue;
+            }
+            // R14: value-independent exclusion — a row whose filter/sort field
+            // the caller may not read never surfaces, so its position/presence
+            // cannot encode the hidden value. Mirrors the count loop above and
+            // JsonApiController::index()'s per-entity gate.
+            if ($this->queryFieldForbidden($entity, $gatedQueryFields)) {
                 continue;
             }
             $values = EntityValues::toCastAwareMap($entity);
@@ -292,6 +320,90 @@ final class EntityResolver
         }
 
         return $repository->find((string) $id);
+    }
+
+    /**
+     * The distinct field names a list query filters or sorts on (R14).
+     *
+     * @param list<QueryFilter> $filters
+     * @param list<QuerySort>   $sorts
+     * @return list<string>
+     */
+    private function queryFieldNames(array $filters, array $sorts): array
+    {
+        $fields = [];
+        foreach ($filters as $filter) {
+            $fields[$filter->field] = true;
+        }
+        foreach ($sorts as $sort) {
+            $fields[$sort->field] = true;
+        }
+
+        return array_keys($fields);
+    }
+
+    /**
+     * Reject (UserError) a list query that sorts on a field the caller may not
+     * read on some entity-level-viewable matched row (R14, audit A11).
+     *
+     * The pagination-position companion to {@see queryFieldForbidden()}: that
+     * drop keeps a forbidden field's VALUE off the wire, but sort()/range() run
+     * in storage over the full match set BEFORE the drop, so a forbidden row
+     * still occupies a sort RANK whose empty pagination slot leaks its ordering.
+     * Storage cannot evaluate per-row field access, so the fail-closed fix is to
+     * refuse the sort. Value-independent (depends only on WHICH viewable rows
+     * carry a Forbidden sort field), so it adds no oracle beyond resolveSingle()'s
+     * existing per-row field-read boundary. No sort / no bound account short-circuits.
+     *
+     * @param list<QueryFilter> $filters
+     * @param list<QuerySort>   $sorts
+     */
+    private function rejectForbiddenSort(
+        \Waaseyaa\Entity\Repository\EntityRepositoryInterface $repository,
+        array $filters,
+        array $sorts,
+    ): void {
+        if ($sorts === [] || $this->account === null) {
+            return;
+        }
+
+        $idQuery = $repository->getQuery()->setAccount($this->account);
+        foreach ($filters as $filter) {
+            $idQuery->condition($filter->field, $filter->value, $filter->operator);
+        }
+        $ids = $idQuery->execute();
+        if ($ids === []) {
+            return;
+        }
+
+        foreach ($repository->findMany($ids) as $entity) {
+            if (!$this->guard->canView($entity)) {
+                continue;
+            }
+            foreach ($sorts as $sort) {
+                if ($this->guard->isFieldViewForbidden($entity, $sort->field)) {
+                    throw new UserError("Cannot sort by field '{$sort->field}'.");
+                }
+            }
+        }
+    }
+
+    /**
+     * True when ANY caller-supplied filter/sort field is view-Forbidden for
+     * this entity (R14, audit A11). Value-independent, evaluated per entity —
+     * see {@see GraphQlAccessGuard::isFieldViewForbidden()}.
+     *
+     * @param list<string> $gatedQueryFields
+     */
+    private function queryFieldForbidden(EntityInterface $entity, array $gatedQueryFields): bool
+    {
+        foreach ($gatedQueryFields as $field) {
+            if ($this->guard->isFieldViewForbidden($entity, $field)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
