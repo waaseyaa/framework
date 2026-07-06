@@ -130,4 +130,48 @@ final class ScheduleRunHandlerTest extends TestCase
         self::assertStringContainsString('1', $tester->getStdout());
         self::assertStringContainsString('scheduled task.', $tester->getStdout());
     }
+
+    #[Test]
+    public function exits_nonzero_when_the_only_due_task_fails(): void
+    {
+        $tester = CliTester::for($this->makeDefinition(), $this->makeContainer([
+            new ScheduledTask(
+                name: 'broken-report',
+                expression: '* * * * *',
+                command: static fn () => throw new \RuntimeException('boom'),
+            ),
+        ]));
+
+        $tester->executeMap([]);
+
+        self::assertSame(1, $tester->getExitCode());
+        $output = $tester->getStdout();
+        self::assertStringContainsString('broken-report', $output);
+        self::assertStringContainsString('1', $output);
+        self::assertStringNotContainsString('No scheduled tasks are due.', $output);
+    }
+
+    #[Test]
+    public function exits_nonzero_and_preserves_isolation_on_mixed_success_and_failure(): void
+    {
+        $tester = CliTester::for($this->makeDefinition(), $this->makeContainer([
+            new ScheduledTask(
+                name: 'broken-report',
+                expression: '* * * * *',
+                command: static fn () => throw new \RuntimeException('boom'),
+            ),
+            new ScheduledTask(
+                name: 'cache:clear',
+                expression: '* * * * *',
+                command: static fn () => null,
+            ),
+        ]));
+
+        $tester->executeMap([]);
+
+        self::assertSame(1, $tester->getExitCode());
+        $output = $tester->getStdout();
+        self::assertStringContainsString('broken-report', $output);
+        self::assertStringContainsString('cache:clear', $output);
+    }
 }

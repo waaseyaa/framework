@@ -117,6 +117,48 @@ final class ScheduleRunnerTest extends TestCase
         // Second task should still run despite first failing
         self::assertSame(1, $result->count);
         self::assertSame(['second-task'], $result->taskNames);
+        self::assertSame(1, $result->failedCount);
+        self::assertSame(['failing-task'], $result->failedTaskNames);
+    }
+
+    #[Test]
+    public function reportsZeroFailedCountWhenAllDueTasksSucceed(): void
+    {
+        $schedule = new Schedule();
+        $schedule->add(new ScheduledTask(
+            name: 'test-task',
+            expression: '* * * * *',
+            command: fn() => null,
+        ));
+
+        $runner = new ScheduleRunner($schedule, new SyncQueue(), new InMemoryLock());
+        $result = $runner->run(new \DateTimeImmutable());
+
+        self::assertSame(0, $result->failedCount);
+        self::assertSame([], $result->failedTaskNames);
+    }
+
+    #[Test]
+    public function reportsAllTasksFailedWhenEveryDueTaskThrows(): void
+    {
+        $schedule = new Schedule();
+        $schedule->add(new ScheduledTask(
+            name: 'first-failure',
+            expression: '* * * * *',
+            command: fn() => throw new \RuntimeException('one'),
+        ));
+        $schedule->add(new ScheduledTask(
+            name: 'second-failure',
+            expression: '* * * * *',
+            command: fn() => throw new \RuntimeException('two'),
+        ));
+
+        $runner = new ScheduleRunner($schedule, new SyncQueue(), new InMemoryLock());
+        $result = $runner->run(new \DateTimeImmutable());
+
+        self::assertSame(0, $result->count);
+        self::assertSame(2, $result->failedCount);
+        self::assertSame(['first-failure', 'second-failure'], $result->failedTaskNames);
     }
 
     // --- M4B WP02 — runOne() coverage -------------------------------------
