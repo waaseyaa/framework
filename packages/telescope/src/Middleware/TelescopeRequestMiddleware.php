@@ -7,6 +7,8 @@ namespace Waaseyaa\Telescope\Middleware;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\Telescope\TelescopeServiceProvider;
@@ -20,9 +22,14 @@ use Waaseyaa\Telescope\TelescopeServiceProvider;
 #[AsMiddleware(pipeline: 'http', priority: 100)]
 final class TelescopeRequestMiddleware implements HttpMiddlewareInterface
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly TelescopeServiceProvider $telescope,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function process(Request $request, HttpHandlerInterface $next): Response
     {
@@ -32,13 +39,23 @@ final class TelescopeRequestMiddleware implements HttpMiddlewareInterface
 
         $durationMs = (hrtime(true) - $startTime) / 1_000_000;
 
-        $this->recordRequest(
-            method: $request->getMethod(),
-            uri: $request->getPathInfo(),
-            statusCode: $response->getStatusCode(),
-            durationMs: $durationMs,
-            controller: $this->resolveController($request),
-        );
+        // Telemetry is a non-critical side effect: a storage failure (full
+        // disk, locked SQLite file, JSON-encode error) must never turn an
+        // already-successful response into a 500. Best-effort only.
+        try {
+            $this->recordRequest(
+                method: $request->getMethod(),
+                uri: $request->getPathInfo(),
+                statusCode: $response->getStatusCode(),
+                durationMs: $durationMs,
+                controller: $this->resolveController($request),
+            );
+        } catch (\Throwable $exception) {
+            $this->logger->warning('Telescope request recording failed: {message}', [
+                'message' => $exception->getMessage(),
+                'exception' => $exception,
+            ]);
+        }
 
         return $response;
     }
