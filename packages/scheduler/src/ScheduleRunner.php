@@ -27,6 +27,7 @@ final class ScheduleRunner
     public function run(\DateTimeInterface $now): ScheduleRunResult
     {
         $ran = [];
+        $failed = [];
 
         foreach ($this->schedule->tasks() as $task) {
             if (!$task->isDue($now)) {
@@ -35,16 +36,28 @@ final class ScheduleRunner
 
             $result = $this->runTask($task, $now);
             // Schedule-wide `run()` reports a count of successfully-executed
-            // tasks; failures and overlap-blocked invocations are not counted.
-            // `ScheduleRunResult::count` here means "how many fired", not
-            // "how many were eligible". `runOne()` returns the raw per-task
-            // result so the caller can introspect status directly.
+            // tasks; overlap-blocked invocations are not counted as either
+            // success or failure (they are an intentional skip, not an
+            // error). `ScheduleRunResult::count` here means "how many fired",
+            // not "how many were eligible". `runOne()` returns the raw
+            // per-task result so the caller can introspect status directly.
             if ($result->count === 1) {
                 $ran[] = $task->name;
+            } elseif ($result->status === ScheduleRunResult::STATUS_FAILED) {
+                // Surfaced to callers (audit A7 F9) so a sweep where every
+                // due task fails is distinguishable from "nothing was due":
+                // the CLI handler and any other consumer must not report
+                // success when tasks ran and threw.
+                $failed[] = $task->name;
             }
         }
 
-        return new ScheduleRunResult(count($ran), $ran);
+        return new ScheduleRunResult(
+            count: count($ran),
+            taskNames: $ran,
+            failedCount: count($failed),
+            failedTaskNames: $failed,
+        );
     }
 
     /**

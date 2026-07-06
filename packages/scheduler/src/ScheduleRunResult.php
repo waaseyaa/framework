@@ -23,8 +23,12 @@ final readonly class ScheduleRunResult
      * @param self::STATUS_*|null $status Per-task outcome (only set by `runOne()`).
      * @param string|null $message Human-readable detail (success notice or exception message).
      * @param class-string<\Throwable>|null $exceptionClass FQCN of the thrown exception when status is `failed`.
-     *                                                     Never the throwable itself — controllers must not have to
+     *                                                     Never the throwable itself, controllers must not have to
      *                                                     serialize a `\Throwable` (M4B WP02 / FR-010).
+     * @param int $failedCount Number of due tasks that threw during `run()`'s sweep (audit A7 F9).
+     *                         Always `0` on results returned by `runOne()`, which reports its own
+     *                         outcome via `status`/`exceptionClass` instead.
+     * @param list<string> $failedTaskNames Names of the tasks counted in `failedCount`, in run order.
      */
     public function __construct(
         public int $count,
@@ -32,5 +36,7 @@ final readonly class ScheduleRunResult
         public ?string $status = null,
         public ?string $message = null,
         public ?string $exceptionClass = null,
+        public int $failedCount = 0,
+        public array $failedTaskNames = [],
     ) {}
 }
