@@ -25,18 +25,6 @@ parameters:
 			path: packages/auth/src/Token/AuthTokenRepositoryInterface.php
 
 		-
-			message: '#^Unused Waaseyaa\\CLI\\Command\\Make\\AbstractMakeCommand\:\:renderStub$#'
-			identifier: shipmonk.deadMethod
-			count: 1
-			path: packages/cli/src/Command/Make/AbstractMakeCommand.php
-
-		-
-			message: '#^Unused Waaseyaa\\CLI\\Command\\Make\\AbstractMakeCommand\:\:toPascalCase$#'
-			identifier: shipmonk.deadMethod
-			count: 1
-			path: packages/cli/src/Command/Make/AbstractMakeCommand.php
-
-		-
 			message: '#^Unused Waaseyaa\\Config\\EventAwareStorage\:\:getCollectionName$#'
 			identifier: shipmonk.deadMethod
 			count: 1
