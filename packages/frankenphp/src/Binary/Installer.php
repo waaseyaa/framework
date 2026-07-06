@@ -40,11 +40,14 @@ final class Installer
     private \Closure $makeExecutable;
 
     /**
-     * @param \Closure(string,string):void|null    $download       fn(url, destFile)
-     * @param \Closure(string,string):?string|null $fetchDigest    fn(apiUrl, assetName) → sha256 hex or null
-     * @param \Closure(string):string|null         $sha256File     fn(file) → sha256 hex
-     * @param \Closure(string,string):void|null    $extractAll     fn(zipFile, destDir) — extract the whole archive
-     * @param \Closure(string):void|null           $makeExecutable fn(file)
+     * @param \Closure(string,string):void|null    $download        fn(url, destFile)
+     * @param \Closure(string,string):?string|null $fetchDigest     fn(apiUrl, assetName) → sha256 hex or null
+     * @param \Closure(string):string|null         $sha256File      fn(file) → sha256 hex
+     * @param \Closure(string,string):void|null    $extractAll      fn(zipFile, destDir) — extract the whole archive
+     * @param \Closure(string):void|null           $makeExecutable  fn(file)
+     * @param bool                                 $allowUnverified explicit operator opt-out: proceed with an
+     *                                                               unverified install when the release digest is
+     *                                                               unavailable, instead of the fail-closed default
      */
     public function __construct(
         ?\Closure $download = null,
@@ -52,6 +55,7 @@ final class Installer
         ?\Closure $sha256File = null,
         ?\Closure $extractAll = null,
         ?\Closure $makeExecutable = null,
+        private readonly bool $allowUnverified = false,
     ) {
         $this->download = $download ?? self::realDownload();
         $this->fetchDigest = $fetchDigest ?? self::realFetchDigest();
@@ -84,11 +88,16 @@ final class Installer
      * Install the asset under `$baseDir` (a project's vendor/bin), returning the
      * outcome (the path is the runnable binary).
      *
-     * Idempotent: an existing binary is kept unless `$force`. Checksum is enforced
-     * when the GitHub release publishes a digest; if the API is unreachable the
-     * install proceeds unverified (the caller warns).
+     * Idempotent: an existing binary is kept unless `$force`. Checksum verification
+     * is fail-closed by default: a mismatch always refuses to install, and when the
+     * digest itself is unavailable (GitHub API unreachable/rate-limited, malformed
+     * response, or the asset publishes no digest) the install now also refuses,
+     * unless the operator has explicitly opted out via `$allowUnverified` in the
+     * constructor — in which case the install proceeds and `InstallOutcome`
+     * reports `checksumVerified: false` for the caller to warn on.
      *
-     * @throws \RuntimeException on download failure, checksum mismatch, or extraction failure
+     * @throws \RuntimeException on download failure, checksum mismatch, extraction
+     *                           failure, or an unavailable checksum with no opt-out
      */
     public function install(FrankenPhpAsset $asset, string $baseDir, bool $force = false): InstallOutcome
     {
@@ -125,7 +134,17 @@ final class Installer
                 ));
             }
             $verified = true;
+        } elseif (!$this->allowUnverified) {
+            @unlink($tmp);
+            throw new \RuntimeException(sprintf(
+                'Could not verify the checksum for %s: the GitHub release digest was unavailable '
+                . '(API unreachable/rate-limited, or the asset publishes no digest). Refusing to install an '
+                . 'unverified binary. Pass --allow-unverified to accept this risk explicitly.',
+                $asset->assetName,
+            ));
         }
+        // else: operator explicitly opted into an unverified install; $verified stays
+        // false and InstallOutcome::checksumVerified reports it for the caller to warn on.
 
         if ($asset->isArchive) {
             $distDir = \dirname($binary);
@@ -246,7 +265,7 @@ final class Installer
             ]);
             $json = @file_get_contents($apiUrl, false, $context);
             if (!is_string($json) || $json === '') {
-                return null; // API unreachable / rate-limited → install proceeds unverified.
+                return null; // API unreachable / rate-limited → caller decides fail-closed vs opt-out.
             }
             try {
                 $data = json_decode($json, true, 512, \JSON_THROW_ON_ERROR);

@@ -22,7 +22,11 @@ never the operator's problem.
 - Per-OS/arch asset selection (Linux `x86_64`/`aarch64`, macOS `arm64`/`x86_64`,
   Windows `x86_64`), pinned to a known-good version (default `v1.12.4`; override
   with `--frankenphp-version` or `FRANKENPHP_VERSION`).
-- Verifies the download's sha256 against the GitHub release digest when available.
+- Verifies the download's sha256 against the GitHub release digest, fail-closed: a
+  checksum mismatch always refuses to install, and so does an **unavailable**
+  digest (GitHub API unreachable/rate-limited, malformed response, or an asset
+  with no published digest) — pass `--allow-unverified` to accept that risk
+  explicitly and install anyway (the result is reported as unverified).
 - Windows: the release is a full PHP-for-Windows SDK zip — the **whole** archive
   is extracted into `vendor/bin/frankenphp-dist/` so `frankenphp.exe` finds its
   sibling DLLs. POSIX: a bare binary with the executable bit set.
