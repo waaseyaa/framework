@@ -202,27 +202,28 @@ final class AgentRunRepositoryTest extends TestCase
     #[Test]
     public function findOldByQueuedAtExcludesNonTerminalRunsRegardlessOfAge(): void
     {
-        $queued = $this->makeQueuedRun(
-            'old-queued',
-            1,
-            'p',
-            queuedAt: new \DateTimeImmutable('2026-01-01T00:00:00+00:00'),
-            status: RunStatus::Queued,
-        );
-        $awaiting = $this->makeQueuedRun(
-            'old-awaiting',
-            1,
-            'p',
-            queuedAt: new \DateTimeImmutable('2026-01-01T00:00:00+00:00'),
-            status: RunStatus::AwaitingApproval,
-        );
+        // Derive the non-terminal set from the enum itself so a future case
+        // added to RunStatus is covered here automatically.
+        $nonTerminals = array_values(array_filter(
+            RunStatus::cases(),
+            static fn(RunStatus $status): bool => !$status->isTerminal(),
+        ));
+        self::assertNotEmpty($nonTerminals);
 
-        $this->repository->save($queued);
-        $this->repository->save($awaiting);
+        foreach ($nonTerminals as $status) {
+            $run = $this->makeQueuedRun(
+                'old-' . $status->value,
+                1,
+                'p',
+                queuedAt: new \DateTimeImmutable('2026-01-01T00:00:00+00:00'),
+                status: $status,
+            );
+            $this->repository->save($run);
+        }
 
         $result = $this->repository->findOldByQueuedAt(new \DateTimeImmutable('2026-03-01T00:00:00+00:00'));
 
-        self::assertCount(0, $result);
+        self::assertSame([], $result);
     }
 
     private function makeQueuedRun(

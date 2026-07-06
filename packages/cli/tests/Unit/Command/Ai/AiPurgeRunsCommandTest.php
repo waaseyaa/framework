@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Tests\Unit\Command\Ai;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -138,21 +139,29 @@ final class AiPurgeRunsCommandTest extends TestCase
     }
 
     #[Test]
-    public function over_age_queued_and_awaiting_approval_runs_survive_purge(): void
+    public function over_age_non_terminal_runs_survive_purge(): void
     {
         $now = new \DateTimeImmutable('2026-05-18T12:00:00+00:00');
 
         [$runRepo, $entityRepo] = $this->buildRunRepository();
         [$auditRepo] = $this->buildAuditRepository();
 
-        // Both are 40 days past the 30-day default retention threshold, but
-        // neither is in a terminal status: `queued` means the run never even
-        // started, and `awaiting_approval` means a human has not yet acted.
-        // Age alone must not delete a run the reaper never touches.
-        $queuedRun = $this->makeRun('still-queued', queuedAt: $now->modify('-40 days'), status: RunStatus::Queued);
-        $awaitingRun = $this->makeRun('still-awaiting', queuedAt: $now->modify('-40 days'), status: RunStatus::AwaitingApproval);
-        $runRepo->save($queuedRun);
-        $runRepo->save($awaitingRun);
+        // All are 40 days past the 30-day default retention threshold, but
+        // none is in a terminal status: `queued` never started,
+        // `awaiting_approval` waits on a human, and `running`/`cancelling`
+        // are the reaper's responsibility. Age alone must not delete a run
+        // the reaper has not classified as dead. Derive the non-terminal
+        // set from the enum so a future case is covered automatically.
+        $nonTerminals = array_values(array_filter(
+            RunStatus::cases(),
+            static fn(RunStatus $status): bool => !$status->isTerminal(),
+        ));
+        self::assertNotEmpty($nonTerminals);
+
+        foreach ($nonTerminals as $status) {
+            $run = $this->makeRun('still-' . $status->value, queuedAt: $now->modify('-40 days'), status: $status);
+            $runRepo->save($run);
+        }
 
         $command = new AiPurgeRunsCommand(
             runRepository: $runRepo,
@@ -167,38 +176,54 @@ final class AiPurgeRunsCommandTest extends TestCase
 
         self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
         self::assertStringContainsString('Deleted 0 runs', $tester->getStdout());
-        self::assertNotNull($runRepo->find('still-queued'));
-        self::assertNotNull($runRepo->find('still-awaiting'));
+        foreach ($nonTerminals as $status) {
+            self::assertNotNull(
+                $runRepo->find('still-' . $status->value),
+                \sprintf('Expected non-terminal status "%s" to survive the purge.', $status->value),
+            );
+        }
+    }
+
+    /**
+     * @return array<string, array{RunStatus}>
+     */
+    public static function terminalStatusProvider(): array
+    {
+        $cases = [];
+        foreach (RunStatus::terminals() as $status) {
+            $cases[$status->value] = [$status];
+        }
+
+        return $cases;
     }
 
     #[Test]
-    public function over_age_run_in_each_terminal_status_is_purged(): void
+    #[DataProvider('terminalStatusProvider')]
+    public function over_age_run_in_terminal_status_is_purged(RunStatus $status): void
     {
         $now = new \DateTimeImmutable('2026-05-18T12:00:00+00:00');
 
-        foreach (RunStatus::terminals() as $status) {
-            [$runRepo, $entityRepo] = $this->buildRunRepository();
-            [$auditRepo] = $this->buildAuditRepository();
+        [$runRepo, $entityRepo] = $this->buildRunRepository();
+        [$auditRepo] = $this->buildAuditRepository();
 
-            $id = 'terminal-' . $status->value;
-            $run = $this->makeRun($id, queuedAt: $now->modify('-40 days'), status: $status);
-            $runRepo->save($run);
+        $id = 'terminal-' . $status->value;
+        $run = $this->makeRun($id, queuedAt: $now->modify('-40 days'), status: $status);
+        $runRepo->save($run);
 
-            $command = new AiPurgeRunsCommand(
-                runRepository: $runRepo,
-                auditRepository: $auditRepo,
-                runEntityRepository: $entityRepo,
-                defaultRetentionDays: 30,
-                now: static fn(): \DateTimeImmutable => $now,
-            );
+        $command = new AiPurgeRunsCommand(
+            runRepository: $runRepo,
+            auditRepository: $auditRepo,
+            runEntityRepository: $entityRepo,
+            defaultRetentionDays: 30,
+            now: static fn(): \DateTimeImmutable => $now,
+        );
 
-            $tester = $this->makeTester($command);
-            $tester->execute([]);
+        $tester = $this->makeTester($command);
+        $tester->execute([]);
 
-            self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
-            self::assertStringContainsString('Deleted 1 runs', $tester->getStdout());
-            self::assertNull($runRepo->find($id), \sprintf('Expected terminal status "%s" to be purged.', $status->value));
-        }
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        self::assertStringContainsString('Deleted 1 runs', $tester->getStdout());
+        self::assertNull($runRepo->find($id), \sprintf('Expected terminal status "%s" to be purged.', $status->value));
     }
 
     #[Test]
