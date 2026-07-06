@@ -214,7 +214,16 @@ cutoff, deletes `audit_event WHERE id <= horizon`, and marks those checkpoints
 required for chain integrity); **unsealed-tail** rows (`id > MAX(segment_end_id)`)
 keep the legacy `created_at`(+`--kind`) deletion (no chain yet). The
 `audit.retention_pruned` self-audit records `sealed_pruned_through_id`,
-`pruned_checkpoint_hash`, and `unsealed_deleted_count`. `audit:verify` treats a
+`pruned_checkpoint_hash`, and `unsealed_deleted_count`. Its `deleted_count`
+equals the real sealed-plus-unsealed total (what the two delete paths above
+are about to remove: the record is written before the deletes execute, so it
+reflects intent, not observed outcome), not a kind-filtered match count:
+since sealed rows are
+pruned whole regardless of `--kind`, a kind-filtered count can undercount the
+real deletion when `--kind` is set (audit A7, F10). The confirmation prompt
+(refusal without `--confirm`) reports that same real total. The superseded
+kind-filtered number is kept separately under `kind_filtered_match_count` for
+anyone inspecting the self-audit trail. `audit:verify` treats a
 `pruned=1` checkpoint as a valid anchor: it still verifies the checkpoint's chain
 link **and recomputes its `checkpoint_hash`** (a forged pruned checkpoint is still
 caught), but skips the row-level checks (the rows are legitimately gone) and
@@ -418,19 +427,38 @@ bin/waaseyaa audit:prune --older-than=<ISO-8601-duration> [--kind=<glob>] [--dry
   `entity.*` = all entity.* cases; literal = single exact kind.
 - `--dry-run`: Print the count; do not delete.
 
-**Algorithm:**
+**Algorithm** (see "Prune reconciliation" above for the sealed/unsealed split):
 
 1. Validate `--older-than` via `new \DateInterval(...)`.
 2. Compute `cutoff = now() - interval`.
-3. Build `AuditQuery` with `to = $cutoff` and kind filter.
-4. `$count = $query->count($auditQuery)`.
-5. If `--dry-run`: print count and exit 0.
-6. Write self-audit event via `$writer->record(AuditEventDescriptor{kind: AuditRetentionPruned, attributes: {kind_pattern, older_than, deleted_count: $count, cutoff}})`.
-7. Execute `$db->delete('audit_event')->condition('created_at', $cutoff, '<')->...->execute()`.
-8. Print confirmation and exit 0.
+3. Compute the sealed horizon, the sealed count (`countSealedRowsUpTo`, 0 when
+   horizon is 0), and the kind-filtered unsealed-tail count. `real_total =
+   sealed_count + unsealed_count`: this is what the two delete paths below
+   are about to remove. A legacy kind-filtered `AuditQuery` count is also
+   computed and kept as `kind_filtered_match_count`, but it is not used as
+   `deleted_count` (audit A7, F10: sealed segments are pruned whole regardless
+   of `--kind`, so a kind-filtered count can undercount what Path A deletes).
+4. If `--dry-run`: print the sealed/unsealed breakdown and exit 0 (no delete,
+   no self-audit event).
+5. Without `--confirm`: print `real_total` (with the sealed/unsealed
+   breakdown) and refuse; exit 0 (no delete, no self-audit event).
+6. Write self-audit event via `$writer->record(AuditEventDescriptor{kind:
+   AuditRetentionPruned, attributes: {kind_pattern, older_than, deleted_count:
+   real_total, kind_filtered_match_count, cutoff, sealed_pruned_through_id,
+   pruned_checkpoint_hash, unsealed_deleted_count}})`.
+7. Execute Path A (`audit_event WHERE id <= horizon`, kind-agnostic) when
+   `horizon > 0`, marking covered checkpoints `pruned=1`; then execute Path B
+   (`created_at < cutoff` plus optional `--kind` filter, applied to the
+   unsealed tail: `id > MAX(segment_end_id)` over ALL checkpoints, genesis
+   included).
+8. Print confirmation (`real_total`) and exit 0.
 
 Self-audit semantics (FR-012): the `audit.retention_pruned` event is recorded
-BEFORE the delete so its `deleted_count` reflects the pre-deletion count.
+BEFORE the delete so its `deleted_count` reflects the pre-deletion count
+(intent, not observed outcome: a mid-delete failure leaves the record
+overstating what was removed). Since the audit A7, F10 fix, `deleted_count`
+equals the real sealed-plus-unsealed total that the two delete paths are
+about to remove, not the kind-filtered match count alone.
 
 ---
 

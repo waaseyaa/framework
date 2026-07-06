@@ -129,22 +129,33 @@ final class PruneCommand
         );
 
         // ----------------------------------------------------------------
-        // Legacy total count (for display / backward-compat attributes).
+        // Real total (audit A7, F10): the sealed count (Path A, ALWAYS
+        // kind-agnostic) plus the kind-filtered unsealed-tail count (Path B).
+        // This is the number that the two delete paths below will actually
+        // remove, and it is what the confirmation prompt and the self-audit
+        // record must report.
+        // ----------------------------------------------------------------
+        $sealedCount = $horizon > 0 ? $this->countSealedRowsUpTo($horizon) : 0;
+        $realTotal = $sealedCount + $unsealedCount;
+
+        // ----------------------------------------------------------------
+        // Legacy kind-filtered count, kept only as a secondary attribute
+        // (`kind_filtered_match_count`) for anyone inspecting the self-audit
+        // trail. It is NOT used as `deleted_count`: with `--kind` set it can
+        // diverge from `$realTotal` because sealed segments are always pruned
+        // whole regardless of `--kind` (chain integrity), so this count
+        // undercounts what Path A actually deletes.
         // ----------------------------------------------------------------
         $auditQuery = new AuditQuery(
             kinds: $kinds,
             to: $cutoff,
         );
-        $count = $this->query->count($auditQuery);
+        $kindFilteredMatchCount = $this->query->count($auditQuery);
 
         if ($isDryRun) {
-            $sealedRowCount = $horizon > 0
-                ? $this->countSealedRowsUpTo($horizon)
-                : 0;
-
             $io->writeln(sprintf(
                 'Would prune %d sealed event row(s) (up to checkpoint end id %d) and %d unsealed tail row(s) (kind: %s, older than: %s, cutoff: %s). [dry-run]',
-                $sealedRowCount,
+                $sealedCount,
                 $horizon,
                 $unsealedCount,
                 $kindPattern,
@@ -159,13 +170,17 @@ final class PruneCommand
         // --confirm. Without it, echo the resolved cutoff + the exact row count
         // that WOULD be deleted, then refuse — record no self-audit event and
         // delete no rows. This refusal is unconditional (interactive or not),
-        // matching the import:reset / import:rollback idiom.
+        // matching the import:reset / import:rollback idiom. The count echoed
+        // here is the real sealed+unsealed total the operator would actually
+        // be confirming, not the kind-filtered match count (audit A7, F10).
         $isConfirmed = (bool) $io->option('confirm');
 
         if (!$isConfirmed) {
             $io->writeln(sprintf(
-                'Refusing to prune %d audit events without --confirm (kind: %s, older than: %s, cutoff: %s).',
-                $count,
+                'Refusing to prune %d audit events without --confirm (sealed: %d, unsealed: %d, kind: %s, older than: %s, cutoff: %s).',
+                $realTotal,
+                $sealedCount,
+                $unsealedCount,
                 $kindPattern,
                 $olderThanRaw,
                 $cutoff->format(\DateTimeInterface::ATOM),
@@ -184,7 +199,9 @@ final class PruneCommand
 
         // Self-audit before deletion (FR-012, WP4): record the prune event
         // FIRST so it lands as an unsealed row with id > horizon — it is never
-        // inside the sealed range being deleted.
+        // inside the sealed range being deleted. `deleted_count` is the real
+        // sealed+unsealed total (audit A7, F10): it must match what the two
+        // delete paths below actually remove, not the kind-filtered count.
         $this->writer->record(new AuditEventDescriptor(
             kind: AuditEventKind::AuditRetentionPruned,
             accountUid: 0,
@@ -192,13 +209,14 @@ final class PruneCommand
             outcome: 'allowed',
             severity: 'info',
             attributes: [
-                'kind_pattern'            => $kindPattern,
-                'older_than'              => $olderThanRaw,
-                'deleted_count'           => $count,
-                'cutoff'                  => $cutoff->format(\DateTimeInterface::ATOM),
-                'sealed_pruned_through_id' => $horizon,
-                'pruned_checkpoint_hash'  => $prunedCheckpointHash,
-                'unsealed_deleted_count'  => $unsealedCount,
+                'kind_pattern'              => $kindPattern,
+                'older_than'                => $olderThanRaw,
+                'deleted_count'             => $realTotal,
+                'kind_filtered_match_count' => $kindFilteredMatchCount,
+                'cutoff'                    => $cutoff->format(\DateTimeInterface::ATOM),
+                'sealed_pruned_through_id'  => $horizon,
+                'pruned_checkpoint_hash'    => $prunedCheckpointHash,
+                'unsealed_deleted_count'    => $unsealedCount,
             ],
         ));
 
@@ -241,7 +259,7 @@ final class PruneCommand
 
         $io->writeln(sprintf(
             'Pruned %d audit events (kind: %s, older than: %s).',
-            $count,
+            $realTotal,
             $kindPattern,
             $olderThanRaw,
         ));
@@ -369,7 +387,7 @@ final class PruneCommand
 
         if ($kindPattern !== '*') {
             $kindValues = array_map(static fn(AuditEventKind $k): string => $k->value, $kinds);
-            $select->condition('event_kind', $kindValues, 'IN');
+            $select = $select->condition('event_kind', $kindValues, 'IN');
         }
 
         return count(iterator_to_array($select->execute(), false));
