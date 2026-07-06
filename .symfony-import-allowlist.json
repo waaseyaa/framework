@@ -53,6 +53,7 @@
     "packages/bimaaji/src/Introspection/Routing/RoutingIntrospectionProvider.php",
     "packages/cache/src/Listener/EntityCacheSubscriber.php",
     "packages/config/src/ConfigFactory.php",
+    "packages/config/src/ConfigServiceProvider.php",
     "packages/config/src/ConfigManager.php",
     "packages/config/src/Event/ConfigEvent.php",
     "packages/config/src/EventAwareStorage.php",

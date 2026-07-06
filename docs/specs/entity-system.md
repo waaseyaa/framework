@@ -1472,6 +1472,10 @@ interface ConfigFactoryInterface
 
 `get()` returns cached immutable Config. `getEditable()` always creates a new mutable Config wrapped in EventAwareStorage.
 
+**Production binding:** `Waaseyaa\Config\ConfigServiceProvider` (`packages/config/src/ConfigServiceProvider.php`, declared in `packages/config/composer.json`'s `extra.waaseyaa.providers`) binds `ConfigFactoryInterface` as a container singleton, backed by `FileStorage` pointed at `<projectRoot>/config/active` — the same active store `Waaseyaa\CLI\Provider\OptimizeServiceProvider` compiles for `optimize:config`; there is exactly one active store, not a second instance. Before this provider existed, no production ServiceProvider bound the interface at all, so any consumer resolving it via `resolveOptional(ConfigFactoryInterface::class)` (e.g. `Waaseyaa\SSR\ThemeServiceProvider`) silently received `null` and no-opped in a real boot (#1920 WP-1 follow-up).
+
+<!-- Spec reviewed 2026-07-06 - fix(#1920): bind ConfigFactoryInterface in production boot -->
+
 ### ConfigManagerInterface
 
 File: `packages/config/src/ConfigManagerInterface.php`
