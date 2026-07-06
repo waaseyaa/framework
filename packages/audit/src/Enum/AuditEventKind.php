@@ -7,11 +7,12 @@ namespace Waaseyaa\Audit\Enum;
 /**
  * Canonical vocabulary of audit event kinds.
  *
- * 21 cases (originally 14, extended additively by
+ * 22 cases (originally 14, extended additively by
  * `versioned-blob-media-abstraction-01KSEFTJ` (+3),
  * `revision-audit-provenance-01KTWY5V` (+2),
- * WP3 audit tamper-evidence verify (+1), and
- * WP4 audit fail-open marker+metric (#1792) (+1) per the §Out-of-band
+ * WP3 audit tamper-evidence verify (+1),
+ * WP4 audit fail-open marker+metric (#1792) (+1), and
+ * CW-v1 WP-1 (#1920) (+1) per the §Out-of-band
  * downstream-amendment principle — additive, no removal).
  *
  * The {@see \Waaseyaa\Audit\Contract\AuditEventDescriptor} rejects
@@ -64,4 +65,8 @@ enum AuditEventKind: string
      * and operator dashboards.
      */
     case AuditWriteDegraded = 'audit.write_degraded';
+
+    // --- Added by CW-v1 WP-1 (#1920, docs/specs/content-workflow.md) ---
+    /** A workflow transition was fired (allowed) or attempted and refused (denied) via TransitionService. */
+    case WorkflowTransition = 'workflow.transition';
 }

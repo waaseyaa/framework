@@ -8,6 +8,7 @@ use Waaseyaa\Workflows\Workflow;
 use Waaseyaa\Workflows\WorkflowState;
 use Waaseyaa\Workflows\WorkflowTransition;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -387,6 +388,53 @@ final class WorkflowTest extends TestCase
         $this->assertSame('Publish', $transition->label);
         $this->assertSame(['draft'], $transition->from);
         $this->assertSame('published', $transition->to);
+    }
+
+    #[Test]
+    public function transition_permission_defaults_to_the_derived_name(): void
+    {
+        $workflow = new Workflow(['id' => 'editorial',
+            'states' => ['draft' => ['label' => 'Draft'], 'review' => ['label' => 'Review']],
+            'transitions' => ['submit' => ['label' => 'Submit', 'from' => ['draft'], 'to' => 'review']],
+        ]);
+
+        $this->assertSame('use editorial transition submit',
+            $workflow->permissionFor($workflow->getTransition('submit')));
+    }
+
+    #[Test]
+    public function explicit_transition_permission_wins(): void
+    {
+        $workflow = new Workflow(['id' => 'editorial',
+            'states' => ['draft' => ['label' => 'Draft'], 'review' => ['label' => 'Review']],
+            'transitions' => ['submit' => ['label' => 'Submit', 'from' => ['draft'], 'to' => 'review', 'permission' => 'custom perm']],
+        ]);
+
+        $this->assertSame('custom perm', $workflow->permissionFor($workflow->getTransition('submit')));
+    }
+
+    #[Test]
+    public function initial_state_hydrates_and_defaults_to_the_first_state(): void
+    {
+        $explicit = new Workflow(['id' => 'w', 'initial_state' => 'draft',
+            'states' => ['x' => ['label' => 'X'], 'draft' => ['label' => 'Draft']]]);
+        $implicit = new Workflow(['id' => 'w', 'states' => ['x' => ['label' => 'X']]]);
+
+        $this->assertSame('draft', $explicit->getInitialState());
+        $this->assertSame('x', $implicit->getInitialState());
+    }
+
+    #[Test]
+    public function states_hydrate_published_and_default_revision_flags(): void
+    {
+        $workflow = new Workflow(['id' => 'editorial', 'states' => [
+            'draft' => ['label' => 'Draft'],
+            'published' => ['label' => 'Published', 'published' => true, 'default_revision' => true],
+        ]]);
+
+        $this->assertFalse($workflow->getState('draft')->published);
+        $this->assertTrue($workflow->getState('published')->published);
+        $this->assertTrue($workflow->getState('published')->defaultRevision);
     }
 
     public function testConstructorHydratesFromWorkflowStateObjects(): void

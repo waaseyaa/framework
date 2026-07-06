@@ -6,6 +6,7 @@ namespace Waaseyaa\Workflows\Tests\Unit;
 
 use Waaseyaa\Workflows\WorkflowState;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -58,5 +59,28 @@ final class WorkflowStateTest extends TestCase
             metadata: ['legacy_status' => 1],
         );
         $this->assertSame(['legacy_status' => 1], $state->metadata);
+    }
+
+    #[Test]
+    public function published_and_default_revision_default_to_false(): void
+    {
+        $state = new WorkflowState(id: 'draft', label: 'Draft');
+
+        $this->assertFalse($state->published);
+        $this->assertFalse($state->defaultRevision);
+    }
+
+    #[Test]
+    public function published_and_default_revision_flags_are_preserved(): void
+    {
+        $state = new WorkflowState(
+            id: 'published',
+            label: 'Published',
+            published: true,
+            defaultRevision: true,
+        );
+
+        $this->assertTrue($state->published);
+        $this->assertTrue($state->defaultRevision);
     }
 }

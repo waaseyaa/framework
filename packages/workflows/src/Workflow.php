@@ -39,6 +39,12 @@ final class Workflow extends ConfigEntityBase
     private array $transitions = [];
 
     /**
+     * Explicit `initial_state` from config, or null to fall back to the
+     * first-declared state (see {@see getInitialState()}).
+     */
+    private ?string $initialState = null;
+
+    /**
      * @param array<string, mixed> $values Initial entity values. May include
      *   'states' and 'transitions' arrays for hydration from config.
      * @param array<string, string> $entityKeys Explicit keys when reconstructing via {@see EntityBase::duplicateInstance()}.
@@ -62,6 +68,8 @@ final class Workflow extends ConfigEntityBase
                         label: (string) ($stateData['label'] ?? $stateId),
                         weight: (int) ($stateData['weight'] ?? 0),
                         metadata: (array) ($stateData['metadata'] ?? []),
+                        published: (bool) ($stateData['published'] ?? false),
+                        defaultRevision: (bool) ($stateData['default_revision'] ?? false),
                     );
                 }
             }
@@ -79,9 +87,14 @@ final class Workflow extends ConfigEntityBase
                         from: (array) ($transitionData['from'] ?? []),
                         to: (string) ($transitionData['to'] ?? ''),
                         weight: (int) ($transitionData['weight'] ?? 0),
+                        permission: (string) ($transitionData['permission'] ?? ''),
                     );
                 }
             }
+        }
+
+        if (isset($values['initial_state']) && \is_string($values['initial_state']) && $values['initial_state'] !== '') {
+            $this->initialState = $values['initial_state'];
         }
 
         $entityTypeId = $entityTypeId !== '' ? $entityTypeId : $this->entityTypeId;
@@ -252,6 +265,36 @@ final class Workflow extends ConfigEntityBase
         return false;
     }
 
+    /**
+     * The state new content of this workflow starts in.
+     *
+     * Explicit `initial_state` config wins; otherwise falls back to the
+     * first-declared state (insertion order), matching Task 1.2's contract.
+     * Returns '' only when the workflow has no states at all.
+     */
+    public function getInitialState(): string
+    {
+        if ($this->initialState !== null) {
+            return $this->initialState;
+        }
+
+        $firstStateId = \array_key_first($this->states);
+
+        return $firstStateId ?? '';
+    }
+
+    /**
+     * The permission string required to fire a transition: the transition's
+     * own explicit `permission` if set, otherwise the derived
+     * `use {workflow_id} transition {transition_id}` name (CW-v1 WP-1).
+     */
+    public function permissionFor(WorkflowTransition $transition): string
+    {
+        return $transition->permission !== ''
+            ? $transition->permission
+            : \sprintf('use %s transition %s', (string) $this->id(), $transition->id);
+    }
+
     private function syncStatesToValues(): void
     {
         $states = [];
@@ -259,6 +302,8 @@ final class Workflow extends ConfigEntityBase
             $entry = [
                 'label' => $state->label,
                 'weight' => $state->weight,
+                'published' => $state->published,
+                'default_revision' => $state->defaultRevision,
             ];
             if ($state->metadata !== []) {
                 $entry['metadata'] = $state->metadata;
@@ -272,12 +317,16 @@ final class Workflow extends ConfigEntityBase
     {
         $transitions = [];
         foreach ($this->transitions as $transition) {
-            $transitions[$transition->id] = [
+            $entry = [
                 'label' => $transition->label,
                 'from' => $transition->from,
                 'to' => $transition->to,
                 'weight' => $transition->weight,
             ];
+            if ($transition->permission !== '') {
+                $entry['permission'] = $transition->permission;
+            }
+            $transitions[$transition->id] = $entry;
         }
         $this->values['transitions'] = $transitions;
     }
@@ -298,6 +347,8 @@ final class Workflow extends ConfigEntityBase
             $entry = [
                 'label' => $state->label,
                 'weight' => $state->weight,
+                'published' => $state->published,
+                'default_revision' => $state->defaultRevision,
             ];
             if ($state->metadata !== []) {
                 $entry['metadata'] = $state->metadata;
@@ -309,14 +360,22 @@ final class Workflow extends ConfigEntityBase
         // Serialize transitions to plain arrays.
         $transitions = [];
         foreach ($this->transitions as $transition) {
-            $transitions[$transition->id] = [
+            $entry = [
                 'label' => $transition->label,
                 'from' => $transition->from,
                 'to' => $transition->to,
                 'weight' => $transition->weight,
             ];
+            if ($transition->permission !== '') {
+                $entry['permission'] = $transition->permission;
+            }
+            $transitions[$transition->id] = $entry;
         }
         $config['transitions'] = $transitions;
+
+        if ($this->initialState !== null) {
+            $config['initial_state'] = $this->initialState;
+        }
 
         return $config;
     }

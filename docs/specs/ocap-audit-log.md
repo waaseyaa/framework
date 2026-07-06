@@ -254,7 +254,7 @@ any audit INSERT failure `AuditEventWriter` now:
 
 ## Event-Kind Taxonomy
 
-`AuditEventKind` is a backed string enum with 21 cases (additive — cases are
+`AuditEventKind` is a backed string enum with 22 cases (additive — cases are
 never removed per the out-of-band downstream-amendment principle):
 
 | Case | Value | Description |
@@ -280,6 +280,7 @@ never removed per the out-of-band downstream-amendment principle):
 | `RevisionRevert` | `revision.revert` | Current-revision pointer moved back to a prior revision (added by `revision-audit-provenance`) |
 | `AuditVerified` | `audit.verify` | `audit:verify` ran and checked the hash chain + checkpoints (added WP3) |
 | `AuditWriteDegraded` | `audit.write_degraded` | Sentinel written when a primary audit INSERT fails; attributes carry `dropped_kind`, `error_class`, `error_message` (added WP4 #1792, design §10.4) |
+| `WorkflowTransition` | `workflow.transition` | Workflow transition fired (allowed) or attempted and refused (denied) via `TransitionService`/the save-path guard (added CW-v1 WP-1, #1920, `docs/specs/content-workflow.md`) |
 
 Extension policy: new cases MUST be additive only. Removal requires a
 deprecation period and a major-version bump.

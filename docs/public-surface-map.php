@@ -505,6 +505,8 @@ return [
     'Waaseyaa\Audit\Contract\AuditQueryInterface' => 'public',
     'Waaseyaa\Audit\Contract\AuditWriterInterface' => 'public',
     'Waaseyaa\Audit\Enum\AuditEventKind' => 'public',
+    // CW-v1 WP-1 (#1920): workflow-transition lifecycle event names.
+    'Waaseyaa\Workflows\Event\WorkflowEvents' => 'public',
     // WP4 #1792: L1 metric seam — operators bind a real implementation to get
     // a loud signal (counter/alert) on audit write failures.
     'Waaseyaa\Audit\Contract\AuditWriteFailureObserver' => 'public',
