@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Vector;
 
+use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\EntityValues;
 
 /**
@@ -16,6 +19,8 @@ final class EntityEmbedder
     public function __construct(
         private readonly EmbeddingInterface $embedding,
         private readonly VectorStoreInterface $store,
+        private readonly EntityAccessHandler $accessHandler,
+        private readonly EntityTypeManagerInterface $entityTypeManager,
     ) {}
 
     /**
@@ -48,13 +53,40 @@ final class EntityEmbedder
     /**
      * Search for entities similar to a query string.
      *
+     * Returns only results that `$account` is permitted to view (fail
+     * closed): each candidate is loaded through the entity type's
+     * repository and checked with `EntityAccessHandler::check(..., 'view',
+     * $account)`. A candidate whose entity type is unregistered, whose
+     * entity has been deleted (load returns null), or whose view check does
+     * not resolve to Allowed is dropped silently.
+     *
      * @return SimilarityResult[]
      */
-    public function searchSimilar(string $query, int $limit = 10, ?string $entityTypeId = null): array
+    public function searchSimilar(string $query, AccountInterface $account, int $limit = 10, ?string $entityTypeId = null): array
     {
         $queryVector = $this->embedding->embed($query);
 
-        return $this->store->search($queryVector, $limit, $entityTypeId);
+        $results = $this->store->search($queryVector, $limit, $entityTypeId);
+
+        return array_values(array_filter(
+            $results,
+            fn(SimilarityResult $result): bool => $this->isViewable($result, $account),
+        ));
+    }
+
+    private function isViewable(SimilarityResult $result, AccountInterface $account): bool
+    {
+        $entityTypeId = $result->embedding->entityTypeId;
+        if (!$this->entityTypeManager->hasDefinition($entityTypeId)) {
+            return false;
+        }
+
+        $entity = $this->entityTypeManager->getRepository($entityTypeId)->find((string) $result->embedding->entityId);
+        if ($entity === null) {
+            return false;
+        }
+
+        return $this->accessHandler->check($entity, 'view', $account)->isAllowed();
     }
 
     /**
