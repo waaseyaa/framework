@@ -147,7 +147,7 @@ final class ScheduleRunHandlerTest extends TestCase
         self::assertSame(1, $tester->getExitCode());
         $output = $tester->getStdout();
         self::assertStringContainsString('broken-report', $output);
-        self::assertStringContainsString('1', $output);
+        self::assertStringContainsString('scheduled task failed.', $output);
         self::assertStringNotContainsString('No scheduled tasks are due.', $output);
     }
 
@@ -165,6 +165,11 @@ final class ScheduleRunHandlerTest extends TestCase
                 expression: '* * * * *',
                 command: static fn () => null,
             ),
+            new ScheduledTask(
+                name: 'broken-cleanup',
+                expression: '* * * * *',
+                command: static fn () => throw new \RuntimeException('bang'),
+            ),
         ]));
 
         $tester->executeMap([]);
@@ -172,6 +177,11 @@ final class ScheduleRunHandlerTest extends TestCase
         self::assertSame(1, $tester->getExitCode());
         $output = $tester->getStdout();
         self::assertStringContainsString('broken-report', $output);
+        self::assertStringContainsString('broken-cleanup', $output);
         self::assertStringContainsString('cache:clear', $output);
+        // The success summary must not be silently dropped on the failure path.
+        self::assertStringContainsString('Executed', $output);
+        // Plural failure label branch.
+        self::assertStringContainsString('scheduled tasks failed.', $output);
     }
 }
