@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\CLI\Handler\QueueRetryHandler;
 use Waaseyaa\CLI\Provider\QueueServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\Queue\QueueInterface;
 use Waaseyaa\Queue\Storage\InMemoryFailedJobRepository;
 use Waaseyaa\Queue\SyncQueue;
 use Waaseyaa\Queue\Tests\Unit\Fixtures\SuccessfulJob;
@@ -31,12 +32,12 @@ final class QueueRetryHandlerTest extends TestCase
 
     private function makeContainer(
         InMemoryFailedJobRepository $repo,
-        SyncQueue $queue,
+        QueueInterface $queue,
     ): \Psr\Container\ContainerInterface {
         return new class ($repo, $queue) implements \Psr\Container\ContainerInterface {
             public function __construct(
                 private readonly InMemoryFailedJobRepository $repo,
-                private readonly SyncQueue $queue,
+                private readonly QueueInterface $queue,
             ) {}
 
             public function get(string $id): mixed
@@ -98,5 +99,57 @@ final class QueueRetryHandlerTest extends TestCase
 
         self::assertSame(0, $tester->getExitCode());
         self::assertStringContainsString('Retried 2 failed job(s)', $tester->getStdout());
+    }
+
+    #[Test]
+    public function preservesFailedJobWhenDispatchThrows(): void
+    {
+        $repo = new InMemoryFailedJobRepository();
+        $jobId = $repo->record('default', serialize(new SuccessfulJob()), new \RuntimeException('Error'));
+
+        $queue = new class implements QueueInterface {
+            public function dispatch(object $message): void
+            {
+                throw new \RuntimeException('dispatch exploded');
+            }
+        };
+        $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($repo, $queue));
+
+        $tester->executeMap(['id' => $jobId]);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertNotNull($repo->find($jobId), 'Failed job row must survive a throwing dispatch.');
+    }
+
+    #[Test]
+    public function preservesFailedJobWithCorruptPayload(): void
+    {
+        $repo = new InMemoryFailedJobRepository();
+        $jobId = $repo->record('default', 'not-a-valid-serialized-payload', new \RuntimeException('Error'));
+
+        $queue = new SyncQueue();
+        $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($repo, $queue));
+
+        $tester->executeMap(['id' => $jobId]);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertNotNull($repo->find($jobId), 'Failed job row must survive a corrupt payload.');
+    }
+
+    #[Test]
+    public function retryAllPreservesFailingJobsAndRemovesSucceedingOnes(): void
+    {
+        $repo = new InMemoryFailedJobRepository();
+        $goodId = $repo->record('default', serialize(new SuccessfulJob()), new \RuntimeException('Error 1'));
+        $badId = $repo->record('default', 'not-a-valid-serialized-payload', new \RuntimeException('Error 2'));
+
+        $queue = new SyncQueue();
+        $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($repo, $queue));
+
+        $tester->executeMap(['id' => 'all']);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertNull($repo->find($goodId), 'Successfully dispatched job should be removed.');
+        self::assertNotNull($repo->find($badId), 'Corrupt-payload job should be preserved.');
     }
 }
