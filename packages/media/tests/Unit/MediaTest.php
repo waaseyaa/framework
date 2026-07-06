@@ -121,6 +121,15 @@ final class MediaTest extends TestCase
         $this->assertFalse($media->isPublished());
     }
 
+    public function testStatusBackfilledWhenAbsentFromConstructor(): void
+    {
+        $media = new Media(['mid' => 1, 'bundle' => 'image']);
+
+        $this->assertTrue($media->isPublished());
+        $this->assertArrayHasKey('status', $media->toArray());
+        $this->assertTrue($media->toArray()['status']);
+    }
+
     public function testGetAndSetCreatedTime(): void
     {
         $media = new Media(['mid' => 1, 'bundle' => 'image']);
