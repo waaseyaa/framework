@@ -206,7 +206,7 @@ The framework's MCP surface is `Waaseyaa\Mcp\McpServerCard` in `packages/mcp/`, 
 1. `EntityEmbedder::embedEntity()` builds text as `label + ' ' + json_encode(toArray())`
 2. Passes text to `EmbeddingInterface::embed()` to get a float vector
 3. Stores `EntityEmbedding` via `VectorStoreInterface::store()`
-4. Search: `EntityEmbedder::searchSimilar()` embeds the query string, then calls `VectorStoreInterface::search()`
+4. Search: `EntityEmbedder::searchSimilar($query, $account, ...)` embeds the query string, calls `VectorStoreInterface::search()`, then filters fail-closed: each hit is loaded through its repository and dropped unless `EntityAccessHandler::check($entity, 'view', $account)` is Allowed (an account is REQUIRED)
 5. `InMemoryVectorStore::search()` computes cosine similarity, supports langcode filtering with fallbacks
 
 ## Common Mistakes
@@ -321,10 +321,12 @@ $result = $executor->execute($pipeline, ['text' => 'hello']);
 ```php
 $provider = new FakeEmbeddingProvider(dimensions: 128);
 $store = new InMemoryVectorStore();
-$embedder = new EntityEmbedder($provider, $store);
+$embedder = new EntityEmbedder($provider, $store, $accessHandler, $entityTypeManager);
 
 $embedding = $embedder->embedEntity($entity);
-$results = $embedder->searchSimilar('search query', limit: 5, entityTypeId: 'node');
+// searchSimilar REQUIRES an account and returns only view-permitted results
+// (fail-closed: each hit is loaded and gated through EntityAccessHandler).
+$results = $embedder->searchSimilar('search query', $account, limit: 5, entityTypeId: 'node');
 ```
 
 ## Related Specs
