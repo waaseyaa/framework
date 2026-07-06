@@ -22,6 +22,13 @@ final class GenealogyContentAccessPolicy implements AccessPolicyInterface, Field
 {
     private const array ENTITY_TYPES = ['genealogy_person', 'genealogy_family', 'genealogy_event', 'genealogy_tree'];
 
+    /**
+     * Shared forbidden reason for the living-person privacy guard (genealogy m-a).
+     * Kept phrased around "Living persons" so the genealogy_person path reads
+     * naturally and existing assertions on that substring hold.
+     */
+    private const string LIVING_PRIVACY_REASON = 'Living persons are not visible without an explicit grant.';
+
     private readonly WorkflowVisibility $workflowVisibility;
 
     public function __construct(?WorkflowVisibility $workflowVisibility = null)
@@ -99,10 +106,8 @@ final class GenealogyContentAccessPolicy implements AccessPolicyInterface, Field
             }
         }
 
-        if ($entity->getEntityTypeId() === 'genealogy_person' && !$this->accountOwnsTree($account, $tree)) {
-            if (GenealogyLivingSemantics::effectiveIsLiving($entity)) {
-                return AccessResult::forbidden('Living persons are not visible without an explicit grant.');
-            }
+        if (!$this->accountOwnsTree($account, $tree) && $this->concealsForLivingPrivacy($entity)) {
+            return AccessResult::forbidden(self::LIVING_PRIVACY_REASON);
         }
 
         if ($this->accountOwnsTree($account, $tree)) {
@@ -142,11 +147,40 @@ final class GenealogyContentAccessPolicy implements AccessPolicyInterface, Field
             return AccessResult::forbidden('Genealogy content is not published for anonymous viewing.');
         }
 
-        if ($entity->getEntityTypeId() === 'genealogy_person' && GenealogyLivingSemantics::effectiveIsLiving($entity)) {
-            return AccessResult::forbidden('Living persons are not visible without an explicit grant.');
+        if ($this->concealsForLivingPrivacy($entity)) {
+            return AccessResult::forbidden(self::LIVING_PRIVACY_REASON);
         }
 
         return AccessResult::allowed('Published genealogy resource is viewable anonymously.');
+    }
+
+    /**
+     * Whether this row's identity channel must be concealed from a non-owner /
+     * anonymous viewer for living-person privacy, even after the
+     * published-entity + published-tree gates have passed (genealogy m-a).
+     *
+     * - `genealogy_person`: concealed iff the person is (effectively) living
+     *   ({@see GenealogyLivingSemantics::effectiveIsLiving()}) — the original rule.
+     * - `genealogy_family` / `genealogy_event`: ALWAYS concealed for non-owners.
+     *   Both carry a REQUIRED free-text `display_name` that in practice names
+     *   living people, and — unlike a person's `is_living` flag — that free-text
+     *   channel has no living/deceased axis to test, so it fails CLOSED. The
+     *   crawler-enumeration companion is `SeoPublicController::NON_PUBLIC_TYPES`.
+     *   Tree owners reach this only after the ownership bypass above, and
+     *   {@see DevAdminAccount} short-circuits to Allowed in {@see viewAccess()},
+     *   so both keep access (the local demo still renders).
+     * - `genealogy_tree`: its `display_name` is a workspace label, not a person
+     *   name; tree visibility is handled by {@see treeView()} /
+     *   {@see anonymousPublishedViewAccess()} before this method is reached, so
+     *   the default is a no-op.
+     */
+    private function concealsForLivingPrivacy(EntityInterface $entity): bool
+    {
+        return match ($entity->getEntityTypeId()) {
+            'genealogy_person' => GenealogyLivingSemantics::effectiveIsLiving($entity),
+            'genealogy_family', 'genealogy_event' => true,
+            default => false,
+        };
     }
 
     private function mutateAccess(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult

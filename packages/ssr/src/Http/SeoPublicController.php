@@ -49,6 +49,16 @@ final class SeoPublicController
         'config',
         'crop',
         'workflow',
+        // genealogy m-a (security): genealogy_family / genealogy_event carry a
+        // REQUIRED free-text display_name that in practice names living people,
+        // with no living/deceased axis to gate per row (unlike genealogy_person,
+        // whose living rows the access-aware enumeration already drops). Exclude
+        // both from the crawler-facing inventory wholesale — an independent gate
+        // alongside GenealogyContentAccessPolicy failing their view closed for
+        // non-owners (which the access-aware enumerator already honours; this is
+        // defense in depth, and skips the type without a per-row access probe).
+        'genealogy_family',
+        'genealogy_event',
     ];
 
     public function __construct(

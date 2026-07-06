@@ -10,7 +10,6 @@ use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Genealogy\Entity\GenealogyPerson;
-use Waaseyaa\Genealogy\GenealogyLivingSemantics;
 use Waaseyaa\Genealogy\GenealogyRelationshipType;
 use Waaseyaa\Relationship\Relationship;
 
@@ -19,6 +18,13 @@ use Waaseyaa\Relationship\Relationship;
  */
 final class GenealogyPedigreeService
 {
+    /**
+     * Uniform placeholder for a redacted neighbor slot (genealogy m-a, m2). One
+     * label for both living and deceased concealed relatives, so the slot does
+     * not leak the concealed person's living/deceased status.
+     */
+    private const string REDACTED_RELATIVE_LABEL = 'Private relative';
+
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         // Nullable/defensive (mirrors SsrPageHandler): when unwired, label
@@ -166,11 +172,14 @@ final class GenealogyPedigreeService
                 // slot uses — never the raw label.
             }
 
+            // genealogy m-a residual (m2): a single uniform placeholder for
+            // every redacted slot. The prior 'Private living relative' vs
+            // 'Private ancestor' split leaked the concealed person's
+            // living/deceased status — the very axis the concealment protects —
+            // as a one-bit side channel on an already-redacted slot.
             $slots[] = [
                 'redacted' => true,
-                'label' => GenealogyLivingSemantics::effectiveIsLiving($person)
-                    ? 'Private living relative'
-                    : 'Private ancestor',
+                'label' => self::REDACTED_RELATIVE_LABEL,
                 'id' => null,
             ];
         }

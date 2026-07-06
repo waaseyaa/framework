@@ -68,8 +68,10 @@ final class GenealogySsrController
         // Gather the relationship TOPOLOGY in system context (no account ⇒
         // accessCheck(false)), then conceal per-person via the gate in
         // neighborSlots(). The concealment is name-level: a relative the viewer
-        // cannot see renders as a redacted placeholder ("Private living relative"
-        // / "Private ancestor"), never by name and never with a loadable id. We
+        // cannot see renders as a redacted placeholder ("Private relative", a
+        // single uniform label so the slot leaks neither the name nor the
+        // concealed person's living/deceased status), never by name and never
+        // with a loadable id. We
         // must NOT pass the account into the id-gathering query: under
         // deny-by-default (audit C-6) the wired relationship policy drops every
         // edge with a non-viewable endpoint, which would make living/private

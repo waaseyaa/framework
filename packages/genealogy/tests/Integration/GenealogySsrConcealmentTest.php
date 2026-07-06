@@ -175,7 +175,7 @@ final class GenealogySsrConcealmentTest extends TestCase
         self::assertStringContainsString('Deceased Parent', $html);
         // Living neighbor is redacted: name never leaks, redaction placeholder is shown instead.
         self::assertStringNotContainsString('Living Parent', $html);
-        self::assertStringContainsString('Private living relative', $html);
+        self::assertStringContainsString('Private relative', $html);
     }
 
     /**
@@ -210,7 +210,7 @@ final class GenealogySsrConcealmentTest extends TestCase
 
         // The living parent (gen 1) is redacted: name withheld, placeholder rendered.
         self::assertStringNotContainsString('Living Mother', $html);
-        self::assertStringContainsString('Private living relative', $html);
+        self::assertStringContainsString('Private relative', $html);
     }
 
     /**
