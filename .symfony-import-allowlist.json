@@ -89,6 +89,7 @@
     "packages/media/src/Http/Router/MediaRouter.php",
     "packages/media/src/Version/MediaCascadeDeleteSubscriber.php",
     "packages/media/src/Version/MediaVersionStorageDriver.php",
+    "packages/messaging/src/EventSubscriber/ThreadParticipantBootstrapSubscriber.php",
     "packages/migration/src/Plugin/Destination/EntityDestination.php",
     "packages/migration/src/Runner/MigrationRunner.php",
     "packages/northcloud/src/Command/NcSyncCommand.php",
