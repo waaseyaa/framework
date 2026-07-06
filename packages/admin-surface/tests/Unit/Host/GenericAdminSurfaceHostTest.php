@@ -26,6 +26,7 @@ use Waaseyaa\AdminSurface\Query\SurfaceQuery;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
+use Waaseyaa\Field\FieldDefinition;
 
 #[CoversClass(GenericAdminSurfaceHost::class)]
 final class GenericAdminSurfaceHostTest extends TestCase
@@ -43,6 +44,10 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $accessHandler->method('filterFields')->willReturnCallback(
             static fn(EntityInterface $entity, array $fields): array => $fields,
         );
+        // R13 WP1: applyFilter()/the sort comparator now call checkFieldAccess()
+        // per entity; Neutral (not Forbidden) matches this helper's "permissive"
+        // contract, letting these data-shaping tests read every field's value.
+        $accessHandler->method('checkFieldAccess')->willReturn(AccessResult::neutral('ok'));
 
         $host = new GenericAdminSurfaceHost($etm, $accessHandler);
 
@@ -571,6 +576,11 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm = $this->createMock(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($articleType);
+        // R13 WP1: list() now validates filter/sort fields against
+        // resolveFieldDefinitions() + entity keys before running the query.
+        $etm->method('resolveFieldDefinitions')->willReturn([
+            'status' => new FieldDefinition(name: 'status', type: 'string'),
+        ]);
         $etm->method('getStorage')->willReturn($storage);
         $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
@@ -620,6 +630,11 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm = $this->createMock(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($type);
+        // R13 WP1: list() now validates filter/sort fields against
+        // resolveFieldDefinitions() + entity keys before running the query.
+        $etm->method('resolveFieldDefinitions')->willReturn([
+            'code' => new FieldDefinition(name: 'code', type: 'string'),
+        ]);
         $etm->method('getStorage')->willReturn($storage);
         $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
@@ -670,6 +685,11 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm = $this->createMock(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($type);
+        // R13 WP1: list() now validates filter/sort fields against
+        // resolveFieldDefinitions() + entity keys before running the query.
+        $etm->method('resolveFieldDefinitions')->willReturn([
+            'n' => new FieldDefinition(name: 'n', type: 'string'),
+        ]);
         $etm->method('getStorage')->willReturn($storage);
         $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
@@ -728,6 +748,12 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm = $this->createMock(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($contactType);
+        // R13 WP1: list() now validates filter/sort fields against
+        // resolveFieldDefinitions() + entity keys before running the query.
+        $etm->method('resolveFieldDefinitions')->willReturn([
+            'name' => new FieldDefinition(name: 'name', type: 'string'),
+            'stage' => new FieldDefinition(name: 'stage', type: 'string'),
+        ]);
         $etm->method('getStorage')->willReturn($storage);
         $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
@@ -784,6 +810,11 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm = $this->createMock(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($articleType);
+        // R13 WP1: list() now validates filter/sort fields against
+        // resolveFieldDefinitions() + entity keys before running the query.
+        $etm->method('resolveFieldDefinitions')->willReturn([
+            'created_at' => new FieldDefinition(name: 'created_at', type: 'string'),
+        ]);
         $etm->method('getStorage')->willReturn($storage);
         $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 

@@ -32,6 +32,17 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
  */
 class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
 {
+    /**
+     * Structural filter/sort floor, mirrored from
+     * {@see \Waaseyaa\Api\ResourceSerializer::ALWAYS_INTERNAL_FIELDS} and
+     * {@see \Waaseyaa\Api\JsonApiController::ALWAYS_INTERNAL_FIELDS}. Credential
+     * material (e.g. `pass`) must be structurally unfilterable/unsortable even
+     * before any field-access policy runs (R13 WP1).
+     *
+     * @var list<string>
+     */
+    private const array ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
+
     private ?AccountInterface $currentAccount = null;
 
     /** @var array<string, SurfaceActionHandlerInterface> */
@@ -142,6 +153,17 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             $query = new SurfaceQuery(offset: $offset, limit: $limit);
         }
 
+        // R13 WP1, layer (a): structural filter/sort allowlist, mirroring
+        // JsonApiController::validateQueryFields() (the REST "audit R2 WP1"
+        // gate). Runs before anything is read so an unknown/credential field
+        // name can never reach applyFilter()/the sort comparator. Layer (b)
+        // (per-entity field-view access, below) catches what a static
+        // allowlist cannot express.
+        $fieldError = $this->validateSurfaceQueryFields($type, $query);
+        if ($fieldError !== null) {
+            return $fieldError;
+        }
+
         // Fail closed: without an access handler AND a resolved account we cannot
         // make a per-entity access decision, so expose nothing rather than leak
         // unchecked entities.
@@ -175,9 +197,14 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         if ($query->sortField !== null) {
             $field = $query->sortField;
             $desc = $query->sortDirection === 'DESC';
-            usort($entities, static function ($a, $b) use ($field, $desc): int {
-                $aVal = (string) $a->get($field);
-                $bVal = (string) $b->get($field);
+            // R13 WP1, layer (b): a Forbidden field is never read to derive the
+            // sort key. It is replaced with a neutral placeholder shared by
+            // every Forbidden entity, so ordering cannot leak the value.
+            // usort() is stable (PHP 8+), so entities sharing the placeholder
+            // keep their prior relative order rather than being scrambled.
+            usort($entities, function ($a, $b) use ($field, $desc): int {
+                $aVal = $this->isFieldViewForbidden($a, $field) ? '' : (string) $a->get($field);
+                $bVal = $this->isFieldViewForbidden($b, $field) ? '' : (string) $b->get($field);
                 $cmp = $aVal <=> $bVal;
 
                 return $desc ? -$cmp : $cmp;
@@ -206,6 +233,16 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
 
     private function applyFilter(mixed $entity, string $field, SurfaceFilterOperator $operator, mixed $value): bool
     {
+        // R13 WP1, layer (b): field access is per-entity (e.g. classification/
+        // clearance-gated fields differ by entity), so it must be evaluated per
+        // entity here rather than once for the whole request. Fail closed: a
+        // Forbidden field is never read to decide match/no-match. The entity
+        // is simply excluded, regardless of operator or filter value, so no
+        // value-derived signal (a presence/absence oracle) can leak.
+        if ($this->isFieldViewForbidden($entity, $field)) {
+            return false;
+        }
+
         $fieldValue = (string) $entity->get($field);
         $filterValue = (string) $value;
 
@@ -234,6 +271,76 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         }
 
         return $fieldValue <=> $filterValue;
+    }
+
+    /**
+     * Per-entity field-view-access gate used by applyFilter() and the sort
+     * comparator (R13 WP1, layer (b)).
+     *
+     * Complements validateSurfaceQueryFields() (layer (a)): the structural
+     * allowlist rejects an entire request for a flatly-Forbidden or unknown
+     * field, but some fields are Forbidden only for *some* entities of the
+     * type (e.g. classification/clearance-gated fields), which a static
+     * allowlist cannot express. This check runs once per entity so those
+     * cases are excluded/neutralized individually instead of leaking via a
+     * presence/absence or ordering oracle.
+     *
+     * Fails closed: with no access handler or account the field is treated as
+     * Forbidden. In practice list() already short-circuits before filters or
+     * sorting run when either is missing, so this branch is a defensive
+     * floor, not the primary gate.
+     */
+    private function isFieldViewForbidden(mixed $entity, string $field): bool
+    {
+        if ($this->accessHandler === null || $this->currentAccount === null) {
+            return true;
+        }
+
+        return $this->accessHandler->checkFieldAccess($entity, $field, 'view', $this->currentAccount)->isForbidden();
+    }
+
+    /**
+     * Structural filter/sort allowlist (R13 WP1, layer (a)), mirroring
+     * {@see \Waaseyaa\Api\JsonApiController} `validateQueryFields()` (the REST
+     * "audit R2 WP1" gate): reject a filter/sort field that is not a declared
+     * field or entity key, is in {@see self::ALWAYS_INTERNAL_FIELDS}, or
+     * carries the `internal` field-setting (e.g. `two_factor_secret`). This
+     * closes credential fields and unknown field names before any entity is
+     * read; per-entity field-view access (isFieldViewForbidden(), layer (b))
+     * catches what this static check structurally cannot.
+     */
+    private function validateSurfaceQueryFields(string $type, SurfaceQuery $query): ?AdminSurfaceResultData
+    {
+        $fieldDefinitions = $this->entityTypeManager->resolveFieldDefinitions($type);
+        $keys = $this->entityTypeManager->getDefinition($type)->getKeys();
+
+        /** @var array<string, true> $allowedFields */
+        $allowedFields = array_fill_keys(array_keys($fieldDefinitions), true)
+            + array_fill_keys(array_values($keys), true);
+
+        $isRejected = static function (string $field) use ($allowedFields, $fieldDefinitions): bool {
+            if (!isset($allowedFields[$field])) {
+                return true;
+            }
+            if (in_array($field, self::ALWAYS_INTERNAL_FIELDS, true)) {
+                return true;
+            }
+            $definition = $fieldDefinitions[$field] ?? null;
+
+            return $definition !== null && $definition->getSetting('internal') === true;
+        };
+
+        foreach ($query->filters as $filter) {
+            if ($isRejected($filter['field'])) {
+                return AdminSurfaceResultData::error(400, 'Invalid filter field', "Cannot filter by field '{$filter['field']}'.");
+            }
+        }
+
+        if ($query->sortField !== null && $isRejected($query->sortField)) {
+            return AdminSurfaceResultData::error(400, 'Invalid sort field', "Cannot sort by field '{$query->sortField}'.");
+        }
+
+        return null;
     }
 
     public function get(string $type, string $id): AdminSurfaceResultData
