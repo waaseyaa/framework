@@ -148,6 +148,10 @@ The `appliesTo()` method from `AccessPolicyInterface` scopes both entity-level a
 
 `EngagementAccessPolicy` (`packages/engagement/src/EngagementAccessPolicy.php`) applies the same pattern to `user_id` on `reaction`/`comment`/`follow` entities, but stricter: `user_id` is server-authoritative and never client-reassignable. On an *existing* entity it is edit-Forbidden outright — ownership is immutable after creation, not just admin-only-editable. On *create* it is edit-Forbidden unless the submitted `user_id` equals the caller's own account id. This closes an anonymous-ownership hole: `EngagementAccessPolicy` had no field policy at all, so any authenticated account could `POST` a comment with `user_id: 0` (or another account's id), minting a row "owned" by the anonymous account — which, combined with a missing `isAuthenticated()` guard in the entity-level `isOwner()` check, let every anonymous visitor `DELETE` or view-as-owner any row with `user_id === 0` (`AnonymousUser::id()` also returns `0`).
 
+### Real-world example: permission-gated publication (CW-v1 WP-0)
+
+`NodeAccessPolicy::fieldAccess()` also edit-Forbids `status`/`workflow_state` for any account lacking `NodeAccessPolicy::PUBLISH_PERMISSION` (`'use editorial transition publish'`) — a different shape than the ownership-field lock above: it applies on create AND update alike (no `isNew()` carve-out, since the concern is "may this account publish at all", not "may this account rewrite history"). See `docs/specs/api-layer.md`'s CW-v1 WP-0 entry for the companion `JsonApiController::store()` unpublished-floor that keeps a born-published entity constructor default (e.g. `Node`) from bypassing this gate on create.
+
 ## View vs Edit Denial
 
 ### JSON:API Serialization (ResourceSerializer)
