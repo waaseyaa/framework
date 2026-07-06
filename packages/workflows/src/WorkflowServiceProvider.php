@@ -132,17 +132,17 @@ final class WorkflowServiceProvider extends ServiceProvider
      * foundation FQCN silently no-ops (the exact bug that left this
      * package's predecessor listener, `DomainValidationListener`, dead).
      *
-     * Best-effort by design (CLAUDE.md "Best-effort side effects"): if
-     * `ConfigFactoryInterface` is not wired into the host application's
-     * container — true of the framework's own `skeleton/` reference app at
-     * the time this WP landed, since no ServiceProvider in this codebase
-     * currently binds it — `resolveOptional(WorkflowStateGuard::class)`
-     * below catches the resulting RuntimeException and this method no-ops:
-     * no guard, no seed, no boot crash. Wiring `ConfigFactoryInterface` into
-     * the kernel container is a pre-existing framework gap outside this
-     * package's ownership; the workflow engine consumes the abstraction the
-     * spec names and degrades gracefully rather than papering over the gap
-     * with a package-local binding for a foundational L1 service.
+     * Degraded mode — SAFE but LOUD (CLAUDE.md "Best-effort side effects"):
+     * the engine services require `ConfigFactoryInterface`, which the kernel
+     * container does not yet serve in a real production boot — tracked as
+     * issue #1930 (the root fix: bind ConfigFactoryInterface in the kernel).
+     * Until #1930 lands, `resolveOptional(WorkflowStateGuard::class)` below
+     * catches the factory's RuntimeException and this method degrades: no
+     * guard, no seed, no boot crash — and, critically, a WARNING is logged
+     * naming #1930. Silent inertness is how the predecessor engine died;
+     * the degradation is pinned by a dedicated test
+     * (`GuardWiringTest::boot_degrades_safely_and_loudly_without_a_config_factory`)
+     * so it stays intentional, visible behavior rather than an accident.
      */
     public function boot(): void
     {
@@ -153,6 +153,16 @@ final class WorkflowServiceProvider extends ServiceProvider
 
         $guard = $this->resolveOptional(WorkflowStateGuard::class);
         if (!$guard instanceof WorkflowStateGuard) {
+            $logger = $this->resolveOptional(LoggerInterface::class);
+            ($logger instanceof LoggerInterface ? $logger : new NullLogger())->warning(
+                'workflows.engine_not_wired',
+                [
+                    'reason' => 'WorkflowStateGuard unresolvable — ConfigFactoryInterface is not served by the kernel container',
+                    'effect' => 'PRE_SAVE save-path guard NOT registered; default editorial workflow NOT seeded',
+                    'tracking' => 'https://github.com/waaseyaa/framework/issues/1930 (bind ConfigFactoryInterface in the kernel)',
+                ],
+            );
+
             return;
         }
 
