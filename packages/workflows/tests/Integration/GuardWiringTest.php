@@ -63,7 +63,7 @@ final class GuardWiringTest extends TestCase
 
         $repository = $entityTypeManager->getRepository(self::ENTITY_TYPE_ID);
         $entity = new GuardWiringSubject(
-            ['workflow_state' => 'published'],
+            ['bundle' => self::ENTITY_TYPE_ID, 'workflow_state' => 'published'],
             self::ENTITY_TYPE_ID,
             ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
         );
@@ -90,7 +90,7 @@ final class GuardWiringTest extends TestCase
 
         $repository = $entityTypeManager->getRepository(self::ENTITY_TYPE_ID);
         $entity = new GuardWiringSubject(
-            [],
+            ['bundle' => self::ENTITY_TYPE_ID],
             self::ENTITY_TYPE_ID,
             ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
         );
