@@ -168,9 +168,15 @@ final class AgentRunRepository
     }
 
     /**
-     * Find runs queued before `$threshold`, regardless of status.
+     * Find TERMINAL runs (`completed`, `failed`, `cancelled`) queued before
+     * `$threshold`.
      *
-     * Used by the audit-retention purge job and operator dashboards.
+     * Used by the audit-retention purge job. Non-terminal runs (`queued`,
+     * `running`, `awaiting_approval`, `cancelling`) are excluded regardless
+     * of age: a run stuck waiting for a worker or human approval is still
+     * logically live, and the reaper (not this method) is responsible for
+     * detecting a stalled `running` row. Age alone must never be a reason
+     * to delete a run the reaper has not yet classified as dead.
      *
      * @return list<AgentRun>
      */
@@ -178,10 +184,16 @@ final class AgentRunRepository
     {
         $thresholdString = $this->formatDateTime($threshold);
 
+        $terminalValues = array_map(
+            static fn(RunStatus $status): string => $status->value,
+            RunStatus::terminals(),
+        );
+
         $rows = $this->database
             ->select(self::TABLE)
             ->fields(self::TABLE, ['id'])
             ->condition('queued_at', $thresholdString, '<')
+            ->condition('status', $terminalValues, 'IN')
             ->execute();
 
         $results = [];

@@ -138,6 +138,70 @@ final class AiPurgeRunsCommandTest extends TestCase
     }
 
     #[Test]
+    public function over_age_queued_and_awaiting_approval_runs_survive_purge(): void
+    {
+        $now = new \DateTimeImmutable('2026-05-18T12:00:00+00:00');
+
+        [$runRepo, $entityRepo] = $this->buildRunRepository();
+        [$auditRepo] = $this->buildAuditRepository();
+
+        // Both are 40 days past the 30-day default retention threshold, but
+        // neither is in a terminal status: `queued` means the run never even
+        // started, and `awaiting_approval` means a human has not yet acted.
+        // Age alone must not delete a run the reaper never touches.
+        $queuedRun = $this->makeRun('still-queued', queuedAt: $now->modify('-40 days'), status: RunStatus::Queued);
+        $awaitingRun = $this->makeRun('still-awaiting', queuedAt: $now->modify('-40 days'), status: RunStatus::AwaitingApproval);
+        $runRepo->save($queuedRun);
+        $runRepo->save($awaitingRun);
+
+        $command = new AiPurgeRunsCommand(
+            runRepository: $runRepo,
+            auditRepository: $auditRepo,
+            runEntityRepository: $entityRepo,
+            defaultRetentionDays: 30,
+            now: static fn(): \DateTimeImmutable => $now,
+        );
+
+        $tester = $this->makeTester($command);
+        $tester->execute([]);
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        self::assertStringContainsString('Deleted 0 runs', $tester->getStdout());
+        self::assertNotNull($runRepo->find('still-queued'));
+        self::assertNotNull($runRepo->find('still-awaiting'));
+    }
+
+    #[Test]
+    public function over_age_run_in_each_terminal_status_is_purged(): void
+    {
+        $now = new \DateTimeImmutable('2026-05-18T12:00:00+00:00');
+
+        foreach (RunStatus::terminals() as $status) {
+            [$runRepo, $entityRepo] = $this->buildRunRepository();
+            [$auditRepo] = $this->buildAuditRepository();
+
+            $id = 'terminal-' . $status->value;
+            $run = $this->makeRun($id, queuedAt: $now->modify('-40 days'), status: $status);
+            $runRepo->save($run);
+
+            $command = new AiPurgeRunsCommand(
+                runRepository: $runRepo,
+                auditRepository: $auditRepo,
+                runEntityRepository: $entityRepo,
+                defaultRetentionDays: 30,
+                now: static fn(): \DateTimeImmutable => $now,
+            );
+
+            $tester = $this->makeTester($command);
+            $tester->execute([]);
+
+            self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+            self::assertStringContainsString('Deleted 1 runs', $tester->getStdout());
+            self::assertNull($runRepo->find($id), \sprintf('Expected terminal status "%s" to be purged.', $status->value));
+        }
+    }
+
+    #[Test]
     public function rejects_non_positive_retention_days(): void
     {
         [$runRepo, $entityRepo] = $this->buildRunRepository();
@@ -205,14 +269,14 @@ final class AiPurgeRunsCommandTest extends TestCase
         return [new AgentAuditLogRepository($entityRepo, $this->database), $entityRepo];
     }
 
-    private function makeRun(string $id, \DateTimeImmutable $queuedAt): AgentRun
+    private function makeRun(string $id, \DateTimeImmutable $queuedAt, RunStatus $status = RunStatus::Completed): AgentRun
     {
         $run = new AgentRun([
             'id' => $id,
             'account_id' => 0,
             'agent_definition_id' => null,
             'bundle_json' => '{}',
-            'status' => RunStatus::Completed->value,
+            'status' => $status->value,
             'destructive_approval' => HitlMode::None->value,
             'pending_approval_call_id' => null,
             'prompt' => 'irrelevant',
