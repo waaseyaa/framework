@@ -46,15 +46,25 @@ final class AuditEventKindAmendmentTest extends TestCase
     }
 
     #[Test]
-    public function total_case_count_is_twenty_one(): void
+    public function total_case_count_is_twenty_two(): void
     {
         // Originally 14 cases (OCAP substrate). Extended additively to 17
         // by versioned-blob-media-abstraction-01KSEFTJ (WP02), then to 19
         // by revision-audit-provenance-01KTWY5V (revision.publish /
         // revision.revert, FR-006), then to 20 by WP3 audit tamper-evidence
         // verify (audit.verify), then to 21 by WP4 fail-open marker+metric
-        // (#1792, audit.write_degraded).
-        self::assertCount(21, AuditEventKind::cases());
+        // (#1792, audit.write_degraded), then to 22 by CW-v1 WP-1
+        // (#1920, workflow.transition).
+        self::assertCount(22, AuditEventKind::cases());
+    }
+
+    #[Test]
+    public function workflow_transition_resolves_from_string(): void
+    {
+        self::assertSame(
+            AuditEventKind::WorkflowTransition,
+            AuditEventKind::tryFrom('workflow.transition'),
+        );
     }
 
     #[Test]
