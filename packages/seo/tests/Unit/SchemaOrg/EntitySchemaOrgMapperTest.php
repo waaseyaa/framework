@@ -8,6 +8,9 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\LoggerTrait;
+use Waaseyaa\Foundation\Log\LogLevel;
 use Waaseyaa\Seo\SchemaOrg\EntitySchemaOrgMapper;
 
 #[CoversClass(EntitySchemaOrgMapper::class)]
@@ -165,5 +168,38 @@ final class EntitySchemaOrgMapperTest extends TestCase
 
         self::assertTrue(mb_check_encoding($node['name'], 'UTF-8'));
         $mapper->toScriptTag($node);
+    }
+
+    #[Test]
+    public function raw_node_with_invalid_utf8_returns_empty_and_logs_instead_of_throwing(): void
+    {
+        // toScriptTag() also accepts a caller-built $node that never went
+        // through map()'s sanitizeUtf8() — the catch branch must degrade to
+        // an empty block AND log the failure (best-effort side effects are
+        // wrapped and logged, never swallowed silently).
+        $logger = new class implements LoggerInterface {
+            use LoggerTrait;
+
+            /** @var list<array{level: LogLevel, message: string|\Stringable}> */
+            public array $records = [];
+
+            public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
+            {
+                $this->records[] = ['level' => $level, 'message' => $message];
+            }
+        };
+
+        $rawNode = [
+            '@context' => EntitySchemaOrgMapper::CONTEXT,
+            '@type' => 'WebPage',
+            'name' => "Bad \xC0\xAF Bytes",
+        ];
+        self::assertFalse(mb_check_encoding($rawNode['name'], 'UTF-8'));
+
+        $tag = new EntitySchemaOrgMapper(logger: $logger)->toScriptTag($rawNode);
+
+        self::assertSame('', $tag);
+        self::assertNotEmpty($logger->records, 'expected the JSON-LD encode failure to be logged');
+        self::assertSame(LogLevel::WARNING, $logger->records[0]['level']);
     }
 }

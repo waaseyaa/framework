@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\Seo\SchemaOrg;
 
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 
 /**
  * Maps an entity to a schema.org JSON-LD node for injection into a page `<head>`.
@@ -43,12 +45,15 @@ final class EntitySchemaOrgMapper
     /** @var array<string, string> */
     private array $typeMap;
 
+    private readonly LoggerInterface $logger;
+
     /**
      * @param array<string, string> $typeMapOverrides Merged over the defaults.
      */
-    public function __construct(array $typeMapOverrides = [])
+    public function __construct(array $typeMapOverrides = [], ?LoggerInterface $logger = null)
     {
         $this->typeMap = array_merge(self::DEFAULT_TYPE_MAP, $typeMapOverrides);
+        $this->logger = $logger ?? new NullLogger();
     }
 
     /**
@@ -116,7 +121,14 @@ final class EntitySchemaOrgMapper
                 $node,
                 \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE | \JSON_HEX_TAG | \JSON_HEX_AMP | \JSON_THROW_ON_ERROR,
             );
-        } catch (\JsonException) {
+        } catch (\JsonException $exception) {
+            // Best-effort side effect: degrade to no JSON-LD block, but never
+            // silently — log so a recurring bad node is diagnosable.
+            $this->logger->warning('Schema.org JSON-LD encoding failed; omitting the JSON-LD block: {message}', [
+                'message' => $exception->getMessage(),
+                'exception' => $exception,
+            ]);
+
             return '';
         }
 
