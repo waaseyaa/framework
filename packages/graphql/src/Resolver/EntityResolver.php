@@ -30,6 +30,15 @@ final class EntityResolver
     private const DEFAULT_LIMIT = 50;
     private const MAX_LIMIT = 100;
 
+    /**
+     * Credential field names rejected as filter/sort fields regardless of whether
+     * the entity type declares them. Mirrors
+     * {@see \Waaseyaa\Api\JsonApiController::ALWAYS_INTERNAL_FIELDS} and
+     * {@see \Waaseyaa\Api\ResourceSerializer::ALWAYS_INTERNAL_FIELDS} so the
+     * GraphQL surface floors on the same credential keys as REST.
+     */
+    private const ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
+
     private readonly LoggerInterface $logger;
 
     public function __construct(
@@ -61,6 +70,18 @@ final class EntityResolver
         $sorts = $this->parseSorts($args);
         $offset = isset($args['offset']) ? max(0, (int) $args['offset']) : 0;
         $limit = isset($args['limit']) ? min(self::MAX_LIMIT, max(1, (int) $args['limit'])) : self::DEFAULT_LIMIT;
+
+        // R15 (audit A11, structural sibling of R14): reject a filter/sort on any
+        // field that is not a declared field or entity key, or that is a
+        // credential / `internal`-flagged secret. The R14 gate below only sees
+        // fields a FieldAccessPolicy Forbids; it cannot express the structural
+        // classes REST's JsonApiController::validateQueryFields() rejects — an
+        // arbitrary `_data` JSON key (which resolves to a raw json_extract sink
+        // and a filter/sort presence oracle) or a declared `internal` field
+        // (two_factor_secret, client_secret_hash) that carries no policy yet must
+        // never be usable as an oracle. Runs BEFORE any storage query, value- and
+        // account-independent, exactly like the REST allowlist.
+        $this->assertQueryableFields($entityTypeId, $filters, $sorts);
 
         // R14 (audit A11): fields the caller filters/sorts on. A field can be
         // view-Forbidden for THIS account by a dynamic FieldAccessPolicy (a
@@ -320,6 +341,60 @@ final class EntityResolver
         }
 
         return $repository->find((string) $id);
+    }
+
+    /**
+     * Reject (UserError) a filter/sort on a structurally-impermissible field
+     * (R15, audit A11). The GraphQL companion to REST's
+     * {@see \Waaseyaa\Api\JsonApiController::validateQueryFields()}.
+     *
+     * A field is rejected when it is:
+     *   - neither a declared field of the entity type nor an entity key, OR
+     *   - a credential name in {@see self::ALWAYS_INTERNAL_FIELDS}, OR
+     *   - a declared field flagged `settings['internal'] => true`.
+     *
+     * This is a static, value-independent allowlist run before any storage
+     * query. It closes the two oracle classes R14 cannot see: an undeclared
+     * `_data` JSON key (raw json_extract sink) and a declared `internal` secret
+     * that carries no FieldAccessPolicy. Per-row classification/clearance fields
+     * (declared, non-internal) still pass here and are handled value-independently
+     * by {@see queryFieldForbidden()} / {@see rejectForbiddenSort()}.
+     *
+     * @param list<QueryFilter> $filters
+     * @param list<QuerySort>   $sorts
+     */
+    private function assertQueryableFields(string $entityTypeId, array $filters, array $sorts): void
+    {
+        $fieldDefinitions = $this->entityTypeManager->resolveFieldDefinitions($entityTypeId);
+        $keys = $this->entityTypeManager->getDefinition($entityTypeId)->getKeys();
+
+        /** @var array<string, true> $allowedFields */
+        $allowedFields = array_fill_keys(array_keys($fieldDefinitions), true)
+            + array_fill_keys(array_values($keys), true);
+
+        $isRejected = static function (string $field) use ($allowedFields, $fieldDefinitions): bool {
+            if (!isset($allowedFields[$field])) {
+                return true;
+            }
+            if (in_array($field, self::ALWAYS_INTERNAL_FIELDS, true)) {
+                return true;
+            }
+            $definition = $fieldDefinitions[$field] ?? null;
+
+            return $definition !== null && $definition->getSetting('internal') === true;
+        };
+
+        foreach ($filters as $filter) {
+            if ($isRejected($filter->field)) {
+                throw new UserError("Cannot filter by field '{$filter->field}'.");
+            }
+        }
+
+        foreach ($sorts as $sort) {
+            if ($isRejected($sort->field)) {
+                throw new UserError("Cannot sort by field '{$sort->field}'.");
+            }
+        }
     }
 
     /**

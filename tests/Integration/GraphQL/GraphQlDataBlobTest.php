@@ -106,10 +106,14 @@ final class GraphQlDataBlobTest extends GraphQlIntegrationTestBase
         $this->assertSame('Acme', $items[0]['name']);
     }
 
-    public function testFilterOnNonExistentFieldReturnsEmpty(): void
+    public function testFilterOnNonExistentFieldIsRejected(): void
     {
-        // Filtering on a field that doesn't exist in the entity at all.
-        // json_extract(_data, '$.nonexistent') returns NULL → no match.
+        // R15 (audit A11): filtering on a field that is not a declared field or
+        // entity key is now rejected by the structural allowlist BEFORE the
+        // storage query runs. Previously it silently resolved to
+        // json_extract(_data, '$.nonexistent') and returned rows matching that
+        // raw JSON path — an oracle over arbitrary blob keys. Mirrors REST's
+        // JsonApiController::validateQueryFields().
         $response = $this->query('
             {
                 articleList(filter: [{ field: "nonexistent", value: "anything" }]) {
@@ -119,8 +123,11 @@ final class GraphQlDataBlobTest extends GraphQlIntegrationTestBase
             }
         ');
 
-        $this->assertNoErrors($response);
-        $this->assertCount(0, $response['data']['articleList']['items']);
+        $this->assertArrayHasKey('errors', $response);
+        $this->assertStringContainsString(
+            "Cannot filter by field 'nonexistent'",
+            $response['errors'][0]['message'],
+        );
     }
 
     public function testSortOnDataBlobFieldWithMultipleEntities(): void
