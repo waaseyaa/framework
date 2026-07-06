@@ -7,6 +7,7 @@ namespace Waaseyaa\Api;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Exception\PartialAccessContextException;
+use Waaseyaa\Api\Sanitizer\RichTextSanitizer;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\EntityValues;
@@ -22,6 +23,13 @@ use Waaseyaa\Field\FieldDefinitionInterface;
  * Attribute values are read with {@see EntityInterface::get()} so entity
  * {@see \Waaseyaa\Entity\EntityBase::$casts} apply (#1181 ST-7); they are then
  * coerced to JSON-serializable scalars/arrays (enums, {@see \DateTimeInterface}, etc.).
+ *
+ * R13 WP2 (audit A11, SECURITY): text_long ("richtext") attributes are run
+ * through {@see RichTextSanitizer} in {@see castAttributes()} -- this is the
+ * canonical read/serialization chokepoint for JSON:API, admin-surface, and
+ * the SSR Markdown presenter, all of which construct a ResourceSerializer.
+ * The sanitizer is applied only here (never at write time), so the stored
+ * entity value is left byte-for-byte as authored (non-lossy at rest).
  */
 final class ResourceSerializer
 {
@@ -32,10 +40,19 @@ final class ResourceSerializer
      */
     private const ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
 
+    private readonly RichTextSanitizer $richTextSanitizer;
+
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly string $basePath = '/api',
-    ) {}
+        ?RichTextSanitizer $richTextSanitizer = null,
+    ) {
+        // PHP 8.4 constructor-default gotcha (see CLAUDE.md): resolve the
+        // default in the body rather than as a parameter default, so every
+        // existing `new ResourceSerializer($manager)` callsite keeps working
+        // and still gets sanitization for free.
+        $this->richTextSanitizer = $richTextSanitizer ?? new RichTextSanitizer();
+    }
 
     /**
      * Serialize a single entity to a JsonApiResource.
@@ -197,6 +214,13 @@ final class ResourceSerializer
     /**
      * Cast attribute values based on field type definitions.
      *
+     * R13 WP2 (audit A11, SECURITY): a text_long ("richtext") value is run
+     * through {@see RichTextSanitizer} here, before any other cast, so raw
+     * <script>/event-handler markup an author saved never reaches a JSON:API,
+     * admin-surface, or Markdown consumer. This is a READ-time transform
+     * only -- the entity's stored value (and $attributes as passed into this
+     * method) is untouched; only the returned copy is sanitized.
+     *
      * @param array<string, mixed> $attributes
      * @param array<string, FieldDefinitionInterface> $fieldDefinitions
      * @return array<string, mixed>
@@ -205,6 +229,11 @@ final class ResourceSerializer
     {
         foreach ($attributes as $name => $value) {
             $type = isset($fieldDefinitions[$name]) ? $fieldDefinitions[$name]->getType() : null;
+
+            if ($type !== null && RichTextSanitizer::isHtmlFieldType($type)) {
+                $attributes[$name] = $this->richTextSanitizer->sanitizeValue($value);
+                continue;
+            }
 
             $attributes[$name] = match ($type) {
                 'boolean' => (bool) $value,
