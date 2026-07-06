@@ -8,6 +8,7 @@ use Waaseyaa\Workflows\Workflow;
 use Waaseyaa\Workflows\WorkflowState;
 use Waaseyaa\Workflows\WorkflowTransition;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -387,6 +388,19 @@ final class WorkflowTest extends TestCase
         $this->assertSame('Publish', $transition->label);
         $this->assertSame(['draft'], $transition->from);
         $this->assertSame('published', $transition->to);
+    }
+
+    #[Test]
+    public function states_hydrate_published_and_default_revision_flags(): void
+    {
+        $workflow = new Workflow(['id' => 'editorial', 'states' => [
+            'draft' => ['label' => 'Draft'],
+            'published' => ['label' => 'Published', 'published' => true, 'default_revision' => true],
+        ]]);
+
+        $this->assertFalse($workflow->getState('draft')->published);
+        $this->assertTrue($workflow->getState('published')->published);
+        $this->assertTrue($workflow->getState('published')->defaultRevision);
     }
 
     public function testConstructorHydratesFromWorkflowStateObjects(): void

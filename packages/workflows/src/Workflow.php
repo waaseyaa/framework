@@ -62,6 +62,8 @@ final class Workflow extends ConfigEntityBase
                         label: (string) ($stateData['label'] ?? $stateId),
                         weight: (int) ($stateData['weight'] ?? 0),
                         metadata: (array) ($stateData['metadata'] ?? []),
+                        published: (bool) ($stateData['published'] ?? false),
+                        defaultRevision: (bool) ($stateData['default_revision'] ?? false),
                     );
                 }
             }
@@ -259,6 +261,8 @@ final class Workflow extends ConfigEntityBase
             $entry = [
                 'label' => $state->label,
                 'weight' => $state->weight,
+                'published' => $state->published,
+                'default_revision' => $state->defaultRevision,
             ];
             if ($state->metadata !== []) {
                 $entry['metadata'] = $state->metadata;
@@ -298,6 +302,8 @@ final class Workflow extends ConfigEntityBase
             $entry = [
                 'label' => $state->label,
                 'weight' => $state->weight,
+                'published' => $state->published,
+                'default_revision' => $state->defaultRevision,
             ];
             if ($state->metadata !== []) {
                 $entry['metadata'] = $state->metadata;
