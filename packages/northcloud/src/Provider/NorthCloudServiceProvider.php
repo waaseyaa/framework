@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\NorthCloud\Provider;
 
+use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\NorthCloud\Client\NorthCloudCache;
 use Waaseyaa\NorthCloud\Client\NorthCloudClient;
@@ -30,15 +31,30 @@ final class NorthCloudServiceProvider extends ServiceProvider
     {
         $this->singleton(MapperRegistry::class, fn(): MapperRegistry => new MapperRegistry());
 
+        $this->singleton(NorthCloudCache::class, function (): NorthCloudCache {
+            $config = $this->northcloudConfig();
+
+            return new NorthCloudCache(
+                $this->resolve(\PDO::class),
+                (int) ($config['cache']['ttl'] ?? 3600),
+            );
+        });
+
         $this->singleton(NorthCloudClient::class, function (): NorthCloudClient {
             $config = $this->northcloudConfig();
+            $logger = $this->resolveLogger();
 
             $cache = null;
             if ((bool) ($config['cache']['enabled'] ?? false)) {
                 try {
                     $cache = $this->resolve(NorthCloudCache::class);
-                } catch (\Throwable) {
-                    // Cache optional — proceed without it if resolution fails.
+                } catch (\Throwable $e) {
+                    // Cache is optional: log the failure (instead of swallowing it
+                    // silently) and degrade to running without a response cache.
+                    $logger?->warning(sprintf(
+                        'NorthCloud cache unavailable, proceeding without response caching: %s',
+                        $e->getMessage(),
+                    ));
                 }
             }
 
@@ -48,6 +64,7 @@ final class NorthCloudServiceProvider extends ServiceProvider
                 cache: $cache,
                 apiToken: (string) ($config['api_token'] ?? ''),
                 allowInsecure: (bool) ($config['allow_insecure'] ?? false),
+                logger: $logger,
             );
         });
 
@@ -60,6 +77,7 @@ final class NorthCloudServiceProvider extends ServiceProvider
                 mappers: $this->resolve(MapperRegistry::class),
                 topics: (array) ($config['sync']['topics'] ?? ['indigenous']),
                 minQuality: (int) ($config['sync']['min_quality'] ?? 60),
+                logger: $this->resolveLogger(),
             );
         });
 
@@ -71,6 +89,18 @@ final class NorthCloudServiceProvider extends ServiceProvider
                 cacheTtl: (int) ($config['search']['cache_ttl'] ?? 300),
             );
         });
+    }
+
+    /**
+     * Resolve the framework logger without throwing when no binding exists
+     * (e.g. minimal test kernels). Null-safe callers degrade to their own
+     * NullLogger default.
+     */
+    private function resolveLogger(): ?LoggerInterface
+    {
+        $logger = $this->resolveOptional(LoggerInterface::class);
+
+        return $logger instanceof LoggerInterface ? $logger : null;
     }
 
     /**

@@ -4,14 +4,22 @@ declare(strict_types=1);
 
 namespace Waaseyaa\NorthCloud\Client;
 
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\HttpClient\HttpClientInterface;
+use Waaseyaa\HttpClient\HttpRequestException;
+use Waaseyaa\HttpClient\StreamHttpClient;
+
 /**
  * HTTP client for the North Cloud REST API.
  *
  * Read endpoints (search, people, band office, dictionary) are unauthenticated.
  * Write endpoints (crawl jobs, link-sources) require a bearer token.
  *
- * Pass an optional callable $httpClient for testing; the default uses file_get_contents
- * with a stream context so the package has no external HTTP client dependency.
+ * Pass an optional HttpClientInterface for testing; the default is a
+ * StreamHttpClient (no external HTTP client dependency). Non-2xx responses
+ * are treated as failures: they are never returned as success and never
+ * written to the cache.
  * @api
  */
 final class NorthCloudClient
@@ -19,19 +27,22 @@ final class NorthCloudClient
     /** Attribution string matching the NC API X-Attribution header. */
     public const string DICTIONARY_ATTRIBUTION = "Ojibwe People's Dictionary, University of Minnesota";
 
-    /** @var \Closure|null */
-    private readonly ?\Closure $httpClient;
+    private readonly HttpClientInterface $httpClient;
+
+    private readonly LoggerInterface $logger;
 
     public function __construct(
         private readonly string $baseUrl,
-        private readonly int $timeout = 5,
-        ?callable $httpClient = null,
+        int $timeout = 5,
+        ?HttpClientInterface $httpClient = null,
         private readonly ?NorthCloudCache $cache = null,
         private readonly string $apiToken = '',
         bool $allowInsecure = false,
+        ?LoggerInterface $logger = null,
     ) {
         self::assertValidBaseUrl($baseUrl, $allowInsecure);
-        $this->httpClient = $httpClient !== null ? $httpClient(...) : null;
+        $this->httpClient = $httpClient ?? new StreamHttpClient(timeout: (float) $timeout);
+        $this->logger = $logger ?? new NullLogger();
     }
 
     /**
@@ -74,7 +85,7 @@ final class NorthCloudClient
 
         $data = json_decode($json, true);
         if (!is_array($data) || !isset($data['people']) || !is_array($data['people'])) {
-            error_log(sprintf('NorthCloud people response malformed for community %s', $ncId));
+            $this->logger->warning(sprintf('NorthCloud people response malformed for community %s', $ncId));
             return null;
         }
 
@@ -120,7 +131,7 @@ final class NorthCloudClient
 
         $data = json_decode($json, true);
         if (!is_array($data) || !isset($data['entries']) || !is_array($data['entries'])) {
-            error_log('NorthCloud dictionary entries response malformed');
+            $this->logger->warning('NorthCloud dictionary entries response malformed');
             return null;
         }
 
@@ -147,7 +158,7 @@ final class NorthCloudClient
 
         $data = json_decode($json, true);
         if (!is_array($data) || !isset($data['entries']) || !is_array($data['entries'])) {
-            error_log(sprintf('NorthCloud dictionary search response malformed for query: %s', $query));
+            $this->logger->warning(sprintf('NorthCloud dictionary search response malformed for query: %s', $query));
             return null;
         }
 
@@ -192,7 +203,7 @@ final class NorthCloudClient
 
         $data = json_decode($json, true);
         if (!is_array($data) || !isset($data['hits']) || !is_array($data['hits'])) {
-            error_log('NorthCloud search response malformed');
+            $this->logger->warning('NorthCloud search response malformed');
             return null;
         }
 
@@ -222,7 +233,7 @@ final class NorthCloudClient
 
         $data = json_decode($json, true);
         if (!is_array($data)) {
-            error_log('NorthCloud search response malformed');
+            $this->logger->warning('NorthCloud search response malformed');
             return null;
         }
 
@@ -269,7 +280,7 @@ final class NorthCloudClient
 
         $data = json_decode($json, true);
         if (!is_array($data)) {
-            error_log('NorthCloud link-sources response malformed');
+            $this->logger->warning('NorthCloud link-sources response malformed');
             return null;
         }
 
@@ -299,7 +310,7 @@ final class NorthCloudClient
 
         $data = json_decode($json, true);
         if (!is_array($data)) {
-            error_log(sprintf('NorthCloud create crawl job response malformed for community %s', $ncId));
+            $this->logger->warning(sprintf('NorthCloud create crawl job response malformed for community %s', $ncId));
             return null;
         }
 
@@ -315,68 +326,57 @@ final class NorthCloudClient
             }
         }
 
-        if ($this->httpClient !== null) {
-            $result = ($this->httpClient)($url);
-            $result = $result === false ? null : $result;
-        } else {
-            $context = stream_context_create([
-                'http' => [
-                    'method' => 'GET',
-                    'timeout' => $this->timeout,
-                    'ignore_errors' => true,
-                ],
-            ]);
-
-            $result = @file_get_contents($url, false, $context);
-            if ($result === false) {
-                error_log(sprintf('NorthCloud API request failed: %s', $url));
-                $result = null;
-            }
+        try {
+            $response = $this->httpClient->get($url);
+        } catch (HttpRequestException $e) {
+            $this->logger->warning(sprintf('NorthCloud API request failed: %s (%s)', $url, $e->getMessage()));
+            return null;
         }
 
-        if ($result !== null && $this->cache !== null) {
-            $this->cache->set($url, $result);
+        if (!$response->isSuccess()) {
+            $this->logger->warning(sprintf(
+                'NorthCloud API request returned non-success status %d: %s',
+                $response->statusCode,
+                $url,
+            ));
+            return null;
         }
 
-        return $result;
+        if ($this->cache !== null) {
+            $this->cache->set($url, $response->body);
+        }
+
+        return $response->body;
     }
 
     private function doAuthenticatedRequest(string $url, string $method = 'POST', ?string $body = null): ?string
     {
         if ($this->apiToken === '') {
-            error_log('NorthCloud API token not configured — cannot make authenticated request');
+            $this->logger->warning('NorthCloud API token not configured, cannot make authenticated request');
             return null;
         }
 
         $headers = [
-            'Authorization: Bearer ' . $this->apiToken,
-            'Content-Type: application/json',
+            'Authorization' => 'Bearer ' . $this->apiToken,
+            'Content-Type' => 'application/json',
         ];
 
-        if ($this->httpClient !== null) {
-            $result = ($this->httpClient)($url, $method, $body, $headers);
-            return $result === false ? null : $result;
-        }
-
-        $httpOptions = [
-            'method' => $method,
-            'timeout' => $this->timeout,
-            'ignore_errors' => true,
-            'header' => implode("\r\n", $headers),
-        ];
-
-        if ($body !== null) {
-            $httpOptions['content'] = $body;
-        }
-
-        $context = stream_context_create(['http' => $httpOptions]);
-
-        $result = @file_get_contents($url, false, $context);
-        if ($result === false) {
-            error_log(sprintf('NorthCloud authenticated API request failed: %s', $url));
+        try {
+            $response = $this->httpClient->request($method, $url, $headers, $body);
+        } catch (HttpRequestException $e) {
+            $this->logger->warning(sprintf('NorthCloud authenticated API request failed: %s (%s)', $url, $e->getMessage()));
             return null;
         }
 
-        return $result;
+        if (!$response->isSuccess()) {
+            $this->logger->warning(sprintf(
+                'NorthCloud authenticated API request returned non-success status %d: %s',
+                $response->statusCode,
+                $url,
+            ));
+            return null;
+        }
+
+        return $response->body;
     }
 }

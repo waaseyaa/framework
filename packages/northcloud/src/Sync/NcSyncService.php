@@ -5,18 +5,22 @@ declare(strict_types=1);
 namespace Waaseyaa\NorthCloud\Sync;
 
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\NorthCloud\Client\NorthCloudClient;
 
 /**
  * Generic sync orchestrator: fetch NC hits, dedup, delegate mapping, persist.
  *
  * Mappers are resolved from MapperRegistry. Multiple mappers may fire on the same
- * hit — every mapper whose supports() returns true produces an entity.
+ * hit, every mapper whose supports() returns true produces an entity.
  */
 final class NcSyncService
 {
     private const string SKIP_REASON_NO_MAPPER = 'no_mapper_supported';
     private const string SKIP_REASON_DUPLICATE = 'duplicate_dedup';
+
+    private readonly LoggerInterface $logger;
 
     /**
      * @param list<string> $topics NC topic filters
@@ -27,7 +31,10 @@ final class NcSyncService
         private readonly MapperRegistry $mappers,
         private readonly array $topics = ['indigenous'],
         private readonly int $minQuality = 60,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     /**
      * Fetch recent NC content and persist matching entities.
@@ -53,7 +60,7 @@ final class NcSyncService
         );
 
         if ($response === null) {
-            error_log('NcSyncService: failed to fetch content from NorthCloud');
+            $this->logger->error('NcSyncService: failed to fetch content from NorthCloud');
             return new NcSyncResult()->withFetchFailed();
         }
 
@@ -62,7 +69,7 @@ final class NcSyncService
 
         foreach ($hits as $hit) {
             if (!\is_array($hit)) {
-                error_log('NcSyncService: skipping malformed hit item');
+                $this->logger->warning('NcSyncService: skipping malformed hit item');
                 $result = $result->withFailed();
                 continue;
             }
@@ -187,14 +194,14 @@ final class NcSyncService
                 ->withCreated()
                 ->withCreatedSample($sample, $sampleLimit);
         } catch (\LogicException $e) {
-            // Contract violation — rethrow so mapper bugs surface loudly.
+            // Contract violation: rethrow so mapper bugs surface loudly.
             throw $e;
         } catch (\Throwable $e) {
             $entityType ??= $mapper->entityType();
             $dedupField ??= $mapper->dedupField();
             $fields ??= [];
             $source = ($dedupField !== '' && isset($fields[$dedupField])) ? (string) $fields[$dedupField] : '(no dedup key)';
-            error_log(sprintf(
+            $this->logger->error(sprintf(
                 'NcSyncService: failed to create %s from %s: %s',
                 $entityType,
                 $source,
