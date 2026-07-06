@@ -212,31 +212,29 @@ final class QueueController
      *
      * Semantics: `FailedJobRepositoryInterface::retry()` returns the record
      * AND removes it from the failed table — it does NOT re-enqueue. We
-     * mirror the CLI `QueueRetryHandler` and dispatch the unserialized
-     * message onto `QueueInterface` ourselves.
+     * mirror the CLI `QueueRetryHandler` (see `Waaseyaa\CLI\Handler\QueueRetryHandler`,
+     * PR #1908): find + unserialize + dispatch first, and only forget the
+     * failed-table row once dispatch succeeds. This closes a data-loss gap
+     * (audit R10b sweep, #1915, R16) where the old order forgot the record
+     * BEFORE unserializing/dispatching, so a corrupt payload or a dispatch
+     * failure destroyed the job permanently.
      *
      * Returns 204 on success, 404 if the id is unknown, 422 if the payload
-     * is corrupt (cannot be unserialized).
+     * is corrupt (cannot be unserialized, record is left in place), 502 if
+     * dispatch itself throws (record is left in place).
      */
     public function retry(string $id): Response
     {
-        // Check existence *before* the destructive retry() call to avoid races
-        // and to allow a clean 404 without consuming the record.
-        if ($this->failedJobRepository->find($id) === null) {
-            return self::errorResponse(404, 'Not Found', sprintf('Unknown failed job id: %s', $id));
-        }
-
-        $record = $this->failedJobRepository->retry($id);
+        $record = $this->failedJobRepository->find($id);
         if ($record === null) {
-            // Race: another caller forgot/retried between find() and retry().
             return self::errorResponse(404, 'Not Found', sprintf('Unknown failed job id: %s', $id));
         }
 
         $message = @unserialize($record['payload']);
         if ($message === false || !is_object($message)) {
-            // Payload is irrecoverable. We've already removed it from the
-            // failed table (retry() is destructive); surface a 422 so the
-            // operator sees the corruption rather than a silent success.
+            // Payload is irrecoverable. Leave the record in the failed table
+            // (unlike the pre-#1915-R16 behavior) so the operator can inspect
+            // or explicitly discard it rather than losing it silently.
             return self::errorResponse(
                 422,
                 'Unprocessable Entity',
@@ -244,7 +242,21 @@ final class QueueController
             );
         }
 
-        $this->queue->dispatch($message);
+        try {
+            $this->queue->dispatch($message);
+        } catch (\Throwable $e) {
+            // Dispatch failed — leave the record in the failed table so the
+            // job is not lost; the operator can retry again once the
+            // underlying issue (e.g. a transport outage) is resolved.
+            return self::errorResponse(
+                502,
+                'Bad Gateway',
+                sprintf('Failed job [%s] could not be re-dispatched: %s', $id, $e->getMessage()),
+            );
+        }
+
+        // Only forget the failed-table row after a successful dispatch.
+        $this->failedJobRepository->retry($id);
 
         return new Response('', Response::HTTP_NO_CONTENT);
     }

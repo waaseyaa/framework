@@ -127,7 +127,7 @@ final class QueueControllerTest extends TestCase
     }
 
     #[Test]
-    public function retryReturns422WhenPayloadIsCorrupt(): void
+    public function retryReturns422WhenPayloadIsCorruptAndKeepsRecord(): void
     {
         $repo = $this->makeRepo([self::record('99', 'default', 'not-valid-php-serialize')]);
         $queue = $this->makeQueue();
@@ -138,6 +138,28 @@ final class QueueControllerTest extends TestCase
         self::assertInstanceOf(JsonResponse::class, $response);
         self::assertSame(422, $response->getStatusCode());
         self::assertCount(0, $queue->dispatched);
+        // Data-loss regression guard (#1915, R16): a corrupt payload must NOT
+        // be forgotten from the failed table — the operator needs the row to
+        // inspect or discard it explicitly.
+        self::assertNotNull($repo->find('99'));
+    }
+
+    #[Test]
+    public function retryLeavesRecordInPlaceWhenDispatchThrows(): void
+    {
+        $message = new \stdClass();
+        $serialized = serialize($message);
+        $repo = $this->makeRepo([self::record('55', 'default', $serialized)]);
+        $queue = $this->makeThrowingQueue();
+        $controller = new QueueController($repo, $queue);
+
+        $response = $controller->retry('55');
+
+        self::assertInstanceOf(JsonResponse::class, $response);
+        self::assertSame(502, $response->getStatusCode());
+        // Data-loss regression guard (#1915, R16): a failed dispatch must NOT
+        // forget the record — the job would otherwise be lost permanently.
+        self::assertNotNull($repo->find('55'));
     }
 
     #[Test]
@@ -340,6 +362,20 @@ final class QueueControllerTest extends TestCase
             public function dispatch(object $message): void
             {
                 $this->dispatched[] = $message;
+            }
+        };
+    }
+
+    /**
+     * A `QueueInterface` fake whose `dispatch()` always throws, for exercising
+     * the retry() path where re-enqueue fails after the record was fetched.
+     */
+    private function makeThrowingQueue(): QueueInterface
+    {
+        return new class implements QueueInterface {
+            public function dispatch(object $message): void
+            {
+                throw new \RuntimeException('transport unavailable');
             }
         };
     }
