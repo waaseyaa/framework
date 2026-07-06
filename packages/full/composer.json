@@ -4,21 +4,21 @@
     "type": "metapackage",
     "license": "GPL-2.0-or-later",
     "require": {
-        "waaseyaa/ai-agent": "^0.1.0-alpha.254",
-        "waaseyaa/ai-pipeline": "^0.1.0-alpha.254",
-        "waaseyaa/ai-schema": "^0.1.0-alpha.254",
-        "waaseyaa/ai-tools": "^0.1.0-alpha.254",
-        "waaseyaa/ai-vector": "^0.1.0-alpha.254",
-        "waaseyaa/attachment": "^0.1.0-alpha.254",
-        "waaseyaa/cms": "^0.1.0-alpha.254",
-        "waaseyaa/mcp": "^0.1.0-alpha.254",
-        "waaseyaa/relationship": "^0.1.0-alpha.254",
-        "waaseyaa/search": "^0.1.0-alpha.254",
-        "waaseyaa/structured-import": "^0.1.0-alpha.254"
+        "waaseyaa/ai-agent": "^0.1.0-alpha.255",
+        "waaseyaa/ai-pipeline": "^0.1.0-alpha.255",
+        "waaseyaa/ai-schema": "^0.1.0-alpha.255",
+        "waaseyaa/ai-tools": "^0.1.0-alpha.255",
+        "waaseyaa/ai-vector": "^0.1.0-alpha.255",
+        "waaseyaa/attachment": "^0.1.0-alpha.255",
+        "waaseyaa/cms": "^0.1.0-alpha.255",
+        "waaseyaa/mcp": "^0.1.0-alpha.255",
+        "waaseyaa/relationship": "^0.1.0-alpha.255",
+        "waaseyaa/search": "^0.1.0-alpha.255",
+        "waaseyaa/structured-import": "^0.1.0-alpha.255"
     },
     "suggest": {
-        "waaseyaa/graphql": "^0.1.0-alpha.254",
-        "waaseyaa/inertia": "^0.1.0-alpha.254"
+        "waaseyaa/graphql": "^0.1.0-alpha.255",
+        "waaseyaa/inertia": "^0.1.0-alpha.255"
     },
     "minimum-stability": "stable",
     "extra": {
