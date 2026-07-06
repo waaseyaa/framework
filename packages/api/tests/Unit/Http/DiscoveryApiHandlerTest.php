@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Media\Media;
 use Waaseyaa\User\AnonymousUser;
 
 #[CoversClass(DiscoveryApiHandler::class)]
@@ -179,6 +180,29 @@ final class DiscoveryApiHandlerTest extends TestCase
         $handler = $this->createHandler();
         $result = $handler->normalizeForCacheKey([3, 1, 2]);
         $this->assertSame([3, 1, 2], $result);
+    }
+
+    #[Test]
+    public function media_without_explicit_status_is_discovery_public(): void
+    {
+        // Regression for audit #1915 R16: WorkflowVisibility::isEntityPublic()
+        // now fails closed on a missing 'status' key. That flip is only safe
+        // because Media::__construct() backfills 'status' => true (matching its
+        // documented isPublished()-defaults-true semantics), so a media entity
+        // built without an explicit status must still clear the discovery gate.
+        $handler = $this->createHandler();
+        $media = new Media(['mid' => 1, 'bundle' => 'image']);
+
+        $this->assertTrue($handler->isDiscoveryEntityPublic($media));
+    }
+
+    #[Test]
+    public function media_explicitly_unpublished_is_not_discovery_public(): void
+    {
+        $handler = $this->createHandler();
+        $media = new Media(['mid' => 1, 'bundle' => 'image', 'status' => false]);
+
+        $this->assertFalse($handler->isDiscoveryEntityPublic($media));
     }
 
     private function createHandler(): DiscoveryApiHandler

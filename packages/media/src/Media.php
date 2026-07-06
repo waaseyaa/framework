@@ -37,6 +37,16 @@ final class Media extends ContentEntityBase
         array $entityKeys = [],
         array $fieldDefinitions = [],
     ) {
+        // Ensure a default for the optional published-status property. Media is
+        // published-by-default (see isPublished()); backfilling here — mirroring
+        // Term's and Node's constructors — makes the entity class itself the
+        // single canonical source of that default, instead of leaving a missing
+        // 'status' key for every downstream consumer (e.g. WorkflowVisibility) to
+        // reinterpret independently.
+        if (!array_key_exists('status', $values)) {
+            $values['status'] = true;
+        }
+
         parent::__construct($values, $entityTypeId, $entityKeys, $fieldDefinitions);
     }
 
