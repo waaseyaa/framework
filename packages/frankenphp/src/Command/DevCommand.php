@@ -85,9 +85,15 @@ final class DevCommand extends Command
 
         if ($interactive && $io->confirm('Download the FrankenPHP binary now?', true)) {
             try {
+                // `dev`'s auto-install always fails closed on an unverifiable checksum
+                // (no --allow-unverified opt-out here, deliberately — this is the
+                // "just works" inner-loop path; an operator who wants to accept the
+                // supply-chain risk runs `frankenphp:install --allow-unverified`
+                // explicitly instead).
                 $outcome = InstallCommand::performInstall($this->projectRoot, force: false, version: null, output: $io);
             } catch (\Throwable $e) {
                 $io->error($e->getMessage());
+                $io->note('Run `frankenphp:install --allow-unverified` to accept this risk explicitly, or retry once the GitHub API is reachable.');
 
                 return null;
             }

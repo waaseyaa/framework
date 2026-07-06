@@ -35,7 +35,8 @@ final class InstallCommand extends Command
         $this
             ->setDescription('Download the FrankenPHP binary for this OS/arch into vendor/bin (for `composer run dev`).')
             ->addOption('force', null, InputOption::VALUE_NONE, 'Re-download even if a managed binary already exists.')
-            ->addOption('frankenphp-version', null, InputOption::VALUE_REQUIRED, 'FrankenPHP release tag to install (default: pinned ' . AssetSelector::DEFAULT_VERSION . '; or set FRANKENPHP_VERSION).');
+            ->addOption('frankenphp-version', null, InputOption::VALUE_REQUIRED, 'FrankenPHP release tag to install (default: pinned ' . AssetSelector::DEFAULT_VERSION . '; or set FRANKENPHP_VERSION).')
+            ->addOption('allow-unverified', null, InputOption::VALUE_NONE, 'Proceed with the install when the GitHub release checksum is unavailable (API unreachable/rate-limited). Without this flag, an unverifiable download now refuses to install.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -44,7 +45,13 @@ final class InstallCommand extends Command
         $version = $this->resolveVersion($input->getOption('frankenphp-version'));
 
         try {
-            $outcome = self::performInstall($this->projectRoot, (bool) $input->getOption('force'), $version, $io);
+            $outcome = self::performInstall(
+                $this->projectRoot,
+                (bool) $input->getOption('force'),
+                $version,
+                $io,
+                (bool) $input->getOption('allow-unverified'),
+            );
         } catch (\Throwable $e) {
             $io->error($e->getMessage());
 
@@ -59,10 +66,20 @@ final class InstallCommand extends Command
     /**
      * Reusable install routine (also called by `dev` when it offers to install).
      *
-     * @throws \RuntimeException on unsupported platform, download, or checksum failure
+     * @param bool $allowUnverified explicit opt-out: proceed even when the GitHub
+     *                              release checksum is unavailable, instead of the
+     *                              fail-closed default
+     *
+     * @throws \RuntimeException on unsupported platform, download failure, checksum
+     *                           mismatch, or an unavailable checksum with no opt-out
      */
-    public static function performInstall(string $projectRoot, bool $force, ?string $version, ?OutputInterface $output = null): InstallOutcome
-    {
+    public static function performInstall(
+        string $projectRoot,
+        bool $force,
+        ?string $version,
+        ?OutputInterface $output = null,
+        bool $allowUnverified = false,
+    ): InstallOutcome {
         $asset = new AssetSelector()->select(\PHP_OS_FAMILY, php_uname('m'), $version);
 
         if ($output !== null) {
@@ -77,7 +94,7 @@ final class InstallCommand extends Command
 
         $baseDir = BinaryResolver::managedBaseDir($projectRoot);
 
-        return new Installer()->install($asset, $baseDir, $force);
+        return new Installer(allowUnverified: $allowUnverified)->install($asset, $baseDir, $force);
     }
 
     private function resolveVersion(mixed $optionValue): ?string
@@ -99,7 +116,15 @@ final class InstallCommand extends Command
         }
 
         if (!$outcome->checksumVerified) {
-            $io->warning('Could not verify the download checksum (GitHub API unreachable or rate-limited); installed unverified.');
+            // Reaching here with checksumVerified: false means --allow-unverified was
+            // passed: Installer::install() now throws before producing an outcome
+            // when the checksum is unavailable and that opt-out was not given.
+            $io->caution(
+                'Installed WITHOUT verifying the download checksum. The GitHub release digest was unavailable '
+                . '(API unreachable/rate-limited, or the asset publishes no digest) and --allow-unverified was set, '
+                . 'so the binary was installed anyway. Re-run without --allow-unverified once the digest is '
+                . 'reachable to get a verified install.',
+            );
         }
 
         $io->success(sprintf('FrankenPHP installed at %s. Run `composer run dev` to serve.', $outcome->path));

@@ -125,7 +125,7 @@ final class InstallerTest extends TestCase
     }
 
     #[Test]
-    public function a_missing_release_digest_installs_unverified(): void
+    public function a_missing_release_digest_refuses_to_install_by_default(): void
     {
         $installer = new Installer(
             download: static function (string $url, string $dest): void {
@@ -134,11 +134,72 @@ final class InstallerTest extends TestCase
             fetchDigest: static fn() => null, // API unreachable / rate-limited
         );
 
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/could not verify the checksum/i');
+
+        try {
+            $installer->install($this->bareAsset(), $this->dir, force: false);
+        } finally {
+            self::assertFileDoesNotExist($this->dir . '/frankenphp', 'an unverifiable download must not be left installed');
+            $leftover = glob($this->dir . '/.frankenphp-*.download');
+            self::assertEmpty($leftover === false ? [] : $leftover, 'the temp download must be cleaned up on refusal');
+        }
+    }
+
+    #[Test]
+    public function a_missing_release_digest_installs_unverified_when_explicitly_allowed(): void
+    {
+        $installer = new Installer(
+            download: static function (string $url, string $dest): void {
+                file_put_contents($dest, 'BYTES');
+            },
+            fetchDigest: static fn() => null, // API unreachable / rate-limited
+            allowUnverified: true,
+        );
+
         $outcome = $installer->install($this->bareAsset(), $this->dir, force: false);
 
         self::assertFalse($outcome->skipped);
         self::assertFalse($outcome->checksumVerified);
         self::assertFileExists($outcome->path);
+    }
+
+    #[Test]
+    public function allow_unverified_does_not_bypass_checksum_verification_when_a_digest_is_available(): void
+    {
+        $payload = 'FRANKENPHP-BINARY-BYTES';
+        $installer = new Installer(
+            download: static function (string $url, string $dest) use ($payload): void {
+                file_put_contents($dest, $payload);
+            },
+            fetchDigest: static fn() => hash('sha256', $payload),
+            allowUnverified: true,
+        );
+
+        $outcome = $installer->install($this->bareAsset(), $this->dir, force: false);
+
+        self::assertTrue($outcome->checksumVerified, 'a matching digest must still be verified even with allowUnverified set');
+    }
+
+    #[Test]
+    public function allow_unverified_does_not_bypass_a_checksum_mismatch(): void
+    {
+        $installer = new Installer(
+            download: static function (string $url, string $dest): void {
+                file_put_contents($dest, 'TAMPERED');
+            },
+            fetchDigest: static fn() => hash('sha256', 'ORIGINAL'),
+            allowUnverified: true,
+        );
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/[Cc]hecksum mismatch/');
+
+        try {
+            $installer->install($this->bareAsset(), $this->dir, force: false);
+        } finally {
+            self::assertFileDoesNotExist($this->dir . '/frankenphp', 'a tampered download must not be left installed even with allowUnverified set');
+        }
     }
 
     #[Test]
@@ -156,6 +217,9 @@ final class InstallerTest extends TestCase
                 file_put_contents($destDir . '/frankenphp.exe', 'WINDOWS-EXE-BYTES');
                 file_put_contents($destDir . '/php8ts.dll', 'SIBLING-DLL');
             },
+            // This test exercises archive extraction, not checksum enforcement — opt
+            // out of the fail-closed default so a null digest doesn't abort it.
+            allowUnverified: true,
         );
 
         $outcome = $installer->install($this->zipAsset(), $this->dir, force: false);
