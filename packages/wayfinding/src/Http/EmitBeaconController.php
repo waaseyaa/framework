@@ -6,7 +6,6 @@ namespace Waaseyaa\Wayfinding\Http;
 
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Http\Router\SessionChannel;
 use Waaseyaa\Foundation\Http\Router\WaaseyaaContext;
 use Waaseyaa\Wayfinding\Anchor\AnchorRegistry;
@@ -43,8 +42,15 @@ final class EmitBeaconController
 
     private const int MAX_CONTENT_LENGTH = 4000;
 
+    /**
+     * Takes the shared {@see AnchorRegistry} singleton (bound in
+     * {@see \Waaseyaa\Wayfinding\WayfindingServiceProvider::register()}) so
+     * emit-time anchor validation (FR-005) reuses the memoized catalog
+     * instead of re-deriving it per request — same fix as
+     * {@see AnchorCatalogController} (audit L4-wayfinding.md, MAJOR finding).
+     */
     public function __construct(
-        private readonly EntityTypeManagerInterface $entityTypeManager,
+        private readonly AnchorRegistry $anchorRegistry,
     ) {}
 
     public function emit(Request $request): Response
@@ -64,8 +70,7 @@ final class EmitBeaconController
             return $this->error(422, 'Unprocessable', 'A non-empty string "anchor_id" is required.');
         }
 
-        $registry = new AnchorRegistry($this->entityTypeManager);
-        if (!$registry->isValid($anchorId)) {
+        if (!$this->anchorRegistry->isValid($anchorId)) {
             return $this->error(422, 'Unknown anchor', sprintf('Anchor "%s" is not in the published catalog.', $anchorId));
         }
 
