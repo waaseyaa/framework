@@ -64,7 +64,7 @@ The following codified gates are the framework's **procurement-legible trust sub
 
 - **Merge to `main`:** Primary maintainer in steady state. Trustee in escalation only — see "Escalation" below.
 - **Publish releases on Packagist:** Primary maintainer in steady state. Trustee in escalation only — see "Escalation" below.
-- **Charter amendments:** Follow the Amendment Process documented in [`.kittify/charter/charter.md`](.kittify/charter/charter.md). Amendments are themselves Spec Kitty missions; the trustee MAY initiate an amendment mission in escalation but the amendment MUST follow the documented mission flow.
+- **Charter amendments:** Follow the Amendment Process documented in [`.kittify/charter/charter.md`](.kittify/charter/charter.md). An amendment is a governed change: it gets its own anchoring GitHub issue and a written plan, and the amending PR links both; the trustee MAY initiate an amendment in escalation but MUST follow that documented flow.
 - **`charter-exception` issues:** Filed per the Exception Policy in the charter. Both primary maintainer and trustee may file; both may resolve.
 
 ## Escalation
