@@ -11,11 +11,13 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
+use Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
+use Waaseyaa\Workflows\Listener\WorkflowPointerMoveGuard;
 use Waaseyaa\Workflows\Listener\WorkflowStateGuard;
 use Waaseyaa\Workflows\Transition\TransitionService;
 use Waaseyaa\Workflows\Validation\WorkflowValidator;
@@ -121,6 +123,18 @@ final class WorkflowServiceProvider extends ServiceProvider
                 accountContext: $accountContext instanceof AccountContextInterface ? $accountContext : null,
             );
         });
+
+        // CW-v1 WP-2 task 2.5 (#1920): closes the pointer-move bypass task
+        // 2.4's BeforeRevisionPointerMoveEvent choke point exists for.
+        $this->singleton(WorkflowPointerMoveGuard::class, function (): WorkflowPointerMoveGuard {
+            $accountContext = $this->resolveOptional(AccountContextInterface::class);
+
+            return new WorkflowPointerMoveGuard(
+                bindings: $this->resolve(WorkflowBindingResolver::class),
+                entityTypeManager: $this->resolve(EntityTypeManagerInterface::class),
+                accountContext: $accountContext instanceof AccountContextInterface ? $accountContext : null,
+            );
+        });
     }
 
     /**
@@ -170,6 +184,20 @@ final class WorkflowServiceProvider extends ServiceProvider
             EntityEvents::PRE_SAVE->value,
             [$guard, 'onPreSave'],
         );
+
+        // CW-v1 WP-2 task 2.5 (#1920): the pointer-move guard shares the same
+        // degraded-mode gate as the save-path guard above (both need
+        // WorkflowBindingResolver, which needs ConfigFactoryInterface — #1930).
+        // Resolved separately (not from $guard) because it is a distinct
+        // service with its own dependency (EntityTypeManagerInterface), not a
+        // wrapper around WorkflowStateGuard.
+        $pointerGuard = $this->resolveOptional(WorkflowPointerMoveGuard::class);
+        if ($pointerGuard instanceof WorkflowPointerMoveGuard) {
+            $dispatcher->addListener(
+                BeforeRevisionPointerMoveEvent::class,
+                [$pointerGuard, 'onBeforePointerMove'],
+            );
+        }
 
         $this->seedDefaultEditorialWorkflow();
     }

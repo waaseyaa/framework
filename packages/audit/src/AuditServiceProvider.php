@@ -17,6 +17,7 @@ use Waaseyaa\Audit\Listener\BroadcastAuditListener;
 use Waaseyaa\Audit\Listener\EntityLifecycleAuditListener;
 use Waaseyaa\Audit\Listener\McpDispatchAuditListener;
 use Waaseyaa\Audit\Listener\PublishPointerAuditListener;
+use Waaseyaa\Audit\Listener\RollbackAuditListener;
 use Waaseyaa\Audit\Query\AuditEventQuery;
 use Waaseyaa\Audit\Schedule\AuditCheckpointScheduleEntries;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
@@ -149,6 +150,7 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
         $dispatcher->addSubscriber(new McpDispatchAuditListener($writer, $resolvedLogger));
         $dispatcher->addSubscriber(new BroadcastAuditListener($writer, $resolvedLogger));
         $dispatcher->addSubscriber(new PublishPointerAuditListener($writer, $resolvedLogger, $resolvedContext));
+        $dispatcher->addSubscriber(new RollbackAuditListener($writer, $resolvedLogger, $resolvedContext));
     }
 
     /**
