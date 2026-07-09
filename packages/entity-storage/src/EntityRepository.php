@@ -31,6 +31,7 @@ use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Event\AbortOperationException;
 use Waaseyaa\EntityStorage\Event\AfterSaveEvent;
+use Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent;
 use Waaseyaa\EntityStorage\Event\BeforeSaveEvent;
 use Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
@@ -1059,6 +1060,29 @@ final class EntityRepository implements EntityRepositoryInterface
             );
         }
 
+        // Bypass-choke-point pre-event (CW-v1 WP-2 task 2.4, #1920): dispatched
+        // BEFORE any write, so a throwing subscriber (the forthcoming workflow
+        // pointer-move guard, task 2.5) leaves storage completely untouched.
+        // $toRevisionId is null: the new revision's id is assigned by
+        // writeRevision() below, not knowable yet.
+        $priorBaseRow = $this->driver->read($this->entityType->id(), $entityId);
+        $fromRevisionId = null;
+        if ($priorBaseRow !== null && (int) ($priorBaseRow['revision_id'] ?? 0) > 0) {
+            $fromRevisionId = (int) $priorBaseRow['revision_id'];
+        }
+        $this->dispatchEvent(
+            new BeforeRevisionPointerMoveEvent(
+                entityTypeId: $this->entityType->id(),
+                entityId: $entityId,
+                operation: 'rollback',
+                fromRevisionId: $fromRevisionId,
+                toRevisionId: null,
+                actorUid: $actor,
+                revisionValues: $targetRow,
+            ),
+            BeforeRevisionPointerMoveEvent::class,
+        );
+
         // Remove revision metadata from the row — we're creating a new revision.
         // revision_author included: the old revision's author must not leak
         // onto the new revision or into the base row.
@@ -1155,6 +1179,22 @@ final class EntityRepository implements EntityRepositoryInterface
             $fromRevisionId = (int) $priorBaseRow['revision_id'];
         }
 
+        // Bypass-choke-point pre-event (CW-v1 WP-2 task 2.4, #1920): dispatched
+        // BEFORE any write. $toRevisionId is the caller-supplied target
+        // revision id — already known, unlike rollback()'s freshly-assigned one.
+        $this->dispatchEvent(
+            new BeforeRevisionPointerMoveEvent(
+                entityTypeId: $this->entityType->id(),
+                entityId: $entityId,
+                operation: 'revert',
+                fromRevisionId: $fromRevisionId,
+                toRevisionId: $revisionId,
+                actorUid: $actor,
+                revisionValues: $row,
+            ),
+            BeforeRevisionPointerMoveEvent::class,
+        );
+
         // Re-point the base table at this revision's values. Strip revision-table
         // bookkeeping columns; the base table tracks the current revision via the
         // revision_id pointer column.
@@ -1241,7 +1281,8 @@ final class EntityRepository implements EntityRepositoryInterface
         }
 
         // Validate the target revision exists for this entity.
-        if ($this->revisionDriver->readRevision($entityId, $revisionId) === null) {
+        $targetRow = $this->revisionDriver->readRevision($entityId, $revisionId);
+        if ($targetRow === null) {
             throw new \InvalidArgumentException(
                 "Revision {$revisionId} does not exist for entity {$entityId}.",
             );
@@ -1253,6 +1294,31 @@ final class EntityRepository implements EntityRepositoryInterface
         // Pointer-move actor + prior published pointer for the transition
         // event (FR-006). Null when previously unpublished.
         $actor = $this->resolveActor(null);
+
+        // Bypass-choke-point pre-event (CW-v1 WP-2 task 2.4, #1920): dispatched
+        // BEFORE any write. This is a plain read (not the write itself), done
+        // ahead of the transaction purely to report fromRevisionId on the
+        // pre-event; the transaction below still re-reads the prior pointer
+        // fresh (unchanged) so the POST RevisionPointerMovedEvent's reported
+        // transition matches exactly what this call committed.
+        $earlyBaseRow = $this->driver->read($this->entityType->id(), $entityId);
+        $earlyFromRevisionId = null;
+        if ($earlyBaseRow !== null && (int) ($earlyBaseRow['published_revision_id'] ?? 0) > 0) {
+            $earlyFromRevisionId = (int) $earlyBaseRow['published_revision_id'];
+        }
+        $this->dispatchEvent(
+            new BeforeRevisionPointerMoveEvent(
+                entityTypeId: $this->entityType->id(),
+                entityId: $entityId,
+                operation: 'publish',
+                fromRevisionId: $earlyFromRevisionId,
+                toRevisionId: $revisionId,
+                actorUid: $actor,
+                revisionValues: $targetRow,
+            ),
+            BeforeRevisionPointerMoveEvent::class,
+        );
+
         $fromRevisionId = null;
 
         $transaction = $this->database?->transaction();
@@ -1339,6 +1405,23 @@ final class EntityRepository implements EntityRepositoryInterface
         // Author resolved once per operation (FR-001; ambient context — this
         // path carries no SaveContext).
         $actor = $this->resolveActor(null);
+
+        // Bypass-choke-point pre-event (CW-v1 WP-2 task 2.4, #1920): dispatched
+        // BEFORE the write. No transaction wraps this single-language write, so
+        // a throwing subscriber simply prevents writeRevision() from running.
+        $this->dispatchEvent(
+            new BeforeRevisionPointerMoveEvent(
+                entityTypeId: $this->entityType->id(),
+                entityId: $entityId,
+                operation: 'translation_save',
+                fromRevisionId: $driver->getLatestLangcodeRevisionId($entityId, $langcode),
+                toRevisionId: null,
+                actorUid: $actor,
+                revisionValues: $values,
+            ),
+            BeforeRevisionPointerMoveEvent::class,
+        );
+
         $revisionId = $driver->writeRevision($entityId, $values, $log, $langcode, $actor);
 
         $entity = $this->loadTranslationRevision($entityId, $langcode, $revisionId);
@@ -1371,6 +1454,25 @@ final class EntityRepository implements EntityRepositoryInterface
         $created = [];
         try {
             foreach ($byLangcode as $langcode => $values) {
+                // Bypass-choke-point pre-event (CW-v1 WP-2 task 2.4, #1920):
+                // dispatched BEFORE this langcode's write. A throwing
+                // subscriber propagates out of the try block below, rolling
+                // back the WHOLE batch — including any earlier langcode
+                // already written in this same transaction — mirroring
+                // BeforeSaveEvent's mid-batch abort contract in saveMany().
+                $this->dispatchEvent(
+                    new BeforeRevisionPointerMoveEvent(
+                        entityTypeId: $this->entityType->id(),
+                        entityId: $entityId,
+                        operation: 'translation_save',
+                        fromRevisionId: $driver->getLatestLangcodeRevisionId($entityId, $langcode),
+                        toRevisionId: null,
+                        actorUid: $actor,
+                        revisionValues: $values,
+                    ),
+                    BeforeRevisionPointerMoveEvent::class,
+                );
+
                 $created[$langcode] = $driver->writeRevision($entityId, $values, $log, $langcode, $actor);
             }
             $transaction?->commit();
@@ -1484,6 +1586,23 @@ final class EntityRepository implements EntityRepositoryInterface
 
         $transaction = $this->database->transaction();
         try {
+            // Bypass-choke-point pre-event (CW-v1 WP-2 task 2.4, #1920):
+            // dispatched BEFORE the peer-row upsert or the revision write. A
+            // throwing subscriber propagates out of this try block, rolling
+            // back the transaction before either write is committed.
+            $this->dispatchEvent(
+                new BeforeRevisionPointerMoveEvent(
+                    entityTypeId: $this->entityType->id(),
+                    entityId: $entityId,
+                    operation: 'translation_save',
+                    fromRevisionId: $driver->getLatestLangcodeRevisionId($entityId, $langcode),
+                    toRevisionId: null,
+                    actorUid: $actor,
+                    revisionValues: $values,
+                ),
+                BeforeRevisionPointerMoveEvent::class,
+            );
+
             $this->upsertLangcodePeerRow($entityId, $langcode, $values);
             $revisionId = $driver->writeRevision($entityId, $values, $log, $langcode, $actor);
             $transaction->commit();

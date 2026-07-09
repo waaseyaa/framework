@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **CW-v1 WP-2 task 2.4: `BeforeRevisionPointerMoveEvent` — the revision pointer-move bypass choke point (#1920).** WP-1's `WorkflowStateGuard` only validates state changes made through `EntityRepository::save()`; `rollback()`, `setCurrentRevision()`, `setPublishedRevision()`, and the `saveTranslationRevision()`/`saveTranslationRevisions()`/`saveTranslation()` trio move the revision pointer (or write a new revision) WITHOUT going through the save pipeline, so none of them was previously observable to a save-time guard. New `Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent` (extends Symfony `Event`, mirrors `WorkflowTransitionEvent`'s shape) is now dispatched by all six methods, by FQCN, before any backend write, carrying `entityTypeId`/`entityId`/`operation` (`'rollback'|'revert'|'publish'|'translation_save'`)/`fromRevisionId`/`toRevisionId`/`actorUid`/the target revision's raw values array. A subscriber denies by throwing `AbortOperationException` — same convention as `BeforeSaveEvent` — leaving storage completely untouched (including rolling back any earlier write already attempted in the same transaction, for the transactional multi-write paths). Task 2.5 wires a workflow pointer-move guard onto this event; this PR only adds the choke point itself.
+
 ## [0.1.0-alpha.256] - 2026-07-06
 
 ### Added

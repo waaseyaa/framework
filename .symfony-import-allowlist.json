@@ -64,6 +64,7 @@
     "packages/debug/src/ErrorPreviewController.php",
     "packages/debug/src/functions.php",
     "packages/entity-storage/src/CoordinatorLifecycleDispatcher.php",
+    "packages/entity-storage/src/Event/BeforeRevisionPointerMoveEvent.php",
     "packages/entity-storage/src/UnitOfWork.php",
     "packages/entity/src/Audit/EntityWriteAuditListener.php",
     "packages/entity/src/EntityBase.php",
