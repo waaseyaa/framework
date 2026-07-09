@@ -51,6 +51,7 @@
         "waaseyaa/database-legacy": "^0.1.0-alpha.256",
         "waaseyaa/entity": "^0.1.0-alpha.256",
         "waaseyaa/entity-storage": "^0.1.0-alpha.256",
+        "waaseyaa/field": "^0.1.0-alpha.256",
         "waaseyaa/foundation": "^0.1.0-alpha.256"
     },
     "require-dev": {
