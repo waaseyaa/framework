@@ -6,6 +6,8 @@ namespace Waaseyaa\Node\Listener;
 
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Event\EntityEvent;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Node\Node;
 use Waaseyaa\Node\NodeType;
 
@@ -30,11 +32,10 @@ use Waaseyaa\Node\NodeType;
  * save.
  *
  * Explicit-decision precedence: this listener only acts when
- * `$node->isNewRevision() === null`. An earlier PRE_SAVE actor (e.g.
- * `Waaseyaa\Workflows\Transition\TransitionService`, or a caller that calls
- * `setNewRevision()` directly before `save()`) may have already made an
- * explicit true/false decision — that decision is left untouched regardless
- * of listener registration order, because this listener never overwrites a
+ * `$node->isNewRevision() === null`. Any earlier actor that explicitly set a
+ * per-save decision via `setNewRevision()` — a caller before `save()`, or an
+ * earlier PRE_SAVE listener — has that decision left untouched regardless of
+ * listener registration order, because this listener never overwrites a
  * non-null value.
  *
  * A missing or unloadable `NodeType` (bundle config not yet created, or the
@@ -44,9 +45,14 @@ use Waaseyaa\Node\NodeType;
  */
 final class NodeRevisionDefaultListener
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function __invoke(EntityEvent $event): void
     {
@@ -76,7 +82,15 @@ final class NodeRevisionDefaultListener
 
         try {
             $nodeType = $this->entityTypeManager->getRepository('node_type')->find($bundle);
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            // Best-effort side effect: an unloadable NodeType must not crash
+            // the save — fall back to the entity-type default, but say so.
+            $this->logger->debug('node.revision_default_lookup_failed', [
+                'bundle' => $bundle,
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
+
             return null;
         }
 

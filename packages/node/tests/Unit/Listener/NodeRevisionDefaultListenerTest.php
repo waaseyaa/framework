@@ -50,6 +50,22 @@ final class NodeRevisionDefaultListenerTest extends TestCase
     }
 
     #[Test]
+    public function a_node_type_created_without_a_new_revision_key_forwards_true(): void
+    {
+        // The realistic default case (CW-v1 design decision 1, opt-OUT
+        // semantics): a normal materialized NodeType row that never mentions
+        // new_revision must leave revisioning ON — forwarding `false` here
+        // would silently disable revisioning for every standard bundle.
+        $node = new Node(['type' => 'article', 'title' => 'T', 'slug' => 't']);
+        $nodeType = new NodeType(['type' => 'article', 'name' => 'Article']);
+        $listener = new NodeRevisionDefaultListener(new StubNodeTypeEntityTypeManager(['article' => $nodeType]));
+
+        $listener(new EntityEvent($node));
+
+        $this->assertTrue($node->isNewRevision());
+    }
+
+    #[Test]
     public function leaves_the_decision_unset_when_the_bundle_has_no_node_type_row(): void
     {
         $node = new Node(['type' => 'orphan_bundle', 'title' => 'T', 'slug' => 't']);
@@ -78,7 +94,7 @@ final class NodeRevisionDefaultListenerTest extends TestCase
     public function does_not_override_an_explicit_true_decision_made_earlier_in_the_save(): void
     {
         $node = new Node(['type' => 'note', 'title' => 'T', 'slug' => 't']);
-        $node->setNewRevision(true); // e.g. TransitionService, or a caller override.
+        $node->setNewRevision(true); // Any earlier actor's explicit per-save decision.
 
         $nodeType = new NodeType(['type' => 'note', 'name' => 'Note', 'new_revision' => false]);
         $listener = new NodeRevisionDefaultListener(new StubNodeTypeEntityTypeManager(['note' => $nodeType]));

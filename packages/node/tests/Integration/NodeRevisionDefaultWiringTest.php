@@ -76,6 +76,38 @@ final class NodeRevisionDefaultWiringTest extends TestCase
     }
 
     #[Test]
+    public function a_bundle_with_a_normal_node_type_row_without_a_new_revision_key_gets_a_new_revision_per_save(): void
+    {
+        // The REALISTIC default case (CW-v1 design decision 1, opt-OUT
+        // semantics): production paths that materialize a NodeType row never
+        // set new_revision explicitly, and that must leave revisioning ON —
+        // a false default here would silently disable revisioning for every
+        // standard bundle.
+        [$entityTypeManager, $db] = $this->bootWiredProvider();
+
+        $nodeTypeRepository = $entityTypeManager->getRepository('node_type');
+        $nodeTypeRepository->save(new NodeType(['type' => 'article', 'name' => 'Article']));
+
+        $nodeRepository = $entityTypeManager->getRepository('node');
+        $node = new Node(['title' => 'Hello', 'type' => 'article', 'slug' => 'hello']);
+        $node->enforceIsNew();
+        $nodeRepository->save($node);
+
+        $this->assertSame(1, $this->revisionRowCount($db));
+
+        $loaded = $nodeRepository->find((string) $node->id());
+        \assert($loaded instanceof Node);
+        $loaded->setTitle('Hello, updated');
+        $nodeRepository->save($loaded);
+
+        $this->assertSame(
+            2,
+            $this->revisionRowCount($db),
+            'A NodeType row created without a new_revision key must default to revisioning ON (opt-out semantics).',
+        );
+    }
+
+    #[Test]
     public function a_bundle_with_no_node_type_row_falls_back_to_the_entity_type_default_and_gets_a_new_revision_per_save(): void
     {
         [$entityTypeManager, $db] = $this->bootWiredProvider();
@@ -116,9 +148,9 @@ final class NodeRevisionDefaultWiringTest extends TestCase
 
         $this->assertSame(1, $this->revisionRowCount($db));
 
-        // Simulates an earlier PRE_SAVE actor (e.g. TransitionService)
-        // already deciding this save must cut a revision, overriding the
-        // bundle's new_revision: false.
+        // Simulates any earlier actor explicitly deciding this save must cut
+        // a revision (a caller before save(), or an earlier PRE_SAVE
+        // listener), overriding the bundle's new_revision: false.
         $loaded = $nodeRepository->find((string) $node->id());
         \assert($loaded instanceof Node);
         $loaded->setTitle('Hello, forced revision');

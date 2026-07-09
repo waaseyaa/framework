@@ -144,16 +144,19 @@ final class NodeTypeTest extends TestCase
     // New revision
     // -----------------------------------------------------------------
 
-    public function testIsNewRevisionDefaultFalse(): void
+    public function testIsNewRevisionDefaultTrue(): void
     {
+        // Opt-OUT semantics (CW-v1 design decision 1, Drupal parity): a node
+        // type that never says anything about new_revision creates a new
+        // revision per save; `new_revision: false` is the explicit opt-out.
         $type = new NodeType();
-        $this->assertFalse($type->isNewRevision());
+        $this->assertTrue($type->isNewRevision());
     }
 
     public function testIsNewRevisionViaConstructor(): void
     {
-        $type = new NodeType(['new_revision' => true]);
-        $this->assertTrue($type->isNewRevision());
+        $type = new NodeType(['new_revision' => false]);
+        $this->assertFalse($type->isNewRevision());
     }
 
     public function testSetNewRevision(): void

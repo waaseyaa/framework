@@ -35,8 +35,11 @@ final class NodeType extends ConfigEntityBase
         if (!array_key_exists('description', $values)) {
             $values['description'] = '';
         }
+        // Opt-OUT semantics (CW-v1 design decision 1, Drupal parity): a node
+        // type defaults to creating a new revision per save; an explicit
+        // `new_revision: false` is the per-bundle opt-out.
         if (!array_key_exists('new_revision', $values)) {
-            $values['new_revision'] = false;
+            $values['new_revision'] = true;
         }
         if (!array_key_exists('display_submitted', $values)) {
             $values['display_submitted'] = true;
@@ -94,10 +97,14 @@ final class NodeType extends ConfigEntityBase
 
     /**
      * Whether new nodes of this type should create revisions by default.
+     *
+     * Defaults to true (opt-out semantics, CW-v1 design decision 1): the
+     * constructor materializes the key, so the `?? true` fallback only
+     * covers value bags built outside the constructor.
      */
     public function isNewRevision(): bool
     {
-        return (bool) ($this->values['new_revision'] ?? false);
+        return (bool) ($this->values['new_revision'] ?? true);
     }
 
     /**
