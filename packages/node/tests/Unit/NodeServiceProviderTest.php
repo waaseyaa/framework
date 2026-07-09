@@ -7,6 +7,11 @@ namespace Waaseyaa\Node\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\Event\EntityEvents;
+use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
+use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
+use Waaseyaa\Node\Listener\NodeRevisionDefaultListener;
 use Waaseyaa\Node\Node;
 use Waaseyaa\Node\NodeServiceProvider;
 use Waaseyaa\Node\NodeType;
@@ -86,5 +91,73 @@ final class NodeServiceProviderTest extends TestCase
         $fields = $provider->getEntityTypes()[1]->getFieldDefinitions();
 
         $this->assertSame([], $fields);
+    }
+
+    #[Test]
+    public function boot_wires_the_revision_default_listener_to_pre_save_event(): void
+    {
+        $dispatcher = new SymfonyEventDispatcherAdapter();
+        $entityTypeManager = new EntityTypeManager($dispatcher);
+
+        // Mirrors RelationshipServiceProviderTest::boot_wires_delete_guard_to_pre_delete_event
+        // (#1852 kernel-services-bus gotcha): the dispatcher is served ONLY
+        // under the Symfony-contracts FQCN.
+        $provider = new NodeServiceProvider();
+        $provider->setKernelServices($this->kernelServices([
+            \Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class => $dispatcher,
+            EntityTypeManager::class => $entityTypeManager,
+        ]));
+        $provider->register();
+        $provider->boot();
+
+        $listeners = $dispatcher->getListeners(EntityEvents::PRE_SAVE->value);
+        $this->assertNotEmpty($listeners, 'NodeRevisionDefaultListener must subscribe to pre-save');
+        $this->assertInstanceOf(NodeRevisionDefaultListener::class, $listeners[0]);
+    }
+
+    #[Test]
+    public function boot_without_dispatcher_is_a_no_op(): void
+    {
+        $provider = new NodeServiceProvider();
+        $provider->setKernelServices($this->kernelServices([]));
+        $provider->register();
+
+        $provider->boot();
+        $this->addToAssertionCount(1);
+    }
+
+    #[Test]
+    public function boot_without_entity_type_manager_is_a_no_op(): void
+    {
+        $dispatcher = new SymfonyEventDispatcherAdapter();
+
+        $provider = new NodeServiceProvider();
+        $provider->setKernelServices($this->kernelServices([
+            \Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class => $dispatcher,
+        ]));
+        $provider->register();
+        $provider->boot();
+
+        $this->assertSame(
+            [],
+            $dispatcher->getListeners(EntityEvents::PRE_SAVE->value),
+            'Without a resolvable EntityTypeManager, no listener may be registered.',
+        );
+    }
+
+    /**
+     * @param array<string, object> $services
+     */
+    private function kernelServices(array $services): KernelServicesInterface
+    {
+        return new class ($services) implements KernelServicesInterface {
+            /** @param array<string, object> $services */
+            public function __construct(private readonly array $services) {}
+
+            public function get(string $abstract): ?object
+            {
+                return $this->services[$abstract] ?? null;
+            }
+        };
     }
 }

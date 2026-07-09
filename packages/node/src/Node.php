@@ -11,6 +11,7 @@ use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\Hydration\HydratableFromStorageInterface;
 use Waaseyaa\Entity\Hydration\HydrationContext;
+use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\Field\FieldStorage;
 
 /**
@@ -26,10 +27,21 @@ use Waaseyaa\Field\FieldStorage;
  * the admin form, but ships no built-in frontpage/Views feature that reads
  * them — consuming applications opt in by querying these fields in their
  * own listings. They are intentional surface, not dead code (audit D-39).
+ *
+ * Declares the legacy {@see RevisionableInterface} (CW-v1 WP-2 Task 2.3) so
+ * {@see \Waaseyaa\EntityStorage\EntityRepository::shouldCreateRevision()}'s
+ * per-entity override branch is live for nodes: `ContentEntityBase` already
+ * `use`s {@see \Waaseyaa\Entity\RevisionableEntityTrait}, which backs
+ * `isNewRevision()`/`setNewRevision()` with a nullable property (null =
+ * "no explicit decision yet"), so this declaration only makes an
+ * already-implemented contract visible via `instanceof` — no new state.
+ * {@see \Waaseyaa\Node\Listener\NodeRevisionDefaultListener} is the PRE_SAVE
+ * listener that actually calls `setNewRevision()` from the bundle's
+ * `NodeType::isNewRevision()` when nothing else has decided first.
  */
 #[ContentEntityType(id: 'node', label: 'Content', description: 'Published content items')]
 #[ContentEntityKeys(id: 'nid', uuid: 'uuid', label: 'title', bundle: 'type', revision: 'revision_id')]
-final class Node extends ContentEntityBase implements HydratableFromStorageInterface
+final class Node extends ContentEntityBase implements HydratableFromStorageInterface, RevisionableInterface
 {
     /**
      * @var array<string, string|array<string, mixed>>
