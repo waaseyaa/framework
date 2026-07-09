@@ -121,6 +121,14 @@ final class WorkflowPointerMoveGuard
                 return;
             }
 
+            // Known degenerate-graph quirk: for a state with NO incoming
+            // transitions at all (e.g. an initial-only state no edge ever
+            // targets), the any-of loop below is a check over an empty set —
+            // an authenticated account is always DENIED (nothing to hold),
+            // while a null account context (above) is always ALLOWED. That
+            // asymmetry is inherent to the any-of rule, accepted as-is: no
+            // shipped workflow has such a state, and fail-closed for
+            // authenticated actors is the safe default (design invariant 5).
             foreach ($workflow->getTransitions() as $transition) {
                 if ($transition->to === $newState && $account->hasPermission($workflow->permissionFor($transition))) {
                     return;

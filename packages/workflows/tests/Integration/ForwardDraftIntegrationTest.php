@@ -173,6 +173,88 @@ final class ForwardDraftIntegrationTest extends TestCase
         $this->assertSame(1, $baseRow->get('status'), 'Denied pointer move must leave the persisted status unchanged.');
     }
 
+    #[Test]
+    public function archived_content_is_republishable_via_restore_forward_draft_and_publish(): void
+    {
+        // CW-v1 WP-2 task 2.6 re-review (#1920): archived content must not
+        // be a dead end on the SHIPPED editorial workflow. Full flow:
+        // publish -> archive -> restore (forward draft; pointer stays on
+        // the archived revision) -> edit -> publish (the pointer move is an
+        // archived -> published different-state move, satisfied by the
+        // 'restore_to_published' edge).
+        //
+        // Permissions the full flow needs (all on the acting account, which
+        // is both the TransitionService $account argument and the ambient
+        // context the guards check):
+        //   - 'use editorial transition publish'   (first publish + the final
+        //     draft -> published transition/save)
+        //   - 'use editorial transition archive'   (archive transition + its
+        //     archived-pointer move)
+        //   - 'use editorial transition restore'   (restore transition's
+        //     archived -> draft save)
+        //   - 'use editorial transition restore_to_published' (the FINAL
+        //     pointer move: the guard sees archived -> published, which is
+        //     that edge — the 'publish' permission alone does not cover it)
+        [$entityTypeManager, $provider, $accountContext] = $this->bootWiredProvider();
+        $repository = $entityTypeManager->getRepository(self::ENTITY_TYPE_ID);
+        $transitionService = $provider->resolve(TransitionService::class);
+
+        $editor = $this->account(7, [
+            'use editorial transition publish',
+            'use editorial transition archive',
+            'use editorial transition restore',
+            'use editorial transition restore_to_published',
+        ]);
+        $accountContext->set($editor);
+
+        // Publish, then archive.
+        $entity = new ForwardDraftSubject(
+            ['bundle' => self::ENTITY_TYPE_ID, 'workflow_state' => 'draft', 'title' => 'Live once'],
+            self::ENTITY_TYPE_ID,
+            $this->entityKeys(),
+        );
+        $repository->save($entity);
+        $entityId = (string) $entity->id();
+
+        $transitionService->transition($entity, 'publish', $editor);
+        $transitionService->transition($entity, 'archive', $editor);
+
+        $archivedPointer = $repository->loadPublishedRevision($entityId);
+        $this->assertNotNull($archivedPointer);
+        $this->assertSame('archived', $archivedPointer->get('workflow_state'));
+        $this->assertSame(0, $repository->find($entityId)?->get('status'));
+
+        // Restore: a forward draft — the pointer stays on the archived
+        // revision, status stays 0 (copied from the archived pointer).
+        $transitionService->transition($entity, 'restore', $editor);
+        $stillArchived = $repository->loadPublishedRevision($entityId);
+        $this->assertNotNull($stillArchived);
+        $this->assertSame('archived', $stillArchived->get('workflow_state'));
+        $this->assertSame(0, $repository->find($entityId)?->get('status'));
+
+        // Edit the restored draft, then publish it. The transition itself
+        // validates draft -> published ('publish'); the pointer move the
+        // service then performs is archived -> published, satisfied by
+        // 'restore_to_published'.
+        $tip = $repository->find($entityId);
+        $this->assertNotNull($tip);
+        $this->assertSame('draft', $tip->get('workflow_state'));
+        $tip->setNewRevision(true);
+        $tip->set('title', 'Live again');
+        $repository->save($tip);
+
+        $transitionService->transition($tip, 'publish', $editor);
+
+        // End state: pointer on the republished revision, new content live,
+        // status back to 1.
+        $republished = $repository->loadPublishedRevision($entityId);
+        $this->assertNotNull($republished);
+        $this->assertSame('published', $republished->get('workflow_state'));
+        $this->assertSame('Live again', $republished->get('title'));
+        $this->assertSame(1, $republished->get('status'));
+        $this->assertSame(1, $repository->find($entityId)?->get('status'));
+    }
+
     /**
      * @return array<string, string>
      */

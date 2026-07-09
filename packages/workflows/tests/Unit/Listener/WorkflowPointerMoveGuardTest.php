@@ -43,7 +43,10 @@ final class WorkflowPointerMoveGuardTest extends TestCase
                 'submit_for_review' => ['label' => 'Submit', 'from' => ['draft'], 'to' => 'review'],
                 'publish' => ['label' => 'Publish', 'from' => ['draft', 'review'], 'to' => 'published'],
                 'archive' => ['label' => 'Archive', 'from' => ['published'], 'to' => 'archived'],
-                'restore' => ['label' => 'Restore', 'from' => ['archived'], 'to' => 'draft'],
+                'restore' => ['label' => 'Restore to draft', 'from' => ['archived'], 'to' => 'draft'],
+                // Mirrors the production DefaultWorkflows 'restore_to_published'
+                // edge (task 2.6 re-review): archived content is republishable.
+                'restore_to_published' => ['label' => 'Restore', 'from' => ['archived'], 'to' => 'published'],
             ],
         ]);
     }
@@ -477,17 +480,42 @@ final class WorkflowPointerMoveGuardTest extends TestCase
     }
 
     #[Test]
-    public function publish_promoting_an_archived_pointer_to_published_is_denied_without_an_edge(): void
+    public function publish_promoting_an_archived_pointer_is_allowed_with_the_restore_to_published_permission(): void
+    {
+        // CW-v1 WP-2 task 2.6 re-review (#1920): archived -> published is a
+        // DIFFERENT-state move, so the strict rule applies — and the
+        // 'restore_to_published' edge now exists (Drupal editorial parity),
+        // so an account holding THAT edge's permission may promote.
+        $account = $this->account(['use editorial transition restore_to_published']);
+        $guard = $this->guard($this->editorialWorkflow(), [10 => 'archived'], $account);
+        $event = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: 'fixture',
+            entityId: '1',
+            operation: 'publish',
+            fromRevisionId: 10,
+            toRevisionId: 20,
+            actorUid: 7,
+            revisionValues: ['type' => 'article', 'workflow_state' => 'published'],
+        );
+
+        $guard->onBeforePointerMove($event);
+        $this->addToAssertionCount(1);
+    }
+
+    #[Test]
+    public function publish_promoting_an_archived_pointer_without_the_restore_to_published_permission_is_denied(): void
     {
         // CW-v1 WP-2 task 2.6 fix (#1920): a DIFFERENT-state pointer move
         // gets the strict rule, no exceptions — the currentState ->
-        // newState edge must exist. Pointer sits on 'archived'; promoting a
-        // 'published'-stamped revision implies archived -> published, which
-        // has no edge here (only 'restore': archived -> draft). Holding the
-        // 'publish' permission does not help: an earlier revision of this
-        // task allowed exactly this via an any-transition-into-state
-        // fallback, which reopened the bypass (resurrecting old published
-        // content out of 'archived' with only the publish permission).
+        // newState edge's OWN permission is required. Pointer sits on
+        // 'archived'; promoting a 'published'-stamped revision implies
+        // archived -> published, whose edge is 'restore_to_published'.
+        // Holding only the 'publish' permission does not help: an earlier
+        // revision of this task allowed exactly this via an
+        // any-transition-into-state fallback, which reopened the bypass
+        // (resurrecting old published content out of 'archived' with only
+        // the publish permission). REASON_PERMISSION, not ILLEGAL_EDGE —
+        // the edge exists now; the account just may not use it.
         $account = $this->account(['use editorial transition publish']);
         $guard = $this->guard($this->editorialWorkflow(), [10 => 'archived'], $account);
         $event = new BeforeRevisionPointerMoveEvent(
@@ -504,7 +532,7 @@ final class WorkflowPointerMoveGuardTest extends TestCase
             $guard->onBeforePointerMove($event);
             $this->fail('Expected TransitionDeniedException');
         } catch (TransitionDeniedException $e) {
-            $this->assertSame(TransitionDeniedException::REASON_ILLEGAL_EDGE, $e->reason);
+            $this->assertSame(TransitionDeniedException::REASON_PERMISSION, $e->reason);
         }
     }
 

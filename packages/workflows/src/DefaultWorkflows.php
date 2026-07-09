@@ -74,6 +74,21 @@ final class DefaultWorkflows
                 'to' => 'draft',
                 'permission' => 'use editorial transition restore',
             ],
+            // CW-v1 WP-2 task 2.6 re-review (#1920): without this edge,
+            // archived content is a dead end — 'restore' produces a forward
+            // draft (the pointer stays on the archived revision), and that
+            // draft's eventual publish is an archived -> published pointer
+            // move the strict guard rule denies with no edge to satisfy it.
+            // Mirrors Drupal editorial's "Restore" (archived_published)
+            // edge, shipped alongside "Restore to draft" (archived_draft).
+            // The existing 'restore' transition is deliberately NOT renamed
+            // (its machine name and permission string are already live).
+            'restore_to_published' => [
+                'label' => 'Restore',
+                'from' => ['archived'],
+                'to' => 'published',
+                'permission' => 'use editorial transition restore_to_published',
+            ],
         ],
     ];
 }
