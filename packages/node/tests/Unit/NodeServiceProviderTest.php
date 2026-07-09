@@ -59,6 +59,22 @@ final class NodeServiceProviderTest extends TestCase
 
         $this->assertArrayHasKey('created', $fields);
         $this->assertArrayHasKey('changed', $fields);
+
+        $this->assertArrayHasKey('workflow_state', $fields);
+        $this->assertSame('string', $fields['workflow_state']['type']);
+    }
+
+    #[Test]
+    public function node_entity_type_is_revisionable_with_revision_id_key(): void
+    {
+        $provider = new NodeServiceProvider();
+        $provider->register();
+
+        $nodeEntityType = $provider->getEntityTypes()[0];
+
+        $this->assertTrue($nodeEntityType->isRevisionable());
+        $this->assertTrue($nodeEntityType->getRevisionDefault());
+        $this->assertSame('revision_id', $nodeEntityType->getKeys()['revision']);
     }
 
     #[Test]

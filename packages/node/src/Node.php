@@ -11,6 +11,7 @@ use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\Hydration\HydratableFromStorageInterface;
 use Waaseyaa\Entity\Hydration\HydrationContext;
+use Waaseyaa\Field\FieldStorage;
 
 /**
  * Represents a piece of content (a node).
@@ -27,7 +28,7 @@ use Waaseyaa\Entity\Hydration\HydrationContext;
  * own listings. They are intentional surface, not dead code (audit D-39).
  */
 #[ContentEntityType(id: 'node', label: 'Content', description: 'Published content items')]
-#[ContentEntityKeys(id: 'nid', uuid: 'uuid', label: 'title', bundle: 'type')]
+#[ContentEntityKeys(id: 'nid', uuid: 'uuid', label: 'title', bundle: 'type', revision: 'revision_id')]
 final class Node extends ContentEntityBase implements HydratableFromStorageInterface
 {
     /**
@@ -55,6 +56,18 @@ final class Node extends ContentEntityBase implements HydratableFromStorageInter
 
     #[Field(type: 'boolean', label: 'Sticky at top of lists', description: 'Whether the content is sticky at the top of lists.', default: 0, settings: ['weight' => 12])]
     public bool $sticky = false;
+
+    /**
+     * The current editorial workflow state (workflow-bound bundles only, CW-v1).
+     *
+     * Stored in the `_data` blob (not a dedicated column): each revision row
+     * already carries its own `_data` snapshot, so this already persists
+     * correctly per-revision today via the generic property bag — declaring
+     * it here only makes it visible to SchemaPresenter / JSON:API discovery,
+     * it does not change how it is stored (docs/specs/content-workflow.md).
+     */
+    #[Field(type: 'string', label: 'Workflow state', description: 'The current editorial workflow state of this node (workflow-bound bundles only).', stored: FieldStorage::Data, settings: ['weight' => 13])]
+    public ?string $workflow_state = null;
 
     #[Field(type: 'entity_reference', label: 'Author', description: 'The user who authored this content.', settings: ['weight' => 20, 'target_entity_type_id' => 'user'])]
     public ?int $uid = null;

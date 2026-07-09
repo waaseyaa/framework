@@ -15,6 +15,8 @@ final class NodeServiceProvider extends ServiceProvider
             Node::class,
             group: 'content',
             bundleEntityType: 'node_type',
+            revisionable: true,
+            revisionDefault: true,
         ));
 
         // node_type is a configuration entity (ConfigEntityBase) and has no
