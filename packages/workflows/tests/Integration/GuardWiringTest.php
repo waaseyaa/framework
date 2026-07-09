@@ -175,9 +175,13 @@ final class GuardWiringTest extends TestCase
     /**
      * WP-2 task 2.5: a real kernel-dispatched `setCurrentRevision()` moving
      * across an edge the bound workflow does not define ('published' ->
-     * 'draft' has no direct transition in the default editorial workflow)
+     * 'review' has no direct transition in the default editorial workflow)
      * must be denied by the SAME wired guard, proving the pointer-move bypass
      * is actually closed end to end — not merely in a guard-only unit test.
+     * (Task 2.6 note: this scenario originally reverted published -> 'draft',
+     * which became a LEGAL edge when the shipped editorial workflow gained
+     * 'revise' — the illegal target is now 'review', whose only incoming
+     * edge is 'submit_for_review' from 'draft'.)
      */
     #[Test]
     public function a_real_kernel_dispatched_revert_pointer_move_fires_the_pointer_guard_and_denies_an_illegal_edge(): void
@@ -191,24 +195,31 @@ final class GuardWiringTest extends TestCase
             ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
         );
         $repository->save($entity);
-        $draftRevisionId = (int) $entity->get('revision_id');
 
+        // Walk the entity draft -> review -> published, one new revision per
+        // hop (all legal edges; null account context checks edge-legality
+        // only), so a 'review'-stamped revision exists distinct from the
+        // 'published' revision that becomes current.
         $draft = $repository->find((string) $entity->id());
         $this->assertNotNull($draft);
-        // Force a new revision (see the sibling publish test above) so the
-        // original 'draft' revision (id $draftRevisionId) still exists,
-        // distinct from the new 'published' revision that becomes current.
         $draft->setNewRevision(true);
-        $draft->set('workflow_state', 'published');
+        $draft->set('workflow_state', 'review');
         $repository->save($draft);
+        $reviewRevisionId = (int) $draft->get('revision_id');
+
+        $review = $repository->find((string) $entity->id());
+        $this->assertNotNull($review);
+        $review->setNewRevision(true);
+        $review->set('workflow_state', 'published');
+        $repository->save($review);
 
         $thrown = null;
         try {
             // Reverting the current pointer from 'published' back to the
-            // earlier 'draft' revision has no edge in the editorial workflow
-            // (only 'reject': review -> draft, and 'restore': archived ->
-            // draft exist) — must be denied before any write.
-            $repository->setCurrentRevision((string) $entity->id(), $draftRevisionId);
+            // earlier 'review' revision has no edge in the editorial
+            // workflow ('review' is only reachable via 'submit_for_review'
+            // from 'draft') — must be denied before any write.
+            $repository->setCurrentRevision((string) $entity->id(), $reviewRevisionId);
         } catch (TransitionDeniedException $e) {
             $thrown = $e;
         }

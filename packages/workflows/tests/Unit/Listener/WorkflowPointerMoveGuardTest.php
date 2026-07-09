@@ -353,8 +353,39 @@ final class WorkflowPointerMoveGuardTest extends TestCase
     }
 
     #[Test]
-    public function no_implied_state_change_is_a_no_op_even_without_permission(): void
+    public function same_state_pointer_move_with_a_null_account_context_is_allowed(): void
     {
+        // Same-state move (draft -> draft): the workflow state does not
+        // change — only which revision serves. No edge required; with no
+        // acting account context there is no permission to prove either.
+        $entityTypeManager = $this->entityTypeManager($this->editorialWorkflow(), [10 => 'draft']);
+        $guard = new WorkflowPointerMoveGuard(
+            $this->bindings($this->editorialWorkflow(), $entityTypeManager),
+            $entityTypeManager,
+            null,
+        );
+        $event = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: 'fixture',
+            entityId: '1',
+            operation: 'revert',
+            fromRevisionId: 10,
+            toRevisionId: 20,
+            actorUid: null,
+            revisionValues: ['type' => 'article', 'workflow_state' => 'draft'],
+        );
+
+        $guard->onBeforePointerMove($event);
+        $this->addToAssertionCount(1);
+    }
+
+    #[Test]
+    public function same_state_pointer_move_without_any_transition_into_state_permission_is_denied(): void
+    {
+        // CW-v1 WP-2 task 2.6 fix (#1920): a same-state pointer move is
+        // state-legal without an edge, but with an acting account it still
+        // requires the permission of AT LEAST ONE transition targeting that
+        // state (any-of). The only transition into 'draft' here is
+        // 'restore'; the account holds nothing.
         $guard = $this->guard($this->editorialWorkflow(), [10 => 'draft'], $this->account([]));
         $event = new BeforeRevisionPointerMoveEvent(
             entityTypeId: 'fixture',
@@ -366,26 +397,24 @@ final class WorkflowPointerMoveGuardTest extends TestCase
             revisionValues: ['type' => 'article', 'workflow_state' => 'draft'],
         );
 
-        $guard->onBeforePointerMove($event);
-        $this->addToAssertionCount(1);
+        try {
+            $guard->onBeforePointerMove($event);
+            $this->fail('Expected TransitionDeniedException');
+        } catch (TransitionDeniedException $e) {
+            $this->assertSame(TransitionDeniedException::REASON_PERMISSION, $e->reason);
+        }
     }
 
     #[Test]
-    public function publish_promoting_an_archived_pointer_is_allowed_via_reconciliation(): void
+    public function same_state_promotion_is_allowed_with_a_transition_into_state_permission(): void
     {
-        // CW-v1 WP-2 task 2.6 (#1920) reconciliation: a forward draft born
-        // from archived content (restore: archived->draft, then
-        // submit_for_review/publish — none of which move the pointer until
-        // this final publish) leaves the published pointer sitting on
-        // 'archived' when the publish fires. There is no direct
-        // 'archived' -> 'published' edge in the workflow (only
-        // 'restore': archived->draft) — the OLD basis (currentState ->
-        // newState edge lookup) would wrongly deny this fully
-        // TransitionService-sanctioned promotion. The target state
-        // ('published') is itself `default_revision: true`, so the guard
-        // validates against ANY transition reaching it instead.
+        // The sanctioned forward-draft two-step's guard-visible shape:
+        // pointer sits on a 'published' revision, target revision is also
+        // 'published' (TransitionService just saved it). Same-state — no
+        // edge required; account holds the permission of a transition into
+        // 'published' ('publish') — allowed.
         $account = $this->account(['use editorial transition publish']);
-        $guard = $this->guard($this->editorialWorkflow(), [10 => 'archived'], $account);
+        $guard = $this->guard($this->editorialWorkflow(), [10 => 'published'], $account);
         $event = new BeforeRevisionPointerMoveEvent(
             entityTypeId: 'fixture',
             entityId: '1',
@@ -401,12 +430,9 @@ final class WorkflowPointerMoveGuardTest extends TestCase
     }
 
     #[Test]
-    public function publish_promoting_an_archived_pointer_without_permission_is_still_denied(): void
+    public function same_state_promotion_without_the_permission_is_denied(): void
     {
-        // The reconciliation relaxes the EDGE basis, not the permission
-        // check: promoting into a default-revision state still requires
-        // whatever permission the workflow declares for reaching it.
-        $guard = $this->guard($this->editorialWorkflow(), [10 => 'archived'], $this->account([]));
+        $guard = $this->guard($this->editorialWorkflow(), [10 => 'published'], $this->account([]));
         $event = new BeforeRevisionPointerMoveEvent(
             entityTypeId: 'fixture',
             entityId: '1',
@@ -426,14 +452,93 @@ final class WorkflowPointerMoveGuardTest extends TestCase
     }
 
     #[Test]
-    public function publish_op_targeting_a_non_default_revision_state_still_uses_the_strict_edge_check(): void
+    public function rollback_to_a_published_revision_is_allowed_with_the_publish_permission(): void
     {
-        // The reconciliation only applies when the TARGET state is itself
-        // `default_revision: true`. A 'publish'-operation pointer move
-        // whose target is NOT (e.g. a direct, bypass-style
-        // setPublishedRevision() call pointed at a 'draft' revision) must
-        // still go through the original, stricter currentState -> newState
-        // edge check — 'review' -> 'draft' has no edge in this fixture.
+        // The same-state allowance applies uniformly to all pointer
+        // operations, not just 'publish': rolling the current pointer back
+        // to an earlier 'published'-stamped revision while the current
+        // revision is also 'published' is a same-state move (Task 2.8's
+        // spine relies on this — 'published' -> 'published' has no edge, so
+        // strict-only would always deny it).
+        $account = $this->account(['use editorial transition publish']);
+        $guard = $this->guard($this->editorialWorkflow(), [10 => 'published'], $account);
+        $event = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: 'fixture',
+            entityId: '1',
+            operation: 'rollback',
+            fromRevisionId: 10,
+            toRevisionId: null,
+            actorUid: 7,
+            revisionValues: ['type' => 'article', 'workflow_state' => 'published'],
+        );
+
+        $guard->onBeforePointerMove($event);
+        $this->addToAssertionCount(1);
+    }
+
+    #[Test]
+    public function publish_promoting_an_archived_pointer_to_published_is_denied_without_an_edge(): void
+    {
+        // CW-v1 WP-2 task 2.6 fix (#1920): a DIFFERENT-state pointer move
+        // gets the strict rule, no exceptions — the currentState ->
+        // newState edge must exist. Pointer sits on 'archived'; promoting a
+        // 'published'-stamped revision implies archived -> published, which
+        // has no edge here (only 'restore': archived -> draft). Holding the
+        // 'publish' permission does not help: an earlier revision of this
+        // task allowed exactly this via an any-transition-into-state
+        // fallback, which reopened the bypass (resurrecting old published
+        // content out of 'archived' with only the publish permission).
+        $account = $this->account(['use editorial transition publish']);
+        $guard = $this->guard($this->editorialWorkflow(), [10 => 'archived'], $account);
+        $event = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: 'fixture',
+            entityId: '1',
+            operation: 'publish',
+            fromRevisionId: 10,
+            toRevisionId: 20,
+            actorUid: 7,
+            revisionValues: ['type' => 'article', 'workflow_state' => 'published'],
+        );
+
+        try {
+            $guard->onBeforePointerMove($event);
+            $this->fail('Expected TransitionDeniedException');
+        } catch (TransitionDeniedException $e) {
+            $this->assertSame(TransitionDeniedException::REASON_ILLEGAL_EDGE, $e->reason);
+        }
+    }
+
+    #[Test]
+    public function different_state_move_with_a_real_edge_still_enforces_that_edges_permission(): void
+    {
+        // archived -> draft has a real edge ('restore'); the account holds
+        // only 'publish'. The strict rule enforces THE EDGE'S permission on
+        // the different-state path — no any-of fallback applies there.
+        $guard = $this->guard($this->editorialWorkflow(), [10 => 'archived'], $this->account(['use editorial transition publish']));
+        $event = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: 'fixture',
+            entityId: '1',
+            operation: 'revert',
+            fromRevisionId: 10,
+            toRevisionId: 20,
+            actorUid: 7,
+            revisionValues: ['type' => 'article', 'workflow_state' => 'draft'],
+        );
+
+        try {
+            $guard->onBeforePointerMove($event);
+            $this->fail('Expected TransitionDeniedException');
+        } catch (TransitionDeniedException $e) {
+            $this->assertSame(TransitionDeniedException::REASON_PERMISSION, $e->reason);
+        }
+    }
+
+    #[Test]
+    public function publish_op_targeting_a_non_default_revision_state_uses_the_strict_edge_check(): void
+    {
+        // A 'publish'-operation pointer move pointed at a 'draft' revision
+        // (a bypass-style setPublishedRevision() call) is a different-state
+        // move (review -> draft) with no edge in this fixture — denied.
         $guard = $this->guard($this->editorialWorkflow(), [10 => 'review'], $this->account(['use editorial transition publish']));
         $event = new BeforeRevisionPointerMoveEvent(
             entityTypeId: 'fixture',

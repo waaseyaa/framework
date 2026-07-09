@@ -41,10 +41,10 @@ final class WorkflowStateGuardTest extends TestCase
             'transitions' => [
                 'submit_for_review' => ['label' => 'Submit', 'from' => ['draft'], 'to' => 'review'],
                 'publish' => ['label' => 'Publish', 'from' => ['draft', 'review'], 'to' => 'published'],
-                // Test-only edge (not in the production DefaultWorkflows
-                // seed): lets forward-draft tests exercise "raw-save an
+                // Mirrors the production DefaultWorkflows 'revise' edge
+                // (task 2.6): lets forward-draft tests exercise "raw-save an
                 // already-published entity back into a non-default-revision
-                // state" without touching production config.
+                // state".
                 'revise' => ['label' => 'Revise', 'from' => ['published'], 'to' => 'draft'],
             ],
         ]);

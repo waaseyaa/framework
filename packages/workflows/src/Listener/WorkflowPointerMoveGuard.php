@@ -78,82 +78,82 @@ final class WorkflowPointerMoveGuard
         $newState = $this->explicitState($event->revisionValues) ?? $workflow->getInitialState();
         $currentState = $this->currentlyEffectiveState($event, $workflow);
 
+        // CW-v1 WP-2 task 2.6 (#1920), two-branch rule — the reconciliation
+        // between TransitionService's from-state basis (the tip's real
+        // predecessor state) and this guard's basis (the prior pointer's
+        // state, which the sanctioned two-step legitimately leaves equal to
+        // the target state: TransitionService saves the 'published' tip
+        // first, THEN moves the pointer, so the guard sees published ->
+        // published).
+        //
+        // 1. SAME-state move ($newState === $currentState): the workflow
+        //    state does not change — only which revision serves. State-legal
+        //    without an edge (workflows declare edges between DIFFERENT
+        //    states; a self-loop is not a state change). Permission, when an
+        //    acting account context exists: the account must hold the
+        //    permission of AT LEAST ONE transition targeting $newState —
+        //    checked over ALL transitions into the state (any-of, not
+        //    first-declared), because holding any legal way INTO the state
+        //    is what authorizes controlling which of its revisions serves.
+        //    A null account context is allowed outright (edge-legality
+        //    only, and there is no state change to check).
+        //    This branch applies uniformly to publish/rollback/revert:
+        //    e.g. rolling back to an earlier 'published'-stamped revision
+        //    while current is also 'published' must succeed with the
+        //    publish permission ('published' -> 'published' has no edge, so
+        //    a strict-only rule would always deny it).
+        //
+        // 2. DIFFERENT-state move: strict rule, no exceptions — the
+        //    $currentState -> $newState edge must exist in the workflow,
+        //    and its own permission is required when an account context
+        //    exists. No any-transition-into-state fallback: an earlier
+        //    revision of this task relaxed the edge check for 'publish'
+        //    into default-revision states, which reopened the bypass on the
+        //    shipped editorial workflow (an account holding only 'publish'
+        //    could resurrect an old 'published'-stamped revision while the
+        //    pointer sat on 'archived', despite no archived -> published
+        //    edge existing). Denying that here is correct: crossing states
+        //    via a pointer move must be exactly as hard as crossing them
+        //    via a transition.
         if ($newState === $currentState) {
-            return;
+            $account = $this->accountContext?->current();
+            if ($account === null) {
+                return;
+            }
+
+            foreach ($workflow->getTransitions() as $transition) {
+                if ($transition->to === $newState && $account->hasPermission($workflow->permissionFor($transition))) {
+                    return;
+                }
+            }
+
+            throw new TransitionDeniedException(
+                TransitionDeniedException::REASON_PERMISSION,
+                \sprintf(
+                    "Pointer-move operation '%s' denied: moving which '%s' revision of entity '%s:%s' serves requires the permission of at least one transition into state '%s' in workflow '%s'.",
+                    $event->operation,
+                    $newState,
+                    $event->entityTypeId,
+                    $event->entityId,
+                    $newState,
+                    (string) $workflow->id(),
+                ),
+            );
         }
 
-        // CW-v1 WP-2 task 2.6 (#1920) reconciliation, carried from task
-        // 2.5's review: `TransitionService::transition()` validates a
-        // forward draft's PUBLISH against the tip revision's OWN, real
-        // predecessor state (e.g. review -> published, or draft ->
-        // published after a `restore`) — the correct basis, because that
-        // is the actual edge the acting account requested and was granted
-        // permission for. This guard, by contrast, only ever sees a
-        // before/after snapshot of the *published pointer* itself
-        // ($currentState above), which can legitimately be several
-        // transitions stale by the time a forward draft catches up and
-        // gets published: archived -> [restore, no pointer move] -> draft
-        // -> [submit_for_review, no pointer move] -> review ->
-        // [publish, pointer moves NOW] -> published. None of the
-        // intermediate hops touch the pointer, so $currentState is still
-        // 'archived' when this final publish fires. Re-deriving a literal
-        // $currentState -> $newState edge in that case looks for
-        // 'archived' -> 'published', which was never meant to exist as a
-        // direct edge — a false positive that would wrongly deny an
-        // already-permission-checked, fully sanctioned publish.
-        //
-        // Fix, scoped narrowly: for the 'publish' operation, when the
-        // TARGET state is itself flagged `defaultRevision: true` (the
-        // workflow declares it a promotable/"live-tier" destination),
-        // validate against ANY transition that legally reaches that state
-        // — regardless of its declared `from` — instead of specifically
-        // from the stale pointer state. This does not reopen the pointer-
-        // move bypass task 2.4/2.5 closed: a revision can only carry a
-        // `workflow_state` of 'published'/'archived' in the first place
-        // because some earlier save legitimately reached it — either via
-        // `TransitionService::transition()` (this same call, moments
-        // earlier) or a raw save validated by `WorkflowStateGuard` (which
-        // requires an edge + permission just the same). This guard's job is
-        // to stop a *bypass* caller from promoting a revision that was
-        // never legitimately reached at all (e.g. a hand-rolled
-        // `setPublishedRevision()` call pointed at a 'draft' revision) —
-        // not to re-litigate a promotion whose destination is structurally
-        // a valid publish target. A target that is NOT `defaultRevision:
-        // true` (or any non-'publish' operation: rollback/revert) still
-        // goes through the original, stricter $currentState -> $newState
-        // edge check below — exactly the scenario this guard exists to
-        // catch. Permission is still enforced, just resolved from whichever
-        // transition targets $newState (in the reference `editorial`
-        // workflow, exactly one transition ever targets a given
-        // default-revision state, so this is unambiguous).
-        $targetStateDefinition = $workflow->getState($newState);
-        $isPointerPromotion = $event->operation === 'publish' && $targetStateDefinition?->defaultRevision === true;
-
-        $transition = $isPointerPromotion
-            ? $this->findTransitionTo($workflow, $newState)
-            : $this->findTransition($workflow, $currentState, $newState);
-
+        $transition = $this->findTransition($workflow, $currentState, $newState);
         if ($transition === null) {
             throw new TransitionDeniedException(
                 TransitionDeniedException::REASON_ILLEGAL_EDGE,
-                $isPointerPromotion
-                    ? \sprintf(
-                        "Pointer-move operation '%s' cannot promote entity '%s:%s' to state '%s': no transition in workflow '%s' reaches it.",
-                        $event->operation,
-                        $event->entityTypeId,
-                        $event->entityId,
-                        $newState,
-                        (string) $workflow->id(),
-                    )
-                    : \sprintf(
-                        "Pointer-move operation '%s' cannot move entity '%s:%s' from state '%s' to '%s': no transition in workflow '%s'.",
-                        $event->operation,
-                        $event->entityTypeId,
-                        $event->entityId,
-                        $currentState,
-                        $newState,
-                        (string) $workflow->id(),
-                    ),
+                \sprintf(
+                    "Pointer-move operation '%s' cannot move entity '%s:%s' from state '%s' to '%s': no transition in workflow '%s'.",
+                    $event->operation,
+                    $event->entityTypeId,
+                    $event->entityId,
+                    $currentState,
+                    $newState,
+                    (string) $workflow->id(),
+                ),
             );
         }
 
@@ -219,26 +219,6 @@ final class WorkflowPointerMoveGuard
     private function findTransition(Workflow $workflow, string $from, string $to): ?WorkflowTransition
     {
         foreach ($workflow->getValidTransitions($from) as $transition) {
-            if ($transition->to === $to) {
-                return $transition;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Used only for the reconciled 'publish'-into-a-`defaultRevision: true`-
-     * state basis (see `onBeforePointerMove()` docblock) — deliberately NOT
-     * filtered by `from`, unlike {@see findTransition()}. If a custom
-     * workflow declared multiple transitions targeting the same
-     * default-revision state with different permissions, this returns
-     * whichever is declared first; the reference `editorial` workflow never
-     * has more than one.
-     */
-    private function findTransitionTo(Workflow $workflow, string $to): ?WorkflowTransition
-    {
-        foreach ($workflow->getTransitions() as $transition) {
             if ($transition->to === $to) {
                 return $transition;
             }

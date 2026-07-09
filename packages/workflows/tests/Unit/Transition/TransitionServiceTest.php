@@ -43,8 +43,8 @@ final class TransitionServiceTest extends TestCase
             'transitions' => [
                 'submit_for_review' => ['label' => 'Submit', 'from' => ['draft'], 'to' => 'review'],
                 'publish' => ['label' => 'Publish', 'from' => ['draft', 'review'], 'to' => 'published'],
-                // Test-only edge (not in the production DefaultWorkflows
-                // seed): exercises a forward-draft transition away from a
+                // Mirrors the production DefaultWorkflows 'reject' edge:
+                // exercises a forward-draft transition away from a
                 // defaultRevision:false state on already-published content.
                 'reject' => ['label' => 'Reject', 'from' => ['review'], 'to' => 'draft'],
             ],
@@ -254,7 +254,7 @@ final class TransitionServiceTest extends TestCase
      * {@see SpyEntityRepository} used by `service()` doesn't simulate any of
      * that.
      */
-    private function serviceWithRepository(Workflow $workflow, EntityRepositoryInterface $repository): TransitionService
+    private function serviceWithRepository(Workflow $workflow, EntityRepositoryInterface $repository, ?\Waaseyaa\Foundation\Log\LoggerInterface $logger = null): TransitionService
     {
         $workflowRepository = new WorkflowLookupRepository($workflow);
         $entityTypeManager = new class ($workflowRepository, $repository) implements EntityTypeManagerInterface {
@@ -291,6 +291,7 @@ final class TransitionServiceTest extends TestCase
         return new TransitionService(
             bindings: $this->bindings($workflow, $entityTypeManager),
             entityTypeManager: $entityTypeManager,
+            logger: $logger,
         );
     }
 
@@ -519,6 +520,29 @@ final class TransitionServiceTest extends TestCase
         $this->assertCount(1, $repository->saveCalls);
         $this->assertSame([['1', 10]], $repository->publishedCalls);
     }
+
+    #[Test]
+    public function a_revisionable_entity_with_no_revision_id_after_save_logs_a_warning_and_keeps_wp1_behavior(): void
+    {
+        // MINOR-4 fix (task 2.6 review): a revisionable entity whose save
+        // did not hand a revision id back is a storage/hydration defect,
+        // not the benign non-revisionable case — the pointer cannot be
+        // moved, WP-1 behavior (direct status flip) applies, and a warning
+        // must say so instead of masking the missed promotion.
+        $repository = new NoRevisionIdSpyRepository();
+        $logger = new SpyWorkflowLogger();
+        $service = $this->serviceWithRepository($this->editorialWorkflow(), $repository, $logger);
+        $account = $this->account(7, ['use editorial transition publish']);
+        $entity = $this->revisionableEntity('draft', status: 0);
+
+        $service->transition($entity, 'publish', $account);
+
+        $this->assertSame('published', $entity->get('workflow_state'));
+        $this->assertSame(1, $entity->get('status'));
+        $this->assertSame([], $repository->publishedCalls);
+        $this->assertCount(1, $logger->warnings);
+        $this->assertSame('workflows.transition_missing_revision_id', $logger->warnings[0]['message']);
+    }
 }
 
 /**
@@ -661,6 +685,80 @@ final class RevisionAwareSpyRepository implements EntityRepositoryInterface
     public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int { return 0; }
     public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
     public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
+}
+
+/**
+ * Simulates the MINOR-4 defect seam: a revisionable entity type whose
+ * `save()` never hands the new revision id back to the entity, so
+ * `TransitionService` cannot move the published pointer and must log a
+ * warning instead of silently skipping the promotion.
+ */
+final class NoRevisionIdSpyRepository implements EntityRepositoryInterface
+{
+    /** @var list<array{0: string, 1: int}> */
+    public array $publishedCalls = [];
+
+    public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
+    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { throw new \LogicException('not needed'); }
+    public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
+    public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
+    public function getQuery(): \Waaseyaa\Entity\Storage\EntityQueryInterface { throw new \LogicException('not needed'); }
+
+    public function save(EntityInterface $entity, bool $validate = true): int
+    {
+        // Deliberately does NOT set revision_id on the entity.
+        return 1;
+    }
+
+    public function delete(EntityInterface $entity): void {}
+    public function exists(string $id): bool { return true; }
+    public function count(array $criteria = []): int { return 0; }
+    public function loadRevision(string $entityId, int $revisionId): ?EntityInterface { return null; }
+    public function rollback(string $entityId, int $targetRevisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function listRevisions(string $entityId): array { return []; }
+    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function loadPublishedRevision(string $entityId): ?EntityInterface { return null; }
+
+    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface
+    {
+        $this->publishedCalls[] = [$entityId, $revisionId];
+
+        throw new \LogicException('must not be reached: no revision id was available');
+    }
+
+    public function saveMany(array $entities, bool $validate = true): array { return []; }
+    public function deleteMany(array $entities): int { return 0; }
+    public function findTranslations(EntityInterface $entity): array { return []; }
+    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int { return 0; }
+    public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
+    public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
+}
+
+final class SpyWorkflowLogger implements \Waaseyaa\Foundation\Log\LoggerInterface
+{
+    /** @var list<array{message: string, context: array<string, mixed>}> */
+    public array $warnings = [];
+
+    public function emergency(string|\Stringable $message, array $context = []): void {}
+
+    public function alert(string|\Stringable $message, array $context = []): void {}
+
+    public function critical(string|\Stringable $message, array $context = []): void {}
+
+    public function error(string|\Stringable $message, array $context = []): void {}
+
+    public function warning(string|\Stringable $message, array $context = []): void
+    {
+        $this->warnings[] = ['message' => (string) $message, 'context' => $context];
+    }
+
+    public function notice(string|\Stringable $message, array $context = []): void {}
+
+    public function info(string|\Stringable $message, array $context = []): void {}
+
+    public function debug(string|\Stringable $message, array $context = []): void {}
+
+    public function log(\Waaseyaa\Foundation\Log\LogLevel $level, string|\Stringable $message, array $context = []): void {}
 }
 
 final class SpyEntityRepository implements EntityRepositoryInterface

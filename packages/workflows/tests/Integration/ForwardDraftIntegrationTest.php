@@ -8,6 +8,8 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Config\ConfigFactory;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\Storage\MemoryStorage;
@@ -28,7 +30,7 @@ use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
-use Waaseyaa\Workflows\DefaultWorkflows;
+use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 use Waaseyaa\Workflows\Transition\TransitionService;
 use Waaseyaa\Workflows\Workflow;
 use Waaseyaa\Workflows\WorkflowServiceProvider;
@@ -40,27 +42,29 @@ use Waaseyaa\Workflows\WorkflowServiceProvider;
  * wiring — real dispatcher, real SQLite-backed `EntityRepository`, a REAL
  * `WorkflowServiceProvider::boot()` (proving `WorkflowStateGuard` AND
  * `WorkflowPointerMoveGuard` are both live on the same dispatcher the
- * repository saves through) — mirroring {@see GuardWiringTest}'s wiring
- * style.
+ * repository saves through, and that the SHIPPED `editorial` workflow —
+ * seeded by boot() itself from `DefaultWorkflows::EDITORIAL`, including the
+ * `revise` published -> draft forward-draft entry edge — carries the whole
+ * story with no synthetic edges), mirroring {@see GuardWiringTest}'s wiring
+ * style. An ambient account context ({@see RequestAccountContext}) is served
+ * through the kernel-services bus so both guards run their permission checks
+ * for real.
  *
  * Scenario (task 2.6 brief, verbatim): publish a node -> edit via raw save
  * into 'draft' (forward draft) -> assert the public read path (published
  * pointer + status) still serves the OLD content and status=1 -> transition
  * the draft revision to 'published' -> assert the pointer moved and the new
- * content is live.
+ * content is live. Plus the denial leg: an account holding no
+ * transition-into-'published' permission attempting a direct pointer
+ * promotion is denied by the wired pointer guard, leaving BOTH the persisted
+ * `status` and `published_revision_id` unchanged.
  *
- * Workflow fixture note: the production `editorial` workflow
- * ({@see DefaultWorkflows::EDITORIAL}) has no direct `published -> draft`
- * edge (forward drafts normally originate via create/`submit_for_review`
- * BEFORE first publish; the brief's scenario needs a raw save to move
- * ALREADY-published content back to 'draft' in one hop, which is a
- * distinct, additional editorial capability). This test pre-seeds the
- * `editorial` workflow with DefaultWorkflows::EDITORIAL's states/transitions
- * PLUS one test-only 'revise' edge (published -> draft) BEFORE calling
- * `WorkflowServiceProvider::boot()` — the provider's own seed step is
- * log-and-skip-if-'editorial'-already-exists, so it leaves this definition
- * in place rather than overwriting it. `packages/workflows/src/
- * DefaultWorkflows.php` itself is NOT modified.
+ * Uses a synthetic revisionable entity type rather than real `Node`
+ * deliberately: the flow under test is engine mechanics (workflows L3 +
+ * entity-storage L1); pulling in `node` would add its bundle/NodeType
+ * listener surface without exercising any additional task-2.6 code path
+ * (Node's revision wiring is Tasks 2.1–2.3's coverage, and the full-stack
+ * node spine is Task 2.8's).
  */
 #[CoversNothing]
 final class ForwardDraftIntegrationTest extends TestCase
@@ -70,12 +74,14 @@ final class ForwardDraftIntegrationTest extends TestCase
     #[Test]
     public function forward_draft_on_published_content_leaves_the_live_version_serving_until_republished(): void
     {
-        [$entityTypeManager, $provider] = $this->bootWiredProvider();
+        [$entityTypeManager, $provider, $accountContext] = $this->bootWiredProvider();
         $repository = $entityTypeManager->getRepository(self::ENTITY_TYPE_ID);
         $transitionService = $provider->resolve(TransitionService::class);
-        $account = $this->account(['use editorial transition publish', 'use editorial transition revise']);
 
-        // --- 1. Create + publish. ---
+        $editor = $this->account(7, ['use editorial transition publish', 'use editorial transition revise']);
+        $accountContext->set($editor);
+
+        // --- 1. Create + publish (on the SEEDED editorial workflow). ---
         $entity = new ForwardDraftSubject(
             ['bundle' => self::ENTITY_TYPE_ID, 'workflow_state' => 'draft', 'title' => 'Original title'],
             self::ENTITY_TYPE_ID,
@@ -84,7 +90,7 @@ final class ForwardDraftIntegrationTest extends TestCase
         $repository->save($entity);
         $entityId = (string) $entity->id();
 
-        $transitionService->transition($entity, 'publish', $account);
+        $transitionService->transition($entity, 'publish', $editor);
 
         $publishedRevisionId = (int) $entity->get('revision_id');
         $publishedPointer = $repository->loadPublishedRevision($entityId);
@@ -94,11 +100,12 @@ final class ForwardDraftIntegrationTest extends TestCase
         $this->assertSame(1, $publishedPointer->get('status'));
 
         // --- 2. Raw-save forward draft (NOT through TransitionService): ---
-        // edit the current tip (== the published revision — nothing has
-        // diverged yet) with new content, moving ITS OWN workflow_state to
-        // 'draft' via the test-only 'revise' edge. WorkflowStateGuard fires
-        // on this save (task 2.6): it must NOT flip status to 'draft'.published
-        // (false => 0) since a published pointer already exists.
+        // edit the current tip with new content, moving ITS OWN
+        // workflow_state to 'draft' via the shipped 'revise' edge
+        // (published -> draft; the acting account holds its permission).
+        // WorkflowStateGuard fires on this save (task 2.6): it must NOT
+        // flip status to 'draft'.published (false => 0) since a published
+        // pointer already exists.
         $tip = $repository->find($entityId);
         $this->assertNotNull($tip);
         $tip->setNewRevision(true);
@@ -126,14 +133,44 @@ final class ForwardDraftIntegrationTest extends TestCase
         $this->assertSame(1, $currentTip->get('status'));
 
         // --- 4. Publish the draft revision through TransitionService: ---
-        // the pointer must move and the new content becomes live.
-        $transitionService->transition($currentTip, 'publish', $account);
+        // the pointer must move and the new content becomes live. The wired
+        // pointer guard sees a SAME-state move (published -> published: the
+        // service saves the 'published' tip first, then moves the pointer)
+        // and allows it because the acting account holds 'publish' — a
+        // transition into 'published'.
+        $transitionService->transition($currentTip, 'publish', $editor);
 
         $newlyLive = $repository->loadPublishedRevision($entityId);
         $this->assertNotNull($newlyLive);
         $this->assertSame('Forward draft title', $newlyLive->get('title'));
         $this->assertSame(1, $newlyLive->get('status'));
-        $this->assertNotSame($publishedRevisionId, (int) $newlyLive->get('revision_id'));
+        $newLiveRevisionId = (int) $newlyLive->get('revision_id');
+        $this->assertNotSame($publishedRevisionId, $newLiveRevisionId);
+
+        // --- 5. Denial leg (real guard, real DB): an account holding NO ---
+        // transition-into-'published' permission attempts a direct pointer
+        // promotion (resurrecting the OLD published revision — a same-state
+        // published -> published move). The wired WorkflowPointerMoveGuard
+        // must deny it BEFORE any write: both the persisted published
+        // pointer AND the base row's status must be unchanged afterward.
+        $accountContext->set($this->account(8, []));
+
+        $denied = null;
+        try {
+            $repository->setPublishedRevision($entityId, $publishedRevisionId);
+        } catch (TransitionDeniedException $e) {
+            $denied = $e;
+        }
+        $this->assertInstanceOf(TransitionDeniedException::class, $denied);
+        $this->assertSame(TransitionDeniedException::REASON_PERMISSION, $denied->reason);
+
+        $afterDenial = $repository->loadPublishedRevision($entityId);
+        $this->assertNotNull($afterDenial);
+        $this->assertSame($newLiveRevisionId, (int) $afterDenial->get('revision_id'), 'Denied pointer move must leave published_revision_id unchanged.');
+        $this->assertSame('Forward draft title', $afterDenial->get('title'));
+        $baseRow = $repository->find($entityId);
+        $this->assertNotNull($baseRow);
+        $this->assertSame(1, $baseRow->get('status'), 'Denied pointer move must leave the persisted status unchanged.');
     }
 
     /**
@@ -144,11 +181,11 @@ final class ForwardDraftIntegrationTest extends TestCase
         return ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'];
     }
 
-    private function account(array $permissions): AccountInterface
+    private function account(int $id, array $permissions): AccountInterface
     {
-        return new class ($permissions) implements AccountInterface {
-            public function __construct(private readonly array $permissions) {}
-            public function id(): int|string { return 7; }
+        return new class ($id, $permissions) implements AccountInterface {
+            public function __construct(private readonly int $accountId, private readonly array $permissions) {}
+            public function id(): int|string { return $this->accountId; }
             public function hasPermission(string $permission): bool { return \in_array($permission, $this->permissions, true); }
             public function getRoles(): array { return []; }
             public function isAuthenticated(): bool { return true; }
@@ -156,7 +193,7 @@ final class ForwardDraftIntegrationTest extends TestCase
     }
 
     /**
-     * @return array{0: EntityTypeManager, 1: WorkflowServiceProvider}
+     * @return array{0: EntityTypeManager, 1: WorkflowServiceProvider, 2: RequestAccountContext}
      */
     private function bootWiredProvider(): array
     {
@@ -205,25 +242,14 @@ final class ForwardDraftIntegrationTest extends TestCase
             revisionable: true,
         ));
 
-        // Pre-seed 'editorial' with DefaultWorkflows::EDITORIAL plus one
-        // test-only 'revise' edge (published -> draft) BEFORE boot() runs
-        // its own log-and-skip-if-exists seed step — see class docblock.
-        // DefaultWorkflows.php itself is untouched.
-        $workflowDefinition = DefaultWorkflows::EDITORIAL;
-        $workflowDefinition['transitions']['revise'] = [
-            'label' => 'Revise',
-            'from' => ['published'],
-            'to' => 'draft',
-        ];
-        $workflow = new Workflow($workflowDefinition);
-        $workflow->enforceIsNew();
-        $entityTypeManager->getRepository('workflow')->save($workflow);
+        $accountContext = new RequestAccountContext();
 
-        $kernelServices = new class ($dispatcher, $entityTypeManager, $configFactory) implements KernelServicesInterface {
+        $kernelServices = new class ($dispatcher, $entityTypeManager, $configFactory, $accountContext) implements KernelServicesInterface {
             public function __construct(
                 private readonly SymfonyEventDispatcherAdapter $dispatcher,
                 private readonly EntityTypeManager $entityTypeManager,
                 private readonly ConfigFactoryInterface $configFactory,
+                private readonly AccountContextInterface $accountContext,
             ) {}
 
             public function get(string $abstract): ?object
@@ -232,6 +258,7 @@ final class ForwardDraftIntegrationTest extends TestCase
                     \Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class => $this->dispatcher,
                     EntityTypeManager::class, EntityTypeManagerInterface::class => $this->entityTypeManager,
                     ConfigFactoryInterface::class => $this->configFactory,
+                    AccountContextInterface::class => $this->accountContext,
                     default => null,
                 };
             }
@@ -241,13 +268,15 @@ final class ForwardDraftIntegrationTest extends TestCase
         // kernel-services bus. boot() wires BOTH WorkflowStateGuard (task
         // 2.6's forward-draft status rule) and WorkflowPointerMoveGuard
         // (task 2.5/2.6's pointer-move validation) onto $dispatcher — the
-        // SAME instance the repositoryFactory above dispatches through.
+        // SAME instance the repositoryFactory above dispatches through —
+        // and seeds the SHIPPED `editorial` workflow
+        // (DefaultWorkflows::EDITORIAL, including the `revise` edge).
         $provider = new WorkflowServiceProvider();
         $provider->setKernelServices($kernelServices);
         $provider->register();
         $provider->boot();
 
-        return [$entityTypeManager, $provider];
+        return [$entityTypeManager, $provider, $accountContext];
     }
 }
 

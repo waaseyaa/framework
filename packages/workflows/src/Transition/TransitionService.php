@@ -195,8 +195,29 @@ final class TransitionService
                 $this->markNewRevision($entity, false);
                 $repository->save($entity);
             } else {
-                // Non-revisionable entity type: no pointer exists to move —
-                // WP-1 behavior (status follows state directly).
+                if ($isRevisionable) {
+                    // A revisionable entity that reported no revision id
+                    // after a revision-creating save is NOT the benign
+                    // non-revisionable case below — it means the save
+                    // pipeline did not hand the new revision id back (a
+                    // storage/hydration defect, or an entity class whose
+                    // revision key diverges from what save() sets). The
+                    // pointer therefore CANNOT be moved; falling through to
+                    // the direct status flip keeps WP-1 behavior but the
+                    // two-pointer promotion silently did not happen — say
+                    // so loudly instead of masking it.
+                    ($this->logger ?? new NullLogger())->warning('workflows.transition_missing_revision_id', [
+                        'entity_type' => $entityTypeId,
+                        'entity_id' => (string) $entity->id(),
+                        'transition' => $transitionId,
+                        'to_state' => $transition->to,
+                        'effect' => 'published pointer NOT moved; status set directly from the target state',
+                    ]);
+                }
+
+                // Non-revisionable entity type (or the defect logged above):
+                // no pointer to move — WP-1 behavior (status follows state
+                // directly).
                 $entity->set('status', $targetState->published === true ? 1 : 0);
                 $repository->save($entity);
             }
