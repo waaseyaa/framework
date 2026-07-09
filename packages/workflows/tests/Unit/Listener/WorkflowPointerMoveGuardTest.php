@@ -37,10 +37,13 @@ final class WorkflowPointerMoveGuardTest extends TestCase
                 'draft' => ['label' => 'Draft'],
                 'review' => ['label' => 'Review'],
                 'published' => ['label' => 'Published', 'published' => true, 'default_revision' => true],
+                'archived' => ['label' => 'Archived', 'published' => false, 'default_revision' => true],
             ],
             'transitions' => [
                 'submit_for_review' => ['label' => 'Submit', 'from' => ['draft'], 'to' => 'review'],
                 'publish' => ['label' => 'Publish', 'from' => ['draft', 'review'], 'to' => 'published'],
+                'archive' => ['label' => 'Archive', 'from' => ['published'], 'to' => 'archived'],
+                'restore' => ['label' => 'Restore', 'from' => ['archived'], 'to' => 'draft'],
             ],
         ]);
     }
@@ -365,5 +368,88 @@ final class WorkflowPointerMoveGuardTest extends TestCase
 
         $guard->onBeforePointerMove($event);
         $this->addToAssertionCount(1);
+    }
+
+    #[Test]
+    public function publish_promoting_an_archived_pointer_is_allowed_via_reconciliation(): void
+    {
+        // CW-v1 WP-2 task 2.6 (#1920) reconciliation: a forward draft born
+        // from archived content (restore: archived->draft, then
+        // submit_for_review/publish — none of which move the pointer until
+        // this final publish) leaves the published pointer sitting on
+        // 'archived' when the publish fires. There is no direct
+        // 'archived' -> 'published' edge in the workflow (only
+        // 'restore': archived->draft) — the OLD basis (currentState ->
+        // newState edge lookup) would wrongly deny this fully
+        // TransitionService-sanctioned promotion. The target state
+        // ('published') is itself `default_revision: true`, so the guard
+        // validates against ANY transition reaching it instead.
+        $account = $this->account(['use editorial transition publish']);
+        $guard = $this->guard($this->editorialWorkflow(), [10 => 'archived'], $account);
+        $event = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: 'fixture',
+            entityId: '1',
+            operation: 'publish',
+            fromRevisionId: 10,
+            toRevisionId: 20,
+            actorUid: 7,
+            revisionValues: ['type' => 'article', 'workflow_state' => 'published'],
+        );
+
+        $guard->onBeforePointerMove($event);
+        $this->addToAssertionCount(1);
+    }
+
+    #[Test]
+    public function publish_promoting_an_archived_pointer_without_permission_is_still_denied(): void
+    {
+        // The reconciliation relaxes the EDGE basis, not the permission
+        // check: promoting into a default-revision state still requires
+        // whatever permission the workflow declares for reaching it.
+        $guard = $this->guard($this->editorialWorkflow(), [10 => 'archived'], $this->account([]));
+        $event = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: 'fixture',
+            entityId: '1',
+            operation: 'publish',
+            fromRevisionId: 10,
+            toRevisionId: 20,
+            actorUid: 7,
+            revisionValues: ['type' => 'article', 'workflow_state' => 'published'],
+        );
+
+        try {
+            $guard->onBeforePointerMove($event);
+            $this->fail('Expected TransitionDeniedException');
+        } catch (TransitionDeniedException $e) {
+            $this->assertSame(TransitionDeniedException::REASON_PERMISSION, $e->reason);
+        }
+    }
+
+    #[Test]
+    public function publish_op_targeting_a_non_default_revision_state_still_uses_the_strict_edge_check(): void
+    {
+        // The reconciliation only applies when the TARGET state is itself
+        // `default_revision: true`. A 'publish'-operation pointer move
+        // whose target is NOT (e.g. a direct, bypass-style
+        // setPublishedRevision() call pointed at a 'draft' revision) must
+        // still go through the original, stricter currentState -> newState
+        // edge check — 'review' -> 'draft' has no edge in this fixture.
+        $guard = $this->guard($this->editorialWorkflow(), [10 => 'review'], $this->account(['use editorial transition publish']));
+        $event = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: 'fixture',
+            entityId: '1',
+            operation: 'publish',
+            fromRevisionId: 10,
+            toRevisionId: 20,
+            actorUid: 7,
+            revisionValues: ['type' => 'article', 'workflow_state' => 'draft'],
+        );
+
+        try {
+            $guard->onBeforePointerMove($event);
+            $this->fail('Expected TransitionDeniedException');
+        } catch (TransitionDeniedException $e) {
+            $this->assertSame(TransitionDeniedException::REASON_ILLEGAL_EDGE, $e->reason);
+        }
     }
 }

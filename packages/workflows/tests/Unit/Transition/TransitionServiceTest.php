@@ -18,6 +18,7 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 use Waaseyaa\Workflows\Event\WorkflowEvents;
@@ -42,11 +43,15 @@ final class TransitionServiceTest extends TestCase
             'transitions' => [
                 'submit_for_review' => ['label' => 'Submit', 'from' => ['draft'], 'to' => 'review'],
                 'publish' => ['label' => 'Publish', 'from' => ['draft', 'review'], 'to' => 'published'],
+                // Test-only edge (not in the production DefaultWorkflows
+                // seed): exercises a forward-draft transition away from a
+                // defaultRevision:false state on already-published content.
+                'reject' => ['label' => 'Reject', 'from' => ['review'], 'to' => 'draft'],
             ],
         ]);
     }
 
-    private function bindings(?Workflow $workflow): WorkflowBindingResolver
+    private function bindings(?Workflow $workflow, ?EntityTypeManagerInterface $entityTypeManager = null): WorkflowBindingResolver
     {
         $configFactory = new class ($workflow) implements ConfigFactoryInterface {
             public function __construct(private readonly ?Workflow $workflow) {}
@@ -74,7 +79,7 @@ final class TransitionServiceTest extends TestCase
             public function listAll(string $prefix = ''): array { return []; }
         };
 
-        return new WorkflowBindingResolver($configFactory, $this->entityTypeManager());
+        return new WorkflowBindingResolver($configFactory, $entityTypeManager ?? $this->entityTypeManager());
     }
 
     private ?Workflow $workflowForBinding = null;
@@ -164,6 +169,60 @@ final class TransitionServiceTest extends TestCase
         };
     }
 
+    /**
+     * A revisionable fixture entity: implements `RevisionableInterface` so
+     * `TransitionService` exercises its `setNewRevision()`/`getRevisionId()`
+     * duck-checked path. `revision_id` rides in the generic `$values` bag
+     * (same as production `RevisionableEntityTrait`), so the repository spy
+     * below can simulate revision-id assignment via the ordinary
+     * `EntityInterface::set()` surface — no bespoke setter needed.
+     */
+    private function revisionableEntity(string $state, int $status = 0): EntityInterface
+    {
+        return new class ($state, $status) implements EntityInterface, RevisionableInterface {
+            private array $values;
+            private ?bool $newRevisionOverride = null;
+            private ?string $revisionLog = null;
+
+            public function __construct(string $state, int $status)
+            {
+                $this->values = ['id' => 1, 'workflow_state' => $state, 'status' => $status];
+            }
+
+            public function id(): int|string|null { return $this->values['id']; }
+            public function uuid(): string { return 'fixture-uuid'; }
+            public function label(): string { return 'Fixture'; }
+            public function getEntityTypeId(): string { return 'fixture'; }
+            public function bundle(): string { return 'article'; }
+            public function isNew(): bool { return false; }
+            public function get(string $name): mixed { return $this->values[$name] ?? null; }
+
+            public function set(string $name, mixed $value): static
+            {
+                $this->values[$name] = $value;
+
+                return $this;
+            }
+
+            public function toArray(): array { return $this->values; }
+            public function language(): string { return 'en'; }
+
+            public function getRevisionId(): ?int
+            {
+                $rid = $this->values['revision_id'] ?? null;
+
+                return \is_int($rid) ? $rid : null;
+            }
+
+            public function isDefaultRevision(): bool { return true; }
+            public function isLatestRevision(): bool { return true; }
+            public function setNewRevision(bool $value): void { $this->newRevisionOverride = $value; }
+            public function isNewRevision(): ?bool { return $this->newRevisionOverride; }
+            public function setRevisionLog(?string $log): void { $this->revisionLog = $log; }
+            public function getRevisionLog(): ?string { return $this->revisionLog; }
+        };
+    }
+
     private function spyDispatcher(): SpyDispatcher
     {
         return new SpyDispatcher();
@@ -184,6 +243,54 @@ final class TransitionServiceTest extends TestCase
             entityTypeManager: $this->entityTypeManager(),
             dispatcher: $dispatcher,
             auditWriter: $auditWriter,
+        );
+    }
+
+    /**
+     * Builds a service wired to a caller-supplied 'fixture' repository (the
+     * {@see RevisionAwareSpyRepository} below), for tests that need to
+     * observe/configure revision-id assignment, `setPublishedRevision()`
+     * calls, and `loadPublishedRevision()` fixtures — the plain
+     * {@see SpyEntityRepository} used by `service()` doesn't simulate any of
+     * that.
+     */
+    private function serviceWithRepository(Workflow $workflow, EntityRepositoryInterface $repository): TransitionService
+    {
+        $workflowRepository = new WorkflowLookupRepository($workflow);
+        $entityTypeManager = new class ($workflowRepository, $repository) implements EntityTypeManagerInterface {
+            public function __construct(
+                private readonly EntityRepositoryInterface $workflowRepository,
+                private readonly EntityRepositoryInterface $fixtureRepository,
+            ) {}
+
+            public function getDefinition(string $entityTypeId): EntityTypeInterface
+            {
+                return new EntityType(
+                    id: 'fixture',
+                    label: 'Fixture',
+                    class: \stdClass::class,
+                    keys: ['id' => 'id', 'revision' => 'revision_id'],
+                    revisionable: true,
+                );
+            }
+
+            public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array { return []; }
+            public function registerEntityType(EntityTypeInterface $type, ?string $registrant = null): void {}
+            public function registerCoreEntityType(EntityTypeInterface $type, ?string $registrant = null): void {}
+            public function getDefinitions(): array { return []; }
+            public function hasDefinition(string $entityTypeId): bool { return true; }
+
+            public function getStorage(string $entityTypeId): EntityStorageInterface { throw new \LogicException('not needed'); }
+
+            public function getRepository(string $entityTypeId): EntityRepositoryInterface
+            {
+                return $entityTypeId === 'workflow' ? $this->workflowRepository : $this->fixtureRepository;
+            }
+        };
+
+        return new TransitionService(
+            bindings: $this->bindings($workflow, $entityTypeManager),
+            entityTypeManager: $entityTypeManager,
         );
     }
 
@@ -317,6 +424,101 @@ final class TransitionServiceTest extends TestCase
 
         $this->assertSame([], $service->getAvailableTransitions($entity, $account));
     }
+
+    #[Test]
+    public function forward_draft_leaves_status_and_the_published_pointer_untouched(): void
+    {
+        // CW-v1 WP-2 task 2.6 (#1920, two-pointer status semantics): the
+        // target state ('draft') is `default_revision: false`, and a
+        // DIFFERENT revision is already the published pointer (status 1) —
+        // this is a forward draft. The new tip must carry the target state,
+        // but `status` must keep reflecting the *published* revision (1),
+        // and the pointer must never move.
+        $publishedRevision = $this->entity('published');
+        $publishedRevision->set('status', 1);
+        $repository = new RevisionAwareSpyRepository(publishedRevision: $publishedRevision);
+        $service = $this->serviceWithRepository($this->editorialWorkflow(), $repository);
+        $account = $this->account(7, ['use editorial transition reject']);
+        $entity = $this->revisionableEntity('review', status: 0);
+
+        $result = $service->transition($entity, 'reject', $account);
+
+        $this->assertSame('review', $result->fromState);
+        $this->assertSame('draft', $result->toState);
+        $this->assertSame('draft', $entity->get('workflow_state'));
+        $this->assertSame(1, $entity->get('status'));
+        $this->assertSame([], $repository->publishedCalls);
+        $this->assertCount(1, $repository->saveCalls);
+        $this->assertTrue($entity->isNewRevision());
+    }
+
+    #[Test]
+    public function first_ever_publish_establishes_the_pointer_and_flips_status(): void
+    {
+        // No published revision exists yet: `defaultRevision: true` still
+        // unconditionally moves/establishes the pointer (this is how the
+        // two-pointer mechanism activates in the first place) — decision
+        // 2's "never published" bullet describes the STATUS outcome
+        // (follows state directly), not a suppressed pointer move.
+        $repository = new RevisionAwareSpyRepository(publishedRevision: null, firstRevisionId: 10);
+        $service = $this->serviceWithRepository($this->editorialWorkflow(), $repository);
+        $account = $this->account(7, ['use editorial transition publish']);
+        $entity = $this->revisionableEntity('draft', status: 0);
+
+        $service->transition($entity, 'publish', $account);
+
+        $this->assertSame('published', $entity->get('workflow_state'));
+        $this->assertSame(1, $entity->get('status'));
+        $this->assertSame([['1', 10]], $repository->publishedCalls);
+    }
+
+    #[Test]
+    public function promoting_a_forward_draft_moves_the_pointer_then_flips_status(): void
+    {
+        $olderPublished = $this->entity('published');
+        $olderPublished->set('status', 1);
+        $repository = new RevisionAwareSpyRepository(publishedRevision: $olderPublished, firstRevisionId: 10);
+        $service = $this->serviceWithRepository($this->editorialWorkflow(), $repository);
+        $account = $this->account(7, ['use editorial transition publish']);
+        $entity = $this->revisionableEntity('review', status: 0);
+
+        $service->transition($entity, 'publish', $account);
+
+        $this->assertSame('published', $entity->get('workflow_state'));
+        $this->assertSame(1, $entity->get('status'));
+        $this->assertSame([['1', 10]], $repository->publishedCalls);
+        // Revision-creating save + the follow-up status-only save.
+        $this->assertCount(2, $repository->saveCalls);
+    }
+
+    #[Test]
+    public function a_denied_pointer_move_never_flips_status(): void
+    {
+        // Safe-ordering requirement (task 2.6): if the pointer-move guard
+        // denies the promotion (simulated here via a repository that throws
+        // from setPublishedRevision(), the same seam WorkflowPointerMoveGuard
+        // uses), `status` must NOT have been flipped while the pointer stays
+        // put — never "status says live, pointer says otherwise."
+        $denial = new TransitionDeniedException(TransitionDeniedException::REASON_ILLEGAL_EDGE, 'simulated pointer-move denial');
+        $repository = new RevisionAwareSpyRepository(publishedRevision: null, firstRevisionId: 10, throwOnPublish: $denial);
+        $service = $this->serviceWithRepository($this->editorialWorkflow(), $repository);
+        $account = $this->account(7, ['use editorial transition publish']);
+        $entity = $this->revisionableEntity('review', status: 0);
+
+        try {
+            $service->transition($entity, 'publish', $account);
+            $this->fail('Expected TransitionDeniedException');
+        } catch (TransitionDeniedException $e) {
+            $this->assertSame($denial, $e);
+        }
+
+        // The revision-creating save happened (its own workflow_state is
+        // legitimately 'published' — it just hasn't been promoted), but the
+        // status-flip follow-up save never ran.
+        $this->assertSame(0, $entity->get('status'));
+        $this->assertCount(1, $repository->saveCalls);
+        $this->assertSame([['1', 10]], $repository->publishedCalls);
+    }
 }
 
 /**
@@ -379,6 +581,86 @@ final class SpyAuditWriter implements AuditWriterInterface
     {
         $this->recorded[] = $descriptor;
     }
+}
+
+/**
+ * A revision-aware repository spy for the forward-draft/pointer-promotion
+ * tests (CW-v1 WP-2 task 2.6). Simulates revision-id assignment on `save()`
+ * (mirroring `EntityRepository::doSave()`'s `$entity->set($revisionKey, ...)`
+ * after an insert), and records/optionally throws from
+ * `setPublishedRevision()` so tests can assert the safe-ordering contract
+ * (status only flips AFTER the pointer move succeeds).
+ */
+final class RevisionAwareSpyRepository implements EntityRepositoryInterface
+{
+    /** @var list<array<string, mixed>> */
+    public array $saveCalls = [];
+
+    /** @var list<array{0: string, 1: int}> */
+    public array $publishedCalls = [];
+
+    private int $nextRevisionId;
+
+    public function __construct(
+        private readonly ?EntityInterface $publishedRevision = null,
+        int $firstRevisionId = 10,
+        private readonly ?TransitionDeniedException $throwOnPublish = null,
+    ) {
+        $this->nextRevisionId = $firstRevisionId;
+    }
+
+    public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
+    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { throw new \LogicException('not needed'); }
+    public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
+    public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
+    public function getQuery(): \Waaseyaa\Entity\Storage\EntityQueryInterface { throw new \LogicException('not needed'); }
+
+    public function save(EntityInterface $entity, bool $validate = true): int
+    {
+        $newRevisionId = $this->nextRevisionId++;
+        $this->saveCalls[] = $entity->toArray();
+        $entity->set('revision_id', $newRevisionId);
+
+        return $newRevisionId;
+    }
+
+    public function delete(EntityInterface $entity): void {}
+    public function exists(string $id): bool { return true; }
+    public function count(array $criteria = []): int { return 0; }
+    public function loadRevision(string $entityId, int $revisionId): ?EntityInterface { return null; }
+    public function rollback(string $entityId, int $targetRevisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function listRevisions(string $entityId): array { return []; }
+    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function loadPublishedRevision(string $entityId): ?EntityInterface { return $this->publishedRevision; }
+
+    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface
+    {
+        $this->publishedCalls[] = [$entityId, $revisionId];
+
+        if ($this->throwOnPublish !== null) {
+            throw $this->throwOnPublish;
+        }
+
+        return $this->publishedRevision ?? new class implements EntityInterface {
+            public function id(): int|string|null { return null; }
+            public function uuid(): string { return ''; }
+            public function label(): string { return ''; }
+            public function getEntityTypeId(): string { return ''; }
+            public function bundle(): string { return ''; }
+            public function isNew(): bool { return false; }
+            public function get(string $name): mixed { return null; }
+            public function set(string $name, mixed $value): static { return $this; }
+            public function toArray(): array { return []; }
+            public function language(): string { return 'en'; }
+        };
+    }
+
+    public function saveMany(array $entities, bool $validate = true): array { return []; }
+    public function deleteMany(array $entities): int { return 0; }
+    public function findTranslations(EntityInterface $entity): array { return []; }
+    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int { return 0; }
+    public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
+    public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
 }
 
 final class SpyEntityRepository implements EntityRepositoryInterface

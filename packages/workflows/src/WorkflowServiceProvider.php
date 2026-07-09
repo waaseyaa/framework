@@ -120,6 +120,11 @@ final class WorkflowServiceProvider extends ServiceProvider
 
             return new WorkflowStateGuard(
                 bindings: $this->resolve(WorkflowBindingResolver::class),
+                // CW-v1 WP-2 task 2.6 (#1920): needed to detect an existing
+                // published pointer so a forward-draft save can leave
+                // `status` alone instead of following the target state's
+                // `published` flag directly (two-pointer status semantics).
+                entityTypeManager: $this->resolve(EntityTypeManagerInterface::class),
                 accountContext: $accountContext instanceof AccountContextInterface ? $accountContext : null,
             );
         });

@@ -6,6 +6,7 @@ namespace Waaseyaa\Workflows\Listener;
 
 use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 use Waaseyaa\Workflows\Transition\TransitionDeniedException;
@@ -34,6 +35,7 @@ final class WorkflowStateGuard
 {
     public function __construct(
         private readonly WorkflowBindingResolver $bindings,
+        private readonly ?EntityTypeManagerInterface $entityTypeManager = null,
         private readonly ?AccountContextInterface $accountContext = null,
     ) {}
 
@@ -163,11 +165,64 @@ final class WorkflowStateGuard
         return null;
     }
 
+    /**
+     * CW-v1 WP-2 task 2.6 (#1920, docs/specs/content-workflow.md
+     * "two-pointer status semantics"): `status` must reflect the
+     * *published-pointer* revision's state, not blindly follow whatever
+     * state this save happens to be entering. A raw save that moves a
+     * workflow-bound entity into a `default_revision: false` state (e.g.
+     * `draft`, `review`) WHILE a different revision is already the
+     * published pointer is a forward draft: the live version keeps
+     * serving, so `status` must NOT flip to match this non-live state.
+     *
+     * This guard cannot itself move the published pointer the way
+     * {@see \Waaseyaa\Workflows\Transition\TransitionService::transition()}
+     * does (save + `EntityRepository::setPublishedRevision()`) — it fires on
+     * `EntityEvents::PRE_SAVE`, before the save that would produce a new
+     * revision id even exists. The strongest guarantee available here is:
+     * never lie about the live state. So instead of skipping the `status`
+     * write (impossible to do safely — {@see \Waaseyaa\EntityStorage\EntityRepository::doSave()}
+     * always writes whatever `status` currently sits on the entity into the
+     * base row; there is no special-casing for that column), this copies
+     * the *published* revision's own recorded `status` back onto the
+     * entity, making the otherwise-unavoidable base-row write idempotent
+     * rather than a silent flip.
+     *
+     * When there is no published revision yet (never-published content) or
+     * the target state IS `default_revision: true`, WP-1 behavior stands:
+     * `status` follows the target state's `published` flag directly.
+     */
     private function applyState(EntityInterface $entity, Workflow $workflow, string $state): void
     {
         $entity->set('workflow_state', $state);
         $targetState = $workflow->getState($state);
+
+        if ($targetState?->defaultRevision === false) {
+            $published = $this->loadPublishedRevision($entity);
+            if ($published !== null) {
+                $entity->set('status', $published->get('status'));
+
+                return;
+            }
+        }
+
         $entity->set('status', $targetState?->published === true ? 1 : 0);
+    }
+
+    private function loadPublishedRevision(EntityInterface $entity): ?EntityInterface
+    {
+        if ($this->entityTypeManager === null) {
+            return null;
+        }
+
+        $id = $entity->id();
+        if ($id === null || $id === '') {
+            return null;
+        }
+
+        return $this->entityTypeManager
+            ->getRepository($entity->getEntityTypeId())
+            ->loadPublishedRevision((string) $id);
     }
 
     private function stateOf(EntityInterface $entity, Workflow $workflow): string
