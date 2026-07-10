@@ -11,20 +11,42 @@ use Waaseyaa\Migration\MigrationDefinition;
 
 /**
  * Indexes every {@see MigrationDefinition} contributed by providers or the
- * filesystem loader at boot, validates dependencies, and exposes the resulting
- * DAG for downstream consumers (FR-013, FR-014, FR-015, FR-017).
+ * filesystem loader, validates dependencies, and exposes the resulting DAG
+ * for downstream consumers (FR-013, FR-014, FR-015, FR-017).
  *
- * Lifecycle:
+ * Lifecycle (lazy since G-024, #1940):
  *
  * 1. Construct with the providers implementing {@see HasMigrationsInterface}
  *    and an optional {@see FilesystemManifestLoader}.
- * 2. Call {@see boot()}. The registry consumes both sources, indexes the
- *    definitions by id (collisions raise {@see MigrationPluginCollisionException}),
- *    validates every declared dependency exists (missing raises
+ * 2. The index is built on the FIRST call to any query method ({@see get()},
+ *    {@see has()}, {@see all()}, {@see topologicallySorted()},
+ *    {@see graph()}) via a private `ensureBooted()` that runs the same
+ *    ingestion/validation/graph-construction logic {@see boot()} always has.
+ *    Callers may still call {@see boot()} explicitly and get the identical
+ *    result — `ensureBooted()` is a no-op once `boot()` has run, whichever
+ *    triggered it. Either way, the registry consumes both sources, indexes
+ *    the definitions by id (collisions raise
+ *    {@see MigrationPluginCollisionException}), validates every declared
+ *    dependency exists (missing raises
  *    {@see MigrationDependencyMissingException}), and constructs the
  *    {@see DependencyGraph}. Cycles raise {@see MigrationCycleException}.
- * 3. Post-`boot()` the registry is immutable. Any further attempt to register
- *    raises `\LogicException` (programmer error).
+ * 3. Once built, the registry is immutable. Any further explicit call to
+ *    `boot()` raises `\LogicException` (programmer error).
+ *
+ * Why lazy: `AbstractKernel::boot()` runs `bootProviders()` (where the
+ * migration package's `ServiceProvider::boot()` used to eagerly resolve this
+ * registry) strictly BEFORE `discoverAccessPolicies()` builds the
+ * `EntityAccessHandler`. A provider's `migrations()` implementation that
+ * resolves `GateInterface`/`EntityAccessHandler` from the kernel-services bus
+ * to build a destination plugin would find no binding yet and crash kernel
+ * boot ("No binding registered for ..." — the Sheguiandah pass-1 symptom,
+ * which needed a lazy-gate shim to work around). Deferring index-building to
+ * first query trades away fail-fast-at-boot for structural manifest errors
+ * (missing dependency, id collision, dependency cycle now surface at the
+ * first CLI invocation that touches the registry, not at framework startup)
+ * in exchange for every provider's `migrations()` running only once the
+ * whole kernel — including access services — is live. See
+ * `docs/specs/migration-platform.md` §9 and CHANGELOG.md (G-024).
  *
  * @api
  */
@@ -71,14 +93,14 @@ final class MigrationRegistry
     }
 
     /**
-     * Fetch a registered definition.
+     * Fetch a registered definition. Builds the index lazily on first call
+     * (G-024) if `boot()` has not already run.
      *
      * @throws \OutOfBoundsException When `$id` is not registered.
-     * @throws \LogicException Before {@see boot()}.
      */
     public function get(string $id): MigrationDefinition
     {
-        $this->assertBooted();
+        $this->ensureBooted();
         if (!isset($this->definitions[$id])) {
             throw new \OutOfBoundsException(\sprintf(
                 'MigrationRegistry: migration %s is not registered.',
@@ -89,41 +111,38 @@ final class MigrationRegistry
     }
 
     /**
-     * Whether a migration with the given id is registered.
-     *
-     * @throws \LogicException Before {@see boot()}.
+     * Whether a migration with the given id is registered. Builds the index
+     * lazily on first call (G-024) if `boot()` has not already run.
      */
     public function has(string $id): bool
     {
-        $this->assertBooted();
+        $this->ensureBooted();
         return isset($this->definitions[$id]);
     }
 
     /**
      * Every registered definition. Order is registration order — for
-     * dependency-aware iteration use {@see topologicallySorted()}.
+     * dependency-aware iteration use {@see topologicallySorted()}. Builds the
+     * index lazily on first call (G-024) if `boot()` has not already run.
      *
      * @return list<MigrationDefinition>
-     *
-     * @throws \LogicException Before {@see boot()}.
      */
     public function all(): array
     {
-        $this->assertBooted();
+        $this->ensureBooted();
         return \array_values($this->definitions);
     }
 
     /**
      * Definitions in dependency order — every prerequisite appears before its
-     * dependent. Powers `bin/waaseyaa import:run-all` (FR-033).
+     * dependent. Powers `bin/waaseyaa import:run-all` (FR-033). Builds the
+     * index lazily on first call (G-024) if `boot()` has not already run.
      *
      * @return list<MigrationDefinition>
-     *
-     * @throws \LogicException Before {@see boot()}.
      */
     public function topologicallySorted(): array
     {
-        $this->assertBooted();
+        $this->ensureBooted();
         \assert($this->graph !== null);
 
         $ordered = [];
@@ -135,13 +154,12 @@ final class MigrationRegistry
 
     /**
      * Read-only handle on the dependency graph. Useful for status displays and
-     * `import:rollback` cascade walks.
-     *
-     * @throws \LogicException Before {@see boot()}.
+     * `import:rollback` cascade walks. Builds the index lazily on first call
+     * (G-024) if `boot()` has not already run.
      */
     public function graph(): DependencyGraph
     {
-        $this->assertBooted();
+        $this->ensureBooted();
         \assert($this->graph !== null);
         return $this->graph;
     }
@@ -209,10 +227,19 @@ final class MigrationRegistry
         }
     }
 
-    private function assertBooted(): void
+    /**
+     * Builds the index on the first call (delegating to {@see boot()}); every
+     * later call is a no-op. This is the G-024 (#1940) lazy-boot seam every
+     * public query method routes through — it lets `boot()` still be called
+     * explicitly (and lets a second explicit call keep raising
+     * `\LogicException`, preserving the pre-G-024 contract for callers that
+     * already do that) while first-query callers get the same guarantees
+     * without ever calling `boot()` themselves.
+     */
+    private function ensureBooted(): void
     {
         if (!$this->booted) {
-            throw new \LogicException('MigrationRegistry::boot() must be called before definitions can be resolved.');
+            $this->boot();
         }
     }
 }

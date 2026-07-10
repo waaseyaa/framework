@@ -153,24 +153,62 @@ final class MigrationRegistryTest extends TestCase
     }
 
     #[Test]
-    public function get_before_boot_raises_logic_exception(): void
+    public function get_before_explicit_boot_builds_lazily_and_succeeds(): void
     {
+        // G-024 (#1940): query methods no longer require an explicit boot()
+        // call first — the first query builds the index on demand.
         $registry = new MigrationRegistry([$this->provider([$this->definition('a')])]);
 
-        $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage('must be called before');
-
-        $registry->get('a');
+        self::assertSame('a', $registry->get('a')->id);
     }
 
     #[Test]
-    public function all_before_boot_raises_logic_exception(): void
+    public function all_before_explicit_boot_builds_lazily_and_succeeds(): void
     {
+        // G-024 (#1940): see get_before_explicit_boot_builds_lazily_and_succeeds.
         $registry = new MigrationRegistry([$this->provider([$this->definition('a')])]);
 
-        $this->expectException(\LogicException::class);
+        self::assertCount(1, $registry->all());
+    }
 
+    #[Test]
+    public function migrations_are_not_built_until_first_registry_query(): void
+    {
+        // G-024 (#1940): construction must not eagerly consume providers —
+        // AbstractKernel::bootProviders() runs before discoverAccessPolicies(),
+        // so a provider whose migrations() resolves access services from the
+        // kernel-services bus must not run until the whole kernel is booted.
+        $spy = $this->spyProvider([$this->definition('a')]);
+        $registry = new MigrationRegistry([$spy]);
+
+        self::assertSame(0, $spy->callCount, 'Constructing the registry must not invoke migrations().');
+
+        self::assertTrue($registry->has('a'));
+        self::assertSame(1, $spy->callCount, 'The first query must build the index exactly once.');
+
+        // Further queries — of any kind — must reuse the already-built index.
+        self::assertSame($registry->get('a'), $registry->get('a'));
         $registry->all();
+        $registry->topologicallySorted();
+        $registry->graph();
+        self::assertSame(1, $spy->callCount, 'Later queries must not rebuild the index.');
+    }
+
+    #[Test]
+    public function explicit_boot_still_prevents_lazy_rebuild_on_first_query(): void
+    {
+        // Backward compatibility: callers that still call boot() explicitly
+        // (every other test in this file, plus several integration tests)
+        // must keep working exactly as before — the first query afterward
+        // must not attempt to boot again.
+        $spy = $this->spyProvider([$this->definition('a')]);
+        $registry = new MigrationRegistry([$spy]);
+
+        $registry->boot();
+        self::assertSame(1, $spy->callCount);
+
+        self::assertTrue($registry->has('a'));
+        self::assertSame(1, $spy->callCount, 'A query after an explicit boot() must not rebuild.');
     }
 
     #[Test]
@@ -256,6 +294,32 @@ final class MigrationRegistryTest extends TestCase
             public function __construct(private readonly array $definitions) {}
             public function migrations(): iterable
             {
+                yield from $this->definitions;
+            }
+        };
+    }
+
+    /**
+     * A provider that records how many times migrations() has been called —
+     * used to prove the G-024 lazy-build contract (#1940). Return type is
+     * `object` (not `HasMigrationsInterface`) because the test reads the
+     * anonymous class's `$callCount` property, which is not part of the
+     * interface.
+     *
+     * @param list<MigrationDefinition> $definitions
+     */
+    private function spyProvider(array $definitions): object
+    {
+        return new class($definitions) implements HasMigrationsInterface {
+            public int $callCount = 0;
+
+            /**
+             * @param list<MigrationDefinition> $definitions
+             */
+            public function __construct(private readonly array $definitions) {}
+            public function migrations(): iterable
+            {
+                $this->callCount++;
                 yield from $this->definitions;
             }
         };

@@ -99,8 +99,14 @@ final class DiscoveryBootstrapTest extends TestCase
     }
 
     #[Test]
-    public function service_provider_propagates_cycle_exception_from_boot(): void
+    public function service_provider_boot_no_longer_eagerly_resolves_the_registry(): void
     {
+        // G-024 (#1940): ServiceProvider::boot() no longer resolves
+        // MigrationRegistry, so structural manifest errors (like this cycle)
+        // no longer surface at boot() — they surface at the registry's first
+        // query instead. This is the deliberate fail-fast-at-boot trade-off
+        // documented on MigrationRegistry's class docblock and in
+        // CHANGELOG.md.
         $provider = new ServiceProvider();
         $provider->setKernelContext(
             projectRoot: \sys_get_temp_dir(),
@@ -128,10 +134,14 @@ final class DiscoveryBootstrapTest extends TestCase
         ]);
 
         $provider->register();
+        $provider->boot();
+
+        $registry = $provider->resolve(MigrationRegistry::class);
+        self::assertInstanceOf(MigrationRegistry::class, $registry);
 
         try {
-            $provider->boot();
-            self::fail('Expected MigrationCycleException to propagate from ServiceProvider::boot().');
+            $registry->all();
+            self::fail('Expected MigrationCycleException to propagate from the registry\'s first query.');
         } catch (MigrationCycleException $exception) {
             self::assertSame(['wp_posts', 'wp_terms', 'wp_posts'], $exception->cyclePath);
         }
