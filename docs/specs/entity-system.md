@@ -302,6 +302,8 @@ P0 built-ins:
 
 Non-backed enums and unknown class-strings (non-enum classes) are rejected (`CastException`). Value-object class casts are reserved for #1184.
 
+**Null tolerance (#1940, G-028):** `castIn(null, ...)` / `castOut(null, ...)` both return `null` unconditionally for every built-in spec, checked before any per-type dispatch — this is the general rule, not specific to `datetime_immutable`. For `datetime_immutable` the null-safety is additionally enforced one layer deeper, inside the private `castOutDateTimeImmutable()` helper itself, so a `null` domain value stays a no-throw no-op even if a future caller reaches that helper without going through `castOut()`'s top-level guard first. This matters for `unix`-storage casts such as Node's `created` / `changed` (`['type' => 'datetime_immutable', 'storage' => 'unix']`): WordPress corpora (Sheguiandah pass-1) commonly have records with no modified date, and prior to this the consuming site had to default the value itself before calling `set()`.
+
 **Storage invariant (#1181):** entity internal `values` remain storage-canonical (constructor and `toArray()` stay raw). Subclasses set `protected array $casts`; `EntityBase::get()` runs `ValueCaster::castIn`, `set()` runs `castOut`. Override `protected function valueCaster(): ValueCaster` to inject a custom caster (e.g. in tests).
 
 **Interaction with hydration (#1188):** rows merged into `$values` at load time stay raw; casting applies when reading through the cast-aware API, not inside `EntityInstantiator`.

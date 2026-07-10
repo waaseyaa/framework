@@ -245,6 +245,22 @@ final class ValueCasterTest extends TestCase
     }
 
     #[Test]
+    public function datetime_immutable_unix_storage_domain_null_does_not_throw(): void
+    {
+        // G-028: WordPress corpora (Sheguiandah pass-1) produce records with no modified
+        // date at all. Node's `changed` cast is ['type' => 'datetime_immutable', 'storage' => 'unix'].
+        // ValueCaster::castOut() already short-circuits a null $domain before this private
+        // helper is ever reached, so this is a white-box regression test for the helper
+        // itself: it must not rely on the caller's guard to stay null-safe.
+        $c = new ValueCaster();
+        $method = new \ReflectionMethod(ValueCaster::class, 'castOutDateTimeImmutable');
+
+        $result = $method->invoke($c, self::FIELD, null, ['type' => 'datetime_immutable', 'storage' => 'unix']);
+
+        self::assertNull($result);
+    }
+
+    #[Test]
     public function datetime_immutable_invalid_storage_throws(): void
     {
         $this->expectException(CastException::class);
