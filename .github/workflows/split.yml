@@ -108,6 +108,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -179,25 +180,35 @@ jobs:
           fi
 
   verify-monorepo-main-intact:
-    name: Verify monorepo main still points at the tagged commit
+    name: Verify the tagged commit is still reachable from monorepo main
     needs: split
     runs-on: ubuntu-latest
     steps:
-      - name: Assert origin main SHA unchanged
+      # This does NOT require main == github.sha. Legitimate PRs can merge to
+      # main while the split fan-out for this tag is still running (main only
+      # moves forward — "ahead"/"identical" are fine). What must NEVER happen
+      # is the tagged commit falling off main's history ("behind"/"diverged"),
+      # which only happens if a split target force-overwrote this monorepo's
+      # own main (self-split collision) and rewrote it out from under the tag.
+      # See #1934 — alpha.257 false-failed here on a same-day forward merge.
+      - name: Assert tagged SHA is still an ancestor of main
         env:
           MONOREPO: ${{ github.repository }}
           EXPECTED_SHA: ${{ github.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          actual_sha=$(gh api "repos/${MONOREPO}/commits/main" --jq '.sha')
-          if [ "${actual_sha}" != "${EXPECTED_SHA}" ]; then
-            echo "::error::Monorepo main SHA changed during split!"
-            echo "::error::Expected: ${EXPECTED_SHA}"
-            echo "::error::Actual:   ${actual_sha}"
-            echo "::error::A split target likely collided with this monorepo's repo name."
-            exit 1
-          fi
-          echo "OK — monorepo main still at ${EXPECTED_SHA}"
+          compare_status=$(gh api "repos/${MONOREPO}/compare/${EXPECTED_SHA}...main" --jq '.status')
+          case "${compare_status}" in
+            identical|ahead)
+              echo "OK — tagged commit ${EXPECTED_SHA} is still an ancestor of main (status: ${compare_status})."
+              ;;
+            *)
+              echo "::error::Monorepo main no longer contains the tagged commit!"
+              echo "::error::Expected ${EXPECTED_SHA} to be an ancestor of main; compare status was '${compare_status}'."
+              echo "::error::A split target likely collided with this monorepo's repo name and force-overwrote main."
+              exit 1
+              ;;
+          esac
 
   verify-tag-parity:
     needs: split
@@ -205,6 +216,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Verify split tag parity across package repos
@@ -227,6 +239,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
       - name: Verify root require / split parity
         env:
@@ -245,6 +258,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Create GitHub Release
@@ -268,6 +282,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
 
       - name: Discover waaseyaa/* packages
         id: scan
