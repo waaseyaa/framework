@@ -240,6 +240,8 @@ The provider list is read through a closure accessor so resolution sees the live
 
 **Resolution order in `ServiceProvider::resolve()`.** Local bindings (`singleton`/`bind`) win first; only when the abstract is unbound locally does the provider delegate to `KernelServicesInterface::get()`; if that returns `null`, the provider throws `RuntimeException("No binding registered for {$abstract}.")`.
 
+**Hardcoded bus cases shadow sibling-provider bindings.** Inside `ProviderRegistryKernelServices::get()`, every abstract in the table above (including `GateInterface`, G-014) is checked and returned BEFORE the fallthrough loop over sibling providers' `getBindings()` ever runs — the loop is only reached for abstracts none of the named cases matched. A host provider that binds its own `GateInterface` (or any other abstract in the table) intending it to be resolvable by sibling providers through the bus is shadowed: every bus consumer still gets the kernel's own `EntityAccessGate`, never the host binding. This does not affect resolution *within* the host provider itself — `ServiceProvider::resolve()`'s local-bindings-first rule (previous paragraph) still means a provider resolving an abstract it bound locally gets its own binding, never the bus. The shadowing only applies to *other* providers resolving that abstract through `KernelServicesInterface::get()`.
+
 **Propagation through `mergeChildProvider()`.** When a stack provider merges a child via `mergeChildProvider()`, the child receives the same `KernelServicesInterface` instance so `resolve()` keeps working inside the child’s `register()`.
 
 ### HTTP service resolver (SSR controller-method DI)

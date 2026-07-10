@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Migration;
 
+use Psr\EventDispatcher\EventDispatcherInterface;
+use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider as BaseServiceProvider;
 use Waaseyaa\Migration\Discovery\FilesystemManifestLoader;
 use Waaseyaa\Migration\Discovery\HasMigrationsInterface;
 use Waaseyaa\Migration\Discovery\MigrationRegistry;
+use Waaseyaa\Migration\Plugin\Destination\EntityDestinationFactory;
 use Waaseyaa\Migration\Runner\MigrationRunner;
 use Waaseyaa\Migration\Runner\ProcessChainExecutor;
 use Waaseyaa\Migration\Runner\RollbackWalker;
@@ -132,6 +136,33 @@ final class ServiceProvider extends BaseServiceProvider implements AcceptsMigrat
             return new RollbackWalker(
                 registry: $registry,
                 idMap: $idMap,
+                logger: $this->resolveLogger(),
+            );
+        });
+
+        // Adversarial-review follow-up to #1940 (WP-2 rework): binds
+        // EntityDestinationFactory, whose own docblock instructs consumers
+        // to `$this->resolve(EntityDestinationFactory::class)->create(...)`
+        // but which no provider ever bound — every real call threw
+        // RuntimeException("No binding registered ..."). The closure is
+        // deliberately lazy (mirrors the other singletons in this method):
+        // it resolves GateInterface at CLOSURE EXECUTION TIME (first
+        // resolve()), not at register(), so it only runs after
+        // AbstractKernel::discoverAccessPolicies() has made the gate live
+        // (G-014) — resolving this abstract before that point fails exactly
+        // like resolving GateInterface directly would.
+        $this->singleton(EntityDestinationFactory::class, function () {
+            $entityTypeManager = $this->resolve(EntityTypeManager::class);
+            \assert($entityTypeManager instanceof EntityTypeManager);
+            $gate = $this->resolve(GateInterface::class);
+            \assert($gate instanceof GateInterface);
+            $dispatcher = $this->resolve(EventDispatcherInterface::class);
+            \assert($dispatcher instanceof EventDispatcherInterface);
+
+            return new EntityDestinationFactory(
+                entityTypeManager: $entityTypeManager,
+                gate: $gate,
+                eventDispatcher: $dispatcher,
                 logger: $this->resolveLogger(),
             );
         });

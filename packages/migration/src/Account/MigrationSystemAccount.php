@@ -29,12 +29,45 @@ use Waaseyaa\Access\AccountInterface;
  * The default permission list, `DEFAULT_PERMISSIONS`, holds exactly
  * `'administer content'` — the single permission
  * `Waaseyaa\Access\Policy\ContentAdminAccessPolicy` requires to grant
- * manage + create on every entity type in the `content` group. Apps
- * importing into entity types guarded by other policies (e.g. `node`'s
- * `administer nodes` / per-bundle `create X content` in
- * `Waaseyaa\Node\NodeAccessPolicy`) must pass the exact extra permissions
- * those policies require via the constructor — `DEFAULT_PERMISSIONS` is a
- * floor for the common content-group case, not a universal grant.
+ * manage + create on every entity type in the `content` group (this already
+ * covers `node` — `NodeAccessPolicy::createAccess()` never returns
+ * `Forbidden`, so it never overrides the group-wide grant; `node`'s own
+ * `administer nodes` permission is not additionally required). Apps
+ * importing into entity types OUTSIDE the `content` group need a separate
+ * admin permission, because the corresponding policy never even runs for
+ * `administer content` holders (`AccessPolicyInterface::appliesTo()` is
+ * scoped by group). A WordPress-shaped import (posts → `node`, terms →
+ * `taxonomy_term`, attachments → `media`) needs the trio
+ * `['administer content', 'administer taxonomy', 'administer media']` —
+ * `'administer taxonomy'` (`Waaseyaa\Taxonomy\TermAccessPolicy`) and
+ * `'administer media'` (`Waaseyaa\Media\MediaAccessPolicy`) are the exact
+ * strings those policies check. `DEFAULT_PERMISSIONS` stays a floor for the
+ * common content-only case; construct with the extra permissions your
+ * migration's destination entity types require.
+ *
+ * **Per-bundle create permissions do not work through this account, or any
+ * account, on the import path.** `EntityAccessGate::allows('create', ...)`
+ * (`packages/access/src/Gate/EntityAccessGate.php`) hardcodes bundle `''`
+ * when it calls `checkCreateAccess()` — see that method's own `@todo`. A
+ * permission like `'create article content'`, `'create terms in tags'`, or a
+ * per-bundle media create permission can therefore NEVER match through the
+ * gate `EntityDestination` consults; only entity-type/group-wide admin
+ * permissions (`administer content` / `administer taxonomy` /
+ * `administer media`, or a hand-written policy with no bundle check) grant
+ * import writes. This is fixed only if/when `GateInterface` grows a
+ * bundle-aware create subject.
+ *
+ * **Never install this account into the kernel `AccountContext`.** Callers
+ * such as `EntityRepository::resolveActor()`
+ * (`packages/entity-storage/src/EntityRepository.php`) and audit listeners
+ * cast the ambient account's `id()` to `int` for `revision_author`/actor
+ * attribution. `id()` here returns the string sentinel `'migration:system'`;
+ * `(int) 'migration:system'` is `0`, which collides with
+ * `Waaseyaa\User\AnonymousUser`'s id `0` — a migration run whose account
+ * context is this class would silently attribute every write to the
+ * anonymous sentinel. Pass this account only as `EntityDestination`'s
+ * `$account` constructor argument (consulted directly by the gate, never
+ * cast to int), not as the ambient acting account.
  *
  * @api
  */
