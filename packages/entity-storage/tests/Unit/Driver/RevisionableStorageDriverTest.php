@@ -152,6 +152,104 @@ final class RevisionableStorageDriverTest extends TestCase
     }
 
     #[Test]
+    public function delete_published_revision_throws(): void
+    {
+        // #1920 WP-2 rework task 5 / review finding #6: the published pointer
+        // must be as immortal as the default-revision pointer.
+        $this->db->insert('test_revisionable')
+            ->fields(['id', 'uuid', 'title', 'bundle', 'langcode', 'revision_id', 'published_revision_id', '_data'])
+            ->values([
+                'id' => '1', 'uuid' => 'a', 'title' => 'v2', 'bundle' => 'test_revisionable', 'langcode' => 'en',
+                'revision_id' => 2, 'published_revision_id' => 1, '_data' => '{}',
+            ])
+            ->execute();
+        $this->driver->writeRevision('1', ['title' => 'v1', 'uuid' => 'a'], null);
+        $this->driver->writeRevision('1', ['title' => 'v2', 'uuid' => 'a'], null);
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('Cannot delete the published revision');
+        $this->driver->deleteRevision('1', 1);
+    }
+
+    #[Test]
+    public function delete_revision_still_allows_an_ordinary_old_revision_when_a_published_pointer_is_set(): void
+    {
+        $this->db->insert('test_revisionable')
+            ->fields(['id', 'uuid', 'title', 'bundle', 'langcode', 'revision_id', 'published_revision_id', '_data'])
+            ->values([
+                'id' => '1', 'uuid' => 'a', 'title' => 'v3', 'bundle' => 'test_revisionable', 'langcode' => 'en',
+                'revision_id' => 3, 'published_revision_id' => 2, '_data' => '{}',
+            ])
+            ->execute();
+        $this->driver->writeRevision('1', ['title' => 'v1', 'uuid' => 'a'], null);
+        $this->driver->writeRevision('1', ['title' => 'v2', 'uuid' => 'a'], null);
+        $this->driver->writeRevision('1', ['title' => 'v3', 'uuid' => 'a'], null);
+
+        $this->driver->deleteRevision('1', 1);
+
+        $this->assertNull($this->driver->readRevision('1', 1));
+        $this->assertNotNull($this->driver->readRevision('1', 2), 'published revision untouched');
+    }
+
+    #[Test]
+    public function delete_revision_tolerates_a_base_table_without_the_published_revision_column(): void
+    {
+        // Legacy (pre-WP-2) base tables never gained the published_revision_id
+        // column. deleteRevision() must not error selecting it, and the
+        // default-revision guard must still work.
+        $legacyType = new EntityType(
+            id: 'test_revisionable_legacy_delete',
+            label: 'Legacy Delete',
+            class: TestRevisionableEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
+            revisionable: true,
+            revisionDefault: true,
+        );
+
+        $this->db->schema()->createTable('test_revisionable_legacy_delete', [
+            'fields' => [
+                'id' => ['type' => 'serial', 'not null' => true],
+                'uuid' => ['type' => 'varchar', 'length' => 128, 'not null' => true, 'default' => ''],
+                'bundle' => ['type' => 'varchar', 'length' => 128, 'not null' => true, 'default' => ''],
+                'title' => ['type' => 'varchar', 'length' => 255, 'not null' => true, 'default' => ''],
+                'langcode' => ['type' => 'varchar', 'length' => 12, 'not null' => true, 'default' => 'en'],
+                'revision_id' => ['type' => 'int', 'not null' => false, 'default' => null],
+                // NOTE: deliberately no published_revision_id column.
+                '_data' => ['type' => 'text', 'not null' => true, 'default' => '{}'],
+            ],
+            'primary key' => ['id'],
+            'indexes' => ['test_revisionable_legacy_delete_bundle' => ['bundle']],
+            'unique keys' => ['test_revisionable_legacy_delete_uuid' => ['uuid']],
+        ]);
+
+        $legacyHandler = new SqlSchemaHandler($legacyType, $this->db);
+        $legacyHandler->ensureRevisionTable();
+
+        $resolver = new SingleConnectionResolver($this->db);
+        $legacyDriver = new RevisionableStorageDriver($resolver, $legacyType);
+
+        $this->db->insert('test_revisionable_legacy_delete')
+            ->fields(['id', 'uuid', 'title', 'bundle', 'langcode', 'revision_id', '_data'])
+            ->values([
+                'id' => '1', 'uuid' => 'a', 'title' => 'v2', 'bundle' => 'test_revisionable_legacy_delete',
+                'langcode' => 'en', 'revision_id' => 2, '_data' => '{}',
+            ])
+            ->execute();
+        $legacyDriver->writeRevision('1', ['title' => 'v1', 'uuid' => 'a'], null);
+        $legacyDriver->writeRevision('1', ['title' => 'v2', 'uuid' => 'a'], null);
+
+        // Ordinary old revision still deletable — no SQL error from the
+        // missing column.
+        $legacyDriver->deleteRevision('1', 1);
+        $this->assertNull($legacyDriver->readRevision('1', 1));
+
+        // Default-revision guard is unaffected.
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('Cannot delete the default revision');
+        $legacyDriver->deleteRevision('1', 2);
+    }
+
+    #[Test]
     public function read_multiple_revisions(): void
     {
         $this->driver->writeRevision('1', ['title' => 'v1', 'uuid' => 'a'], null);

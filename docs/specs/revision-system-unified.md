@@ -23,6 +23,12 @@ There is **one** revision system: `EntityRepository` + `RevisionableStorageDrive
   `<entity>__translation__revision`, with **independent per-language
   sequencing** (editing English does not bump the Anishinaabemowin revision
   count, and vice-versa).
+- **Pruning/deletion immortality (FR-038, extended).** `EntityRepository::pruneRevisions()`
+  and `RevisionableStorageDriver::deleteRevision()` never delete the current
+  revision (`revision_id`) OR the published revision (`published_revision_id`)
+  — both pointers are excluded from every deletion candidate set (#1920 WP-2
+  rework). Base tables predating the `published_revision_id` column behave
+  exactly as before: only the current-revision guard applies, no SQL error.
 
 A `revisionable`-only entity (FNPI's `page`, `identity_pillar`, `document`,
 `drive_asset` today) is the **zero-translation default** and behaves exactly as

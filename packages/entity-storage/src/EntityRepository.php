@@ -1807,7 +1807,13 @@ final class EntityRepository implements EntityRepositoryInterface
      * Prune an entity's revision history per a retention policy so revision
      * tables do not grow unbounded — opt-in (the framework never auto-prunes on
      * save, FR-039). Keeps the newest N revisions and NEVER deletes the current
-     * revision (FR-038, enforced via {@see RevisionPruningPolicy::candidateExcluded()}).
+     * revision (FR-038, enforced via {@see RevisionPruningPolicy::candidateExcluded()})
+     * OR the published revision (FR-038's guard extended to the published
+     * pointer, #1920 WP-2 rework task 5 / review finding #6 — deleting it would
+     * silently flip the entity into never-published semantics). The published
+     * check stays inline here rather than in
+     * {@see RevisionPruningPolicy::candidateExcluded()} because that method is
+     * `@api` public surface and its signature must not change.
      *
      * A no-op policy ({@see RevisionPruningPolicy::default()}) returns a disabled
      * report and deletes nothing. Drive this from a CLI/scheduled task with a
@@ -1831,6 +1837,13 @@ final class EntityRepository implements EntityRepositoryInterface
         $baseRow = $this->driver->read($this->entityType->id(), $entityId);
         $currentRevisionId = $baseRow !== null ? (int) ($baseRow['revision_id'] ?? 0) : 0;
 
+        // The published revision is immortal too (FR-038 extension, #1920 task
+        // 5). `?? null` tolerates pre-WP-2 base tables that lack the
+        // `published_revision_id` column entirely — the key is simply absent
+        // from the row array read above.
+        $publishedRevisionId = $baseRow['published_revision_id'] ?? null;
+        $publishedRevisionId = $publishedRevisionId !== null ? (int) $publishedRevisionId : null;
+
         $keep = $policy->keepLastNFor(RevisionPruningPolicy::DEFAULT_LANGCODE_KEY);
         if ($keep === null) {
             // No keep-count constraint applies to this entity — nothing to prune.
@@ -1848,6 +1861,9 @@ final class EntityRepository implements EntityRepositoryInterface
             ++$candidatesFound;
             if ($policy->candidateExcluded($vid, $currentRevisionId)) {
                 continue; // never delete the current revision
+            }
+            if ($publishedRevisionId !== null && $vid === $publishedRevisionId) {
+                continue; // never delete the published revision (FR-038 extension, #1920 task 5)
             }
             $this->revisionDriver->deleteRevision($entityId, $vid);
             ++$pruned;
