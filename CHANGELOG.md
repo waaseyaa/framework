@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.257] - 2026-07-10
+
 ### Added
 
 - **CW-v1 WP-2 tasks 2.1–2.3: `node` opts into revisionable storage; per-bundle `new_revision` knob wired (#1920).** `Node` gains a `revision_id` `ContentEntityKeys` key and a discoverable `workflow_state` field (`FieldStorage::Data` — already persisted per-revision via the generic `_data` blob, so this only makes it visible to `SchemaPresenter`/JSON:API discovery, not a schema change); `NodeServiceProvider` registers the `node` `EntityType` with `revisionable: true, revisionDefault: true` (every ordinary save creates a new revision, Drupal parity). A new shape-guarded, additive migration (`packages/node/migrations/2026_07_06_000001_node_revision_schema.php`) retrofits the `revision_id`/`published_revision_id` pointer columns and the `node_revision` table onto existing installs (schema only — legacy-row `workflow_state` backfill is binding-scoped, task 2.7's CLI). `Node` declares the legacy `RevisionableInterface` so `EntityRepository::shouldCreateRevision()`'s per-entity override branch is live for nodes; new `Listener\NodeRevisionDefaultListener` (`PRE_SAVE`) forwards the bundle's `NodeType::isNewRevision()` onto the node whenever no earlier actor has already decided (an explicit `setNewRevision()` call always wins). `NodeType`'s `new_revision` default flips `false → true` (opt-OUT semantics, design decision 1) — a bundle that never explicitly sets the key must keep revisioning on; the earlier `false` default would have silently disabled it for every standard bundle.
