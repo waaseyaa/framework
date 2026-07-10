@@ -558,4 +558,62 @@ final class WorkflowStateGuardTest extends TestCase
 
         $this->assertNull($entity->isNewRevision(), 'A non-state-changing edit must leave the bundle opt-out in force.');
     }
+
+    #[Test]
+    public function a_state_changing_save_into_a_default_revision_state_is_also_forced_to_a_new_revision(): void
+    {
+        // Verifier residual (task 2.6): the forced-revision rule is UNIFORM
+        // — a raw save into a defaultRevision:true state ('published' here,
+        // via the publish edge from review) on a pointered entity forces a
+        // new revision too, otherwise an opt-out bundle would write the new
+        // state into the pointer-served row in place. Raw saves never enact
+        // pointer moves; the result is an unpromoted tip.
+        $publishedRevision = $this->entity(['id' => 1, 'workflow_state' => 'published', 'status' => 1], isNew: false);
+        $guard = $this->guard($this->editorialWorkflow(), $this->account(['use editorial transition publish']), $publishedRevision);
+
+        $entity = $this->revisionableEntity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $entity->setNewRevision(false); // simulated bundle opt-out
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'review'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertTrue($entity->isNewRevision(), 'A state-changing save into a default-revision state on a pointered entity must also force a new revision.');
+    }
+
+    #[Test]
+    public function a_pointer_revision_with_no_workflow_state_falls_back_to_its_stored_published_status(): void
+    {
+        // Legacy fallback (pre-backfill data): the pointer revision carries
+        // NO workflow_state, so its state cannot be mapped through the
+        // workflow's published flag — the stored status column is preserved
+        // as-is (here 1), never derived from the save's target state
+        // ('draft', published flag false).
+        $publishedRevision = $this->entity(['id' => 1, 'status' => 1], isNew: false);
+        $guard = $this->guard($this->editorialWorkflow(), $this->account(['use editorial transition revise']), $publishedRevision);
+
+        $entity = $this->entity(['id' => 1, 'workflow_state' => 'draft'], isNew: false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertSame(1, $entity->get('status'));
+    }
+
+    #[Test]
+    public function a_pointer_revision_with_an_unknown_workflow_state_falls_back_to_its_stored_unpublished_status(): void
+    {
+        // Same fallback, unpublished flavor: the pointer revision names a
+        // state the bound workflow does not define ('legacy_state'), stored
+        // status 0 — preserved as-is even though the save enters
+        // 'published' (published flag true).
+        $publishedRevision = $this->entity(['id' => 1, 'workflow_state' => 'legacy_state', 'status' => 0], isNew: false);
+        $guard = $this->guard($this->editorialWorkflow(), $this->account(['use editorial transition publish']), $publishedRevision);
+
+        $entity = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'review'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertSame(0, $entity->get('status'));
+    }
 }

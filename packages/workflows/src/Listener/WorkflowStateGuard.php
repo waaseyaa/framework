@@ -157,25 +157,39 @@ final class WorkflowStateGuard
         // Null context: no acting account to check permission against —
         // edge-legality above is the only enforceable guarantee here.
 
-        // CW-v1 WP-2 task 2.6 panel fix B (#1920): a forward draft REQUIRES
-        // a new revision by definition — a state-changing save into a
-        // `default_revision: false` state on an entity whose published
-        // pointer exists would otherwise, on a `new_revision: false` bundle
-        // (entity-type `revisionDefault: false`, or NodeType opt-out),
-        // update the CURRENT revision in place. When the current revision
-        // IS the published one, that writes the draft's content and
-        // workflow_state into the very row the published pointer serves —
-        // live content corruption. Precedence, documented: the bundle
-        // opt-out governs ordinary NON-state-changing edits; state-changing
-        // forward drafts always create a revision. Set unconditionally
-        // (overriding even an explicit earlier setNewRevision(false)) so
-        // the outcome is identical in both listener orders relative to
-        // Task 2.3's NodeRevisionDefaultListener: that listener respects an
+        // CW-v1 WP-2 task 2.6 panel fix B, made UNIFORM by the verifier's
+        // residual finding (#1920): ANY state-changing save on an entity
+        // whose published pointer exists requires a new revision —
+        // regardless of the target state's `default_revision` flag. On a
+        // `new_revision: false` bundle (entity-type `revisionDefault:
+        // false`, or NodeType opt-out) the save would otherwise update the
+        // CURRENT revision in place; when the current revision IS the
+        // published one, that writes the new content and workflow_state
+        // into the very row the published pointer serves — live content
+        // corruption. The original scoping to `default_revision: false`
+        // targets left exactly that hole for raw saves into 'archived' /
+        // 'published': a pointered opt-out row raw-saved published ->
+        // archived committed ONE row with workflow_state='archived' AND
+        // the pointer-derived status=1.
+        //
+        // Consequence, documented (spec "Forward drafts always create a
+        // revision"): raw saves NEVER enact pointer moves. A raw save into
+        // a `default_revision: true` state creates an unpromoted tip
+        // carrying that state while the pointer — and the pointer-derived
+        // `status` ({@see applyState()}) — stay truthful; enacting
+        // default-revision states (moving the pointer) is exclusively
+        // {@see \Waaseyaa\Workflows\Transition\TransitionService}'s job.
+        //
+        // Precedence: the bundle opt-out governs ordinary
+        // NON-state-changing edits; state-changing saves on pointered
+        // entities always revision. Set unconditionally (overriding even an
+        // explicit earlier setNewRevision(false)) so the outcome is
+        // identical in both listener orders relative to Task 2.3's
+        // NodeRevisionDefaultListener: that listener respects an
         // already-set non-null value (guard-first order → its skip keeps
         // `true`), and this write overrides a bundle-derived `false`
         // (node-listener-first order → still `true`).
-        $targetState = $workflow->getState($newState);
-        if ($targetState?->defaultRevision === false && $this->loadPublishedRevision($entity) !== null) {
+        if ($this->loadPublishedRevision($entity) !== null) {
             $this->forceNewRevision($entity);
         }
 

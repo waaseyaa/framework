@@ -70,6 +70,7 @@ use Waaseyaa\Workflows\WorkflowServiceProvider;
 final class ForwardDraftIntegrationTest extends TestCase
 {
     private const string ENTITY_TYPE_ID = 'forward_draft_subject';
+    private const string REVISIONING_ENTITY_TYPE_ID = 'forward_draft_revisioning';
 
     #[Test]
     public function forward_draft_on_published_content_leaves_the_live_version_serving_until_republished(): void
@@ -398,6 +399,112 @@ final class ForwardDraftIntegrationTest extends TestCase
         $this->assertSame($draftRevisionId, (int) $freshTip->get('revision_id'), 'A non-state-changing edit on a new_revision:false bundle must still update in place.');
     }
 
+    #[Test]
+    public function raw_save_into_archived_on_an_opt_out_bundle_creates_an_unpromoted_tip_instead_of_corrupting_in_place(): void
+    {
+        // CW-v1 WP-2 task 2.6 verifier residual (#1920): the forced-revision
+        // rule must be UNIFORM over all state-changing saves on pointered
+        // entities — scoping it to defaultRevision:false targets left a raw
+        // save into 'archived' (a defaultRevision:true state, legal via the
+        // 'archive' edge) updating the pointered opt-out row IN PLACE while
+        // applyState stamped the pointer-derived status (still published →
+        // 1): one committed row with workflow_state='archived' AND
+        // status=1. Raw saves NEVER enact pointer moves — the save creates
+        // an unpromoted tip carrying 'archived' while the pointer and the
+        // pointer-derived status stay truthful; enacting
+        // defaultRevision:true states is exclusively TransitionService's
+        // job.
+        [$entityTypeManager, $provider, $accountContext] = $this->bootWiredProvider();
+        $repository = $entityTypeManager->getRepository(self::ENTITY_TYPE_ID);
+        $transitionService = $provider->resolve(TransitionService::class);
+
+        $editor = $this->account(7, ['use editorial transition publish', 'use editorial transition archive']);
+        $accountContext->set($editor);
+
+        $entity = new ForwardDraftSubject(
+            ['bundle' => self::ENTITY_TYPE_ID, 'workflow_state' => 'draft', 'title' => 'Live title'],
+            self::ENTITY_TYPE_ID,
+            $this->entityKeys(),
+        );
+        $repository->save($entity);
+        $entityId = (string) $entity->id();
+        $transitionService->transition($entity, 'publish', $editor);
+        $publishedRevisionId = (int) $entity->get('revision_id');
+
+        // Raw save into 'archived' (legal edge, permission held), NO
+        // setNewRevision call, on the revisionDefault:false type.
+        $tip = $repository->find($entityId);
+        $this->assertNotNull($tip);
+        $tip->set('workflow_state', 'archived');
+        $repository->save($tip);
+
+        $archivedTipRevisionId = (int) $tip->get('revision_id');
+        $this->assertNotSame($publishedRevisionId, $archivedTipRevisionId, 'A state-changing raw save on a pointered opt-out row must create a NEW revision.');
+
+        // The published revision row is byte-identical — content AND state.
+        $publishedRow = $repository->loadRevision($entityId, $publishedRevisionId);
+        $this->assertNotNull($publishedRow);
+        $this->assertSame('Live title', $publishedRow->get('title'));
+        $this->assertSame('published', $publishedRow->get('workflow_state'));
+
+        // Pointer unchanged; base status still 1 (rides the pointer, which
+        // still serves the published revision); the archived state lives
+        // only on the unpromoted tip.
+        $pointer = $repository->loadPublishedRevision($entityId);
+        $this->assertNotNull($pointer);
+        $this->assertSame($publishedRevisionId, (int) $pointer->get('revision_id'));
+        $freshBase = $repository->find($entityId);
+        $this->assertNotNull($freshBase);
+        $this->assertSame(1, $freshBase->get('status'));
+        $this->assertSame('archived', $freshBase->get('workflow_state'));
+    }
+
+    #[Test]
+    public function raw_save_into_archived_on_a_revisioning_bundle_behaves_identically(): void
+    {
+        // Parity with the opt-out test above: on an ordinary revisioning
+        // bundle (revisionDefault: true) the same raw save into 'archived'
+        // produces the same shape — unpromoted archived tip, pointer and
+        // pointer-derived status untouched. Raw saves never enact pointer
+        // moves on ANY bundle.
+        [$entityTypeManager, $provider, $accountContext] = $this->bootWiredProvider();
+        $repository = $entityTypeManager->getRepository(self::REVISIONING_ENTITY_TYPE_ID);
+        $transitionService = $provider->resolve(TransitionService::class);
+
+        $editor = $this->account(7, ['use editorial transition publish', 'use editorial transition archive']);
+        $accountContext->set($editor);
+
+        $entity = new ForwardDraftSubject(
+            ['bundle' => self::REVISIONING_ENTITY_TYPE_ID, 'workflow_state' => 'draft', 'title' => 'Live title'],
+            self::REVISIONING_ENTITY_TYPE_ID,
+            $this->entityKeys(),
+        );
+        $repository->save($entity);
+        $entityId = (string) $entity->id();
+        $transitionService->transition($entity, 'publish', $editor);
+        $publishedRevisionId = (int) $entity->get('revision_id');
+
+        $tip = $repository->find($entityId);
+        $this->assertNotNull($tip);
+        $tip->set('workflow_state', 'archived');
+        $repository->save($tip);
+
+        $this->assertNotSame($publishedRevisionId, (int) $tip->get('revision_id'));
+
+        $publishedRow = $repository->loadRevision($entityId, $publishedRevisionId);
+        $this->assertNotNull($publishedRow);
+        $this->assertSame('Live title', $publishedRow->get('title'));
+        $this->assertSame('published', $publishedRow->get('workflow_state'));
+
+        $pointer = $repository->loadPublishedRevision($entityId);
+        $this->assertNotNull($pointer);
+        $this->assertSame($publishedRevisionId, (int) $pointer->get('revision_id'));
+        $freshBase = $repository->find($entityId);
+        $this->assertNotNull($freshBase);
+        $this->assertSame(1, $freshBase->get('status'));
+        $this->assertSame('archived', $freshBase->get('workflow_state'));
+    }
+
     /**
      * @return array<string, string>
      */
@@ -428,6 +535,7 @@ final class ForwardDraftIntegrationTest extends TestCase
         $configStorage = new MemoryStorage();
         $configStorage->write('workflows.assignments', [
             self::ENTITY_TYPE_ID . '.' . self::ENTITY_TYPE_ID => 'editorial',
+            self::REVISIONING_ENTITY_TYPE_ID . '.' . self::REVISIONING_ENTITY_TYPE_ID => 'editorial',
         ]);
         $configFactory = new ConfigFactory($configStorage, $dispatcher);
 
@@ -459,12 +567,25 @@ final class ForwardDraftIntegrationTest extends TestCase
             group: 'workflows',
         ));
 
+        // revisionDefault stays false (the EntityType default) — this type
+        // models a `new_revision: false` opt-out bundle for raw saves.
         $entityTypeManager->registerEntityType(new EntityType(
             id: self::ENTITY_TYPE_ID,
             label: 'Forward draft subject',
             class: ForwardDraftSubject::class,
             keys: $this->entityKeys(),
             revisionable: true,
+        ));
+
+        // The parity type: an ordinary revisioning bundle (revisionDefault
+        // true — every save creates a revision unless overridden).
+        $entityTypeManager->registerEntityType(new EntityType(
+            id: self::REVISIONING_ENTITY_TYPE_ID,
+            label: 'Forward draft revisioning subject',
+            class: ForwardDraftSubject::class,
+            keys: $this->entityKeys(),
+            revisionable: true,
+            revisionDefault: true,
         ));
 
         $accountContext = new RequestAccountContext();
