@@ -268,6 +268,126 @@ you handle these operations externally.
    - `.github/workflows/ci.yml`
    - `.github/workflows/deploy.yml`
 
+### Playbook H: Content-Workflow (CW-v1) WP-2 Activation — Node Revisions + Workflow Binding
+
+Existing deployments upgrading onto WP-2 (node revisionable storage +
+editorial workflow bindings, docs/specs/content-workflow.md) MUST run this
+exact sequence. The order is load-bearing — each step exists because the
+step before it is deliberately incomplete, not because of process ceremony.
+
+1. **Deploy WP-2 code.** Nothing below is safe to run against the old code.
+2. **`bin/waaseyaa migrate:up`** — applies the node revision-schema migration
+   (`packages/node/migrations/2026_07_06_000001_node_revision_schema.php`):
+   creates the `node__revision` table and the base `revision_id` pointer
+   column. Idempotent and half-applied-state safe — safe to re-run if a prior
+   deploy died partway through.
+3. **`bin/waaseyaa revisions:enable node`** — REQUIRED, not conditional. Step
+   2's migration is SCHEMA-ONLY (docs/specs/content-workflow.md, "Backfill is
+   binding-scoped, not framework-scoped"): it creates the table but backfills
+   no data. This step seeds an initial revision (revision 1) for every
+   existing node row and points the base row at it — without it, every
+   existing node has revision schema but zero revision history, and every
+   later revision-reading path (`loadPublishedRevision()`, `listRevisions()`,
+   the pointer-move guard) has nothing to read.
+4. **`bin/waaseyaa workflows:backfill-state node editorial`** — stamps a
+   `workflow_state` onto every existing node row that does not yet carry one,
+   derived from each row's own `status` column (published rows → the
+   workflow's published `default_revision: true` state; everything else →
+   `initial_state`). Run with `--dry-run` first to see the counts and sample
+   ids with zero writes, then re-run for real:
+   ```
+   bin/waaseyaa workflows:backfill-state node editorial --dry-run
+   bin/waaseyaa workflows:backfill-state node editorial
+   ```
+   Repeat per bundle with `--bundle=<type>` if different content types need
+   different workflows. This step is what step 5 depends on — see the first
+   failure mode below.
+5. **Only THEN add the `workflows.assignments` binding** (e.g.
+   `node.article => editorial`) and deploy/import that config. Binding
+   earlier makes step 4 partially retroactive at best and actively dangerous
+   at worst (see failure modes).
+
+**Failure mode 1 — binding before backfill.** `TransitionService::currentState()`
+and `WorkflowStateGuard::stateOf()` both fall back to the workflow's
+`initial_state` when `workflow_state` is empty. Bind the workflow before
+backfilling and every legacy published node reads as `draft` the moment the
+binding takes effect — editors can no longer transition it along the real
+published path without first fighting the fallback. `WorkflowStateGuard::
+applyState()`'s pointer-derived `status` fallback (a pointer revision whose
+`workflow_state` is unknown to the workflow keeps its stored `status` rather
+than deriving from state) limits the *visible* damage — a legacy published
+node does not suddenly un-publish — but it does not remove the need for the
+backfill: the node is still misreported as `draft` to every workflow-aware
+reader (dashboards, transition permission checks) until `workflows:backfill-
+state` runs. Running the backfill after the fact fixes it going forward, but
+any transitions attempted in between were evaluated against the wrong
+`fromState` — always run the backfill first.
+
+**Failure mode 2 — binding a non-revisionable type.** `WorkflowBindingResolver::
+resolve()` hard-throws (`\RuntimeException`) when a `workflows.assignments`
+entry names an entity type that is not revisionable. This fails LOUDLY, at
+step 5, the moment the binding is read — not silently, and not at step 4.
+Mis-ordering step 5 before step 2/3 (binding a type before its revision
+schema/history exist) is therefore self-correcting for this specific error
+class: the throw is the signal to go back and run steps 2–4 first. It is
+*not* a substitute for running steps 2–4 in order on a type that already
+happens to be revisionable — that combination (revisionable type, no
+history, no backfill) fails silently per failure mode 1, not loudly.
+
+**Legacy `NodeType` rows — the `new_revision` opt-out ambiguity.** Before
+CW-v1 WP-2 task 2.3, `NodeType`'s constructor default for the `new_revision`
+property was `false`; only after task 2.3 did the default flip to `true`
+(Drupal parity — see `packages/node/src/NodeType.php`). Any `node_type` row
+saved under the OLD code has `new_revision => false` *materialized* into its
+persisted value bag — indistinguishable, once loaded, from a bundle that
+deliberately opted out via an explicit `new_revision: false`. New `NodeType`
+rows created after the WP-2 deploy get the new `true` default correctly;
+existing rows do not retroactively pick it up. Operators MUST review
+existing `node_type` rows and explicitly set `new_revision: true` on any
+bundle that should participate in per-save revisioning.
+
+Check (default `sql-blob` storage backend — `NodeType` values live in the
+`_data` JSON column, same as any config entity with no `sql-column` override):
+```sql
+SELECT type, json_extract(_data, '$.new_revision') AS new_revision FROM node_type;
+```
+Fix (repeat per bundle that should revision; there is currently no
+`entity:update`-style CLI command for this, so the sanctioned system-level
+edit is a direct `_data` patch, mirroring the same `json_extract`/`json_set`
+technique the query engine itself uses for `Data`-stored fields):
+```sql
+UPDATE node_type SET _data = json_set(_data, '$.new_revision', json('true'))
+WHERE type IN ('article', 'page');
+```
+Bundles deliberately opted out of per-save revisioning need no change — this
+review is only to separate "inherited stale default" from "chosen opt-out"
+for bundles where the answer actually matters to the operator.
+
+**Revision-pruning stance for WP-2 (explicit, by user requirement).** With
+`revisionDefault: true`, every ordinary node save creates a revision — the
+`node__revision` table grows unbounded by design once WP-2 ships; nothing in
+the framework prunes it automatically. What ships today:
+- `EntityRepository::pruneRevisions(string $entityId, RevisionPruningPolicy $policy)`
+  ([packages/entity-storage/src/EntityRepository.php](../../packages/entity-storage/src/EntityRepository.php))
+  with `Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy`
+  ([packages/entity-storage/src/Revision/RevisionPruningPolicy.php](../../packages/entity-storage/src/Revision/RevisionPruningPolicy.php))
+  is the real, callable pruning entry point. `RevisionPruningPolicy::default()`
+  is a no-op (FR-039 — retains every revision of every entity forever);
+  operators opt in explicitly per entity via `RevisionPruningPolicy::
+  keepLastUniform(int $n)` or a per-langcode map, then call `pruneRevisions()`
+  themselves (a one-off script, a custom `ScheduleEntriesInterface` class per
+  the "Adding a schedule-entries class" checklist in `CLAUDE.md`, or a bespoke
+  CLI command in the consuming application). The current revision is always
+  excluded from deletion (`RevisionPruningPolicy::candidateExcluded()`,
+  FR-038) regardless of policy.
+- **What is NOT shipped in WP-2**: there is no `revisions:prune` (or
+  equivalent) framework CLI command, and no scheduled/automatic pruning task
+  runs by default. An operator who does nothing gets unbounded revision
+  growth — this is the documented default, not an oversight. Driving
+  `pruneRevisions()` from CLI/scheduler is deferred past WP-2; track it
+  against the `docs/specs/revision-system-unified.md` follow-up work before
+  relying on retention limits in a high-write-volume deployment.
+
 ## CLI Command Reference
 
 ### Queue Operations
