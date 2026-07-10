@@ -321,6 +321,94 @@ final class MigrationRunnerTest extends TestCase
         }
     }
 
+    #[Test]
+    public function bundle_is_threaded_into_destination_records_when_declared(): void
+    {
+        $records = $this->makeRecords(['a', 'b']);
+        $source = new InMemorySource(id: 'in_memory', records: $records);
+
+        /** @var list<\Waaseyaa\Migration\Plugin\DestinationRecord> $captured */
+        $captured = [];
+        $destination = $this->recordingDestination($captured);
+
+        $definition = $this->demoDefinition($source, $destination, bundle: 'article');
+        $runner = $this->makeRunner($this->buildRegistry($definition));
+
+        $runner->run('demo', new RunOptions());
+
+        self::assertCount(2, $captured);
+        foreach ($captured as $record) {
+            self::assertSame('article', $record->bundle);
+        }
+    }
+
+    #[Test]
+    public function bundle_is_null_on_destination_records_when_undeclared(): void
+    {
+        $records = $this->makeRecords(['a']);
+        $source = new InMemorySource(id: 'in_memory', records: $records);
+
+        /** @var list<\Waaseyaa\Migration\Plugin\DestinationRecord> $captured */
+        $captured = [];
+        $destination = $this->recordingDestination($captured);
+
+        $definition = $this->demoDefinition($source, $destination);
+        $runner = $this->makeRunner($this->buildRegistry($definition));
+
+        $runner->run('demo', new RunOptions());
+
+        self::assertCount(1, $captured);
+        self::assertNull($captured[0]->bundle);
+    }
+
+    /**
+     * Builds a destination that appends every {@see \Waaseyaa\Migration\Plugin\DestinationRecord}
+     * it receives to `$captured` (by reference) before returning a trivial
+     * {@see \Waaseyaa\Migration\Plugin\WriteResult}. Used to observe exactly
+     * what the runner threads into the record, independent of destination
+     * write semantics.
+     *
+     * @param list<\Waaseyaa\Migration\Plugin\DestinationRecord> $captured
+     */
+    private function recordingDestination(array &$captured): DestinationPluginInterface
+    {
+        return new class($captured) implements DestinationPluginInterface {
+            /** @param list<\Waaseyaa\Migration\Plugin\DestinationRecord> $captured */
+            public function __construct(private array &$captured) {}
+
+            public function id(): string
+            {
+                return 'recording_dest';
+            }
+
+            public function stability(): string
+            {
+                return 'stable';
+            }
+
+            public function write(\Waaseyaa\Migration\Plugin\DestinationRecord $record): \Waaseyaa\Migration\Plugin\WriteResult
+            {
+                $this->captured[] = $record;
+                $hash = $record->sourceId->hash();
+
+                return new \Waaseyaa\Migration\Plugin\WriteResult(
+                    destinationEntityType: 'recording_entity',
+                    destinationUuid: 'uuid-' . \substr($hash, 0, 12),
+                    sourceRecordHash: \hash('sha256', \json_encode($record->values, \JSON_THROW_ON_ERROR)),
+                    runId: '019683d3-' . \substr($hash, 0, 4) . '-7000-8000-' . \substr($hash, 0, 12),
+                    writtenAt: '2026-05-13T12:00:00Z',
+                );
+            }
+
+            public function rollback(\Waaseyaa\Migration\Plugin\WriteResult $result): void {}
+
+            public function lookup(SourceId $sourceId): ?\Waaseyaa\Migration\Plugin\WriteResult
+            {
+                return null;
+            }
+        };
+    }
+
     /**
      * Builds a clock test-seam that returns `$first` on its first
      * invocation and `$second` on every subsequent invocation — enough to
@@ -353,12 +441,14 @@ final class MigrationRunnerTest extends TestCase
     private function demoDefinition(
         \Waaseyaa\Migration\Plugin\SourcePluginInterface $source,
         DestinationPluginInterface $destination,
+        ?string $bundle = null,
     ): MigrationDefinition {
         return new MigrationDefinition(
             id: 'demo',
             source: $source,
             process: ['value' => 'value'],
             destination: $destination,
+            bundle: $bundle,
         );
     }
 

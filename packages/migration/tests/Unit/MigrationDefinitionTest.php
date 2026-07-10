@@ -269,6 +269,43 @@ final class MigrationDefinitionTest extends TestCase
     }
 
     #[Test]
+    public function bundle_round_trips_when_provided(): void
+    {
+        $definition = new MigrationDefinition(
+            id: 'wp_posts',
+            source: $this->makeSource('wp_post'),
+            process: ['title' => 'post_title'],
+            destination: $this->makeDestination('node'),
+            bundle: 'article',
+        );
+
+        self::assertSame('article', $definition->bundle);
+    }
+
+    #[Test]
+    public function bundle_defaults_to_null(): void
+    {
+        $definition = $this->minimal();
+
+        self::assertNull($definition->bundle);
+    }
+
+    #[Test]
+    public function empty_string_bundle_is_rejected(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('$bundle must be null or a non-empty string');
+
+        new MigrationDefinition(
+            id: 'wp_posts',
+            source: $this->makeSource('wp_post'),
+            process: ['title' => 'post_title'],
+            destination: $this->makeDestination('node'),
+            bundle: '',
+        );
+    }
+
+    #[Test]
     public function negative_memory_budget_is_rejected(): void
     {
         $this->expectException(\InvalidArgumentException::class);

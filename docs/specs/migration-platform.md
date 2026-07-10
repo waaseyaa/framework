@@ -291,6 +291,7 @@ final readonly class MigrationDefinition
         public int $memoryBudgetBytes = 268_435_456,         // 256 MB default
         public float $errorRateWarn = 0.01,
         public float $errorRateHalt = 0.10,
+        public ?string $bundle = null,                       // threaded into every DestinationRecord (§7.1)
     ) { /* validates */ }
 }
 ```
@@ -384,8 +385,13 @@ The default destination — writes through the entity-storage coordinator
 
 `EntityDestinationFactory::forEntityType('migration_test_widget')` returns an
 `EntityDestination` bound to a specific destination entity type id. Bundle
-resolution is deferred to write time (D8) — bundle is read from the
-`DestinationRecord::$fields['bundle']` slot when present.
+resolution is deferred to write time (D8): a migration author declares the
+bundle once on `MigrationDefinition::$bundle`; `MigrationRunner::processOne()`
+threads that value verbatim into `DestinationRecord::$bundle` for every
+record it builds; `EntityDestination` reads the typed `$bundle` property
+(not a `$fields` array — there is no such slot) at write time and, when
+non-null, resolves the destination entity type's bundle key
+(`EntityType::getKeys()['bundle']`) and sets it on the entity before save.
 
 ### 7.2 Write path (FR-018..FR-022)
 

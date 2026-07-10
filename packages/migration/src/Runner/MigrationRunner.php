@@ -446,6 +446,7 @@ final class MigrationRunner
             migrationId: $definition->id,
             sourceId: $sourceId,
             values: $values,
+            bundle: $definition->bundle,
         );
 
         if ($dryRun) {
