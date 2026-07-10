@@ -254,7 +254,7 @@ any audit INSERT failure `AuditEventWriter` now:
 
 ## Event-Kind Taxonomy
 
-`AuditEventKind` is a backed string enum with 22 cases (additive — cases are
+`AuditEventKind` is a backed string enum with 23 cases (additive — cases are
 never removed per the out-of-band downstream-amendment principle):
 
 | Case | Value | Description |
@@ -281,6 +281,7 @@ never removed per the out-of-band downstream-amendment principle):
 | `AuditVerified` | `audit.verify` | `audit:verify` ran and checked the hash chain + checkpoints (added WP3) |
 | `AuditWriteDegraded` | `audit.write_degraded` | Sentinel written when a primary audit INSERT fails; attributes carry `dropped_kind`, `error_class`, `error_message` (added WP4 #1792, design §10.4) |
 | `WorkflowTransition` | `workflow.transition` | Workflow transition fired (allowed) or attempted and refused (denied) via `TransitionService`/the save-path guard (added CW-v1 WP-1, #1920, `docs/specs/content-workflow.md`) |
+| `RevisionRollback` | `revision.rollback` | `EntityRepository::rollback()` recorded by `RollbackAuditListener` — distinct from `RevisionRevert` (a revert moves the pointer to an EXISTING revision; a rollback creates a brand-new one) (added CW-v1 WP-2 task 2.5, #1920, `docs/specs/content-workflow.md`) |
 
 Extension policy: new cases MUST be additive only. Removal requires a
 deprecation period and a major-version bump.
@@ -289,7 +290,7 @@ deprecation period and a major-version bump.
 
 ## Listener Catalogue
 
-All six listeners have **best-effort write semantics** — they wrap
+All seven listeners have **best-effort write semantics** — they wrap
 `$writer->record(...)` in a try-catch to prevent audit failures from
 crashing primary requests (NFR-001).
 
@@ -301,6 +302,7 @@ crashing primary requests (NFR-001).
 | `McpDispatchAuditListener` | `McpEvents::DISPATCH` | `mcp.dispatch` |
 | `BroadcastAuditListener` | `BroadcastEvents::PUBLISH` | `broadcast.publish` |
 | `PublishPointerAuditListener` | `RevisionPointerMovedEvent::class` (typed FQCN subscription — audit requires entity-storage, L1→L1) | `revision.publish`, `revision.revert` |
+| `RollbackAuditListener` | `BeforeRevisionPointerMoveEvent::class` (arms on `operation === 'rollback'`) + `EntityEvents::REVISION_REVERTED->value` (consumes the armed slot) | `revision.rollback` |
 
 ### Per-listener actor source
 
@@ -314,6 +316,7 @@ preserves null distinctly from 0:
 | API request | `ApiRequestAuditListener` | The `_account` request attribute (unchanged — this was already correct) | same |
 | Agent tool execute | `AgentToolAuditListener` | The event's additive `?int $accountId` property (the run initiator, populated by `AgentExecutor` on both the success and threw dispatch paths; `0` is a real value — the anonymous initiator) → `AccountContextInterface` fallback → null. Duck-read: legacy event shapes lacking the property still record via the fallback | hardcoded `0` |
 | Publish/revert pointer | `PublishPointerAuditListener` (**new**) | The event's `actorUid` (resolved by `EntityRepository` at dispatch time; preferred when non-null) → `AccountContextInterface` fallback → null | no row at all (pointer moves were audit-invisible) |
+| Rollback | `RollbackAuditListener` (**new**, CW-v1 WP-2 task 2.5) | The pre-event's `actorUid` (armed at `rollback()`'s dispatch time; preferred when non-null) → `AccountContextInterface` fallback → null — same three-state contract as `PublishPointerAuditListener` | no row at all (`rollback()` was invisible to both audit listeners: it never dispatches `RevisionPointerMovedEvent`) |
 | MCP dispatch | `McpDispatchAuditListener` | The event's `accountUid` (?int, the bearer-auth account), preserved verbatim — a null or absent value stays null, never coerced to 0 | event never fired; listener cast absent → 0 |
 | Broadcast publish | `BroadcastAuditListener` | unchanged | same |
 
@@ -325,6 +328,26 @@ the pointer transaction commits — a rolled-back move produces no row;
 /entities/<type>/<id>`, outcome `allowed`, severity `notice`, attributes
 `{entity_id, operation, from_revision_id, to_revision_id}`. See
 `docs/specs/revision-system-unified.md` §4a for the event contract.
+
+`RollbackAuditListener` closes the gap `PublishPointerAuditListener` leaves for
+`EntityRepository::rollback()` (it copies a prior revision forward as a
+brand-new one — unlike a revert, it never dispatches
+`RevisionPointerMovedEvent`, which is reserved for pointer moves WITHOUT a new
+revision). It ARMS on `Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent`
+with `operation === 'rollback'` — dispatched pre-write by exactly one code
+path, `rollback()` itself, so the arm signal is unambiguous by construction —
+and consumes the armed slot on the following `EntityEvents::REVISION_REVERTED`
+for the same entity. Every pointer operation's pre-event re-arms or clears the
+single-slot state (armed only for `rollback`, cleared otherwise), so an
+aborted rollback's stale arm cannot survive to correlate with a later
+unrelated publish/revert, and an ordinary save followed by a legitimate
+`setPublishedRevision()` of that same revision (the forward-draft publish
+flow) records nothing here. Row shape: `subject_uri = /entities/<type>/<id>`,
+outcome `allowed`, severity `notice`, attributes `{entity_id, operation:
+'rollback', from_revision_id, to_revision_id}` (the last known only post-write
+— rollback's pre-event `toRevisionId` is always null, the id is
+writer-assigned). See `docs/specs/content-workflow.md` "Pointer-move guard"
+for the full arm/consume design and the rejected identity-pairing alternative.
 
 The `AccountContextInterface`-reading listeners receive the kernel's shared
 acting-account holder via the kernel-services bus (`AuditServiceProvider`

@@ -743,6 +743,17 @@ conflict branch skipped, zero added queries). Full mechanics, the rejection
 matrix, and null-current semantics: `docs/specs/revision-system-unified.md`
 §3b.
 
+**Pointer-move operations are a separate pre-write choke point (CW-v1 WP-2 task 2.4, #1920).**
+`rollback()`, `setCurrentRevision()`, `setPublishedRevision()`, and the `saveTranslationRevision()` /
+`saveTranslationRevisions()` / `saveTranslation()` trio move the revision pointer (or, for
+`rollback()`, copy a revision forward) WITHOUT going through this `save()` pipeline at all — no
+`EntityEvents::PRE_SAVE`/`POST_SAVE`. Each dispatches `Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent`
+(by FQCN) before any write instead; a subscriber denies by throwing `AbortOperationException`,
+leaving storage untouched (including transactional rollback of any earlier write in the same
+transaction, for the multi-write translation paths). Full contract, payload shape, and the
+`Waaseyaa\Workflows\Listener\WorkflowPointerMoveGuard` consumer: `docs/specs/revision-system-unified.md`
+§4a.
+
 ### Save (via SqlEntityStorage — low-level)
 
 1. `SqlEntityStorage::save()` detects `isNew() === true`
