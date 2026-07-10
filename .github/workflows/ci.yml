@@ -7,8 +7,15 @@ on:
     branches: [main]
   # Dispatched by release-cut.yml on its gate branch so the exact release
   # commit is CI-proven BEFORE the tag is created (red-at-tag fix, alpha.202
-  # post-mortem). Manual dispatch on any ref is also fine.
+  # post-mortem). Manual dispatch on any ref is also fine. auto-merge.yml
+  # chain-dispatches this workflow on the merge commit SHA after a bot-token
+  # merge (which suppresses the push trigger) — see auto-merge.yml (#1937).
   workflow_dispatch:
+    inputs:
+      sha:
+        description: 'Exact commit SHA to check out (empty = tip of the dispatched ref)'
+        required: false
+        type: string
 
 jobs:
   composer-policy:
@@ -17,6 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.sha }}
           fetch-tags: true  # fetch-tags: required for CP-NEW (composer-internal-version-sweep WP03)
 
       - name: Enforce composer policy
@@ -33,6 +41,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -63,6 +73,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.sha }}
           fetch-depth: 0
 
       - name: Check for stale specs
@@ -73,6 +84,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -127,6 +140,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -171,6 +186,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -211,6 +228,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -236,6 +255,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -268,6 +289,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -315,6 +338,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -369,6 +394,8 @@ jobs:
     needs: [frontend-build]
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -448,6 +475,8 @@ jobs:
         working-directory: packages/admin
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -484,6 +513,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
 
       - name: Validate defaults manifests have project_versioning
         run: |
@@ -531,6 +562,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
       - name: Validate ingestion schema metadata and compatibility rules
         run: bash bin/check-ingestion-defaults
 
@@ -539,6 +572,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
       - name: Assert exactly-once Packagist publish + forward-only release shape
         run: bash bin/check-release-publish-shape
 
@@ -547,6 +582,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
 
       - name: Check no secrets in defaults/
         run: bash bin/check-no-secrets

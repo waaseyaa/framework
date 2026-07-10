@@ -11,6 +11,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 concurrency:
   group: admin-dist
@@ -24,9 +25,11 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          # RELEASE_PAT (PAT) preferred so the pushed admin-dist/update branch triggers CI;
-          # GITHUB_TOKEN fallback keeps the workflow functional (with the known suppression) until the secret exists. (#1934)
-          token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
+          # Default token: the push it makes won't trigger CI on the branch
+          # (GITHUB_TOKEN trigger suppression), so CI is chain-dispatched
+          # explicitly after the PR is created/updated below. RELEASE_PAT is
+          # abandoned (#1937). (#1934)
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -72,9 +75,7 @@ jobs:
       - name: Create or update PR
         if: steps.diff.outputs.changed == 'true'
         env:
-          # RELEASE_PAT (PAT) preferred so the created/updated PR triggers CI;
-          # GITHUB_TOKEN fallback keeps the workflow functional (with the known suppression) until the secret exists. (#1934)
-          GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           EXISTING_PR=$(gh pr list --head admin-dist/update --json number --jq '.[0].number // empty')
           if [ -n "$EXISTING_PR" ]; then
@@ -98,6 +99,17 @@ jobs:
               --head admin-dist/update \
               --base main
           fi
+
+      - name: Chain-dispatch CI on the dist branch
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # The bot-token push above does not trigger CI on the PR, but
+          # workflow_dispatch events are exempt from GITHUB_TOKEN trigger
+          # suppression, so dispatching ci.yml on the branch restores the
+          # PR's checks without a PAT. (#1937)
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref admin-dist/update
 
       - name: Skip — no changes
         if: steps.diff.outputs.changed == 'false'
