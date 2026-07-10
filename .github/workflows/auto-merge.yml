@@ -30,6 +30,9 @@ jobs:
         id: pr
         uses: actions/github-script@v9
         with:
+          # RELEASE_PAT (PAT) preferred: merges performed with the default token suppress
+          # main-push workflows (CI, Release Pipeline, admin-dist); a PAT-backed merge restores them. (#1934)
+          github-token: ${{ secrets.RELEASE_PAT || github.token }}
           script: |
             let prNumber;
             if (context.payload.inputs?.pr_number) {
@@ -51,6 +54,9 @@ jobs:
         if: steps.pr.outputs.number
         uses: actions/github-script@v9
         with:
+          # RELEASE_PAT (PAT) preferred: merges performed with the default token suppress
+          # main-push workflows (CI, Release Pipeline, admin-dist); a PAT-backed merge restores them. (#1934)
+          github-token: ${{ secrets.RELEASE_PAT || github.token }}
           script: |
             const prNumber = parseInt('${{ steps.pr.outputs.number }}');
             const { owner, repo } = context.repo;
