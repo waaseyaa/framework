@@ -72,6 +72,16 @@ $compiler->compile([ProfileTemplate::class]); // idempotent
 
 → See `docs/specs/entity-system.md` § "Field templates and the bundle registry".
 
+**Static vs import-derived bundles/fields.** This is the STATIC path — for
+bundles and fields an application author already knows about at compile
+time, discovered and compiled once at `optimize:manifest` time. It is not
+the only supported field-declaration surface: `Waaseyaa\Migration\ContentModel\ContentModelRegistrar`
+is the RUNTIME/import-derived counterpart for bundles and fields a migration
+source reveals only once its data has been inspected (G-026, #1940). Both
+terminate at the same `EntityTypeManager`/`FieldDefinitionRegistry`
+substrate; see docs/specs/migration-platform.md §9.5 for the full contract
+and the boundary between the two.
+
 ---
 
 ## F3 — FieldAutoSaveController

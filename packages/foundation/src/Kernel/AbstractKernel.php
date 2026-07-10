@@ -43,6 +43,7 @@ use Waaseyaa\Foundation\Log\LogManager;
 use Waaseyaa\Foundation\Migration\MigrationLoader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
+use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsContentModelProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Plugin\Extension\KnowledgeToolingExtensionRunner;
@@ -165,6 +166,7 @@ abstract class AbstractKernel
         $this->bootMigrations();
         $this->discoverAndRegisterProviders();
         $this->injectMigrationProviders();
+        $this->injectContentModelProviders();
         $this->loadAppEntityTypes();
         $this->validateContentTypes();
         $this->bootProviders();
@@ -420,6 +422,50 @@ abstract class AbstractKernel
         foreach ($this->providers as $provider) {
             if ($provider instanceof AcceptsMigrationProvidersInterface) {
                 $provider->withMigrationProviders($migrationProviders);
+            }
+        }
+    }
+
+    /**
+     * Feed sibling providers implementing the migration package's
+     * {@see \Waaseyaa\Migration\ContentModel\DerivesContentModelInterface}
+     * into the migration ServiceProvider so an import command can register
+     * their derived content models before the first migration runs
+     * (G-026, #1940).
+     *
+     * Mirrors {@see injectMigrationProviders()} exactly — same "until the
+     * kernel grows a generic capability bus" seam, same string-FQCN guard so
+     * Foundation carries no compile-time edge to the Layer-3 migration
+     * package, same collect-at-boot timing. The critical difference from the
+     * pass-1 failure this fixes: this method only COLLECTS provider object
+     * references here; nothing here calls `deriveContentModel()`. Invocation
+     * happens later, in `Waaseyaa\Migration\Runner\MigrationRunner`, at the
+     * first `import:*` command that actually runs a migration — by which
+     * point the destination tables this collected provider's derived model
+     * describes are guaranteed to exist.
+     */
+    protected function injectContentModelProviders(): void
+    {
+        $derivesContentModelFqcn = 'Waaseyaa\\Migration\\ContentModel\\DerivesContentModelInterface';
+
+        if (!\interface_exists($derivesContentModelFqcn)) {
+            return; // migration package not installed — nothing to wire.
+        }
+
+        $contentModelProviders = [];
+        foreach ($this->providers as $provider) {
+            if ($provider instanceof $derivesContentModelFqcn) {
+                $contentModelProviders[] = $provider;
+            }
+        }
+
+        if ($contentModelProviders === []) {
+            return;
+        }
+
+        foreach ($this->providers as $provider) {
+            if ($provider instanceof AcceptsContentModelProvidersInterface) {
+                $provider->withContentModelProviders($contentModelProviders);
             }
         }
     }

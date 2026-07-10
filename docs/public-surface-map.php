@@ -57,6 +57,10 @@ return [
     // Migration-provider injection capability (PR #1614): kernel guards provider
     // wiring via this named interface instead of a Layer-3 concrete edge.
     'Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface' => 'public',
+    // Content-model-provider injection capability (G-026, #1940): mirrors
+    // AcceptsMigrationProvidersInterface immediately above — kernel guards
+    // provider wiring via this named interface instead of a Layer-3 concrete edge.
+    'Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsContentModelProvidersInterface' => 'public',
     'Waaseyaa\Foundation\Event\DomainEvent' => 'public',
     'Waaseyaa\Foundation\Event\EventDispatcherInterface' => 'public',
     'Waaseyaa\Foundation\Ingestion\IngestionErrorCode' => 'public',
@@ -365,12 +369,12 @@ return [
     'Waaseyaa\Migration\Discovery\HasMigrationPluginsInterface' => 'public',
     // Migration platform discovery / dependency graph (mission migration-platform-v1-01KRCDE9 WP02).
     'Waaseyaa\Migration\Discovery\HasMigrationsInterface' => 'public',
-    // Migration content-model derivation contract. UNWIRED scaffolding (audit C-5):
-    // the ContentModelRegistrar is bound by no ServiceProvider and deriveContentModel()
-    // has no callers; the kernel capability bus dispatches HasMigrationsInterface only.
-    // Demoted to 'internal' (shipped but unsupported) until wired; see
-    // docs/specs/migration-platform.md "Unwired scaffolding".
-    'Waaseyaa\Migration\ContentModel\DerivesContentModelInterface' => 'internal',
+    // Migration content-model derivation contract. Blessed and wired (G-026,
+    // #1940): AbstractKernel::injectContentModelProviders() collects
+    // implementors at boot (mirroring HasMigrationsInterface immediately
+    // above) and MigrationRunner invokes deriveContentModel() at import time.
+    // See docs/specs/migration-platform.md §9.5 "Content model registration".
+    'Waaseyaa\Migration\ContentModel\DerivesContentModelInterface' => 'public',
     // Migration platform DTOs / value objects (mission migration-platform-v1-01KRCDE9 WP01..WP04).
     'Waaseyaa\Migration\MigrationDefinition' => 'public',
     'Waaseyaa\Migration\SourceId' => 'public',

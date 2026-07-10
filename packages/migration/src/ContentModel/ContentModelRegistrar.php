@@ -8,6 +8,7 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Migration\Exception\ContentModelRegistrationException;
 
 /**
  * Registers a derived {@see ContentModel} into the running framework: it ensures
@@ -29,12 +30,55 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * skipped, and the subtable materialization is create-if-missing / add-missing-
  * columns, so the zero-and-re-migrate loop rebuilds cleanly every run.
  *
- * UNWIRED / EXPERIMENTAL (audit C-5): no service provider binds this class and
- * nothing calls {@see register()}; it is forthcoming scaffolding, not supported
- * framework surface. @api is retained only to keep the dead-code gate green.
+ * **Blessed as the one supported path for declaring import-derived per-bundle
+ * content models (G-026, #1940).** Bound as a singleton by
+ * {@see \Waaseyaa\Migration\ServiceProvider} and invoked from
+ * {@see \Waaseyaa\Migration\Runner\MigrationRunner} once per CLI invocation,
+ * before the first migration runs — see that class's
+ * `ensureContentModelsRegistered()`. This is deliberately NOT a boot-time
+ * invocation: constructing and calling this class during
+ * `AbstractKernel::boot()`'s schema-sync phase is the exact sequencing bug
+ * that left the pass-1 Sheguiandah build's `SfnWordPressMigrationProvider`
+ * silently registering nothing on the first boot after `db:init` — the
+ * destination tables did not exist yet. Invoking it at import time (after
+ * full kernel boot, including schema sync) removes that hazard by
+ * construction; there is no second-boot requirement.
  *
- * @internal Unsupported scaffolding pending wiring. See
- *           docs/specs/migration-platform.md "Unwired scaffolding".
+ * **Boundary vs the static app-model path (`docs/specs/work-surface.md`
+ * §F2):** this registrar is the RUNTIME/import-derived counterpart to
+ * `#[BundleTemplate]`/`#[FieldTemplate]` + `BundleTemplateCompiler`. Static,
+ * author-known bundles and fields that ship with an application belong on
+ * the attribute path, which is discovered and compiled once at
+ * `optimize:manifest` time. Bundles and fields *inferred from a migration
+ * source* — unknown until a source reader inspects the actual data — belong
+ * here. Both paths terminate at the same substrate
+ * (`EntityTypeManager::addBundleFields()` / `FieldDefinitionRegistry`), so
+ * this is not a third field-declaration mechanism; it is the same substrate
+ * fed from a different, later-arriving source of truth. Do not merge or
+ * refactor the two — a compile-time attribute scan cannot see data that
+ * only exists once a migration source has been read.
+ *
+ * Failure semantics (G-026 decision): registration is loud, not best-effort.
+ * A structural failure — the content model names a destination entity type
+ * that is not registered, the bundle config entity's class or repository
+ * cannot save it, the field registry is not configured, or
+ * {@see EntityTypeManager::addBundleFields()} rejects a field — raises
+ * {@see ContentModelRegistrationException} and aborts registration (and, by
+ * extension, the import command that triggered it) before any source record
+ * is read. This replaced the earlier notice/error-log-and-continue
+ * behaviour, which existed only because this class was (on paper) invocable
+ * during kernel boot, where a hard failure would have crashed boot for
+ * reasons unrelated to the content model. Now that the only invocation point
+ * is import-time (post-boot), a loud failure is strictly better than
+ * degrading to "some content silently landed in the `_data` blob instead of
+ * a typed column."
+ *
+ * The only paths that remain silent are genuine no-op cases, not failures:
+ * a bundle config entity that already exists (idempotent re-run — the whole
+ * point of running this at the top of every import) and a destination
+ * entity type that declares no `bundleEntityType` (bundle is a bare string;
+ * there is no config container to materialize, by design).
+ *
  * @api
  */
 final readonly class ContentModelRegistrar
@@ -49,9 +93,11 @@ final readonly class ContentModelRegistrar
     }
 
     /**
-     * Register every content type + field in the model. Best-effort and
-     * idempotent: a failure to materialize one bundle config entity is logged
-     * and does not abort field registration (the substantive deliverable).
+     * Register every content type + field in the model.
+     *
+     * @throws ContentModelRegistrationException On any structural failure
+     *         (see class docblock "Failure semantics"). Aborts registration
+     *         of any remaining content types in `$model->types`.
      */
     public function register(ContentModel $model): void
     {
@@ -70,27 +116,32 @@ final readonly class ContentModelRegistrar
     }
 
     /**
-     * Best-effort create the bundle config entity (e.g. a node_type row) for the
-     * content type, if the destination entity type declares a bundleEntityType
-     * and the bundle is not already present.
+     * Create the bundle config entity (e.g. a node_type row) for the content
+     * type, if the destination entity type declares a bundleEntityType and
+     * the bundle is not already present. Silent no-op for the two genuine
+     * non-failure cases (already exists; no bundleEntityType declared).
+     *
+     * @throws ContentModelRegistrationException When the destination entity
+     *         type is not registered, or the config entity cannot be built
+     *         or saved.
      */
     private function ensureBundleConfigEntity(ContentTypeModel $type): void
     {
         try {
             $entityType = $this->entityTypeManager->getDefinition($type->entityTypeId);
         } catch (\Throwable $e) {
-            $this->logger->notice(\sprintf(
-                '[content-model] destination entity type "%s" is not registered; skipping content type "%s".',
+            throw new ContentModelRegistrationException(\sprintf(
+                '[content-model] destination entity type "%s" is not registered; cannot register content type "%s".',
                 $type->entityTypeId,
                 $type->bundle,
-            ));
-            return;
+            ), previous: $e);
         }
 
         $bundleTypeId = $entityType->getBundleEntityType();
         if ($bundleTypeId === null || $bundleTypeId === '') {
             // Entity type has no bundle config container (bundle is a bare
-            // string). Nothing to materialize; field declaration still applies.
+            // string). Not a failure; nothing to materialize. Field
+            // declaration still applies.
             return;
         }
 
@@ -105,6 +156,7 @@ final readonly class ContentModelRegistrar
             $repository = $this->entityTypeManager->getRepository($bundleTypeId);
 
             // Idempotency: skip if a config entity with this id already exists.
+            // Genuine non-failure case — stays silent.
             foreach ($repository->findBy([]) as $existing) {
                 if ((string) $existing->id() === $type->bundle) {
                     return;
@@ -136,14 +188,12 @@ final readonly class ContentModelRegistrar
                 $type->bundle,
             ));
         } catch (\Throwable $e) {
-            // Best-effort: a content type whose config entity cannot be
-            // materialized still gets its typed fields declared below.
-            $this->logger->notice(\sprintf(
+            throw new ContentModelRegistrationException(\sprintf(
                 '[content-model] could not materialize %s for content type "%s": %s',
                 $bundleTypeId,
                 $type->bundle,
                 $e->getMessage(),
-            ));
+            ), previous: $e);
         }
     }
 
@@ -151,6 +201,10 @@ final readonly class ContentModelRegistrar
      * Declare the type's distinct fields as per-bundle field definitions, which
      * also auto-materializes the per-bundle subtable with real typed columns.
      * Idempotent: fields already registered for this bundle are skipped.
+     *
+     * @throws ContentModelRegistrationException When no field registry is
+     *         configured on the entity type manager, or
+     *         {@see EntityTypeManager::addBundleFields()} rejects a field.
      */
     private function declareFields(ContentTypeModel $type): void
     {
@@ -161,8 +215,11 @@ final readonly class ContentModelRegistrar
         try {
             $registry = $this->entityTypeManager->getFieldRegistry();
         } catch (\Throwable $e) {
-            $this->logger->notice('[content-model] no field registry available; cannot declare fields: ' . $e->getMessage());
-            return;
+            throw new ContentModelRegistrationException(\sprintf(
+                '[content-model] no field registry available; cannot declare fields for content type "%s": %s',
+                $type->bundle,
+                $e->getMessage(),
+            ), previous: $e);
         }
 
         $existing = $registry->bundleFieldsFor($type->entityTypeId, $type->bundle);
@@ -187,13 +244,12 @@ final readonly class ContentModelRegistrar
                 \array_values($toAdd),
             );
         } catch (\Throwable $e) {
-            $this->logger->error(\sprintf(
+            throw new ContentModelRegistrationException(\sprintf(
                 '[content-model] failed to register bundle fields for content type "%s" on %s: %s',
                 $type->bundle,
                 $type->entityTypeId,
                 $e->getMessage(),
-            ));
-            return;
+            ), previous: $e);
         }
 
         foreach ($toAdd as $name => $field) {

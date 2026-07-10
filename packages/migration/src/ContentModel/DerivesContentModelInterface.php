@@ -14,14 +14,17 @@ namespace Waaseyaa\Migration\ContentModel;
  * inspect its source and describe a content model participates the same way.
  * Mirrors {@see \Waaseyaa\Migration\Discovery\HasMigrationsInterface}.
  *
- * UNWIRED / EXPERIMENTAL (audit C-5): no kernel discovery dispatches this
- * interface yet (the capability bus only wires {@see HasMigrationsInterface}),
- * and {@see ContentModelRegistrar} is bound by no service provider. This is a
- * forthcoming-feature stub, not part of the supported public surface. @api is
- * retained only so the dead-code gate does not flag the planned extension point.
+ * Blessed and wired (G-026, #1940): implement this on a `ServiceProvider`
+ * (same pattern as {@see \Waaseyaa\Migration\Discovery\HasMigrationsInterface})
+ * and `AbstractKernel::injectContentModelProviders()` collects it at boot,
+ * exactly like `injectMigrationProviders()` does for `HasMigrationsInterface`.
+ * `Waaseyaa\Migration\ServiceProvider` accepts the collected providers via
+ * {@see \Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsContentModelProvidersInterface}
+ * and threads them into {@see \Waaseyaa\Migration\Runner\MigrationRunner},
+ * which is where `deriveContentModel()` is actually called — once, before the
+ * first migration of the CLI invocation, well after full kernel boot. See
+ * docs/specs/migration-platform.md "Content model registration".
  *
- * @internal Unsupported scaffolding pending wiring; shape may change without a
- *           deprecation cycle. See docs/specs/migration-platform.md.
  * @api
  */
 interface DerivesContentModelInterface

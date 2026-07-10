@@ -605,6 +605,91 @@ no eager validation path left — an application with a broken manifest boots
 successfully and only fails when an operator runs `import:status` or
 `import:run`.
 
+### 9.5 Content model registration (G-026, #1940)
+
+`Waaseyaa\Migration\ContentModel\ContentModelRegistrar` is the **one
+supported path** for an application to declare per-bundle content types and
+fields derived from a migration source, at import time. It is bound as a
+singleton by `Waaseyaa\Migration\ServiceProvider` and invoked from
+`MigrationRunner`, never from a service provider's `boot()`.
+
+**Contract:**
+
+- A `ServiceProvider` shipping a migration source that can describe its own
+  content shape implements `DerivesContentModelInterface::deriveContentModel(): ?ContentModel`
+  — the same "provider capability" pattern as `HasMigrationsInterface`
+  (§9 step 2), not a bespoke discovery mechanism.
+- `ContentModel` is a source-agnostic list of `ContentTypeModel`s (destination
+  entity type + bundle + label + typed `FieldDefinitionInterface[]` +
+  informational shared-field/note lists).
+- `ContentModelRegistrar::register(ContentModel $model)` does two things per
+  content type: `ensureBundleConfigEntity()` (creates the bundle config
+  entity — e.g. a `node_type` row — via reflection on the destination entity
+  type's declared `bundleEntityType`, reached generically so the registrar
+  carries no compile-time edge to any Layer-2 content package) and
+  `declareFields()` (`EntityTypeManager::addBundleFields()`, which also
+  auto-materializes the per-bundle subtable with real typed columns). Both
+  steps are idempotent — a repeated registration for an existing bundle/field
+  is a silent no-op, not an error.
+
+**Invocation point — the pass-1 fix.** Discovery/collection happens at boot,
+exactly like `HasMigrationsInterface` in §9 step 2:
+`AbstractKernel::injectContentModelProviders()` scans `$this->providers` for
+`DerivesContentModelInterface` and hands the list to
+`ServiceProvider::withContentModelProviders()`
+(`Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsContentModelProvidersInterface`).
+That step only collects object references — it never calls
+`deriveContentModel()`. Invocation happens later, in
+`MigrationRunner::ensureContentModelsRegistered()`, guarded to run exactly
+once per `MigrationRunner` instance (a container singleton, i.e. once per CLI
+process), immediately before the first migration of the invocation executes.
+
+This split matters because of a real production failure. The Sheguiandah
+pass-1 build (`sheg-waaseyaa-pass1`, read-only reference) constructed
+`ContentModelRegistrar` by hand inside `SfnWordPressMigrationProvider`'s
+`ServiceProvider::boot()` — which, per §9, runs during
+`AbstractKernel::bootProviders()`, strictly *before* the kernel's schema-sync
+phase for that provider's own destination tables has necessarily completed.
+Calling the registrar there silently no-op'd on the first boot after
+`db:init`: the destination tables the derived model described did not exist
+yet, so `ensureBundleConfigEntity()`/`declareFields()` failed against
+not-yet-created schema and (under the pre-G-026 best-effort semantics, see
+below) swallowed the failure instead of surfacing it. Invoking the registrar
+from `MigrationRunner` instead — at the first `import:*` command, after full
+kernel boot — removes the ordering hazard by construction: there is no
+second-boot requirement, because import commands never run before the
+schema they import into exists.
+
+**Failure semantics (changed from the pre-G-026 scaffolding).**
+`ContentModelRegistrar` used to swallow every failure behind a
+`notice`/`error` log line and continue, because it was (on paper) invocable
+during kernel boot, where a hard failure would have crashed boot for reasons
+unrelated to the content model itself. Now that the only invocation point is
+import-time (§9.5 above), `register()` raises
+`Waaseyaa\Migration\Exception\ContentModelRegistrationException` on any
+structural failure — destination entity type not registered, bundle config
+entity cannot be built/saved, no field registry configured, or
+`addBundleFields()` rejects a field — and aborts before any source record is
+read. The only paths that remain silent are genuine no-op cases, not
+failures: a bundle config entity that already exists (idempotency) and a
+destination entity type with no `bundleEntityType` declared (bundle is a bare
+string; nothing to materialize, by design).
+
+**Boundary vs the static app-model path.** `#[BundleTemplate]` /
+`#[FieldTemplate]` + `BundleTemplateCompiler`
+(`docs/specs/work-surface.md` §F2) is the STATIC path for bundles and fields
+an application author already knows about at compile time — discovered and
+compiled once at `optimize:manifest` time, terminating at
+`FieldDefinitionRegistry::registerBundleFields()`. `ContentModelRegistrar` is
+the RUNTIME/import-derived counterpart for bundles and fields a migration
+source reveals only once its data has actually been inspected — unknowable
+at compile time by definition. Both terminate at the same
+`EntityTypeManager`/`FieldDefinitionRegistry` substrate, so this is **not** a
+third field-declaration mechanism; it is the same substrate fed from a
+later-arriving source of truth. The two paths are not merged and must not
+be: a compile-time attribute scan cannot see data that only exists after a
+migration source has been read.
+
 ---
 
 ## 10. Conformance suite
