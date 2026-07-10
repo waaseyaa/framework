@@ -12,6 +12,7 @@ jobs:
       - name: Checkout framework
         uses: actions/checkout@v7
         with:
+          ref: ${{ github.sha }}
           path: framework
 
       - name: Checkout skeleton

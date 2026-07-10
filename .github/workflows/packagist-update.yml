@@ -43,7 +43,15 @@ jobs:
       packages: ${{ steps.scan.outputs.packages }}
       tag: ${{ steps.target.outputs.tag }}
     steps:
+      # Pinned to github.sha so the tag-push trigger always reads the
+      # tagged commit's packages/*/composer.json (#1934). This is safe on
+      # workflow_dispatch too: github.sha there resolves to the HEAD of
+      # whichever ref the dispatch was run against, so the pin never breaks
+      # manual runs — it just documents/guarantees the same checkout ref
+      # the default behavior would have used anyway.
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
 
       - name: Resolve target tag
         id: target

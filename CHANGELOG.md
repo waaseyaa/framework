@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Split fan-out verification no longer races `main` (#1934).** `verify-monorepo-main-intact` in `.github/workflows/split.yml` previously required live `main` to equal the tagged `github.sha` exactly, so any PR merged to `main` mid-fan-out failed the release even though nothing was wrong (v0.1.0-alpha.257: PR #1933 merged between the tag and the check, tag at `f0cf33c2d`, main at `b4630eee9`). The check now verifies the tagged SHA is still an ancestor of `main` via `gh api .../compare/${EXPECTED_SHA}...main` — `identical`/`ahead` pass (main only moved forward), `behind`/`diverged` fail (main was rewritten/overwritten, the real self-split-collision signal this check exists to catch). All `split.yml` fan-out checkouts (`split`, `verify-tag-parity`, `verify-require-parity`, `publish-github-release`, `publish-packagist`) are now pinned to `ref: ${{ github.sha }}`, as is the framework checkout in `sync-skeleton.yml` and the tag-triggered checkout in `packagist-update.yml`.
+
 ## [0.1.0-alpha.258] - 2026-07-10
 
 ### Fixed
