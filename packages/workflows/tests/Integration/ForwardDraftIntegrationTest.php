@@ -255,6 +255,149 @@ final class ForwardDraftIntegrationTest extends TestCase
         $this->assertSame(1, $repository->find($entityId)?->get('status'));
     }
 
+    #[Test]
+    public function a_guard_denied_promotion_leaves_persisted_status_and_pointer_unchanged(): void
+    {
+        // CW-v1 WP-2 task 2.6 panel finding A+C (#1920): the denial-ordering
+        // guarantee proven against a REAL DB with BOTH wired guards, not a
+        // spy. Scenario: archived pointer (status 0), account holds
+        // 'publish' but NOT 'restore_to_published'. transition('publish')
+        // passes the transition-level check (draft -> published), commits
+        // the revision-creating save, then the pointer guard denies the
+        // archived -> published pointer move (REASON_PERMISSION). The
+        // persisted base row must afterwards show status STILL 0 and
+        // published_revision_id STILL the archived revision — in
+        // particular, WorkflowStateGuard must NOT have flipped status to 1
+        // during the first save (it fires on that save; before this fix its
+        // defaultRevision-true branch set status from the target state's
+        // published flag, committing status=1 with the pointer stuck on
+        // archived).
+        //
+        // Known, accepted residue (documented in the spec): the denied
+        // attempt leaves an ORPHAN TIP REVISION — a 'published'-stamped
+        // revision that was saved but never promoted. It carries the
+        // pointer-derived status (0), is invisible to the public read path
+        // (the pointer never moved), and a later successful transition
+        // simply supersedes it.
+        [$entityTypeManager, $provider, $accountContext] = $this->bootWiredProvider();
+        $repository = $entityTypeManager->getRepository(self::ENTITY_TYPE_ID);
+        $transitionService = $provider->resolve(TransitionService::class);
+
+        $editor = $this->account(7, [
+            'use editorial transition publish',
+            'use editorial transition archive',
+            'use editorial transition restore',
+            // NO 'use editorial transition restore_to_published'.
+        ]);
+        $accountContext->set($editor);
+
+        $entity = new ForwardDraftSubject(
+            ['bundle' => self::ENTITY_TYPE_ID, 'workflow_state' => 'draft', 'title' => 'Was live'],
+            self::ENTITY_TYPE_ID,
+            $this->entityKeys(),
+        );
+        $repository->save($entity);
+        $entityId = (string) $entity->id();
+
+        $transitionService->transition($entity, 'publish', $editor);
+        $transitionService->transition($entity, 'archive', $editor);
+        $transitionService->transition($entity, 'restore', $editor);
+
+        $archivedPointer = $repository->loadPublishedRevision($entityId);
+        $this->assertNotNull($archivedPointer);
+        $archivedRevisionId = (int) $archivedPointer->get('revision_id');
+        $this->assertSame(0, $repository->find($entityId)?->get('status'));
+
+        // The restored draft tip; publishing it needs restore_to_published
+        // for the pointer move, which this account lacks.
+        $tip = $repository->find($entityId);
+        $this->assertNotNull($tip);
+
+        $denied = null;
+        try {
+            $transitionService->transition($tip, 'publish', $editor);
+        } catch (TransitionDeniedException $e) {
+            $denied = $e;
+        }
+        $this->assertInstanceOf(TransitionDeniedException::class, $denied);
+        $this->assertSame(TransitionDeniedException::REASON_PERMISSION, $denied->reason);
+
+        // FRESH reads: base-row status unchanged (0 — archived semantics),
+        // published pointer unchanged (still the archived revision).
+        $freshBase = $repository->find($entityId);
+        $this->assertNotNull($freshBase);
+        $this->assertSame(0, $freshBase->get('status'), 'Denied pointer move must not leave status flipped in the base row.');
+
+        $freshPointer = $repository->loadPublishedRevision($entityId);
+        $this->assertNotNull($freshPointer);
+        $this->assertSame($archivedRevisionId, (int) $freshPointer->get('revision_id'), 'Denied pointer move must leave published_revision_id unchanged.');
+        $this->assertSame('archived', $freshPointer->get('workflow_state'));
+    }
+
+    #[Test]
+    public function forward_draft_on_a_no_new_revision_bundle_still_creates_a_revision_instead_of_clobbering_the_published_one(): void
+    {
+        // CW-v1 WP-2 task 2.6 panel finding B (#1920): the synthetic entity
+        // type here has revisionDefault: false (the EntityType default) —
+        // the exact shape of a `new_revision: false` bundle. A raw API-path
+        // forward draft (state-changing save via the shipped 'revise' edge,
+        // caller sets NO setNewRevision) previously updated the published
+        // revision IN PLACE: draft title AND workflow_state='draft' written
+        // into the very row the published pointer serves. The guard must
+        // force a new revision for state-changing forward drafts — bundle
+        // opt-out governs ordinary edits only.
+        [$entityTypeManager, $provider, $accountContext] = $this->bootWiredProvider();
+        $repository = $entityTypeManager->getRepository(self::ENTITY_TYPE_ID);
+        $transitionService = $provider->resolve(TransitionService::class);
+
+        $editor = $this->account(7, ['use editorial transition publish', 'use editorial transition revise']);
+        $accountContext->set($editor);
+
+        $entity = new ForwardDraftSubject(
+            ['bundle' => self::ENTITY_TYPE_ID, 'workflow_state' => 'draft', 'title' => 'Original title'],
+            self::ENTITY_TYPE_ID,
+            $this->entityKeys(),
+        );
+        $repository->save($entity);
+        $entityId = (string) $entity->id();
+        $transitionService->transition($entity, 'publish', $editor);
+        $publishedRevisionId = (int) $entity->get('revision_id');
+
+        // Raw forward draft, deliberately WITHOUT setNewRevision(true): the
+        // revisionDefault:false type would otherwise save in place.
+        $tip = $repository->find($entityId);
+        $this->assertNotNull($tip);
+        $tip->set('title', 'Draft title');
+        $tip->set('workflow_state', 'draft');
+        $repository->save($tip);
+
+        $draftRevisionId = (int) $tip->get('revision_id');
+        $this->assertNotSame($publishedRevisionId, $draftRevisionId, 'A forward draft must create a NEW revision even on a new_revision:false bundle.');
+
+        // The published revision row is untouched — content AND state.
+        $publishedRow = $repository->loadRevision($entityId, $publishedRevisionId);
+        $this->assertNotNull($publishedRow);
+        $this->assertSame('Original title', $publishedRow->get('title'));
+        $this->assertSame('published', $publishedRow->get('workflow_state'));
+
+        // Pointer + status unchanged; the new tip carries the draft.
+        $pointer = $repository->loadPublishedRevision($entityId);
+        $this->assertNotNull($pointer);
+        $this->assertSame($publishedRevisionId, (int) $pointer->get('revision_id'));
+        $this->assertSame(1, $repository->find($entityId)?->get('status'));
+        $freshTip = $repository->find($entityId);
+        $this->assertNotNull($freshTip);
+        $this->assertSame('Draft title', $freshTip->get('title'));
+        $this->assertSame('draft', $freshTip->get('workflow_state'));
+
+        // Opt-out preserved for NON-state-changing edits: an ordinary edit
+        // of the draft tip (workflow_state unchanged) updates in place — no
+        // new revision.
+        $freshTip->set('title', 'Draft title, edited');
+        $repository->save($freshTip);
+        $this->assertSame($draftRevisionId, (int) $freshTip->get('revision_id'), 'A non-state-changing edit on a new_revision:false bundle must still update in place.');
+    }
+
     /**
      * @return array<string, string>
      */

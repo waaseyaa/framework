@@ -17,6 +17,7 @@ use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
@@ -180,6 +181,57 @@ final class WorkflowStateGuardTest extends TestCase
 
             public function toArray(): array { return $this->values; }
             public function language(): string { return 'en'; }
+        };
+    }
+
+    /**
+     * A fixture entity that also carries the legacy RevisionableInterface
+     * revision knobs, for the forced-new-revision tests (task 2.6 panel
+     * fix B).
+     *
+     * @param array<string, mixed> $values
+     *
+     * @return EntityInterface&RevisionableInterface
+     */
+    private function revisionableEntity(array $values, bool $isNew): EntityInterface&RevisionableInterface
+    {
+        return new class ($values, $isNew) implements EntityInterface, RevisionableInterface {
+            private ?bool $newRevisionOverride = null;
+            private ?string $revisionLog = null;
+
+            public function __construct(private array $values, private readonly bool $new) {}
+
+            public function id(): int|string|null { return $this->values['id'] ?? null; }
+            public function uuid(): string { return 'u-1'; }
+            public function label(): string { return 'Fixture'; }
+            public function getEntityTypeId(): string { return 'fixture'; }
+            public function bundle(): string { return 'article'; }
+            public function isNew(): bool { return $this->new; }
+            public function get(string $name): mixed { return $this->values[$name] ?? null; }
+
+            public function set(string $name, mixed $value): static
+            {
+                $this->values[$name] = $value;
+
+                return $this;
+            }
+
+            public function toArray(): array { return $this->values; }
+            public function language(): string { return 'en'; }
+
+            public function getRevisionId(): ?int
+            {
+                $rid = $this->values['revision_id'] ?? null;
+
+                return \is_int($rid) ? $rid : null;
+            }
+
+            public function isDefaultRevision(): bool { return true; }
+            public function isLatestRevision(): bool { return true; }
+            public function setNewRevision(bool $value): void { $this->newRevisionOverride = $value; }
+            public function isNewRevision(): ?bool { return $this->newRevisionOverride; }
+            public function setRevisionLog(?string $log): void { $this->revisionLog = $log; }
+            public function getRevisionLog(): ?string { return $this->revisionLog; }
         };
     }
 
@@ -405,16 +457,17 @@ final class WorkflowStateGuardTest extends TestCase
     }
 
     #[Test]
-    public function entering_a_default_revision_state_still_flips_status_directly(): void
+    public function entering_a_default_revision_state_on_a_pointered_entity_leaves_status_riding_the_pointer(): void
     {
-        // Target state IS `default_revision: true` ('published') — this
-        // guard cannot move the published pointer itself (PRE_SAVE fires
-        // before the new revision id exists), so it keeps WP-1 behavior:
-        // status follows the target state's `published` flag. Whether the
-        // pointer itself should also move is TransitionService's job
-        // (task 2.6) when the caller goes through the "one door"; a raw
-        // save into a default-revision state is a documented, narrower
-        // guarantee (see WorkflowStateGuard class docblock).
+        // CW-v1 WP-2 task 2.6 panel fix A (#1920): the guard must NEVER
+        // derive `status` from the target state once a published pointer
+        // exists — TransitionService fires this guard on its FIRST
+        // (revision-creating) save and deliberately defers the status flip
+        // until after setPublishedRevision() succeeds; a guard-side
+        // target-state derivation here committed the flip before the
+        // pointer move could be denied. Status rides the pointer: derived
+        // from the pointer revision's own state ('draft' → published flag
+        // false → 0), even though the save is entering 'published'.
         $publishedRevision = $this->entity(['id' => 1, 'workflow_state' => 'draft', 'status' => 0], isNew: false);
         $guard = $this->guard($this->editorialWorkflow(), $this->account(['use editorial transition publish']), $publishedRevision);
 
@@ -424,6 +477,85 @@ final class WorkflowStateGuardTest extends TestCase
         $guard->onPreSave(new EntityEvent($entity, $original));
 
         $this->assertSame('published', $entity->get('workflow_state'));
+        $this->assertSame(0, $entity->get('status'), 'Guard must not flip status from the target state while the pointer sits on an unpublished-state revision.');
+    }
+
+    #[Test]
+    public function entering_a_default_revision_state_on_a_never_published_entity_follows_the_state(): void
+    {
+        // Never-published: WP-1 status-follows-state stands (no pointer to
+        // ride) — the counterpart to the pointered test above.
+        $guard = $this->guard($this->editorialWorkflow(), $this->account(['use editorial transition publish']));
+
+        $entity = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'review'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertSame('published', $entity->get('workflow_state'));
         $this->assertSame(1, $entity->get('status'));
+    }
+
+    #[Test]
+    public function status_derives_from_the_pointer_revisions_state_not_its_stored_status_column(): void
+    {
+        // The pointer revision's stored `status` column can be stale
+        // relative to its state during TransitionService's post-pointer-move
+        // status-flip save (the flip is what corrects it). Deriving from
+        // the STATE keeps the guard consistent with the flip; copying the
+        // stored column would overwrite it.
+        $publishedRevision = $this->entity(['id' => 1, 'workflow_state' => 'published', 'status' => 0], isNew: false);
+        $guard = $this->guard($this->editorialWorkflow(), null, $publishedRevision);
+
+        $entity = $this->entity(['id' => 1, 'workflow_state' => 'published', 'status' => 1], isNew: false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        // Pointer state 'published' → derived 1, regardless of the stale
+        // stored status 0 on the pointer row.
+        $this->assertSame(1, $entity->get('status'));
+    }
+
+    #[Test]
+    public function a_forward_draft_forces_a_new_revision_overriding_the_bundle_opt_out(): void
+    {
+        // CW-v1 WP-2 task 2.6 panel fix B (#1920): a state-changing save
+        // into a defaultRevision:false state on a pointered entity is a
+        // forward draft — it REQUIRES a new revision, or a
+        // new_revision:false bundle would update the published revision in
+        // place (live content corruption). The guard's set is unconditional
+        // and overrides even an explicit earlier setNewRevision(false) —
+        // this is what makes the outcome identical in both orders relative
+        // to NodeRevisionDefaultListener (which respects non-null values).
+        $publishedRevision = $this->entity(['id' => 1, 'workflow_state' => 'published', 'status' => 1], isNew: false);
+        $guard = $this->guard($this->editorialWorkflow(), $this->account(['use editorial transition revise']), $publishedRevision);
+
+        $entity = $this->revisionableEntity(['id' => 1, 'workflow_state' => 'draft'], isNew: false);
+        $entity->setNewRevision(false); // simulated bundle opt-out (listener-first order)
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertTrue($entity->isNewRevision(), 'Forward draft must force a new revision even over an explicit opt-out.');
+        $this->assertSame('draft', $entity->get('workflow_state'));
+        $this->assertSame(1, $entity->get('status'));
+    }
+
+    #[Test]
+    public function a_non_state_changing_save_does_not_force_a_new_revision(): void
+    {
+        // The bundle opt-out governs ordinary edits: an unchanged
+        // workflow_state leaves the revision decision untouched (null =
+        // "use the bundle/type default").
+        $publishedRevision = $this->entity(['id' => 1, 'workflow_state' => 'published', 'status' => 1], isNew: false);
+        $guard = $this->guard($this->editorialWorkflow(), null, $publishedRevision);
+
+        $entity = $this->revisionableEntity(['id' => 1, 'workflow_state' => 'draft'], isNew: false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'draft'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertNull($entity->isNewRevision(), 'A non-state-changing edit must leave the bundle opt-out in force.');
     }
 }

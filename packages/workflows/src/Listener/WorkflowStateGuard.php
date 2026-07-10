@@ -8,6 +8,8 @@ use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Event\EntityEvent;
+use Waaseyaa\Entity\RevisionableEntityInterface;
+use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 use Waaseyaa\Workflows\Workflow;
@@ -104,13 +106,17 @@ final class WorkflowStateGuard
 
     /**
      * Rules 2 + 3 (update): an unchanged `workflow_state` only re-forces
-     * `status` consistency (the state owns status on bound types). A changed
+     * `status` consistency (see {@see applyState()}: pointer-derived on
+     * pointered entities, state-derived otherwise). A changed
      * `workflow_state` is validated exactly like
      * {@see \Waaseyaa\Workflows\Transition\TransitionService::transition()}:
      * the edge must exist, and — when an acting account context exists — the
      * account must hold the transition's permission. A null context (CLI,
      * queue, bootstrap) checks edge-legality only; programmatic callers that
      * need permission enforcement should use TransitionService directly.
+     * A validated state change into a `default_revision: false` state on a
+     * pointered entity additionally forces a new revision (forward drafts
+     * always revision — see the inline comment below).
      */
     private function guardUpdate(EntityInterface $entity, ?EntityInterface $originalEntity, Workflow $workflow): void
     {
@@ -151,7 +157,50 @@ final class WorkflowStateGuard
         // Null context: no acting account to check permission against —
         // edge-legality above is the only enforceable guarantee here.
 
+        // CW-v1 WP-2 task 2.6 panel fix B (#1920): a forward draft REQUIRES
+        // a new revision by definition — a state-changing save into a
+        // `default_revision: false` state on an entity whose published
+        // pointer exists would otherwise, on a `new_revision: false` bundle
+        // (entity-type `revisionDefault: false`, or NodeType opt-out),
+        // update the CURRENT revision in place. When the current revision
+        // IS the published one, that writes the draft's content and
+        // workflow_state into the very row the published pointer serves —
+        // live content corruption. Precedence, documented: the bundle
+        // opt-out governs ordinary NON-state-changing edits; state-changing
+        // forward drafts always create a revision. Set unconditionally
+        // (overriding even an explicit earlier setNewRevision(false)) so
+        // the outcome is identical in both listener orders relative to
+        // Task 2.3's NodeRevisionDefaultListener: that listener respects an
+        // already-set non-null value (guard-first order → its skip keeps
+        // `true`), and this write overrides a bundle-derived `false`
+        // (node-listener-first order → still `true`).
+        $targetState = $workflow->getState($newState);
+        if ($targetState?->defaultRevision === false && $this->loadPublishedRevision($entity) !== null) {
+            $this->forceNewRevision($entity);
+        }
+
         $this->applyState($entity, $workflow, $newState);
+    }
+
+    /**
+     * Duck-checks both revision contracts, mirroring the #1654 pattern in
+     * `EntityRepository::doSave()` and `TransitionService::markNewRevision()`:
+     * the legacy {@see RevisionableInterface} declares `setNewRevision()`
+     * directly; `ContentEntityBase` subclasses built on
+     * `RevisionableEntityTrait` carry the method via the trait without
+     * declaring the legacy interface.
+     */
+    private function forceNewRevision(EntityInterface $entity): void
+    {
+        if ($entity instanceof RevisionableInterface) {
+            $entity->setNewRevision(true);
+
+            return;
+        }
+
+        if ($entity instanceof RevisionableEntityInterface && \method_exists($entity, 'setNewRevision')) {
+            $entity->setNewRevision(true);
+        }
     }
 
     private function findTransition(Workflow $workflow, string $from, string $to): ?WorkflowTransition
@@ -166,47 +215,77 @@ final class WorkflowStateGuard
     }
 
     /**
-     * CW-v1 WP-2 task 2.6 (#1920, docs/specs/content-workflow.md
-     * "two-pointer status semantics"): `status` must reflect the
-     * *published-pointer* revision's state, not blindly follow whatever
-     * state this save happens to be entering. A raw save that moves a
-     * workflow-bound entity into a `default_revision: false` state (e.g.
-     * `draft`, `review`) WHILE a different revision is already the
-     * published pointer is a forward draft: the live version keeps
-     * serving, so `status` must NOT flip to match this non-live state.
+     * CW-v1 WP-2 task 2.6, amended by the panel-fix A (#1920,
+     * docs/specs/content-workflow.md "two-pointer status semantics"):
+     * **status rides the pointer, uniformly.** Once an entity has a
+     * published revision pointer, this guard NEVER derives `status` from
+     * the state the save happens to be entering — not for forward drafts
+     * (that was the original task-2.6 rule) and not for
+     * `default_revision: true` targets either. The earlier version set
+     * `status` from the target state's `published` flag on
+     * default-revision-target saves, which defeated `TransitionService`'s
+     * deliberate ordering: the service leaves `status` alone on its first
+     * (revision-creating) save and only flips it AFTER
+     * `setPublishedRevision()` succeeds, precisely so a guard-denied
+     * pointer move cannot leave `status` flipped with the pointer stuck.
+     * This guard fires on that same first save — deriving from the target
+     * state there committed `status = 1` in the first save's transaction
+     * before the pointer move had a chance to be denied.
      *
-     * This guard cannot itself move the published pointer the way
-     * {@see \Waaseyaa\Workflows\Transition\TransitionService::transition()}
-     * does (save + `EntityRepository::setPublishedRevision()`) — it fires on
-     * `EntityEvents::PRE_SAVE`, before the save that would produce a new
-     * revision id even exists. The strongest guarantee available here is:
-     * never lie about the live state. So instead of skipping the `status`
-     * write (impossible to do safely — {@see \Waaseyaa\EntityStorage\EntityRepository::doSave()}
-     * always writes whatever `status` currently sits on the entity into the
-     * base row; there is no special-casing for that column), this copies
-     * the *published* revision's own recorded `status` back onto the
-     * entity, making the otherwise-unavoidable base-row write idempotent
-     * rather than a silent flip.
+     * For pointered entities, `status` is therefore derived from the
+     * **published-pointer revision's own `workflow_state`** mapped through
+     * the workflow's `published` flag (decision 2's literal definition —
+     * "the base row's status reflects the published-pointer revision's
+     * workflow state"). Deriving from the pointer's STATE rather than
+     * copying its stored `status` column matters on TransitionService's
+     * second (post-pointer-move, status-flip) save: the pointer has
+     * already moved to the just-promoted revision, whose STORED status
+     * column is still the pre-flip value — the state-derived value agrees
+     * with the flip for both the publish (→ 1) and archive (→ 0) paths,
+     * while a stored-status copy would have overwritten the flip. A
+     * pointer revision whose `workflow_state` is unknown to the workflow
+     * (pre-backfill data) falls back to copying its stored `status` —
+     * best-effort, never derived from the save's target state.
      *
-     * When there is no published revision yet (never-published content) or
-     * the target state IS `default_revision: true`, WP-1 behavior stands:
-     * `status` follows the target state's `published` flag directly.
+     * The base-row `status` write itself cannot be skipped —
+     * {@see \Waaseyaa\EntityStorage\EntityRepository::doSave()} writes
+     * whatever `status` sits on the entity into the base row on every
+     * save, with no special-casing — so re-asserting the pointer-derived
+     * value makes the unavoidable write idempotent rather than a flip.
+     *
+     * Never-published entities keep WP-1 behavior: `status` follows the
+     * target state's `published` flag directly.
      */
     private function applyState(EntityInterface $entity, Workflow $workflow, string $state): void
     {
         $entity->set('workflow_state', $state);
-        $targetState = $workflow->getState($state);
 
-        if ($targetState?->defaultRevision === false) {
-            $published = $this->loadPublishedRevision($entity);
-            if ($published !== null) {
-                $entity->set('status', $published->get('status'));
+        $published = $this->loadPublishedRevision($entity);
+        if ($published !== null) {
+            $entity->set('status', $this->pointerStatus($published, $workflow));
 
-                return;
-            }
+            return;
         }
 
+        $targetState = $workflow->getState($state);
         $entity->set('status', $targetState?->published === true ? 1 : 0);
+    }
+
+    /**
+     * @see applyState() — the pointer revision's state, mapped through the
+     *   workflow's `published` flag; stored-status fallback for pointer
+     *   revisions whose state is unknown to the workflow.
+     */
+    private function pointerStatus(EntityInterface $published, Workflow $workflow): mixed
+    {
+        $pointerStateId = $this->explicitState($published);
+        $pointerState = $pointerStateId !== null ? $workflow->getState($pointerStateId) : null;
+
+        if ($pointerState !== null) {
+            return $pointerState->published ? 1 : 0;
+        }
+
+        return $published->get('status');
     }
 
     private function loadPublishedRevision(EntityInterface $entity): ?EntityInterface
