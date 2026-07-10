@@ -186,6 +186,50 @@ class TermTest extends TestCase
     }
 
     // ---------------------------------------------------------------
+    // Slug
+    // ---------------------------------------------------------------
+
+    public function testGetSlugDefaultIsNull(): void
+    {
+        $term = new Term(['vid' => 'tags', 'name' => 'PHP']);
+
+        $this->assertNull($term->getSlug());
+    }
+
+    public function testGetSlug(): void
+    {
+        $term = new Term(['vid' => 'tags', 'name' => 'PHP', 'slug' => 'php']);
+
+        $this->assertSame('php', $term->getSlug());
+    }
+
+    public function testSetSlug(): void
+    {
+        $term = new Term(['vid' => 'tags', 'name' => 'PHP']);
+
+        $result = $term->setSlug('php-language');
+
+        $this->assertSame('php-language', $term->getSlug());
+        $this->assertSame($term, $result, 'setSlug() should return $this for fluent API');
+    }
+
+    public function testSetSlugToNull(): void
+    {
+        $term = new Term(['vid' => 'tags', 'name' => 'PHP', 'slug' => 'php']);
+
+        $term->setSlug(null);
+
+        $this->assertNull($term->getSlug());
+    }
+
+    public function testHasFieldForSlug(): void
+    {
+        $term = new Term(['vid' => 'tags', 'name' => 'PHP']);
+
+        $this->assertTrue($term->hasField('slug'));
+    }
+
+    // ---------------------------------------------------------------
     // Weight
     // ---------------------------------------------------------------
 
@@ -342,6 +386,7 @@ class TermTest extends TestCase
             'weight' => 3,
             'parent_id' => 5,
             'status' => true,
+            'slug' => 'php',
         ]);
 
         $array = $term->toArray();
@@ -350,6 +395,7 @@ class TermTest extends TestCase
         $this->assertSame('tags', $array['vid']);
         $this->assertSame('PHP', $array['name']);
         $this->assertSame('A scripting language.', $array['description']);
+        $this->assertSame('php', $array['slug']);
         $this->assertSame(3, $array['weight']);
         $this->assertSame(5, $array['parent_id']);
         $this->assertTrue($array['status']);

@@ -23,6 +23,9 @@ final class Term extends ContentEntityBase
     #[Field(type: 'text', label: 'Description', description: 'A description of the term.', settings: ['weight' => 5])]
     public ?string $description = null;
 
+    #[Field(type: 'string', label: 'Slug', description: 'URL-safe machine name for the term (e.g. imported from an external system\'s term slug).', settings: ['weight' => 6])]
+    public ?string $slug = null;
+
     #[Field(type: 'integer', label: 'Weight', description: 'The weight of this term for ordering.', settings: ['weight' => 10])]
     public int $weight = 0;
 
@@ -44,6 +47,9 @@ final class Term extends ContentEntityBase
         // Ensure defaults for optional properties.
         if (!array_key_exists('description', $values)) {
             $values['description'] = '';
+        }
+        if (!array_key_exists('slug', $values)) {
+            $values['slug'] = null;
         }
         if (!array_key_exists('weight', $values)) {
             $values['weight'] = 0;
@@ -96,6 +102,31 @@ final class Term extends ContentEntityBase
     public function setDescription(string $description): static
     {
         return $this->set('description', $description);
+    }
+
+    /**
+     * Returns the term slug (URL-safe machine name), or null if unset.
+     *
+     * Populated from external systems (e.g. WordPress term slugs) that key
+     * terms by a stable, URL-safe identifier distinct from the display name.
+     *
+     * @api
+     */
+    public function getSlug(): ?string
+    {
+        $slug = $this->get('slug');
+
+        return $slug === null ? null : (string) $slug;
+    }
+
+    /**
+     * Sets the term slug.
+     *
+     * @api
+     */
+    public function setSlug(?string $slug): static
+    {
+        return $this->set('slug', $slug);
     }
 
     /**
