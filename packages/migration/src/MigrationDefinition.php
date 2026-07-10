@@ -22,9 +22,12 @@ use Waaseyaa\Migration\Plugin\SourcePluginInterface;
  * dependency-graph validation are *registry-level* concerns and live in
  * `MigrationRegistry::boot()` instead.
  *
- * Note: bundle metadata (e.g. node bundle name) travels through
- * {@see DestinationPluginInterface}'s constructor — NOT through the process
- * map. The process map keys are *field* names only.
+ * Note: bundle metadata (e.g. node bundle name) is declared once on this
+ * definition (see {@see self::$bundle}) and threaded by
+ * {@see \Waaseyaa\Migration\Runner\MigrationRunner} into every
+ * {@see \Waaseyaa\Migration\Plugin\DestinationRecord} it builds for the
+ * migration — NOT through the process map. The process map keys are *field*
+ * names only.
  *
  * @api
  */
@@ -52,8 +55,9 @@ final readonly class MigrationDefinition
      * @param int $memoryBudgetBytes Soft memory budget per migration (Q4 resolution). Runner emits a warning if peak usage exceeds budget by 20%.
      * @param float $errorRateWarn Fraction of records that may fail before a warning is logged (range `[0.0, 1.0]`).
      * @param float $errorRateHalt Fraction of records that may fail before the runner halts (range `[0.0, 1.0]`). Must be `>=` {@see $errorRateWarn}.
+     * @param ?string $bundle Optional destination bundle id (e.g. `article`) for this migration. Threaded verbatim by {@see \Waaseyaa\Migration\Runner\MigrationRunner} into `DestinationRecord::$bundle` for every record; `null` opts out (destination-resolved or bundle-less destinations).
      *
-     * @throws \InvalidArgumentException On any per-instance validation failure (empty id, malformed id, empty process map, malformed process values, self-referential or duplicate dependency, out-of-range error rates, negative memory budget).
+     * @throws \InvalidArgumentException On any per-instance validation failure (empty id, malformed id, empty process map, malformed process values, self-referential or duplicate dependency, out-of-range error rates, negative memory budget, empty-string bundle).
      */
     public function __construct(
         public string $id,
@@ -65,12 +69,14 @@ final readonly class MigrationDefinition
         public int $memoryBudgetBytes = self::DEFAULT_MEMORY_BUDGET_BYTES,
         public float $errorRateWarn = self::DEFAULT_ERROR_RATE_WARN,
         public float $errorRateHalt = self::DEFAULT_ERROR_RATE_HALT,
+        public ?string $bundle = null,
     ) {
         $this->validateId($id);
         $this->validateProcessMap($process);
         $this->validateDependencies($dependencies, $id);
         $this->validateMemoryBudget($memoryBudgetBytes);
         $this->validateErrorRates($errorRateWarn, $errorRateHalt);
+        $this->validateBundle($bundle);
     }
 
     /**
@@ -244,6 +250,13 @@ final readonly class MigrationDefinition
                 \var_export($errorRateWarn, true),
                 \var_export($errorRateHalt, true),
             ));
+        }
+    }
+
+    private function validateBundle(?string $bundle): void
+    {
+        if ($bundle === '') {
+            throw new \InvalidArgumentException('MigrationDefinition::$bundle must be null or a non-empty string.');
         }
     }
 }

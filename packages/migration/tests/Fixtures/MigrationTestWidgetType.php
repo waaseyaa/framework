@@ -12,7 +12,12 @@ use Waaseyaa\Entity\EntityType;
  *
  * Two flavours:
  * - `migration_test_widget` (non-revisionable) → exercises FR-018..FR-022 + FR-031
- *   round-trip.
+ *   round-trip. Also declares a `bundle` key (`widget_type`, stored in the
+ *   `_data` blob — there is no dedicated SQL column for it) so G-015
+ *   bundle-threading coverage can assert against a real entity save without
+ *   a second fixture; existing tests are unaffected because
+ *   {@see \Waaseyaa\Migration\Plugin\Destination\EntityDestination} only
+ *   touches the bundle key when `DestinationRecord::$bundle` is non-null.
  * - `migration_test_revisionable_widget` (revisionable) → exercises FR-023 +
  *   FR-031 skip semantics against the revision table.
  *
@@ -26,7 +31,7 @@ final class MigrationTestWidgetType
             id: 'migration_test_widget',
             label: 'Migration Test Widget',
             class: MigrationTestWidget::class,
-            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title'],
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'widget_type'],
         );
     }
 
