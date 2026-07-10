@@ -311,11 +311,17 @@ final class ServiceProvider extends FoundationServiceProvider
     }
 
     /**
-     * Resolve a {@see GateInterface}. The access package does not currently
-     * register a service-provider binding; if no host binding exists we fall
-     * back to a no-policy {@see Gate} (every access op is denied, which the
-     * resolver handles as "row hidden"). Host applications wiring real
-     * policies bind their Gate via their own ServiceProvider.
+     * Resolve a {@see GateInterface}. The kernel-services bus binds a shared
+     * {@see \Waaseyaa\Access\Gate\EntityAccessGate} once the kernel's access
+     * handler is available (G-014 / #1940 —
+     * `ProviderRegistryKernelServices::get()`); before that point, or when no
+     * kernel context is wired at all, the bus resolves `null`. In that case
+     * we fall back to a no-policy {@see Gate} (every access op is denied,
+     * which the resolver handles as "row hidden") as defense in depth — this
+     * keeps the listing pipeline fail-closed even if a future host wires a
+     * kernel without an access handler. Host applications wiring real
+     * policies get the shared kernel gate automatically; they no longer need
+     * to bind their own ServiceProvider for this.
      */
     private function resolveGate(): GateInterface
     {

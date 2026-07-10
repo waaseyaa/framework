@@ -231,6 +231,7 @@ public function get(string $abstract): ?object;
 | `Symfony\Contracts\EventDispatcher\EventDispatcherInterface` | The kernel’s event dispatcher |
 | `Waaseyaa\Foundation\Log\LoggerInterface` | The kernel’s logger |
 | `\PDO` | The native PDO connection beneath `DBALDatabase` |
+| `Waaseyaa\Access\Gate\GateInterface` | A shared `EntityAccessGate` wrapping the kernel's `EntityAccessHandler` (G-014 / #1940) — memoized per handler instance. Resolves `null` before `AbstractKernel::discoverAccessPolicies()` has run (the handler accessor is not yet available), matching the existing `EntityAccessHandler::class` case's degrade-to-null behaviour. |
 | anything else | The first sibling provider whose `getBindings()` declares the abstract, or `null` |
 
 The provider list is read through a closure accessor so resolution sees the live registration state — necessary when a provider’s `register()` resolves a binding declared by a sibling registered earlier in the same pass.
