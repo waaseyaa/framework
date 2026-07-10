@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.259] - 2026-07-10
+
 ### Added
 
 - **First-class `slug` field on `Waaseyaa\Taxonomy\Term` (#1940, G-019).** The Sheguiandah pass-1 WordPress import had no destination field for WordPress term slugs — `Term` exposed only `name` (the display label) and had nothing URL-safe for a migration to write into, so imported term slugs were silently dropped. `Term` gains a nullable `#[Field(type: 'string', ...)]` `slug` property plus `getSlug()`/`setSlug()` accessors, mirroring the existing `description` field's shape and constructor-default pattern. `taxonomy_term` uses the default sql-blob storage backend, and — like `description`/`weight`/`parent_id`/`status` before it — the new field is NOT given an explicit database column: `SqlSchemaHandler::buildTableSpec()` only emits `id`/`uuid`/`bundle`/`label`/`langcode`/revision-pointer columns plus the generic `_data` JSON blob for this entity type (`docs/specs/bundle-scoped-storage.md` — `taxonomy_term` "continues using flat-table storage with all fields on the base," no per-field columns), so `slug` rides the same `_data` blob every other Term field already does; no schema migration is needed for existing installs.
