@@ -7,13 +7,16 @@ namespace Waaseyaa\Foundation\Tests\Unit\Kernel\Bootstrap;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\EventDispatcher\EventDispatcher;
+use Psr\EventDispatcher\EventDispatcherInterface as PsrEventDispatcherInterface;
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface as SymfonyContractsEventDispatcherInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Gate\EntityAccessGate;
 use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\Event\EventDispatcherInterface as FoundationEventDispatcherInterface;
+use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistryKernelServices;
 use Waaseyaa\Foundation\Log\NullLogger;
 
@@ -24,7 +27,7 @@ final class ProviderRegistryKernelServicesTest extends TestCase
         DatabaseInterface $database,
         ?\Closure $accessHandlerAccessor = null,
     ): ProviderRegistryKernelServices {
-        $dispatcher = new EventDispatcher();
+        $dispatcher = new SymfonyEventDispatcherAdapter();
 
         return new ProviderRegistryKernelServices(
             entityTypeManager: new EntityTypeManager($dispatcher),
@@ -116,5 +119,42 @@ final class ProviderRegistryKernelServicesTest extends TestCase
         $services = $this->services(DBALDatabase::createSqlite());
 
         self::assertNull($services->get(GateInterface::class));
+    }
+
+    /**
+     * G-025 (#1940): the kernel-services bus must answer the dispatcher under
+     * the PSR-14 contract FQCN, not only the Symfony-contracts one. Pass-1
+     * symptom: `EntityDestinationFactory` type-hints
+     * `Psr\EventDispatcher\EventDispatcherInterface` per its own docblock and
+     * got `null` back, so following the docblock threw "No binding
+     * registered".
+     */
+    #[Test]
+    public function get_resolves_the_dispatcher_under_the_psr14_contract(): void
+    {
+        $services = $this->services(DBALDatabase::createSqlite());
+
+        $dispatcher = $services->get(PsrEventDispatcherInterface::class);
+
+        self::assertNotNull($dispatcher);
+        self::assertSame($services->get(SymfonyContractsEventDispatcherInterface::class), $dispatcher);
+    }
+
+    /**
+     * G-025 (#1940): the latent variant — provider `boot()` code type-hinting
+     * the foundation-owned `Waaseyaa\Foundation\Event\EventDispatcherInterface`
+     * contract silently got `null` back from the bus (documented victims:
+     * Media/Field). The bus must answer this FQCN too, with the same
+     * dispatcher instance.
+     */
+    #[Test]
+    public function get_resolves_the_dispatcher_under_the_foundation_contract(): void
+    {
+        $services = $this->services(DBALDatabase::createSqlite());
+
+        $dispatcher = $services->get(FoundationEventDispatcherInterface::class);
+
+        self::assertNotNull($dispatcher);
+        self::assertSame($services->get(SymfonyContractsEventDispatcherInterface::class), $dispatcher);
     }
 }
