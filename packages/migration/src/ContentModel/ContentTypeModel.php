@@ -17,11 +17,10 @@ use Waaseyaa\Field\FieldDefinitionInterface;
  * of the shared base fields it reuses (author, dates, title, slug, ...), for the
  * human-readable model description.
  *
- * UNWIRED / EXPERIMENTAL (audit C-5): part of the unwired ContentModel
- * scaffolding; no production path constructs or consumes it. @api retained only
- * for the dead-code gate.
+ * Blessed as the supported import-time content-model surface (G-026, #1940)
+ * — see {@see ContentModel} and {@see ContentModelRegistrar} for the full
+ * contract and docs/specs/migration-platform.md "Content model registration".
  *
- * @internal Unsupported scaffolding pending wiring. See docs/specs/migration-platform.md.
  * @api
  */
 final readonly class ContentTypeModel

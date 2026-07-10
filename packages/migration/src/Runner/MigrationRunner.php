@@ -7,6 +7,8 @@ namespace Waaseyaa\Migration\Runner;
 use Symfony\Component\Uid\Uuid;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Migration\ContentModel\ContentModelRegistrar;
+use Waaseyaa\Migration\ContentModel\DerivesContentModelInterface;
 use Waaseyaa\Migration\Discovery\MigrationRegistry;
 use Waaseyaa\Migration\Exception\DestinationWriteException;
 use Waaseyaa\Migration\Exception\MigrationAbortedException;
@@ -58,6 +60,19 @@ final class MigrationRunner
     private readonly LoggerInterface $logger;
     private readonly \Closure $clock;
 
+    /** @var iterable<DerivesContentModelInterface> */
+    private readonly iterable $contentModelProviders;
+
+    /**
+     * G-026 (#1940): guards content-model registration to once per runner
+     * instance (the runner is a container singleton, i.e. once per CLI
+     * process) so it runs exactly before the FIRST migration of the
+     * invocation and never again, regardless of how many times `run()` /
+     * `runResume()` are called in the same `import:run-all` pass. See
+     * {@see ensureContentModelsRegistered()}.
+     */
+    private bool $contentModelsRegistered = false;
+
     /**
      * @param MigrationRegistry $registry Booted registry; resolved per `run()` via {@see MigrationRegistry::get()}.
      * @param ProcessChainExecutor $chain Runtime collaborator that pipes one source field through its process chain.
@@ -65,6 +80,12 @@ final class MigrationRunner
      * @param ?LoggerInterface $logger Optional structured logger. Defaults to {@see NullLogger}.
      * @param ?MigrationRunState $runState Optional per-record progress writer (WP07). When `null` the runner skips heartbeat writes — preserves WP06's test scaffolding.
      * @param \Closure|null $clock Test seam returning `\DateTimeImmutable`. Defaults to `now in UTC`.
+     * @param ?ContentModelRegistrar $contentModelRegistrar Registrar invoked once, before the first migration of this
+     *        runner's lifetime, against every provider in `$contentModelProviders` (G-026, #1940). `null` (the WP06
+     *        test-scaffolding default) skips content-model registration entirely — existing callers that construct
+     *        the runner without it are unaffected.
+     * @param iterable<DerivesContentModelInterface> $contentModelProviders Providers collected by the kernel
+     *        (`AbstractKernel::injectContentModelProviders()`) or injected directly by tests.
      */
     public function __construct(
         private readonly MigrationRegistry $registry,
@@ -73,10 +94,53 @@ final class MigrationRunner
         ?LoggerInterface $logger = null,
         private readonly ?MigrationRunState $runState = null,
         ?\Closure $clock = null,
+        private readonly ?ContentModelRegistrar $contentModelRegistrar = null,
+        iterable $contentModelProviders = [],
     ) {
         $this->logger = $logger ?? new NullLogger();
         $this->clock = $clock ?? static fn(): \DateTimeImmutable
             => new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+        $this->contentModelProviders = $contentModelProviders;
+    }
+
+    /**
+     * Register every provider's derived content model exactly once, before
+     * the first migration this runner instance executes (G-026, #1940).
+     *
+     * This is the import-time invocation point the pass-1 build was missing:
+     * the kernel only ever COLLECTS `DerivesContentModelInterface` providers
+     * at boot (`AbstractKernel::injectContentModelProviders()`); calling
+     * `deriveContentModel()` and feeding the result through
+     * {@see ContentModelRegistrar} happens here instead, at the first
+     * `import:*` command that actually runs a migration — by which point
+     * `db:init`'s schema sync has already completed and the destination
+     * tables the derived model describes are guaranteed to exist. A provider
+     * constructed and invoked eagerly during kernel boot's schema-sync phase
+     * (the pass-1 shape) has no such guarantee and silently no-ops.
+     *
+     * A no-op when no {@see ContentModelRegistrar} was injected (WP06 test
+     * scaffolding and any caller that does not need content-model
+     * registration) — existing `MigrationRunner` construction sites are
+     * unaffected.
+     */
+    private function ensureContentModelsRegistered(): void
+    {
+        if ($this->contentModelsRegistered) {
+            return;
+        }
+        $this->contentModelsRegistered = true;
+
+        if ($this->contentModelRegistrar === null) {
+            return;
+        }
+
+        foreach ($this->contentModelProviders as $provider) {
+            $model = $provider->deriveContentModel();
+            if ($model === null) {
+                continue;
+            }
+            $this->contentModelRegistrar->register($model);
+        }
     }
 
     /**
@@ -173,6 +237,8 @@ final class MigrationRunner
         int $resumeFromPosition,
         ?string $overrideRunId,
     ): RunReport {
+        $this->ensureContentModelsRegistered();
+
         $definition = $this->registry->get($migrationId);
         $runId = $overrideRunId ?? $options->runId ?? Uuid::v7()->toRfc4122();
         $startedAt = ($this->clock)();

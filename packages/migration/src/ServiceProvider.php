@@ -9,8 +9,11 @@ use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsContentModelProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider as BaseServiceProvider;
+use Waaseyaa\Migration\ContentModel\ContentModelRegistrar;
+use Waaseyaa\Migration\ContentModel\DerivesContentModelInterface;
 use Waaseyaa\Migration\Discovery\FilesystemManifestLoader;
 use Waaseyaa\Migration\Discovery\HasMigrationsInterface;
 use Waaseyaa\Migration\Discovery\MigrationRegistry;
@@ -53,10 +56,20 @@ use Waaseyaa\Migration\Runner\RollbackWalker;
  *
  * @api
  */
-final class ServiceProvider extends BaseServiceProvider implements AcceptsMigrationProvidersInterface
+final class ServiceProvider extends BaseServiceProvider implements AcceptsMigrationProvidersInterface, AcceptsContentModelProvidersInterface
 {
     /** @var list<HasMigrationsInterface> Providers injected by tests or future capability-dispatch wiring. */
     private array $migrationProviders = [];
+
+    /**
+     * @var list<DerivesContentModelInterface> Providers injected by the
+     *      kernel's {@see \Waaseyaa\Foundation\Kernel\AbstractKernel::injectContentModelProviders()}
+     *      (G-026, #1940), or directly by tests. Only collected here — never
+     *      invoked here. See {@see ContentModelRegistrar} and
+     *      {@see \Waaseyaa\Migration\Runner\MigrationRunner} for the
+     *      import-time invocation point.
+     */
+    private array $contentModelProviders = [];
 
     public function register(): void
     {
@@ -116,6 +129,8 @@ final class ServiceProvider extends BaseServiceProvider implements AcceptsMigrat
             \assert($idMap instanceof MigrationIdMap);
             $runState = $this->resolve(MigrationRunState::class);
             \assert($runState instanceof MigrationRunState);
+            $contentModelRegistrar = $this->resolve(ContentModelRegistrar::class);
+            \assert($contentModelRegistrar instanceof ContentModelRegistrar);
 
             return new MigrationRunner(
                 registry: $registry,
@@ -123,6 +138,26 @@ final class ServiceProvider extends BaseServiceProvider implements AcceptsMigrat
                 idMap: $idMap,
                 logger: $this->resolveLogger(),
                 runState: $runState,
+                contentModelRegistrar: $contentModelRegistrar,
+                contentModelProviders: $this->contentModelProviders,
+            );
+        });
+
+        // G-026 (#1940): binds ContentModelRegistrar, blessing it as the one
+        // supported path for declaring import-derived per-bundle content
+        // models (see that class's docblock for the full contract). Lazy
+        // like EntityDestinationFactory above: EntityTypeManager is safe to
+        // resolve early, but the registrar itself is only ever INVOKED from
+        // MigrationRunner at the first import command — well after full
+        // kernel boot — so there is no boot-ordering hazard to guard against
+        // here the way there is for EntityDestinationFactory's GateInterface.
+        $this->singleton(ContentModelRegistrar::class, function () {
+            $entityTypeManager = $this->resolve(EntityTypeManager::class);
+            \assert($entityTypeManager instanceof EntityTypeManager);
+
+            return new ContentModelRegistrar(
+                entityTypeManager: $entityTypeManager,
+                logger: $this->resolveLogger(),
             );
         });
 
@@ -213,6 +248,27 @@ final class ServiceProvider extends BaseServiceProvider implements AcceptsMigrat
         $this->migrationProviders = \array_values(\array_filter(
             $providers,
             static fn(object $provider): bool => $provider instanceof HasMigrationsInterface,
+        ));
+    }
+
+    /**
+     * Inject content-model providers prior to {@see register()}.
+     *
+     * Implements {@see AcceptsContentModelProvidersInterface}: the kernel
+     * discovers providers that expose an import-derived content model and
+     * hands them here (G-026, #1940). Same shape as
+     * {@see withMigrationProviders()} — collection only, no invocation. The
+     * providers are threaded into the {@see MigrationRunner} binding above
+     * and invoked from there, at the first import command, not from this
+     * provider's `boot()`.
+     *
+     * @param list<object> $providers
+     */
+    public function withContentModelProviders(array $providers): void
+    {
+        $this->contentModelProviders = \array_values(\array_filter(
+            $providers,
+            static fn(object $provider): bool => $provider instanceof DerivesContentModelInterface,
         ));
     }
 

@@ -15,6 +15,7 @@ use ReflectionMethod;
 use ReflectionNamedType;
 use SplFileInfo;
 use Waaseyaa\Foundation\Http\LanguagePathStripperInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsContentModelProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasGraphqlMutationOverridesInterface;
@@ -76,6 +77,7 @@ final class ServiceProviderContractTest extends TestCase
      */
     private const array CAPABILITY_INTERFACES = [
         'withMigrationProviders' => AcceptsMigrationProvidersInterface::class,
+        'withContentModelProviders' => AcceptsContentModelProvidersInterface::class,
         'stripLanguagePrefixForRouting' => LanguagePathStripperInterface::class,
         'graphqlMutationOverrides' => HasGraphqlMutationOverridesInterface::class,
         'consoleCommands' => ProvidesConsoleCommandsInterface::class,

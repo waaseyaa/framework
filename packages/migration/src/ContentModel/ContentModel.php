@@ -13,11 +13,14 @@ namespace Waaseyaa\Migration\ContentModel;
  * field definitions, so that downstream content imports write into declared
  * fields rather than an opaque blob.
  *
- * UNWIRED / EXPERIMENTAL (audit C-5): part of the unwired ContentModel
- * scaffolding; no production path constructs or consumes it. @api retained only
- * for the dead-code gate.
+ * Blessed as the supported import-time content-model surface (G-026, #1940):
+ * a {@see DerivesContentModelInterface} provider returns one of these, and
+ * {@see \Waaseyaa\Migration\Runner\MigrationRunner} feeds it through
+ * {@see ContentModelRegistrar} before the first migration runs. See
+ * docs/specs/migration-platform.md "Content model registration" for the full
+ * contract, including the boundary against the static
+ * `#[BundleTemplate]`/`#[FieldTemplate]` app-model path.
  *
- * @internal Unsupported scaffolding pending wiring. See docs/specs/migration-platform.md.
  * @api
  */
 final readonly class ContentModel
