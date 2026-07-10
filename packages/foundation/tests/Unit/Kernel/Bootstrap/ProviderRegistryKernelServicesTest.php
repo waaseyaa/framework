@@ -8,6 +8,9 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\Gate\EntityAccessGate;
+use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -17,8 +20,10 @@ use Waaseyaa\Foundation\Log\NullLogger;
 #[CoversClass(ProviderRegistryKernelServices::class)]
 final class ProviderRegistryKernelServicesTest extends TestCase
 {
-    private function services(DatabaseInterface $database): ProviderRegistryKernelServices
-    {
+    private function services(
+        DatabaseInterface $database,
+        ?\Closure $accessHandlerAccessor = null,
+    ): ProviderRegistryKernelServices {
         $dispatcher = new EventDispatcher();
 
         return new ProviderRegistryKernelServices(
@@ -27,6 +32,7 @@ final class ProviderRegistryKernelServicesTest extends TestCase
             dispatcher: $dispatcher,
             logger: new NullLogger(),
             providersAccessor: static fn(): array => [],
+            accessHandlerAccessor: $accessHandlerAccessor,
         );
     }
 
@@ -74,5 +80,41 @@ final class ProviderRegistryKernelServicesTest extends TestCase
         }
 
         self::assertSame(['persisted'], $values);
+    }
+
+    /**
+     * G-014 (#1940): the kernel-services bus binds a real `GateInterface`
+     * once the kernel's access handler is available, so consumers resolving
+     * `GateInterface::class` get a working `EntityAccessGate` instead of
+     * falling back to a deny-all `Gate([])` (the root cause of the
+     * Sheguiandah pass-1 512/512 `entity_create_denied` import failure).
+     */
+    #[Test]
+    public function get_gate_interface_returns_an_entity_access_gate_when_the_handler_is_available(): void
+    {
+        $handler = new EntityAccessHandler();
+        $services = $this->services(
+            DBALDatabase::createSqlite(),
+            accessHandlerAccessor: static fn(): EntityAccessHandler => $handler,
+        );
+
+        $gate = $services->get(GateInterface::class);
+
+        self::assertInstanceOf(EntityAccessGate::class, $gate);
+    }
+
+    /**
+     * Before {@see \Waaseyaa\Foundation\Kernel\AbstractKernel::discoverAccessPolicies()}
+     * runs, no access handler accessor is available — `GateInterface`
+     * resolution must degrade to `null` (exactly like the existing
+     * `EntityAccessHandler::class` case), not throw or return a
+     * non-functional gate.
+     */
+    #[Test]
+    public function get_gate_interface_returns_null_when_the_handler_is_not_available(): void
+    {
+        $services = $this->services(DBALDatabase::createSqlite());
+
+        self::assertNull($services->get(GateInterface::class));
     }
 }

@@ -312,6 +312,8 @@ Adapter that bridges `GateInterface` to `EntityAccessHandler`, reusing existing 
 
 Wired in `public/index.php`: wraps `EntityAccessHandler` and is passed to `AccessChecker(gate: $gate)`. Policy exceptions are caught, logged, and treated as denial.
 
+**Kernel-services bus binding (G-014 / #1940).** `ProviderRegistryKernelServices::get(GateInterface::class)` (`packages/foundation/src/Kernel/Bootstrap/ProviderRegistryKernelServices.php`) now resolves a shared `EntityAccessGate` built from the same lazy `EntityAccessHandler` accessor used for `EntityAccessHandler::class` resolution — memoized per handler instance, so repeated resolves within a request return the same adapter. This closes a gap where consumers resolving `GateInterface` off the kernel bus outside the `public/index.php` HTTP wiring (e.g. `packages/listing/src/ServiceProvider.php`) got `null` and fell back to a deny-all `Gate([])`, the root cause of the Sheguiandah pass-1 512/512 `entity_create_denied` failure. Resolution is still `null` before `AbstractKernel::discoverAccessPolicies()` runs (the handler accessor is not yet available). The `public/index.php` HTTP middleware wiring is unchanged — it continues to construct its own `EntityAccessGate` directly.
+
 ### PolicyAttribute
 
 **File:** `packages/access/src/Gate/PolicyAttribute.php`

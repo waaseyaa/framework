@@ -7,6 +7,8 @@ namespace Waaseyaa\Foundation\Kernel\Bootstrap;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\Gate\EntityAccessGate;
+use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -40,6 +42,16 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
      * @var (\Closure(): ?EntityAccessHandler)|null
      */
     private readonly ?\Closure $accessHandlerAccessor;
+
+    /**
+     * Memoized {@see GateInterface} adapter, rebuilt only when the resolved
+     * access handler instance changes (G-014 / #1940). Constructing
+     * {@see EntityAccessGate} is cheap, but callers resolving `GateInterface`
+     * repeatedly within one request should see the same adapter instance.
+     */
+    private ?EntityAccessGate $gate = null;
+
+    private ?EntityAccessHandler $gateHandler = null;
 
     /**
      * @param \Closure(): list<ServiceProvider> $providersAccessor
@@ -88,6 +100,19 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
             return $this->accessHandlerAccessor !== null
                 ? ($this->accessHandlerAccessor)()
                 : null;
+        }
+        if ($abstract === GateInterface::class) {
+            $handler = $this->accessHandlerAccessor !== null
+                ? ($this->accessHandlerAccessor)()
+                : null;
+            if ($handler === null) {
+                return null;
+            }
+            if ($this->gate === null || $this->gateHandler !== $handler) {
+                $this->gate = new EntityAccessGate($handler, $this->logger);
+                $this->gateHandler = $handler;
+            }
+            return $this->gate;
         }
         if ($abstract === \PDO::class) {
             assert($this->database instanceof DBALDatabase);
