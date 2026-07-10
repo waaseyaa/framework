@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Kernel\Bootstrap;
 
+use Psr\EventDispatcher\EventDispatcherInterface as PsrEventDispatcherInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Access\EntityAccessHandler;
@@ -14,6 +15,7 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
+use Waaseyaa\Foundation\Event\EventDispatcherInterface as FoundationEventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -84,8 +86,20 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
         if ($abstract === DatabaseInterface::class) {
             return $this->database;
         }
-        if ($abstract === EventDispatcherInterface::class) {
+        if ($abstract === EventDispatcherInterface::class || $abstract === PsrEventDispatcherInterface::class) {
+            // Symfony\Contracts\EventDispatcher\EventDispatcherInterface (the
+            // property's declared type) extends the PSR-14 contract, so this
+            // branch is statically guaranteed for both FQCNs.
             return $this->dispatcher;
+        }
+        if ($abstract === FoundationEventDispatcherInterface::class) {
+            // G-025 (#1940): the property type (Symfony contracts) does not
+            // statically guarantee the Waaseyaa-owned contract, but every
+            // kernel binds SymfonyEventDispatcherAdapter, which implements
+            // both. Guard with instanceof rather than assuming.
+            return $this->dispatcher instanceof FoundationEventDispatcherInterface
+                ? $this->dispatcher
+                : null;
         }
         if ($abstract === LoggerInterface::class) {
             return $this->logger;
