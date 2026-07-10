@@ -128,9 +128,10 @@ final class MigrationRunner
         if ($this->contentModelsRegistered) {
             return;
         }
-        $this->contentModelsRegistered = true;
 
         if ($this->contentModelRegistrar === null) {
+            $this->contentModelsRegistered = true;
+
             return;
         }
 
@@ -141,6 +142,12 @@ final class MigrationRunner
             }
             $this->contentModelRegistrar->register($model);
         }
+
+        // Latch only after every provider succeeded: if register() (or
+        // deriveContentModel()) threw, a retry on the same long-lived runner
+        // instance must re-attempt registration rather than silently run
+        // migrations without the content model in place.
+        $this->contentModelsRegistered = true;
     }
 
     /**

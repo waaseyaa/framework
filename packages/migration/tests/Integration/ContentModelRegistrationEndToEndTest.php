@@ -219,4 +219,55 @@ final class ContentModelRegistrationEndToEndTest extends TestCase
         $this->expectException(\OutOfBoundsException::class);
         $runner->run('unknown_migration', new RunOptions());
     }
+    /**
+     * Regression for the once-per-runner latch: a registration failure must
+     * NOT latch the guard, or a retry on the same (long-lived) runner
+     * instance would silently run migrations without the content model.
+     */
+    #[Test]
+    public function a_failed_registration_is_reattempted_on_the_next_run(): void
+    {
+        $kit = ContentModelTestKit::build();
+
+        $flaky = new class implements DerivesContentModelInterface {
+            public int $calls = 0;
+
+            public function deriveContentModel(): ?ContentModel
+            {
+                ++$this->calls;
+                if ($this->calls === 1) {
+                    throw new \RuntimeException('source mirror momentarily unreadable');
+                }
+
+                return null; // second attempt: nothing to register, but it MUST be attempted.
+            }
+        };
+
+        $registry = new MigrationRegistry([]);
+        $registry->boot();
+
+        $runner = new MigrationRunner(
+            registry: $registry,
+            chain: new ProcessChainExecutor(),
+            idMap: new MigrationIdMap($kit->database),
+            contentModelRegistrar: new ContentModelRegistrar($kit->typeManager),
+            contentModelProviders: [$flaky],
+        );
+
+        try {
+            $runner->run('unknown_migration', new RunOptions());
+            self::fail('First run must propagate the provider failure.');
+        } catch (\RuntimeException) {
+            // expected: registration failed before any migration ran.
+        }
+
+        try {
+            $runner->run('unknown_migration', new RunOptions());
+        } catch (\OutOfBoundsException) {
+            // expected: registration succeeded this time; the unknown
+            // migration id is then rejected as usual.
+        }
+
+        self::assertSame(2, $flaky->calls, 'A failed registration must be re-attempted on the next run, not latched away.');
+    }
 }
