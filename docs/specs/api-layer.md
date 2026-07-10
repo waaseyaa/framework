@@ -250,8 +250,8 @@ final readonly class JsonApiError
 
     // Static factories:
     public static function notFound(string $detail = ''): self;      // 404
-    public static function forbidden(string $detail = ''): self;     // 403
-    public static function unprocessable(string $detail = '', array $source = []): self;  // 422
+    public static function forbidden(string $detail = '', string $code = 'FORBIDDEN', array $meta = []): self;     // 403
+    public static function unprocessable(string $detail = '', array $source = [], string $code = '', array $meta = []): self;  // 422
     public static function badRequest(string $detail = ''): self;    // 400
     public static function conflict(string $detail = '', string $code = '', array $meta = []): self;  // 409
     public static function internalError(string $detail = ''): self; // 500
@@ -263,7 +263,12 @@ trailing ctor param emitted by `toArray()` **only when non-empty**, so every
 pre-existing error response is byte-identical. `conflict()` gained optional
 `code`/`meta` passthrough the same way: the pre-existing `data.id`-vs-uuid 409
 keeps its codeless shape, and `code` is the machine-readable discriminator
-between the two 409s (see "Conditional update" below).
+between the two 409s (see "Conditional update" below). `forbidden()`/
+`unprocessable()` gained the same optional `code`/`meta` passthrough (CW-v1
+WP-2 rework task 4, #1920) — `forbidden()`'s `code` defaults to the
+pre-existing `'FORBIDDEN'` string and `unprocessable()`'s defaults to `''`
+(codeless), so every pre-existing caller's response body is byte-identical;
+see "Workflow transition denial (#1920)" below for the first consumer.
 
 ## JSON:API Controller
 
@@ -414,6 +419,31 @@ load-bearing: **removing or renaming it is a consumer break** — it is the
 value expectation-forming clients read. The conflict body's
 `meta.current_revision_id` is itself a read: the re-read-and-retry loop can
 skip a round-trip.
+
+### Workflow transition denial (#1920, CW-v1 WP-2 rework task 4)
+
+`Waaseyaa\Workflows\Listener\WorkflowStateGuard` throws
+`Waaseyaa\Workflows\Transition\TransitionDeniedException` from `PRE_SAVE`
+inside `EntityRepository::save()` (docs/specs/content-workflow.md,
+"Save-path guard") whenever a raw write attempts an illegal or unpermitted
+workflow-state change. All three save sites in this controller — `store()`,
+`update()`'s plain save, and the expectation-stated save — catch it and map
+it through a shared `workflowTransitionDeniedError()` helper rather than
+letting it surface as an uncaught 500:
+
+| `TransitionDeniedException::$reason` | Response |
+|---|---|
+| `permission` | 403 Forbidden |
+| `illegal_edge` / `unknown_transition` / `unbound` | 422 Unprocessable Entity |
+
+Both shapes carry `code: 'WORKFLOW_TRANSITION_DENIED'` and
+`meta: ['reason' => <reason>]` (mirrors the `REVISION_CONFLICT` code/meta
+pattern above) — the machine-readable discriminator; the exception's message
+is already operator-friendly and passes through as `detail` unchanged.
+`waaseyaa/workflows` (L3) is a declared runtime `require` of `waaseyaa/api`
+(L4) — importing downward is layer-legal — so the catch is a real,
+always-resolvable dependency rather than a class-name-string guess. Pinned by
+`JsonApiControllerWorkflowDeniedTest`.
 
 ### ID Resolution
 
