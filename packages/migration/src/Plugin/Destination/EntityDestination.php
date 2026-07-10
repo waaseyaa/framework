@@ -559,13 +559,46 @@ final class EntityDestination implements DestinationPluginInterface
             return;
         }
 
-        // Create access takes the entity type id as a string subject (see Gate / EntityAccessGate).
-        if ($this->gate->denies('create', $this->destinationEntityTypeId, $this->account)) {
+        // Create access takes a bundle-aware array subject when the destination
+        // entity type declares a bundle key and the entity carries a value for
+        // it (i.e. DestinationRecord::$bundle was set); otherwise it falls back
+        // to the bundle-less string-subject form (see Gate / EntityAccessGate).
+        $createSubject = $this->buildCreateSubject($entity);
+
+        if ($this->gate->denies('create', $createSubject, $this->account)) {
             throw DestinationWriteException::entityCreateDenied(
                 $this->destinationEntityTypeId,
                 $sourceId,
             );
         }
+    }
+
+    /**
+     * Build the create-ability subject for the gate: a bundle-aware array
+     * when the entity type has a bundle key and the entity carries a
+     * non-empty value for it, otherwise the bundle-less string form.
+     *
+     * @return array{entity_type: string, bundle: string}|string
+     */
+    private function buildCreateSubject(EntityInterface $entity): array|string
+    {
+        $definition = $this->entityTypeManager->getDefinition($this->destinationEntityTypeId);
+        $bundleKey = $definition->getKeys()['bundle'] ?? null;
+
+        if ($bundleKey === null) {
+            return $this->destinationEntityTypeId;
+        }
+
+        $bundle = $entity->get($bundleKey);
+
+        if (!\is_string($bundle) || $bundle === '') {
+            return $this->destinationEntityTypeId;
+        }
+
+        return [
+            'entity_type' => $this->destinationEntityTypeId,
+            'bundle' => $bundle,
+        ];
     }
 
     private function extractUuid(EntityInterface $entity): string

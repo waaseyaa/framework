@@ -13,12 +13,19 @@ use PHPUnit\Framework\TestCase;
  * dead-subscriber sweep, audit-remediation batch 2026-07-01/02).
  *
  * Verifies the gate rejects a synthetic provider that resolves an unserved
- * dispatcher FQCN (foundation or Symfony-Component) and registers a listener
- * with it, passes a provider that resolves the served Symfony-contracts
- * FQCN, and respects the baseline/exemption mechanism — proving the gate is
- * not a silent no-op (same self-test discipline as
+ * dispatcher FQCN (Symfony-Component) and registers a listener with it,
+ * passes a provider that resolves any of the served FQCNs (Symfony
+ * contracts, PSR-14, or the Waaseyaa foundation contract — served since
+ * #1942, G-025), and respects the baseline/exemption mechanism — proving the
+ * gate is not a silent no-op (same self-test discipline as
  * tests/Integration/Phase24/GetQueryBindingsGateTest.php for
  * check-getquery-bindings).
+ *
+ * The Waaseyaa foundation FQCN
+ * (`Waaseyaa\Foundation\Event\EventDispatcherInterface`) used to be the
+ * canonical unserved-key fixture pre-#1942; it is now a served key, so the
+ * "genuinely unserved" fixtures below use the Symfony Component FQCN
+ * instead — the one dispatcher-interface FQCN the bus still does not serve.
  */
 #[CoversNothing]
 final class DispatcherKeysGateTest extends TestCase
@@ -46,14 +53,17 @@ final class DispatcherKeysGateTest extends TestCase
     }
 
     #[Test]
-    public function foundationFqcnResolutionFollowedByAddListenerFailsGate(): void
+    public function foundationFqcnResolutionFollowedByAddListenerPassesGate(): void
     {
-        file_put_contents($this->tempDir . '/src/OffenderProvider.php', <<<'PHP'
+        // Served since #1942 (G-025): the bus resolves the Waaseyaa
+        // foundation contract directly (instanceof-guarded), so a provider
+        // relying on it now reaches its registration in a real boot.
+        file_put_contents($this->tempDir . '/src/FoundationFqcnProvider.php', <<<'PHP'
             <?php
             declare(strict_types=1);
             namespace Waaseyaa\Fixture;
             use Waaseyaa\Foundation\Event\EventDispatcherInterface;
-            final class OffenderProvider
+            final class FoundationFqcnProvider
             {
                 public function boot(): void
                 {
@@ -70,9 +80,7 @@ final class DispatcherKeysGateTest extends TestCase
 
         [$output, $exitCode] = $this->runGate($this->tempDir . '/src', $this->tempBaseline, ['--verify']);
 
-        self::assertNotSame(0, $exitCode, 'Expected non-zero exit for unserved-FQCN registration. Output: ' . $output);
-        self::assertStringContainsString('NEW unserved-dispatcher-key registration', $output);
-        self::assertStringContainsString('Waaseyaa\\Foundation\\Event\\EventDispatcherInterface', $output);
+        self::assertSame(0, $exitCode, 'Expected zero exit for foundation-FQCN registration (served since #1942). Output: ' . $output);
     }
 
     #[Test]
@@ -102,17 +110,18 @@ final class DispatcherKeysGateTest extends TestCase
     }
 
     #[Test]
-    public function kernelServicesGetWithUnservedFqcnFollowedByAddListenerFailsGate(): void
+    public function kernelServicesGetWithFoundationFqcnFollowedByAddListenerPassesGate(): void
     {
         // The direct bus-access shape (`$this->kernelServices?->get(...)`,
-        // the style packages/listing uses) must be caught the same as
-        // resolve()/resolveOptional() — the bus serves the identical key set.
-        file_put_contents($this->tempDir . '/src/OffenderProvider.php', <<<'PHP'
+        // the style packages/listing uses) must be treated the same as
+        // resolve()/resolveOptional() — the bus serves the identical key
+        // set, and the foundation FQCN is now part of it (#1942, G-025).
+        file_put_contents($this->tempDir . '/src/FoundationFqcnKernelServicesProvider.php', <<<'PHP'
             <?php
             declare(strict_types=1);
             namespace Waaseyaa\Fixture;
             use Waaseyaa\Foundation\Event\EventDispatcherInterface;
-            final class OffenderProvider
+            final class FoundationFqcnKernelServicesProvider
             {
                 public function boot(): void
                 {
@@ -129,8 +138,7 @@ final class DispatcherKeysGateTest extends TestCase
 
         [$output, $exitCode] = $this->runGate($this->tempDir . '/src', $this->tempBaseline, ['--verify']);
 
-        self::assertNotSame(0, $exitCode, 'Expected non-zero exit for kernelServices->get() unserved-FQCN registration. Output: ' . $output);
-        self::assertStringContainsString('Waaseyaa\\Foundation\\Event\\EventDispatcherInterface', $output);
+        self::assertSame(0, $exitCode, 'Expected zero exit for kernelServices->get() foundation-FQCN registration (served since #1942). Output: ' . $output);
     }
 
     #[Test]
@@ -231,15 +239,12 @@ final class DispatcherKeysGateTest extends TestCase
             <?php
             declare(strict_types=1);
             namespace Waaseyaa\Fixture;
-            use Waaseyaa\Foundation\Event\EventDispatcherInterface;
+            use Symfony\Component\EventDispatcher\EventDispatcherInterface;
             final class ExemptProvider
             {
                 public function boot(): void
                 {
-                    $dispatcher = $this->resolveOptional(EventDispatcherInterface::class);
-                    if (!$dispatcher instanceof EventDispatcherInterface) {
-                        return;
-                    }
+                    $dispatcher = $this->resolve(EventDispatcherInterface::class);
                     $dispatcher->addListener('some.event', new SomeListener());
                 }
             }
@@ -265,15 +270,12 @@ final class DispatcherKeysGateTest extends TestCase
             <?php
             declare(strict_types=1);
             namespace Waaseyaa\Fixture;
-            use Waaseyaa\Foundation\Event\EventDispatcherInterface;
+            use Symfony\Component\EventDispatcher\EventDispatcherInterface;
             final class NoCommentProvider
             {
                 public function boot(): void
                 {
-                    $dispatcher = $this->resolveOptional(EventDispatcherInterface::class);
-                    if (!$dispatcher instanceof EventDispatcherInterface) {
-                        return;
-                    }
+                    $dispatcher = $this->resolve(EventDispatcherInterface::class);
                     $dispatcher->addListener('some.event', new SomeListener());
                 }
             }
