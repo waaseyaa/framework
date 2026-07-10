@@ -49,19 +49,6 @@ final class DefaultWorkflows
                 'to' => 'draft',
                 'permission' => 'use editorial transition reject',
             ],
-            // CW-v1 WP-2 task 2.6 (#1920): the forward-draft entry edge —
-            // editing live content back into 'draft' creates a new
-            // non-default revision; the published revision keeps serving
-            // until the next 'publish' promotes the draft. Mirrors Drupal
-            // editorial's "Create New Draft" published -> draft edge;
-            // required by the WP-2 integration spine (publish -> raw-save
-            // edit into draft -> republish) on the shipped workflow.
-            'revise' => [
-                'label' => 'Revise',
-                'from' => ['published'],
-                'to' => 'draft',
-                'permission' => 'use editorial transition revise',
-            ],
             'archive' => [
                 'label' => 'Archive',
                 'from' => ['published'],

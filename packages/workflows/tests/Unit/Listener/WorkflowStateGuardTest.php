@@ -42,10 +42,12 @@ final class WorkflowStateGuardTest extends TestCase
             'transitions' => [
                 'submit_for_review' => ['label' => 'Submit', 'from' => ['draft'], 'to' => 'review'],
                 'publish' => ['label' => 'Publish', 'from' => ['draft', 'review'], 'to' => 'published'],
-                // Mirrors the production DefaultWorkflows 'revise' edge
-                // (task 2.6): lets forward-draft tests exercise "raw-save an
-                // already-published entity back into a non-default-revision
-                // state".
+                // A test-local published -> draft edge (the shipped
+                // `DefaultWorkflows::EDITORIAL` no longer ships one — WP-2
+                // rework, forward drafts deferred): lets forward-draft tests
+                // exercise "raw-save an already-published entity back into a
+                // non-default-revision state" against the engine directly,
+                // independent of what the shipped workflow exposes.
                 'revise' => ['label' => 'Revise', 'from' => ['published'], 'to' => 'draft'],
             ],
         ]);

@@ -44,20 +44,27 @@ seed data (`DefaultWorkflows::EDITORIAL`), not a hardcoded preset class.
   forward draft, or rolling back to an earlier same-state revision) need the permission of *any*
   transition targeting that state; different-state moves need the real edge's own permission, no
   exceptions.
-- **Forward drafts (WP-2):** `node` opts into revisionable storage (`revisionDefault: true`,
-  per-bundle opt-out via `NodeType::isNewRevision()`); `TransitionService` implements the two-pointer
-  status semantics — the base row's `status` always reflects the *published-pointer* revision's
-  state, never the tip's. Editing published content (e.g. the shipped `revise` edge, published →
-  draft) creates a new non-default revision while the live version keeps serving; a later `publish`
-  promotes it (pointer moves, `status` flips only after the pointer move commits — a guard denial
-  never leaves `status` flipped with the pointer stuck). Raw saves never enact pointer moves — only
-  `TransitionService` (or a direct, sanctioned repository call) moves the pointer. `revise` (published
-  → draft) and `restore_to_published` (archived → published) round out the shipped `editorial`
-  workflow so forward drafts and archived-content republishing both have real edges. Backfilling
-  legacy content's `workflow_state` onto binding activation is a CLI step, `workflows:backfill-state`
-  (see `docs/specs/operations-playbooks.md` Playbook H) — deliberately binding-scoped, not
-  framework-scoped, since the framework cannot know in advance which workflow a site will bind.
-  Full mechanics: `docs/specs/content-workflow.md` "Forward-draft mechanics".
+- **Forward drafts (engine substrate, WP-2):** `node` opts into revisionable storage
+  (`revisionDefault: true`, per-bundle opt-out via `NodeType::isNewRevision()`); `TransitionService`
+  implements the two-pointer status semantics — the base row's `status` always reflects the
+  *published-pointer* revision's state, never the tip's. The engine supports a forward-draft entry
+  edge (editing content back into a `default_revision: false` state while the published pointer
+  keeps serving the live revision) on any workflow that defines one; a later `publish` promotes it
+  (pointer moves, `status` flips only after the pointer move commits — a guard denial never leaves
+  `status` flipped with the pointer stuck). Raw saves never enact pointer moves — only
+  `TransitionService` (or a direct, sanctioned repository call) moves the pointer. Forward drafts (a
+  published → draft edge on the shipped `editorial` workflow) are deferred: the WP-2 review found no
+  read path is pointer-aware, so a forward draft's tip content is served by `find()`-based readers
+  while status/pointer reflect the published revision. Forward drafts return on true
+  default-revision semantics (the base row keeps serving the published revision; drafts live only in
+  revision rows). `restore_to_published` (archived → published) rounds out the shipped `editorial`
+  workflow alongside `restore` (archived → draft) so archived-content republishing has real edges —
+  that round trip does not carry the live-content read-side risk above, since the entity is
+  unpublished throughout. Backfilling legacy content's `workflow_state` onto binding activation is a
+  CLI step, `workflows:backfill-state` (see `docs/specs/operations-playbooks.md` Playbook H) —
+  deliberately binding-scoped, not framework-scoped, since the framework cannot know in advance which
+  workflow a site will bind. Full mechanics: `docs/specs/content-workflow.md` "Forward-draft
+  mechanics".
 
 Group/department transition constraints are WP-3; API transition endpoints + admin SPA are WP-4.
 

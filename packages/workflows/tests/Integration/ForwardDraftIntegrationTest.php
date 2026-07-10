@@ -30,6 +30,7 @@ use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
+use Waaseyaa\Workflows\DefaultWorkflows;
 use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 use Waaseyaa\Workflows\Transition\TransitionService;
 use Waaseyaa\Workflows\Workflow;
@@ -42,13 +43,21 @@ use Waaseyaa\Workflows\WorkflowServiceProvider;
  * wiring — real dispatcher, real SQLite-backed `EntityRepository`, a REAL
  * `WorkflowServiceProvider::boot()` (proving `WorkflowStateGuard` AND
  * `WorkflowPointerMoveGuard` are both live on the same dispatcher the
- * repository saves through, and that the SHIPPED `editorial` workflow —
- * seeded by boot() itself from `DefaultWorkflows::EDITORIAL`, including the
- * `revise` published -> draft forward-draft entry edge — carries the whole
- * story with no synthetic edges), mirroring {@see GuardWiringTest}'s wiring
+ * repository saves through), mirroring {@see GuardWiringTest}'s wiring
  * style. An ambient account context ({@see RequestAccountContext}) is served
  * through the kernel-services bus so both guards run their permission checks
  * for real.
+ *
+ * The shipped `editorial` workflow (seeded by `boot()` from
+ * `DefaultWorkflows::EDITORIAL`) no longer ships a `revise` published ->
+ * draft forward-draft entry edge (WP-2 rework, #1920: forward drafts
+ * deferred — see the package README). This test proves the ENGINE mechanics
+ * (the forward-draft branch in `TransitionService`/`WorkflowStateGuard`
+ * stays live substrate, reachable via a custom workflow), so the fixture
+ * entity types here are bound instead to a test-local `editorial_forward`
+ * workflow — the descoped shipped shape plus a `revise` transition,
+ * persisted directly by {@see self::bootWiredProvider()} — carrying the
+ * whole story with no synthetic edges beyond that one addition.
  *
  * Scenario (task 2.6 brief, verbatim): publish a node -> edit via raw save
  * into 'draft' (forward draft) -> assert the public read path (published
@@ -79,10 +88,10 @@ final class ForwardDraftIntegrationTest extends TestCase
         $repository = $entityTypeManager->getRepository(self::ENTITY_TYPE_ID);
         $transitionService = $provider->resolve(TransitionService::class);
 
-        $editor = $this->account(7, ['use editorial transition publish', 'use editorial transition revise']);
+        $editor = $this->account(7, ['use editorial_forward transition publish', 'use editorial_forward transition revise']);
         $accountContext->set($editor);
 
-        // --- 1. Create + publish (on the SEEDED editorial workflow). ---
+        // --- 1. Create + publish (on the test-local `editorial_forward` workflow). ---
         $entity = new ForwardDraftSubject(
             ['bundle' => self::ENTITY_TYPE_ID, 'workflow_state' => 'draft', 'title' => 'Original title'],
             self::ENTITY_TYPE_ID,
@@ -102,8 +111,10 @@ final class ForwardDraftIntegrationTest extends TestCase
 
         // --- 2. Raw-save forward draft (NOT through TransitionService): ---
         // edit the current tip with new content, moving ITS OWN
-        // workflow_state to 'draft' via the shipped 'revise' edge
-        // (published -> draft; the acting account holds its permission).
+        // workflow_state to 'draft' via the test-local `editorial_forward`
+        // workflow's 'revise' edge (published -> draft; the shipped
+        // `editorial` workflow no longer carries this edge — WP-2 rework,
+        // forward drafts deferred; the acting account holds its permission).
         // WorkflowStateGuard fires on this save (task 2.6): it must NOT
         // flip status to 'draft'.published (false => 0) since a published
         // pointer already exists.
@@ -178,7 +189,11 @@ final class ForwardDraftIntegrationTest extends TestCase
     public function archived_content_is_republishable_via_restore_forward_draft_and_publish(): void
     {
         // CW-v1 WP-2 task 2.6 re-review (#1920): archived content must not
-        // be a dead end on the SHIPPED editorial workflow. Full flow:
+        // be a dead end. This scenario uses only archive/restore/
+        // restore_to_published — edges the shipped `editorial` workflow
+        // still carries unchanged (only `revise` was descoped) — so it
+        // exercises the same shape on the test-local `editorial_forward`
+        // workflow this file binds to. Full flow:
         // publish -> archive -> restore (forward draft; pointer stays on
         // the archived revision) -> edit -> publish (the pointer move is an
         // archived -> published different-state move, satisfied by the
@@ -187,13 +202,13 @@ final class ForwardDraftIntegrationTest extends TestCase
         // Permissions the full flow needs (all on the acting account, which
         // is both the TransitionService $account argument and the ambient
         // context the guards check):
-        //   - 'use editorial transition publish'   (first publish + the final
+        //   - 'use editorial_forward transition publish'   (first publish + the final
         //     draft -> published transition/save)
-        //   - 'use editorial transition archive'   (archive transition + its
+        //   - 'use editorial_forward transition archive'   (archive transition + its
         //     archived-pointer move)
-        //   - 'use editorial transition restore'   (restore transition's
+        //   - 'use editorial_forward transition restore'   (restore transition's
         //     archived -> draft save)
-        //   - 'use editorial transition restore_to_published' (the FINAL
+        //   - 'use editorial_forward transition restore_to_published' (the FINAL
         //     pointer move: the guard sees archived -> published, which is
         //     that edge — the 'publish' permission alone does not cover it)
         [$entityTypeManager, $provider, $accountContext] = $this->bootWiredProvider();
@@ -201,10 +216,10 @@ final class ForwardDraftIntegrationTest extends TestCase
         $transitionService = $provider->resolve(TransitionService::class);
 
         $editor = $this->account(7, [
-            'use editorial transition publish',
-            'use editorial transition archive',
-            'use editorial transition restore',
-            'use editorial transition restore_to_published',
+            'use editorial_forward transition publish',
+            'use editorial_forward transition archive',
+            'use editorial_forward transition restore',
+            'use editorial_forward transition restore_to_published',
         ]);
         $accountContext->set($editor);
 
@@ -285,10 +300,10 @@ final class ForwardDraftIntegrationTest extends TestCase
         $transitionService = $provider->resolve(TransitionService::class);
 
         $editor = $this->account(7, [
-            'use editorial transition publish',
-            'use editorial transition archive',
-            'use editorial transition restore',
-            // NO 'use editorial transition restore_to_published'.
+            'use editorial_forward transition publish',
+            'use editorial_forward transition archive',
+            'use editorial_forward transition restore',
+            // NO 'use editorial_forward transition restore_to_published'.
         ]);
         $accountContext->set($editor);
 
@@ -341,8 +356,9 @@ final class ForwardDraftIntegrationTest extends TestCase
         // CW-v1 WP-2 task 2.6 panel finding B (#1920): the synthetic entity
         // type here has revisionDefault: false (the EntityType default) —
         // the exact shape of a `new_revision: false` bundle. A raw API-path
-        // forward draft (state-changing save via the shipped 'revise' edge,
-        // caller sets NO setNewRevision) previously updated the published
+        // forward draft (state-changing save via the test-local
+        // `editorial_forward` workflow's 'revise' edge, caller sets NO
+        // setNewRevision) previously updated the published
         // revision IN PLACE: draft title AND workflow_state='draft' written
         // into the very row the published pointer serves. The guard must
         // force a new revision for state-changing forward drafts — bundle
@@ -351,7 +367,7 @@ final class ForwardDraftIntegrationTest extends TestCase
         $repository = $entityTypeManager->getRepository(self::ENTITY_TYPE_ID);
         $transitionService = $provider->resolve(TransitionService::class);
 
-        $editor = $this->account(7, ['use editorial transition publish', 'use editorial transition revise']);
+        $editor = $this->account(7, ['use editorial_forward transition publish', 'use editorial_forward transition revise']);
         $accountContext->set($editor);
 
         $entity = new ForwardDraftSubject(
@@ -418,7 +434,7 @@ final class ForwardDraftIntegrationTest extends TestCase
         $repository = $entityTypeManager->getRepository(self::ENTITY_TYPE_ID);
         $transitionService = $provider->resolve(TransitionService::class);
 
-        $editor = $this->account(7, ['use editorial transition publish', 'use editorial transition archive']);
+        $editor = $this->account(7, ['use editorial_forward transition publish', 'use editorial_forward transition archive']);
         $accountContext->set($editor);
 
         $entity = new ForwardDraftSubject(
@@ -471,7 +487,7 @@ final class ForwardDraftIntegrationTest extends TestCase
         $repository = $entityTypeManager->getRepository(self::REVISIONING_ENTITY_TYPE_ID);
         $transitionService = $provider->resolve(TransitionService::class);
 
-        $editor = $this->account(7, ['use editorial transition publish', 'use editorial transition archive']);
+        $editor = $this->account(7, ['use editorial_forward transition publish', 'use editorial_forward transition archive']);
         $accountContext->set($editor);
 
         $entity = new ForwardDraftSubject(
@@ -534,8 +550,8 @@ final class ForwardDraftIntegrationTest extends TestCase
 
         $configStorage = new MemoryStorage();
         $configStorage->write('workflows.assignments', [
-            self::ENTITY_TYPE_ID . '.' . self::ENTITY_TYPE_ID => 'editorial',
-            self::REVISIONING_ENTITY_TYPE_ID . '.' . self::REVISIONING_ENTITY_TYPE_ID => 'editorial',
+            self::ENTITY_TYPE_ID . '.' . self::ENTITY_TYPE_ID => 'editorial_forward',
+            self::REVISIONING_ENTITY_TYPE_ID . '.' . self::REVISIONING_ENTITY_TYPE_ID => 'editorial_forward',
         ]);
         $configFactory = new ConfigFactory($configStorage, $dispatcher);
 
@@ -588,6 +604,13 @@ final class ForwardDraftIntegrationTest extends TestCase
             revisionDefault: true,
         ));
 
+        // Test-local workflow (WP-2 rework, #1920): the shipped `editorial`
+        // workflow no longer ships a `revise` (published -> draft) edge, so
+        // this test persists its OWN workflow — the descoped shipped shape
+        // plus a `revise` transition — and binds both fixture entity types
+        // to it above, rather than to `editorial`.
+        $entityTypeManager->getRepository('workflow')->save($this->editorialForwardWorkflow());
+
         $accountContext = new RequestAccountContext();
 
         $kernelServices = new class ($dispatcher, $entityTypeManager, $configFactory, $accountContext) implements KernelServicesInterface {
@@ -615,14 +638,49 @@ final class ForwardDraftIntegrationTest extends TestCase
         // 2.6's forward-draft status rule) and WorkflowPointerMoveGuard
         // (task 2.5/2.6's pointer-move validation) onto $dispatcher — the
         // SAME instance the repositoryFactory above dispatches through —
-        // and seeds the SHIPPED `editorial` workflow
-        // (DefaultWorkflows::EDITORIAL, including the `revise` edge).
+        // and seeds the SHIPPED `editorial` workflow (DefaultWorkflows::
+        // EDITORIAL — no `revise` edge; the test-local `editorial_forward`
+        // workflow persisted above is what the fixture types are actually
+        // bound to).
         $provider = new WorkflowServiceProvider();
         $provider->setKernelServices($kernelServices);
         $provider->register();
         $provider->boot();
 
         return [$entityTypeManager, $provider, $accountContext];
+    }
+
+    /**
+     * Builds the test-local `editorial_forward` workflow: the exact
+     * descoped `DefaultWorkflows::EDITORIAL` shape, plus a `revise`
+     * (published -> draft) transition the shipped workflow deliberately no
+     * longer carries (WP-2 rework). Every transition's permission is
+     * spelled out explicitly, re-derived for THIS workflow's id — {@see
+     * Workflow::permissionFor()} only falls back to a derived
+     * `use {workflow_id} transition {transition_id}` name when a
+     * transition's own `permission` is empty, and the seed data (mirrored
+     * here) always sets it explicitly.
+     */
+    private function editorialForwardWorkflow(): Workflow
+    {
+        $transitions = DefaultWorkflows::EDITORIAL['transitions'];
+        $transitions['revise'] = ['label' => 'Revise', 'from' => ['published'], 'to' => 'draft'];
+
+        foreach ($transitions as $id => $transition) {
+            $transition['permission'] = \sprintf('use editorial_forward transition %s', $id);
+            $transitions[$id] = $transition;
+        }
+
+        $workflow = new Workflow([
+            'id' => 'editorial_forward',
+            'label' => 'Editorial (test-local, forward drafts)',
+            'initial_state' => DefaultWorkflows::EDITORIAL['initial_state'],
+            'states' => DefaultWorkflows::EDITORIAL['states'],
+            'transitions' => $transitions,
+        ]);
+        $workflow->enforceIsNew();
+
+        return $workflow;
     }
 }
 

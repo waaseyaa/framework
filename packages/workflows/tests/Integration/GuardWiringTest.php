@@ -178,10 +178,8 @@ final class GuardWiringTest extends TestCase
      * 'review' has no direct transition in the default editorial workflow)
      * must be denied by the SAME wired guard, proving the pointer-move bypass
      * is actually closed end to end — not merely in a guard-only unit test.
-     * (Task 2.6 note: this scenario originally reverted published -> 'draft',
-     * which became a LEGAL edge when the shipped editorial workflow gained
-     * 'revise' — the illegal target is now 'review', whose only incoming
-     * edge is 'submit_for_review' from 'draft'.)
+     * 'review' is used as the illegal target (rather than 'draft') because
+     * its only incoming edge is 'submit_for_review' from 'draft'.
      */
     #[Test]
     public function a_real_kernel_dispatched_revert_pointer_move_fires_the_pointer_guard_and_denies_an_illegal_edge(): void
