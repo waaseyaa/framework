@@ -497,18 +497,60 @@ destination state has already been wiped externally (e.g. `DROP TABLE node`).
 
 ## 9. Discovery + boot sequence
 
+`MigrationRegistry` index-building is **lazy** (G-024, #1940): the index is
+built on the registry's **first query**, not at kernel boot.
+
 1. **`PackageManifestCompiler`** scans `extra.waaseyaa.providers` in every
    installed package's `composer.json`.
-2. For each provider class:
-   - If it implements `HasMigrationsInterface`, its `migrations()` array is
-     fed into `MigrationRegistry`.
-   - If it implements `HasMigrationPluginsInterface`, its `migrationPlugins()`
-     array is dispatched by `instanceof` into the source / process /
-     destination sub-registries (`PluginRegistry`).
-3. `DependencyGraph` is built from `MigrationDefinition::$dependencies` and
-   validated via `CycleDetector`.
-4. `bin/waaseyaa optimize:manifest` rebuilds this index on demand; otherwise
-   it lives in the boot-time manifest cache.
+2. `AbstractKernel::injectMigrationProviders()` (runs during
+   `bootProviders()`, before `discoverAccessPolicies()`) hands every provider
+   implementing `HasMigrationsInterface` to the migration package's
+   `ServiceProvider::withMigrationProviders()`. `ServiceProvider::register()`
+   binds `MigrationRegistry` as a singleton but does **not** call `boot()` on
+   it, and `ServiceProvider::boot()` does **not** resolve the registry either
+   — both used to, prior to G-024.
+3. The registry actually consumes providers on the **first call** to any
+   query method (`get()`, `has()`, `all()`, `topologicallySorted()`,
+   `graph()`), via a private `ensureBooted()` that runs the same logic
+   `boot()` always has (callers may still call `boot()` explicitly; it is a
+   no-op via `ensureBooted()` on any query that follows). At that point:
+   - Every `HasMigrationsInterface` provider's `migrations()` is fed into
+     the registry.
+   - `HasMigrationPluginsInterface`'s `migrationPlugins()` array is
+     dispatched by `instanceof` into the source / process / destination
+     sub-registries (`PluginRegistry`) — this path is unaffected by G-024,
+     it is not gated by `MigrationRegistry`.
+   - `DependencyGraph` is built from `MigrationDefinition::$dependencies`
+     and validated via `CycleDetector`.
+4. In practice, the first query happens when a CLI `import:*` command runs:
+   `ImportServiceProvider` resolves `MigrationRegistry` inside each
+   command's own singleton factory, so the registry isn't touched until a
+   command actually executes — well after `AbstractKernel::boot()` has
+   fully completed, including `discoverAccessPolicies()`.
+5. `bin/waaseyaa optimize:manifest` rebuilds the *provider-discovery* index
+   (`extra.waaseyaa.providers` → provider class list) on demand; that cache
+   is unrelated to — and unaffected by — the lazy `MigrationRegistry`
+   index-building described above.
+
+**Why lazy:** `bootProviders()` (step 2) runs strictly before
+`discoverAccessPolicies()` builds the kernel's `EntityAccessHandler`. A
+provider's `migrations()` implementation that resolves
+`GateInterface`/`EntityAccessHandler` off the kernel-services bus — e.g. to
+construct an `EntityDestination` — used to crash kernel boot with `"No
+binding registered for ..."` when it ran during step 2, because those
+services were not resolvable yet (the Sheguiandah pass-1 first production
+import hit exactly this and needed a lazy-gate workaround shim on the
+application side). Deferring index-building to first query means every
+provider's `migrations()` runs only once the whole kernel — including
+access services — is fully live.
+
+**Trade-off, accepted deliberately:** structural manifest errors (missing
+dependency, plugin id collision, dependency cycle) no longer fail fast at
+framework boot. They now surface at the first CLI invocation that queries
+the registry instead of at `composer install` / server start time. There is
+no eager validation path left — an application with a broken manifest boots
+successfully and only fails when an operator runs `import:status` or
+`import:run`.
 
 ---
 

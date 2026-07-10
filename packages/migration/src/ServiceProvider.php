@@ -25,9 +25,17 @@ use Waaseyaa\Migration\Runner\RollbackWalker;
  *
  * - {@see FilesystemManifestLoader} singleton, configured from
  *   `config.migration.manifest_paths`.
- * - {@see MigrationRegistry} singleton, eagerly booted from {@see boot()} so
- *   structural manifest errors (missing dependencies, cycles, id collisions)
- *   surface at framework startup instead of at first CLI invocation.
+ * - {@see MigrationRegistry} singleton, built lazily (G-024, #1940): the
+ *   singleton factory no longer calls `$registry->boot()`, and `boot()`
+ *   below no longer eagerly resolves the registry. `AbstractKernel::boot()`
+ *   runs `bootProviders()` (where this provider's `boot()` runs) strictly
+ *   BEFORE `discoverAccessPolicies()` builds the `EntityAccessHandler`; a
+ *   provider's `migrations()` implementation that resolves
+ *   `GateInterface`/`EntityAccessHandler` off the kernel-services bus to
+ *   build a destination plugin would find no binding yet and crash kernel
+ *   boot. Definitions are now built on the registry's first query — see
+ *   {@see MigrationRegistry}'s class docblock for the full contract and the
+ *   traded-away fail-fast-at-boot property.
  *
  * Provider capability dispatch — discovering every sibling provider
  * implementing {@see HasMigrationsInterface} — lands when the kernel grows a
@@ -59,12 +67,12 @@ final class ServiceProvider extends BaseServiceProvider implements AcceptsMigrat
             $loader = $this->resolve(FilesystemManifestLoader::class);
             \assert($loader instanceof FilesystemManifestLoader);
 
-            $registry = new MigrationRegistry(
+            // G-024 (#1940): no eager boot() here — see this class's
+            // docblock and boot() below for why.
+            return new MigrationRegistry(
                 providers: $this->migrationProviders,
                 filesystemLoader: $loader,
             );
-            $registry->boot();
-            return $registry;
         });
 
         // WP06 — runtime collaborators for the import:* CLI commands.
@@ -131,10 +139,30 @@ final class ServiceProvider extends BaseServiceProvider implements AcceptsMigrat
 
     public function boot(): void
     {
-        // Eagerly resolve the registry so dependency cycles and missing
-        // dependencies surface at boot time, not at first CLI invocation
-        // (the framework refuses to boot on structural manifest errors).
-        $this->resolve(MigrationRegistry::class);
+        // G-024 (#1940): deliberately does NOT resolve MigrationRegistry.
+        //
+        // This provider's boot() runs from AbstractKernel::bootProviders(),
+        // strictly BEFORE AbstractKernel::discoverAccessPolicies() builds the
+        // EntityAccessHandler. Resolving the registry here would run every
+        // provider's migrations() at that point; a provider whose
+        // migrations() resolves GateInterface/EntityAccessHandler off the
+        // kernel-services bus to build a destination plugin would find no
+        // binding yet and crash kernel boot with "No binding registered for
+        // ..." (the Sheguiandah pass-1 symptom, which needed a lazy-gate
+        // shim to work around).
+        //
+        // Definitions are now built lazily on the registry's first query
+        // (MigrationRegistry::ensureBooted()) — by the time any caller
+        // queries it (the import:* CLI commands resolve it per-command, at
+        // command execution, well after full kernel boot — see
+        // ImportServiceProvider), the whole kernel, including access
+        // services, is live.
+        //
+        // Trade-off, accepted deliberately: structural manifest errors
+        // (missing dependency, id collision, dependency cycle) no longer
+        // fail fast at framework boot; they now surface at the first CLI
+        // invocation that touches the registry instead. See
+        // docs/specs/migration-platform.md §9 and CHANGELOG.md (G-024).
     }
 
     /**
