@@ -77,27 +77,45 @@ final readonly class JsonApiError
 
     /**
      * Create a 403 Forbidden error.
+     *
+     * The default keeps the pre-existing 'FORBIDDEN' code byte-identical for
+     * every pre-existing caller; passing `code` overrides it (e.g. a workflow
+     * transition denial passes `code: 'WORKFLOW_TRANSITION_DENIED'` plus
+     * `meta` as the machine-readable discriminator — mirrors {@see conflict()}).
+     *
+     * @param array<string, mixed> $meta
      */
-    public static function forbidden(string $detail = ''): self
+    public static function forbidden(string $detail = '', string $code = 'FORBIDDEN', array $meta = []): self
     {
         return new self(
             status: '403',
             title: 'Forbidden',
             detail: $detail,
-            code: 'FORBIDDEN',
+            code: $code,
+            meta: $meta,
         );
     }
 
     /**
      * Create a 422 Unprocessable Entity error.
+     *
+     * The defaults keep the pre-existing codeless/meta-less 422 shape
+     * byte-identical for every pre-existing caller; a workflow transition
+     * denial passes `code: 'WORKFLOW_TRANSITION_DENIED'` plus `meta` as the
+     * machine-readable discriminator (mirrors {@see conflict()}).
+     *
+     * @param array<string, string> $source
+     * @param array<string, mixed>  $meta
      */
-    public static function unprocessable(string $detail = '', array $source = []): self
+    public static function unprocessable(string $detail = '', array $source = [], string $code = '', array $meta = []): self
     {
         return new self(
             status: '422',
             title: 'Unprocessable Entity',
             detail: $detail,
+            code: $code,
             source: $source,
+            meta: $meta,
         );
     }
 
