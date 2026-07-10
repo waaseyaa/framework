@@ -104,15 +104,6 @@ jobs:
               return;
             }
 
-            // Gate: milestone
-            if (!pr.milestone) {
-              await github.rest.issues.createComment({
-                owner, repo, issue_number: prNumber,
-                body: '**Auto-merge blocked**: no milestone assigned.',
-              });
-              return;
-            }
-
             // All gates passed — merge
             try {
               const { data: merge } = await github.rest.pulls.merge({
