@@ -24,7 +24,7 @@ use Waaseyaa\Migration\Plugin\DestinationRecord;
 use Waaseyaa\Migration\Schema\MigrationIdMapSchema;
 use Waaseyaa\Migration\SourceId;
 use Waaseyaa\Migration\Tests\Fixtures\AllowAllPolicy;
-use Waaseyaa\Migration\Tests\Fixtures\MigrationSystemAccount;
+use Waaseyaa\Migration\Account\MigrationSystemAccount;
 use Waaseyaa\Migration\Tests\Fixtures\MigrationTestRevisionableWidget;
 use Waaseyaa\Migration\Tests\Fixtures\MigrationTestWidgetType;
 

@@ -38,7 +38,7 @@ use Waaseyaa\Migration\Schema\MigrationRunStateSchema;
 use Waaseyaa\Migration\SourceId;
 use Waaseyaa\Migration\Tests\Fixtures\AllowAllPolicy;
 use Waaseyaa\Migration\Tests\Fixtures\ForbidAllPolicy;
-use Waaseyaa\Migration\Tests\Fixtures\MigrationSystemAccount;
+use Waaseyaa\Migration\Account\MigrationSystemAccount;
 use Waaseyaa\Migration\Tests\Fixtures\MigrationTestWidget;
 use Waaseyaa\Migration\Tests\Fixtures\MigrationTestWidgetType;
 

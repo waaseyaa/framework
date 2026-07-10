@@ -428,6 +428,24 @@ conformant; the conformance harness gates on
 captured at last write, or `null` if no id-map row exists. Used by
 `LookupProcessor` to resolve cross-migration references.
 
+### 7.5 Import account contract (G-023)
+
+`EntityDestination`'s `$account` constructor argument (FR-020) is consulted
+by the gate on every create/update/delete. `Waaseyaa\Migration\Account\MigrationSystemAccount`
+(`packages/migration/src/Account/MigrationSystemAccount.php`) is the
+framework's first-class, least-privilege, production-safe account for that
+argument — `hasPermission()` is a strict membership test against an
+injected permission list, never a blanket grant. Its default permission,
+`MigrationSystemAccount::DEFAULT_PERMISSIONS` (`['administer content']`),
+is exactly what `Waaseyaa\Access\Policy\ContentAdminAccessPolicy` requires
+to grant manage + create on any entity type in the `content` group; apps
+importing into types guarded by other policies (e.g. `node`'s
+`administer nodes` / per-bundle `create X content`) construct it with the
+extra permissions those policies require. `Waaseyaa\User\DevAdminAccount`
+remains strictly dev-only (SAPI-guarded, blanket `hasPermission() === true`)
+and must never be wired as a migration run's account outside local
+development.
+
 ---
 
 ## 8. CLI runner
