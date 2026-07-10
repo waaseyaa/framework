@@ -13,9 +13,11 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Workflows\Workflow;
 
 /**
- * `workflows:backfill-state <entity_type> <workflow_id> [--bundle=]` — stamp
- * a `workflow_state` onto every existing row of an entity type/bundle that
- * does not yet carry one (CW-v1 WP-2 task 2.7, docs/specs/content-workflow.md,
+ * `workflows:backfill-state <entity_type> <workflow_id> [--bundle=]` —
+ * stamps a `workflow_state` onto every existing row of an entity
+ * type/bundle that does not yet carry one, AND establishes the published
+ * revision pointer for every row that is (or becomes) published (CW-v1
+ * WP-2 task 2.7 + WP-2 rework task 3, docs/specs/content-workflow.md,
  * docs/specs/operations-playbooks.md "binding-activation runbook").
  *
  * Workflow binding is BINDING-scoped (`workflows.assignments`), not
@@ -76,6 +78,35 @@ use Waaseyaa\Workflows\Workflow;
  * the workflow falls back to copying its own stored `status` column rather
  * than trusting an unrelated state — so an unstamped pointer row never
  * reports a wrong derived status.
+ *
+ * Pointer establishment (WP-2 rework task 3, review findings #3/#9): after
+ * the state-stamp phase, a second phase establishes the published revision
+ * pointer — {@see \Waaseyaa\Entity\Repository\EntityRepositoryInterface::setPublishedRevision()}
+ * — on every EXAMINED row whose effective `workflow_state` (freshly stamped
+ * by phase one, OR already set before this run — the WP-1 tail, i.e. a row
+ * skipped by the state-stamp phase because it already carries a state)
+ * equals the workflow's published+`default_revision: true` state. The
+ * phase runs only when the entity type is revisionable AND that state was
+ * resolved above ($publishedDefaultState !== null); on a non-revisionable
+ * type or a workflow with no such state, pointer-dependent semantics are
+ * undefined and the phase is skipped entirely — silently, not a no-op
+ * attempt, because {@see \Waaseyaa\Entity\Repository\EntityRepositoryInterface::loadPublishedRevision()}
+ * throws `\LogicException` on a type with no revision driver configured.
+ * Idempotent: a row whose `loadPublishedRevision()` is already non-null is
+ * left alone. A row that is revisionable at the TYPE level but has no
+ * revision history yet (`revisions:enable` was never run for it) cannot
+ * have a pointer established; it is skipped and counted separately
+ * (reported in both dry-run and real output) so the operator notices,
+ * rather than failing the whole command over something this command
+ * cannot fix on its own. `setPublishedRevision()` is the sanctioned
+ * pointer door: it dispatches `BeforeRevisionPointerMoveEvent` through the
+ * same choke point every other pointer move uses, so
+ * `WorkflowPointerMoveGuard` sees this backfill too — a no-op today
+ * because the runbook runs this command before any binding exists; if an
+ * operator mis-ordered the runbook and a binding IS already live, a guard
+ * denial surfaces as an ordinary per-row failure via the same failure
+ * accounting as the state-stamp phase (fail-loud is correct here, not a
+ * bug in this command).
  *
  * Entity queries use `->accessCheck(false)` — this is a system-level,
  * operator-run backfill with no acting account to bind (`bin/check-getquery-
@@ -148,6 +179,12 @@ final class WorkflowsBackfillStateHandler
         $skipped = 0;
         /** @var list<array{id: string, target: string, published: bool}> $pending */
         $pending = [];
+        // Pointer-phase candidates (rework task 3, #3/#9): every EXAMINED
+        // row whose EFFECTIVE workflow_state equals $publishedDefaultState —
+        // newly-stamped rows (their computed 'target' below) and
+        // already-stamped/skipped rows alike (the WP-1 tail).
+        /** @var list<string> $publishedCandidateIds */
+        $publishedCandidateIds = [];
 
         foreach ($ids as $id) {
             $id = (string) $id;
@@ -160,15 +197,22 @@ final class WorkflowsBackfillStateHandler
             $currentState = $entity->get('workflow_state');
             if (\is_string($currentState) && $currentState !== '') {
                 ++$skipped;
+                if ($publishedDefaultState !== null && $currentState === $publishedDefaultState) {
+                    $publishedCandidateIds[] = $id;
+                }
                 continue;
             }
 
             $isPublished = (int) $entity->get('status') === 1;
+            $target = $isPublished && $publishedDefaultState !== null ? $publishedDefaultState : $initialState;
             $pending[] = [
                 'id' => $id,
-                'target' => $isPublished && $publishedDefaultState !== null ? $publishedDefaultState : $initialState,
+                'target' => $target,
                 'published' => $isPublished,
             ];
+            if ($publishedDefaultState !== null && $target === $publishedDefaultState) {
+                $publishedCandidateIds[] = $id;
+            }
         }
 
         $label = $bundle !== null ? \sprintf('%s.%s', $entityTypeId, $bundle) : $entityTypeId;
@@ -218,6 +262,39 @@ final class WorkflowsBackfillStateHandler
             }
         }
 
+        // Pointer-phase candidate resolution (rework task 3, #3/#9) — read
+        // only, safe to run ahead of the dry-run branch. Gated on the entity
+        // type being revisionable AND a published default_revision state
+        // having been resolved; on a non-revisionable type
+        // loadPublishedRevision() throws \LogicException (no revision
+        // driver configured), so the gate is what prevents that call from
+        // ever happening rather than catching it after the fact.
+        $pointerPhaseActive = $definition->isRevisionable() && $publishedDefaultState !== null;
+        /** @var list<array{id: string, revisionId: int}> $pointerPending */
+        $pointerPending = [];
+        $pointerNoRevisionHistory = 0;
+        if ($pointerPhaseActive) {
+            foreach ($publishedCandidateIds as $candidateId) {
+                $candidateEntity = $repository->find($candidateId);
+                if ($candidateEntity === null) {
+                    continue;
+                }
+                // Idempotent: a pointer that is already set is left alone.
+                if ($repository->loadPublishedRevision($candidateId) !== null) {
+                    continue;
+                }
+                $revisionId = $this->currentRevisionId($candidateEntity);
+                if ($revisionId === null) {
+                    // No revision history yet (revisions:enable was never
+                    // run for this row) — nothing to point at. Not a
+                    // command failure: count it so the operator notices.
+                    ++$pointerNoRevisionHistory;
+                    continue;
+                }
+                $pointerPending[] = ['id' => $candidateId, 'revisionId' => $revisionId];
+            }
+        }
+
         if ($dryRun) {
             $io->writeln(\sprintf(
                 '--dry-run: %s against workflow "%s" — %d row(s) examined, %d would be backfilled, %d already set (no-op).',
@@ -230,6 +307,19 @@ final class WorkflowsBackfillStateHandler
             foreach ($targetCounts as $state => $count) {
                 $sampleIds = implode(', ', $targetSamples[$state] ?? []);
                 $io->writeln(\sprintf('  -> %d row(s) would be set to "%s" (sample ids: %s)', $count, $state, $sampleIds));
+            }
+            if ($pointerPhaseActive) {
+                $io->writeln(\sprintf(
+                    '%d row(s) would have their published pointer established.',
+                    \count($pointerPending),
+                ));
+                if ($pointerNoRevisionHistory > 0) {
+                    $io->writeln(\sprintf(
+                        'Notice: %d row(s) are published but have no revision history yet (run revisions:enable '
+                        . 'first) — their pointer cannot be established by this command.',
+                        $pointerNoRevisionHistory,
+                    ));
+                }
             }
 
             return 0;
@@ -283,6 +373,46 @@ final class WorkflowsBackfillStateHandler
             $io->writeln(\sprintf('  -> backfilled %d row(s) to "%s"', $count, $state));
         }
 
+        // Phase 3 — pointer establishment (WP-2 rework task 3, #3/#9).
+        // Failures here feed the SAME $failed/$failures accounting as
+        // phase 2 — a pointer-move failure is reported per-row and turns
+        // the overall exit code nonzero, exactly like a state-stamp
+        // failure. This runs regardless of whether phase 2 had failures:
+        // the two phases operate on largely disjoint concerns (a phase-2
+        // failure on one row does not prevent establishing the pointer for
+        // a different, already-published row).
+        $pointerEstablished = 0;
+        if ($pointerPhaseActive) {
+            foreach ($pointerPending as $p) {
+                try {
+                    // The return value (the reloaded published-revision
+                    // entity) isn't needed here, but it is captured to
+                    // satisfy setPublishedRevision()'s #[\NoDiscard] contract
+                    // (same convention as TransitionService::publish()).
+                    $published = $repository->setPublishedRevision($p['id'], $p['revisionId']);
+                    ++$pointerEstablished;
+                } catch (\Throwable $e) {
+                    ++$failed;
+                    $failures[] = \sprintf('id %s: %s', $p['id'], $e->getMessage());
+                    $this->logger?->error(\sprintf(
+                        'workflows:backfill-state pointer establishment failed for %s/%s: %s',
+                        $entityTypeId,
+                        $p['id'],
+                        $e->getMessage(),
+                    ));
+                }
+            }
+
+            $io->writeln(\sprintf('established %d published pointer(s).', $pointerEstablished));
+            if ($pointerNoRevisionHistory > 0) {
+                $io->writeln(\sprintf(
+                    'Notice: %d row(s) are published but have no revision history yet (run revisions:enable '
+                    . 'first) — their pointer cannot be established by this command.',
+                    $pointerNoRevisionHistory,
+                ));
+            }
+        }
+
         if ($failed > 0) {
             foreach ($failures as $failure) {
                 $io->error($failure);
@@ -332,5 +462,29 @@ final class WorkflowsBackfillStateHandler
         if ($entity instanceof RevisionableEntityInterface && \method_exists($entity, 'setNewRevision')) {
             $entity->setNewRevision(false);
         }
+    }
+
+    /**
+     * Duck-checks both revision contracts to read the entity's CURRENT
+     * revision id, mirroring {@see \Waaseyaa\Workflows\Transition\TransitionService::revisionIdOf()}
+     * (same shape: try {@see RevisionableInterface::getRevisionId()} first,
+     * fall back to a `method_exists` probe for the legacy
+     * {@see RevisionableEntityInterface}, otherwise null — no exception,
+     * this is a best-effort read used only to decide whether a published
+     * pointer can be established at all).
+     */
+    private function currentRevisionId(EntityInterface $entity): ?int
+    {
+        if ($entity instanceof RevisionableInterface) {
+            return $entity->getRevisionId();
+        }
+
+        if ($entity instanceof RevisionableEntityInterface && \method_exists($entity, 'getRevisionId')) {
+            $revisionId = $entity->getRevisionId();
+
+            return \is_int($revisionId) ? $revisionId : null;
+        }
+
+        return null;
     }
 }

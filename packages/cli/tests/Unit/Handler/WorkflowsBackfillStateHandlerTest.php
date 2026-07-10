@@ -232,6 +232,53 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
         $unchanged = $repository->find($alreadyId);
         self::assertNotNull($unchanged);
         self::assertSame('review', $unchanged->get('workflow_state'), 'Rows with a pre-existing state are left untouched.');
+
+        // Rework task 3 (#3/#9): the pointer-establishment phase runs
+        // immediately after the state-stamp phase in the same command
+        // invocation — a freshly-stamped published row must leave with its
+        // published pointer already established.
+        self::assertStringContainsString('established 1 published pointer(s).', $output);
+
+        $publishedPointer = $repository->loadPublishedRevision($publishedId);
+        self::assertNotNull($publishedPointer, 'A freshly-stamped published row gets its pointer established in the same run.');
+        self::assertSame($publishedRevisionBefore, (int) $publishedPointer->get('revision_id'));
+
+        self::assertNull($repository->loadPublishedRevision($draftId), 'Unpublished rows never receive a published pointer.');
+    }
+
+    #[Test]
+    public function it_establishes_the_pointer_for_an_already_stamped_published_row_missing_its_pointer(): void
+    {
+        // The WP-1 tail (review finding #3): a row that ALREADY carries
+        // workflow_state='published' from before this rework (or from a
+        // prior backfill run predating the pointer phase) is skipped by the
+        // state-stamp phase, but the pointer phase must still pick it up —
+        // scope is every EXAMINED row whose effective state matches, not
+        // just newly-stamped ones.
+        [$entityTypeManager, $repository] = $this->bootEntityTypeManager();
+
+        $alreadyPublished = new BackfillSubject(
+            ['kind' => 'article', 'title' => 'Already published, no pointer', 'status' => 1, 'workflow_state' => 'published'],
+            self::ENTITY_TYPE_ID,
+            $this->entityKeys(),
+        );
+        $repository->save($alreadyPublished);
+        $id = (string) $alreadyPublished->id();
+        $revisionBefore = (int) $alreadyPublished->get('revision_id');
+
+        self::assertNull($repository->loadPublishedRevision($id), 'Precondition: stamped published but pointerless (WP-1 tail).');
+
+        $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($entityTypeManager));
+        $tester->executeMap(['entity_type' => self::ENTITY_TYPE_ID, 'workflow_id' => 'editorial']);
+
+        self::assertSame(0, $tester->getExitCode());
+        $output = $tester->getStdout();
+        self::assertStringContainsString('skipped 1', $output, 'The state-stamp phase skips this row — it already has a state.');
+        self::assertStringContainsString('established 1 published pointer(s).', $output);
+
+        $pointer = $repository->loadPublishedRevision($id);
+        self::assertNotNull($pointer);
+        self::assertSame($revisionBefore, (int) $pointer->get('revision_id'));
     }
 
     #[Test]
@@ -251,6 +298,7 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
         self::assertStringContainsString('2 would be backfilled', $output);
         self::assertStringContainsString('would be set to "published"', $output);
         self::assertStringContainsString('would be set to "draft"', $output);
+        self::assertStringContainsString('1 row(s) would have their published pointer established.', $output);
 
         // Zero writes, proven directly: workflow_state is still unset and
         // the revision id/history are byte-identical to pre-command state.
@@ -259,6 +307,7 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
         self::assertNull($published->get('workflow_state'));
         self::assertSame($publishedRevisionBefore, (int) $published->get('revision_id'));
         self::assertCount(1, $repository->listRevisions($publishedId));
+        self::assertNull($repository->loadPublishedRevision($publishedId), 'Dry run establishes no pointer.');
 
         $draft = $repository->find($draftId);
         self::assertNotNull($draft);
@@ -289,6 +338,10 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
         $secondOutput = $second->getStdout();
         self::assertStringContainsString('backfilled 0', $secondOutput);
         self::assertStringContainsString('skipped 2', $secondOutput);
+        // The pointer phase is idempotent too: the first run already
+        // established the published row's pointer, so the second run finds
+        // loadPublishedRevision() non-null and establishes nothing further.
+        self::assertStringContainsString('established 0 published pointer(s).', $secondOutput);
     }
 
     #[Test]
@@ -422,6 +475,97 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
         self::assertNotNull($draft);
         self::assertSame('draft', $draft->get('workflow_state'));
         self::assertSame('live', $repository->find((string) $alreadyLive->id())?->get('workflow_state'));
+
+        // Rework task 3: the pointer phase is gated on a resolved
+        // published-default-revision state. With none, the phase is
+        // skipped entirely (not attempted-and-a-no-op) — no "published
+        // pointer" line at all, and the entity type being revisionable
+        // otherwise (this fixture always registers revisionable: true)
+        // does not change that: the gate is the missing state, not the
+        // entity type shape.
+        self::assertStringNotContainsString('published pointer', $output);
+        self::assertNull($repository->loadPublishedRevision((string) $alreadyLive->id()));
+    }
+
+    #[Test]
+    public function it_skips_the_pointer_phase_for_a_non_revisionable_entity_type_without_throwing(): void
+    {
+        // Code requirement (rework task 3): gate the whole pointer phase on
+        // isRevisionable() so a non-revisionable type never reaches
+        // loadPublishedRevision()/setPublishedRevision() — both throw
+        // \LogicException without a revision driver.
+        [$entityTypeManager, $repository] = $this->bootNonRevisionableEntityTypeManager();
+
+        $entity = new BackfillSubject(
+            ['kind' => 'article', 'title' => 'Legacy row', 'status' => 1],
+            self::ENTITY_TYPE_ID,
+            ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'kind'],
+        );
+        $repository->save($entity);
+        $id = (string) $entity->id();
+
+        $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($entityTypeManager));
+        $tester->executeMap(['entity_type' => self::ENTITY_TYPE_ID, 'workflow_id' => 'editorial']);
+
+        self::assertSame(0, $tester->getExitCode());
+        $output = $tester->getStdout();
+        self::assertStringContainsString('backfilled 1', $output);
+        self::assertStringNotContainsString('published pointer', $output, 'Pointer phase must be skipped entirely for a non-revisionable entity type.');
+
+        $stamped = $repository->find($id);
+        self::assertNotNull($stamped);
+        self::assertSame('published', $stamped->get('workflow_state'));
+    }
+
+    /**
+     * @return array{0: EntityTypeManager, 1: EntityRepository}
+     */
+    private function bootNonRevisionableEntityTypeManager(): array
+    {
+        $dispatcher = new SymfonyEventDispatcherAdapter();
+        $db = DBALDatabase::createSqlite();
+
+        $repositoryFactory = static function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $db): EntityRepositoryInterface {
+            $schemaHandler = new SqlSchemaHandler($definition, $db);
+            $schemaHandler->ensureTable();
+
+            $resolver = new SingleConnectionResolver($db);
+
+            return new EntityRepository(
+                $definition,
+                new SqlStorageDriver($resolver),
+                $dispatcher,
+                null,
+                $db,
+            );
+        };
+
+        $entityTypeManager = new EntityTypeManager($dispatcher, null, $repositoryFactory);
+
+        $entityTypeManager->registerEntityType(new EntityType(
+            id: 'workflow',
+            label: 'Workflow',
+            class: Workflow::class,
+            keys: ['id' => 'id', 'label' => 'label'],
+            group: 'workflows',
+        ));
+
+        $entityTypeManager->registerEntityType(new EntityType(
+            id: self::ENTITY_TYPE_ID,
+            label: 'Backfill subject (non-revisionable)',
+            class: BackfillSubject::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'kind'],
+            revisionable: false,
+            revisionDefault: false,
+        ));
+
+        $workflowRepository = $entityTypeManager->getRepository('workflow');
+        $workflowRepository->save(new Workflow(DefaultWorkflows::EDITORIAL));
+
+        $repository = $entityTypeManager->getRepository(self::ENTITY_TYPE_ID);
+        \assert($repository instanceof EntityRepository);
+
+        return [$entityTypeManager, $repository];
     }
 
     #[Test]
@@ -485,6 +629,224 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
         self::assertStringContainsString('backfilled 2', $output);
         self::assertStringContainsString('failed 1', $output);
         self::assertStringContainsString('id 2: simulated write failure', $output);
+    }
+
+    #[Test]
+    public function it_reports_pointer_phase_partial_failure_and_exits_nonzero(): void
+    {
+        // Mirrors it_reports_partial_failure_and_exits_nonzero, but forces
+        // the failure inside the NEW pointer-establishment phase
+        // (setPublishedRevision()) rather than the state-stamp save(). Both
+        // rows already carry workflow_state='published' (the WP-1-tail
+        // shape) so the state-stamp phase has nothing to do — only the
+        // pointer phase runs, isolating the assertion to that phase's
+        // failure accounting.
+        $workflow = new Workflow(DefaultWorkflows::EDITORIAL);
+
+        $workflowRepository = $this->createMock(EntityRepositoryInterface::class);
+        $workflowRepository->method('find')->with('editorial')->willReturn($workflow);
+
+        $rows = [
+            '1' => new PointerFailureStubEntity('1', 'article', 1, 'published', 10),
+            '2' => new PointerFailureStubEntity('2', 'article', 1, 'published', 20),
+        ];
+
+        $query = $this->createMock(EntityQueryInterface::class);
+        $query->method('accessCheck')->willReturnSelf();
+        $query->method('execute')->willReturn(array_keys($rows));
+
+        $subjectRepository = $this->createMock(EntityRepositoryInterface::class);
+        $subjectRepository->method('getQuery')->willReturn($query);
+        $subjectRepository->method('find')->willReturnCallback(
+            static fn(string $id): ?EntityInterface => $rows[$id] ?? null,
+        );
+        $subjectRepository->method('loadPublishedRevision')->willReturn(null);
+        $subjectRepository->method('setPublishedRevision')->willReturnCallback(
+            static function (string $id, int $revisionId) use ($rows): EntityInterface {
+                if ($id === '2') {
+                    throw new \RuntimeException('simulated pointer failure');
+                }
+
+                return $rows[$id];
+            },
+        );
+
+        $definition = $this->createMock(EntityTypeInterface::class);
+        $definition->method('getKeys')->willReturn(['bundle' => 'kind']);
+        $definition->method('isRevisionable')->willReturn(true);
+
+        $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
+        $entityTypeManager->method('hasDefinition')->willReturnCallback(
+            static fn(string $id): bool => in_array($id, [self::ENTITY_TYPE_ID, 'workflow'], true),
+        );
+        $entityTypeManager->method('getDefinition')->willReturn($definition);
+        $entityTypeManager->method('getRepository')->willReturnCallback(
+            static fn(string $id) => $id === 'workflow' ? $workflowRepository : $subjectRepository,
+        );
+
+        $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($entityTypeManager));
+        $tester->executeMap(['entity_type' => self::ENTITY_TYPE_ID, 'workflow_id' => 'editorial']);
+
+        self::assertSame(1, $tester->getExitCode());
+        $output = $tester->getOutput();
+        self::assertStringContainsString('established 1 published pointer(s).', $output);
+        self::assertStringContainsString('id 2: simulated pointer failure', $output);
+    }
+
+    #[Test]
+    public function it_counts_rows_with_no_revision_history_instead_of_failing_the_command(): void
+    {
+        // Code requirement (rework task 3, brief note): a row that is
+        // revisionable at the TYPE level but has no revision history yet
+        // (revisions:enable was never run for it) cannot have a pointer
+        // established. It must be skipped and counted, not treated as a
+        // command failure — the operator needs the count to notice, not a
+        // nonzero exit for something this command cannot fix on its own.
+        $workflow = new Workflow(DefaultWorkflows::EDITORIAL);
+
+        $workflowRepository = $this->createMock(EntityRepositoryInterface::class);
+        $workflowRepository->method('find')->with('editorial')->willReturn($workflow);
+
+        $rows = [
+            '1' => new PartialFailureStubEntity('1', 'article', 1, 'published'),
+        ];
+
+        $query = $this->createMock(EntityQueryInterface::class);
+        $query->method('accessCheck')->willReturnSelf();
+        $query->method('execute')->willReturn(array_keys($rows));
+
+        $subjectRepository = $this->createMock(EntityRepositoryInterface::class);
+        $subjectRepository->method('getQuery')->willReturn($query);
+        $subjectRepository->method('find')->willReturnCallback(
+            static fn(string $id): ?EntityInterface => $rows[$id] ?? null,
+        );
+        $subjectRepository->method('loadPublishedRevision')->willReturn(null);
+        $subjectRepository->expects(self::never())->method('setPublishedRevision');
+
+        $definition = $this->createMock(EntityTypeInterface::class);
+        $definition->method('getKeys')->willReturn(['bundle' => 'kind']);
+        $definition->method('isRevisionable')->willReturn(true);
+
+        $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
+        $entityTypeManager->method('hasDefinition')->willReturnCallback(
+            static fn(string $id): bool => in_array($id, [self::ENTITY_TYPE_ID, 'workflow'], true),
+        );
+        $entityTypeManager->method('getDefinition')->willReturn($definition);
+        $entityTypeManager->method('getRepository')->willReturnCallback(
+            static fn(string $id) => $id === 'workflow' ? $workflowRepository : $subjectRepository,
+        );
+
+        $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($entityTypeManager));
+        $tester->executeMap(['entity_type' => self::ENTITY_TYPE_ID, 'workflow_id' => 'editorial']);
+
+        self::assertSame(0, $tester->getExitCode());
+        $output = $tester->getStdout();
+        self::assertStringContainsString('established 0 published pointer(s).', $output);
+        self::assertStringContainsString('no revision history', $output);
+    }
+}
+
+final class PointerFailureStubEntity implements EntityInterface, RevisionableInterface
+{
+    public function __construct(
+        private readonly string $id,
+        private readonly string $bundle,
+        private readonly int $status,
+        private ?string $workflowState,
+        private readonly int $revisionId,
+    ) {}
+
+    public function id(): int|string|null
+    {
+        return $this->id;
+    }
+
+    public function uuid(): string
+    {
+        return $this->id;
+    }
+
+    public function label(): string
+    {
+        return $this->id;
+    }
+
+    public function getEntityTypeId(): string
+    {
+        return 'wf_backfill_subject';
+    }
+
+    public function bundle(): string
+    {
+        return $this->bundle;
+    }
+
+    public function isNew(): bool
+    {
+        return false;
+    }
+
+    public function get(string $name): mixed
+    {
+        return match ($name) {
+            'status' => $this->status,
+            'workflow_state' => $this->workflowState,
+            'revision_id' => $this->revisionId,
+            default => null,
+        };
+    }
+
+    public function set(string $name, mixed $value): static
+    {
+        if ($name === 'workflow_state') {
+            $this->workflowState = \is_string($value) ? $value : null;
+        }
+
+        return $this;
+    }
+
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'bundle' => $this->bundle,
+            'status' => $this->status,
+            'workflow_state' => $this->workflowState,
+        ];
+    }
+
+    public function language(): string
+    {
+        return 'en';
+    }
+
+    public function getRevisionId(): ?int
+    {
+        return $this->revisionId;
+    }
+
+    public function isDefaultRevision(): bool
+    {
+        return true;
+    }
+
+    public function isLatestRevision(): bool
+    {
+        return true;
+    }
+
+    public function setNewRevision(bool $value): void {}
+
+    public function isNewRevision(): ?bool
+    {
+        return null;
+    }
+
+    public function setRevisionLog(?string $log): void {}
+
+    public function getRevisionLog(): ?string
+    {
+        return null;
     }
 }
 
