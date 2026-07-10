@@ -166,6 +166,46 @@ final class EntityRepositoryRevisionTest extends TestCase
     }
 
     #[Test]
+    public function rollback_preserves_the_live_published_pointer_and_status(): void
+    {
+        // #1920 WP-2 rework fix wave (review finding I-1 / #4 containment):
+        // rollback() must restore CONTENT only. It must never let the target
+        // revision's frozen published_revision_id/status snapshot overwrite the
+        // LIVE base row's pointer/status — moving the published pointer or
+        // flipping status is exclusively TransitionService's job (CW-v1
+        // decision 2).
+        $entity = new TestRevisionableEntity(values: ['title' => 'v1', 'id' => '1', 'uuid' => 'a']);
+        $entity->set('status', 0);
+        $entity->enforceIsNew();
+        $this->repo->save($entity); // revision 1: title=v1, status=0 (frozen), published_revision_id=null (frozen)
+
+        $entity = $this->repo->find('1');
+        $entity->set('title', 'v2');
+        $entity->set('status', 1);
+        $this->repo->save($entity); // revision 2: title=v2, status=1; base row now status=1
+
+        // Publish revision 1 — a targeted column update, touching ONLY the
+        // base row's published_revision_id (never revision 1's own snapshot,
+        // which still reads published_revision_id=null).
+        $this->repo->setPublishedRevision('1', 1);
+        $this->assertSame(1, $this->repo->find('1')->get('published_revision_id'), 'live pointer set before rollback');
+        $this->assertSame(1, $this->repo->find('1')->get('status'), 'live status before rollback');
+
+        // Roll back CONTENT to revision 1 (whose frozen snapshot has
+        // status=0 and published_revision_id=null — stale values that must
+        // NOT clobber the live base row).
+        $rolledBack = $this->repo->rollback('1', 1);
+
+        $this->assertSame('v1', $rolledBack->label(), 'content restored from the target revision');
+        $this->assertSame(1, $this->repo->find('1')->get('status'), 'live status untouched by rollback');
+        $this->assertSame(
+            1,
+            $this->repo->find('1')->get('published_revision_id'),
+            'live published pointer untouched by rollback',
+        );
+    }
+
+    #[Test]
     public function rollback_throws_for_nonexistent_target(): void
     {
         $entity = new TestRevisionableEntity(values: ['title' => 'v1', 'id' => '1', 'uuid' => 'a']);

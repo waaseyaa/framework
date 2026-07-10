@@ -46,7 +46,7 @@ final class AuditEventKindAmendmentTest extends TestCase
     }
 
     #[Test]
-    public function total_case_count_is_twenty_two(): void
+    public function total_case_count_is_twenty_three(): void
     {
         // Originally 14 cases (OCAP substrate). Extended additively to 17
         // by versioned-blob-media-abstraction-01KSEFTJ (WP02), then to 19
@@ -54,8 +54,9 @@ final class AuditEventKindAmendmentTest extends TestCase
         // revision.revert, FR-006), then to 20 by WP3 audit tamper-evidence
         // verify (audit.verify), then to 21 by WP4 fail-open marker+metric
         // (#1792, audit.write_degraded), then to 22 by CW-v1 WP-1
-        // (#1920, workflow.transition).
-        self::assertCount(22, AuditEventKind::cases());
+        // (#1920, workflow.transition), then to 23 by CW-v1 WP-2 task 2.5
+        // (#1920, revision.rollback).
+        self::assertCount(23, AuditEventKind::cases());
     }
 
     #[Test]
@@ -91,6 +92,15 @@ final class AuditEventKindAmendmentTest extends TestCase
         self::assertSame(
             AuditEventKind::RevisionRevert,
             AuditEventKind::tryFrom('revision.revert'),
+        );
+    }
+
+    #[Test]
+    public function revision_rollback_resolves_from_string(): void
+    {
+        self::assertSame(
+            AuditEventKind::RevisionRollback,
+            AuditEventKind::tryFrom('revision.rollback'),
         );
     }
 

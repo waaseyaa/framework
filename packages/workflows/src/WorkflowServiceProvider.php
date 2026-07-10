@@ -11,11 +11,14 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
+use Waaseyaa\Workflows\Listener\WorkflowPointerMoveGuard;
 use Waaseyaa\Workflows\Listener\WorkflowStateGuard;
 use Waaseyaa\Workflows\Transition\TransitionService;
 use Waaseyaa\Workflows\Validation\WorkflowValidator;
@@ -118,6 +121,23 @@ final class WorkflowServiceProvider extends ServiceProvider
 
             return new WorkflowStateGuard(
                 bindings: $this->resolve(WorkflowBindingResolver::class),
+                // CW-v1 WP-2 task 2.6 (#1920): needed to detect an existing
+                // published pointer so a forward-draft save can leave
+                // `status` alone instead of following the target state's
+                // `published` flag directly (two-pointer status semantics).
+                entityTypeManager: $this->resolve(EntityTypeManagerInterface::class),
+                accountContext: $accountContext instanceof AccountContextInterface ? $accountContext : null,
+            );
+        });
+
+        // CW-v1 WP-2 task 2.5 (#1920): closes the pointer-move bypass task
+        // 2.4's BeforeRevisionPointerMoveEvent choke point exists for.
+        $this->singleton(WorkflowPointerMoveGuard::class, function (): WorkflowPointerMoveGuard {
+            $accountContext = $this->resolveOptional(AccountContextInterface::class);
+
+            return new WorkflowPointerMoveGuard(
+                bindings: $this->resolve(WorkflowBindingResolver::class),
+                entityTypeManager: $this->resolve(EntityTypeManagerInterface::class),
                 accountContext: $accountContext instanceof AccountContextInterface ? $accountContext : null,
             );
         });
@@ -171,21 +191,47 @@ final class WorkflowServiceProvider extends ServiceProvider
             [$guard, 'onPreSave'],
         );
 
+        // CW-v1 WP-2 task 2.5 (#1920): the pointer-move guard shares the same
+        // degraded-mode gate as the save-path guard above (both need
+        // WorkflowBindingResolver, which needs ConfigFactoryInterface — #1930).
+        // Resolved separately (not from $guard) because it is a distinct
+        // service with its own dependency (EntityTypeManagerInterface), not a
+        // wrapper around WorkflowStateGuard.
+        $pointerGuard = $this->resolveOptional(WorkflowPointerMoveGuard::class);
+        if ($pointerGuard instanceof WorkflowPointerMoveGuard) {
+            $dispatcher->addListener(
+                BeforeRevisionPointerMoveEvent::class,
+                [$pointerGuard, 'onBeforePointerMove'],
+            );
+        }
+
         $this->seedDefaultEditorialWorkflow();
     }
 
     /**
      * Seeds the framework-default `editorial` workflow as config data (not
-     * code — {@see DefaultWorkflows}), unless it already exists. Log-and-skip
-     * on validation failure, never boot-crash (CLAUDE.md "seeding is
-     * log-and-skip on invalid, never boot-crash" — a known judgment call the
-     * plan pins).
+     * code — {@see DefaultWorkflows}), or additively tops it up if it already
+     * exists. Log-and-skip on validation failure, never boot-crash (CLAUDE.md
+     * "seeding is log-and-skip on invalid, never boot-crash" — a known
+     * judgment call the plan pins).
      *
      * Uses `getRepository('workflow')`, not `getStorage()`: production kernel
      * wiring passes `storageFactory: null` to `EntityTypeManager`
      * (`EntityTypeManagerFactory::build()`, C-22 WP4), so `getStorage()`
      * throws for the `workflow` entity type (no `storageClass` declared).
      * `getRepository()` is the live pipeline for every entity type.
+     *
+     * Upgrade contract (WP-2 rework Task 2, #1920, final-review finding #7):
+     * the boot seed guarantees the shipped `DefaultWorkflows::EDITORIAL`
+     * state/transition SET exists on the persisted `editorial` entity,
+     * version-independently of when that entity was first created. An
+     * alpha.256-era install persisted `editorial` before
+     * `restore_to_published` existed; returning early here (the old
+     * behaviour) would keep that install's archived content unrecoverable
+     * forever. Operators customize the shipped workflow by editing existing
+     * entries (preserved verbatim by the top-up) or by binding their own
+     * workflow id via `workflows.assignments` — DELETING a shipped
+     * state/transition is re-added at the next boot.
      */
     private function seedDefaultEditorialWorkflow(): void
     {
@@ -198,7 +244,11 @@ final class WorkflowServiceProvider extends ServiceProvider
         $resolvedLogger = $logger instanceof LoggerInterface ? $logger : new NullLogger();
 
         $repository = $entityTypeManager->getRepository('workflow');
-        if ($repository->find('editorial') !== null) {
+        $existing = $repository->find('editorial');
+
+        if ($existing instanceof Workflow) {
+            $this->topUpDefaultEditorialWorkflow($existing, $repository, $resolvedLogger);
+
             return;
         }
 
@@ -217,5 +267,115 @@ final class WorkflowServiceProvider extends ServiceProvider
         } catch (\Throwable $e) {
             $resolvedLogger->warning('workflows.default_seed_failed', ['error' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * Version-independent additive top-up (#7): adds any state or transition
+     * present in {@see DefaultWorkflows::EDITORIAL} but absent BY MACHINE
+     * NAME from the persisted `$existing` entity. Never modifies or removes
+     * an entry that already exists — an operator-customized `permission`
+     * string (or any other field) on a pre-existing transition survives
+     * untouched. If nothing is missing, this performs no save at all (steady
+     * state is read + compare only).
+     *
+     * `$existing` was loaded via `EntityRepositoryInterface::find()`, so its
+     * `isNew()` is already false — the merge is saved as an UPDATE of the
+     * same `editorial` id, never a re-create.
+     */
+    private function topUpDefaultEditorialWorkflow(
+        Workflow $existing,
+        EntityRepositoryInterface $repository,
+        LoggerInterface $logger,
+    ): void {
+        $addedStates = $this->addMissingStates($existing, DefaultWorkflows::EDITORIAL['states']);
+        $addedTransitions = $this->addMissingTransitions($existing, DefaultWorkflows::EDITORIAL['transitions']);
+
+        if ($addedStates === [] && $addedTransitions === []) {
+            // Steady state: the persisted entity already carries the full
+            // shipped set. Read + compare only — write nothing.
+            return;
+        }
+
+        $violations = new WorkflowValidator()->validate($existing);
+        if ($violations !== []) {
+            $logger->warning('workflows.default_seed_topup_invalid', ['violations' => $violations]);
+
+            return;
+        }
+
+        try {
+            $repository->save($existing);
+        } catch (\Throwable $e) {
+            $logger->warning('workflows.default_seed_topup_failed', ['error' => $e->getMessage()]);
+
+            return;
+        }
+
+        $logger->info('workflows.default_seed_topup', [
+            'added_transitions' => $addedTransitions,
+            'added_states' => $addedStates,
+        ]);
+    }
+
+    /**
+     * Adds every shipped state absent (by machine name) from `$existing`,
+     * mutating it in place. Never touches a state that already exists.
+     *
+     * @param array<string, mixed> $shippedStates {@see DefaultWorkflows::EDITORIAL}'s 'states' entry.
+     * @return list<string> Machine names of the states that were added.
+     */
+    private function addMissingStates(Workflow $existing, array $shippedStates): array
+    {
+        $added = [];
+
+        foreach ($shippedStates as $stateId => $stateData) {
+            if ($existing->hasState($stateId) || !\is_array($stateData)) {
+                continue;
+            }
+
+            $existing->addState(new WorkflowState(
+                id: $stateId,
+                label: (string) ($stateData['label'] ?? $stateId),
+                weight: (int) ($stateData['weight'] ?? 0),
+                metadata: (array) ($stateData['metadata'] ?? []),
+                published: (bool) ($stateData['published'] ?? false),
+                defaultRevision: (bool) ($stateData['default_revision'] ?? false),
+            ));
+            $added[] = $stateId;
+        }
+
+        return $added;
+    }
+
+    /**
+     * Adds every shipped transition absent (by machine name) from
+     * `$existing`, mutating it in place. Never touches a transition that
+     * already exists — an operator-customized `permission` (or any other
+     * field) on a pre-existing transition survives untouched.
+     *
+     * @param array<string, mixed> $shippedTransitions {@see DefaultWorkflows::EDITORIAL}'s 'transitions' entry.
+     * @return list<string> Machine names of the transitions that were added.
+     */
+    private function addMissingTransitions(Workflow $existing, array $shippedTransitions): array
+    {
+        $added = [];
+
+        foreach ($shippedTransitions as $transitionId => $transitionData) {
+            if ($existing->hasTransition($transitionId) || !\is_array($transitionData)) {
+                continue;
+            }
+
+            $existing->addTransition(new WorkflowTransition(
+                id: $transitionId,
+                label: (string) ($transitionData['label'] ?? $transitionId),
+                from: (array) ($transitionData['from'] ?? []),
+                to: (string) ($transitionData['to'] ?? ''),
+                weight: (int) ($transitionData['weight'] ?? 0),
+                permission: (string) ($transitionData['permission'] ?? ''),
+            ));
+            $added[] = $transitionId;
+        }
+
+        return $added;
     }
 }

@@ -4,7 +4,7 @@
 
 Content moderation and editorial workflow states for Waaseyaa applications.
 
-## CW-v1 engine (WP-1, live)
+## CW-v1 engine (WP-1 + WP-2, live)
 
 The **content-workflow engine** (docs/specs/content-workflow.md) is now the canonical surface: named
 editorial states, permission-gated transitions, enforced in the write path, with transition audit
@@ -34,12 +34,39 @@ seed data (`DefaultWorkflows::EDITORIAL`), not a hardcoded preset class.
   born-published hole); an update's `workflow_state` change is validated exactly like a transition
   (permission required whenever an acting `AccountContextInterface` context exists; a null context —
   CLI/queue/programmatic — checks edge-legality only).
-- `WorkflowServiceProvider::boot()` wires the guard onto the real dispatcher (Symfony-contracts
-  FQCN) and seeds the default `editorial` workflow if absent (log-and-skip on validation failure,
-  never boot-crash).
+- `WorkflowServiceProvider::boot()` wires both guards below onto the real dispatcher
+  (Symfony-contracts FQCN) and seeds the default `editorial` workflow if absent (log-and-skip on
+  validation failure, never boot-crash).
+- `Listener\WorkflowPointerMoveGuard` — a `BeforeRevisionPointerMoveEvent` (L1) subscriber that
+  closes the pointer-move bypass: `rollback()`, `setCurrentRevision()`, and `setPublishedRevision()`
+  move the base-row pointer WITHOUT a `doSave()` write, so `WorkflowStateGuard` alone could not see
+  them. Validates the implied state change like a transition — same-state moves (e.g. promoting a
+  forward draft, or rolling back to an earlier same-state revision) need the permission of *any*
+  transition targeting that state; different-state moves need the real edge's own permission, no
+  exceptions.
+- **Forward drafts (engine substrate, WP-2):** `node` opts into revisionable storage
+  (`revisionDefault: true`, per-bundle opt-out via `NodeType::isNewRevision()`); `TransitionService`
+  implements the two-pointer status semantics — the base row's `status` always reflects the
+  *published-pointer* revision's state, never the tip's. The engine supports a forward-draft entry
+  edge (editing content back into a `default_revision: false` state while the published pointer
+  keeps serving the live revision) on any workflow that defines one; a later `publish` promotes it
+  (pointer moves, `status` flips only after the pointer move commits — a guard denial never leaves
+  `status` flipped with the pointer stuck). Raw saves never enact pointer moves — only
+  `TransitionService` (or a direct, sanctioned repository call) moves the pointer. Forward drafts (a
+  published → draft edge on the shipped `editorial` workflow) are deferred: the WP-2 review found no
+  read path is pointer-aware, so a forward draft's tip content is served by `find()`-based readers
+  while status/pointer reflect the published revision. Forward drafts return on true
+  default-revision semantics (the base row keeps serving the published revision; drafts live only in
+  revision rows). `restore_to_published` (archived → published) rounds out the shipped `editorial`
+  workflow alongside `restore` (archived → draft) so archived-content republishing has real edges —
+  that round trip does not carry the live-content read-side risk above, since the entity is
+  unpublished throughout. Backfilling legacy content's `workflow_state` onto binding activation is a
+  CLI step, `workflows:backfill-state` (see `docs/specs/operations-playbooks.md` Playbook H) —
+  deliberately binding-scoped, not framework-scoped, since the framework cannot know in advance which
+  workflow a site will bind. Full mechanics: `docs/specs/content-workflow.md` "Forward-draft
+  mechanics".
 
-Revision promotion (`default_revision` forward-draft mechanics) is WP-2; group/department
-transition constraints are WP-3; API transition endpoints + admin SPA are WP-4.
+Group/department transition constraints are WP-3; API transition endpoints + admin SPA are WP-4.
 
 ## Legacy machinery (superseded, removal tracked as WP-5 / #1920)
 
@@ -58,10 +85,19 @@ separately, with no guard proving the save is legitimate. They are kept only unt
 - `DomainValidationListener` — never subscribed to any dispatcher; dead code kept alive in the
   dead-code gate only by its own unit test.
 
-**Live, unaffected by CW-v1:** `WorkflowVisibility` / `WorkflowVisibilityFilter` /
-`EditorialVisibilityResolver` remain the read-side gates (fail-closed per R16 #1915). For
-CW-v1-bound entity types they will derive published-semantics from the bound workflow's state
-flags instead of assuming `status === 1` — tracked for WP-2.
+**Live, unaffected by CW-v1 — with a known WP-2 read-side gap:** `WorkflowVisibility` /
+`WorkflowVisibilityFilter` / `EditorialVisibilityResolver` remain the read-side gates (fail-closed
+per R16 #1915). `WorkflowVisibility::nodeState()` trusts a raw `workflow_state` value over `status`
+whenever both are present — correct pre-WP-2 (tip and published-facing state were always the same
+row), but wrong for a forward draft: the tip's `workflow_state` (e.g. `draft`, mid-edit) now
+disagrees with the base row's `status`, which stays correctly pointer-derived. Concretely: editing
+published content into a forward draft makes `WorkflowVisibility` report the node as unpublished
+while the published pointer still serves it live — confirmed to affect
+`Waaseyaa\AI\Vector\EntityEmbeddingListener::onPostSave()`, which de-indexes still-live content on
+every forward-draft save. Deferred out of WP-2 (a correct fix flips a precedence a pinned unit test
+asserts and touches six consumer packages that each `new WorkflowVisibility()` inline) rather than
+rushed; tracked as a WP-2 follow-up. Full write-up: `docs/specs/content-workflow.md` "Visibility
+(read side)".
 
 ## Install
 

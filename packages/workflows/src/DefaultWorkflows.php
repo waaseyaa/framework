@@ -7,13 +7,25 @@ namespace Waaseyaa\Workflows;
 /**
  * Declarative seed data for the framework-default `editorial` workflow
  * (CW-v1 WP-1, docs/specs/content-workflow.md). Definitions are data, not
- * code — this const array is seeded once (as a `workflow` config entity) by
+ * code — this const array is seeded (as a `workflow` config entity) by
  * {@see WorkflowServiceProvider::boot()}; the array shape is the exact
  * `Workflow` hydration contract ({@see Workflow::__construct()}), NOT a
  * preset-in-code canonical definition. The retired `EditorialWorkflowPreset`
  * class is the anti-pattern this deliberately avoids (docs/specs/
  * content-workflow.md, "The default `editorial` workflow ships as config
  * data, not code").
+ *
+ * Upgrade contract (WP-2 rework Task 2, #1920, final-review finding #7): the
+ * boot seed guarantees this SET of states and transitions exists on the
+ * persisted `editorial` entity, version-independently of when that entity
+ * was first created — {@see WorkflowServiceProvider::seedDefaultEditorialWorkflow()}
+ * additively tops up an already-persisted `editorial` with any entry present
+ * here but absent BY MACHINE NAME from the persisted entity, never modifying
+ * or removing an entry that already exists. Operators customize the shipped
+ * workflow by editing existing states/transitions (preserved verbatim by the
+ * top-up) or by binding their own workflow id via `workflows.assignments`
+ * instead. DELETING a shipped state or transition from the persisted entity
+ * is re-added at the next boot — this const is the floor, not a ceiling.
  *
  * @api
  */
@@ -60,6 +72,21 @@ final class DefaultWorkflows
                 'from' => ['archived'],
                 'to' => 'draft',
                 'permission' => 'use editorial transition restore',
+            ],
+            // CW-v1 WP-2 task 2.6 re-review (#1920): without this edge,
+            // archived content is a dead end — 'restore' produces a forward
+            // draft (the pointer stays on the archived revision), and that
+            // draft's eventual publish is an archived -> published pointer
+            // move the strict guard rule denies with no edge to satisfy it.
+            // Mirrors Drupal editorial's "Restore" (archived_published)
+            // edge, shipped alongside "Restore to draft" (archived_draft).
+            // The existing 'restore' transition is deliberately NOT renamed
+            // (its machine name and permission string are already live).
+            'restore_to_published' => [
+                'label' => 'Restore',
+                'from' => ['archived'],
+                'to' => 'published',
+                'permission' => 'use editorial transition restore_to_published',
             ],
         ],
     ];

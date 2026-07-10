@@ -257,12 +257,17 @@ final class RevisionableStorageDriver
     {
         $db = $this->getDatabase();
 
-        // Guard: cannot delete the default revision (invariant #8).
+        // Guard: cannot delete the default revision (invariant #8) or the
+        // published revision (FR-038 extension to the published pointer,
+        // #1920 WP-2 rework task 5 / review finding #6 — deleting it would
+        // silently flip the entity into never-published semantics). `SELECT *`
+        // (rather than a hardcoded column list) so this tolerates pre-WP-2
+        // base tables that lack the `published_revision_id` column entirely.
         $baseTable = $this->entityType->id();
         $keys = $this->entityType->getKeys();
         $idKey = $keys['id'] ?? 'id';
         $result = $db->query(
-            'SELECT revision_id FROM ' . $baseTable . ' WHERE ' . $idKey . ' = ?',
+            'SELECT * FROM ' . $baseTable . ' WHERE ' . $idKey . ' = ?',
             [$entityId],
         );
         foreach ($result as $row) {
@@ -270,6 +275,12 @@ final class RevisionableStorageDriver
             if ((int) ($row['revision_id'] ?? 0) === $revisionId) {
                 throw new \LogicException(
                     "Cannot delete the default revision {$revisionId} for entity {$entityId}. Delete the entity instead.",
+                );
+            }
+            $publishedRevisionId = $row['published_revision_id'] ?? null;
+            if ($publishedRevisionId !== null && (int) $publishedRevisionId === $revisionId) {
+                throw new \LogicException(
+                    "Cannot delete the published revision {$revisionId} for entity {$entityId}. Move the published pointer first.",
                 );
             }
         }

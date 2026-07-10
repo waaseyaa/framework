@@ -21,6 +21,7 @@ use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableEntityTrait;
 use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
@@ -119,6 +120,117 @@ final class GuardWiringTest extends TestCase
     }
 
     /**
+     * WP-2 task 2.5 companion to the save-path proofs above: a real
+     * kernel-dispatched `setPublishedRevision()` — NOT a `save()` — must fire
+     * {@see \Waaseyaa\Workflows\Listener\WorkflowPointerMoveGuard} through the
+     * SAME dispatcher `WorkflowServiceProvider::boot()` wires it onto. Moves
+     * from the (never-published) initial state 'draft' to the target
+     * revision's 'published' state — a legal `publish` edge — and must
+     * actually move the base-row published pointer, proving the guard does
+     * not merely run but lets a legitimate pointer move through.
+     */
+    #[Test]
+    public function a_real_kernel_dispatched_publish_pointer_move_fires_the_pointer_guard_and_allows_a_legal_edge(): void
+    {
+        [$entityTypeManager] = $this->bootWiredProvider();
+        $repository = $entityTypeManager->getRepository(self::ENTITY_TYPE_ID);
+
+        $entity = new GuardWiringSubject(
+            ['bundle' => self::ENTITY_TYPE_ID, 'workflow_state' => 'published'],
+            self::ENTITY_TYPE_ID,
+            ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
+        );
+        // Null account context: the save-path guard's create rule denies a
+        // born-published create without permission (REASON_PERMISSION), so
+        // create as 'draft' first, then let a subsequent save reach
+        // 'published' via the (permission-blind, edge-only) update rule.
+        $entity->set('workflow_state', 'draft');
+        $repository->save($entity);
+
+        $draft = $repository->find((string) $entity->id());
+        $this->assertNotNull($draft);
+        // This fixture entity type has no revisionDefault: true (that is a
+        // node-specific WP-2 task 2.1/2.3 decision) — force a new revision so
+        // 'draft' (revision 1) and 'published' (revision 2) are distinct rows,
+        // matching how forward-draft editing actually behaves on node.
+        $draft->setNewRevision(true);
+        $draft->set('workflow_state', 'published');
+        $repository->save($draft);
+        // save() updates the `revision_id` field value directly (not the
+        // RevisionableEntityTrait's own revisionId() property, which only
+        // loadRevision() populates) — read the field.
+        $publishedRevisionId = (int) $draft->get('revision_id');
+
+        // The base row has never had a published pointer — the pointer
+        // guard's "currently effective state" for `publish` falls back to the
+        // workflow's initial state ('draft'); 'draft' -> 'published' is a
+        // legal `publish` edge, so this must succeed and move the pointer.
+        $repository->setPublishedRevision((string) $entity->id(), $publishedRevisionId);
+
+        $published = $repository->loadPublishedRevision((string) $entity->id());
+        $this->assertNotNull($published);
+        $this->assertSame($publishedRevisionId, $published->revisionId());
+    }
+
+    /**
+     * WP-2 task 2.5: a real kernel-dispatched `setCurrentRevision()` moving
+     * across an edge the bound workflow does not define ('published' ->
+     * 'review' has no direct transition in the default editorial workflow)
+     * must be denied by the SAME wired guard, proving the pointer-move bypass
+     * is actually closed end to end — not merely in a guard-only unit test.
+     * 'review' is used as the illegal target (rather than 'draft') because
+     * its only incoming edge is 'submit_for_review' from 'draft'.
+     */
+    #[Test]
+    public function a_real_kernel_dispatched_revert_pointer_move_fires_the_pointer_guard_and_denies_an_illegal_edge(): void
+    {
+        [$entityTypeManager] = $this->bootWiredProvider();
+        $repository = $entityTypeManager->getRepository(self::ENTITY_TYPE_ID);
+
+        $entity = new GuardWiringSubject(
+            ['bundle' => self::ENTITY_TYPE_ID, 'workflow_state' => 'draft'],
+            self::ENTITY_TYPE_ID,
+            ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
+        );
+        $repository->save($entity);
+
+        // Walk the entity draft -> review -> published, one new revision per
+        // hop (all legal edges; null account context checks edge-legality
+        // only), so a 'review'-stamped revision exists distinct from the
+        // 'published' revision that becomes current.
+        $draft = $repository->find((string) $entity->id());
+        $this->assertNotNull($draft);
+        $draft->setNewRevision(true);
+        $draft->set('workflow_state', 'review');
+        $repository->save($draft);
+        $reviewRevisionId = (int) $draft->get('revision_id');
+
+        $review = $repository->find((string) $entity->id());
+        $this->assertNotNull($review);
+        $review->setNewRevision(true);
+        $review->set('workflow_state', 'published');
+        $repository->save($review);
+
+        $thrown = null;
+        try {
+            // Reverting the current pointer from 'published' back to the
+            // earlier 'review' revision has no edge in the editorial
+            // workflow ('review' is only reachable via 'submit_for_review'
+            // from 'draft') — must be denied before any write.
+            $repository->setCurrentRevision((string) $entity->id(), $reviewRevisionId);
+        } catch (TransitionDeniedException $e) {
+            $thrown = $e;
+        }
+
+        $this->assertInstanceOf(
+            TransitionDeniedException::class,
+            $thrown,
+            'A real kernel-dispatched pointer move must prove the pointer guard fires (wiring regression, not a guard unit test).',
+        );
+        $this->assertSame(TransitionDeniedException::REASON_ILLEGAL_EDGE, $thrown->reason);
+    }
+
+    /**
      * Companion to the wired tests above — pins the DEGRADED boot path
      * (review amendment, issue #1930): when the kernel-services bus does NOT
      * serve `ConfigFactoryInterface` (the real production bus today),
@@ -191,6 +303,15 @@ final class GuardWiringTest extends TestCase
             [],
             $dispatcher->getListeners(EntityEvents::PRE_SAVE->value),
             'Degraded boot must not register the save-path guard.',
+        );
+
+        // 2b. No BeforeRevisionPointerMoveEvent listener was registered
+        // either (WP-2 task 2.5): the pointer guard shares the same
+        // ConfigFactoryInterface dependency chain.
+        $this->assertSame(
+            [],
+            $dispatcher->getListeners(BeforeRevisionPointerMoveEvent::class),
+            'Degraded boot must not register the pointer-move guard.',
         );
 
         // 3. Nothing was seeded.

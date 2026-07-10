@@ -409,7 +409,7 @@ File: `packages/cache/src/CacheTagsInvalidator.php`
 
 | Listener | File | Listens to | Tags invalidated |
 |----------|------|-----------|------------------|
-| `EntityCacheInvalidator` | `packages/cache/src/Listener/EntityCacheInvalidator.php` | `EntityEvent` (post-save, post-delete) | `entity:{type}`, `entity:{type}:{id}` |
+| `EntityCacheInvalidator` | `packages/cache/src/Listener/EntityCacheInvalidator.php` | `EntityEvent` (post-save, post-delete, `EntityEvents::REVISION_REVERTED`) + `Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent` (CW-v1 WP-2 task 2.5, #1920 — pointer moves via `setCurrentRevision()`/`setPublishedRevision()`/`rollback()`'s revert signal previously invalidated no cache tags at all) | `entity:{type}`, `entity:{type}:{id}` (built directly from the event's `entityTypeId`/`entityId` for the pointer-move path — no entity load needed) |
 | `ConfigCacheInvalidator` | `packages/cache/src/Listener/ConfigCacheInvalidator.php` | `ConfigEvent` (post-save, post-delete) | `config`, `config:{name}` |
 | `TranslationCacheInvalidator` | `packages/cache/src/Listener/TranslationCacheInvalidator.php` | Translation events | Translation-specific tags |
 

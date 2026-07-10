@@ -131,6 +131,7 @@
                 "Waaseyaa\\CLI\\Provider\\EntityTypeServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\HealthSchemaServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\ImportServiceProvider",
+                "Waaseyaa\\CLI\\Provider\\WorkflowsServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\MakeServiceProviderA",
                 "Waaseyaa\\CLI\\Provider\\MakeServiceProviderB",
                 "Waaseyaa\\CLI\\Provider\\MakeStorageMigrationServiceProvider",

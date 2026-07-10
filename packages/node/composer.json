@@ -35,12 +35,23 @@
         {
             "type": "path",
             "url": "../field"
+        },
+        {
+            "type": "path",
+            "url": "../database-legacy"
+        },
+        {
+            "type": "path",
+            "url": "../entity-storage"
         }
     ],
     "require": {
         "php": ">=8.5",
-        "waaseyaa/entity": "^0.1.0-alpha.256",
         "waaseyaa/access": "^0.1.0-alpha.256",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.256",
+        "waaseyaa/entity": "^0.1.0-alpha.256",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.256",
+        "waaseyaa/field": "^0.1.0-alpha.256",
         "waaseyaa/foundation": "^0.1.0-alpha.256"
     },
     "require-dev": {
@@ -60,7 +71,8 @@
         "waaseyaa": {
             "providers": [
                 "Waaseyaa\\Node\\NodeServiceProvider"
-            ]
+            ],
+            "migrations": "migrations"
         },
         "branch-alias": {
             "dev-main": "0.1.x-dev",

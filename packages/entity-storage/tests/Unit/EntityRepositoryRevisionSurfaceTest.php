@@ -176,6 +176,98 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
     }
 
     #[Test]
+    public function set_current_revision_preserves_the_live_published_pointer_and_status(): void
+    {
+        // #1920 WP-2 rework fix wave (review finding I-1 / #4 containment):
+        // identical containment to rollback() — setCurrentRevision() must
+        // restore CONTENT only, never the target revision's frozen
+        // published_revision_id/status snapshot over the live base row.
+        $entity = new TestRevisionableEntity(values: ['title' => 'v1', 'id' => '1', 'uuid' => 'a']);
+        $entity->set('status', 0);
+        $entity->enforceIsNew();
+        $this->repo->save($entity); // revision 1: status=0 (frozen), published_revision_id=null (frozen)
+
+        $entity = $this->repo->find('1');
+        $entity->set('title', 'v2');
+        $entity->set('status', 1);
+        $this->repo->save($entity); // revision 2: status=1; base row status=1
+
+        $this->repo->setPublishedRevision('1', 1);
+        $this->assertSame(1, $this->repo->find('1')->get('published_revision_id'));
+        $this->assertSame(1, $this->repo->find('1')->get('status'));
+
+        $reverted = $this->repo->setCurrentRevision('1', 1);
+
+        $this->assertSame('v1', $reverted->label(), 'content restored from the target revision');
+        $this->assertSame(1, $this->repo->find('1')->get('status'), 'live status untouched');
+        $this->assertSame(
+            1,
+            $this->repo->find('1')->get('published_revision_id'),
+            'live published pointer untouched',
+        );
+    }
+
+    #[Test]
+    public function rollback_and_set_current_revision_tolerate_a_legacy_table_without_pointer_or_status_columns(): void
+    {
+        // Pre-WP-2 base tables have neither published_revision_id nor status
+        // as real columns. Both restore paths must behave exactly as before:
+        // no SQL error, no key introduced onto the row.
+        $legacyType = new EntityType(
+            id: 'test_revisionable_legacy_restore',
+            label: 'Legacy Restore',
+            class: TestRevisionableEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
+            revisionable: true,
+            revisionDefault: true,
+        );
+
+        $this->db->schema()->createTable('test_revisionable_legacy_restore', [
+            'fields' => [
+                'id' => ['type' => 'serial', 'not null' => true],
+                'uuid' => ['type' => 'varchar', 'length' => 128, 'not null' => true, 'default' => ''],
+                'bundle' => ['type' => 'varchar', 'length' => 128, 'not null' => true, 'default' => ''],
+                'title' => ['type' => 'varchar', 'length' => 255, 'not null' => true, 'default' => ''],
+                'langcode' => ['type' => 'varchar', 'length' => 12, 'not null' => true, 'default' => 'en'],
+                'revision_id' => ['type' => 'int', 'not null' => false, 'default' => null],
+                // NOTE: deliberately no published_revision_id / status columns.
+                '_data' => ['type' => 'text', 'not null' => true, 'default' => '{}'],
+            ],
+            'primary key' => ['id'],
+            'indexes' => ['test_revisionable_legacy_restore_bundle' => ['bundle']],
+            'unique keys' => ['test_revisionable_legacy_restore_uuid' => ['uuid']],
+        ]);
+
+        $handler = new SqlSchemaHandler($legacyType, $this->db);
+        $handler->ensureRevisionTable();
+
+        $resolver = new SingleConnectionResolver($this->db);
+        $driver = new SqlStorageDriver($resolver);
+        $revisionDriver = new RevisionableStorageDriver($resolver, $legacyType);
+        $dispatcher = $this->createMock(EventDispatcherInterface::class);
+        $dispatcher->method('dispatch')->willReturnArgument(0);
+        $legacyRepo = new EntityRepository($legacyType, $driver, $dispatcher, $revisionDriver, $this->db);
+
+        $this->db->insert('test_revisionable_legacy_restore')
+            ->fields(['id', 'uuid', 'title', 'bundle', 'langcode', 'revision_id', '_data'])
+            ->values([
+                'id' => '1', 'uuid' => 'a', 'title' => 'v2', 'bundle' => 'test_revisionable_legacy_restore',
+                'langcode' => 'en', 'revision_id' => 2, '_data' => '{}',
+            ])
+            ->execute();
+        $revisionDriver->writeRevision('1', ['title' => 'v1', 'uuid' => 'a'], null);
+        $revisionDriver->writeRevision('1', ['title' => 'v2', 'uuid' => 'a'], null);
+
+        $rolledBack = $legacyRepo->rollback('1', 1);
+        $this->assertSame('v1', $rolledBack->label());
+        $this->assertNull($legacyRepo->find('1')->get('published_revision_id'));
+
+        $reverted = $legacyRepo->setCurrentRevision('1', 2);
+        $this->assertSame('v2', $reverted->label());
+        $this->assertNull($legacyRepo->find('1')->get('published_revision_id'));
+    }
+
+    #[Test]
     public function prune_revisions_trims_to_policy_and_keeps_current(): void
     {
         $this->createWithEdits('1', 'v1', 'v2', 'v3', 'v4'); // revisions 1..4, current = 4
@@ -214,6 +306,91 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
 
         $this->assertSame(0, $report->pruned);
         $this->assertCount(3, $this->repo->listRevisions('1'));
+    }
+
+    #[Test]
+    public function prune_revisions_never_deletes_the_published_revision(): void
+    {
+        // #1920 WP-2 rework task 5 / review finding #6: the published pointer
+        // must be immortal in pruning, exactly like the current pointer, even
+        // when it differs from current and a keep-count would otherwise sweep
+        // it up as an old candidate.
+        $this->createWithEdits('1', 'v1', 'v2', 'v3', 'v4'); // revisions 1..4, current = 4
+        $this->repo->setPublishedRevision('1', 2);
+
+        $report = $this->repo->pruneRevisions('1', RevisionPruningPolicy::keepLastUniform(1));
+
+        // newest-kept = [4]; candidates = 1,2,3. Published (2) must survive
+        // alongside current (4); only 1 and 3 are actually deletable.
+        $this->assertSame(2, $report->pruned);
+        $ids = array_map(static fn($e) => $e->getRevisionId(), $this->repo->listRevisions('1'));
+        $this->assertContains(2, $ids, 'published revision survived pruning');
+        $this->assertContains(4, $ids, 'current revision survived pruning');
+        $this->assertNotContains(1, $ids);
+        $this->assertNotContains(3, $ids);
+    }
+
+    #[Test]
+    public function prune_revisions_tolerates_a_base_table_without_the_published_revision_column(): void
+    {
+        // Legacy (pre-WP-2) base tables never gained the published_revision_id
+        // column. pruneRevisions() must behave exactly as before: no SQL
+        // error, and the current-revision guard stays intact.
+        $legacyType = new EntityType(
+            id: 'test_revisionable_legacy_prune',
+            label: 'Legacy Prune',
+            class: TestRevisionableEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
+            revisionable: true,
+            revisionDefault: true,
+        );
+
+        $this->db->schema()->createTable('test_revisionable_legacy_prune', [
+            'fields' => [
+                'id' => ['type' => 'serial', 'not null' => true],
+                'uuid' => ['type' => 'varchar', 'length' => 128, 'not null' => true, 'default' => ''],
+                'bundle' => ['type' => 'varchar', 'length' => 128, 'not null' => true, 'default' => ''],
+                'title' => ['type' => 'varchar', 'length' => 255, 'not null' => true, 'default' => ''],
+                'langcode' => ['type' => 'varchar', 'length' => 12, 'not null' => true, 'default' => 'en'],
+                'revision_id' => ['type' => 'int', 'not null' => false, 'default' => null],
+                // NOTE: deliberately no published_revision_id column.
+                '_data' => ['type' => 'text', 'not null' => true, 'default' => '{}'],
+            ],
+            'primary key' => ['id'],
+            'indexes' => ['test_revisionable_legacy_prune_bundle' => ['bundle']],
+            'unique keys' => ['test_revisionable_legacy_prune_uuid' => ['uuid']],
+        ]);
+
+        $handler = new SqlSchemaHandler($legacyType, $this->db);
+        $handler->ensureRevisionTable();
+
+        $resolver = new SingleConnectionResolver($this->db);
+        $driver = new SqlStorageDriver($resolver);
+        $revisionDriver = new RevisionableStorageDriver($resolver, $legacyType);
+        $dispatcher = $this->createMock(EventDispatcherInterface::class);
+        $dispatcher->method('dispatch')->willReturnArgument(0);
+        $legacyRepo = new EntityRepository($legacyType, $driver, $dispatcher, $revisionDriver, $this->db);
+
+        $this->db->insert('test_revisionable_legacy_prune')
+            ->fields(['id', 'uuid', 'title', 'bundle', 'langcode', 'revision_id', '_data'])
+            ->values([
+                'id' => '1', 'uuid' => 'a', 'title' => 'v4', 'bundle' => 'test_revisionable_legacy_prune',
+                'langcode' => 'en', 'revision_id' => 4, '_data' => '{}',
+            ])
+            ->execute();
+        foreach (['v1', 'v2', 'v3', 'v4'] as $title) {
+            $revisionDriver->writeRevision('1', ['title' => $title, 'uuid' => 'a'], null);
+        }
+
+        $report = $legacyRepo->pruneRevisions('1', RevisionPruningPolicy::keepLastUniform(1));
+
+        // No published pointer exists at all — only the current-revision (4)
+        // guard applies, exactly like before this rework: 1,2,3 are all
+        // deletable candidates, only 4 (current, and newest-kept) survives.
+        $this->assertSame(3, $report->pruned);
+        $ids = array_map(static fn($e) => $e->getRevisionId(), $legacyRepo->listRevisions('1'));
+        $this->assertContains(4, $ids, 'current revision survived');
+        $this->assertCount(1, $ids);
     }
 
     #[Test]

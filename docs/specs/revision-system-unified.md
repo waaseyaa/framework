@@ -23,6 +23,12 @@ There is **one** revision system: `EntityRepository` + `RevisionableStorageDrive
   `<entity>__translation__revision`, with **independent per-language
   sequencing** (editing English does not bump the Anishinaabemowin revision
   count, and vice-versa).
+- **Pruning/deletion immortality (FR-038, extended).** `EntityRepository::pruneRevisions()`
+  and `RevisionableStorageDriver::deleteRevision()` never delete the current
+  revision (`revision_id`) OR the published revision (`published_revision_id`)
+  — both pointers are excluded from every deletion candidate set (#1920 WP-2
+  rework). Base tables predating the `published_revision_id` column behave
+  exactly as before: only the current-revision guard applies, no SQL error.
 
 A `revisionable`-only entity (FNPI's `page`, `identity_pillar`, `document`,
 `drive_asset` today) is the **zero-translation default** and behaves exactly as
@@ -318,6 +324,49 @@ replacing — the legacy `EntityEvents::REVISION_REVERTED` dispatch.
 `REVISION_CREATED`. The audit subsystem subscribes via
 `PublishPointerAuditListener` (`revision.publish` / `revision.revert` kinds —
 see `docs/specs/ocap-audit-log.md`).
+
+### Pre-write choke point (`BeforeRevisionPointerMoveEvent`)
+
+CW-v1 WP-2 task 2.4 (#1920). `RevisionPointerMovedEvent` above fires only
+**after** a pointer transaction commits — too late for a subscriber to deny
+the move. `Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent`
+(extends Symfony `Event`, mirroring `WorkflowTransitionEvent`'s shape) is
+dispatched (by FQCN) **before any write**, on all six revision-mutating paths
+that bypass the ordinary save pipeline (and therefore WP-1's
+`WorkflowStateGuard`, which only observes `EntityRepository::save()`):
+
+- `rollback()` — operation `'rollback'`; `fromRevisionId` is the prior
+  current/tip pointer, `toRevisionId` is `null` (the new revision's id is
+  assigned by the write itself, not knowable yet).
+- `setCurrentRevision()` — operation `'revert'`; `fromRevisionId` is the prior
+  base `revision_id` pointer, `toRevisionId` is the caller-supplied target
+  revision id (known up front).
+- `setPublishedRevision()` — operation `'publish'`; `fromRevisionId` is the
+  prior `published_revision_id` (null when previously unpublished),
+  `toRevisionId` is the caller-supplied target revision id.
+- `saveTranslationRevision()` / `saveTranslationRevisions()` (once per
+  langcode) / `saveTranslation()` — operation `'translation_save'`;
+  `fromRevisionId` is the langcode's prior latest revision id (via
+  `getLatestLangcodeRevisionId()`, null for a language's first revision),
+  `toRevisionId` is `null` (driver-assigned).
+
+Payload also carries `entityTypeId`, `entityId`, `actorUid: ?int` (same
+resolution/null-vs-0 semantics as above), and `revisionValues: array` — the
+TARGET revision's raw values array (the existing row for `revert`/`publish`,
+the freshly-loaded row being re-written for `rollback`, or the new content for
+`translation_save`) — so a subscriber can read `workflow_state` without a
+second load.
+
+A subscriber denies by **throwing** `AbortOperationException` (not
+`stopPropagation()` — same convention as `BeforeSaveEvent`): the exception
+propagates out of the repository method before any backend write, and for the
+transactional multi-write paths (`saveTranslationRevisions()`,
+`saveTranslation()`) rolls back any write already attempted earlier in the
+same transaction. Deliberately **not** `EntityEvents::PRE_SAVE` /
+`BeforeSaveEvent`: these six call sites are pointer moves or translation-axis
+writes, not `doSave()` saves, and reusing the save event name would silently
+activate save-semantics listeners. Task 2.5 wires a workflow pointer-move
+guard onto this event.
 
 ## 5. Access
 

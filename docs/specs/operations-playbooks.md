@@ -268,6 +268,301 @@ you handle these operations externally.
    - `.github/workflows/ci.yml`
    - `.github/workflows/deploy.yml`
 
+### Playbook H: Content-Workflow (CW-v1) WP-2 Substrate Activation — Node Revisions + Backfill
+
+Existing deployments upgrading onto WP-2 (node revisionable storage +
+backfilled workflow state/published pointers, docs/specs/content-workflow.md)
+MUST run this exact sequence. The order is load-bearing — each step exists
+because the step before it is deliberately incomplete, not because of
+process ceremony.
+
+**Scope note (WP-2 rework descope).** This runbook activates the
+revisionable-storage SUBSTRATE only: steps 1–4 make `node` revision-aware
+and backfill legacy rows' `workflow_state` and published pointer. It does
+**not** instruct binding `node` to the `editorial` workflow in production —
+see step 5. Forward drafts (a published → draft edge on the shipped
+`editorial` workflow) are deferred: the WP-2 review found no read path is
+pointer-aware, so a forward draft's tip content is served by `find()`-based
+readers while status/pointer reflect the published revision. Forward drafts
+return on true default-revision semantics (the base row keeps serving the
+published revision; drafts live only in revision rows). See
+docs/specs/content-workflow.md, "Deferred: forward drafts on the shipped
+workflow," for the full follow-up scope.
+
+1. **Deploy WP-2 code.** Nothing below is safe to run against the old code.
+2. **`bin/waaseyaa migrate:up`** — applies the node revision-schema migration
+   (`packages/node/migrations/2026_07_06_000001_node_revision_schema.php`):
+   creates the `node_revision` table and the base `revision_id` pointer
+   column. Idempotent and half-applied-state safe — safe to re-run if a prior
+   deploy died partway through.
+
+   **Verification gate — run before step 3.** Confirm the migration actually
+   added the pointer columns; a stale migration-discovery cache can make
+   `migrate:up` report success while the migration silently never ran (see
+   Failure mode 3 below):
+   ```sql
+   SELECT revision_id, published_revision_id FROM node LIMIT 1;
+   ```
+   This errors loudly ("no such column") when the migration did not apply.
+   If it does, rebuild the migration-discovery cache
+   (`bin/waaseyaa optimize:manifest`) and re-run `migrate:up` before
+   proceeding — do NOT run step 3 against a table missing these columns
+   (see Failure mode 3).
+3. **`bin/waaseyaa revisions:enable node`** — REQUIRED, not conditional. Step
+   2's migration is SCHEMA-ONLY (docs/specs/content-workflow.md, "Backfill is
+   binding-scoped, not framework-scoped"): it creates the table but backfills
+   no data. This step seeds an initial revision (revision 1) for every
+   existing node row and points the base row at it — without it, every
+   existing node has revision schema but zero revision history, and every
+   later revision-reading path (`loadPublishedRevision()`, `listRevisions()`,
+   the pointer-move guard) has nothing to read.
+4. **`bin/waaseyaa workflows:backfill-state node editorial`** — stamps a
+   `workflow_state` onto every existing node row that does not yet carry one,
+   derived from each row's own `status` column (published rows → the
+   workflow's published `default_revision: true` state; everything else →
+   `initial_state`). Run with `--dry-run` first to see the counts and sample
+   ids with zero writes, then re-run for real:
+   ```
+   bin/waaseyaa workflows:backfill-state node editorial --dry-run
+   bin/waaseyaa workflows:backfill-state node editorial
+   ```
+   Repeat per bundle with `--bundle=<type>` if different content types need
+   different workflows. This step is what step 5 depends on — see the first
+   failure mode below.
+
+   *What gets written:* the command stamps `workflow_state` on the node's
+   **base row and its current/tip revision row** (the non-revision-creating
+   save path updates both in one write) — it creates no new revisions, and
+   it does not retroactively touch older revision rows. Right after step 3
+   the tip IS the only revision, so everything is coherent; in the general
+   case an older, unstamped revision row is harmless because
+   `WorkflowStateGuard::pointerStatus()` treats a pointer revision whose
+   `workflow_state` is unknown to the workflow by copying its own stored
+   `status` column — an unstamped revision never reports a wrong derived
+   status.
+
+   *Pointer establishment (WP-2 rework task 3):* after the state-stamp
+   phase, the command also establishes `published_revision_id` on every
+   EXAMINED row — whether newly stamped in this run or already carrying the
+   workflow's published `default_revision: true` state from a prior run
+   (the WP-1 tail) — whose published pointer is still unset
+   (`loadPublishedRevision()` returns null), pointing it at that row's
+   current revision id via `EntityRepository::setPublishedRevision()`.
+   Without this phase, every legacy published row would read `status = 1,
+   workflow_state = 'published', published_revision_id = NULL` forever, with
+   no sanctioned code path able to set the pointer after the fact —
+   pointer-dependent semantics (`loadPublishedRevision()`, the pointer-move
+   guard) would silently treat every such row as never-published. The phase
+   runs only when the entity type is revisionable AND a published
+   `default_revision: true` state was resolved; a row that is revisionable
+   at the type level but has no revision history yet (`revisions:enable`
+   was skipped or failed for it) cannot have a pointer established — it is
+   counted separately and reported (both `--dry-run` and real output)
+   rather than failing the whole command. `--dry-run` reports the
+   would-establish count with zero writes; the real run reports the
+   established count, and any per-row pointer-establishment failure feeds
+   the same failure accounting (and nonzero exit) as the state-stamp phase.
+
+   *Revision-restore paths preserve the pointer (WP-2 rework fix, review
+   finding I-1):* once this phase has established `published_revision_id`,
+   the two sanctioned CONTENT-restore paths —
+   `EntityRepository::rollback()` and `EntityRepository::setCurrentRevision()`,
+   also exposed via the MCP/AI tools `entity.rollback` and
+   `entity.set_current_revision` — never move the published pointer or flip
+   `status` as a side effect of restoring old content. They restore the
+   target revision's field values only; the live base row's
+   `published_revision_id`/`status` ride through unchanged (or the new
+   revision they create records the live pointer/status, not a stale frozen
+   one). Moving the published pointer or flipping status remains exclusively
+   `TransitionService`'s job (CW-v1 decision 2).
+
+   *Custom workflows:* the command fails fast (nonzero exit, zero writes —
+   dry-run included) if the named workflow defines no state that is BOTH
+   `published: true` AND `default_revision: true` while published (`status =
+   1`) rows still need backfilling — on such a workflow shape it has no
+   published target and refuses to silently stamp published content with
+   `initial_state`. Fix the workflow definition (flag its live state
+   `default_revision: true`) or pre-stamp those rows manually, then re-run.
+   When no published rows need backfilling it proceeds with an explicit
+   notice instead. The shipped `editorial` workflow is unaffected
+   (`published` carries both flags).
+
+   **Warning — previously-archived content collapses into `draft`.** The
+   backfill can only read `status`, and `status = 0` covers BOTH
+   never-published drafts AND content that was deliberately retired
+   (unpublished/archived) under the old model. Both backfill to
+   `initial_state` (`draft` on `editorial`) — after the backfill, retired
+   content is indistinguishable from new never-reviewed content: it shows up
+   in the same editorial queues, and an editor can republish it through the
+   normal review path without ever learning it was retired. If your site
+   used unpublishing as archiving, identify the retired rows BEFORE running
+   the backfill (the criteria are site-specific — an "archived" taxonomy
+   term, a path pattern, a cutoff date, an editorial log) and pre-stamp them
+   `archived` yourself. The backfill skips every row that already carries a
+   non-empty `workflow_state`, so pre-stamping is safe, idempotent-friendly,
+   and survives re-runs. Template SQL for node (`workflow_state` is a
+   `FieldStorage::Data` field — it lives in the `_data` JSON blob of the
+   `node` base table, NOT in a dedicated column; same `json_set` technique
+   as the `NodeType` fix below). Stamp the base row and, for revision-axis
+   coherence, the current revision row it points at:
+   ```sql
+   -- Base rows (adjust the WHERE to your site's retirement criteria):
+   UPDATE node SET _data = json_set(_data, '$.workflow_state', 'archived')
+   WHERE status = 0 AND nid IN (/* retired nids */)
+     AND (json_extract(_data, '$.workflow_state') IS NULL
+          OR json_extract(_data, '$.workflow_state') = '');
+   -- Matching current revision rows (node_revision._data mirrors the base row):
+   UPDATE node_revision SET _data = json_set(_data, '$.workflow_state', 'archived')
+   WHERE entity_id IN (/* retired nids */)
+     AND revision_id IN (SELECT revision_id FROM node WHERE nid = node_revision.entity_id);
+   ```
+   Skipping the revision-row UPDATE is tolerable (the guard's stored-status
+   fallback keeps derived `status` truthful, per "What gets written" above)
+   but stamping both keeps the revision axis coherent from day one.
+5. **Do NOT add the `workflows.assignments` binding in production.** Forward
+   drafts (a published → draft edge on the shipped `editorial` workflow) are
+   deferred — see the "Scope note" above and
+   docs/specs/content-workflow.md, "Deferred: forward drafts on the shipped
+   workflow" — and binding `node` → `editorial` in production is gated on
+   that follow-up landing. Steps 1–4 above are complete, safe substrate work
+   on their own (revisionable storage + backfilled state/pointers); binding
+   is what would expose the shipped workflow's transitions to production
+   traffic, so it stays out of this runbook until the follow-up ships.
+   **Non-production/evaluation environments MAY bind** (e.g.
+   `node.article => editorial`) to exercise the engine end-to-end — the
+   archived → restore → publish round trip and custom workflows that define
+   their own published → draft edge both work today — with the
+   understanding that no read path is pointer-aware yet
+   (docs/specs/content-workflow.md, same section). If you do bind in such an
+   environment, binding before steps 1–4 complete still makes step 4
+   partially retroactive at best and actively dangerous at worst (see
+   failure modes below).
+
+   **Evaluation-binding caveat (review finding I-2).** Under a binding, the
+   deferred write-side field allowlist (docs/specs/content-workflow.md,
+   "Deferred: forward drafts on the shipped workflow") means the JSON:API
+   write path applies every attribute in a `PATCH` body with no allowlist on
+   the pointer columns. An account holding only entity `update` permission —
+   no publish/transition permission at all — can `PATCH
+   {"published_revision_id": N}` (or `revision_id` on a non-revision save)
+   directly, bypassing `WorkflowStateGuard`/`TransitionService` entirely:
+   this can corrupt the published pointer or resurrect/unpublish content
+   outright. This is why evaluation binding is scoped to non-production
+   environments with trusted accounts only — the fix (a write-side field
+   allowlist) is deferred to the option-1 follow-up, not shipped here.
+
+**Failure mode 1 — binding before backfill.** `TransitionService::currentState()`
+and `WorkflowStateGuard::stateOf()` both fall back to the workflow's
+`initial_state` when `workflow_state` is empty. Bind the workflow before
+backfilling and every legacy published node reads as `draft` the moment the
+binding takes effect — editors can no longer transition it along the real
+published path without first fighting the fallback. `WorkflowStateGuard::
+applyState()`'s pointer-derived `status` fallback (a pointer revision whose
+`workflow_state` is unknown to the workflow keeps its stored `status` rather
+than deriving from state) limits the *visible* damage — a legacy published
+node does not suddenly un-publish — but it does not remove the need for the
+backfill: the node is still misreported as `draft` to every workflow-aware
+reader (dashboards, transition permission checks) until `workflows:backfill-
+state` runs. Running the backfill after the fact fixes it going forward, but
+any transitions attempted in between were evaluated against the wrong
+`fromState` — always run the backfill first.
+
+**Failure mode 2 — binding a non-revisionable type.** `WorkflowBindingResolver::
+resolve()` hard-throws (`\RuntimeException`) when a `workflows.assignments`
+entry names an entity type that is not revisionable. This fails LOUDLY, the
+moment a binding is added and read (permitted only outside production, see
+step 5) — not silently, and not at step 4.
+Mis-ordering step 5 before step 2/3 (binding a type before its revision
+schema/history exist) is therefore self-correcting for this specific error
+class: the throw is the signal to go back and run steps 2–4 first. It is
+*not* a substitute for running steps 2–4 in order on a type that already
+happens to be revisionable — that combination (revisionable type, no
+history, no backfill) fails silently per failure mode 1, not loudly.
+
+**Failure mode 3 — running `revisions:enable` before (or without a
+successful) `migrate:up`.** Step 2's migration is what adds the base-row
+`revision_id`/`published_revision_id` columns to a pre-existing `node`
+table — per the migration file's own docblock
+(`packages/node/migrations/2026_07_06_000001_node_revision_schema.php`),
+`SqlSchemaHandler::ensureTable()` (the schema-ensure primitive
+`revisions:enable` itself calls) has no additive-column path for an
+already-existing sql-blob base table; it only emits those columns at CREATE
+TABLE time. If the migration never actually ran — e.g. a stale
+migration-discovery cache after deploy, so `migrate:up` silently found
+nothing new to apply — running `revisions:enable node` against a `node`
+table that still lacks the columns does not error. Instead
+`SqlStorageDriver::write()`'s column-routing folds `revision_id` (and, once
+`workflows:backfill-state` runs, `published_revision_id`) into the `_data`
+JSON blob instead of a real column, corrupting rather than merely omitting
+the pointer semantics every later revision-reading path depends on — and
+every command in the chain reports success. This is exactly what the
+**verification gate after step 2** above exists to catch before step 3 ever
+runs; run it, do not skip it, especially on a deploy pipeline where
+`migrate:up`'s success is not independently confirmed against the schema.
+
+**Legacy `NodeType` rows — the `new_revision` opt-out ambiguity.** Before
+CW-v1 WP-2 task 2.3, `NodeType`'s constructor default for the `new_revision`
+property was `false`; only after task 2.3 did the default flip to `true`
+(Drupal parity — see `packages/node/src/NodeType.php`). Any `node_type` row
+saved under the OLD code has `new_revision => false` *materialized* into its
+persisted value bag — indistinguishable, once loaded, from a bundle that
+deliberately opted out via an explicit `new_revision: false`. New `NodeType`
+rows created after the WP-2 deploy get the new `true` default correctly;
+existing rows do not retroactively pick it up. Operators MUST review
+existing `node_type` rows and explicitly set `new_revision: true` on any
+bundle that should participate in per-save revisioning.
+
+Check (default `sql-blob` storage backend — `NodeType` values live in the
+`_data` JSON column, same as any config entity with no `sql-column` override):
+```sql
+SELECT type, json_extract(_data, '$.new_revision') AS new_revision FROM node_type;
+```
+Fix (repeat per bundle that should revision; there is currently no
+`entity:update`-style CLI command for this, so the sanctioned system-level
+edit is a direct `_data` patch, mirroring the same `json_extract`/`json_set`
+technique the query engine itself uses for `Data`-stored fields):
+```sql
+UPDATE node_type SET _data = json_set(_data, '$.new_revision', json('true'))
+WHERE type IN ('article', 'page');
+```
+Bundles deliberately opted out of per-save revisioning need no change — this
+review is only to separate "inherited stale default" from "chosen opt-out"
+for bundles where the answer actually matters to the operator.
+
+**Revision-pruning stance for WP-2 (explicit, by user requirement).** With
+`revisionDefault: true`, every ordinary node save creates a revision — the
+`node_revision` table grows unbounded by design once WP-2 ships; nothing in
+the framework prunes it automatically. What ships today:
+- `EntityRepository::pruneRevisions(string $entityId, RevisionPruningPolicy $policy)`
+  ([packages/entity-storage/src/EntityRepository.php](../../packages/entity-storage/src/EntityRepository.php))
+  with `Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy`
+  ([packages/entity-storage/src/Revision/RevisionPruningPolicy.php](../../packages/entity-storage/src/Revision/RevisionPruningPolicy.php))
+  is the real, callable pruning entry point. `RevisionPruningPolicy::default()`
+  is a no-op (FR-039 — retains every revision of every entity forever);
+  operators opt in explicitly per entity via `RevisionPruningPolicy::
+  keepLastUniform(int $n)` or a per-langcode map, then call `pruneRevisions()`
+  themselves (a one-off script, a custom `ScheduleEntriesInterface` class per
+  the "Adding a schedule-entries class" checklist in `CLAUDE.md`, or a bespoke
+  CLI command in the consuming application). The current revision is always
+  excluded from deletion (`RevisionPruningPolicy::candidateExcluded()`,
+  FR-038) regardless of policy — and, since WP-2 rework task 5 (review
+  finding #6), so is the **published** revision (`published_revision_id`):
+  `EntityRepository::pruneRevisions()` reads the base row's published
+  pointer and excludes any candidate equal to it (checked inline in the
+  executor loop, alongside the current-revision check, without changing
+  `candidateExcluded()`'s `@api` signature), and
+  `RevisionableStorageDriver::deleteRevision()` carries the same guard, so a
+  direct call cannot delete the published revision either. Base tables that
+  predate the `published_revision_id` column behave exactly as before —
+  only the current-revision guard applies, no SQL error.
+- **What is NOT shipped in WP-2**: there is no `revisions:prune` (or
+  equivalent) framework CLI command, and no scheduled/automatic pruning task
+  runs by default. An operator who does nothing gets unbounded revision
+  growth — this is the documented default, not an oversight. Driving
+  `pruneRevisions()` from CLI/scheduler is deferred past WP-2; track it
+  against the `docs/specs/revision-system-unified.md` follow-up work before
+  relying on retention limits in a high-write-volume deployment.
+
 ## CLI Command Reference
 
 ### Queue Operations

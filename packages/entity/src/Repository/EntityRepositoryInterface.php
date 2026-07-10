@@ -89,6 +89,7 @@ interface EntityRepositoryInterface
      * @return int SAVED_NEW (1) or SAVED_UPDATED (2).
      * @throws \Waaseyaa\Entity\Validation\EntityValidationException If validation fails.
      * @throws \Doctrine\DBAL\Exception\UniqueConstraintViolationException If a unique constraint (e.g. duplicate id/uuid) is violated.
+     * @throws \RuntimeException If a PRE_SAVE subscriber rejects the save (e.g. a workflow guard denial) — subscriber exceptions propagate to the caller.
      */
     public function save(EntityInterface $entity, bool $validate = true): int;
 

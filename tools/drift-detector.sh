@@ -144,6 +144,7 @@ declare -A PATTERN_TO_SPEC=(
   ["packages/http-client/"]="docs/specs/infrastructure.md"
   ["packages/admin/"]="docs/specs/admin-spa.md"
   ["packages/note/"]="docs/specs/ingestion-defaults.md"
+  ["packages/node/"]="docs/specs/revision-system-unified.md"
   ["packages/relationship/"]="docs/specs/relationship-modeling.md"
   ["packages/ai-"]="docs/specs/ai-integration.md"
   ["packages/mcp/"]="docs/specs/mcp-endpoint.md"

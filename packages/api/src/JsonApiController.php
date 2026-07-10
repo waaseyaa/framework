@@ -18,6 +18,7 @@ use Waaseyaa\Entity\Validation\EntityValidationException;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\EntityStorage\SaveContext;
+use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 
 /**
  * Handles JSON:API CRUD operations.
@@ -523,6 +524,10 @@ final class JsonApiController
                     sprintf("An entity of type '%s' with this ID already exists.", $entityTypeId),
                 ),
             );
+        } catch (TransitionDeniedException $e) {
+            // WP2 rework (review finding #8): WorkflowStateGuard denies from
+            // PRE_SAVE inside save() — never let it surface as an uncaught 500.
+            return $this->errorDocument($this->workflowTransitionDeniedError($e));
         }
 
         $resource = $this->serializer->serialize($entity, $this->accessHandler, $this->account);
@@ -665,6 +670,10 @@ final class JsonApiController
                 // in the body. Names the REAL entity id, not the request
                 // locator (contract §15 locator honesty).
                 return $this->errorDocument($this->uniquenessConflictError($entityTypeId, (string) $entity->id()));
+            } catch (TransitionDeniedException $e) {
+                // WP2 rework (review finding #8): same PRE_SAVE guard denial
+                // as create() and the expectation-stated PATCH path below.
+                return $this->errorDocument($this->workflowTransitionDeniedError($e));
             }
         }
 
@@ -727,6 +736,10 @@ final class JsonApiController
             return $this->errorDocument(JsonApiError::unprocessable(
                 "Validation failed for entity of type '{$entityTypeId}': {$e->getMessage()}",
             ));
+        } catch (TransitionDeniedException $e) {
+            // WP2 rework (review finding #8): same PRE_SAVE guard denial as
+            // create() and the plain PATCH path above.
+            return $this->errorDocument($this->workflowTransitionDeniedError($e));
         } catch (\LogicException $e) {
             // The storage rejection matrix is the invariant backstop: a stated
             // expectation the pipeline cannot honor is a 4xx caller error,
@@ -747,6 +760,26 @@ final class JsonApiController
         return JsonApiError::conflict(
             sprintf("Updating entity of type '%s' with ID '%s' violated a uniqueness constraint.", $entityTypeId, $entityId),
         );
+    }
+
+    /**
+     * Map a {@see TransitionDeniedException} thrown from PRE_SAVE by
+     * WorkflowStateGuard (WP2 rework, review finding #8) to a JSON:API error
+     * document — never an uncaught 500. `REASON_PERMISSION` is a caller-access
+     * problem (403 Forbidden); every other reason (`illegal_edge`,
+     * `unknown_transition`, `unbound`) is a caller-request problem (422
+     * Unprocessable Entity). The `WORKFLOW_TRANSITION_DENIED` code plus
+     * `reason` meta is the machine-readable discriminator (mirrors
+     * REVISION_CONFLICT's code/meta pattern). The exception message is
+     * already operator-friendly, so it passes through as the detail.
+     */
+    private function workflowTransitionDeniedError(TransitionDeniedException $e): JsonApiError
+    {
+        $meta = ['reason' => $e->reason];
+
+        return $e->reason === TransitionDeniedException::REASON_PERMISSION
+            ? JsonApiError::forbidden($e->getMessage(), code: 'WORKFLOW_TRANSITION_DENIED', meta: $meta)
+            : JsonApiError::unprocessable($e->getMessage(), code: 'WORKFLOW_TRANSITION_DENIED', meta: $meta);
     }
 
     /**
