@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.258] - 2026-07-10
+
 ### Fixed
 
 - **Release recovery: v0.1.0-alpha.258 re-publishes the never-published v0.1.0-alpha.257 (#1934).** The alpha.257 split fan-out failed its `verify-monorepo-main-intact` check because PR #1933 merged to main between the tag push and the verification (tag at `f0cf33c2d`, main at `b4630eee9`) — the check compares live main HEAD against the tagged SHA, so any mid-fan-out merge fails it and blocks the Packagist publish stage. No alpha.257 package was ever published; per the forward-only rule (VERSIONING.md §8) the dead tag stays in place and alpha.258 ships the same content plus this entry. The underlying race (fan-out verification pinned to a moving ref), the fire-once auto-merge bot, and the bot-token downstream-trigger suppression are tracked in #1934.

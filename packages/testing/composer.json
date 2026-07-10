@@ -12,8 +12,8 @@
     "require": {
         "php": ">=8.5",
         "symfony/event-dispatcher": "^7.0",
-        "waaseyaa/entity": "^0.1.0-alpha.257",
-        "waaseyaa/field": "^0.1.0-alpha.257"
+        "waaseyaa/entity": "^0.1.0-alpha.258",
+        "waaseyaa/field": "^0.1.0-alpha.258"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
