@@ -1,9 +1,16 @@
 name: Auto-merge when green
 
-# Native GitHub auto-merge (#1934): this workflow only *enables* auto-merge on
+# Native GitHub auto-merge (#1934): this workflow *enables* auto-merge on
 # labeled PRs. GitHub then re-evaluates as checks complete and merges when the
 # main-protection ruleset's required checks (ci/verify-gates, composer-policy,
 # ci/lint, ci/unit-tests, ci/playwright-smoke) pass — no fire-once race.
+#
+# Post-merge CI on main is restored by chain-dispatch, not a PAT: merges made
+# with the default GITHUB_TOKEN suppress push-triggered workflows, but GitHub
+# documents that "workflow_dispatch and repository_dispatch events always
+# create workflow runs" (Actions docs, GITHUB_TOKEN trigger suppression).
+# So after the merge lands, this job dispatches ci.yml on the merge commit
+# SHA with the plain default token. RELEASE_PAT is abandoned (#1937).
 
 on:
   pull_request:
@@ -18,6 +25,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 jobs:
   enable-auto-merge:
@@ -25,9 +33,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'auto-merge-when-green'
     runs-on: ubuntu-latest
     env:
-      # RELEASE_PAT (PAT) preferred: merges performed with the default token suppress
-      # main-push workflows (CI, Release Pipeline, admin-dist); a PAT-backed merge restores them. (#1934)
-      GH_TOKEN: ${{ secrets.RELEASE_PAT || github.token }}
+      GH_TOKEN: ${{ github.token }}
       PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
     steps:
       - name: Enable auto-merge (squash)
@@ -38,3 +44,33 @@ jobs:
           if ! gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --squash; then
             gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --squash
           fi
+
+      - name: Chain-dispatch main CI on the merge commit
+        run: |
+          set -euo pipefail
+          # The merge lands whenever the required checks go green, so poll for
+          # it (up to 2h), then dispatch ci.yml on the exact merge commit SHA.
+          # workflow_dispatch is exempt from GITHUB_TOKEN trigger suppression,
+          # so the dispatched run fires even though this job uses the default
+          # token — no PAT required.
+          merged_sha=""
+          for _ in $(seq 1 120); do
+            pr_json=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json state,mergeCommit)
+            pr_state=$(jq -r '.state' <<<"$pr_json")
+            if [ "$pr_state" = "MERGED" ]; then
+              merged_sha=$(jq -r '.mergeCommit.oid' <<<"$pr_json")
+              break
+            fi
+            if [ "$pr_state" = "CLOSED" ]; then
+              echo "PR #$PR_NUMBER closed without merging — nothing to dispatch."
+              exit 0
+            fi
+            sleep 60
+          done
+          if [ -z "$merged_sha" ]; then
+            echo "::warning::PR #$PR_NUMBER still open after 2h — dispatch main CI manually once it merges:"
+            echo "::warning::gh workflow run ci.yml --ref main -f sha=<merge commit sha>"
+            exit 0
+          fi
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref main -f sha="$merged_sha"
+          echo "Dispatched main CI for merge commit $merged_sha."
