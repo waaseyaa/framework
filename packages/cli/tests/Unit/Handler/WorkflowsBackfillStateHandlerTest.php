@@ -124,7 +124,7 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
             id: self::ENTITY_TYPE_ID,
             label: 'Backfill subject',
             class: BackfillSubject::class,
-            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'bundle', 'revision' => 'revision_id'],
+            keys: $this->entityKeys(),
             revisionable: true,
             revisionDefault: true,
         ));
@@ -144,7 +144,7 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
     private function createLegacyRow(EntityRepository $repository, string $bundle, int $status): array
     {
         $entity = new BackfillSubject(
-            ['bundle' => $bundle, 'title' => 'Legacy row', 'status' => $status],
+            ['kind' => $bundle, 'title' => 'Legacy row', 'status' => $status],
             self::ENTITY_TYPE_ID,
             $this->entityKeys(),
         );
@@ -154,11 +154,38 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
     }
 
     /**
+     * The bundle key is deliberately named 'kind', NOT 'bundle' (panel minor
+     * 2): a fixture whose bundle column happens to be called 'bundle' cannot
+     * distinguish correct `getKeys()['bundle']` resolution from a hardcoded
+     * 'bundle' string in the handler's --bundle query condition.
+     *
      * @return array<string, string>
      */
     private function entityKeys(): array
     {
-        return ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'bundle', 'revision' => 'revision_id'];
+        return ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'kind', 'revision' => 'revision_id'];
+    }
+
+    /**
+     * The adversarial panel's workflow shape (task 2.7 critical fix): a
+     * workflow whose live state is `published: true` but `default_revision:
+     * false` — a shape `WorkflowValidator` accepts, on which the naive
+     * backfill would silently route status=1 rows to initial_state.
+     */
+    private function saveWorkflowWithoutPublishedDefaultRevisionState(EntityTypeManager $entityTypeManager): void
+    {
+        $entityTypeManager->getRepository('workflow')->save(new Workflow([
+            'id' => 'custom_live',
+            'label' => 'Custom live',
+            'initial_state' => 'draft',
+            'states' => [
+                'draft' => ['label' => 'Draft', 'published' => false, 'default_revision' => false],
+                'live' => ['label' => 'Live', 'published' => true, 'default_revision' => false],
+            ],
+            'transitions' => [
+                'go_live' => ['label' => 'Go live', 'from' => ['draft'], 'to' => 'live'],
+            ],
+        ]));
     }
 
     #[Test]
@@ -169,7 +196,7 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
         [$publishedId, $publishedRevisionBefore] = $this->createLegacyRow($repository, 'article', 1);
         [$draftId, $draftRevisionBefore] = $this->createLegacyRow($repository, 'article', 0);
         $already = new BackfillSubject(
-            ['bundle' => 'article', 'title' => 'Already stated', 'status' => 1, 'workflow_state' => 'review'],
+            ['kind' => 'article', 'title' => 'Already stated', 'status' => 1, 'workflow_state' => 'review'],
             self::ENTITY_TYPE_ID,
             $this->entityKeys(),
         );
@@ -185,6 +212,10 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
         self::assertStringContainsString('backfilled 2', $output);
         self::assertStringContainsString('skipped 1', $output);
         self::assertStringContainsString('failed 0', $output);
+        // Per-target-state breakdown (panel critical fix): the routing must
+        // be visible in the real run's output, not just the total.
+        self::assertStringContainsString('backfilled 1 row(s) to "published"', $output);
+        self::assertStringContainsString('backfilled 1 row(s) to "draft"', $output);
 
         $published = $repository->find($publishedId);
         self::assertNotNull($published);
@@ -317,6 +348,83 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
     }
 
     #[Test]
+    public function it_aborts_when_the_workflow_lacks_a_published_default_revision_state_and_published_rows_need_backfill(): void
+    {
+        // Panel critical fix: on a workflow whose live state is published:
+        // true but default_revision: false (a shape WorkflowValidator
+        // accepts), the naive backfill routed EVERY row — status=1 rows
+        // included — to initial_state and exited 0 reporting success,
+        // silently stamping all published content as 'draft'. The command
+        // must instead fail fast: nonzero exit, a clear error naming the
+        // workflow shape problem and the remediation, and ZERO writes.
+        [$entityTypeManager, $repository] = $this->bootEntityTypeManager();
+        $this->saveWorkflowWithoutPublishedDefaultRevisionState($entityTypeManager);
+
+        [$publishedId, $publishedRevisionBefore] = $this->createLegacyRow($repository, 'article', 1);
+        [$draftId] = $this->createLegacyRow($repository, 'article', 0);
+
+        $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($entityTypeManager));
+        $tester->executeMap(['entity_type' => self::ENTITY_TYPE_ID, 'workflow_id' => 'custom_live']);
+
+        self::assertSame(1, $tester->getExitCode());
+        $output = $tester->getOutput();
+        self::assertStringContainsString('custom_live', $output);
+        self::assertStringContainsString('no state with published: true AND default_revision: true', $output);
+
+        // Zero writes: BOTH rows (published and unpublished) untouched.
+        $published = $repository->find($publishedId);
+        self::assertNotNull($published);
+        self::assertNull($published->get('workflow_state'));
+        self::assertSame($publishedRevisionBefore, (int) $published->get('revision_id'));
+        $draft = $repository->find($draftId);
+        self::assertNotNull($draft);
+        self::assertNull($draft->get('workflow_state'));
+
+        // The abort applies before the dry-run branch too — a dry run
+        // against the same shape surfaces the same hard error.
+        $dryTester = CliTester::for($this->makeDefinition(), $this->makeContainer($entityTypeManager));
+        $dryTester->executeMap(['entity_type' => self::ENTITY_TYPE_ID, 'workflow_id' => 'custom_live', '--dry-run' => true]);
+        self::assertSame(1, $dryTester->getExitCode());
+        self::assertStringContainsString('no state with published: true AND default_revision: true', $dryTester->getOutput());
+    }
+
+    #[Test]
+    public function it_proceeds_with_a_notice_when_the_workflow_lacks_a_published_default_revision_state_but_no_published_rows_need_backfill(): void
+    {
+        // The companion branch of the panel critical fix: with NO status=1
+        // rows missing workflow_state, initial_state-only stamping is
+        // unambiguous — proceed, but say explicitly that no published-target
+        // state exists.
+        [$entityTypeManager, $repository] = $this->bootEntityTypeManager();
+        $this->saveWorkflowWithoutPublishedDefaultRevisionState($entityTypeManager);
+
+        [$draftId] = $this->createLegacyRow($repository, 'article', 0);
+        // A status=1 row that ALREADY carries a state is skipped, so it must
+        // not trigger the abort.
+        $alreadyLive = new BackfillSubject(
+            ['kind' => 'article', 'title' => 'Already live', 'status' => 1, 'workflow_state' => 'live'],
+            self::ENTITY_TYPE_ID,
+            $this->entityKeys(),
+        );
+        $repository->save($alreadyLive);
+
+        $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($entityTypeManager));
+        $tester->executeMap(['entity_type' => self::ENTITY_TYPE_ID, 'workflow_id' => 'custom_live']);
+
+        self::assertSame(0, $tester->getExitCode());
+        $output = $tester->getStdout();
+        self::assertStringContainsString('no published default_revision state', $output);
+        self::assertStringContainsString('backfilled 1', $output);
+        self::assertStringContainsString('skipped 1', $output);
+        self::assertStringContainsString('backfilled 1 row(s) to "draft"', $output);
+
+        $draft = $repository->find($draftId);
+        self::assertNotNull($draft);
+        self::assertSame('draft', $draft->get('workflow_state'));
+        self::assertSame('live', $repository->find((string) $alreadyLive->id())?->get('workflow_state'));
+    }
+
+    #[Test]
     public function it_reports_partial_failure_and_exits_nonzero(): void
     {
         // R16 fail-fast lesson: a bulk operator command must surface a
@@ -357,7 +465,7 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
         );
 
         $definition = $this->createMock(EntityTypeInterface::class);
-        $definition->method('getKeys')->willReturn(['bundle' => 'bundle']);
+        $definition->method('getKeys')->willReturn(['bundle' => 'kind']);
 
         $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
         $entityTypeManager->method('hasDefinition')->willReturnCallback(

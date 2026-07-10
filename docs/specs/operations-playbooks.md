@@ -278,7 +278,7 @@ step before it is deliberately incomplete, not because of process ceremony.
 1. **Deploy WP-2 code.** Nothing below is safe to run against the old code.
 2. **`bin/waaseyaa migrate:up`** — applies the node revision-schema migration
    (`packages/node/migrations/2026_07_06_000001_node_revision_schema.php`):
-   creates the `node__revision` table and the base `revision_id` pointer
+   creates the `node_revision` table and the base `revision_id` pointer
    column. Idempotent and half-applied-state safe — safe to re-run if a prior
    deploy died partway through.
 3. **`bin/waaseyaa revisions:enable node`** — REQUIRED, not conditional. Step
@@ -302,6 +302,61 @@ step before it is deliberately incomplete, not because of process ceremony.
    Repeat per bundle with `--bundle=<type>` if different content types need
    different workflows. This step is what step 5 depends on — see the first
    failure mode below.
+
+   *What gets written:* the command stamps `workflow_state` on the node's
+   **base row and its current/tip revision row** (the non-revision-creating
+   save path updates both in one write) — it creates no new revisions, and
+   it does not retroactively touch older revision rows. Right after step 3
+   the tip IS the only revision, so everything is coherent; in the general
+   case an older, unstamped revision row is harmless because
+   `WorkflowStateGuard::pointerStatus()` treats a pointer revision whose
+   `workflow_state` is unknown to the workflow by copying its own stored
+   `status` column — an unstamped revision never reports a wrong derived
+   status.
+
+   *Custom workflows:* the command fails fast (nonzero exit, zero writes —
+   dry-run included) if the named workflow defines no state that is BOTH
+   `published: true` AND `default_revision: true` while published (`status =
+   1`) rows still need backfilling — on such a workflow shape it has no
+   published target and refuses to silently stamp published content with
+   `initial_state`. Fix the workflow definition (flag its live state
+   `default_revision: true`) or pre-stamp those rows manually, then re-run.
+   When no published rows need backfilling it proceeds with an explicit
+   notice instead. The shipped `editorial` workflow is unaffected
+   (`published` carries both flags).
+
+   **Warning — previously-archived content collapses into `draft`.** The
+   backfill can only read `status`, and `status = 0` covers BOTH
+   never-published drafts AND content that was deliberately retired
+   (unpublished/archived) under the old model. Both backfill to
+   `initial_state` (`draft` on `editorial`) — after the backfill, retired
+   content is indistinguishable from new never-reviewed content: it shows up
+   in the same editorial queues, and an editor can republish it through the
+   normal review path without ever learning it was retired. If your site
+   used unpublishing as archiving, identify the retired rows BEFORE running
+   the backfill (the criteria are site-specific — an "archived" taxonomy
+   term, a path pattern, a cutoff date, an editorial log) and pre-stamp them
+   `archived` yourself. The backfill skips every row that already carries a
+   non-empty `workflow_state`, so pre-stamping is safe, idempotent-friendly,
+   and survives re-runs. Template SQL for node (`workflow_state` is a
+   `FieldStorage::Data` field — it lives in the `_data` JSON blob of the
+   `node` base table, NOT in a dedicated column; same `json_set` technique
+   as the `NodeType` fix below). Stamp the base row and, for revision-axis
+   coherence, the current revision row it points at:
+   ```sql
+   -- Base rows (adjust the WHERE to your site's retirement criteria):
+   UPDATE node SET _data = json_set(_data, '$.workflow_state', 'archived')
+   WHERE status = 0 AND nid IN (/* retired nids */)
+     AND (json_extract(_data, '$.workflow_state') IS NULL
+          OR json_extract(_data, '$.workflow_state') = '');
+   -- Matching current revision rows (node_revision._data mirrors the base row):
+   UPDATE node_revision SET _data = json_set(_data, '$.workflow_state', 'archived')
+   WHERE entity_id IN (/* retired nids */)
+     AND revision_id IN (SELECT revision_id FROM node WHERE nid = node_revision.entity_id);
+   ```
+   Skipping the revision-row UPDATE is tolerable (the guard's stored-status
+   fallback keeps derived `status` truthful, per "What gets written" above)
+   but stamping both keeps the revision axis coherent from day one.
 5. **Only THEN add the `workflows.assignments` binding** (e.g.
    `node.article => editorial`) and deploy/import that config. Binding
    earlier makes step 4 partially retroactive at best and actively dangerous
@@ -365,7 +420,7 @@ for bundles where the answer actually matters to the operator.
 
 **Revision-pruning stance for WP-2 (explicit, by user requirement).** With
 `revisionDefault: true`, every ordinary node save creates a revision — the
-`node__revision` table grows unbounded by design once WP-2 ships; nothing in
+`node_revision` table grows unbounded by design once WP-2 ships; nothing in
 the framework prunes it automatically. What ships today:
 - `EntityRepository::pruneRevisions(string $entityId, RevisionPruningPolicy $policy)`
   ([packages/entity-storage/src/EntityRepository.php](../../packages/entity-storage/src/EntityRepository.php))

@@ -43,6 +43,19 @@ use Waaseyaa\Workflows\Workflow;
  * alone and are conservatively backfilled to `initial_state`, exactly like
  * every other unpublished row).
  *
+ * Fail-fast on ambiguous workflow shapes (adversarial-panel critical fix):
+ * a workflow may legally define no published+`default_revision: true` state
+ * at all ({@see \Waaseyaa\Workflows\Validation\WorkflowValidator} accepts
+ * e.g. a `published: true, default_revision: false` live state). On such a
+ * workflow the status-derived routing above has no published target, so
+ * genuinely-published rows would be silently mislabeled with
+ * `initial_state`. The command therefore aborts (nonzero, zero writes,
+ * dry-run included) when at least one status=1 row needs backfilling;
+ * when none do, it proceeds — initial_state-only stamping is unambiguous —
+ * with an explicit notice that no published-target state exists. Both real
+ * and dry-run output always break the counts down per target state so the
+ * routing is visible.
+ *
  * No revision churn: each save explicitly disables new-revision creation
  * (`setNewRevision(false)`) regardless of the entity type's
  * `revisionDefault` — a bulk state stamp is not new editorial content and
@@ -128,16 +141,13 @@ final class WorkflowsBackfillStateHandler
         }
         $ids = $query->execute();
 
+        // Phase 1 — classify only, zero writes. The write phase runs strictly
+        // after the workflow-shape fail-fast check below, so an abort can
+        // guarantee nothing was modified.
         $examined = 0;
-        $backfilled = 0;
         $skipped = 0;
-        $failed = 0;
-        /** @var array<string, int> $targetCounts */
-        $targetCounts = [];
-        /** @var array<string, list<string>> $targetSamples */
-        $targetSamples = [];
-        /** @var list<string> $failures */
-        $failures = [];
+        /** @var list<array{id: string, target: string, published: bool}> $pending */
+        $pending = [];
 
         foreach ($ids as $id) {
             $id = (string) $id;
@@ -153,38 +163,60 @@ final class WorkflowsBackfillStateHandler
                 continue;
             }
 
-            $targetState = $this->targetStateFor($entity, $publishedDefaultState, $initialState);
-            $targetCounts[$targetState] = ($targetCounts[$targetState] ?? 0) + 1;
-            if (\count($targetSamples[$targetState] ?? []) < self::SAMPLE_LIMIT) {
-                $targetSamples[$targetState][] = $id;
-            }
-
-            if ($dryRun) {
-                continue;
-            }
-
-            try {
-                $entity->set('workflow_state', $targetState);
-                $this->disableNewRevision($entity);
-                // No validation: this is a system field stamp on legacy
-                // content, not a user-facing edit — validating unrelated
-                // fields on old rows would reject rows the operator cannot
-                // fix from this command.
-                $repository->save($entity, false);
-                ++$backfilled;
-            } catch (\Throwable $e) {
-                ++$failed;
-                $failures[] = \sprintf('id %s: %s', $id, $e->getMessage());
-                $this->logger?->error(\sprintf(
-                    'workflows:backfill-state failed for %s/%s: %s',
-                    $entityTypeId,
-                    $id,
-                    $e->getMessage(),
-                ));
-            }
+            $isPublished = (int) $entity->get('status') === 1;
+            $pending[] = [
+                'id' => $id,
+                'target' => $isPublished && $publishedDefaultState !== null ? $publishedDefaultState : $initialState,
+                'published' => $isPublished,
+            ];
         }
 
         $label = $bundle !== null ? \sprintf('%s.%s', $entityTypeId, $bundle) : $entityTypeId;
+
+        // Fail-fast (task 2.7 adversarial-panel critical fix): a workflow with
+        // NO published+default_revision:true state is a shape WorkflowValidator
+        // accepts, and on it the status-derived routing above sends EVERY row
+        // — genuinely-published status=1 rows included — to initial_state.
+        // Silently stamping published content as e.g. 'draft' and exiting 0 is
+        // exactly the mislabeling this command exists to prevent, so: abort
+        // (before the dry-run branch too — a dry run must surface the same
+        // hard error) whenever at least one status=1 row needs backfilling.
+        // With no such rows, initial_state-only stamping is unambiguous —
+        // proceed, but say explicitly that no published-target state exists.
+        if ($publishedDefaultState === null) {
+            $publishedPending = \count(\array_filter($pending, static fn(array $p): bool => $p['published']));
+            if ($publishedPending > 0) {
+                $io->error(\sprintf(
+                    'Workflow "%s" defines no state with published: true AND default_revision: true, but %d published '
+                    . 'row(s) (status = 1) of %s are missing workflow_state. Refusing to stamp published content with '
+                    . 'initial_state "%s". Fix the workflow definition (flag its live state default_revision: true), '
+                    . 'or pre-stamp those rows manually, then re-run. No rows were modified.',
+                    $workflowId,
+                    $publishedPending,
+                    $label,
+                    $initialState,
+                ));
+
+                return 1;
+            }
+
+            $io->writeln(\sprintf(
+                'Notice: workflow "%s" defines no published default_revision state; every backfilled row receives initial_state "%s".',
+                $workflowId,
+                $initialState,
+            ));
+        }
+
+        /** @var array<string, int> $targetCounts */
+        $targetCounts = [];
+        /** @var array<string, list<string>> $targetSamples */
+        $targetSamples = [];
+        foreach ($pending as $p) {
+            $targetCounts[$p['target']] = ($targetCounts[$p['target']] ?? 0) + 1;
+            if (\count($targetSamples[$p['target']] ?? []) < self::SAMPLE_LIMIT) {
+                $targetSamples[$p['target']][] = $p['id'];
+            }
+        }
 
         if ($dryRun) {
             $io->writeln(\sprintf(
@@ -192,7 +224,7 @@ final class WorkflowsBackfillStateHandler
                 $label,
                 $workflowId,
                 $examined,
-                $examined - $skipped,
+                \count($pending),
                 $skipped,
             ));
             foreach ($targetCounts as $state => $count) {
@@ -201,6 +233,41 @@ final class WorkflowsBackfillStateHandler
             }
 
             return 0;
+        }
+
+        // Phase 2 — write.
+        $backfilled = 0;
+        $failed = 0;
+        /** @var array<string, int> $stateBackfilled */
+        $stateBackfilled = [];
+        /** @var list<string> $failures */
+        $failures = [];
+
+        foreach ($pending as $p) {
+            try {
+                $entity = $repository->find($p['id']);
+                if ($entity === null) {
+                    throw new \RuntimeException('row vanished between classification and write');
+                }
+                $entity->set('workflow_state', $p['target']);
+                $this->disableNewRevision($entity);
+                // No validation: this is a system field stamp on legacy
+                // content, not a user-facing edit — validating unrelated
+                // fields on old rows would reject rows the operator cannot
+                // fix from this command.
+                $repository->save($entity, false);
+                ++$backfilled;
+                $stateBackfilled[$p['target']] = ($stateBackfilled[$p['target']] ?? 0) + 1;
+            } catch (\Throwable $e) {
+                ++$failed;
+                $failures[] = \sprintf('id %s: %s', $p['id'], $e->getMessage());
+                $this->logger?->error(\sprintf(
+                    'workflows:backfill-state failed for %s/%s: %s',
+                    $entityTypeId,
+                    $p['id'],
+                    $e->getMessage(),
+                ));
+            }
         }
 
         $io->writeln(\sprintf(
@@ -212,8 +279,8 @@ final class WorkflowsBackfillStateHandler
             $skipped,
             $failed,
         ));
-        foreach ($targetCounts as $state => $count) {
-            $io->writeln(\sprintf('  -> %d row(s) targeted for "%s"', $count, $state));
+        foreach ($stateBackfilled as $state => $count) {
+            $io->writeln(\sprintf('  -> backfilled %d row(s) to "%s"', $count, $state));
         }
 
         if ($failed > 0) {
@@ -245,15 +312,6 @@ final class WorkflowsBackfillStateHandler
         }
 
         return [$publishedDefault, $workflow->getInitialState()];
-    }
-
-    private function targetStateFor(EntityInterface $entity, ?string $publishedDefaultState, string $initialState): string
-    {
-        if ($publishedDefaultState === null) {
-            return $initialState;
-        }
-
-        return (int) $entity->get('status') === 1 ? $publishedDefaultState : $initialState;
     }
 
     /**
