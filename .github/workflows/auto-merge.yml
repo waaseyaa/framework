@@ -1,149 +1,40 @@
 name: Auto-merge when green
 
+# Native GitHub auto-merge (#1934): this workflow only *enables* auto-merge on
+# labeled PRs. GitHub then re-evaluates as checks complete and merges when the
+# main-protection ruleset's required checks (ci/verify-gates, composer-policy,
+# ci/lint, ci/unit-tests, ci/playwright-smoke) pass — no fire-once race.
+
 on:
   pull_request:
-    types: [labeled, synchronize]
-  pull_request_review:
-    types: [submitted]
-  check_suite:
-    types: [completed]
+    types: [labeled]
   workflow_dispatch:
     inputs:
       pr_number:
-        description: 'PR number to check'
+        description: 'PR number to enable auto-merge on'
         required: true
         type: number
 
 permissions:
   contents: write
   pull-requests: write
-  checks: read
 
 jobs:
-  auto-merge:
-    name: Auto-merge eligible PRs
+  enable-auto-merge:
+    name: Enable native auto-merge
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'auto-merge-when-green'
     runs-on: ubuntu-latest
+    env:
+      # RELEASE_PAT (PAT) preferred: merges performed with the default token suppress
+      # main-push workflows (CI, Release Pipeline, admin-dist); a PAT-backed merge restores them. (#1934)
+      GH_TOKEN: ${{ secrets.RELEASE_PAT || github.token }}
+      PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
     steps:
-      - uses: actions/checkout@v7
-
-      - name: Resolve PR number
-        id: pr
-        uses: actions/github-script@v9
-        with:
-          # RELEASE_PAT (PAT) preferred: merges performed with the default token suppress
-          # main-push workflows (CI, Release Pipeline, admin-dist); a PAT-backed merge restores them. (#1934)
-          github-token: ${{ secrets.RELEASE_PAT || github.token }}
-          script: |
-            let prNumber;
-            if (context.payload.inputs?.pr_number) {
-              prNumber = parseInt(context.payload.inputs.pr_number);
-            } else if (context.payload.pull_request) {
-              prNumber = context.payload.pull_request.number;
-            } else if (context.payload.check_suite) {
-              const { data: prs } = await github.rest.pulls.list({
-                ...context.repo,
-                state: 'open',
-                head: `${context.repo.owner}:${context.payload.check_suite.head_branch}`,
-              });
-              prNumber = prs[0]?.number;
-            }
-            if (prNumber) core.setOutput('number', prNumber);
-            else core.info('No PR found for this event');
-
-      - name: Check eligibility and merge
-        if: steps.pr.outputs.number
-        uses: actions/github-script@v9
-        with:
-          # RELEASE_PAT (PAT) preferred: merges performed with the default token suppress
-          # main-push workflows (CI, Release Pipeline, admin-dist); a PAT-backed merge restores them. (#1934)
-          github-token: ${{ secrets.RELEASE_PAT || github.token }}
-          script: |
-            const prNumber = parseInt('${{ steps.pr.outputs.number }}');
-            const { owner, repo } = context.repo;
-
-            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: prNumber });
-
-            // Gate: label
-            if (!pr.labels.some(l => l.name === 'auto-merge-when-green')) {
-              core.info(`PR #${prNumber}: missing auto-merge-when-green label`);
-              return;
-            }
-
-            // Gate: open
-            if (pr.state !== 'open') {
-              core.info(`PR #${prNumber}: not open`);
-              return;
-            }
-
-            // Gate: mergeable
-            if (pr.mergeable === false) {
-              await github.rest.issues.createComment({
-                owner, repo, issue_number: prNumber,
-                body: '**Auto-merge blocked**: merge conflicts detected. Resolve and push to retry.',
-              });
-              return;
-            }
-
-            // Gate: required status checks
-            const { data: checks } = await github.rest.checks.listForRef({
-              owner, repo, ref: pr.head.sha,
-            });
-
-            const requiredChecks = [
-              'ci/lint',
-              'ci/unit-tests',
-              'ci/playwright-smoke',
-            ];
-
-            const results = {};
-            for (const c of checks.check_runs) results[c.name] = c.conclusion;
-
-            const failed = requiredChecks.filter(n => results[n] && results[n] !== 'success');
-            const pending = requiredChecks.filter(n => !results[n]);
-
-            if (failed.length > 0) {
-              core.info(`PR #${prNumber}: failed checks — ${failed.join(', ')}`);
-              return;
-            }
-            if (pending.length > 0) {
-              core.info(`PR #${prNumber}: pending checks — ${pending.join(', ')}`);
-              return;
-            }
-
-            // All gates passed — merge
-            try {
-              const { data: merge } = await github.rest.pulls.merge({
-                owner, repo, pull_number: prNumber,
-                merge_method: 'squash',
-                commit_title: `${pr.title} (#${prNumber})`,
-              });
-
-              const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
-              await github.rest.issues.createComment({
-                owner, repo, issue_number: prNumber,
-                body: [
-                  '**Auto-merged** by release automation.',
-                  '',
-                  `| Detail | Value |`,
-                  `|---|---|`,
-                  `| Merge SHA | \`${merge.sha}\` |`,
-                  `| Method | squash |`,
-                  `| CI Run | [${context.runId}](${runUrl}) |`,
-                  '',
-                  'All required status checks passed.',
-                ].join('\n'),
-              });
-
-              try {
-                await github.rest.issues.removeLabel({
-                  owner, repo, issue_number: prNumber,
-                  name: 'auto-merge-when-green',
-                });
-              } catch {}
-            } catch (error) {
-              core.setFailed(`Merge failed: ${error.message}`);
-              await github.rest.issues.createComment({
-                owner, repo, issue_number: prNumber,
-                body: `**Auto-merge failed**: ${error.message}`,
-              });
-            }
+      - name: Enable auto-merge (squash)
+        run: |
+          set -euo pipefail
+          # --auto errors if the PR is already in clean (mergeable) status;
+          # in that case merge immediately instead.
+          if ! gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --squash; then
+            gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --squash
+          fi
