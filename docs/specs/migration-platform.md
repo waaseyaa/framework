@@ -404,6 +404,17 @@ non-null, resolves the destination entity type's bundle key
 5. `upsert` the id-map row with the new `source_record_hash`.
 6. Return a `WriteResult`.
 
+**Rerun-hash disclosure (G-015).** `source_record_hash` is computed by
+`EntityDestination::computeSourceRecordHash()` over `{values, bundle,
+langcode}` — `DestinationRecord::$bundle` is one of the folded fields (G-015
+threaded it into every record the runner builds; see the CHANGELOG entry).
+Consequently, adding a `bundle` to an existing migration definition that
+previously ran without one changes every record's hash: an in-place re-run
+over an existing id-map no longer sees any row as unchanged, so every record
+takes the update path (step 1's no-op branch never matches) and — on a
+revisionable destination type — gets a new revision per record on that one
+rerun, even though the underlying source values didn't change.
+
 ### 7.3 Rollback path (FR-035, FR-041–FR-044)
 
 `EntityDestination::rollback(WriteResult $result)` deletes the destination
@@ -438,13 +449,40 @@ argument — `hasPermission()` is a strict membership test against an
 injected permission list, never a blanket grant. Its default permission,
 `MigrationSystemAccount::DEFAULT_PERMISSIONS` (`['administer content']`),
 is exactly what `Waaseyaa\Access\Policy\ContentAdminAccessPolicy` requires
-to grant manage + create on any entity type in the `content` group; apps
-importing into types guarded by other policies (e.g. `node`'s
-`administer nodes` / per-bundle `create X content`) construct it with the
-extra permissions those policies require. `Waaseyaa\User\DevAdminAccount`
-remains strictly dev-only (SAPI-guarded, blanket `hasPermission() === true`)
-and must never be wired as a migration run's account outside local
-development.
+to grant manage + create on any entity type in the `content` group — this
+already covers `node` (`NodeAccessPolicy::createAccess()` never returns
+`Forbidden`, so the group-wide grant is never overridden; `node`'s own
+`administer nodes` is not additionally required). Entity types OUTSIDE the
+`content` group are ungoverned by `ContentAdminAccessPolicy`
+(`appliesTo()` is scoped by group) and need their own admin permission: a
+WordPress-shaped import (posts → `node`, terms → `taxonomy_term`,
+attachments → `media`) needs the trio
+`['administer content', 'administer taxonomy', 'administer media']` —
+`'administer taxonomy'` (`Waaseyaa\Taxonomy\TermAccessPolicy`) and
+`'administer media'` (`Waaseyaa\Media\MediaAccessPolicy`) are the exact
+strings those policies check.
+
+**Per-bundle create permissions do not work on the import path, for any
+account.** `EntityAccessGate::allows('create', ...)`
+(`packages/access/src/Gate/EntityAccessGate.php`, see its own `@todo`)
+hardcodes bundle `''` when it calls `checkCreateAccess()`, so a permission
+like `'create article content'` or `'create terms in tags'` can never match
+through the gate `EntityDestination` consults — only entity-type/group-wide
+admin permissions grant import writes, until `GateInterface` grows a
+bundle-aware create subject. Do not recommend per-bundle permissions as a
+least-privilege alternative for import accounts; they are silently inert.
+
+`Waaseyaa\User\DevAdminAccount` remains strictly dev-only (SAPI-guarded,
+blanket `hasPermission() === true`) and must never be wired as a migration
+run's account outside local development. Separately, `MigrationSystemAccount`
+must never be installed as the kernel's ambient `AccountContext` — its
+`id()` is the string sentinel `'migration:system'`, and actor-resolution
+call sites such as `EntityRepository::resolveActor()`
+(`packages/entity-storage/src/EntityRepository.php`) cast the ambient
+account's `id()` to `int`; `(int) 'migration:system'` is `0`, which collides
+with `AnonymousUser`'s sentinel id `0`. Pass it only as `EntityDestination`'s
+`$account` argument, which the gate consults directly and never casts to
+int.
 
 ---
 
