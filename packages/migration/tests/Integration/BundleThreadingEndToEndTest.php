@@ -27,7 +27,7 @@ use Waaseyaa\Migration\Runner\ProcessChainExecutor;
 use Waaseyaa\Migration\Runner\RunOptions;
 use Waaseyaa\Migration\Schema\MigrationIdMapSchema;
 use Waaseyaa\Migration\Tests\Fixtures\AllowAllPolicy;
-use Waaseyaa\Migration\Tests\Fixtures\MigrationSystemAccount;
+use Waaseyaa\Migration\Account\MigrationSystemAccount;
 use Waaseyaa\Migration\Tests\Fixtures\MigrationTestWidget;
 use Waaseyaa\Migration\Tests\Fixtures\MigrationTestWidgetType;
 
