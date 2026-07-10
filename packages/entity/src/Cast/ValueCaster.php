@@ -366,10 +366,19 @@ final class ValueCaster
     /**
      * @param string|array<string, mixed> $castSpec
      *
-     * @return int|string
+     * @return int|string|null
      */
-    private function castOutDateTimeImmutable(string $field, mixed $domain, string|array $castSpec): int|string
+    private function castOutDateTimeImmutable(string $field, mixed $domain, string|array $castSpec): int|string|null
     {
+        // G-028: null tolerance also lives here, not only in castOut()'s top-level guard —
+        // this keeps the helper itself null-safe regardless of caller. WordPress corpora
+        // (Sheguiandah pass-1) produce records with no modified date at all; Node's
+        // created/changed casts (['type' => 'datetime_immutable', 'storage' => 'unix'])
+        // must tolerate that as null in / null out rather than throwing.
+        if ($domain === null) {
+            return null;
+        }
+
         $storage = $this->resolveDatetimeStorageFormat($field, $castSpec);
         $immutable = $this->normalizeDomainToDateTimeImmutable($field, $domain);
 
