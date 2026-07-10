@@ -363,6 +363,19 @@ workflow," for the full follow-up scope.
    established count, and any per-row pointer-establishment failure feeds
    the same failure accounting (and nonzero exit) as the state-stamp phase.
 
+   *Revision-restore paths preserve the pointer (WP-2 rework fix, review
+   finding I-1):* once this phase has established `published_revision_id`,
+   the two sanctioned CONTENT-restore paths —
+   `EntityRepository::rollback()` and `EntityRepository::setCurrentRevision()`,
+   also exposed via the MCP/AI tools `entity.rollback` and
+   `entity.set_current_revision` — never move the published pointer or flip
+   `status` as a side effect of restoring old content. They restore the
+   target revision's field values only; the live base row's
+   `published_revision_id`/`status` ride through unchanged (or the new
+   revision they create records the live pointer/status, not a stale frozen
+   one). Moving the published pointer or flipping status remains exclusively
+   `TransitionService`'s job (CW-v1 decision 2).
+
    *Custom workflows:* the command fails fast (nonzero exit, zero writes —
    dry-run included) if the named workflow defines no state that is BOTH
    `published: true` AND `default_revision: true` while published (`status =
@@ -425,6 +438,19 @@ workflow," for the full follow-up scope.
    partially retroactive at best and actively dangerous at worst (see
    failure modes below).
 
+   **Evaluation-binding caveat (review finding I-2).** Under a binding, the
+   deferred write-side field allowlist (docs/specs/content-workflow.md,
+   "Deferred: forward drafts on the shipped workflow") means the JSON:API
+   write path applies every attribute in a `PATCH` body with no allowlist on
+   the pointer columns. An account holding only entity `update` permission —
+   no publish/transition permission at all — can `PATCH
+   {"published_revision_id": N}` (or `revision_id` on a non-revision save)
+   directly, bypassing `WorkflowStateGuard`/`TransitionService` entirely:
+   this can corrupt the published pointer or resurrect/unpublish content
+   outright. This is why evaluation binding is scoped to non-production
+   environments with trusted accounts only — the fix (a write-side field
+   allowlist) is deferred to the option-1 follow-up, not shipped here.
+
 **Failure mode 1 — binding before backfill.** `TransitionService::currentState()`
 and `WorkflowStateGuard::stateOf()` both fall back to the workflow's
 `initial_state` when `workflow_state` is empty. Bind the workflow before
@@ -443,8 +469,9 @@ any transitions attempted in between were evaluated against the wrong
 
 **Failure mode 2 — binding a non-revisionable type.** `WorkflowBindingResolver::
 resolve()` hard-throws (`\RuntimeException`) when a `workflows.assignments`
-entry names an entity type that is not revisionable. This fails LOUDLY, at
-step 5, the moment the binding is read — not silently, and not at step 4.
+entry names an entity type that is not revisionable. This fails LOUDLY, the
+moment a binding is added and read (permitted only outside production, see
+step 5) — not silently, and not at step 4.
 Mis-ordering step 5 before step 2/3 (binding a type before its revision
 schema/history exist) is therefore self-correcting for this specific error
 class: the throw is the signal to go back and run steps 2–4 first. It is
