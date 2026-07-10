@@ -462,15 +462,30 @@ attachments → `media`) needs the trio
 `'administer media'` (`Waaseyaa\Media\MediaAccessPolicy`) are the exact
 strings those policies check.
 
-**Per-bundle create permissions do not work on the import path, for any
-account.** `EntityAccessGate::allows('create', ...)`
-(`packages/access/src/Gate/EntityAccessGate.php`, see its own `@todo`)
-hardcodes bundle `''` when it calls `checkCreateAccess()`, so a permission
-like `'create article content'` or `'create terms in tags'` can never match
-through the gate `EntityDestination` consults — only entity-type/group-wide
-admin permissions grant import writes, until `GateInterface` grows a
-bundle-aware create subject. Do not recommend per-bundle permissions as a
-least-privilege alternative for import accounts; they are silently inert.
+**Per-bundle create permissions work on the import path when the migration
+definition declares a bundle** (GitHub #1946). `EntityDestination::write()`
+resolves the destination entity's bundle-key value (populated from
+`DestinationRecord::$bundle`, set by process plugins per the migration
+definition) via a private `buildCreateSubject()` helper, and — when the
+destination entity type declares a bundle key and the value is non-empty —
+calls `EntityAccessGate::allows('create', ['entity_type' => ..., 'bundle' =>
+...], $account)` instead of the bundle-less string form. `EntityAccessGate`
+forwards the bundle straight into `EntityAccessHandler::checkCreateAccess()`,
+so a permission like `'create article content'`
+(`Waaseyaa\Node\NodeAccessPolicy::createAccess()`) or `'create terms in
+tags'` (`Waaseyaa\Taxonomy\TermAccessPolicy`) now matches through the gate
+for definitions that carry a bundle. A least-privilege import account can
+therefore hold exactly `['create article content']` rather than
+`'administer content'` when its definition writes a single known bundle.
+
+When the destination entity type has no bundle key, or the record does not
+carry one (`DestinationRecord::$bundle === null`), `EntityDestination` falls
+back to the original bundle-less string subject
+(`checkCreateAccess($entityType, '', $account)`) — unchanged from before
+#1946. Bundle-less migrations still need the entity-type/group-wide admin
+permissions (`administer content` / `administer taxonomy` / `administer
+media`) described above; the trio remains the correct grant for those
+imports.
 
 `Waaseyaa\User\DevAdminAccount` remains strictly dev-only (SAPI-guarded,
 blanket `hasPermission() === true`) and must never be wired as a migration

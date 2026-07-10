@@ -16,6 +16,9 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * Translates gate ability checks into EntityAccessHandler calls:
  * - Entity subject → check($entity, $ability, $account)
  * - String subject + "create" → checkCreateAccess($entityTypeId, '', $account)
+ *   (bundle-less form, preserved for backward compatibility)
+ * - array{entity_type: string, bundle: string} subject + "create" →
+ *   checkCreateAccess($entityTypeId, $bundle, $account) (bundle-aware form)
  * - String subject + other ability → denied (instance required)
  */
 final class EntityAccessGate implements GateInterface
@@ -56,9 +59,6 @@ final class EntityAccessGate implements GateInterface
         }
 
         if (is_string($subject) && $ability === 'create') {
-            // @todo Bundle is not conveyed through GateInterface; empty string used.
-            // When bundle-aware create policies are added, this adapter will need
-            // richer subject structures (e.g., ['entity_type' => 'node', 'bundle' => 'article']).
             try {
                 return $this->handler->checkCreateAccess($subject, '', $user)->isAllowed();
             } catch (\Throwable $e) {
@@ -71,6 +71,34 @@ final class EntityAccessGate implements GateInterface
                 ));
                 return false;
             }
+        }
+
+        if (is_array($subject) && $ability === 'create') {
+            $entityType = $subject['entity_type'] ?? null;
+            $bundle = $subject['bundle'] ?? null;
+
+            if (is_string($entityType) && $entityType !== '' && is_string($bundle)) {
+                try {
+                    return $this->handler->checkCreateAccess($entityType, $bundle, $user)->isAllowed();
+                } catch (\Throwable $e) {
+                    $this->logger->error(sprintf(
+                        'EntityAccessGate: create access check threw %s for ability "%s" on "%s"/"%s": %s',
+                        $e::class,
+                        $ability,
+                        $entityType,
+                        $bundle,
+                        $e->getMessage(),
+                    ));
+                    return false;
+                }
+            }
+
+            $this->logger->warning(sprintf(
+                'EntityAccessGate: array subject for ability "%s" must be shaped as '
+                    . '[\'entity_type\' => string, \'bundle\' => string]; denying.',
+                $ability,
+            ));
+            return false;
         }
 
         // This adapter only handles EntityInterface and string-typed create checks.

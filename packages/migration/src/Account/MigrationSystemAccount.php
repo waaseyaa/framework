@@ -45,17 +45,24 @@ use Waaseyaa\Access\AccountInterface;
  * common content-only case; construct with the extra permissions your
  * migration's destination entity types require.
  *
- * **Per-bundle create permissions do not work through this account, or any
- * account, on the import path.** `EntityAccessGate::allows('create', ...)`
- * (`packages/access/src/Gate/EntityAccessGate.php`) hardcodes bundle `''`
- * when it calls `checkCreateAccess()` — see that method's own `@todo`. A
- * permission like `'create article content'`, `'create terms in tags'`, or a
- * per-bundle media create permission can therefore NEVER match through the
- * gate `EntityDestination` consults; only entity-type/group-wide admin
+ * **Per-bundle create permissions work through this account, or any account,
+ * on the import path when the migration definition declares a bundle**
+ * (GitHub #1946). `EntityDestination::buildCreateSubject()`
+ * (`packages/migration/src/Plugin/Destination/EntityDestination.php`) reads
+ * the destination entity type's bundle key off the entity being written —
+ * populated from `DestinationRecord::$bundle` in `applyValuesToEntity()` —
+ * and, when present, passes `EntityAccessGate::allows('create', ['entity_type'
+ * => ..., 'bundle' => ...], ...)`. `EntityAccessGate` forwards that bundle
+ * straight into `EntityAccessHandler::checkCreateAccess()`, so a permission
+ * like `'create article content'`, `'create terms in tags'`, or a per-bundle
+ * media create permission now matches through the gate for definitions that
+ * set a bundle. When the destination entity type has no bundle key, or the
+ * record does not carry one, `EntityDestination` falls back to the original
+ * bundle-less string subject (`checkCreateAccess($entityType, '', ...)`), so
+ * bundle-less migrations still need the entity-type/group-wide admin
  * permissions (`administer content` / `administer taxonomy` /
- * `administer media`, or a hand-written policy with no bundle check) grant
- * import writes. This is fixed only if/when `GateInterface` grows a
- * bundle-aware create subject.
+ * `administer media`) described above — the trio remains the correct grant
+ * for those imports.
  *
  * **Never install this account into the kernel `AccountContext`.** Callers
  * such as `EntityRepository::resolveActor()`

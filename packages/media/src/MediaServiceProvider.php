@@ -4,21 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Media;
 
-use Waaseyaa\Audit\Contract\AuditWriterInterface;
-use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityType;
-use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
-use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
-use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Media\Http\Router\MediaRouter;
-use Waaseyaa\Media\Version\ContentAddressedFileRepositoryDecorator;
-use Waaseyaa\Media\Version\MediaCascadeDeleteSubscriber;
-use Waaseyaa\Media\Version\MediaVersionRepository;
-use Waaseyaa\Media\Version\MediaVersionStorageDriver;
 use Waaseyaa\Media\Version\MediaVersionType;
 
 final class MediaServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface
@@ -64,55 +54,56 @@ final class MediaServiceProvider extends ServiceProvider implements HasHttpDomai
     {
         // WP02 (versioned-blob-media-abstraction-01KSEFTJ): wire versioning subscribers.
         //
-        // KNOWINGLY LEFT DEAD (WP4 framework-wide dead-subscriber sweep,
-        // audit-remediation batch 2026-07-01/02): this resolves the
-        // foundation `Waaseyaa\Foundation\Event\EventDispatcherInterface`
-        // FQCN, which `ProviderRegistryKernelServices::get()` never serves
-        // (the bus serves the dispatcher only under the Symfony-contracts
-        // FQCN — see RelationshipServiceProvider::boot() / #1852 for the
-        // working pattern). `resolveOptional()` therefore returns null here
-        // and MediaVersionStorageDriver + MediaCascadeDeleteSubscriber never
-        // register in a real kernel boot.
+        // RE-PARKED (GitHub #1946, shipped-regression fix): this used to be
+        // KNOWINGLY LEFT DEAD by resolving the foundation
+        // `Waaseyaa\Foundation\Event\EventDispatcherInterface` FQCN, which
+        // `ProviderRegistryKernelServices::get()` did not serve at the time
+        // (WP4 framework-wide dead-subscriber sweep, audit-remediation batch
+        // 2026-07-01/02). GitHub #1942 (G-025, shipped alpha.259) widened
+        // the bus to also serve the dispatcher under the foundation FQCN, so
+        // `resolveOptional()` below started returning a real dispatcher and
+        // `addSubscriber()` LIVE-ACTIVATED `MediaVersionStorageDriver` and
+        // `MediaCascadeDeleteSubscriber` in every production kernel boot —
+        // an unintended side effect of #1942, not a deliberate decision.
         //
-        // This is deliberate, not an oversight: re-keying this resolution to
-        // the served Symfony-contracts FQCN would part-activate the
-        // versioned-blob-media subsystem (WP01/WP02 of
-        // versioned-blob-media-abstraction-01KSEFTJ) — including cascade
-        // deletes of media version blobs — before the finish-or-park
-        // decision tracked in #1742 is resolved. Activating a data-lossy
-        // cascade-delete subscriber as a side effect of an unrelated
-        // dispatcher-key sweep is out of scope and unsafe. WP4 explicitly
-        // chose to leave this dead until #1742 lands a real decision.
+        // This is still unsafe: activating the versioned-blob-media
+        // subsystem's cascade-delete subscriber ahead of the finish-or-park
+        // decision tracked in #1742 risks data-lossy cascade deletes of
+        // media version blobs. This early return re-parks it explicitly and
+        // unconditionally — it does not depend on which FQCN the bus does
+        // or does not serve, so a future dispatcher-key-serving change
+        // cannot silently re-activate this again.
         //
-        // Do NOT re-key this resolution without first reading #1742 and the
-        // versioned-blob-media-abstraction-01KSEFTJ spec.
-        $dispatcher = $this->resolveOptional(EventDispatcherInterface::class);
-        if (!$dispatcher instanceof EventDispatcherInterface) {
-            return;
-        }
-
-        $db = $this->resolveOptional(DatabaseInterface::class);
-        $auditWriter = $this->resolveOptional(AuditWriterInterface::class);
-        $logger = $this->resolveOptional(LoggerInterface::class);
-        $resolvedLogger = $logger instanceof LoggerInterface ? $logger : null;
-
-        if ($db instanceof DatabaseInterface) {
-            $etm = $this->resolveOptional(EntityTypeManager::class);
-            $entityRepo = $etm instanceof EntityTypeManager
-                ? $etm->getRepository('media_version')
-                : null;
-
-            if ($entityRepo instanceof EntityRepositoryInterface) {
-                $cas = new ContentAddressedFileRepositoryDecorator(new InMemoryFileRepository());
-                $versionRepo = new MediaVersionRepository($entityRepo, $db, $resolvedLogger);
-
-                if ($auditWriter instanceof AuditWriterInterface) {
-                    $driver = new MediaVersionStorageDriver($versionRepo, $cas, $auditWriter, $resolvedLogger);
-                    $dispatcher->addSubscriber($driver);
-                }
-
-                $dispatcher->addSubscriber(new MediaCascadeDeleteSubscriber($versionRepo, $resolvedLogger));
-            }
-        }
+        // Do NOT remove this early return without first reading #1742 and
+        // the versioned-blob-media-abstraction-01KSEFTJ spec.
+        //
+        // The wiring this used to perform, kept here for reference so a
+        // future finish-or-park decision on #1742 does not have to
+        // reconstruct it from scratch:
+        //
+        //   $dispatcher = $this->resolveOptional(EventDispatcherInterface::class);
+        //   if (!$dispatcher instanceof EventDispatcherInterface) {
+        //       return;
+        //   }
+        //   $db = $this->resolveOptional(DatabaseInterface::class);
+        //   $auditWriter = $this->resolveOptional(AuditWriterInterface::class);
+        //   $logger = $this->resolveOptional(LoggerInterface::class);
+        //   $resolvedLogger = $logger instanceof LoggerInterface ? $logger : null;
+        //   if ($db instanceof DatabaseInterface) {
+        //       $etm = $this->resolveOptional(EntityTypeManager::class);
+        //       $entityRepo = $etm instanceof EntityTypeManager
+        //           ? $etm->getRepository('media_version')
+        //           : null;
+        //       if ($entityRepo instanceof EntityRepositoryInterface) {
+        //           $cas = new ContentAddressedFileRepositoryDecorator(new InMemoryFileRepository());
+        //           $versionRepo = new MediaVersionRepository($entityRepo, $db, $resolvedLogger);
+        //           if ($auditWriter instanceof AuditWriterInterface) {
+        //               $driver = new MediaVersionStorageDriver($versionRepo, $cas, $auditWriter, $resolvedLogger);
+        //               $dispatcher->addSubscriber($driver);
+        //           }
+        //           $dispatcher->addSubscriber(new MediaCascadeDeleteSubscriber($versionRepo, $resolvedLogger));
+        //       }
+        //   }
+        return;
     }
 }

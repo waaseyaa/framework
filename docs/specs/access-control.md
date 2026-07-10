@@ -306,8 +306,9 @@ final class EntityAccessGate implements GateInterface
 Adapter that bridges `GateInterface` to `EntityAccessHandler`, reusing existing `AccessPolicyInterface` policies. Translation logic:
 
 - `allows($ability, EntityInterface $subject, AccountInterface $user)` → `$handler->check($subject, $ability, $user)->isAllowed()`
-- `allows('create', string $entityTypeId, AccountInterface $user)` → `$handler->checkCreateAccess($entityTypeId, '', $user)->isAllowed()`
-- String subject + non-`create` ability → `false` (instance required for view/update/delete)
+- `allows('create', string $entityTypeId, AccountInterface $user)` → `$handler->checkCreateAccess($entityTypeId, '', $user)->isAllowed()` — the bundle-less form, bundle `''`, kept for backward compatibility
+- `allows('create', ['entity_type' => string, 'bundle' => string], AccountInterface $user)` → `$handler->checkCreateAccess($entityType, $bundle, $user)->isAllowed()` — the bundle-aware form (GitHub #1946). Both `entity_type` and `bundle` must be strings and `entity_type` non-empty, or the array subject is treated as malformed (see below). `EntityDestination::buildCreateSubject()` (`packages/migration/src/Plugin/Destination/EntityDestination.php`) is the framework's own caller of this form, deriving the bundle from the destination entity's bundle-key value when the entity type declares one.
+- String subject + non-`create` ability, or a malformed array subject → `false` (instance required for view/update/delete; array subject must match the `['entity_type' => ..., 'bundle' => ...]` shape)
 - Non-`AccountInterface` user or unsupported subject type → `false` with `error_log()` diagnostic
 
 Wired in `public/index.php`: wraps `EntityAccessHandler` and is passed to `AccessChecker(gate: $gate)`. Policy exceptions are caught, logged, and treated as denial.

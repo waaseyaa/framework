@@ -12,4 +12,10 @@
 # - To regenerate after a codebase change:
 #   php bin/check-dispatcher-keys --generate-baseline
 #
-packages/media/src/MediaServiceProvider.php:89  # Deliberately parked, not fixed: re-keying to the served Symfony-contracts FQCN would part-activate the versioned-blob-media cascade-delete subsystem (versioned-blob-media-abstraction-01KSEFTJ WP01/WP02) ahead of the finish-or-park decision tracked in #1742. WP4 (2026-07-01/02 dead-subscriber sweep) chose to leave this dead. See the boot() docblock at that line for the full rationale. Do not remove this exemption without resolving #1742 first.
+# (empty — the former MediaServiceProvider.php:89 entry was removed in
+# GitHub #1946: #1942 (G-025) widened the served FQCN set to include the
+# foundation contract, which turned that "deliberately parked" resolution
+# into a LIVE production subscriber registration — a shipped regression.
+# The fix re-parks it with an unconditional early `return;` in boot()
+# instead of a dead resolve() call, so no offender pattern remains to
+# baseline. See packages/media/src/MediaServiceProvider.php boot() and #1742.)

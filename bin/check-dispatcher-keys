@@ -85,9 +85,17 @@ if ($customScanDir !== null) {
     $scanDirs = glob($repoRoot . '/packages/*/src', GLOB_ONLYDIR) ?: [];
 }
 
-// The one FQCN the production bus actually serves the dispatcher under.
+// The FQCNs the production bus actually serves the dispatcher under, as of
+// #1942 (G-025): Symfony contracts (the property's declared type), PSR-14
+// (which Symfony contracts extends), and the Waaseyaa-owned foundation
+// contract (guarded by instanceof, but every kernel binds
+// SymfonyEventDispatcherAdapter, which implements all three).
 // See packages/foundation/src/Kernel/Bootstrap/ProviderRegistryKernelServices.php.
-const SERVED_DISPATCHER_FQCN = 'Symfony\\Contracts\\EventDispatcher\\EventDispatcherInterface';
+const SERVED_DISPATCHER_FQCNS = [
+    'Symfony\\Contracts\\EventDispatcher\\EventDispatcherInterface',
+    'Psr\\EventDispatcher\\EventDispatcherInterface',
+    'Waaseyaa\\Foundation\\Event\\EventDispatcherInterface',
+];
 
 $offenders = findOffenders($scanDirs, $repoRoot);
 
@@ -136,7 +144,7 @@ if ($newOffenders !== []) {
     }
     $count = count($newOffenders);
     echo "{$count} new offending site(s) found.\n";
-    echo "Re-key the resolve() call to " . SERVED_DISPATCHER_FQCN . "::class (the #1852 pattern),\n";
+    echo "Re-key the resolve() call to one of the served FQCNs (" . implode(', ', SERVED_DISPATCHER_FQCNS) . ")::class (the #1852 pattern),\n";
     echo "or — if the registration is deliberately parked — add it to {$baselineFile}\n";
     echo "with a mandatory rationale comment.\n";
     exit(1);
@@ -202,7 +210,7 @@ function findOffenders(array $scanDirs, string $repoRoot): array
                 // reach its registration in a real boot — skip the whole
                 // method rather than flagging its unserved fallback keys.
                 foreach ($resolutions as $resolution) {
-                    if (resolveFqcn($resolution['token'], $imports) === SERVED_DISPATCHER_FQCN) {
+                    if (in_array(resolveFqcn($resolution['token'], $imports), SERVED_DISPATCHER_FQCNS, true)) {
                         continue 2;
                     }
                 }
