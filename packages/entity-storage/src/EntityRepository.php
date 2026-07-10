@@ -451,6 +451,7 @@ final class EntityRepository implements EntityRepositoryInterface
      *
      * @throws \Waaseyaa\Entity\Validation\EntityValidationException If validation fails.
      * @throws AbortOperationException If a BeforeSaveEvent subscriber aborts.
+     * @throws \RuntimeException If a PRE_SAVE subscriber rejects the save (e.g. a workflow guard denial) — subscriber exceptions propagate to the caller.
      */
     public function save(EntityInterface $entity, bool $validate = true, ?SaveContext $context = null): int
     {
