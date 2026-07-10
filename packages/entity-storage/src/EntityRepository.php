@@ -1089,6 +1089,20 @@ final class EntityRepository implements EntityRepositoryInterface
         // onto the new revision or into the base row.
         unset($targetRow['revision_id'], $targetRow['revision_created'], $targetRow['revision_log'], $targetRow['revision_author'], $targetRow['entity_id']);
 
+        // Invariant (WP-2 rework, review finding #4 containment): revision-restore
+        // operations restore CONTENT; they never move the published pointer or
+        // flip status — those belong exclusively to TransitionService (CW-v1
+        // decision 2). The target revision's frozen published_revision_id/status
+        // snapshot must not overwrite the live base row's values. Reuse the base
+        // row already read above ($priorBaseRow) rather than re-reading.
+        foreach (['published_revision_id', 'status'] as $pointerKey) {
+            if ($priorBaseRow !== null && array_key_exists($pointerKey, $priorBaseRow)) {
+                $targetRow[$pointerKey] = $priorBaseRow[$pointerKey];
+            } else {
+                unset($targetRow[$pointerKey]);
+            }
+        }
+
         // Wrap in transaction (invariant #4: atomic pointer update).
         $transaction = $this->database?->transaction();
         try {
@@ -1200,6 +1214,21 @@ final class EntityRepository implements EntityRepositoryInterface
         // bookkeeping columns; the base table tracks the current revision via the
         // revision_id pointer column.
         unset($row['revision_created'], $row['revision_log'], $row['revision_author'], $row['entity_id']);
+
+        // Invariant (WP-2 rework, review finding #4 containment): revision-restore
+        // operations restore CONTENT; they never move the published pointer or
+        // flip status — those belong exclusively to TransitionService (CW-v1
+        // decision 2). The target revision's frozen published_revision_id/status
+        // snapshot must not overwrite the live base row's values. Reuse the base
+        // row already read above ($priorBaseRow) rather than re-reading.
+        foreach (['published_revision_id', 'status'] as $pointerKey) {
+            if ($priorBaseRow !== null && array_key_exists($pointerKey, $priorBaseRow)) {
+                $row[$pointerKey] = $priorBaseRow[$pointerKey];
+            } else {
+                unset($row[$pointerKey]);
+            }
+        }
+
         $keys = $this->entityType->getKeys();
         $idKey = $keys['id'] ?? 'id';
         $row[$idKey] = $entityId;
