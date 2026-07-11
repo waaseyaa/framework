@@ -14,6 +14,15 @@ namespace Waaseyaa\Workflows;
 final readonly class WorkflowTransition
 {
     /**
+     * The only group-constraint kind supported in CW-v1 (WP-3,
+     * docs/specs/content-workflow.md). The one shared home for this string —
+     * {@see \Waaseyaa\Workflows\Validation\WorkflowValidator} and
+     * {@see \Waaseyaa\Workflows\Group\GroupConstraintChecker} both reference
+     * this constant instead of duplicating the literal.
+     */
+    public const string GROUP_CONSTRAINT_CONTENT_GROUPS = 'content_groups';
+
+    /**
      * @param string $id Machine name of the transition.
      * @param string $label Human-readable label.
      * @param string[] $from Source state IDs that this transition can originate from.

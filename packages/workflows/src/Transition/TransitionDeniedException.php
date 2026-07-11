@@ -18,6 +18,7 @@ final class TransitionDeniedException extends \RuntimeException
     public const string REASON_UNKNOWN_TRANSITION = 'unknown_transition';
     public const string REASON_ILLEGAL_EDGE = 'illegal_edge';
     public const string REASON_PERMISSION = 'permission';
+    public const string REASON_GROUP_CONSTRAINT = 'group_constraint';
 
     public function __construct(
         public readonly string $reason,

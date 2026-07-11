@@ -36,11 +36,12 @@ final class TransitionDeniedExceptionTest extends TestCase
     }
 
     #[Test]
-    public function the_reason_vocabulary_is_exactly_four_values(): void
+    public function the_reason_vocabulary_is_exactly_five_values(): void
     {
         $this->assertSame('unbound', TransitionDeniedException::REASON_UNBOUND);
         $this->assertSame('unknown_transition', TransitionDeniedException::REASON_UNKNOWN_TRANSITION);
         $this->assertSame('illegal_edge', TransitionDeniedException::REASON_ILLEGAL_EDGE);
         $this->assertSame('permission', TransitionDeniedException::REASON_PERMISSION);
+        $this->assertSame('group_constraint', TransitionDeniedException::REASON_GROUP_CONSTRAINT);
     }
 }

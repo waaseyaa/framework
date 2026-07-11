@@ -17,7 +17,9 @@ use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Groups\Membership\GroupMembershipService;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
+use Waaseyaa\Workflows\Group\GroupConstraintChecker;
 use Waaseyaa\Workflows\Listener\WorkflowPointerMoveGuard;
 use Waaseyaa\Workflows\Listener\WorkflowStateGuard;
 use Waaseyaa\Workflows\Transition\TransitionService;
@@ -102,10 +104,20 @@ final class WorkflowServiceProvider extends ServiceProvider
             );
         });
 
+        // CW-v1 WP-3 (#1920): group-constraint gate. Resolved from
+        // `waaseyaa/groups` (L2, downward from workflows' L3 — see
+        // docs/specs/content-workflow.md "Layering").
+        $this->singleton(GroupConstraintChecker::class, function (): GroupConstraintChecker {
+            return new GroupConstraintChecker(
+                membership: $this->resolve(GroupMembershipService::class),
+            );
+        });
+
         $this->singleton(TransitionService::class, function (): TransitionService {
             $dispatcher = $this->resolveOptional(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
             $auditWriter = $this->resolveOptional(AuditWriterInterface::class);
             $logger = $this->resolveOptional(LoggerInterface::class);
+            $groupConstraintChecker = $this->resolveOptional(GroupConstraintChecker::class);
 
             return new TransitionService(
                 bindings: $this->resolve(WorkflowBindingResolver::class),
@@ -113,6 +125,7 @@ final class WorkflowServiceProvider extends ServiceProvider
                 dispatcher: $dispatcher instanceof \Symfony\Contracts\EventDispatcher\EventDispatcherInterface ? $dispatcher : null,
                 auditWriter: $auditWriter instanceof AuditWriterInterface ? $auditWriter : null,
                 logger: $logger instanceof LoggerInterface ? $logger : null,
+                groupConstraintChecker: $groupConstraintChecker instanceof GroupConstraintChecker ? $groupConstraintChecker : null,
             );
         });
 
