@@ -131,6 +131,7 @@ final class WorkflowServiceProvider extends ServiceProvider
 
         $this->singleton(WorkflowStateGuard::class, function (): WorkflowStateGuard {
             $accountContext = $this->resolveOptional(AccountContextInterface::class);
+            $groupConstraintChecker = $this->resolveOptional(GroupConstraintChecker::class);
 
             return new WorkflowStateGuard(
                 bindings: $this->resolve(WorkflowBindingResolver::class),
@@ -140,6 +141,10 @@ final class WorkflowServiceProvider extends ServiceProvider
                 // `published` flag directly (two-pointer status semantics).
                 entityTypeManager: $this->resolve(EntityTypeManagerInterface::class),
                 accountContext: $accountContext instanceof AccountContextInterface ? $accountContext : null,
+                // CW-v1 WP-3 (#1920): group-constraint parity on the
+                // save-path guard — see TransitionService's own binding
+                // above for the shared rationale.
+                groupConstraintChecker: $groupConstraintChecker instanceof GroupConstraintChecker ? $groupConstraintChecker : null,
             );
         });
 
@@ -147,11 +152,16 @@ final class WorkflowServiceProvider extends ServiceProvider
         // 2.4's BeforeRevisionPointerMoveEvent choke point exists for.
         $this->singleton(WorkflowPointerMoveGuard::class, function (): WorkflowPointerMoveGuard {
             $accountContext = $this->resolveOptional(AccountContextInterface::class);
+            $groupConstraintChecker = $this->resolveOptional(GroupConstraintChecker::class);
 
             return new WorkflowPointerMoveGuard(
                 bindings: $this->resolve(WorkflowBindingResolver::class),
                 entityTypeManager: $this->resolve(EntityTypeManagerInterface::class),
                 accountContext: $accountContext instanceof AccountContextInterface ? $accountContext : null,
+                // CW-v1 WP-3 (#1920): group-constraint parity on the
+                // pointer-move guard — see TransitionService's own binding
+                // above for the shared rationale.
+                groupConstraintChecker: $groupConstraintChecker instanceof GroupConstraintChecker ? $groupConstraintChecker : null,
             );
         });
     }
