@@ -10,20 +10,29 @@ use Waaseyaa\Groups\GroupRelationshipTypes;
 use Waaseyaa\Relationship\Relationship;
 
 /**
- * Group (department) membership and content-group lookups, backed by
- * `relationship` rows (CW-v1 WP-3). Mirrors
- * {@see \Waaseyaa\Genealogy\Service\GenealogyFamilyService::memberPersonIds()}.
+ * Group (department) membership and content-group lookups and writes,
+ * backed by `relationship` rows (CW-v1 WP-3 read side, WP-4 write side).
+ * Mirrors {@see \Waaseyaa\Genealogy\Service\GenealogyFamilyService::memberPersonIds()}.
  *
  * Takes scalar identifiers (uid, entity id), not `AccountInterface`, so
  * `waaseyaa/groups` does not need to require `waaseyaa/access`.
  *
- * **Only live rows count.** Every query additionally filters on
+ * **Only live rows count.** Every read query additionally filters on
  * `status = 1` (relationship liveness — an int column, schema default 1,
  * mirroring `RelationshipTraversalService`'s own `status` filtering): a
  * soft-revoked (`status = 0`) `group_membership` or `group_content` row is
  * never counted as membership or content-department assignment. Temporal
  * windows (`start_date`/`end_date` on the relationship row) are deliberately
  * NOT evaluated in v1 — that is out of scope here and left to a follow-up.
+ *
+ * **Writes are idempotent and soft-revoke-aware** (CW-v1 WP-4, design
+ * decision 6): {@see self::addMember()}/{@see self::assignContent()}
+ * reactivate an existing soft-revoked row instead of inserting a duplicate,
+ * and are a no-op on an already-live row; {@see self::removeMember()}/
+ * {@see self::unassignContent()} soft-revoke (`status = 0`) and never
+ * delete. Both writer pairs validate the target group exists (loud failure
+ * on a dangling edge) — the revoke pair does not, since revoking a reference
+ * to an already-deleted group must still succeed.
  *
  * @api
  */
@@ -89,9 +98,166 @@ final class GroupMembershipService
         return array_intersect($this->groupIdsForUser($uid), $groupIds) !== [];
     }
 
+    /**
+     * Add `$uid` as a member of `$groupId` (`user`/{uid} -> `group`/{gid},
+     * `group_membership`). Idempotent and soft-revoke-aware: a live row is a
+     * no-op, a soft-revoked row is reactivated in place, otherwise a new row
+     * is created — never a duplicate. Throws when `$groupId` does not exist.
+     *
+     * @throws \InvalidArgumentException When the target group does not exist.
+     */
+    public function addMember(int|string $uid, string $groupId): void
+    {
+        $this->assertGroupExists($groupId);
+        $this->upsertLiveRelationship(GroupRelationshipTypes::MEMBERSHIP, 'user', (string) $uid, $groupId);
+    }
+
+    /**
+     * Soft-revoke `$uid`'s membership in `$groupId` (`status = 0`). Never
+     * deletes the row. No-op when no live row exists.
+     */
+    public function removeMember(int|string $uid, string $groupId): void
+    {
+        $this->revokeRelationship(GroupRelationshipTypes::MEMBERSHIP, 'user', (string) $uid, $groupId);
+    }
+
+    /**
+     * Assign content to `$groupId` (`{entityTypeId}`/{entityId} ->
+     * `group`/{gid}, `group_content`). Same idempotent/soft-revoke-aware
+     * shape as {@see self::addMember()}. Throws when `$groupId` does not
+     * exist.
+     *
+     * @throws \InvalidArgumentException When the target group does not exist.
+     */
+    public function assignContent(string $entityTypeId, int|string $entityId, string $groupId): void
+    {
+        $this->assertGroupExists($groupId);
+        $this->upsertLiveRelationship(GroupRelationshipTypes::CONTENT, $entityTypeId, (string) $entityId, $groupId);
+    }
+
+    /**
+     * Soft-revoke content's assignment to `$groupId` (`status = 0`). Never
+     * deletes the row. No-op when no live row exists.
+     */
+    public function unassignContent(string $entityTypeId, int|string $entityId, string $groupId): void
+    {
+        $this->revokeRelationship(GroupRelationshipTypes::CONTENT, $entityTypeId, (string) $entityId, $groupId);
+    }
+
     private function relationshipRepository(): EntityRepositoryInterface
     {
         return $this->entityTypeManager->getRepository('relationship');
+    }
+
+    private function groupRepository(): EntityRepositoryInterface
+    {
+        return $this->entityTypeManager->getRepository('group');
+    }
+
+    private function assertGroupExists(string $groupId): void
+    {
+        if ($this->groupRepository()->find($groupId) === null) {
+            throw new \InvalidArgumentException(sprintf('Group "%s" does not exist.', $groupId));
+        }
+    }
+
+    /**
+     * Find any existing relationship row for the exact
+     * (relationshipType, fromType, fromId, group/$groupId) triple,
+     * regardless of `status` — the caller decides what to do with a live vs.
+     * soft-revoked row. Returns the row's `rid`, or null when none exists.
+     */
+    private function findExistingRelationshipId(
+        string $relationshipType,
+        string $fromEntityType,
+        string $fromEntityId,
+        string $groupId,
+    ): ?string {
+        $repository = $this->relationshipRepository();
+        $q = $repository->getQuery();
+        // System-context existence lookup for an idempotent write: no
+        // account in scope (scalar ids only), and status is deliberately NOT
+        // filtered here — the caller needs to see a soft-revoked row too, to
+        // decide reactivate-vs-create.
+        $q->accessCheck(false);
+        $q->condition('relationship_type', $relationshipType);
+        $q->condition('from_entity_type', $fromEntityType);
+        $q->condition('from_entity_id', $fromEntityId);
+        $q->condition('to_entity_type', 'group');
+        $q->condition('to_entity_id', $groupId);
+        $q->range(0, 1);
+        $ids = $q->execute();
+
+        return $ids === [] ? null : (string) $ids[0];
+    }
+
+    /**
+     * Create-or-reactivate the relationship row for the given triple: a live
+     * row is left alone, a soft-revoked row is flipped back to `status = 1`,
+     * and a missing row is created live. Never produces a duplicate row.
+     */
+    private function upsertLiveRelationship(
+        string $relationshipType,
+        string $fromEntityType,
+        string $fromEntityId,
+        string $groupId,
+    ): void {
+        $repository = $this->relationshipRepository();
+        $existingId = $this->findExistingRelationshipId($relationshipType, $fromEntityType, $fromEntityId, $groupId);
+
+        if ($existingId !== null) {
+            $entity = $repository->find($existingId);
+            if (!$entity instanceof Relationship) {
+                return;
+            }
+            if ((int) $entity->get('status') === 1) {
+                return;
+            }
+            $entity->set('status', 1);
+            $repository->save($entity, validate: false);
+
+            return;
+        }
+
+        $entity = $repository->create([
+            'relationship_type' => $relationshipType,
+            'from_entity_type' => $fromEntityType,
+            'from_entity_id' => $fromEntityId,
+            'to_entity_type' => 'group',
+            'to_entity_id' => $groupId,
+            'directionality' => 'directed',
+            'status' => 1,
+        ]);
+        $repository->save($entity, validate: false);
+    }
+
+    /**
+     * Soft-revoke (`status = 0`) the relationship row for the given triple.
+     * No-op when no row exists, or when the row is already revoked. Never
+     * deletes the row.
+     */
+    private function revokeRelationship(
+        string $relationshipType,
+        string $fromEntityType,
+        string $fromEntityId,
+        string $groupId,
+    ): void {
+        $repository = $this->relationshipRepository();
+        $existingId = $this->findExistingRelationshipId($relationshipType, $fromEntityType, $fromEntityId, $groupId);
+        if ($existingId === null) {
+            return;
+        }
+
+        $entity = $repository->find($existingId);
+        if (!$entity instanceof Relationship) {
+            return;
+        }
+        if ((int) $entity->get('status') === 0) {
+            return;
+        }
+
+        $entity->set('status', 0);
+        $repository->save($entity, validate: false);
     }
 
     /**

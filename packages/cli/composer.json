@@ -42,6 +42,10 @@
         },
         {
             "type": "path",
+            "url": "../groups"
+        },
+        {
+            "type": "path",
             "url": "../migration"
         },
         {
@@ -79,6 +83,7 @@
         "waaseyaa/config": "^0.1.0-alpha.259",
         "waaseyaa/entity": "^0.1.0-alpha.259",
         "waaseyaa/entity-storage": "^0.1.0-alpha.259",
+        "waaseyaa/groups": "^0.1.0-alpha.259",
         "waaseyaa/http-client": "^0.1.0-alpha.259",
         "waaseyaa/migration": "^0.1.0-alpha.259",
         "waaseyaa/northcloud": "^0.1.0-alpha.259",
@@ -129,6 +134,7 @@
                 "Waaseyaa\\CLI\\Provider\\AuditServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\BundleFixtureServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\EntityTypeServiceProvider",
+                "Waaseyaa\\CLI\\Provider\\GroupsCliServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\HealthSchemaServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\ImportServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\WorkflowsServiceProvider",

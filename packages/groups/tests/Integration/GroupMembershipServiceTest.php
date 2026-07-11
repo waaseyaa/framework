@@ -19,7 +19,9 @@ use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Field\FieldDefinitionRegistry;
+use Waaseyaa\Groups\Group;
 use Waaseyaa\Groups\GroupRelationshipTypes;
+use Waaseyaa\Groups\GroupsServiceProvider;
 use Waaseyaa\Groups\Membership\GroupMembershipService;
 use Waaseyaa\Relationship\Relationship;
 
@@ -30,6 +32,11 @@ use Waaseyaa\Relationship\Relationship;
  * a real EntityTypeManager + SqlStorageDriver wired to `DBALDatabase::createSqlite()`,
  * with the `relationship` entity type registered via `TestEntityType::stub()` (no
  * production `relationship` package migrations needed for this shape-only test).
+ *
+ * CW-v1 WP-4: also registers the real `group` entity type (pulled from
+ * {@see GroupsServiceProvider}, same pattern as
+ * {@see \Waaseyaa\Groups\Tests\Integration\TwoBundleCoexistenceTest}) so the
+ * write methods' group-existence check has something real to load.
  */
 #[CoversClass(GroupMembershipService::class)]
 final class GroupMembershipServiceTest extends TestCase
@@ -85,7 +92,40 @@ final class GroupMembershipServiceTest extends TestCase
             ],
         ));
 
+        $manager->registerEntityType($this->groupEntityType());
+
         return $manager;
+    }
+
+    private function groupEntityType(): EntityTypeInterface
+    {
+        $provider = new GroupsServiceProvider();
+        $provider->register();
+        foreach ($provider->getEntityTypes() as $type) {
+            if ($type->id() === 'group') {
+                return $type;
+            }
+        }
+        self::fail('Groups provider did not register "group" entity type.');
+    }
+
+    /**
+     * Create a real `group` entity via the manager's repository, returning
+     * its gid.
+     */
+    private function createGroup(EntityTypeManager $manager, string $gid, string $type = 'department'): string
+    {
+        $repository = $manager->getRepository('group');
+        $entity = $repository->create([
+            'gid' => $gid,
+            'type' => $type,
+            'name' => $gid,
+        ]);
+        \assert($entity instanceof Group);
+        $entity->enforceIsNew();
+        $repository->save($entity, validate: false);
+
+        return (string) $entity->id();
     }
 
     protected function tearDown(): void
@@ -276,5 +316,243 @@ final class GroupMembershipServiceTest extends TestCase
         $service = new GroupMembershipService($manager);
 
         self::assertSame([], $service->groupIdsForContent('node', 42));
+    }
+
+    // ----- CW-v1 WP-4: membership write surface -----
+
+    #[Test]
+    public function add_member_creates_a_live_row_visible_to_reads(): void
+    {
+        $manager = $this->makeManager();
+        $this->createGroup($manager, '1');
+        $service = new GroupMembershipService($manager);
+
+        $service->addMember(7, '1');
+
+        self::assertSame(['1'], $service->groupIdsForUser(7));
+        self::assertTrue($service->isMemberOfAny(7, ['1']));
+        self::assertSame(1, $manager->getRepository('relationship')->count([
+            'relationship_type' => GroupRelationshipTypes::MEMBERSHIP,
+            'from_entity_type' => 'user',
+            'from_entity_id' => '7',
+            'to_entity_id' => '1',
+        ]));
+    }
+
+    #[Test]
+    public function add_member_is_idempotent_and_does_not_duplicate_the_row(): void
+    {
+        $manager = $this->makeManager();
+        $this->createGroup($manager, '1');
+        $service = new GroupMembershipService($manager);
+
+        $service->addMember(7, '1');
+        $service->addMember(7, '1');
+        $service->addMember(7, '1');
+
+        self::assertSame(['1'], $service->groupIdsForUser(7));
+        self::assertSame(1, $manager->getRepository('relationship')->count([
+            'relationship_type' => GroupRelationshipTypes::MEMBERSHIP,
+            'from_entity_type' => 'user',
+            'from_entity_id' => '7',
+            'to_entity_id' => '1',
+        ]));
+    }
+
+    #[Test]
+    public function add_member_throws_for_an_unknown_group(): void
+    {
+        $manager = $this->makeManager();
+        $service = new GroupMembershipService($manager);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/nonexistent-group/');
+
+        $service->addMember(7, 'nonexistent-group');
+    }
+
+    #[Test]
+    public function remove_member_soft_revokes_and_excludes_from_reads(): void
+    {
+        $manager = $this->makeManager();
+        $this->createGroup($manager, '1');
+        $service = new GroupMembershipService($manager);
+        $service->addMember(7, '1');
+
+        $service->removeMember(7, '1');
+
+        self::assertSame([], $service->groupIdsForUser(7));
+        self::assertFalse($service->isMemberOfAny(7, ['1']));
+        // Soft-revoke, never delete: the row still exists (count ignores status).
+        self::assertSame(1, $manager->getRepository('relationship')->count([
+            'relationship_type' => GroupRelationshipTypes::MEMBERSHIP,
+            'from_entity_type' => 'user',
+            'from_entity_id' => '7',
+            'to_entity_id' => '1',
+        ]));
+    }
+
+    #[Test]
+    public function remove_member_is_a_no_op_when_no_row_exists(): void
+    {
+        $manager = $this->makeManager();
+        $this->createGroup($manager, '1');
+        $service = new GroupMembershipService($manager);
+
+        $service->removeMember(7, '1');
+
+        self::assertSame([], $service->groupIdsForUser(7));
+        self::assertSame(0, $manager->getRepository('relationship')->count([
+            'relationship_type' => GroupRelationshipTypes::MEMBERSHIP,
+            'from_entity_type' => 'user',
+            'from_entity_id' => '7',
+            'to_entity_id' => '1',
+        ]));
+    }
+
+    #[Test]
+    public function add_member_reactivates_a_soft_revoked_row_instead_of_duplicating(): void
+    {
+        $manager = $this->makeManager();
+        $this->createGroup($manager, '1');
+        $service = new GroupMembershipService($manager);
+        $service->addMember(7, '1');
+        $service->removeMember(7, '1');
+        self::assertSame([], $service->groupIdsForUser(7));
+
+        $service->addMember(7, '1');
+
+        self::assertSame(['1'], $service->groupIdsForUser(7));
+        self::assertSame(1, $manager->getRepository('relationship')->count([
+            'relationship_type' => GroupRelationshipTypes::MEMBERSHIP,
+            'from_entity_type' => 'user',
+            'from_entity_id' => '7',
+            'to_entity_id' => '1',
+        ]));
+    }
+
+    #[Test]
+    public function assign_content_creates_a_live_row_visible_to_reads(): void
+    {
+        $manager = $this->makeManager();
+        $this->createGroup($manager, '5');
+        $service = new GroupMembershipService($manager);
+
+        $service->assignContent('node', 42, '5');
+
+        self::assertSame(['5'], $service->groupIdsForContent('node', 42));
+        self::assertSame(1, $manager->getRepository('relationship')->count([
+            'relationship_type' => GroupRelationshipTypes::CONTENT,
+            'from_entity_type' => 'node',
+            'from_entity_id' => '42',
+            'to_entity_id' => '5',
+        ]));
+    }
+
+    #[Test]
+    public function assign_content_is_idempotent_and_does_not_duplicate_the_row(): void
+    {
+        $manager = $this->makeManager();
+        $this->createGroup($manager, '5');
+        $service = new GroupMembershipService($manager);
+
+        $service->assignContent('node', 42, '5');
+        $service->assignContent('node', 42, '5');
+
+        self::assertSame(['5'], $service->groupIdsForContent('node', 42));
+        self::assertSame(1, $manager->getRepository('relationship')->count([
+            'relationship_type' => GroupRelationshipTypes::CONTENT,
+            'from_entity_type' => 'node',
+            'from_entity_id' => '42',
+            'to_entity_id' => '5',
+        ]));
+    }
+
+    #[Test]
+    public function assign_content_throws_for_an_unknown_group(): void
+    {
+        $manager = $this->makeManager();
+        $service = new GroupMembershipService($manager);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/nonexistent-group/');
+
+        $service->assignContent('node', 42, 'nonexistent-group');
+    }
+
+    #[Test]
+    public function unassign_content_soft_revokes_and_excludes_from_reads(): void
+    {
+        $manager = $this->makeManager();
+        $this->createGroup($manager, '5');
+        $service = new GroupMembershipService($manager);
+        $service->assignContent('node', 42, '5');
+
+        $service->unassignContent('node', 42, '5');
+
+        self::assertSame([], $service->groupIdsForContent('node', 42));
+        // Soft-revoke, never delete: the row still exists (count ignores status).
+        self::assertSame(1, $manager->getRepository('relationship')->count([
+            'relationship_type' => GroupRelationshipTypes::CONTENT,
+            'from_entity_type' => 'node',
+            'from_entity_id' => '42',
+            'to_entity_id' => '5',
+        ]));
+    }
+
+    #[Test]
+    public function unassign_content_is_a_no_op_when_no_row_exists(): void
+    {
+        $manager = $this->makeManager();
+        $this->createGroup($manager, '5');
+        $service = new GroupMembershipService($manager);
+
+        $service->unassignContent('node', 42, '5');
+
+        self::assertSame([], $service->groupIdsForContent('node', 42));
+        self::assertSame(0, $manager->getRepository('relationship')->count([
+            'relationship_type' => GroupRelationshipTypes::CONTENT,
+            'from_entity_type' => 'node',
+            'from_entity_id' => '42',
+            'to_entity_id' => '5',
+        ]));
+    }
+
+    #[Test]
+    public function assign_content_reactivates_a_soft_revoked_row_instead_of_duplicating(): void
+    {
+        $manager = $this->makeManager();
+        $this->createGroup($manager, '5');
+        $service = new GroupMembershipService($manager);
+        $service->assignContent('node', 42, '5');
+        $service->unassignContent('node', 42, '5');
+        self::assertSame([], $service->groupIdsForContent('node', 42));
+
+        $service->assignContent('node', 42, '5');
+
+        self::assertSame(['5'], $service->groupIdsForContent('node', 42));
+        self::assertSame(1, $manager->getRepository('relationship')->count([
+            'relationship_type' => GroupRelationshipTypes::CONTENT,
+            'from_entity_type' => 'node',
+            'from_entity_id' => '42',
+            'to_entity_id' => '5',
+        ]));
+    }
+
+    #[Test]
+    public function remove_member_does_not_require_the_group_to_still_exist(): void
+    {
+        $manager = $this->makeManager();
+        $this->createGroup($manager, '1');
+        $service = new GroupMembershipService($manager);
+        $service->addMember(7, '1');
+
+        // Revokes don't validate the group still exists (design decision 6):
+        // deleting the group entity elsewhere must not strand the revoke path.
+        $manager->getRepository('group')->delete($manager->getRepository('group')->find('1'));
+
+        $service->removeMember(7, '1');
+
+        self::assertSame([], $service->groupIdsForUser(7));
     }
 }
