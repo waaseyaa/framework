@@ -1,1 +1,0 @@
-import{a1 as e}from"./pPjdaTv9.js";const i="Admin runtime is unavailable. Ensure the admin plugin has bootstrapped before calling admin composables.";function a(r=e()){const n=r.$admin;if(!n)throw new Error(i);return n}export{a as r};

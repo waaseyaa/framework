@@ -205,4 +205,50 @@ final class JsonApiRouteProvider
                 ->build(),
         );
     }
+
+    /**
+     * Register the workflow transition routes for every entity type (CW-v1
+     * WP-4, docs/specs/content-workflow.md "Integration -> API (WP-4)").
+     *
+     *   GET  /api/{entityType}/{id}/workflow/transitions
+     *   POST /api/{entityType}/{id}/workflow/transition
+     *
+     * Called ONLY by `ApiServiceProvider::routes()`, and only when
+     * `TransitionService` resolves (design decision 1 of the WP-4 plan) — a
+     * core-only install without `waaseyaa/workflows` wired never registers
+     * these routes, so a request to them 404s naturally rather than routing
+     * to a controller that could not be constructed.
+     */
+    public function registerWorkflowTransitionRoutes(WaaseyaaRouter $router): void
+    {
+        foreach ($this->entityTypeManager->getDefinitions() as $entityTypeId => $definition) {
+            $this->registerWorkflowTransitionRoutesForType($router, $entityTypeId);
+        }
+    }
+
+    private function registerWorkflowTransitionRoutesForType(WaaseyaaRouter $router, string $entityTypeId): void
+    {
+        $workflowBasePath = $this->basePath . '/' . $entityTypeId . '/{id}/workflow';
+        $controller = 'Waaseyaa\\Api\\Controller\\WorkflowTransitionController';
+
+        $router->addRoute(
+            "api.{$entityTypeId}.workflow_transitions",
+            RouteBuilder::create($workflowBasePath . '/transitions')
+                ->controller($controller . '::transitions')
+                ->methods('GET')
+                ->requireAuthentication()
+                ->default('_entity_type', $entityTypeId)
+                ->build(),
+        );
+
+        $router->addRoute(
+            "api.{$entityTypeId}.workflow_transition",
+            RouteBuilder::create($workflowBasePath . '/transition')
+                ->controller($controller . '::transition')
+                ->methods('POST')
+                ->requireAuthentication()
+                ->default('_entity_type', $entityTypeId)
+                ->build(),
+        );
+    }
 }
