@@ -88,6 +88,9 @@ final class Workflow extends ConfigEntityBase
                         to: (string) ($transitionData['to'] ?? ''),
                         weight: (int) ($transitionData['weight'] ?? 0),
                         permission: (string) ($transitionData['permission'] ?? ''),
+                        groupConstraint: isset($transitionData['group_constraint'])
+                            ? (string) $transitionData['group_constraint']
+                            : null,
                     );
                 }
             }
@@ -167,7 +170,11 @@ final class Workflow extends ConfigEntityBase
                 continue;
             }
 
-            // If source states changed, rebuild the transition.
+            // If source states changed, rebuild the transition. Adversarial
+            // review fix (#1920, WP-3): the rebuild must preserve
+            // 'permission' and 'group_constraint' — a fail-open silent drop
+            // of either is exactly the misconfiguration the fail-closed
+            // design invariant exists to prevent.
             if (\count($filteredFrom) !== \count($transition->from)) {
                 $this->transitions[$transitionId] = new WorkflowTransition(
                     id: $transition->id,
@@ -175,6 +182,8 @@ final class Workflow extends ConfigEntityBase
                     from: $filteredFrom,
                     to: $transition->to,
                     weight: $transition->weight,
+                    permission: $transition->permission,
+                    groupConstraint: $transition->groupConstraint,
                 );
             }
         }
@@ -326,6 +335,9 @@ final class Workflow extends ConfigEntityBase
             if ($transition->permission !== '') {
                 $entry['permission'] = $transition->permission;
             }
+            if ($transition->groupConstraint !== null) {
+                $entry['group_constraint'] = $transition->groupConstraint;
+            }
             $transitions[$transition->id] = $entry;
         }
         $this->values['transitions'] = $transitions;
@@ -368,6 +380,9 @@ final class Workflow extends ConfigEntityBase
             ];
             if ($transition->permission !== '') {
                 $entry['permission'] = $transition->permission;
+            }
+            if ($transition->groupConstraint !== null) {
+                $entry['group_constraint'] = $transition->groupConstraint;
             }
             $transitions[$transition->id] = $entry;
         }

@@ -561,6 +561,53 @@ final class WorkflowPointerMoveGuardTest extends TestCase
         }
     }
 
+    private function workflowWithGroupConstraint(): Workflow
+    {
+        return new Workflow(['id' => 'editorial', 'label' => 'Editorial', 'initial_state' => 'draft',
+            'states' => [
+                'draft' => ['label' => 'Draft'],
+                'review' => ['label' => 'Review'],
+                'published' => ['label' => 'Published', 'published' => true, 'default_revision' => true],
+            ],
+            'transitions' => [
+                'submit_for_review' => ['label' => 'Submit', 'from' => ['draft'], 'to' => 'review'],
+                'publish' => ['label' => 'Publish', 'from' => ['draft', 'review'], 'to' => 'published', 'group_constraint' => 'content_groups'],
+            ],
+        ]);
+    }
+
+    #[Test]
+    public function a_null_checker_denies_a_different_state_move_across_a_constrained_edge_fail_closed(): void
+    {
+        // Adversarial-review fix (#1920, WP-3): a null groupConstraintChecker
+        // used to mean "no group gating" — satisfiesGroupConstraint()
+        // returned true unconditionally. It must fail closed when an
+        // account context exists, same as TransitionService/WorkflowStateGuard.
+        $workflow = $this->workflowWithGroupConstraint();
+        $entityTypeManager = $this->entityTypeManager($workflow, [10 => 'draft']);
+        $guard = new WorkflowPointerMoveGuard(
+            $this->bindings($workflow, $entityTypeManager),
+            $entityTypeManager,
+            $this->accountContext($this->account(['use editorial transition publish'])),
+        );
+        $event = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: 'fixture',
+            entityId: '1',
+            operation: 'publish',
+            fromRevisionId: 10,
+            toRevisionId: 20,
+            actorUid: 7,
+            revisionValues: ['type' => 'article', 'workflow_state' => 'published'],
+        );
+
+        try {
+            $guard->onBeforePointerMove($event);
+            $this->fail('Expected TransitionDeniedException');
+        } catch (TransitionDeniedException $e) {
+            $this->assertSame(TransitionDeniedException::REASON_GROUP_CONSTRAINT, $e->reason);
+        }
+    }
+
     #[Test]
     public function publish_op_targeting_a_non_default_revision_state_uses_the_strict_edge_check(): void
     {

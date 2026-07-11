@@ -426,6 +426,65 @@ final class TransitionServiceTest extends TestCase
         $this->assertSame([], $service->getAvailableTransitions($entity, $account));
     }
 
+    private function workflowWithGroupConstraint(): Workflow
+    {
+        return new Workflow(['id' => 'editorial', 'label' => 'Editorial', 'initial_state' => 'draft',
+            'states' => [
+                'draft' => ['label' => 'Draft'],
+                'review' => ['label' => 'Review'],
+                'published' => ['label' => 'Published', 'published' => true],
+            ],
+            'transitions' => [
+                'submit_for_review' => ['label' => 'Submit', 'from' => ['draft'], 'to' => 'review'],
+                'publish' => ['label' => 'Publish', 'from' => ['draft', 'review'], 'to' => 'published', 'group_constraint' => 'content_groups'],
+            ],
+        ]);
+    }
+
+    #[Test]
+    public function a_null_checker_denies_a_group_constrained_transition_fail_closed(): void
+    {
+        // Adversarial-review fix (#1920, WP-3): a null groupConstraintChecker
+        // used to mean "no group gating" (fail-open) for a
+        // group_constrained transition. It now must fail closed — a wiring
+        // regression (production provider not injecting the checker) denies
+        // loudly instead of silently un-gating.
+        $service = $this->service($this->workflowWithGroupConstraint());
+        $account = $this->account(7, ['use editorial transition publish']);
+        $entity = $this->entity('draft');
+
+        try {
+            $service->transition($entity, 'publish', $account);
+            $this->fail('Expected TransitionDeniedException');
+        } catch (TransitionDeniedException $e) {
+            $this->assertSame(TransitionDeniedException::REASON_GROUP_CONSTRAINT, $e->reason);
+        }
+    }
+
+    #[Test]
+    public function a_null_checker_leaves_a_constraint_less_transition_unaffected(): void
+    {
+        $service = $this->service($this->workflowWithGroupConstraint());
+        $account = $this->account(7, ['use editorial transition submit_for_review']);
+        $entity = $this->entity('draft');
+
+        $result = $service->transition($entity, 'submit_for_review', $account);
+
+        $this->assertSame('review', $result->toState);
+    }
+
+    #[Test]
+    public function get_available_transitions_with_a_null_checker_filters_out_the_group_constrained_transition(): void
+    {
+        $service = $this->service($this->workflowWithGroupConstraint());
+        $account = $this->account(7, ['use editorial transition submit_for_review', 'use editorial transition publish']);
+        $entity = $this->entity('draft');
+
+        $available = \array_map(static fn($t) => $t->id, $service->getAvailableTransitions($entity, $account));
+
+        $this->assertSame(['submit_for_review'], $available);
+    }
+
     #[Test]
     public function forward_draft_leaves_status_and_the_published_pointer_untouched(): void
     {

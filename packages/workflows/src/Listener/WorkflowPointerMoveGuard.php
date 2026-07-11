@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Workflows\Listener;
 
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
+use Waaseyaa\Workflows\Group\GroupConstraintChecker;
 use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 use Waaseyaa\Workflows\Workflow;
 use Waaseyaa\Workflows\WorkflowTransition;
@@ -56,6 +58,16 @@ final class WorkflowPointerMoveGuard
         private readonly WorkflowBindingResolver $bindings,
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly ?AccountContextInterface $accountContext = null,
+        // CW-v1 WP-3 (#1920): optional, mirroring TransitionService's and
+        // WorkflowStateGuard's own convention. Null no longer means "no
+        // group gating" — see satisfiesGroupConstraint(): a non-null
+        // groupConstraint is DENIED when the checker is null, only
+        // unconstrained transitions are unaffected. The event carries
+        // entityTypeId + entityId (no bundle/entity load needed) — that pair
+        // is exactly what the checker's content-group lookup takes. Checked
+        // only when an acting account context exists (a null context stays
+        // edge-legality only, unchanged).
+        private readonly ?GroupConstraintChecker $groupConstraintChecker = null,
     ) {}
 
     /**
@@ -129,8 +141,18 @@ final class WorkflowPointerMoveGuard
             // asymmetry is inherent to the any-of rule, accepted as-is: no
             // shipped workflow has such a state, and fail-closed for
             // authenticated actors is the safe default (design invariant 5).
+            //
+            // CW-v1 WP-3 (#1920): the any-of rule tightens from "permission
+            // alone" to "permission AND satisfied group constraint" per
+            // candidate transition — a constraint-less transition into the
+            // state keeps counting on permission alone, so the any-of
+            // semantics are unchanged for workflows with no group
+            // constraints.
             foreach ($workflow->getTransitions() as $transition) {
-                if ($transition->to === $newState && $account->hasPermission($workflow->permissionFor($transition))) {
+                if ($transition->to === $newState
+                    && $account->hasPermission($workflow->permissionFor($transition))
+                    && $this->satisfiesGroupConstraint($transition, $event, $account)
+                ) {
                     return;
                 }
             }
@@ -138,7 +160,7 @@ final class WorkflowPointerMoveGuard
             throw new TransitionDeniedException(
                 TransitionDeniedException::REASON_PERMISSION,
                 \sprintf(
-                    "Pointer-move operation '%s' denied: moving which '%s' revision of entity '%s:%s' serves requires the permission of at least one transition into state '%s' in workflow '%s'.",
+                    "Pointer-move operation '%s' denied: moving which '%s' revision of entity '%s:%s' serves requires the permission (and, where applicable, satisfied group constraint) of at least one transition into state '%s' in workflow '%s'.",
                     $event->operation,
                     $newState,
                     $event->entityTypeId,
@@ -179,10 +201,54 @@ final class WorkflowPointerMoveGuard
                     ),
                 );
             }
+
+            // CW-v1 WP-3 (#1920): the different-state edge's OWN group
+            // constraint must also be satisfied — same order as
+            // WorkflowStateGuard/TransitionService (permission first, group
+            // constraint second). Uses entityTypeId + entityId straight off
+            // the event; the pointer guard never loads the entity.
+            if (!$this->satisfiesGroupConstraint($transition, $event, $account)) {
+                throw new TransitionDeniedException(
+                    TransitionDeniedException::REASON_GROUP_CONSTRAINT,
+                    \sprintf(
+                        "Pointer-move operation '%s' denied: transition '%s' requires group constraint '%s', which the account does not satisfy.",
+                        $event->operation,
+                        $transition->id,
+                        (string) $transition->groupConstraint,
+                    ),
+                );
+            }
         }
         // Null context (CLI, queue, bootstrap): no acting account to check
-        // permission against — edge-legality above is the only enforceable
-        // guarantee here, mirroring WorkflowStateGuard::guardUpdate().
+        // permission or group constraint against — edge-legality above is
+        // the only enforceable guarantee here, mirroring
+        // WorkflowStateGuard::guardUpdate().
+    }
+
+    /**
+     * CW-v1 WP-3 (#1920, adversarial-review fix): true when `$transition`
+     * carries no group constraint, or when a wired checker confirms
+     * `$account` satisfies it. A null checker with a NON-null constraint now
+     * fails closed (returns false) instead of the earlier fail-open "no
+     * group gating" behavior — mirrors TransitionService's/
+     * WorkflowStateGuard's own fail-closed convention. Uses the event's
+     * entityTypeId/entityId directly — the pointer guard never loads the
+     * entity.
+     */
+    private function satisfiesGroupConstraint(
+        WorkflowTransition $transition,
+        BeforeRevisionPointerMoveEvent $event,
+        AccountInterface $account,
+    ): bool {
+        if ($transition->groupConstraint === null) {
+            return true;
+        }
+
+        if ($this->groupConstraintChecker === null) {
+            return false;
+        }
+
+        return $this->groupConstraintChecker->satisfies($transition, $event->entityTypeId, $event->entityId, $account->id());
     }
 
     /**

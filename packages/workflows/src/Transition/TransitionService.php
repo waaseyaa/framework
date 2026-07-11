@@ -17,6 +17,7 @@ use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 use Waaseyaa\Workflows\Event\WorkflowEvents;
 use Waaseyaa\Workflows\Event\WorkflowTransitionEvent;
+use Waaseyaa\Workflows\Group\GroupConstraintChecker;
 use Waaseyaa\Workflows\Workflow;
 use Waaseyaa\Workflows\WorkflowTransition;
 
@@ -49,6 +50,18 @@ final class TransitionService
         private readonly ?\Symfony\Contracts\EventDispatcher\EventDispatcherInterface $dispatcher = null,
         private readonly ?AuditWriterInterface $auditWriter = null,
         private readonly ?LoggerInterface $logger = null,
+        // CW-v1 WP-3 (#1920): optional, like the other collaborators above.
+        // Null no longer means "no group gating" (adversarial-review fix,
+        // fail-open was the bug): a transition WITH a non-null
+        // groupConstraint is DENIED when the checker is null, exactly like a
+        // failed satisfies() check — only unconstrained transitions are
+        // unaffected by a missing checker. Production wiring
+        // ({@see \Waaseyaa\Workflows\WorkflowServiceProvider}) always injects
+        // a real checker via resolveOptional(), so a wiring regression now
+        // denies loudly instead of silently un-gating. A null checker
+        // remains fine for callers (unit fixtures, the WP-1/WP-2 integration
+        // spines) that never exercise group_constraint transitions.
+        private readonly ?GroupConstraintChecker $groupConstraintChecker = null,
     ) {}
 
     /**
@@ -119,6 +132,32 @@ final class TransitionService
                 $transition->to,
                 TransitionDeniedException::REASON_PERMISSION,
                 \sprintf("Account lacks permission '%s' required by transition '%s'.", $permission, $transitionId),
+            );
+        }
+
+        // Group constraint gate (CW-v1 WP-3, docs/specs/content-workflow.md
+        // "Concepts and config schema"): checked immediately after
+        // permission, before PRE_TRANSITION dispatch — permission answers
+        // *may this kind of person do this*, the group constraint answers
+        // *may they do it to THIS content*. Order is pinned by test:
+        // permission denial must win when an account holds neither.
+        if ($transition->groupConstraint !== null
+            && ($this->groupConstraintChecker === null
+                || !$this->groupConstraintChecker->satisfies($transition, $entityTypeId, (string) $entity->id(), $account->id()))
+        ) {
+            $this->denyAndThrow(
+                $entity,
+                $account,
+                $transitionId,
+                $workflowId,
+                $fromState,
+                $transition->to,
+                TransitionDeniedException::REASON_GROUP_CONSTRAINT,
+                \sprintf(
+                    "Transition '%s' requires group constraint '%s', which the account does not satisfy.",
+                    $transitionId,
+                    $transition->groupConstraint,
+                ),
             );
         }
 
@@ -270,9 +309,22 @@ final class TransitionService
 
         $available = [];
         foreach ($workflow->getValidTransitions($fromState) as $transition) {
-            if ($account->hasPermission($workflow->permissionFor($transition))) {
-                $available[] = $transition;
+            if (!$account->hasPermission($workflow->permissionFor($transition))) {
+                continue;
             }
+
+            // UIs must not offer a group-denied transition (CW-v1 WP-3):
+            // same checker, same fail-closed semantics as the transition()
+            // gate above. No caching machinery — calling the checker per
+            // transition is acceptable here (the plan's own simplicity bar).
+            if ($transition->groupConstraint !== null
+                && ($this->groupConstraintChecker === null
+                    || !$this->groupConstraintChecker->satisfies($transition, $entity->getEntityTypeId(), (string) $entity->id(), $account->id()))
+            ) {
+                continue;
+            }
+
+            $available[] = $transition;
         }
 
         return $available;

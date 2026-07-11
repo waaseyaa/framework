@@ -74,4 +74,40 @@ final class WorkflowValidatorTest extends TestCase
 
         $this->assertSame([], (new WorkflowValidator())->validate($workflow));
     }
+
+    #[Test]
+    public function a_transition_with_no_group_constraint_is_not_a_violation(): void
+    {
+        $workflow = new Workflow(['id' => 'w',
+            'states' => ['draft' => ['label' => 'Draft'], 'published' => ['label' => 'Published']],
+            'transitions' => ['publish' => ['label' => 'Publish', 'from' => ['draft'], 'to' => 'published']]]);
+
+        $this->assertSame([], (new WorkflowValidator())->validate($workflow));
+    }
+
+    #[Test]
+    public function a_transition_with_the_content_groups_constraint_is_valid(): void
+    {
+        $workflow = new Workflow(['id' => 'w',
+            'states' => ['draft' => ['label' => 'Draft'], 'published' => ['label' => 'Published']],
+            'transitions' => ['publish' => ['label' => 'Publish', 'from' => ['draft'], 'to' => 'published',
+                'group_constraint' => 'content_groups']]]);
+
+        $this->assertSame([], (new WorkflowValidator())->validate($workflow));
+    }
+
+    #[Test]
+    public function a_transition_with_an_unknown_group_constraint_kind_is_a_violation(): void
+    {
+        $workflow = new Workflow(['id' => 'w',
+            'states' => ['draft' => ['label' => 'Draft'], 'published' => ['label' => 'Published']],
+            'transitions' => ['publish' => ['label' => 'Publish', 'from' => ['draft'], 'to' => 'published',
+                'group_constraint' => 'bogus_kind']]]);
+
+        $violations = (new WorkflowValidator())->validate($workflow);
+
+        $this->assertCount(1, $violations);
+        $this->assertStringContainsString("'publish'", $violations[0]);
+        $this->assertStringContainsString("'bogus_kind'", $violations[0]);
+    }
 }

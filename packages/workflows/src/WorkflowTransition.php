@@ -14,6 +14,15 @@ namespace Waaseyaa\Workflows;
 final readonly class WorkflowTransition
 {
     /**
+     * The only group-constraint kind supported in CW-v1 (WP-3,
+     * docs/specs/content-workflow.md). The one shared home for this string —
+     * {@see \Waaseyaa\Workflows\Validation\WorkflowValidator} and
+     * {@see \Waaseyaa\Workflows\Group\GroupConstraintChecker} both reference
+     * this constant instead of duplicating the literal.
+     */
+    public const string GROUP_CONSTRAINT_CONTENT_GROUPS = 'content_groups';
+
+    /**
      * @param string $id Machine name of the transition.
      * @param string $label Human-readable label.
      * @param string[] $from Source state IDs that this transition can originate from.
@@ -22,6 +31,11 @@ final readonly class WorkflowTransition
      * @param string $permission Permission required to fire this transition. Empty
      *   string means "derive from workflow id + transition id" — see
      *   {@see Workflow::permissionFor()} (CW-v1 WP-1, docs/specs/content-workflow.md).
+     * @param ?string $groupConstraint Optional group-membership constraint kind
+     *   (`'content_groups'` is the only v1 kind). Null means unconstrained —
+     *   fireable by anyone holding the transition's permission. See
+     *   {@see \Waaseyaa\Workflows\Validation\WorkflowValidator} for the
+     *   allowed-value check (CW-v1 WP-3, docs/specs/content-workflow.md).
      */
     public function __construct(
         public string $id,
@@ -30,5 +44,6 @@ final readonly class WorkflowTransition
         public string $to,
         public int $weight = 0,
         public string $permission = '',
+        public ?string $groupConstraint = null,
     ) {}
 }

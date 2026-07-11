@@ -66,7 +66,9 @@ seed data (`DefaultWorkflows::EDITORIAL`), not a hardcoded preset class.
   workflow a site will bind. Full mechanics: `docs/specs/content-workflow.md` "Forward-draft
   mechanics".
 
-Group/department transition constraints are WP-3; API transition endpoints + admin SPA are WP-4.
+- **Group (department) transition constraints, live (WP-3):** a transition MAY carry `group_constraint: content_groups`, fireable only by accounts that are members of a group the content itself belongs to — departments are `waaseyaa/groups` entities, membership and content-department assignment are `waaseyaa/relationship` rows, filtered to live (`status = 1`) rows only (`Group\GroupConstraintChecker`, backed by `Waaseyaa\Groups\Membership\GroupMembershipService`). Enforced at all four state-changing/state-revealing sites — `TransitionService::transition()` (immediately after the permission gate — permission wins when an account holds neither), `getAvailableTransitions()`, `WorkflowStateGuard::guardUpdate()`, and both branches of `WorkflowPointerMoveGuard` — with the same fail-closed rule throughout: content with no recorded group can never satisfy a constraint, an unrecognised constraint kind denies rather than degrading to unconstrained, and a missing (`null`) `GroupConstraintChecker` denies every group-constrained transition rather than un-gating it (unconstrained transitions are unaffected by a missing checker). `TransitionDeniedException::REASON_GROUP_CONSTRAINT` is the new denial reason. Full contract: `docs/specs/content-workflow.md` "Group constraints (WP-3)".
+
+API transition endpoints + admin SPA are WP-4.
 
 ## Legacy machinery (superseded, removal tracked as WP-5 / #1920)
 
@@ -141,7 +143,7 @@ public function resolve(string $entityTypeId, string $bundle): ?Workflow   // nu
 public function transition(EntityInterface $entity, string $transitionId, AccountInterface $account): TransitionResult
 public function getAvailableTransitions(EntityInterface $entity, AccountInterface $account): array   // WorkflowTransition[]
 
-// Transition\TransitionDeniedException.php — reason is one of unbound/unknown_transition/illegal_edge/permission
+// Transition\TransitionDeniedException.php — reason is one of unbound/unknown_transition/illegal_edge/permission/group_constraint
 public readonly string $reason;
 
 // Listener\WorkflowStateGuard.php — PRE_SAVE subscriber
@@ -159,7 +161,7 @@ try {
     $result = $service->transition($node, 'publish', $account);
     // $result->toState === 'published'
 } catch (TransitionDeniedException $e) {
-    // $e->reason: 'unbound' | 'unknown_transition' | 'illegal_edge' | 'permission'
+    // $e->reason: 'unbound' | 'unknown_transition' | 'illegal_edge' | 'permission' | 'group_constraint'
 }
 
 // UIs render buttons from the read side only:

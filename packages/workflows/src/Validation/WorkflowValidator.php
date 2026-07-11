@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Workflows\Validation;
 
 use Waaseyaa\Workflows\Workflow;
+use Waaseyaa\Workflows\WorkflowTransition;
 
 /**
  * Structural validator for a {@see Workflow} definition.
@@ -57,6 +58,15 @@ final class WorkflowValidator
                     "Transition '%s' references unknown state '%s' in 'to'.",
                     $transition->id,
                     $transition->to,
+                );
+            }
+
+            if ($transition->groupConstraint !== null && $transition->groupConstraint !== WorkflowTransition::GROUP_CONSTRAINT_CONTENT_GROUPS) {
+                $violations[] = \sprintf(
+                    "Transition '%s' declares unknown group_constraint '%s' (only '%s' is supported).",
+                    $transition->id,
+                    $transition->groupConstraint,
+                    WorkflowTransition::GROUP_CONSTRAINT_CONTENT_GROUPS,
                 );
             }
         }

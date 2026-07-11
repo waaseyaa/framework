@@ -76,4 +76,47 @@ final class WorkflowTransitionTest extends TestCase
         $this->assertContains('review', $transition->from);
         $this->assertContains('revision', $transition->from);
     }
+
+    public function testGroupConstraintDefaultsToNull(): void
+    {
+        $transition = new WorkflowTransition(
+            id: 'publish',
+            label: 'Publish',
+            from: ['draft'],
+            to: 'published',
+        );
+
+        $this->assertNull($transition->groupConstraint);
+    }
+
+    public function testGroupConstraintHoldsExplicitValue(): void
+    {
+        $transition = new WorkflowTransition(
+            id: 'publish',
+            label: 'Publish',
+            from: ['draft'],
+            to: 'published',
+            groupConstraint: 'content_groups',
+        );
+
+        $this->assertSame('content_groups', $transition->groupConstraint);
+    }
+
+    public function testGroupConstraintContentGroupsConstantIsTheCanonicalValue(): void
+    {
+        // The one shared home for the 'content_groups' string (CW-v1 WP-3
+        // task 3A): WorkflowValidator and GroupConstraintChecker both
+        // reference this constant instead of duplicating the literal.
+        $this->assertSame('content_groups', WorkflowTransition::GROUP_CONSTRAINT_CONTENT_GROUPS);
+
+        $transition = new WorkflowTransition(
+            id: 'publish',
+            label: 'Publish',
+            from: ['draft'],
+            to: 'published',
+            groupConstraint: WorkflowTransition::GROUP_CONSTRAINT_CONTENT_GROUPS,
+        );
+
+        $this->assertSame('content_groups', $transition->groupConstraint);
+    }
 }

@@ -11,6 +11,7 @@ use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
+use Waaseyaa\Workflows\Group\GroupConstraintChecker;
 use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 use Waaseyaa\Workflows\Workflow;
 use Waaseyaa\Workflows\WorkflowTransition;
@@ -39,6 +40,15 @@ final class WorkflowStateGuard
         private readonly WorkflowBindingResolver $bindings,
         private readonly ?EntityTypeManagerInterface $entityTypeManager = null,
         private readonly ?AccountContextInterface $accountContext = null,
+        // CW-v1 WP-3 (#1920): optional, mirroring TransitionService's own
+        // convention. Null no longer means "no group gating" — a
+        // group_constraint on the transition is DENIED when the checker is
+        // null, only when an acting account context exists (a null context
+        // stays edge-legality only, unchanged — see guardUpdate()).
+        // Production wiring ({@see \Waaseyaa\Workflows\WorkflowServiceProvider})
+        // always injects a real checker via resolveOptional(), so a wiring
+        // regression now denies loudly instead of silently un-gating.
+        private readonly ?GroupConstraintChecker $groupConstraintChecker = null,
     ) {}
 
     /**
@@ -153,9 +163,31 @@ final class WorkflowStateGuard
                     \sprintf("Account lacks permission '%s' required by transition '%s'.", $permission, $transition->id),
                 );
             }
+
+            // CW-v1 WP-3 (#1920): group-constraint parity with
+            // TransitionService::transition() — checked immediately after
+            // permission, and ONLY when an acting account context exists
+            // (a null context stays edge-legality-only, unchanged). This is
+            // what closes the raw-save bypass: without this gate, a PATCH
+            // that mutates workflow_state could enact a group-constrained
+            // transition that TransitionService itself would deny.
+            if ($transition->groupConstraint !== null
+                && ($this->groupConstraintChecker === null
+                    || !$this->groupConstraintChecker->satisfies($transition, $entity->getEntityTypeId(), (string) $entity->id(), $account->id()))
+            ) {
+                throw new TransitionDeniedException(
+                    TransitionDeniedException::REASON_GROUP_CONSTRAINT,
+                    \sprintf(
+                        "Transition '%s' requires group constraint '%s', which the account does not satisfy.",
+                        $transition->id,
+                        $transition->groupConstraint,
+                    ),
+                );
+            }
         }
-        // Null context: no acting account to check permission against —
-        // edge-legality above is the only enforceable guarantee here.
+        // Null context: no acting account to check permission (or group
+        // constraint) against — edge-legality above is the only enforceable
+        // guarantee here.
 
         // CW-v1 WP-2 task 2.6 panel fix B, made UNIFORM by the verifier's
         // residual finding (#1920): ANY state-changing save on an entity
