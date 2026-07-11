@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Api;
 
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Api\Audit\ApiAuditQueryAdapter;
 use Waaseyaa\Api\Audit\AuditQueryReadModelInterface;
@@ -15,6 +16,7 @@ use Waaseyaa\Api\Controller\OidcClientController;
 use Waaseyaa\Api\Controller\QueueController;
 use Waaseyaa\Api\Controller\SchedulerController;
 use Waaseyaa\Api\Controller\WorkflowGuardsController;
+use Waaseyaa\Api\Controller\WorkflowTransitionController;
 use Waaseyaa\Api\Http\Router\AuditApiRouter;
 use Waaseyaa\Api\Http\Router\DiscoveryRouter;
 use Waaseyaa\Api\Http\Router\MediaVersionApiRouter;
@@ -24,6 +26,7 @@ use Waaseyaa\Api\Http\Router\OidcClientApiRouter;
 use Waaseyaa\Api\Http\Router\QueueAdminApiRouter;
 use Waaseyaa\Api\Http\Router\SchedulerAdminApiRouter;
 use Waaseyaa\Api\Http\Router\WorkflowGuardsApiRouter;
+use Waaseyaa\Api\Http\Router\WorkflowTransitionApiRouter;
 use Waaseyaa\Api\Media\ApiMediaVersionAdapter;
 use Waaseyaa\Api\Media\MediaVersionReadModelInterface;
 use Waaseyaa\Api\MercureMonitor\ChannelInspectorInterface;
@@ -46,6 +49,7 @@ use Waaseyaa\Scheduler\ScheduleInterface;
 use Waaseyaa\Scheduler\ScheduleRunner;
 use Waaseyaa\Scheduler\Storage\ScheduleStateRepository;
 use Waaseyaa\Workflows\AuthoringRoleMatrix;
+use Waaseyaa\Workflows\Transition\TransitionService;
 
 final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface
 {
@@ -151,6 +155,24 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
             $routers[] = new WorkflowGuardsApiRouter(new WorkflowGuardsController($matrix));
         }
 
+        // CW-v1 WP-4 (#1920): workflow transition endpoints. Same
+        // indirection pattern as the workflow-guards block above —
+        // WorkflowServiceProvider (Layer 3) binds TransitionService; if the
+        // binding is absent (a core-only install without waaseyaa/workflows
+        // wired) we skip the router AND the routes (see routes() below)
+        // rather than crashing boot or routing to a controller that could
+        // not be constructed (design decision 1,
+        // docs/history/plans/2026-07-10-content-workflow-wp4.md).
+        $transitionService = $this->resolveOptional(TransitionService::class);
+        if ($transitionService instanceof TransitionService) {
+            $accessHandler = $this->resolveOptional(EntityAccessHandler::class);
+            $routers[] = new WorkflowTransitionApiRouter(new WorkflowTransitionController(
+                $httpKernel->getEntityTypeManager(),
+                $accessHandler instanceof EntityAccessHandler ? $accessHandler : null,
+                $transitionService,
+            ));
+        }
+
         // M5D WP01: Mercure broadcast monitor dashboard. Same indirection
         // pattern as queue/scheduler/notification blocks — all three deps are
         // bound by `MercureMonitorServiceProvider` (Layer 0 foundation). When
@@ -210,7 +232,15 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
 
     public function routes(WaaseyaaRouter $router, EntityTypeManager $entityTypeManager): void
     {
-        new JsonApiRouteProvider($entityTypeManager)->registerRoutes($router);
+        $jsonApiRouteProvider = new JsonApiRouteProvider($entityTypeManager);
+        $jsonApiRouteProvider->registerRoutes($router);
+
+        // CW-v1 WP-4 (#1920): gated on TransitionService resolving — see the
+        // matching gate in httpDomainRouters() above for the full rationale.
+        $transitionService = $this->resolveOptional(TransitionService::class);
+        if ($transitionService instanceof TransitionService) {
+            $jsonApiRouteProvider->registerWorkflowTransitionRoutes($router);
+        }
 
         // Schema self-description surface requires authentication: it enumerates
         // every registered entity type plus its attribute/field schema, and computes
