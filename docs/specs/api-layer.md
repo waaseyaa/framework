@@ -678,6 +678,8 @@ The user-facing surface of the content-workflow engine (`docs/specs/content-work
 
 **Account semantics**: the controller passes `_account` explicitly to `TransitionService`; for HTTP requests the ambient `AccountContextInterface` the save/pointer guards re-gate against is already synced by `SessionMiddleware` (outermost scope, unconditional set), so no controller-side sync is needed — non-HTTP callers (CLI, queue, MCP) must sync it themselves (content-workflow.md "Caveat: ambient vs. explicit account").
 
+**Field-level gate on `meta.workflow_state`** (PR #1956 reviewer follow-up): after the entity-level view check passes, `transitions()` additionally calls `EntityAccessHandler::checkFieldAccess($entity, 'workflow_state', 'view', $account)` and returns `meta.workflow_state: null` when it `isForbidden()` — `data` (the transition list) is unaffected, since it remains gated by the entity-level view check plus `TransitionService::getAvailableTransitions()`'s own permission/group filtering. Residual caveat: the current workflow state is still partially inferable from `data` itself — which transitions are offered narrows down which state(s) they can fire from — so this gate narrows but does not fully close the disclosure.
+
 ## Query Pipeline
 
 ### QueryParser

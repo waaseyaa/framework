@@ -69,10 +69,25 @@ final class WorkflowTransitionController
         }
 
         $state = $entity->get('workflow_state');
+        $state = is_string($state) && $state !== '' ? $state : null;
+
+        // Field-level view gate on the surfaced state (PR #1956 reviewer
+        // finding): the entity-level view check above only gates `data`
+        // (loading the entity + the transition list); ResourceSerializer's
+        // canonical read path additionally filters view-forbidden fields,
+        // and this endpoint's `meta.workflow_state` was bypassing that.
+        // `$this->accessHandler` is guaranteed non-null here — the null case
+        // already 404'd inside loadViewableEntity(). Field semantics are
+        // "allow unless Forbidden" (Neutral = accessible).
+        if ($state !== null && $this->accessHandler !== null
+            && $this->accessHandler->checkFieldAccess($entity, 'workflow_state', 'view', $account)->isForbidden()
+        ) {
+            $state = null;
+        }
 
         return new JsonApiResponse([
             'data' => $data,
-            'meta' => ['workflow_state' => is_string($state) && $state !== '' ? $state : null],
+            'meta' => ['workflow_state' => $state],
         ]);
     }
 

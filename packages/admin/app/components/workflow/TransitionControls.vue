@@ -17,7 +17,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useLanguage()
-const { transitions, fetchTransitions, applyTransition } = useWorkflowTransitions()
+const { transitions, error: fetchError, fetchTransitions, applyTransition } = useWorkflowTransitions()
 
 const loaded = ref(false)
 const pending = ref(false)
@@ -47,7 +47,7 @@ async function apply(transitionId: string) {
 </script>
 
 <template>
-  <div v-if="loaded && transitions.length > 0" class="transition-controls" data-testid="transition-controls">
+  <div v-if="loaded && (transitions.length > 0 || fetchError)" class="transition-controls" data-testid="transition-controls">
     <button
       v-for="transition in transitions"
       :key="transition.id"
@@ -62,6 +62,7 @@ async function apply(transitionId: string) {
     </button>
 
     <div v-if="applyError" class="error" data-testid="transition-error">{{ applyError }}</div>
+    <div v-if="fetchError" class="error" data-testid="transition-fetch-error">{{ fetchError }}</div>
   </div>
 </template>
 

@@ -148,6 +148,74 @@ final class WorkflowTransitionControllerTest extends TestCase
         $this->assertSame([], $body['data']);
     }
 
+    // --- field-level view gate on meta.workflow_state (PR #1956 reviewer finding) ---
+
+    #[Test]
+    public function metaWorkflowStateIsNullWhenFieldViewIsForbidden(): void
+    {
+        $entityType = $this->entityType();
+        $repository = new FixtureWorkflowEntityRepository();
+        $repository->addEntity(new FixtureWorkflowEntity('20', 'draft'));
+        $workflow = $this->editorialWorkflow();
+        $workflowRepository = new FixtureWorkflowLookupRepository($workflow);
+
+        $entityTypeManager = new FixtureWorkflowEntityTypeManager($entityType, $repository, $workflowRepository);
+        $configFactory = new FixtureAssignmentsConfigFactory([self::ENTITY_TYPE_ID . '.' . self::ENTITY_TYPE_ID => 'editorial']);
+        $bindings = new WorkflowBindingResolver($configFactory, $entityTypeManager);
+        $transitionService = new TransitionService($bindings, $entityTypeManager);
+
+        $accessHandler = new EntityAccessHandler([$this->workflowStateFieldDenyPolicy()]);
+        $account = $this->account(9, ['use editorial transition submit_for_review']);
+        $controller = new WorkflowTransitionController($entityTypeManager, $accessHandler, $transitionService);
+
+        $request = $this->requestWithAccount('GET', '/api/wf_article/20/workflow/transitions', $account);
+        $response = $controller->transitions($request, self::ENTITY_TYPE_ID, '20');
+
+        $this->assertSame(200, $response->getStatusCode());
+        $body = $this->decode($response);
+        $this->assertNull($body['meta']['workflow_state']);
+        // The transition list itself is unaffected by the field gate — it
+        // remains the entity-level view check + engine filtering's job.
+        $this->assertCount(1, $body['data']);
+        $this->assertSame('submit_for_review', $body['data'][0]['id']);
+    }
+
+    /**
+     * Entity-level view allowed, but a field policy view-Forbids
+     * `workflow_state` specifically. Anonymous class implementing BOTH
+     * `AccessPolicyInterface` and `FieldAccessPolicyInterface` — PHPUnit
+     * `createMock()` cannot mock an intersection type — mirrors
+     * {@see \Waaseyaa\Api\Tests\Unit\ResourceSerializerFieldAccessTest::createViewDenyPolicy()}.
+     */
+    private function workflowStateFieldDenyPolicy(): AccessPolicyInterface
+    {
+        return new class () implements AccessPolicyInterface, \Waaseyaa\Access\FieldAccessPolicyInterface {
+            public function appliesTo(string $entityTypeId): bool
+            {
+                return true;
+            }
+
+            public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+            {
+                return AccessResult::allowed();
+            }
+
+            public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+            {
+                return AccessResult::allowed();
+            }
+
+            public function fieldAccess(EntityInterface $entity, string $fieldName, string $operation, AccountInterface $account): AccessResult
+            {
+                if ($fieldName === 'workflow_state' && $operation === 'view') {
+                    return AccessResult::forbidden('No view access to workflow_state for testing.');
+                }
+
+                return AccessResult::neutral();
+            }
+        };
+    }
+
     // --- POST transition ---
 
     #[Test]

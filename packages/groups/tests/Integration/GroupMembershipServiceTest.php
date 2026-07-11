@@ -540,6 +540,101 @@ final class GroupMembershipServiceTest extends TestCase
     }
 
     #[Test]
+    public function remove_member_revokes_all_duplicate_live_rows_for_the_same_triple(): void
+    {
+        // Reviewer finding (PR #1956): duplicate relationship rows for the
+        // same (relationship_type, from, group) triple can exist — pre-WP-4
+        // hand-crafted rows, or a race between concurrent addMember() calls
+        // (find-then-create is not atomic; no unique DB index). Before the
+        // fix, revokeRelationship() found and revoked only ONE of the two
+        // live rows (range(0, 1)), leaving the other live — so the user
+        // stayed a member.
+        $manager = $this->makeManager();
+        $this->createGroup($manager, '1');
+        $this->createRelationship($manager, [
+            'relationship_type' => GroupRelationshipTypes::MEMBERSHIP,
+            'from_entity_type' => 'user',
+            'from_entity_id' => '7',
+            'to_entity_type' => 'group',
+            'to_entity_id' => '1',
+        ]);
+        $this->createRelationship($manager, [
+            'relationship_type' => GroupRelationshipTypes::MEMBERSHIP,
+            'from_entity_type' => 'user',
+            'from_entity_id' => '7',
+            'to_entity_type' => 'group',
+            'to_entity_id' => '1',
+        ]);
+        $repository = $manager->getRepository('relationship');
+        self::assertSame(2, $repository->count([
+            'relationship_type' => GroupRelationshipTypes::MEMBERSHIP,
+            'from_entity_type' => 'user',
+            'from_entity_id' => '7',
+            'to_entity_id' => '1',
+        ]));
+
+        $service = new GroupMembershipService($manager);
+        $service->removeMember(7, '1');
+
+        self::assertSame([], $service->groupIdsForUser(7));
+        $rows = $repository->findBy([
+            'relationship_type' => GroupRelationshipTypes::MEMBERSHIP,
+            'from_entity_type' => 'user',
+            'from_entity_id' => '7',
+            'to_entity_id' => '1',
+        ]);
+        self::assertCount(2, $rows);
+        foreach ($rows as $row) {
+            \assert($row instanceof Relationship);
+            self::assertSame(0, (int) $row->get('status'), 'Every duplicate live row must be revoked.');
+        }
+    }
+
+    #[Test]
+    public function unassign_content_revokes_all_duplicate_live_rows_for_the_same_triple(): void
+    {
+        $manager = $this->makeManager();
+        $this->createGroup($manager, '5');
+        $this->createRelationship($manager, [
+            'relationship_type' => GroupRelationshipTypes::CONTENT,
+            'from_entity_type' => 'node',
+            'from_entity_id' => '42',
+            'to_entity_type' => 'group',
+            'to_entity_id' => '5',
+        ]);
+        $this->createRelationship($manager, [
+            'relationship_type' => GroupRelationshipTypes::CONTENT,
+            'from_entity_type' => 'node',
+            'from_entity_id' => '42',
+            'to_entity_type' => 'group',
+            'to_entity_id' => '5',
+        ]);
+        $repository = $manager->getRepository('relationship');
+        self::assertSame(2, $repository->count([
+            'relationship_type' => GroupRelationshipTypes::CONTENT,
+            'from_entity_type' => 'node',
+            'from_entity_id' => '42',
+            'to_entity_id' => '5',
+        ]));
+
+        $service = new GroupMembershipService($manager);
+        $service->unassignContent('node', 42, '5');
+
+        self::assertSame([], $service->groupIdsForContent('node', 42));
+        $rows = $repository->findBy([
+            'relationship_type' => GroupRelationshipTypes::CONTENT,
+            'from_entity_type' => 'node',
+            'from_entity_id' => '42',
+            'to_entity_id' => '5',
+        ]);
+        self::assertCount(2, $rows);
+        foreach ($rows as $row) {
+            \assert($row instanceof Relationship);
+            self::assertSame(0, (int) $row->get('status'), 'Every duplicate live row must be revoked.');
+        }
+    }
+
+    #[Test]
     public function remove_member_does_not_require_the_group_to_still_exist(): void
     {
         $manager = $this->makeManager();

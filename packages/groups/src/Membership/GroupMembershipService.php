@@ -34,6 +34,16 @@ use Waaseyaa\Relationship\Relationship;
  * on a dangling edge) — the revoke pair does not, since revoking a reference
  * to an already-deleted group must still succeed.
  *
+ * **Duplicate-row caveat**: the upsert path's find-then-create is NOT atomic
+ * and there is no unique DB index on the (relationship_type, from, group)
+ * triple, so it does not *guarantee* uniqueness — a race between concurrent
+ * {@see self::addMember()}/{@see self::assignContent()} calls (or a
+ * pre-existing hand-crafted row) can still leave more than one live row for
+ * the same triple. The revoke path is written to tolerate that: it revokes
+ * every matching live row, not just the first one found, so a duplicate
+ * cannot leave the caller silently still-a-member after
+ * {@see self::removeMember()}/{@see self::unassignContent()}.
+ *
  * @api
  */
 final class GroupMembershipService
@@ -192,9 +202,49 @@ final class GroupMembershipService
     }
 
     /**
+     * Find ALL existing relationship rows for the exact
+     * (relationshipType, fromType, fromId, group/$groupId) triple, regardless
+     * of `status`. Unlike {@see self::findExistingRelationshipId()} this does
+     * not cap the result to one row — the revoke path must be
+     * duplicate-tolerant, because the find-then-create in
+     * {@see self::upsertLiveRelationship()} is not atomic and there is no
+     * unique DB index on this triple, so pre-existing hand-crafted rows or a
+     * race between concurrent {@see self::addMember()} calls can leave more
+     * than one live row behind.
+     *
+     * @return list<string>
+     */
+    private function findExistingRelationshipIds(
+        string $relationshipType,
+        string $fromEntityType,
+        string $fromEntityId,
+        string $groupId,
+    ): array {
+        $repository = $this->relationshipRepository();
+        $q = $repository->getQuery();
+        // System-context existence lookup: no account in scope (scalar ids
+        // only), status deliberately NOT filtered — the revoke loop decides
+        // per-row whether to flip status.
+        $q->accessCheck(false);
+        $q->condition('relationship_type', $relationshipType);
+        $q->condition('from_entity_type', $fromEntityType);
+        $q->condition('from_entity_id', $fromEntityId);
+        $q->condition('to_entity_type', 'group');
+        $q->condition('to_entity_id', $groupId);
+        $ids = $q->execute();
+
+        return array_values(array_map(static fn(mixed $id): string => (string) $id, $ids));
+    }
+
+    /**
      * Create-or-reactivate the relationship row for the given triple: a live
      * row is left alone, a soft-revoked row is flipped back to `status = 1`,
-     * and a missing row is created live. Never produces a duplicate row.
+     * and a missing row is created live. This find-then-create is **not
+     * atomic** and there is no unique DB index on this triple — a race
+     * between concurrent calls can still produce a duplicate row (see
+     * {@see self::revokeRelationship()}, which is duplicate-tolerant for
+     * exactly this reason). Under single-threaded/typical usage this method
+     * does not itself introduce a duplicate.
      */
     private function upsertLiveRelationship(
         string $relationshipType,
@@ -232,9 +282,14 @@ final class GroupMembershipService
     }
 
     /**
-     * Soft-revoke (`status = 0`) the relationship row for the given triple.
-     * No-op when no row exists, or when the row is already revoked. Never
-     * deletes the row.
+     * Soft-revoke (`status = 0`) EVERY live relationship row for the given
+     * triple. No-op when no row exists. Never deletes any row.
+     *
+     * Duplicate-tolerant by design: unlike the upsert path, this does not
+     * stop at the first matching row — it revokes ALL of them, so a
+     * pre-existing duplicate (hand-crafted row, or a race between concurrent
+     * {@see self::upsertLiveRelationship()} calls) cannot leave the caller
+     * silently still-a-member/still-assigned via a second live row.
      */
     private function revokeRelationship(
         string $relationshipType,
@@ -243,21 +298,20 @@ final class GroupMembershipService
         string $groupId,
     ): void {
         $repository = $this->relationshipRepository();
-        $existingId = $this->findExistingRelationshipId($relationshipType, $fromEntityType, $fromEntityId, $groupId);
-        if ($existingId === null) {
-            return;
-        }
+        $existingIds = $this->findExistingRelationshipIds($relationshipType, $fromEntityType, $fromEntityId, $groupId);
 
-        $entity = $repository->find($existingId);
-        if (!$entity instanceof Relationship) {
-            return;
-        }
-        if ((int) $entity->get('status') === 0) {
-            return;
-        }
+        foreach ($existingIds as $existingId) {
+            $entity = $repository->find($existingId);
+            if (!$entity instanceof Relationship) {
+                continue;
+            }
+            if ((int) $entity->get('status') === 0) {
+                continue;
+            }
 
-        $entity->set('status', 0);
-        $repository->save($entity, validate: false);
+            $entity->set('status', 0);
+            $repository->save($entity, validate: false);
+        }
     }
 
     /**

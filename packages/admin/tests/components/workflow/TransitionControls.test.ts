@@ -17,6 +17,7 @@ const archiveTransition = { id: 'archive', label: 'Archive', to: 'archived' }
 
 const transitionsRef = ref<Array<{ id: string; label: string; to: string }>>([])
 const stateRef = ref<string | null>(null)
+const fetchErrorRef = ref<string | null>(null)
 
 const { fetchTransitionsMock, applyTransitionMock } = vi.hoisted(() => ({
   fetchTransitionsMock: vi.fn(),
@@ -32,7 +33,7 @@ vi.mock('~/composables/useWorkflowTransitions', () => ({
     transitions: transitionsRef,
     state: stateRef,
     loading: ref(false),
-    error: ref(null),
+    error: fetchErrorRef,
     fetchTransitions: fetchTransitionsMock,
     applyTransition: applyTransitionMock,
   }),
@@ -44,6 +45,7 @@ beforeEach(() => {
   applyTransitionMock.mockReset()
   transitionsRef.value = []
   stateRef.value = null
+  fetchErrorRef.value = null
 })
 
 async function mountControls() {
@@ -101,6 +103,41 @@ describe('TransitionControls empty path', () => {
     const wrapper = await mountControls()
 
     expect(wrapper.findAll('button')).toHaveLength(0)
+  })
+})
+
+describe('TransitionControls fetch error path', () => {
+  it('renders the fetch error when the transitions GET fails with a non-404 (e.g. 500)', async () => {
+    // useWorkflowTransitions.fetchTransitions() sets `error` on any non-404
+    // GET failure and leaves `transitions` empty — before the fix, that
+    // error was never rendered, indistinguishable from "no transitions".
+    fetchTransitionsMock.mockImplementation(async () => {
+      transitionsRef.value = []
+      stateRef.value = null
+      fetchErrorRef.value = 'Failed to load workflow transitions.'
+      return { transitions: [], state: null }
+    })
+
+    const wrapper = await mountControls()
+
+    expect(wrapper.findAll('button')).toHaveLength(0)
+    const errorEl = wrapper.get('[data-testid="transition-fetch-error"]')
+    expect(errorEl.text()).toBe('Failed to load workflow transitions.')
+  })
+
+  it('still renders nothing when the transitions fetch 404s (composable absorbs it, no error)', async () => {
+    fetchTransitionsMock.mockImplementation(async () => {
+      transitionsRef.value = []
+      stateRef.value = null
+      fetchErrorRef.value = null
+      return { transitions: [], state: null }
+    })
+
+    const wrapper = await mountControls()
+
+    expect(wrapper.findAll('button')).toHaveLength(0)
+    expect(wrapper.find('[data-testid="transition-fetch-error"]').exists()).toBe(false)
+    expect(wrapper.find('.transition-controls').exists()).toBe(false)
   })
 })
 
