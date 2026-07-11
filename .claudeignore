@@ -1,9 +1,4 @@
-# Spec Kitty Configuration and Templates
-# These are internal directories that shouldn't be scanned by AI assistants
-
-# Template directories (not working code)
-.kittify/templates/
-.kittify/scripts/
+# Internal directories that shouldn't be scanned by AI assistants
 
 # Agent command directories (generated from templates, not source)
 # This repo tracks .claude/settings.json and .claude/rules/ — do not ignore .claude/.

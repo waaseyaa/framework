@@ -4,6 +4,15 @@
 
 Generated: 2026-04-27T04:26:37Z; Last amended: 2026-06-17T16:30:00Z
 
+> **Relocation note (2026-07-10):** Spec Kitty was retired from this repository;
+> this charter was relocated verbatim from `.kittify/charter/charter.md`. The
+> directives (DIR-*) and gate commitments below remain binding. References in the
+> body to Spec Kitty missions, work packages, and the implement-review loop
+> describe the retired process — substantive work now follows the design-first
+> flow in `docs/specs/workflow.md` (GitHub anchor issues, `#N`-traceable PRs).
+> Charter amendments follow that same flow: a PR editing this file, linked to an
+> anchor issue recording the rationale.
+
 ## Testing Standards
 
 - Every package ships with unit tests in its own `tests/` directory.

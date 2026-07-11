@@ -293,4 +293,4 @@ Chunked transfer without `Content-Length` falls through to step 2.
 
 > **DIR-003**: No compatibility shims, no `@deprecated` annotations, no `Legacy*` classes.
 > Downstream callers that relied on any removed API must update in-place.
-> See `.kittify/charter/charter.md` § DIR-003 (Greenfield Removal Policy).
+> See `docs/governance/charter.md` § DIR-003 (Greenfield Removal Policy).

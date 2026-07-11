@@ -47,7 +47,7 @@ The framework's committed workspace UI surface is the standalone Nuxt 3 + Vue 3 
 
 `packages/inertia` is the alternative protocol adapter, retained as **optional / experimental**. Distributions that prefer server-driven UI (e.g., for large permission trees, classification rule editors, or multi-tenant policy UI) may install `waaseyaa/inertia` explicitly. It is not bundled by `waaseyaa/full`. See `packages/inertia/README.md` for the Inertia entrypoint and `packages/admin/README.md` for the Nuxt entrypoint.
 
-Changes to this commitment require a charter amendment (per `## Amendment Process` in `.kittify/charter/charter.md`), not just a spec edit.
+Changes to this commitment require a charter amendment (per `## Amendment Process` in `docs/governance/charter.md`), not just a spec edit.
 
 ## Authority
 

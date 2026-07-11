@@ -38,6 +38,7 @@ and kept current; `history/` is frozen.** Edit specs; read history.
 |------|------|
 | `history/plans/` | Dated design & implementation plans (session artifacts), incl. Aurora-era docs. |
 | `history/superpowers/` | The pre-Spec-Kitty planning workflow, superseded 2026-04-24 by `kitty-specs/`. |
+| repo-root `kitty-specs/` | Spec Kitty mission artifacts (Spec Kitty retired 2026-07-06) — read-only history. |
 
-See `history/README.md`. For active mission planning, the canonical surface is the
-repo-root `kitty-specs/` tree, not `docs/`.
+See `history/README.md`. Active planning follows the anchor-issue + design-first
+workflow (`docs/specs/workflow.md`); design/specs land in `docs/specs/`.

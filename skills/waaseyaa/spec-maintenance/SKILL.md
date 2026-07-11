@@ -1,6 +1,6 @@
 ---
 name: waaseyaa-spec-maintenance
-description: Use when editing docs/specs/, CLAUDE.md orchestration, or agent rules — keep subsystem specs aligned with code, run drift checks, and follow Spec Kitty–first workflow (GitHub as integration surface).
+description: Use when editing docs/specs/, CLAUDE.md orchestration, or agent rules — keep subsystem specs aligned with code, run drift checks, and follow the anchor-issue + design-first workflow (GitHub as integration surface).
 ---
 
 # Waaseyaa spec maintenance
@@ -30,8 +30,8 @@ bash tools/drift-detector.sh 5
 
 Session hooks may run a shorter threshold; CI runs drift detection on pushes and PRs.
 
-## Spec Kitty vs GitHub
+## Workflow governance
 
-This repo uses **Spec Kitty** for spec/plan/task-driven delivery (see `.kittify/` and [Spec Kitty](https://github.com/Priivacy-ai/spec-kitty)).
+This repo uses the **anchor-issue + design-first workflow** for structured delivery (see `docs/specs/workflow.md`).
 
-**Precedence:** **Spec Kitty** missions and work packages are the primary ledger for structured work. **GitHub** is for PRs, CI, releases, security, and **optional** issues (including M11 filings); Track milestones apply when an issue exists (`docs/specs/workflow.md`).
+**Precedence:** **Anchor issues** are the primary ledger for multi-PR efforts (scope, work packages, descope decisions in the comment trail). **GitHub** is for PRs, CI, releases, security, and issues (including M11 filings); no enforced milestone taxonomy (`docs/specs/workflow.md`).
