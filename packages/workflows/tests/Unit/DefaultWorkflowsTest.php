@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Workflows\DefaultWorkflows;
+use Waaseyaa\Workflows\Workflow;
 
 /**
  * @covers \Waaseyaa\Workflows\DefaultWorkflows
@@ -58,6 +59,30 @@ final class DefaultWorkflowsTest extends TestCase
                     $transitionId,
                     $to,
                 ),
+            );
+        }
+    }
+
+    #[Test]
+    public function the_shipped_editorial_workflow_carries_no_group_constraint(): void
+    {
+        // CW-v1 WP-3 (#1920): group_constraint is opt-in per transition. The
+        // shipped `editorial` workflow must remain unconstrained — it
+        // behaves exactly like Drupal core, with no department routing.
+        $workflow = new Workflow(DefaultWorkflows::EDITORIAL);
+
+        foreach ($workflow->getTransitions() as $transition) {
+            $this->assertNull(
+                $transition->groupConstraint,
+                \sprintf("Transition '%s' unexpectedly carries a group_constraint.", $transition->id),
+            );
+        }
+
+        foreach ($workflow->toConfig()['transitions'] as $transitionId => $transitionConfig) {
+            $this->assertArrayNotHasKey(
+                'group_constraint',
+                $transitionConfig,
+                \sprintf("Serialized transition '%s' unexpectedly carries a group_constraint key.", $transitionId),
             );
         }
     }

@@ -76,4 +76,29 @@ final class WorkflowTransitionTest extends TestCase
         $this->assertContains('review', $transition->from);
         $this->assertContains('revision', $transition->from);
     }
+
+    public function testGroupConstraintDefaultsToNull(): void
+    {
+        $transition = new WorkflowTransition(
+            id: 'publish',
+            label: 'Publish',
+            from: ['draft'],
+            to: 'published',
+        );
+
+        $this->assertNull($transition->groupConstraint);
+    }
+
+    public function testGroupConstraintHoldsExplicitValue(): void
+    {
+        $transition = new WorkflowTransition(
+            id: 'publish',
+            label: 'Publish',
+            from: ['draft'],
+            to: 'published',
+            groupConstraint: 'content_groups',
+        );
+
+        $this->assertSame('content_groups', $transition->groupConstraint);
+    }
 }

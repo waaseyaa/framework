@@ -88,6 +88,9 @@ final class Workflow extends ConfigEntityBase
                         to: (string) ($transitionData['to'] ?? ''),
                         weight: (int) ($transitionData['weight'] ?? 0),
                         permission: (string) ($transitionData['permission'] ?? ''),
+                        groupConstraint: isset($transitionData['group_constraint'])
+                            ? (string) $transitionData['group_constraint']
+                            : null,
                     );
                 }
             }
@@ -326,6 +329,9 @@ final class Workflow extends ConfigEntityBase
             if ($transition->permission !== '') {
                 $entry['permission'] = $transition->permission;
             }
+            if ($transition->groupConstraint !== null) {
+                $entry['group_constraint'] = $transition->groupConstraint;
+            }
             $transitions[$transition->id] = $entry;
         }
         $this->values['transitions'] = $transitions;
@@ -368,6 +374,9 @@ final class Workflow extends ConfigEntityBase
             ];
             if ($transition->permission !== '') {
                 $entry['permission'] = $transition->permission;
+            }
+            if ($transition->groupConstraint !== null) {
+                $entry['group_constraint'] = $transition->groupConstraint;
             }
             $transitions[$transition->id] = $entry;
         }

@@ -414,6 +414,55 @@ final class WorkflowTest extends TestCase
     }
 
     #[Test]
+    public function group_constraint_hydrates_from_config_and_defaults_to_null(): void
+    {
+        $workflow = new Workflow(['id' => 'w',
+            'states' => ['draft' => ['label' => 'Draft'], 'review' => ['label' => 'Review'], 'published' => ['label' => 'Published']],
+            'transitions' => [
+                'submit' => ['label' => 'Submit', 'from' => ['draft'], 'to' => 'review'],
+                'publish' => ['label' => 'Publish', 'from' => ['review'], 'to' => 'published', 'group_constraint' => 'content_groups'],
+            ],
+        ]);
+
+        $this->assertNull($workflow->getTransition('submit')->groupConstraint);
+        $this->assertSame('content_groups', $workflow->getTransition('publish')->groupConstraint);
+    }
+
+    #[Test]
+    public function group_constraint_round_trips_through_sync_and_to_config(): void
+    {
+        $workflow = new Workflow(['id' => 'w', 'label' => 'W']);
+        $workflow->addState(new WorkflowState('draft', 'Draft'));
+        $workflow->addState(new WorkflowState('review', 'Review'));
+        $workflow->addTransition(new WorkflowTransition(
+            id: 'submit',
+            label: 'Submit',
+            from: ['draft'],
+            to: 'review',
+        ));
+        $workflow->addTransition(new WorkflowTransition(
+            id: 'publish',
+            label: 'Publish',
+            from: ['review'],
+            to: 'published',
+            groupConstraint: 'content_groups',
+        ));
+
+        // syncTransitionsToValues() runs on addTransition() — assert via toArray().
+        $values = $workflow->toArray();
+        $this->assertArrayNotHasKey('group_constraint', $values['transitions']['submit']);
+        $this->assertSame('content_groups', $values['transitions']['publish']['group_constraint']);
+
+        $config = $workflow->toConfig();
+        $this->assertArrayNotHasKey('group_constraint', $config['transitions']['submit']);
+        $this->assertSame('content_groups', $config['transitions']['publish']['group_constraint']);
+
+        $restored = new Workflow($config);
+        $this->assertNull($restored->getTransition('submit')->groupConstraint);
+        $this->assertSame('content_groups', $restored->getTransition('publish')->groupConstraint);
+    }
+
+    #[Test]
     public function initial_state_hydrates_and_defaults_to_the_first_state(): void
     {
         $explicit = new Workflow(['id' => 'w', 'initial_state' => 'draft',

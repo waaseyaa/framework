@@ -372,6 +372,9 @@ final class WorkflowServiceProvider extends ServiceProvider
                 to: (string) ($transitionData['to'] ?? ''),
                 weight: (int) ($transitionData['weight'] ?? 0),
                 permission: (string) ($transitionData['permission'] ?? ''),
+                groupConstraint: isset($transitionData['group_constraint'])
+                    ? (string) $transitionData['group_constraint']
+                    : null,
             ));
             $added[] = $transitionId;
         }

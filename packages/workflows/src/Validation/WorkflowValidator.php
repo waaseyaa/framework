@@ -20,6 +20,12 @@ use Waaseyaa\Workflows\Workflow;
 final class WorkflowValidator
 {
     /**
+     * The only group-constraint kind supported in CW-v1 (WP-3,
+     * docs/specs/content-workflow.md).
+     */
+    private const string GROUP_CONSTRAINT_CONTENT_GROUPS = 'content_groups';
+
+    /**
      * @return list<string> Human-readable violations; empty list means valid.
      */
     public function validate(Workflow $workflow): array
@@ -57,6 +63,15 @@ final class WorkflowValidator
                     "Transition '%s' references unknown state '%s' in 'to'.",
                     $transition->id,
                     $transition->to,
+                );
+            }
+
+            if ($transition->groupConstraint !== null && $transition->groupConstraint !== self::GROUP_CONSTRAINT_CONTENT_GROUPS) {
+                $violations[] = \sprintf(
+                    "Transition '%s' declares unknown group_constraint '%s' (only '%s' is supported).",
+                    $transition->id,
+                    $transition->groupConstraint,
+                    self::GROUP_CONSTRAINT_CONTENT_GROUPS,
                 );
             }
         }
