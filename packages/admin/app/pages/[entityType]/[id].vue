@@ -15,6 +15,9 @@ const entityId = computed(() => route.params.id as string)
 const mode = ref<'view' | 'edit'>('view')
 const successMessage = ref('')
 const errorMessage = ref('')
+// Bumped on a successful workflow transition to force SchemaView to re-fetch
+// the entity (its cache key is `view-${entityId}`, unchanged by a transition).
+const viewRefreshKey = ref(0)
 
 useHead({ title: computed(() => {
   const titleKey = mode.value === 'edit' ? 'edit_entity' : 'view_entity'
@@ -30,6 +33,12 @@ function onSaved() {
 function onError(message: string) {
   errorMessage.value = message
 }
+
+function onTransitioned() {
+  successMessage.value = t('workflow_transitioned')
+  viewRefreshKey.value++
+  setTimeout(() => { successMessage.value = '' }, 3000)
+}
 </script>
 
 <template>
@@ -38,6 +47,11 @@ function onError(message: string) {
       <h1 v-if="mode === 'view'">{{ t('view_entity', { type: entityLabel }) }} #{{ entityId }}</h1>
       <h1 v-else>{{ t('edit_entity', { type: entityLabel }) }} #{{ entityId }}</h1>
       <div class="page-header-actions">
+        <WorkflowTransitionControls
+          :entity-type="entityType"
+          :entity-id="entityId"
+          @transitioned="onTransitioned"
+        />
         <button
           v-if="mode === 'view'"
           class="btn btn-primary"
@@ -63,7 +77,7 @@ function onError(message: string) {
 
     <SchemaView
       v-if="mode === 'view'"
-      :key="`view-${entityId}`"
+      :key="`view-${entityId}-${viewRefreshKey}`"
       :entity-type="entityType"
       :entity-id="entityId"
     />

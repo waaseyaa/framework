@@ -199,6 +199,26 @@ function truncateSnippet(value: string): string {
     : oneLine
 }
 
+// Workflow-state pill (CW-v1 WP-4 Task C, #1920). If the schema already lists
+// workflow_state as a column (most workflow-bound entity types do — it's a
+// normal field), the pill renders inside that existing cell. Otherwise, when
+// the fetched entities still carry attributes.workflow_state (e.g. it was
+// excluded from the column set), a synthetic extra column is appended so the
+// state is never silently dropped. Entity types with no workflow_state
+// attribute at all get neither — the list renders exactly as before.
+const workflowStateInColumns = computed(() => columns.value.some(([name]) => name === 'workflow_state'))
+const hasWorkflowStateAttribute = computed(() =>
+  entities.value.some(entity => Object.prototype.hasOwnProperty.call(entity.attributes ?? {}, 'workflow_state')),
+)
+const showSyntheticWorkflowStateColumn = computed(() => hasWorkflowStateAttribute.value && !workflowStateInColumns.value)
+
+const KNOWN_WORKFLOW_STATE_CLASSES = new Set(['draft', 'review', 'published', 'archived'])
+function workflowStateClass(value: unknown): string {
+  return typeof value === 'string' && KNOWN_WORKFLOW_STATE_CLASSES.has(value)
+    ? `status-pill status-pill--${value}`
+    : 'status-pill'
+}
+
 function getEntityLabel(entity: JsonApiResource): string {
   // Find the label field from columns (x-label: "Title" or the label key).
   for (const [fieldName] of columns.value) {
@@ -268,16 +288,27 @@ watch(messages, (msgs) => {
               {{ fieldSchema['x-label'] ?? fieldName }}
               <span v-if="sortField === fieldName">{{ sortAsc ? ' ↑' : ' ↓' }}</span>
             </th>
+            <th v-if="showSyntheticWorkflowStateColumn">{{ t('workflow_state_column_label') }}</th>
             <th>{{ t('actions') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="entities.length === 0">
-            <td :colspan="columns.length + 1" class="empty">{{ t('no_items') }}</td>
+            <td :colspan="columns.length + (showSyntheticWorkflowStateColumn ? 1 : 0) + 1" class="empty">{{ t('no_items') }}</td>
           </tr>
           <tr v-for="entity in entities" :key="entity.id">
             <td v-for="[fieldName, fieldSchema] in columns" :key="fieldName">
-              {{ formatCellValue(getCellValue(entity, fieldName, fieldSchema as unknown as Record<string, unknown>), fieldSchema as unknown as Record<string, unknown>) }}
+              <span v-if="fieldName === 'workflow_state'" :class="workflowStateClass(getCellValue(entity, fieldName, fieldSchema as unknown as Record<string, unknown>))">
+                {{ getCellValue(entity, fieldName, fieldSchema as unknown as Record<string, unknown>) }}
+              </span>
+              <template v-else>
+                {{ formatCellValue(getCellValue(entity, fieldName, fieldSchema as unknown as Record<string, unknown>), fieldSchema as unknown as Record<string, unknown>) }}
+              </template>
+            </td>
+            <td v-if="showSyntheticWorkflowStateColumn">
+              <span v-if="entity.attributes.workflow_state" :class="workflowStateClass(entity.attributes.workflow_state)">
+                {{ entity.attributes.workflow_state }}
+              </span>
             </td>
             <td class="actions">
               <NuxtLink
@@ -346,5 +377,32 @@ watch(messages, (msgs) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Workflow-state pill (status-pill pattern, mirrors SchedulerTaskRow.vue). */
+.status-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--color-bg);
+  color: var(--color-muted);
+}
+.status-pill--published {
+  background: #d1fae5;
+  color: #065f46;
+}
+.status-pill--review {
+  background: #fef3c7;
+  color: #92400e;
+}
+.status-pill--draft {
+  background: var(--color-bg);
+  color: var(--color-muted);
+}
+.status-pill--archived {
+  background: #e5e7eb;
+  color: #374151;
 }
 </style>
