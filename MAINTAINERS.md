@@ -3,7 +3,7 @@
 This file enumerates the Waaseyaa framework's current maintainers, the Tier 0 trust substrate that underwrites the framework's continuity claim, and the decision and escalation authority that governs day-to-day operations.
 
 Companion document: see [SUCCESSION.md](SUCCESSION.md) for the multi-tier continuity narrative this file's roster operationalises.
-Constitutional source: see DIR-006 in [`.kittify/charter/charter.md`](.kittify/charter/charter.md) for the codified-gates-as-trust-substrate directive that this file makes procurement-legible.
+Constitutional source: see DIR-006 in [`docs/governance/charter.md`](docs/governance/charter.md) for the codified-gates-as-trust-substrate directive that this file makes procurement-legible.
 
 ## Current maintainers
 
@@ -64,7 +64,7 @@ The following codified gates are the framework's **procurement-legible trust sub
 
 - **Merge to `main`:** Primary maintainer in steady state. Trustee in escalation only — see "Escalation" below.
 - **Publish releases on Packagist:** Primary maintainer in steady state. Trustee in escalation only — see "Escalation" below.
-- **Charter amendments:** Follow the Amendment Process documented in [`.kittify/charter/charter.md`](.kittify/charter/charter.md). Amendments are themselves Spec Kitty missions; the trustee MAY initiate an amendment mission in escalation but the amendment MUST follow the documented mission flow.
+- **Charter amendments:** Follow the Amendment Process documented in [`docs/governance/charter.md`](docs/governance/charter.md). Amendments land as PRs editing the charter, linked to an anchor issue recording the rationale (see `docs/specs/workflow.md`); the trustee MAY initiate an amendment in escalation but it MUST follow that same traceable flow.
 - **`charter-exception` issues:** Filed per the Exception Policy in the charter. Both primary maintainer and trustee may file; both may resolve.
 
 ## Escalation
@@ -148,7 +148,7 @@ A Nation procurement officer evaluating Waaseyaa for sovereign-workspace adoptio
 
 1. **This file.** Confirms who maintains it, what gates enforce its invariants, who can act if the maintainer is unavailable, and where the Nation-hosted continuity copy lives.
 2. **[SUCCESSION.md](SUCCESSION.md).** Confirms the multi-tier continuity narrative across Tier 0 (already in place) through Tier 4 (long-horizon governance vehicle).
-3. **[`.kittify/charter/charter.md`](.kittify/charter/charter.md), DIR-006.** Confirms that the gates listed in "Tier 0 substrate inventory" above are constitutionally binding — removal requires a charter amendment with explicit rationale, not just a code change.
+3. **[`docs/governance/charter.md`](docs/governance/charter.md), DIR-006.** Confirms that the gates listed in "Tier 0 substrate inventory" above are constitutionally binding — removal requires a charter amendment with explicit rationale, not just a code change.
 4. **Spot-checks of `bin/check-*` source.** Confirms the gates do what this file says they do.
 
 After step 4 the procurement officer has, without reading the framework's source code, verified the framework's continuity claim.

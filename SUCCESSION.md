@@ -3,7 +3,7 @@
 This file documents the Waaseyaa framework's continuity story across five tiers. Tier 0 is already in place. Tier 1 is published by the mission that produced this file (`succession-framework-tier1-publishing-01KSEFV6`). Tiers 2–4 are deferred to future missions whose timing is governed by adoption signals rather than calendar dates.
 
 Companion document: see [MAINTAINERS.md](MAINTAINERS.md) for the current maintainer roster and Tier 0 substrate inventory that this narrative builds on.
-Constitutional source: see DIR-006 in [`.kittify/charter/charter.md`](.kittify/charter/charter.md) for the codified-gates-as-trust-substrate directive that anchors the trust posture across all five tiers.
+Constitutional source: see DIR-006 in [`docs/governance/charter.md`](docs/governance/charter.md) for the codified-gates-as-trust-substrate directive that anchors the trust posture across all five tiers.
 
 ## Why this file exists
 
@@ -87,5 +87,5 @@ The framework's continuity is **managed by codified infrastructure, not by indiv
 - **Tier 2:** OIATC-chartered stewards committee. Deferred to post-v1.0.
 - **Tier 3:** NorthOps-trained contractor pool with per-package owner roster. Deferred to funded engagement.
 - **Tier 4:** Long-term governance vehicle (Indigenous-tech foundation, Apache incubation, or OIATC-hosted steward board). Deferred to long-horizon governance mission.
-- **DIR-006:** The charter directive that declares the `bin/check-*` family the procurement-legible surface of the framework's invariants. See [`.kittify/charter/charter.md`](.kittify/charter/charter.md).
+- **DIR-006:** The charter directive that declares the `bin/check-*` family the procurement-legible surface of the framework's invariants. See [`docs/governance/charter.md`](docs/governance/charter.md).
 - **OCAP:** Ownership, Control, Access, Possession — the First Nations data-sovereignty framework that Waaseyaa's architecture is designed to honour. The succession framework preserves OCAP audit lineage as the top-priority constraint at every tier transition.

@@ -78,7 +78,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/listing/*` | — | `docs/specs/listing-pipeline-v1.md`, `docs/conventions/cache-tags-and-contexts.md`, `docs/cookbook/listing-first-cut.md` |
 | `packages/cms/*`, `packages/core/*`, `packages/full/*` | — (consumer metapackages) | `docs/roadmap/packagist-publishing-plan.md`, `docs/adr/004-framework-package-collapse.md`, `tests/PackagedForm/README.md` |
 
-| Workflow, Spec Kitty, GitHub (PRs/issues), roadmap | — | `docs/specs/workflow.md`, `docs/specs/per-site-convergence-audit.md`, `docs/specs/v1.5-verification-gate-contract.md`, `docs/specs/v1.6-verification-gate-contract.md` |
+| Workflow, GitHub (PRs/issues), roadmap | — | `docs/specs/workflow.md`, `docs/specs/per-site-convergence-audit.md`, `docs/specs/v1.5-verification-gate-contract.md`, `docs/specs/v1.6-verification-gate-contract.md` |
 | `skills/waaseyaa/app-development/*` | — | — |
 | `skills/waaseyaa/framework-extraction/*` | — | `docs/specs/extraction-log.md` |
 | `docs/audits/*` | — | — |
@@ -173,26 +173,24 @@ framework-vs-distribution boundary is codified in charter directive DIR-004.
 5. Verify by resolving `Waaseyaa\Bimaaji\Graph\ApplicationGraphGenerator` from the container — the framework's default `BimaajiServiceProvider` only composes the six built-in providers, so a downstream provider currently needs to either (a) rebind `ApplicationGraphGenerator` with its own iterable that includes the new provider, or (b) wait for the tagged-collection resolution feature scheduled for M3's container work.
 6. Read `docs/specs/bimaaji.md` "Implementation Status" before adding mutation-side behavior — the validated mutation pipeline (`MutationValidator` → `PatchSet`) belongs to bimaaji's mutation surface, not graph providers.
 
-## Workflow (Spec Kitty–first)
+## Workflow (anchor-issue + design-first)
 
-Substantive work is driven by **[Spec Kitty](https://github.com/Priivacy-ai/spec-kitty)** missions and work packages (`.kittify/`, `spec-kitty next`, dashboard); **GitHub** is the PR/CI/releases surface and optional issue visibility. Full rules: `docs/specs/workflow.md` (versioning, PR traceability).
+Substantive work follows the **design-first flow** — brainstorm → spec in `docs/specs/` → written plan → TDD implementation → code review → verification — anchored by a **GitHub anchor issue** for multi-PR efforts (e.g. CW-v1's #1920). **GitHub** is the PR/CI/releases surface. Full rules: `docs/specs/workflow.md` (versioning, PR traceability). Spec Kitty is retired (2026-07-06); do not run `spec-kitty` commands — historical mission artifacts live read-only under `kitty-specs/`, and the charter is at `docs/governance/charter.md`.
 
 **The 4 rules (summary — see `docs/specs/workflow.md` for nuance):**
 
-1. **Substantive work begins in Spec Kitty** — active mission/WP or `spec-kitty next`; M11 filings may still require a GitHub issue as the audit front door (link it).
-2. **GitHub issues are optional** — not every change needs one. When filed, they're pure tracking with no enforced milestone or taxonomy. Spec Kitty mission state is the canonical execution map.
-3. **PRs must be traceable** — `#N` and/or Spec Kitty mission/WP reference per `docs/specs/workflow.md` and `.github/pull_request_template.md`.
-4. **Session context** — prefer Spec Kitty state when under a mission (`spec-kitty next`, dashboard, active WP).
+1. **Substantive work begins with a design and an anchor issue** — spec first, plan, then TDD; multi-PR efforts get an anchor issue recording scope and decisions. M11 filings may still require a GitHub issue as the audit front door (link it).
+2. **GitHub issues are lightweight** — not every change needs one. When filed, they're pure tracking with no enforced milestone or taxonomy. Anchor issues are the execution map for multi-PR efforts.
+3. **PRs must be traceable** — `Closes #N` / `Part of #N` plus `#N` in the title, per `docs/specs/workflow.md` and `.github/pull_request_template.md`.
+4. **Session context** — under an ongoing effort, read the anchor issue (including its comment trail) and the relevant specs before generating work.
 
-## Agent context and Spec Kitty
+## Agent context
 
 - **Constitution (this file):** Session-hot rules — orchestration table, layer graph, checklists, gotchas.
 - **Specialist skills:** `skills/waaseyaa/*` — load on demand for a subsystem; each skill lists related specs.
 - **Cold specs:** `docs/specs/*.md` — read directly from disk when you need contracts, file maps, and edge cases (no spec MCP server).
 
-Install the CLI: `pip install spec-kitty-cli` or `uv tool install spec-kitty-cli`. Run `spec-kitty upgrade` in the repo after upgrading the CLI. The CLI may create `.claude/skills/` symlinks to your global Spec Kitty skill pack — that directory is gitignored here because paths are machine-specific; re-run `spec-kitty init` (or upgrade) on a fresh clone after installing the CLI.
-
-**Workflow precedence:** **Spec Kitty** owns mission/work-package execution and structured review. **GitHub** owns merge mechanics, CI, releases, and optional issues. **`docs/specs/`** owns subsystem contracts — read from disk, update when behaviour changes.
+**Workflow precedence:** **Anchor issues** own effort scope and work-package sequencing. **GitHub** owns merge mechanics, CI, releases, and issues. **`docs/specs/`** owns subsystem contracts — read from disk, update when behaviour changes.
 
 Design docs in `docs/history/plans/` are session artifacts (implementation history). Specs in `docs/specs/` are enduring architectural knowledge (kept current). When refactoring a subsystem, update its spec — run `tools/drift-detector.sh` to find stale specs.
 

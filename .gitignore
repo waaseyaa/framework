@@ -83,9 +83,8 @@ admin-login-smoke-*.png
 node-compile-cache/
 .superpowers/
 
-# Added by Spec Kitty CLI (auto-managed)
+# Agent command directories (machine-specific, auto-managed by agent CLIs)
 # Note: do not ignore .claude/ root — this repo tracks .claude/settings.json and rules.
-# Spec Kitty installs per-project symlinks under .claude/skills/ → global CLI; do not commit.
 .claude/skills/
 .codex/
 .vibe/
@@ -101,17 +100,8 @@ node-compile-cache/
 .kiro/
 .agent/
 .github/copilot/
-.kittify/.dashboard
-.kittify/charter/context-state.json
-.kittify/charter/directives.yaml
-.kittify/charter/governance.yaml
-.kittify/charter/metadata.yaml
-.kittify/charter/references.yaml
-.kittify/dossiers/
-.kittify/events/
-.kittify/merge-state.json
-.kittify/runtime/
-.kittify/workspaces/
+# Spec Kitty retired (2026-07-06) — ignore any stray local artifacts from the old CLI.
+.kittify/
 .claude/worktrees/
 phpstan-tests/
 
@@ -135,11 +125,8 @@ phpstan-tests/
 # or `-` before the suffix.
 /img[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]*
 
-# Spec Kitty session scratch (implement/review prompts, handoff/research notes)
-/spec-kitty-implement-*.md
-/spec-kitty-review-*.md
-/spec-kitty-next-claude-*.md
-/spec-kitty-next-claude:*.md
+# Spec Kitty session scratch (retired CLI — keep ignoring stray leftovers)
+/spec-kitty-*.md
 .spec-kitty/
 # PHP tempnam() output (3-letter prefix + 18+ alnum chars). Pattern is strict
 # enough not to match phpstan*.neon, phpunit.xml.dist, etc. (those have '.' or '-').
@@ -157,12 +144,10 @@ phpstan-tests/
 packages/**/Fixtures/sfn-*
 packages/**/tests/**/sfn-*
 
-# Spec Kitty runtime event logs — append-only machine event streams. The durable
-# mission record is spec.md/plan.md/tasks/status.json; these .jsonl drove ~45% of
-# repo commit churn. Tracked copies are removed; future runs stay local.
+# Spec Kitty runtime event logs (retired CLI) — kitty-specs/ is read-only history;
+# keep ignoring the append-only event streams that drove ~45% of repo commit churn.
 kitty-specs/**/status.events.jsonl
 kitty-specs/**/mission-events.jsonl
-.kittify/sync-state.json
 
 # Local credentials restored from a dropped stash (WP4 2026-07-02 incident) — never commit.
 .sofa/

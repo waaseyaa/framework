@@ -1,5 +1,9 @@
 # Waaseyaa Mission Manifest
 
+> **Historical (Spec Kitty retired 2026-07-06).** This manifest and its `mission.json`
+> files are a frozen record of the May-2026 mission-planning surface. Active work
+> follows the anchor-issue + design-first workflow (`docs/specs/workflow.md`).
+
 **Generated:** 2026-05-11
 **Updated:** 2026-05-15 — **M-007** (`listing-pipeline-v1`) filed as ready (Spec Kitty mission `01KRMN0B`). Files the second of M-004's two prerequisites, in spec form. M-005 (`waaseyaa/migrate-source-wordpress`) shipped 2026-05-14 (squash `8da18d163`). M-002 close-out 2026-05-14 (#1481). M-006 remains shipped (squash `0f7e1809a`); M-001 remains shipped (squash `509e31fb7`).
 **Status:** Seven missions on the manifest. M-001, M-002, M-005, M-006 shipped. M-003 ready. M-004 PARTIALLY UNBLOCKED (waits on M-007 to ship + spec revalidation). M-007 ready for filing — implement-review loop can start once charter §3.2/§5 amendments are sequenced.

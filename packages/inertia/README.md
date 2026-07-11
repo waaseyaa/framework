@@ -1,7 +1,7 @@
 # waaseyaa/inertia
 
 > **Optional / experimental — not the primary workspace UI.** Per charter directive
-> **DIR-007** (`.kittify/charter/charter.md`), the committed workspace UI is the Nuxt SPA
+> **DIR-007** (`docs/governance/charter.md`), the committed workspace UI is the Nuxt SPA
 > in `packages/admin/`. This L6 adapter is supported for distributions that prefer
 > server-driven UI, but is **not** bundled by `waaseyaa/full`.
 

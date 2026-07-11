@@ -1,10 +1,12 @@
-# Workflow governance (Spec Kitty–first)
+# Workflow governance (anchor-issue + design-first)
 
-<!-- Spec reviewed 2026-05-01 - Milestone table reconciliation: GitHub now has exactly 5 Track milestones (Track 1 Entity system & hydration, Track 2 Bimaaji & agentic, Track 3 Parity & performance, Track 4 Schema evolution, Track 5 Ecosystem identity) — the prior version-numbered milestones (v0.1, v0.2, v0.3, v0.5, Phase 1, M1) flagged in the audit were retired before this surface landed. The "Framework Milestones" table below is the semantic capability narrative (slices, not GitHub titles); the "GitHub milestone tracks" table is the live mirror that contributors assign issues to. Both tables are now in sync with the live GitHub state (mission #824 WP09 surface E, closes #852) -->
+<!-- Spec reviewed 2026-07-10 - Spec Kitty retirement: governance rewritten around GitHub anchor issues and the design-first flow. Spec Kitty (missions, work packages, .kittify/, spec-kitty CLI) is retired; its historical artifacts remain under kitty-specs/ and in git history. The project charter was relocated to docs/governance/charter.md. -->
 
-**Planning and execution** for substantive work are driven by **[Spec Kitty](https://github.com/Priivacy-ai/spec-kitty)** — missions, work packages, `spec-kitty next`, the dashboard, and `.kittify/` artifacts — not by GitHub issues alone. **`docs/specs/`** remains the contract layer agents read from disk.
+**Planning and execution** for substantive work follow the **design-first flow**: brainstorm → design/spec in `docs/specs/` → written plan → TDD implementation → code review → verification. Multi-PR efforts are anchored by a **GitHub anchor issue** (e.g. CW-v1's #1920) that records scope, work-package breakdown, and descope decisions; every PR in the effort references it. **`docs/specs/`** remains the contract layer agents read from disk.
 
-**GitHub** stays the **integration and visibility surface**: pull requests, Actions, releases, security, fork/contributor discovery, and **optional** issues (including M11 governed-change filings). CI and merge reality still live on GitHub; Spec Kitty does not replace the PR or the pipeline.
+**GitHub** is the execution and visibility surface: issues (anchor issues, M11 governed-change filings), pull requests, Actions, releases, and security. CI and merge reality live on GitHub.
+
+> **Spec Kitty is retired** (2026-07-06). Do not run `spec-kitty` commands or consult `.kittify/` state. Historical mission artifacts are preserved read-only under `kitty-specs/`; the charter formerly at `.kittify/charter/charter.md` now lives at [`docs/governance/charter.md`](../governance/charter.md).
 
 ## Versioning Model
 
@@ -45,9 +47,9 @@ The Waaseyaa Framework and Minoo (the flagship consumer app) version independent
 
 ## GitHub issues (optional)
 
-GitHub issues are no longer organized into Track milestones. When an issue exists (community visibility, Dependabot, M11 templates, or contributor preference), it stands on its own — no enforced taxonomy or assignment is required. The **Framework Milestones** table above is the semantic capability narrative; Spec Kitty mission state is the execution map. The Track 1–5 GitHub milestones from earlier 2026 are retained on GitHub for historical context but are no longer load-bearing for workflow decisions.
+GitHub issues are not organized into Track milestones. A standalone issue (community visibility, Dependabot, M11 templates, or contributor preference) stands on its own — no enforced taxonomy or assignment is required. The **Framework Milestones** table above is the semantic capability narrative; **anchor issues** are the execution map for multi-PR efforts. The Track 1–5 GitHub milestones from earlier 2026 are retained on GitHub for historical context but are no longer load-bearing for workflow decisions.
 
-**Dependabot and dependency PRs:** **Pull requests** that only bump dependencies may omit `(#N)` / mission reference in the title when there is no tracking artifact; if there is a chore or security issue or Spec Kitty WP, link it per rule #3.
+**Dependabot and dependency PRs:** **Pull requests** that only bump dependencies may omit `(#N)` in the title when there is no tracking issue; if there is a chore or security issue, link it per rule #3.
 
 ## Milestone Narrative Arc
 
@@ -74,17 +76,17 @@ GitHub issues are no longer organized into Track milestones. When an issue exist
 
 ## The 4 Workflow Rules
 
-### 1. Substantive work begins in Spec Kitty
-Do not drive multi-step implementation from a blank prompt. Use an **active Spec Kitty mission and work package** (or the next step from `spec-kitty next`) so intent, review gates, and merge discipline stay in `.kittify/` and the mission state machine. **M11 governed-change** and similar templates that require a **GitHub filing issue** still use that issue as the audit front door — link it from the mission or PR body so traceability stays intact.
+### 1. Substantive work begins with a design and an anchor issue
+Do not drive multi-step implementation from a blank prompt. Multi-PR efforts open a **GitHub anchor issue** recording intent, work-package breakdown, and decisions (descopes, deferrals land as issue comments), and follow the design-first flow: spec in `docs/specs/` first, then a written plan, then TDD implementation. **M11 governed-change** and similar templates keep the GitHub filing issue as the audit front door — link it from the anchor issue or PR body so traceability stays intact.
 
-### 2. GitHub issues are optional
-Not every change needs an issue. When filed, GitHub issues are pure tracking — no enforced milestone or taxonomy. Omitting GitHub issues entirely for Spec Kitty–only work is allowed; do not force an issue if the mission alone is sufficient for your slice. The **Framework milestones** table and narrative in this document describe **capability intent** (v1.x / v2.0); **Spec Kitty mission structure** is the primary execution map for agents.
+### 2. GitHub issues are lightweight
+Not every change needs an issue — a single self-contained PR may stand alone if its body explains itself. When filed, issues are pure tracking — no enforced milestone or taxonomy. The **Framework milestones** table and narrative in this document describe **capability intent** (v1.x / v2.0); **anchor issues** are the execution map for multi-PR efforts.
 
 ### 3. PRs must be traceable
-Every PR must link **what it delivers**: prefer `feat(#N): …` when a GitHub issue exists; otherwise reference the **Spec Kitty mission / work package** (title, path under `.kittify/`, or link) in the title or body. Use `.github/pull_request_template.md`. Dependency-only PRs may follow the Dependabot exception above.
+Every PR must link **what it delivers**: `Closes #N` for a complete deliverable, `Part of #N` for one PR in an anchored effort, with `#N` in the title (e.g. `feat(#1920): …`). Use `.github/pull_request_template.md`. Dependency-only PRs may follow the Dependabot exception above.
 
-### 4. Read mission context before generating work
-At session start, prefer **Spec Kitty** context (`spec-kitty next`, dashboard, active WP) when the repo is under a mission.
+### 4. Read context before generating work
+At session start under an ongoing effort, read the anchor issue (including its comment trail — descopes and deferrals live there) and the relevant `docs/specs/` contracts before generating work.
 
 ## Drift Detection
 
@@ -155,4 +157,4 @@ Failure format is machine- and human-readable, including:
 - current value
 - expected value
 
-The top-level M11 post-execution governance baseline is [m11-post-execution-governance-bootstrap.md](./m11-post-execution-governance-bootstrap.md). Governed changes enter that loop through [the governed-change issue template](../../.github/ISSUE_TEMPLATE/m11-governed-change.md) (GitHub as **audit front door**); link the filing issue from the active **Spec Kitty** mission or PR when both exist. This workflow spec is the repo-local backlink to that artifact. The operating loop itself is [m11-steady-state-conformance-loop.md](./m11-steady-state-conformance-loop.md), and steady-state drift scans and C17+ logging use [m11-periodic-drift-scan-protocol.md](./m11-periodic-drift-scan-protocol.md) and the [M11 drift-scan log issue template](../../.github/ISSUE_TEMPLATE/m11-drift-scan-log.md).
+The top-level M11 post-execution governance baseline is [m11-post-execution-governance-bootstrap.md](./m11-post-execution-governance-bootstrap.md). Governed changes enter that loop through [the governed-change issue template](../../.github/ISSUE_TEMPLATE/m11-governed-change.md) (GitHub as **audit front door**); link the filing issue from the anchor issue or PR when both exist. This workflow spec is the repo-local backlink to that artifact. The operating loop itself is [m11-steady-state-conformance-loop.md](./m11-steady-state-conformance-loop.md), and steady-state drift scans and C17+ logging use [m11-periodic-drift-scan-protocol.md](./m11-periodic-drift-scan-protocol.md) and the [M11 drift-scan log issue template](../../.github/ISSUE_TEMPLATE/m11-drift-scan-log.md).

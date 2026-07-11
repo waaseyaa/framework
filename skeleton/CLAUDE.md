@@ -106,11 +106,11 @@ $queue->dispatch(new SendWelcomeEmail($userId));
 <!-- Note: waaseyaa:* skills are placeholders. They will not function
      until the skills are built. The entries document intended routing. -->
 
-## Specs and Spec Kitty
+## Specs and workflow
 
 Framework subsystem specs ship in the `waaseyaa/framework` repo under `docs/specs/`. Read them from checkout or upstream; there is no bundled Node spec MCP in the framework.
 
-This repository may adopt **[Spec Kitty](https://github.com/Priivacy-ai/spec-kitty)** for structured spec/plan/task workflows (see framework `CLAUDE.md`). Framework governance is **Spec Kitty–first**; GitHub is PR/CI and optional issues per `docs/specs/workflow.md`.
+Framework governance follows the **anchor-issue + design-first workflow** (GitHub anchor issues, specs before implementation, `#N`-traceable PRs) per the framework repo's `docs/specs/workflow.md`.
 
 ## Development
 
@@ -134,7 +134,7 @@ Set `WAASEYAA_GOLDEN_SHA` or add `.waaseyaa-golden-sha` for CI drift gates (see 
 |------|----------|---------|
 | **Constitution** | `CLAUDE.md` (this file) | Architecture, conventions, orchestration |
 | **Rules** | `.claude/rules/waaseyaa-*.md` | Framework invariants (always active, never cited) |
-| **Specs** | `docs/specs/*.md` | Domain contracts — read from disk; optional Spec Kitty in framework repo |
+| **Specs** | `docs/specs/*.md` | Domain contracts — read from disk |
 
 Framework rules are owned by Waaseyaa. Update them via `./vendor/bin/waaseyaa sync-rules` after `composer update`.
 

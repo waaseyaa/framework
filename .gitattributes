@@ -89,7 +89,3 @@ kitty-specs/**/research/source-register.csv linguist-generated=true
 kitty-specs/**/test-transcripts/** linguist-generated=true
 kitty-specs/**/baseline/** linguist-generated=true
 kitty-specs/**/canary-evidence/** linguist-generated=true
-.kittify/workspaces/** linguist-generated=true
-.kittify/workspaces/** -diff
-.kittify/migrations/** linguist-generated=true
-.kittify/migrations/** -diff

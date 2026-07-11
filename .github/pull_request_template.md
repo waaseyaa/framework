@@ -1,12 +1,9 @@
-**Active Spec Kitty mission (if any):** <!-- mission name, `spec-kitty next` step, or path under `.kittify/` — omit for trivial/docs-only PRs -->
-
-Closes #
+Closes #  <!-- or "Part of #N" for one PR in a multi-PR effort (anchor issue) -->
 
 ## Summary
 
 
 ## Checklist
 
-- [ ] **Traceability:** `Closes #N` above **or** linked Spec Kitty mission / work package (path or link in this body)
-- [ ] If this PR closes a **GitHub issue**, that issue is assigned to a Track milestone
-- [ ] PR title includes `#N` **or** a clear mission/WP reference per `docs/specs/workflow.md`
+- [ ] **Traceability:** `Closes #N` or `Part of #N` above references the GitHub issue this PR delivers (anchor issue for multi-PR efforts) — see `docs/specs/workflow.md`
+- [ ] PR title includes `#N` (e.g. `feat(#1920): …`); dependency-only PRs may omit it when no tracking issue exists
