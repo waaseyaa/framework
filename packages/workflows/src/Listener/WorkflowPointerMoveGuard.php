@@ -59,11 +59,14 @@ final class WorkflowPointerMoveGuard
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly ?AccountContextInterface $accountContext = null,
         // CW-v1 WP-3 (#1920): optional, mirroring TransitionService's and
-        // WorkflowStateGuard's own convention. Null means "no group gating".
-        // The event carries entityTypeId + entityId (no bundle/entity load
-        // needed) — that pair is exactly what the checker's content-group
-        // lookup takes. Checked only when an acting account context exists
-        // (a null context stays edge-legality only, unchanged).
+        // WorkflowStateGuard's own convention. Null no longer means "no
+        // group gating" — see satisfiesGroupConstraint(): a non-null
+        // groupConstraint is DENIED when the checker is null, only
+        // unconstrained transitions are unaffected. The event carries
+        // entityTypeId + entityId (no bundle/entity load needed) — that pair
+        // is exactly what the checker's content-group lookup takes. Checked
+        // only when an acting account context exists (a null context stays
+        // edge-legality only, unchanged).
         private readonly ?GroupConstraintChecker $groupConstraintChecker = null,
     ) {}
 
@@ -223,20 +226,26 @@ final class WorkflowPointerMoveGuard
     }
 
     /**
-     * CW-v1 WP-3 (#1920): true when `$transition` carries no group
-     * constraint, when this guard has no checker wired (null = "no group
-     * gating", mirroring TransitionService's/WorkflowStateGuard's own
-     * convention), or when the checker confirms `$account` satisfies it.
-     * Uses the event's entityTypeId/entityId directly — the pointer guard
-     * never loads the entity.
+     * CW-v1 WP-3 (#1920, adversarial-review fix): true when `$transition`
+     * carries no group constraint, or when a wired checker confirms
+     * `$account` satisfies it. A null checker with a NON-null constraint now
+     * fails closed (returns false) instead of the earlier fail-open "no
+     * group gating" behavior — mirrors TransitionService's/
+     * WorkflowStateGuard's own fail-closed convention. Uses the event's
+     * entityTypeId/entityId directly — the pointer guard never loads the
+     * entity.
      */
     private function satisfiesGroupConstraint(
         WorkflowTransition $transition,
         BeforeRevisionPointerMoveEvent $event,
         AccountInterface $account,
     ): bool {
-        if ($transition->groupConstraint === null || $this->groupConstraintChecker === null) {
+        if ($transition->groupConstraint === null) {
             return true;
+        }
+
+        if ($this->groupConstraintChecker === null) {
+            return false;
         }
 
         return $this->groupConstraintChecker->satisfies($transition, $event->entityTypeId, $event->entityId, $account->id());

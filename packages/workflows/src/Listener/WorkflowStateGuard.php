@@ -41,12 +41,13 @@ final class WorkflowStateGuard
         private readonly ?EntityTypeManagerInterface $entityTypeManager = null,
         private readonly ?AccountContextInterface $accountContext = null,
         // CW-v1 WP-3 (#1920): optional, mirroring TransitionService's own
-        // convention. Null means "no group gating" — checked only when an
-        // acting account context exists (a null context stays edge-legality
-        // only, unchanged — see guardUpdate()). Production wiring
-        // ({@see \Waaseyaa\Workflows\WorkflowServiceProvider}) always injects
-        // a real checker; a null checker is for fixtures/tests that never
-        // exercise group_constraint transitions.
+        // convention. Null no longer means "no group gating" — a
+        // group_constraint on the transition is DENIED when the checker is
+        // null, only when an acting account context exists (a null context
+        // stays edge-legality only, unchanged — see guardUpdate()).
+        // Production wiring ({@see \Waaseyaa\Workflows\WorkflowServiceProvider})
+        // always injects a real checker via resolveOptional(), so a wiring
+        // regression now denies loudly instead of silently un-gating.
         private readonly ?GroupConstraintChecker $groupConstraintChecker = null,
     ) {}
 
@@ -171,8 +172,8 @@ final class WorkflowStateGuard
             // that mutates workflow_state could enact a group-constrained
             // transition that TransitionService itself would deny.
             if ($transition->groupConstraint !== null
-                && $this->groupConstraintChecker !== null
-                && !$this->groupConstraintChecker->satisfies($transition, $entity->getEntityTypeId(), (string) $entity->id(), $account->id())
+                && ($this->groupConstraintChecker === null
+                    || !$this->groupConstraintChecker->satisfies($transition, $entity->getEntityTypeId(), (string) $entity->id(), $account->id()))
             ) {
                 throw new TransitionDeniedException(
                     TransitionDeniedException::REASON_GROUP_CONSTRAINT,

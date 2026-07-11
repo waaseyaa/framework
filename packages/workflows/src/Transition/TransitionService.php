@@ -51,13 +51,16 @@ final class TransitionService
         private readonly ?AuditWriterInterface $auditWriter = null,
         private readonly ?LoggerInterface $logger = null,
         // CW-v1 WP-3 (#1920): optional, like the other collaborators above.
-        // Null means "no group gating" — every group-constrained transition
-        // is treated as unconstrained. Production wiring
+        // Null no longer means "no group gating" (adversarial-review fix,
+        // fail-open was the bug): a transition WITH a non-null
+        // groupConstraint is DENIED when the checker is null, exactly like a
+        // failed satisfies() check — only unconstrained transitions are
+        // unaffected by a missing checker. Production wiring
         // ({@see \Waaseyaa\Workflows\WorkflowServiceProvider}) always injects
-        // a real checker, so fail-closed behavior (design invariant 5) holds
-        // in practice; a null checker is for callers (unit fixtures, the
-        // WP-1/WP-2 integration spines) that never exercise group_constraint
-        // transitions and have no reason to stand up relationship storage.
+        // a real checker via resolveOptional(), so a wiring regression now
+        // denies loudly instead of silently un-gating. A null checker
+        // remains fine for callers (unit fixtures, the WP-1/WP-2 integration
+        // spines) that never exercise group_constraint transitions.
         private readonly ?GroupConstraintChecker $groupConstraintChecker = null,
     ) {}
 
@@ -139,8 +142,8 @@ final class TransitionService
         // *may they do it to THIS content*. Order is pinned by test:
         // permission denial must win when an account holds neither.
         if ($transition->groupConstraint !== null
-            && $this->groupConstraintChecker !== null
-            && !$this->groupConstraintChecker->satisfies($transition, $entityTypeId, (string) $entity->id(), $account->id())
+            && ($this->groupConstraintChecker === null
+                || !$this->groupConstraintChecker->satisfies($transition, $entityTypeId, (string) $entity->id(), $account->id()))
         ) {
             $this->denyAndThrow(
                 $entity,
@@ -315,8 +318,8 @@ final class TransitionService
             // gate above. No caching machinery — calling the checker per
             // transition is acceptable here (the plan's own simplicity bar).
             if ($transition->groupConstraint !== null
-                && $this->groupConstraintChecker !== null
-                && !$this->groupConstraintChecker->satisfies($transition, $entity->getEntityTypeId(), (string) $entity->id(), $account->id())
+                && ($this->groupConstraintChecker === null
+                    || !$this->groupConstraintChecker->satisfies($transition, $entity->getEntityTypeId(), (string) $entity->id(), $account->id()))
             ) {
                 continue;
             }

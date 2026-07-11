@@ -94,7 +94,7 @@ final class GroupMembershipServiceTest extends TestCase
     }
 
     /**
-     * @param array{relationship_type: string, from_entity_type: string, from_entity_id: string, to_entity_type: string, to_entity_id: string} $values
+     * @param array{relationship_type: string, from_entity_type: string, from_entity_id: string, to_entity_type: string, to_entity_id: string, status?: int} $values
      */
     private function createRelationship(EntityTypeManager $manager, array $values): void
     {
@@ -237,5 +237,44 @@ final class GroupMembershipServiceTest extends TestCase
         $service = new GroupMembershipService($manager);
 
         self::assertFalse($service->isMemberOfAny(7, []));
+    }
+
+    #[Test]
+    public function group_ids_for_user_ignores_a_soft_revoked_membership_row(): void
+    {
+        // Adversarial-review fix (#1920, WP-3): status is relationship
+        // liveness (schema default 1, int), not a temporal window — a
+        // status=0 row must not count as membership.
+        $manager = $this->makeManager();
+        $this->createRelationship($manager, [
+            'relationship_type' => GroupRelationshipTypes::MEMBERSHIP,
+            'from_entity_type' => 'user',
+            'from_entity_id' => '7',
+            'to_entity_type' => 'group',
+            'to_entity_id' => '1',
+            'status' => 0,
+        ]);
+
+        $service = new GroupMembershipService($manager);
+
+        self::assertSame([], $service->groupIdsForUser(7));
+    }
+
+    #[Test]
+    public function group_ids_for_content_ignores_a_soft_revoked_content_group_row(): void
+    {
+        $manager = $this->makeManager();
+        $this->createRelationship($manager, [
+            'relationship_type' => GroupRelationshipTypes::CONTENT,
+            'from_entity_type' => 'node',
+            'from_entity_id' => '42',
+            'to_entity_type' => 'group',
+            'to_entity_id' => '5',
+            'status' => 0,
+        ]);
+
+        $service = new GroupMembershipService($manager);
+
+        self::assertSame([], $service->groupIdsForContent('node', 42));
     }
 }

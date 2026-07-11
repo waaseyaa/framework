@@ -17,6 +17,14 @@ use Waaseyaa\Relationship\Relationship;
  * Takes scalar identifiers (uid, entity id), not `AccountInterface`, so
  * `waaseyaa/groups` does not need to require `waaseyaa/access`.
  *
+ * **Only live rows count.** Every query additionally filters on
+ * `status = 1` (relationship liveness — an int column, schema default 1,
+ * mirroring `RelationshipTraversalService`'s own `status` filtering): a
+ * soft-revoked (`status = 0`) `group_membership` or `group_content` row is
+ * never counted as membership or content-department assignment. Temporal
+ * windows (`start_date`/`end_date` on the relationship row) are deliberately
+ * NOT evaluated in v1 — that is out of scope here and left to a follow-up.
+ *
  * @api
  */
 final class GroupMembershipService
@@ -40,6 +48,9 @@ final class GroupMembershipService
         $q->condition('from_entity_type', 'user');
         $q->condition('from_entity_id', (string) $uid);
         $q->condition('to_entity_type', 'group');
+        // Only live rows count (see class docblock) — mirrors
+        // RelationshipTraversalService's own 'status' filtering.
+        $q->condition('status', 1);
 
         return $this->toGroupIds($repository, $q->execute());
     }
@@ -59,6 +70,9 @@ final class GroupMembershipService
         $q->condition('from_entity_type', $entityTypeId);
         $q->condition('from_entity_id', (string) $entityId);
         $q->condition('to_entity_type', 'group');
+        // Only live rows count (see class docblock) — mirrors
+        // RelationshipTraversalService's own 'status' filtering.
+        $q->condition('status', 1);
 
         return $this->toGroupIds($repository, $q->execute());
     }

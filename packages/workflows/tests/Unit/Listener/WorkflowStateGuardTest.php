@@ -601,6 +601,54 @@ final class WorkflowStateGuardTest extends TestCase
         $this->assertSame(1, $entity->get('status'));
     }
 
+    private function workflowWithGroupConstraint(): Workflow
+    {
+        return new Workflow(['id' => 'editorial', 'label' => 'Editorial', 'initial_state' => 'draft',
+            'states' => [
+                'draft' => ['label' => 'Draft'],
+                'review' => ['label' => 'Review'],
+                'published' => ['label' => 'Published', 'published' => true],
+            ],
+            'transitions' => [
+                'submit_for_review' => ['label' => 'Submit', 'from' => ['draft'], 'to' => 'review'],
+                'publish' => ['label' => 'Publish', 'from' => ['draft', 'review'], 'to' => 'published', 'group_constraint' => 'content_groups'],
+            ],
+        ]);
+    }
+
+    #[Test]
+    public function a_null_checker_denies_a_group_constrained_update_fail_closed_when_an_account_context_exists(): void
+    {
+        // Adversarial-review fix (#1920, WP-3): a null groupConstraintChecker
+        // used to mean "no group gating" for a group_constrained transition
+        // (fail-open). It must fail closed when an acting account context
+        // exists — same rule as TransitionService.
+        $workflow = $this->workflowWithGroupConstraint();
+        $guard = $this->guard($workflow, $this->account(['use editorial transition publish']));
+        $entity = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'draft'], isNew: false);
+
+        try {
+            $guard->onPreSave(new EntityEvent($entity, $original));
+            $this->fail('Expected TransitionDeniedException');
+        } catch (TransitionDeniedException $e) {
+            $this->assertSame(TransitionDeniedException::REASON_GROUP_CONSTRAINT, $e->reason);
+        }
+    }
+
+    #[Test]
+    public function a_null_checker_leaves_a_constraint_less_update_unaffected(): void
+    {
+        $workflow = $this->workflowWithGroupConstraint();
+        $guard = $this->guard($workflow, $this->account(['use editorial transition submit_for_review']));
+        $entity = $this->entity(['id' => 1, 'workflow_state' => 'review'], isNew: false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'draft'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertSame('review', $entity->get('workflow_state'));
+    }
+
     #[Test]
     public function a_pointer_revision_with_an_unknown_workflow_state_falls_back_to_its_stored_unpublished_status(): void
     {

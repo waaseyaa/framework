@@ -170,7 +170,11 @@ final class Workflow extends ConfigEntityBase
                 continue;
             }
 
-            // If source states changed, rebuild the transition.
+            // If source states changed, rebuild the transition. Adversarial
+            // review fix (#1920, WP-3): the rebuild must preserve
+            // 'permission' and 'group_constraint' — a fail-open silent drop
+            // of either is exactly the misconfiguration the fail-closed
+            // design invariant exists to prevent.
             if (\count($filteredFrom) !== \count($transition->from)) {
                 $this->transitions[$transitionId] = new WorkflowTransition(
                     id: $transition->id,
@@ -178,6 +182,8 @@ final class Workflow extends ConfigEntityBase
                     from: $filteredFrom,
                     to: $transition->to,
                     weight: $transition->weight,
+                    permission: $transition->permission,
+                    groupConstraint: $transition->groupConstraint,
                 );
             }
         }

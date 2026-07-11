@@ -164,6 +164,33 @@ final class WorkflowTest extends TestCase
         $this->assertSame(['draft'], $publish->from);
     }
 
+    public function testRemoveStateCascadesToTransitionSourcePreservesPermissionAndGroupConstraint(): void
+    {
+        // Adversarial-review fix (#1920, WP-3): a transition surviving state
+        // removal (a rebuild, since its 'from' list shrinks) must keep its
+        // 'permission' and 'group_constraint' — the pre-fix rebuild silently
+        // dropped both (fail-open on group_constraint), which is exactly the
+        // kind of misconfiguration the fail-closed design invariant exists
+        // to prevent.
+        $workflow = $this->createEditorialWorkflow();
+        $workflow->addTransition(new WorkflowTransition(
+            id: 'publish',
+            label: 'Publish',
+            from: ['draft', 'review'],
+            to: 'published',
+            permission: 'use editorial transition publish',
+            groupConstraint: 'content_groups',
+        ));
+
+        $workflow->removeState('review');
+
+        $publish = $workflow->getTransition('publish');
+        $this->assertNotNull($publish);
+        $this->assertSame(['draft'], $publish->from);
+        $this->assertSame('use editorial transition publish', $publish->permission);
+        $this->assertSame('content_groups', $publish->groupConstraint);
+    }
+
     public function testRemoveNonexistentStateIsNoop(): void
     {
         $workflow = $this->createEditorialWorkflow();
