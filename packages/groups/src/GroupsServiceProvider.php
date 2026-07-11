@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Waaseyaa\Groups;
 
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Groups\Membership\GroupMembershipService;
 
 /**
  * Registers the `group` content entity type and its `group_type` bundle
@@ -79,5 +81,12 @@ final class GroupsServiceProvider extends ServiceProvider
                 ),
             ],
         ));
+
+        $this->singleton(GroupMembershipService::class, function (): GroupMembershipService {
+            /** @var EntityTypeManager $manager */
+            $manager = $this->resolve(EntityTypeManager::class);
+
+            return new GroupMembershipService($manager);
+        });
     }
 }
