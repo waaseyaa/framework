@@ -59,15 +59,33 @@ final class WorkflowRepublishListener
             return;
         }
 
+        $repository = $this->entityTypeManager->getRepository($entity->getEntityTypeId());
+
+        // Already-published self-skip (fix-wave, #1920 PR-2 adversarial
+        // review): a SPURIOUS arm is possible — in the guard-first PRE_SAVE
+        // listener order, WorkflowStateGuard's willCreateRevision() runs
+        // BEFORE NodeRevisionDefaultListener applies the bundle's
+        // `new_revision: false` opt-out, so the guard arms on the
+        // entity-type default and the save then updates the published tip
+        // IN PLACE. Promoting the revision the pointer already serves is a
+        // pure no-op move that would still re-fire the pointer-move
+        // event/audit/reindex chain — skip it. One cheap base-row read:
+        // find() hydrates `published_revision_id` into the values bag (the
+        // documented WP-2 gotcha, load-bearing here). This makes the
+        // arm/consume pair harmless in EVERY PRE_SAVE listener order.
+        $baseRow = $repository->find((string) $id);
+        $livePointer = $baseRow?->get('published_revision_id');
+        if ($livePointer !== null && (int) $livePointer === $revisionId) {
+            return;
+        }
+
         // The returned freshly-promoted entity isn't needed here — the
         // caller already has $entity in memory — but the call's return
         // value is captured (not discarded) to satisfy the "don't discard
         // a meaningful return value" static-analysis rule (same convention
         // TransitionService's own promote branch follows for the identical
         // call).
-        $promoted = $this->entityTypeManager
-            ->getRepository($entity->getEntityTypeId())
-            ->setPublishedRevision((string) $id, $revisionId);
+        $promoted = $repository->setPublishedRevision((string) $id, $revisionId);
     }
 
     /**

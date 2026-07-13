@@ -65,4 +65,31 @@ final class RepublishMarkerTest extends TestCase
         $this->assertFalse($marker->consume($otherEntity), 'A distinct object instance sharing the same entity id must not consume an unrelated arm.');
         $this->assertTrue($marker->consume($armedEntity));
     }
+
+    #[Test]
+    public function clear_removes_an_arm_without_acting_on_it(): void
+    {
+        // Fix-wave (#1920 PR-2 adversarial review, stale-arm fix): the
+        // guard clears unconditionally at the start of every guarded save,
+        // so an arm left behind by a PRE_SAVE-aborted save can never be
+        // consumed by a later, unrelated save of the same object.
+        $marker = new RepublishMarker();
+        $entity = $this->entity();
+
+        $marker->arm($entity);
+        $marker->clear($entity);
+
+        $this->assertFalse($marker->consume($entity));
+    }
+
+    #[Test]
+    public function clear_on_an_unarmed_entity_is_a_no_op(): void
+    {
+        $marker = new RepublishMarker();
+        $entity = $this->entity();
+
+        $marker->clear($entity);
+
+        $this->assertFalse($marker->consume($entity));
+    }
 }

@@ -946,15 +946,17 @@ final class WorkflowStateGuardTest extends TestCase
     }
 
     #[Test]
-    public function a_non_revision_creating_same_state_save_never_arms_and_is_never_gated(): void
+    public function an_unauthorized_non_revision_creating_same_state_save_into_a_default_revision_state_is_denied(): void
     {
-        // An opt-out bundle's in-place edit of the already-published tip
+        // Fix-wave correction (#1920 PR-2 adversarial review): the any-of
+        // authorization applies to EVERY disciplined same-state save whose
+        // state is default_revision: true — revision-creating or not. An
+        // opt-out bundle's in-place edit of the already-published tip
         // reaches the base row directly (the writeBase rule in
-        // EntityRepository::doSave()) — no republish choke point is
-        // involved, so this stays UNGATED (no exception) even though the
-        // account holds no permissions at all — a documented scope
-        // boundary of the same-state republish rule (revision-creating
-        // saves only).
+        // EntityRepository::doSave()), i.e. it changes SERVED content —
+        // gating only revision-creating saves let an account with plain
+        // entity update access edit live published content with no
+        // workflow permission checked at all.
         $workflow = $this->editorialWorkflow();
         $publishedRevision = $this->entity(['id' => 1, 'workflow_state' => 'published', 'status' => 1], isNew: false);
         $workingCopy = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
@@ -965,9 +967,104 @@ final class WorkflowStateGuardTest extends TestCase
         $entity->setNewRevision(false);
         $original = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
 
+        try {
+            $guard->onPreSave(new EntityEvent($entity, $original));
+            $this->fail('Expected TransitionDeniedException');
+        } catch (TransitionDeniedException $e) {
+            $this->assertSame(TransitionDeniedException::REASON_PERMISSION, $e->reason);
+        }
+
+        $this->assertFalse($marker->consume($entity), 'A denied in-place same-state save must not arm.');
+    }
+
+    #[Test]
+    public function an_authorized_non_revision_creating_same_state_save_passes_and_never_arms(): void
+    {
+        // The authorized counterpart: passes the (now unconditional) any-of
+        // gate but never ARMS — the in-place save reaches the base row
+        // directly via the storage writeBase rule; there is no orphan tip
+        // to promote, so a POST_SAVE promotion would be redundant.
+        $workflow = $this->editorialWorkflow();
+        $publishedRevision = $this->entity(['id' => 1, 'workflow_state' => 'published', 'status' => 1], isNew: false);
+        $workingCopy = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $marker = new RepublishMarker();
+        $account = $this->account(['use editorial transition publish']);
+        $guard = $this->fullGuard($workflow, $account, $publishedRevision, $workingCopy, $marker);
+
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $entity->setNewRevision(false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+
         $guard->onPreSave(new EntityEvent($entity, $original));
 
-        $this->assertFalse($marker->consume($entity));
+        $this->assertFalse($marker->consume($entity), 'An in-place (non-revision-creating) same-state save must never arm.');
+    }
+
+    #[Test]
+    public function the_archive_flows_in_place_status_flip_save_passes_the_gate_with_the_archive_permission(): void
+    {
+        // Fix-wave pin (#1920 PR-2 adversarial review): TransitionService's
+        // second (post-pointer-move, status-flip) save is an in-place,
+        // same-state save of a default_revision: true state — with the gate
+        // now unconditional, it too is authorization-checked. It must PASS,
+        // because the ambient account holds the fired transition's own
+        // permission, which is by definition a transition INTO the target
+        // state (any-of satisfied). The archive flow is the sharpest case:
+        // any-of into 'archived' = the 'archive' permission.
+        $workflow = new Workflow(['id' => 'editorial', 'label' => 'Editorial', 'initial_state' => 'draft',
+            'states' => [
+                'draft' => ['label' => 'Draft'],
+                'published' => ['label' => 'Published', 'published' => true, 'default_revision' => true],
+                'archived' => ['label' => 'Archived', 'published' => false, 'default_revision' => true],
+            ],
+            'transitions' => [
+                'publish' => ['label' => 'Publish', 'from' => ['draft'], 'to' => 'published'],
+                'archive' => ['label' => 'Archive', 'from' => ['published'], 'to' => 'archived'],
+            ],
+        ]);
+        // Post-pointer-move shape: the pointer (and working copy) already
+        // sit on the just-promoted 'archived' revision; the flip save is
+        // in-place (setNewRevision(false)) and same-state on the
+        // working-copy basis.
+        $publishedRevision = $this->entity(['id' => 1, 'workflow_state' => 'archived', 'status' => 1], isNew: false);
+        $workingCopy = $this->entity(['id' => 1, 'workflow_state' => 'archived'], isNew: false);
+        $marker = new RepublishMarker();
+        $account = $this->account(['use editorial transition archive']);
+        $guard = $this->fullGuard($workflow, $account, $publishedRevision, $workingCopy, $marker);
+
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'archived', 'status' => 0], isNew: false);
+        $entity->setNewRevision(false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'archived'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertSame('archived', $entity->get('workflow_state'));
+        $this->assertFalse($marker->consume($entity), 'The flip save is in-place — it must pass the gate but never arm.');
+    }
+
+    #[Test]
+    public function on_pre_save_clears_a_stale_arm_from_a_previous_aborted_save_of_the_same_object(): void
+    {
+        // Fix-wave stale-arm fix (#1920 PR-2 adversarial review, MINOR): a
+        // PRE_SAVE-aborted save (a later listener threw AFTER the guard
+        // armed) must not leave an arm that a later save of the same object
+        // consumes. onPreSave() unconditionally clears the marker at the
+        // start of every guarded save, mirroring the unconditional
+        // discipline-flag reset.
+        $workflow = $this->editorialWorkflow();
+        $marker = new RepublishMarker();
+        $account = $this->account(['use editorial transition publish']);
+        $guard = $this->fullGuard($workflow, $account, null, null, $marker);
+
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'draft'], isNew: false);
+        $marker->arm($entity); // simulated stale arm from an aborted earlier save
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'draft'], isNew: false);
+
+        // A state-preserving draft save (no published pointer — nothing
+        // arms, nothing is gated) must still have CLEARED the stale arm.
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertFalse($marker->consume($entity), 'onPreSave() must clear any stale arm before anything else.');
     }
 
     #[Test]

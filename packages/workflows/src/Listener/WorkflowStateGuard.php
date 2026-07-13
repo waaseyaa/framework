@@ -92,6 +92,16 @@ final class WorkflowStateGuard
         // RevisionableEntityTrait simply has nothing to set.
         $this->setDiscipline($entity);
 
+        // Fix-wave stale-arm fix (#1920 PR-2 adversarial review): clear any
+        // republish arm left on this entity OBJECT by a previous,
+        // PRE_SAVE-aborted save (a later listener threw AFTER
+        // guardSameStateRepublish() armed). Unconditional at the start of
+        // every guarded save, mirroring the discipline-flag reset above —
+        // without this, a later state-CHANGING save of the same object
+        // would consume the stale arm at POST_SAVE and silently promote its
+        // new draft tip.
+        $this->republishMarker?->clear($entity);
+
         if ($entity->isNew()) {
             $this->guardCreate($entity, $workflow);
 
@@ -311,22 +321,37 @@ final class WorkflowStateGuard
      * - the entity has no published pointer (undisciplined / never-published
      *   — nothing to protect, nothing to arm);
      * - the target state is not `default_revision: true` (a draft-state
-     *   same-state save IS the forward-draft case itself — no republish);
-     * - the save will not create a revision ({@see willCreateRevision()} —
-     *   an in-place edit of the already-published tip reaches the base row
-     *   directly via the writeBase rule in
-     *   {@see \Waaseyaa\EntityStorage\EntityRepository::doSave()}; there is
-     *   no orphan tip to promote).
+     *   same-state save IS the forward-draft case itself — no republish).
      *
-     * Otherwise: requires the same any-of authorization
+     * Otherwise the any-of authorization applies UNCONDITIONALLY — to
+     * revision-creating AND in-place (non-revision-creating) saves alike
+     * (fix-wave, #1920 PR-2 adversarial review): an in-place save of the
+     * published tip reaches the SERVED base row directly via the writeBase
+     * rule in {@see \Waaseyaa\EntityStorage\EntityRepository::doSave()}, so
+     * gating only revision-creating saves let a `new_revision: false`
+     * bundle's plain content save put unauthorized content live with no
+     * workflow permission checked (in the NodeRevisionDefaultListener-first
+     * PRE_SAVE order the earlier gate short-circuited before the auth
+     * check). This deliberately also gates TransitionService's own second
+     * (post-pointer-move, status-flip) save and any sanctioned in-place
+     * published edit — both pass, because the acting account holds the
+     * fired transition's own permission (by definition a transition INTO
+     * the target state), or the context is null (edge-legality only).
+     *
+     * The any-of rule itself is the same one
      * {@see \Waaseyaa\Workflows\Listener\WorkflowPointerMoveGuard}'s
      * same-state branch uses (permission AND satisfied group constraint of
      * at least one transition INTO the state; a null account context
-     * passes — edge-legality only, mirroring every other gate in this
-     * class). On success, ARMS the republish marker so
-     * {@see \Waaseyaa\Workflows\Listener\WorkflowRepublishListener} promotes
-     * the just-saved tip at POST_SAVE. Denial throws before anything
-     * commits.
+     * passes). Denial throws before anything commits.
+     *
+     * ARMING stays scoped to revision-creating saves only
+     * ({@see willCreateRevision()}): an in-place save leaves no orphan tip
+     * to promote, so a POST_SAVE promotion would be redundant — and in the
+     * guard-first PRE_SAVE listener order willCreateRevision() can report a
+     * pre-bundle-default answer, so a spurious arm is still possible; the
+     * republish listener's already-published self-skip is the second half
+     * of that defense (see
+     * {@see \Waaseyaa\Workflows\Listener\WorkflowRepublishListener::onPostSave()}).
      */
     private function guardSameStateRepublish(EntityInterface $entity, Workflow $workflow, string $state): void
     {
@@ -340,10 +365,6 @@ final class WorkflowStateGuard
 
         $targetState = $workflow->getState($state);
         if ($targetState === null || $targetState->defaultRevision !== true) {
-            return;
-        }
-
-        if (!$this->willCreateRevision($entity)) {
             return;
         }
 
@@ -362,7 +383,9 @@ final class WorkflowStateGuard
             );
         }
 
-        $this->republishMarker->arm($entity);
+        if ($this->willCreateRevision($entity)) {
+            $this->republishMarker->arm($entity);
+        }
     }
 
     /**

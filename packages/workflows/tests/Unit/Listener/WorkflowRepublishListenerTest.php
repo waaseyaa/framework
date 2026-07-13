@@ -56,14 +56,22 @@ final class WorkflowRepublishListenerTest extends TestCase
         };
     }
 
-    private function entityTypeManagerRecordingPromotions(WorkflowRepublishListenerPromotionRecorder $recorderObject): EntityTypeManagerInterface
+    /**
+     * @param EntityInterface|null $baseRow What the fixture repository's find()
+     *   returns — the SERVED base row the listener consults for its
+     *   already-published self-skip (fix-wave: promotion of the already-
+     *   published revision is a no-op and must not emit pointer events).
+     *   Null models "row vanished" (the listener then has no live pointer
+     *   to compare against and proceeds with the promotion attempt).
+     */
+    private function entityTypeManagerRecordingPromotions(WorkflowRepublishListenerPromotionRecorder $recorderObject, ?EntityInterface $baseRow = null): EntityTypeManagerInterface
     {
         $recorder = static function (string $id, int $revisionId) use ($recorderObject): void {
             $recorderObject->calls[] = [$id, $revisionId];
         };
 
-        return new class ($recorder) implements EntityTypeManagerInterface {
-            public function __construct(private readonly \Closure $recorder) {}
+        return new class ($recorder, $baseRow) implements EntityTypeManagerInterface {
+            public function __construct(private readonly \Closure $recorder, private readonly ?EntityInterface $baseRow) {}
             public function getDefinition(string $entityTypeId): EntityTypeInterface { throw new \LogicException('not needed'); }
             public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array { return []; }
             public function registerEntityType(EntityTypeInterface $type, ?string $registrant = null): void {}
@@ -75,11 +83,12 @@ final class WorkflowRepublishListenerTest extends TestCase
             public function getRepository(string $entityTypeId): EntityRepositoryInterface
             {
                 $recorder = $this->recorder;
+                $baseRow = $this->baseRow;
 
-                return new class ($recorder) implements EntityRepositoryInterface {
-                    public function __construct(private readonly \Closure $recorder) {}
+                return new class ($recorder, $baseRow) implements EntityRepositoryInterface {
+                    public function __construct(private readonly \Closure $recorder, private readonly ?EntityInterface $baseRow) {}
                     public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
-                    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return null; }
+                    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return $this->baseRow; }
                     public function loadWorkingCopy(string $id): ?EntityInterface { return null; }
                     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
                     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
@@ -185,6 +194,49 @@ final class WorkflowRepublishListenerTest extends TestCase
         $listener->onPostSave(new EntityEvent($entity));
 
         $this->assertSame([], $recorder->calls);
+    }
+
+    #[Test]
+    public function an_armed_entity_whose_revision_already_is_the_live_published_pointer_skips_the_promotion(): void
+    {
+        // Fix-wave (#1920 PR-2 adversarial review): a spurious arm — the
+        // guard armed at PRE_SAVE on the assumption the save would create a
+        // revision, but a later PRE_SAVE listener (NodeRevisionDefaultListener
+        // in the guard-first order) turned it into an in-place save of the
+        // published tip — must not promote the ALREADY-published revision:
+        // that would re-fire pointer events/audit/reindex for a no-op move.
+        // The listener self-skips when the entity's revision id equals the
+        // base row's live published_revision_id.
+        $recorder = new WorkflowRepublishListenerPromotionRecorder();
+        $baseRow = $this->entity(['id' => 1, 'revision_id' => 42, 'published_revision_id' => 42]);
+        $entityTypeManager = $this->entityTypeManagerRecordingPromotions($recorder, $baseRow);
+        $marker = new RepublishMarker();
+        $listener = new WorkflowRepublishListener($marker, $entityTypeManager);
+
+        $entity = $this->entity(['id' => 1, 'revision_id' => 42]);
+        $marker->arm($entity);
+
+        $listener->onPostSave(new EntityEvent($entity));
+
+        $this->assertSame([], $recorder->calls, 'Promotion of the already-published revision must self-skip.');
+        $this->assertFalse($marker->consume($entity), 'The marker must still have been consumed.');
+    }
+
+    #[Test]
+    public function an_armed_entity_whose_revision_diverges_from_the_live_pointer_still_promotes(): void
+    {
+        $recorder = new WorkflowRepublishListenerPromotionRecorder();
+        $baseRow = $this->entity(['id' => 1, 'revision_id' => 41, 'published_revision_id' => 41]);
+        $entityTypeManager = $this->entityTypeManagerRecordingPromotions($recorder, $baseRow);
+        $marker = new RepublishMarker();
+        $listener = new WorkflowRepublishListener($marker, $entityTypeManager);
+
+        $entity = $this->entity(['id' => 1, 'revision_id' => 42]); // new tip, ahead of the pointer
+        $marker->arm($entity);
+
+        $listener->onPostSave(new EntityEvent($entity));
+
+        $this->assertSame([['1', 42]], $recorder->calls);
     }
 }
 

@@ -72,4 +72,21 @@ final class RepublishMarker
 
         return true;
     }
+
+    /**
+     * Remove any arm for `$entity` without acting on it (fix-wave, #1920
+     * PR-2 adversarial review, stale-arm fix):
+     * {@see \Waaseyaa\Workflows\Listener\WorkflowStateGuard::onPreSave()}
+     * calls this unconditionally at the start of EVERY guarded save,
+     * mirroring the unconditional discipline-flag reset — a PRE_SAVE-aborted
+     * save (a later listener threw AFTER the guard armed) must never leave
+     * an arm behind that a later, unrelated save of the same object
+     * consumes.
+     *
+     * @api
+     */
+    public function clear(EntityInterface $entity): void
+    {
+        unset($this->armed[$entity]);
+    }
 }
