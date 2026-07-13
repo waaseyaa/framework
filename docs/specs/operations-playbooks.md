@@ -1,6 +1,15 @@
 # Operations Playbooks
 
 <!-- Spec reviewed 2026-06-21 - issue #1707 `waaseyaa dev` port preflight (packages/frankenphp): before printing "Serving …" and exec'ing FrankenPHP, the `dev` command now connect-probes the resolved listen address (DevCommand.php). A connect probe — Windows SO_REUSEADDR-safe, unlike a test bind — detects an already-bound address (e.g. an orphaned prior dev server) and the command fails fast with one actionable line plus a port-release hint, instead of printing "Serving" then exiting silently and leaving the browser at ERR_CONNECTION_REFUSED. The probe is injectable; covered by DevCommandPortPreflightTest. No other dev/install behavior changed. -->
+<!-- Spec reviewed 2026-07-13 - CW-v1 option-1 PR-7 (#1920, design §8): Playbook H step 5 rewritten from
+     "Do NOT bind in production" to the real production binding procedure — precondition (steps 1-4 unchanged),
+     grant transition permissions (incl. `revise`, plus the option-1 same-state-republish permission rules for
+     published/archived content edits), add the binding, a post-bind HTTP verification probe (real, confirmed
+     JSON:API/workflow-transition routes), and a rollback procedure (verified against loadWorkingCopy()'s actual
+     binding-agnostic implementation). The "Evaluation-binding caveat" is removed, replaced by a pointer at the
+     PR-4 write-side allowlist that structurally closed it. Failure mode 1 gains an option-1 amendment (discipline
+     only engages once bound AND pointered); failure mode 2 gains the two-axis (translatable+revisionable)
+     hard-throw case. Scope note and title updated to reflect that production binding is no longer deferred. -->
 ## Purpose
 
 This document consolidates operational workflows introduced across v1.0-v1.2:
@@ -268,7 +277,7 @@ you handle these operations externally.
    - `.github/workflows/ci.yml`
    - `.github/workflows/deploy.yml`
 
-### Playbook H: Content-Workflow (CW-v1) WP-2 Substrate Activation — Node Revisions + Backfill
+### Playbook H: Content-Workflow (CW-v1) Activation — Node Revisions, Backfill, and Production Binding
 
 Existing deployments upgrading onto WP-2 (node revisionable storage +
 backfilled workflow state/published pointers, docs/specs/content-workflow.md)
@@ -276,18 +285,26 @@ MUST run this exact sequence. The order is load-bearing — each step exists
 because the step before it is deliberately incomplete, not because of
 process ceremony.
 
-**Scope note (WP-2 rework descope).** This runbook activates the
-revisionable-storage SUBSTRATE only: steps 1–4 make `node` revision-aware
-and backfill legacy rows' `workflow_state` and published pointer. It does
-**not** instruct binding `node` to the `editorial` workflow in production —
-see step 5. Forward drafts (a published → draft edge on the shipped
-`editorial` workflow) are deferred: the WP-2 review found no read path is
-pointer-aware, so a forward draft's tip content is served by `find()`-based
-readers while status/pointer reflect the published revision. Forward drafts
-return on true default-revision semantics (the base row keeps serving the
-published revision; drafts live only in revision rows). See
-docs/specs/content-workflow.md, "Deferred: forward drafts on the shipped
-workflow," for the full follow-up scope.
+**Scope note (CW-v1 option-1 production binding, #1920).** Steps 1–4
+activate the revisionable-storage SUBSTRATE: they make `node` revision-aware
+and backfill legacy rows' `workflow_state` and published pointer. Step 5
+documents the full production binding procedure — granting transition
+permissions, adding the `workflows.assignments` binding, a post-bind
+verification probe, and the rollback path. Binding `node` to the `editorial`
+workflow (or any workflow carrying a published → draft edge) is now
+sanctioned in production as of the option-1 release (CW-v1 option-1 PRs 1–6,
+#1920 — see `[Unreleased]` in `CHANGELOG.md` until this release is tagged;
+treat "this release or later" as step 5's precondition). Forward drafts (a
+published → draft edge on the shipped `editorial` workflow, e.g. `revise`)
+used to be deferred here: the original WP-2 review found no read path was
+pointer-aware, so a forward draft's tip content was served by `find()`-based
+readers while status/pointer reflected the published revision. Option-1
+closes that by construction — the base row holds the published revision, not
+the tip, once an entity is bound and pointered (docs/specs/content-workflow.md,
+"Default-revision discipline") — so binding no longer exposes unreviewed
+draft content on the public read path. See docs/specs/content-workflow.md,
+"Deferred: forward drafts on the shipped workflow," for the historical record
+of the original finding and how option-1 closed it.
 
 1. **Deploy WP-2 code.** Nothing below is safe to run against the old code.
 2. **`bin/waaseyaa migrate:up`** — applies the node revision-schema migration
@@ -419,37 +436,175 @@ workflow," for the full follow-up scope.
    Skipping the revision-row UPDATE is tolerable (the guard's stored-status
    fallback keeps derived `status` truthful, per "What gets written" above)
    but stamping both keeps the revision axis coherent from day one.
-5. **Do NOT add the `workflows.assignments` binding in production.** Forward
-   drafts (a published → draft edge on the shipped `editorial` workflow) are
-   deferred — see the "Scope note" above and
-   docs/specs/content-workflow.md, "Deferred: forward drafts on the shipped
-   workflow" — and binding `node` → `editorial` in production is gated on
-   that follow-up landing. Steps 1–4 above are complete, safe substrate work
-   on their own (revisionable storage + backfilled state/pointers); binding
-   is what would expose the shipped workflow's transitions to production
-   traffic, so it stays out of this runbook until the follow-up ships.
-   **Non-production/evaluation environments MAY bind** (e.g.
-   `node.article => editorial`) to exercise the engine end-to-end — the
-   archived → restore → publish round trip and custom workflows that define
-   their own published → draft edge both work today — with the
-   understanding that no read path is pointer-aware yet
-   (docs/specs/content-workflow.md, same section). If you do bind in such an
-   environment, binding before steps 1–4 complete still makes step 4
-   partially retroactive at best and actively dangerous at worst (see
-   failure modes below).
+5. **Add the production binding — the option-1 procedure.** Binding is now
+   safe to expose to production traffic; the read-side gap that used to gate
+   this step is closed by construction (see "Scope note" above and
+   docs/specs/content-workflow.md, "Default-revision discipline"). Binding
+   before steps 1–4 complete is still unsafe — see the failure modes below
+   (amended where option-1 changed the semantics).
 
-   **Evaluation-binding caveat (review finding I-2).** Under a binding, the
-   deferred write-side field allowlist (docs/specs/content-workflow.md,
-   "Deferred: forward drafts on the shipped workflow") means the JSON:API
-   write path applies every attribute in a `PATCH` body with no allowlist on
-   the pointer columns. An account holding only entity `update` permission —
-   no publish/transition permission at all — can `PATCH
-   {"published_revision_id": N}` (or `revision_id` on a non-revision save)
-   directly, bypassing `WorkflowStateGuard`/`TransitionService` entirely:
-   this can corrupt the published pointer or resurrect/unpublish content
-   outright. This is why evaluation binding is scoped to non-production
-   environments with trusted accounts only — the fix (a write-side field
-   allowlist) is deferred to the option-1 follow-up, not shipped here.
+   1. **Precondition.** The option-1 release (this release or later) is
+      deployed. Steps 1–4 above are unchanged and still required, in order,
+      on the target entity type/bundle before you bind it: `migrate:up`
+      (schema) → the verification gate → `revisions:enable` (revision
+      history) → `workflows:backfill-state` (state stamp + pointer
+      establishment).
+
+   2. **Grant transition permissions to roles.** Grant the full editorial
+      permission set to the roles that should hold each transition —
+      `use editorial transition submit_for_review`, `...publish`,
+      `...reject`, `...archive`, `...restore`, `...restore_to_published`,
+      and `...revise` (CW-v1 option-1 PR-6, #1920 — "Create new draft", the
+      forward-draft entry edge; not implied by any other permission, grant
+      it explicitly). Two option-1-specific rules operators MUST plan
+      permission grants around — both are real behavior changes from
+      pre-option-1 (docs/specs/content-workflow.md, "Default-revision
+      discipline," "same-state republish"):
+      - **Same-state edits of PUBLISHED content now require a
+        transition-into-published permission.** Once a node is bound and
+        pointered, an ordinary content `PATCH` that does not itself change
+        `workflow_state` — the common case of an editor fixing a typo on a
+        live node directly, without going through `revise` first — is a
+        same-state edit of a `default_revision: true` state. Under
+        option-1, changing what serves publicly IS publishing: the save is
+        authorized only when the acting account holds the permission of at
+        least one transition INTO `published` (`publish` or
+        `restore_to_published` on the shipped workflow), not merely entity
+        `update` access. An account holding only `update` access is denied
+        at PRE_SAVE (`REASON_PERMISSION`) with nothing written. Grant
+        `publish` (and, for the archived-recovery path, also
+        `restore_to_published`) to every role that is expected to edit live
+        published content directly.
+      - **Archived content follows the identical rule for the `archive`
+        permission (design finding A6).** An in-place edit of the served
+        archived revision requires the any-of into `archived` — on the
+        shipped workflow, `archive` is the only transition targeting it.
+        Editors without `archive` cannot edit archived content in place;
+        they must go through `restore` (→ `draft`) first, edit the draft,
+        and republish through the normal review path.
+
+   3. **Add the binding.** `workflows.assignments`, e.g.
+      `node.article => editorial`, per bundle.
+
+   4. **Post-bind verification probe.** A concrete HTTP sequence proving the
+      public read path is byte-stable during a draft window, against the
+      real, confirmed JSON:API routes
+      (`packages/api/src/JsonApiRouteProvider.php`,
+      `packages/api/src/Http/Router/WorkflowTransitionApiRouter.php`) and the
+      real login route
+      (`packages/routing/src/AuthOidcRouteServiceProvider.php`). Substitute
+      `$NID` for a real, already-published article id and `$COOKIES` for a
+      cookie-jar file; the editor account must hold at least
+      `use editorial transition revise` and `use editorial transition
+      publish`.
+
+      ```bash
+      # 1. Authenticate as the editor (sets the session cookie).
+      curl -s -c "$COOKIES" -X POST http://localhost:8080/api/auth/login \
+        -H 'Content-Type: application/json' \
+        -d '{"username":"editor","password":"<password>"}'
+
+      # 2. Capture the anonymous baseline BEFORE any draft exists.
+      curl -s http://localhost:8080/api/node/$NID | tee /tmp/before.json
+
+      # 3. Open a forward draft: published -> draft (creates a revision-only
+      #    tip; content is still the published content at this point).
+      curl -s -b "$COOKIES" -X POST \
+        http://localhost:8080/api/node/$NID/workflow/transition \
+        -H 'Content-Type: application/json' \
+        -d '{"transition":"revise"}'
+
+      # 4. Edit the draft tip. Because the working copy is now in a
+      #    non-default-revision state ('draft'), this PATCH stays
+      #    revision-only — it does NOT auto-republish.
+      curl -s -b "$COOKIES" -X PATCH http://localhost:8080/api/node/$NID \
+        -H 'Content-Type: application/json' \
+        -d '{"data":{"type":"node","attributes":{"title":"Edited draft title"}}}'
+
+      # 5. Anonymous GET MUST be byte-identical to step 2 — old title,
+      #    status=1, workflow_state="published".
+      curl -s http://localhost:8080/api/node/$NID | tee /tmp/after-patch.json
+      diff /tmp/before.json /tmp/after-patch.json   # expect: no diff
+
+      # 6. The working copy carries the new title (editor session; requires
+      #    entity UPDATE access; 403 otherwise — not an existence oracle).
+      curl -s -b "$COOKIES" \
+        "http://localhost:8080/api/node/$NID?workingCopy=1"
+      #   -> data.attributes.title == "Edited draft title"
+      #   -> data.attributes.workflow_state == "draft"
+
+      # 7. Publish the draft: promotes the tip to the base row.
+      curl -s -b "$COOKIES" -X POST \
+        http://localhost:8080/api/node/$NID/workflow/transition \
+        -H 'Content-Type: application/json' \
+        -d '{"transition":"publish"}'
+
+      # 8. Anonymous GET now serves the new content.
+      curl -s http://localhost:8080/api/node/$NID
+      #   -> data.attributes.title == "Edited draft title"
+      #   -> data.attributes.status == 1
+      ```
+
+      This is the same sequence the PR-3 HTTP-level oracle
+      (`packages/api/tests/Integration/WorkingCopyPointerAwarenessFlowTest.php`)
+      pins in-process against real `NodeServiceProvider`/`WorkflowServiceProvider`
+      wiring — run it against a live deployment after binding to confirm the
+      same guarantee holds end-to-end.
+
+   5. **Rollback procedure.** Removing the `workflows.assignments` entry
+      restores unbound behavior immediately: `WorkflowStateGuard::onPreSave()`
+      resolves no workflow for the type/bundle and returns before it would
+      ever set the default-revision discipline flag
+      (`packages/workflows/src/Listener/WorkflowStateGuard.php`), so every
+      subsequent save on that type/bundle is undisciplined — ordinary saves
+      advance the base row again, exactly as before binding. Un-binding does
+      not rewrite `workflow_state`/`published_revision_id`/`status` already
+      stored on the base row; the base row keeps serving whatever content was
+      last promoted.
+
+      What happens to an in-flight forward draft (an unpromoted `revise`
+      tip) — verified against the actual implementation, not assumed:
+      - The draft's revision row is **never deleted** by removing the
+        binding. `EntityRepositoryInterface::loadWorkingCopy()`
+        (`packages/entity-storage/src/EntityRepository.php`) is a pure
+        storage-level comparison (the latest revision id vs. the base row's
+        own `revision_id`) with no binding awareness at all, so it still
+        resolves the draft immediately after un-binding, as long as no
+        further save has superseded it as "latest".
+      - If nobody saves the entity again before you act, the draft stays
+        recoverable exactly as before: `loadWorkingCopy($id)` (or
+        `loadRevision($id, $revisionId)` given the specific id) returns it,
+        and `EntityRepository::rollback($id, $revisionId)` (also exposed via
+        the `entity.rollback` MCP/AI tool) restores its content into a fresh
+        tip — content only, never the pointer or `status`.
+      - If an ordinary (now undisciplined) save touches the entity BEFORE
+        the draft is recovered or promoted, that save creates its own new
+        revision and writes it straight to the base row (unbound behavior),
+        advancing the base pointer past the draft tip. The draft's revision
+        row still is not deleted — nothing in the framework prunes revisions
+        automatically (see "Revision-pruning stance for WP-2" below) — but
+        it is no longer "latest", so `loadWorkingCopy()` no longer surfaces
+        it automatically; recover it by its specific revision id instead.
+
+      Practical guidance: if you are removing a binding specifically to
+      abandon in-flight drafts, do so deliberately — audit `node_revision`
+      for rows past the published pointer and decide per row — rather than
+      relying on un-binding itself to converge them. Un-binding changes only
+      whether FUTURE saves are workflow-gated and disciplined; it never
+      touches existing revision rows.
+
+   **Write-side field allowlist — closed structurally (CW-v1 option-1 PR-4,
+   #1920).** This runbook used to carry an "evaluation-binding caveat"
+   scoping binding to non-production, trusted-account environments only,
+   because the JSON:API write path applied every attribute in a `PATCH` body
+   with no allowlist on the pointer columns — an account holding only entity
+   `update` permission could `PATCH {"published_revision_id": N}` directly,
+   bypassing `WorkflowStateGuard`/`TransitionService` entirely. The shared
+   `Waaseyaa\Entity\Write\EntityWritePayloadGuard` now enforces this
+   structurally on every field-map write surface (JSON:API, admin surface,
+   GraphQL) — see `docs/specs/api-layer.md`, "Write-side field allowlist
+   (CW-v1 option-1 PR-4)" — so the caveat no longer applies; this is exactly
+   what un-gates step 5 for production.
 
 **Failure mode 1 — binding before backfill.** `TransitionService::currentState()`
 and `WorkflowStateGuard::stateOf()` both fall back to the workflow's
@@ -467,17 +622,46 @@ state` runs. Running the backfill after the fact fixes it going forward, but
 any transitions attempted in between were evaluated against the wrong
 `fromState` — always run the backfill first.
 
-**Failure mode 2 — binding a non-revisionable type.** `WorkflowBindingResolver::
-resolve()` hard-throws (`\RuntimeException`) when a `workflows.assignments`
-entry names an entity type that is not revisionable. This fails LOUDLY, the
-moment a binding is added and read (permitted only outside production, see
-step 5) — not silently, and not at step 4.
+**Option-1 amendment (still accurate, one addition).** The fallback
+discussion above is unchanged by option-1: `WorkflowStateGuard::applyState()`'s
+status derivation still falls back to copying the pointer revision's stored
+`status` whenever that revision's `workflow_state` is unknown to the workflow
+(docs/specs/content-workflow.md, "Default-revision discipline" — "status
+rides the pointer, uniformly" now applies this same fallback to every
+target, not only `default_revision: true` ones, but the fallback rule itself
+did not change). What option-1 adds: default-revision discipline itself only
+ever engages once BOTH the entity is bound AND its base row carries a live
+`published_revision_id` (`WorkflowStateGuard::setDiscipline()`). Binding
+before backfill means `published_revision_id` is still unset, so discipline
+never engages during the window this failure mode describes — behavior stays
+byte-identical to pre-option-1 until the backfill establishes the pointer, at
+which point future saves begin engaging discipline (revision-only saves,
+same-state republish gating) for the first time. This is one more reason to
+always run the backfill first: bind-before-backfill does not merely
+misreport state, it also delays when discipline (and its permission
+requirements, step 5.2 above) starts applying.
+
+**Failure mode 2 — binding a non-revisionable type, or a two-axis
+(translatable + revisionable) type.** `WorkflowBindingResolver::resolve()`
+hard-throws (`\RuntimeException`) when a `workflows.assignments` entry names
+an entity type that is not revisionable. This fails LOUDLY, the moment a
+binding is added and read — not silently, and not at step 4.
 Mis-ordering step 5 before step 2/3 (binding a type before its revision
 schema/history exist) is therefore self-correcting for this specific error
 class: the throw is the signal to go back and run steps 2–4 first. It is
 *not* a substitute for running steps 2–4 in order on a type that already
 happens to be revisionable — that combination (revisionable type, no
 history, no backfill) fails silently per failure mode 1, not loudly.
+
+**Option-1 amendment: two-axis types cannot be bound at all.**
+`WorkflowBindingResolver::resolve()` hard-throws the identical way for a
+revisionable **and translatable** entity type (design §1,
+docs/specs/content-workflow.md "Default-revision discipline") — per-revision
+`workflow_state` on a type that is also per-language would be ambiguous
+under default-revision discipline, and per-translation workflow state is a
+documented post-v1 stage. `node` ships single-axis (revisionable, not
+translatable), so this does not affect the procedure above; it matters only
+if you bind a different, translatable content type to a workflow.
 
 **Failure mode 3 — running `revisions:enable` before (or without a
 successful) `migrate:up`.** Step 2's migration is what adds the base-row
