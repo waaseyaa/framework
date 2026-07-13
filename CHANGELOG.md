@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Production agent runs now dispatch the canonical observability lifecycle (#1975, R18 M4; closes #1743).** The `AiAgentServiceProvider` and agent `MessagingServiceProvider` factories inject the kernel's real dispatcher into `AgentExecutor` and `RunAgentHandler`, so the already-live `AgentRun*` producers reach `AgentRunTelemetryListener` outside manually wired tests.
 
+- **Outbound MCP servers are now bootstrapped in production (#1975, R18 M6).** The complete, fail-closed `McpServiceProvider` existed but was absent from `waaseyaa/ai-agent`'s package-provider manifest, leaving remote tool discovery unreachable on normal kernel boot. Package discovery now loads it; hosts without MCP configuration or a tool registry remain inert, and individual remote-server failures still degrade without aborting boot.
 - **Persistent workers no longer retain stale state reads or abandoned AI-run telemetry (#1971, R17).** `SqlState` now reads its authoritative database on every `get()`/`getMultiple()` call instead of serving a per-instance cache that could outlive the request, while `AgentRunTelemetryListener` replaces its one-active-run aggregation slot when the next Messenger job starts so a missing terminal event cannot grow memory for the worker lifetime. Two-request/one-process regressions cover both single and multiple state reads and interrupted telemetry aggregation.
 
 ### Removed
