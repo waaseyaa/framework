@@ -486,6 +486,17 @@ of the original finding and how option-1 closed it.
    3. **Add the binding.** `workflows.assignments`, e.g.
       `node.article => editorial`, per bundle.
 
+      **Group-constrained (department-routing) workflows: assign legacy
+      content to departments BEFORE binding.** `GroupConstraintChecker`
+      fails closed on content carrying no `group_content` relationship row
+      (design invariant 5) — backfilled legacy nodes have no department
+      assignment, so on a workflow whose transitions carry
+      `group_constraint: content_groups`, every group-gated transition is
+      denied for everyone until the content is assigned
+      (`bin/waaseyaa groups:content-assign`). The shipped `editorial`
+      workflow carries no group constraints and is unaffected; this applies
+      only to custom department-routing workflows.
+
    4. **Post-bind verification probe.** A concrete HTTP sequence proving the
       public read path is byte-stable during a draft window, against the
       real, confirmed JSON:API routes
@@ -496,7 +507,11 @@ of the original finding and how option-1 closed it.
       `$NID` for a real, already-published article id and `$COOKIES` for a
       cookie-jar file; the editor account must hold at least
       `use editorial transition revise` and `use editorial transition
-      publish`.
+      publish` **plus ordinary entity `update` access for the bundle** — the
+      draft-tip `PATCH` (step 4 below) and the `?workingCopy=1` GET (step 6)
+      go through the JSON:API entity/field access gates, not the transition
+      permissions; an account holding only the two transition permissions
+      403s at those steps.
 
       ```bash
       # 1. Authenticate as the editor (sets the session cookie).
