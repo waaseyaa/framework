@@ -56,6 +56,24 @@ use Symfony\Contracts\EventDispatcher\Event;
 final class BeforeRevisionPointerMoveEvent extends Event
 {
     /**
+     * Default-revision semantics flag (CW-v1 option-1 forward-draft rebuild,
+     * #1920 PR-1).
+     *
+     * Mutable, default false. Set by a binding-aware subscriber (the
+     * forthcoming workflows pointer-move guard, wired in the next PR — this
+     * flag ships dormant in PR-1) to tell the repository that THIS pointer
+     * operation is happening under default-revision discipline: the base row
+     * holds the published revision, so `setPublishedRevision()` must copy the
+     * target revision's values into the base row (not merely repoint) and
+     * `rollback()` must stay revision-only (never touch the base row). See
+     * `docs/specs/revision-system-unified.md` "Default-revision discipline
+     * (CW-v1 option-1)".
+     *
+     * @api
+     */
+    private bool $defaultRevisionSemantics = false;
+
+    /**
      * @param 'rollback'|'revert'|'publish'|'translation_save' $operation
      * @param array<string, mixed> $revisionValues
      */
@@ -68,4 +86,20 @@ final class BeforeRevisionPointerMoveEvent extends Event
         public readonly ?int $actorUid,
         public readonly array $revisionValues,
     ) {}
+
+    /**
+     * @api
+     */
+    public function applyDefaultRevisionSemantics(): void
+    {
+        $this->defaultRevisionSemantics = true;
+    }
+
+    /**
+     * @api
+     */
+    public function defaultRevisionSemantics(): bool
+    {
+        return $this->defaultRevisionSemantics;
+    }
 }

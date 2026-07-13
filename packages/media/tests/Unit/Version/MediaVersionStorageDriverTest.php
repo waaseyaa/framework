@@ -54,6 +54,10 @@ final class MediaVersionStorageDriverTest extends TestCase
             {
                 return null;
             }
+            public function loadWorkingCopy(string $id): ?EntityInterface
+            {
+                return $this->find($id);
+            }
             public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array
             {
                 return [];
@@ -186,6 +190,10 @@ final class MediaVersionStorageDriverTest extends TestCase
             public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface
             {
                 return $this->base->find($id, $langcode, $fallback);
+            }
+            public function loadWorkingCopy(string $id): ?EntityInterface
+            {
+                return $this->base->loadWorkingCopy($id);
             }
             public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array
             {

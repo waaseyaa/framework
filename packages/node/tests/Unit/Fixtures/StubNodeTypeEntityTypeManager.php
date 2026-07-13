@@ -57,6 +57,11 @@ final class StubNodeTypeEntityTypeManager implements EntityTypeManagerInterface
                 return $this->nodeTypesByBundle[$id];
             }
 
+            public function loadWorkingCopy(string $id): ?EntityInterface
+            {
+                return $this->find($id);
+            }
+
             public function create(array $values = []): EntityInterface
             {
                 throw new \BadMethodCallException('Not implemented.');

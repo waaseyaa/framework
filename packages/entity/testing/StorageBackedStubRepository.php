@@ -38,6 +38,11 @@ final class StorageBackedStubRepository implements EntityRepositoryInterface
         return $this->storage->load($id);
     }
 
+    public function loadWorkingCopy(string $id): ?EntityInterface
+    {
+        return $this->find($id);
+    }
+
     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array
     {
         return array_values($this->storage->loadMultiple($ids));

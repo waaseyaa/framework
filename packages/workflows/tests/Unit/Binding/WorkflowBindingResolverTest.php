@@ -90,6 +90,11 @@ final class WorkflowBindingResolverTest extends TestCase
                         return $this->workflows[$id] ?? null;
                     }
 
+                    public function loadWorkingCopy(string $id): ?EntityInterface
+                    {
+                        return $this->find($id);
+                    }
+
                     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
                     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
                     public function getQuery(): EntityQueryInterface { throw new \LogicException('not needed'); }

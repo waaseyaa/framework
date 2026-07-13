@@ -453,6 +453,11 @@ final class RelationshipEdgeRepository implements EntityRepositoryInterface
         return $this->store[$id] ?? null;
     }
 
+    public function loadWorkingCopy(string $id): ?EntityInterface
+    {
+        return $this->find($id);
+    }
+
     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array
     {
         $this->lastCriteria = $criteria;

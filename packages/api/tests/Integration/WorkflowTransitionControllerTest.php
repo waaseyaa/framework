@@ -514,6 +514,11 @@ final class FixtureWorkflowEntityRepository implements EntityRepositoryInterface
         return $this->entities[$id] ?? null;
     }
 
+    public function loadWorkingCopy(string $id): ?EntityInterface
+    {
+        return $this->find($id);
+    }
+
     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
     public function getQuery(): EntityQueryInterface { throw new \LogicException('not needed'); }
@@ -552,6 +557,7 @@ final class FixtureWorkflowLookupRepository implements EntityRepositoryInterface
 
     public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
     public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return $this->workflow; }
+    public function loadWorkingCopy(string $id): ?EntityInterface { return $this->find($id); }
     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
     public function getQuery(): EntityQueryInterface { throw new \LogicException('not needed'); }

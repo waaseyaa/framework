@@ -1042,6 +1042,33 @@ final class EntityRepository implements EntityRepositoryInterface
         return $entity;
     }
 
+    /**
+     * Load the entity's working copy: the tip revision when it has diverged
+     * from the base row's `revision_id` pointer, otherwise {@see find()}.
+     *
+     * @see EntityRepositoryInterface::loadWorkingCopy() for the full contract.
+     */
+    public function loadWorkingCopy(string $id): ?EntityInterface
+    {
+        if ($this->revisionDriver === null) {
+            return $this->find($id);
+        }
+
+        $latestRevisionId = $this->revisionDriver->getLatestRevisionId($id);
+        if ($latestRevisionId === null) {
+            return $this->find($id);
+        }
+
+        $baseRow = $this->driver->read($this->entityType->id(), $id);
+        $baseRevisionId = $baseRow !== null ? (int) ($baseRow['revision_id'] ?? 0) : 0;
+
+        if ($latestRevisionId > $baseRevisionId) {
+            return $this->loadRevision($id, $latestRevisionId);
+        }
+
+        return $this->find($id);
+    }
+
     public function rollback(string $entityId, int $targetRevisionId): EntityInterface
     {
         if ($this->revisionDriver === null) {

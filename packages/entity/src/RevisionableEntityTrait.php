@@ -144,6 +144,47 @@ trait RevisionableEntityTrait
     /** @var bool|null null = use entity type default */
     private ?bool $newRevision = null;
 
+    /**
+     * Default-revision discipline flag (CW-v1 option-1 forward-draft rebuild,
+     * #1920 PR-1).
+     *
+     * Transient — never persisted, like {@see $newRevision} above. Set
+     * unconditionally as a plain boolean on EVERY guarded PRE_SAVE by the
+     * workflows save-path guard (`WorkflowStateGuard`, wired in the next PR
+     * — this flag and {@see EntityRepository::doSave()}'s handling of it
+     * ship dormant in PR-1): absent/false always means undisciplined, so a
+     * stale `true` from a prior save of a long-lived entity object can never
+     * leak into a later, unguarded save.
+     *
+     * `EntityRepository::doSave()` duck-checks
+     * {@see isDefaultRevisionDisciplined()} (mirroring the `#1654`
+     * `method_exists` pattern already used for `getRevisionId()`) and, when
+     * true on an existing revisionable entity with a revision driver wired,
+     * treats the save as revision-only (or published-pointer-scoped
+     * in-place) instead of always advancing the base row — see
+     * `docs/specs/revision-system-unified.md` "Default-revision discipline
+     * (CW-v1 option-1)".
+     *
+     * @api
+     */
+    private bool $defaultRevisionDiscipline = false;
+
+    /**
+     * @api
+     */
+    public function setDefaultRevisionDiscipline(bool $value): void
+    {
+        $this->defaultRevisionDiscipline = $value;
+    }
+
+    /**
+     * @api
+     */
+    public function isDefaultRevisionDisciplined(): bool
+    {
+        return $this->defaultRevisionDiscipline;
+    }
+
     public function getRevisionId(): ?int
     {
         $revisionKey = $this->entityKeys['revision'] ?? 'revision_id';

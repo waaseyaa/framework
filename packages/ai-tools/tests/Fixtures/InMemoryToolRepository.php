@@ -42,6 +42,11 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
         return $this->store[$id] ?? null;
     }
 
+    public function loadWorkingCopy(string $id): ?EntityInterface
+    {
+        return $this->find($id);
+    }
+
     public function save(EntityInterface $entity, bool $validate = true): int
     {
         $this->saved[] = $entity;
