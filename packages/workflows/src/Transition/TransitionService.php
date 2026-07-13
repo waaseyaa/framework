@@ -12,6 +12,7 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableInterface;
+use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
@@ -66,6 +67,9 @@ final class TransitionService
 
     /**
      * @throws TransitionDeniedException
+     * @throws RevisionConflictException CW-v1 option-1 (#1920 PR-2, design §3.2):
+     *   thrown when the passed entity's revision id disagrees with the
+     *   working copy's — a stale caller, never silently discarded or promoted.
      */
     public function transition(EntityInterface $entity, string $transitionId, AccountInterface $account): TransitionResult
     {
@@ -102,7 +106,24 @@ final class TransitionService
             );
         }
 
-        $fromState = $this->currentState($entity, $workflow);
+        $repository = $this->entityTypeManager->getRepository($entityTypeId);
+        $entityId = (string) $entity->id();
+
+        // CW-v1 option-1 (#1920 PR-2, design §3.2, verifier finding 4): the
+        // workflow POSITION is resolved from the WORKING COPY, not the
+        // passed object. Under discipline a caller may have loaded the
+        // entity via find() (served, published content) while a
+        // further-along draft tip already exists — the transition's
+        // legality must be judged against the REAL current position, not a
+        // stale served snapshot. `$workingCopy === null` (repository could
+        // not resolve one — unmodeled fixture, or a race where the row
+        // vanished between load and call) degrades to trusting the passed
+        // object, exactly like {@see \Waaseyaa\Workflows\Listener\WorkflowStateGuard::workingCopyBasis()}'s
+        // identical fallback.
+        $workingCopy = $repository->loadWorkingCopy($entityId);
+        $basisEntity = $workingCopy ?? $entity;
+
+        $fromState = $this->currentState($basisEntity, $workflow);
         if (!\in_array($fromState, $transition->from, true)) {
             $this->denyAndThrow(
                 $entity,
@@ -161,20 +182,41 @@ final class TransitionService
             );
         }
 
+        // CW-v1 option-1 (#1920 PR-2, design §3.2, verifier finding A4):
+        // deterministic content rule. The passed object's CONTENT rides
+        // the transition only when its revision id matches the working
+        // copy's — otherwise it is stale, and applying it would either
+        // silently discard content the caller never saw (a concurrent
+        // editor's draft) or silently promote content the caller never
+        // reviewed. Compared only when BOTH sides report a resolvable
+        // revision id: a passed object that carries none (a non-revision-
+        // aware caller shape, or a non-revisionable entity type) is
+        // trusted as before — this is a deliberate narrowing from the
+        // design's literal "equals, or throw" text, chosen to avoid a
+        // false-positive conflict against callers that never carried
+        // revision information in the first place (documented deviation,
+        // PR-2 report).
+        if ($workingCopy !== null) {
+            $passedRevisionId = $this->revisionIdOf($entity);
+            $workingCopyRevisionId = $this->revisionIdOf($workingCopy);
+            if ($passedRevisionId !== null && $workingCopyRevisionId !== null && $passedRevisionId !== $workingCopyRevisionId) {
+                throw new RevisionConflictException($entityTypeId, $entityId, $passedRevisionId, $workingCopyRevisionId);
+            }
+        }
+
         // Announce (pre), apply, persist, announce (post), audit — in order.
         $this->dispatcher?->dispatch(
             new WorkflowTransitionEvent($entity, $workflowId, $transitionId, $fromState, $transition->to, $account),
             WorkflowEvents::PRE_TRANSITION->value,
         );
 
-        $repository = $this->entityTypeManager->getRepository($entityTypeId);
         $targetState = $workflow->getState($transition->to);
 
         // CW-v1 WP-2 decision 2 (two-pointer status semantics,
         // docs/specs/content-workflow.md "forward draft"): read the
         // CURRENTLY published revision (if any) before mutating anything —
         // this decides which of the three cases below applies.
-        $publishedRevision = $repository->loadPublishedRevision((string) $entity->id());
+        $publishedRevision = $repository->loadPublishedRevision($entityId);
 
         $entity->set('workflow_state', $transition->to);
 

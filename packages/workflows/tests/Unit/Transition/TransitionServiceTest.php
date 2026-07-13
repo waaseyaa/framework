@@ -602,6 +602,133 @@ final class TransitionServiceTest extends TestCase
         $this->assertCount(1, $logger->warnings);
         $this->assertSame('workflows.transition_missing_revision_id', $logger->warnings[0]['message']);
     }
+
+    // ------------------------------------------------------------------
+    // CW-v1 option-1 (#1920 PR-2, design §3.2): working-copy basis,
+    // deterministic content rule.
+    // ------------------------------------------------------------------
+
+    #[Test]
+    public function the_from_state_is_resolved_from_the_working_copy_not_the_passed_object(): void
+    {
+        // Passed object claims 'draft' (a stale snapshot — imagine loaded
+        // before someone else advanced it); the working copy is really
+        // 'review'. 'reject' only fires from ['review'] — if the service
+        // used the passed object's own state, this would deny ILLEGAL_EDGE.
+        $workingCopy = $this->revisionableEntity('review', status: 0);
+        $workingCopy->set('revision_id', 5);
+        $repository = new WorkingCopyAwareSpyRepository($workingCopy);
+        $service = $this->serviceWithRepository($this->editorialWorkflow(), $repository);
+        $account = $this->account(7, ['use editorial transition reject']);
+
+        $entity = $this->revisionableEntity('draft', status: 0);
+        $entity->set('revision_id', 5); // matches the working copy — content rides, no conflict
+
+        $result = $service->transition($entity, 'reject', $account);
+
+        $this->assertSame('review', $result->fromState, 'The from-state must come from the working copy, not the stale passed object.');
+        $this->assertSame('draft', $result->toState);
+    }
+
+    #[Test]
+    public function content_riding_a_transition_with_a_matching_revision_id_saves_the_passed_objects_content(): void
+    {
+        $workingCopy = $this->revisionableEntity('draft', status: 0);
+        $workingCopy->set('revision_id', 5);
+        $workingCopy->set('title', 'Working copy title (should not be saved)');
+        $repository = new WorkingCopyAwareSpyRepository($workingCopy);
+        $service = $this->serviceWithRepository($this->editorialWorkflow(), $repository);
+        $account = $this->account(7, ['use editorial transition submit_for_review']);
+
+        // The passed entity IS the working copy's own revision (content-
+        // riding transitions, e.g. the WP-2 spine's edited-title 'revise'),
+        // carrying an edit the working copy snapshot above does not.
+        $entity = $this->revisionableEntity('draft', status: 0);
+        $entity->set('revision_id', 5);
+        $entity->set('title', 'Edited title');
+
+        $service->transition($entity, 'submit_for_review', $account);
+
+        $this->assertCount(1, $repository->saveCalls);
+        $this->assertSame('Edited title', $repository->saveCalls[0]['title']);
+    }
+
+    #[Test]
+    public function a_stale_passed_entity_throws_a_revision_conflict_and_saves_nothing(): void
+    {
+        $workingCopy = $this->revisionableEntity('draft', status: 0);
+        $workingCopy->set('revision_id', 9); // the REAL current tip
+        $repository = new WorkingCopyAwareSpyRepository($workingCopy);
+        $dispatcher = $this->spyDispatcher();
+        $service = new TransitionService(
+            bindings: $this->bindings($this->editorialWorkflow(), $this->entityTypeManagerForRepository($repository, $this->editorialWorkflow())),
+            entityTypeManager: $this->entityTypeManagerForRepository($repository, $this->editorialWorkflow()),
+            dispatcher: $dispatcher,
+        );
+        $account = $this->account(7, ['use editorial transition submit_for_review']);
+
+        // Stale: the caller's own copy is revision 3, three revisions
+        // behind the real working copy (9).
+        $entity = $this->revisionableEntity('draft', status: 0);
+        $entity->set('revision_id', 3);
+
+        $thrown = null;
+        try {
+            $service->transition($entity, 'submit_for_review', $account);
+        } catch (\Waaseyaa\EntityStorage\Exception\RevisionConflictException $e) {
+            $thrown = $e;
+        }
+
+        $this->assertNotNull($thrown, 'Expected RevisionConflictException');
+        $this->assertSame('fixture', $thrown->entityTypeId);
+        $this->assertSame('1', $thrown->entityId);
+        $this->assertSame(3, $thrown->expectedRevisionId);
+        $this->assertSame(9, $thrown->currentRevisionId);
+        $this->assertSame([], $repository->saveCalls, 'A stale caller must never silently discard or promote content — nothing is saved.');
+        $this->assertSame([], $dispatcher->firedNames(), 'A conflict must be detected before PRE_TRANSITION dispatch.');
+    }
+
+    /**
+     * Builds a minimal EntityTypeManagerInterface serving `$repository` for
+     * the fixture entity type and a plain WorkflowLookupRepository for
+     * `workflow` — used by the conflict test above, which needs its OWN
+     * dispatcher (not the shared entityTypeManager()/service() plumbing).
+     */
+    private function entityTypeManagerForRepository(EntityRepositoryInterface $repository, Workflow $workflow): EntityTypeManagerInterface
+    {
+        $workflowRepository = new WorkflowLookupRepository($workflow);
+
+        return new class ($workflowRepository, $repository) implements EntityTypeManagerInterface {
+            public function __construct(
+                private readonly EntityRepositoryInterface $workflowRepository,
+                private readonly EntityRepositoryInterface $fixtureRepository,
+            ) {}
+
+            public function getDefinition(string $entityTypeId): EntityTypeInterface
+            {
+                return new EntityType(
+                    id: 'fixture',
+                    label: 'Fixture',
+                    class: \stdClass::class,
+                    keys: ['id' => 'id', 'revision' => 'revision_id'],
+                    revisionable: true,
+                );
+            }
+
+            public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array { return []; }
+            public function registerEntityType(EntityTypeInterface $type, ?string $registrant = null): void {}
+            public function registerCoreEntityType(EntityTypeInterface $type, ?string $registrant = null): void {}
+            public function getDefinitions(): array { return []; }
+            public function hasDefinition(string $entityTypeId): bool { return true; }
+
+            public function getStorage(string $entityTypeId): EntityStorageInterface { throw new \LogicException('not needed'); }
+
+            public function getRepository(string $entityTypeId): EntityRepositoryInterface
+            {
+                return $entityTypeId === 'workflow' ? $this->workflowRepository : $this->fixtureRepository;
+            }
+        };
+    }
 }
 
 /**
@@ -694,7 +821,7 @@ final class RevisionAwareSpyRepository implements EntityRepositoryInterface
     }
 
     public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
-    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { throw new \LogicException('not needed'); }
+    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return null; }
     public function loadWorkingCopy(string $id): ?EntityInterface { return $this->find($id); }
     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
@@ -760,7 +887,7 @@ final class NoRevisionIdSpyRepository implements EntityRepositoryInterface
     public array $publishedCalls = [];
 
     public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
-    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { throw new \LogicException('not needed'); }
+    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return null; }
     public function loadWorkingCopy(string $id): ?EntityInterface { return $this->find($id); }
     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
@@ -830,7 +957,7 @@ final class SpyEntityRepository implements EntityRepositoryInterface
     public function __construct(private array &$saveCalls) {}
 
     public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
-    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { throw new \LogicException('not needed'); }
+    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return null; }
     public function loadWorkingCopy(string $id): ?EntityInterface { return $this->find($id); }
     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
@@ -853,6 +980,70 @@ final class SpyEntityRepository implements EntityRepositoryInterface
     public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
     public function loadPublishedRevision(string $entityId): ?EntityInterface { return null; }
     public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function saveMany(array $entities, bool $validate = true): array { return []; }
+    public function deleteMany(array $entities): int { return 0; }
+    public function findTranslations(EntityInterface $entity): array { return []; }
+    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int { return 0; }
+    public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
+    public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
+}
+
+/**
+ * CW-v1 option-1 (#1920 PR-2): a repository spy whose `find()`/`loadWorkingCopy()`
+ * return a caller-supplied working-copy entity (distinct from
+ * `RevisionAwareSpyRepository`'s null default, needed for the working-copy
+ * basis / content-conflict tests above).
+ */
+final class WorkingCopyAwareSpyRepository implements EntityRepositoryInterface
+{
+    /** @var list<array<string, mixed>> */
+    public array $saveCalls = [];
+
+    private int $nextRevisionId = 100;
+
+    public function __construct(private readonly ?EntityInterface $workingCopy) {}
+
+    public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
+    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return $this->workingCopy; }
+    public function loadWorkingCopy(string $id): ?EntityInterface { return $this->workingCopy; }
+    public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
+    public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
+    public function getQuery(): \Waaseyaa\Entity\Storage\EntityQueryInterface { throw new \LogicException('not needed'); }
+
+    public function save(EntityInterface $entity, bool $validate = true): int
+    {
+        $newRevisionId = $this->nextRevisionId++;
+        $this->saveCalls[] = $entity->toArray();
+        $entity->set('revision_id', $newRevisionId);
+
+        return $newRevisionId;
+    }
+
+    public function delete(EntityInterface $entity): void {}
+    public function exists(string $id): bool { return true; }
+    public function count(array $criteria = []): int { return 0; }
+    public function loadRevision(string $entityId, int $revisionId): ?EntityInterface { return null; }
+    public function rollback(string $entityId, int $targetRevisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function listRevisions(string $entityId): array { return []; }
+    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function loadPublishedRevision(string $entityId): ?EntityInterface { return null; }
+
+    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface
+    {
+        return $this->workingCopy ?? new class implements EntityInterface {
+            public function id(): int|string|null { return null; }
+            public function uuid(): string { return ''; }
+            public function label(): string { return ''; }
+            public function getEntityTypeId(): string { return ''; }
+            public function bundle(): string { return ''; }
+            public function isNew(): bool { return false; }
+            public function get(string $name): mixed { return null; }
+            public function set(string $name, mixed $value): static { return $this; }
+            public function toArray(): array { return []; }
+            public function language(): string { return 'en'; }
+        };
+    }
+
     public function saveMany(array $entities, bool $validate = true): array { return []; }
     public function deleteMany(array $entities): int { return 0; }
     public function findTranslations(EntityInterface $entity): array { return []; }
