@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- **Deleted the producerless legacy AI trace listener chain (#1975, R18 M4).** `LlmCallListener`, `ToolCallListener`, their private `TokenAccountant` / `ModelPricing` / `CostRecord` branch, and the never-constructed `LlmCallCompleted` / `ToolCallStarted` / `ToolCallCompleted` events no longer advertise an inert automatic trace path. Historical trace storage and the explicit recorder API remain available; canonical run pricing continues through `ModelPriceTable`.
+- **Deleted the producerless legacy AI trace listener chain (#1975, R18 M4).** `LlmCallListener`, `ToolCallListener`, their internal `TokenAccountant` / `ModelPricing` branch, and the never-constructed `LlmCallCompleted` / `ToolCallStarted` / `ToolCallCompleted` events no longer advertise an inert automatic trace path. Historical trace storage, the explicit recorder API, and the public `CostRecord` value object remain available; canonical run pricing continues through `ModelPriceTable`.
 
 ## [0.1.0-alpha.260] - 2026-07-13
 
