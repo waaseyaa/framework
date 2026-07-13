@@ -18,6 +18,8 @@ use Waaseyaa\AI\Agent\Enum\RunStatus;
 use Waaseyaa\AI\Agent\Provider\ProviderInterface;
 use Waaseyaa\AI\Agent\Repository\AgentRunRepository;
 use Waaseyaa\AI\Observability\Event\AgentRunTerminated;
+use Waaseyaa\AI\Tools\ToolNotFoundException;
+use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
@@ -62,6 +64,7 @@ final class RunAgentHandler
         private readonly AgentRunRepository $runRepository,
         private readonly AgentExecutor $executor,
         private readonly AgentDefinitionRegistry $definitionRegistry,
+        private readonly ToolRegistryInterface $toolRegistry,
         private readonly AgentRunBroadcasterInterface $broadcaster,
         private readonly ProviderInterface $provider,
         private readonly InitiatorAccountLoaderInterface $accountLoader,
@@ -122,6 +125,7 @@ final class RunAgentHandler
             $messages = [
                 ['role' => 'user', 'content' => (string) $run->get('prompt')],
             ];
+            $tools = $this->allowedToolDescriptors($definition);
 
             $result = $this->executor->executeRun(
                 run: $run,
@@ -129,7 +133,8 @@ final class RunAgentHandler
                 provider: $this->provider,
                 messages: $messages,
                 system: $definition->system !== '' ? $definition->system : null,
-                tools: [],
+                tools: $tools,
+                allowedToolNames: $definition->tools,
                 maxIterations: $definition->maxIterations,
             );
 
@@ -206,6 +211,30 @@ final class RunAgentHandler
                 'error_message' => $errorMessage,
             ]);
         }
+    }
+
+    /** @return list<array{name: string, description: string, input_schema: array<string, mixed>}> */
+    private function allowedToolDescriptors(AgentDefinition $definition): array
+    {
+        $descriptors = [];
+        foreach ($definition->tools as $name) {
+            try {
+                $tool = $this->toolRegistry->get($name);
+            } catch (ToolNotFoundException $e) {
+                $this->logger->warning('RunAgentHandler: allowed tool is not registered.', [
+                    'tool' => $name,
+                    'exception' => $e->getMessage(),
+                ]);
+                continue;
+            }
+            $descriptors[] = [
+                'name' => $tool->name,
+                'description' => $tool->impl->description(),
+                'input_schema' => $tool->inputSchema,
+            ];
+        }
+
+        return $descriptors;
     }
 
     /**

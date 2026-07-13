@@ -123,6 +123,7 @@ final class AgentExecutor
      * @param array<int, array<string, mixed>> $tools     Tool descriptors to advertise to the provider.
      * @param int $maxIterations Iteration budget (FR-026).
      * @param int $maxTokens Provider per-call token budget.
+     * @param list<string> $allowedToolNames Agent-definition tool names authorized for this run.
      */
     public function executeRun(
         AgentRun $run,
@@ -133,6 +134,7 @@ final class AgentExecutor
         array $tools = [],
         int $maxIterations = 10,
         int $maxTokens = 4096,
+        array $allowedToolNames = [],
     ): AgentResult {
         // Scope the acting-account context to the run initiator (research D1
         // writer 3, FR-002) so entity saves made *by agent tools* — including
@@ -152,6 +154,7 @@ final class AgentExecutor
                 $messages,
                 $system,
                 $tools,
+                $allowedToolNames,
                 $maxIterations,
                 $maxTokens,
             );
@@ -183,6 +186,7 @@ final class AgentExecutor
         array $messages,
         ?string $system,
         array $tools,
+        array $allowedToolNames,
         int $maxIterations,
         int $maxTokens,
     ): AgentResult {
@@ -312,6 +316,17 @@ final class AgentExecutor
 
                 $toolName = $toolUseBlock->name;
                 $toolArgs = $toolUseBlock->input;
+
+                if (!\in_array($toolName, $allowedToolNames, true)) {
+                    $message = \sprintf('Tool "%s" is not available.', $toolName);
+                    $this->appendError($runId, $iteration, 'tool_not_found', $message, $toolName, $toolArgs);
+                    $toolResults[] = new ToolResultBlock(
+                        toolUseId: $toolUseBlock->id,
+                        content: json_encode(['error' => $message], JSON_THROW_ON_ERROR),
+                        isError: true,
+                    )->toArray();
+                    continue;
+                }
 
                 try {
                     $tool = $this->toolRegistry->get($toolName);
@@ -477,7 +492,17 @@ final class AgentExecutor
         AccountInterface $account,
         ?string $runId = null,
         int $iteration = 0,
+        array $allowedToolNames = [],
     ): AgentToolResult {
+        if (!\in_array($toolName, $allowedToolNames, true)) {
+            $message = \sprintf('Tool "%s" is not available.', $toolName);
+            if ($runId !== null) {
+                $this->appendError($runId, $iteration, 'tool_not_found', $message, $toolName, $arguments);
+            }
+
+            return AgentToolResult::error($message);
+        }
+
         try {
             $tool = $this->toolRegistry->get($toolName);
         } catch (ToolNotFoundException $e) {

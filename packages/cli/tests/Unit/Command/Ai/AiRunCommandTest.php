@@ -202,6 +202,7 @@ final class AiRunCommandTest extends TestCase
             runRepository: $runRepo,
             executor: $executor,
             definitionRegistry: $registry,
+            toolRegistry: $toolRegistry,
             broadcaster: new InertBroadcasterForAiRunTest(),
             provider: new NullLlmProvider(),
             accountLoader: new StubInitiatorAccountLoader(),

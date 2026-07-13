@@ -20,6 +20,7 @@ use Waaseyaa\AI\Agent\Reaper\StalledRunReaper;
 use Waaseyaa\AI\Agent\Repository\AgentAuditLogRepository;
 use Waaseyaa\AI\Agent\Repository\AgentRunRepository;
 use Waaseyaa\AI\Agent\Service\AgentRunService;
+use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -83,6 +84,7 @@ final class MessagingServiceProvider extends ServiceProvider
                 runRepository: $this->resolve(AgentRunRepository::class),
                 executor: $this->resolve(AgentExecutor::class),
                 definitionRegistry: $this->resolve(AgentDefinitionRegistry::class),
+                toolRegistry: $this->resolve(ToolRegistryInterface::class),
                 broadcaster: $this->resolve(AgentRunBroadcasterInterface::class),
                 provider: $this->resolve(ProviderInterface::class),
                 accountLoader: $this->resolve(InitiatorAccountLoaderInterface::class),

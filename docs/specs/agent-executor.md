@@ -290,7 +290,7 @@ proxied to the remote at execution time.
 Agents run as the **initiator's account**. `AgentContext::account` is the
 user who triggered the run.
 
-Authorization happens at four gates:
+Authorization happens at five gates:
 
 1. **Route capability** — `_permission: 'agent.run'` on every
    `/api/ai/agent/run*` route, evaluated by `AccessChecker`.
@@ -307,10 +307,14 @@ Authorization happens at four gates:
    `AgentAuditLog` rows are written (audit A7 F2 / R10 WP2 — this gate was
    plumbed attribute → manifest → registry → definition but left unenforced
    until this fix).
-3. **Per-tool capability** — every tool the agent invokes requires the
+3. **Per-agent tool allowlist** — `RunAgentHandler` advertises only the tool
+   names in `AgentDefinition.tools`, and `AgentExecutor` independently rejects
+   any model-emitted or direct invocation whose name is absent from that list
+   before consulting the global registry. An empty list is fail-closed.
+4. **Per-tool capability** — every tool the agent invokes requires the
    initiator to hold `tool.<name>` (or `tool.mcp.<server>.<name>`). Enforced
    at request-validation time AND defensively at tool-execution time.
-4. **Entity-level access** — tools that touch entities go through
+5. **Entity-level access** — tools that touch entities go through
    `EntityAccessHandler` against the initiator's account. The previous
    `accessCheck(false)` bypass in `McpToolExecutor` is removed.
 

@@ -97,6 +97,7 @@ final class ExecutorHitlTest extends TestCase
             $this->fakeAccount(99),
             $provider,
             messages: [['role' => 'user', 'content' => 'go']],
+            allowedToolNames: [$tool->name],
             maxIterations: 3,
         );
 
@@ -121,6 +122,7 @@ final class ExecutorHitlTest extends TestCase
             $this->fakeAccount(99),
             $provider,
             messages: [['role' => 'user', 'content' => 'go']],
+            allowedToolNames: [$tool->name],
             maxIterations: 3,
         );
 
@@ -207,6 +209,7 @@ final class ExecutorHitlTest extends TestCase
             $this->fakeAccount(99),
             $provider,
             messages: [['role' => 'user', 'content' => 'go']],
+            allowedToolNames: [$tool->name],
             maxIterations: 3,
         );
 
@@ -257,6 +260,7 @@ final class ExecutorHitlTest extends TestCase
             $this->fakeAccount(99),
             $provider,
             messages: [['role' => 'user', 'content' => 'go']],
+            allowedToolNames: [$tool->name],
             maxIterations: 3,
         );
 
@@ -304,6 +308,7 @@ final class ExecutorHitlTest extends TestCase
             $this->fakeAccount(99),
             $provider,
             messages: [['role' => 'user', 'content' => 'go']],
+            allowedToolNames: [$tool->name],
             maxIterations: 3,
         );
 
@@ -349,6 +354,7 @@ final class ExecutorHitlTest extends TestCase
             $this->fakeAccount(99),
             $provider,
             messages: [['role' => 'user', 'content' => 'go']],
+            allowedToolNames: [$tool->name],
             maxIterations: 3,
         );
 

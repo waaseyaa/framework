@@ -22,12 +22,17 @@ use Waaseyaa\AI\Agent\Entity\AgentRun;
 use Waaseyaa\AI\Agent\Enum\RunStatus;
 use Waaseyaa\AI\Agent\Message\RunAgent;
 use Waaseyaa\AI\Agent\Message\RunAgentHandler;
+use Waaseyaa\AI\Agent\Provider\MessageRequest;
+use Waaseyaa\AI\Agent\Provider\MessageResponse;
 use Waaseyaa\AI\Agent\Provider\NullLlmProvider;
+use Waaseyaa\AI\Agent\Provider\ProviderInterface;
 use Waaseyaa\AI\Agent\Repository\AgentAuditLogRepository;
 use Waaseyaa\AI\Agent\Repository\AgentRunRepository;
 use Waaseyaa\AI\Agent\Service\AgentRunDraft;
 use Waaseyaa\AI\Agent\Service\AgentRunService;
+use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentTool;
+use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\Database\DBALDatabase;
@@ -218,31 +223,87 @@ final class RequiresCapabilityGateTest extends TestCase
         );
     }
 
-    private function buildService(): AgentRunService
+    #[Test]
+    public function definitionAllowlistAdvertisesAndExecutesOnlyItsNamedTool(): void
+    {
+        $allowedImpl = new R18CountingTool();
+        $blockedImpl = new R18CountingTool();
+        $provider = new R18ToolUseProvider('allowed_tool');
+        $service = $this->buildService([
+            $this->tool('allowed_tool', $allowedImpl),
+            $this->tool('blocked_tool', $blockedImpl),
+        ], $provider);
+
+        $run = $service->runInline(new AgentRunDraft(
+            accountId: self::ACCOUNT_HAS_PERMISSION,
+            agentDefinitionId: null,
+            bundle: ['id' => 'tool-agent', 'label' => 'Tool agent', 'description' => '', 'prompt' => 'go', 'tools' => ['allowed_tool']],
+            prompt: 'go',
+        ));
+
+        self::assertSame(RunStatus::Completed, $run->getStatus());
+        self::assertSame(['allowed_tool'], array_column($provider->advertisedTools, 'name'));
+        self::assertSame(1, $allowedImpl->calls);
+        self::assertSame(0, $blockedImpl->calls);
+    }
+
+    #[Test]
+    public function adversarialProviderCannotInvokeGloballyRegisteredOffListTool(): void
+    {
+        $allowedImpl = new R18CountingTool();
+        $blockedImpl = new R18CountingTool();
+        $provider = new R18ToolUseProvider('blocked_tool');
+        $service = $this->buildService([
+            $this->tool('allowed_tool', $allowedImpl),
+            $this->tool('blocked_tool', $blockedImpl),
+        ], $provider);
+
+        $run = $service->runInline(new AgentRunDraft(
+            accountId: self::ACCOUNT_HAS_PERMISSION,
+            agentDefinitionId: null,
+            bundle: ['id' => 'tool-agent', 'label' => 'Tool agent', 'description' => '', 'prompt' => 'go', 'tools' => ['allowed_tool']],
+            prompt: 'go',
+        ));
+
+        self::assertSame(RunStatus::Completed, $run->getStatus());
+        self::assertSame(['allowed_tool'], array_column($provider->advertisedTools, 'name'));
+        self::assertSame(0, $blockedImpl->calls);
+    }
+
+    /** @param list<AgentTool> $tools */
+    private function buildService(array $tools = [], ?ProviderInterface $provider = null): AgentRunService
     {
         $manifest = new PackageManifest(agentDefinitions: []);
         $registry = new AgentDefinitionRegistry($manifest);
-        $toolRegistry = new class implements ToolRegistryInterface {
+        $toolRegistry = new class ($tools) implements ToolRegistryInterface {
+            /** @var array<string, AgentTool> */
+            private array $tools = [];
+
+            public function __construct(array $tools)
+            {
+                foreach ($tools as $tool) {
+                    $this->tools[$tool->name] = $tool;
+                }
+            }
+
             public function register(AgentTool $tool): void
             {
-                unset($tool);
+                $this->tools[$tool->name] = $tool;
             }
 
             public function get(string $name): AgentTool
             {
-                throw new ToolNotFoundException(\sprintf('No tools registered (%s).', $name));
+                return $this->tools[$name] ?? throw new ToolNotFoundException(\sprintf('No tool registered (%s).', $name));
             }
 
             public function has(string $name): bool
             {
-                unset($name);
-
-                return false;
+                return isset($this->tools[$name]);
             }
 
             public function all(): iterable
             {
-                return [];
+                return array_values($this->tools);
             }
         };
 
@@ -259,8 +320,9 @@ final class RequiresCapabilityGateTest extends TestCase
             runRepository: $this->runRepository,
             executor: $executor,
             definitionRegistry: $registry,
+            toolRegistry: $toolRegistry,
             broadcaster: $this->broadcaster,
-            provider: new NullLlmProvider(),
+            provider: $provider ?? new NullLlmProvider(),
             accountLoader: new CapabilityTestAccountLoader(),
         );
 
@@ -274,6 +336,19 @@ final class RequiresCapabilityGateTest extends TestCase
             messageBus: $bus,
             runRepository: $this->runRepository,
             inlineHandler: $handler,
+        );
+    }
+
+    private function tool(string $name, R18CountingTool $impl): AgentTool
+    {
+        return new AgentTool(
+            name: $name,
+            capability: self::CAPABILITY,
+            destructive: false,
+            dryRunSupported: false,
+            category: 'test',
+            inputSchema: ['type' => 'object', 'properties' => []],
+            impl: $impl,
         );
     }
 
@@ -317,6 +392,58 @@ final class RequiresCapabilityGateTest extends TestCase
         );
 
         return new AgentAuditLogRepository($entityRepo, $this->database);
+    }
+}
+
+final class R18CountingTool extends AbstractAgentTool
+{
+    public int $calls = 0;
+
+    public function execute(array $arguments, AccountInterface $account): AgentToolResult
+    {
+        ++$this->calls;
+
+        return AgentToolResult::text('ok');
+    }
+
+    public function inputSchema(): array
+    {
+        return ['type' => 'object', 'properties' => []];
+    }
+
+    public function description(): string
+    {
+        return 'R18 test tool';
+    }
+}
+
+final class R18ToolUseProvider implements ProviderInterface
+{
+    /** @var list<array<string, mixed>> */
+    public array $advertisedTools = [];
+
+    private int $calls = 0;
+
+    public function __construct(private readonly string $requestedTool) {}
+
+    public function sendMessage(MessageRequest $request): MessageResponse
+    {
+        ++$this->calls;
+        if ($this->calls === 1) {
+            $this->advertisedTools = $request->tools;
+
+            return new MessageResponse(
+                content: [['type' => 'tool_use', 'id' => 'call-1', 'name' => $this->requestedTool, 'input' => []]],
+                stopReason: 'tool_use',
+                usage: ['input_tokens' => 1, 'output_tokens' => 1],
+            );
+        }
+
+        return new MessageResponse(
+            content: [['type' => 'text', 'text' => 'done']],
+            stopReason: 'end_turn',
+            usage: ['input_tokens' => 1, 'output_tokens' => 1],
+        );
     }
 }
 

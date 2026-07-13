@@ -1042,6 +1042,11 @@ the missing half is producer dispatch, tracked as a follow-up issue.
 
 ## Implementation gotchas
 
+- **Tool-loop wiring and allowlisting are inseparable (R18 M2+M3, #1975):**
+  `RunAgentHandler` resolves provider descriptors only for
+  `AgentDefinition::$tools`; `AgentExecutor` receives the same trusted name
+  list and checks membership again before global-registry lookup or execution.
+  Never wire provider tools without this second fail-closed gate.
 - **`RunAgentHandler` enforces `AgentDefinition::$requiresCapability`** (audit
   A7 F2 / R10 WP2, 2026-07-05): this field used to be plumbed end-to-end
   (attribute → manifest → registry → definition) but never checked before
