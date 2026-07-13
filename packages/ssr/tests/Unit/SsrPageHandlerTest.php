@@ -431,4 +431,16 @@ final class SsrPageHandlerTest extends TestCase
         $this->assertSame('/communities', $result);
         $this->assertSame('en', $manager->getCurrentLanguage()->id);
     }
+
+    #[Test]
+    public function routing_language_is_reset_between_requests_in_the_same_process(): void
+    {
+        [$resolver, $manager] = $this->createResolverWithManager();
+
+        $this->assertSame('/about', $resolver->stripLanguagePrefixForRouting('/oj/about'));
+        $this->assertSame('oj', $manager->getCurrentLanguage()->id);
+
+        $this->assertSame('/about', $resolver->stripLanguagePrefixForRouting('/about'));
+        $this->assertSame('en', $manager->getCurrentLanguage()->id);
+    }
 }

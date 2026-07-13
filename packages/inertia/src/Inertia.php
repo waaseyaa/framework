@@ -41,6 +41,11 @@ final class Inertia
         self::$shared[$key] = $value;
     }
 
+    public static function clearShared(): void
+    {
+        self::$shared = [];
+    }
+
     /** @param array<string, mixed> $props */
     public static function render(
         string $component,
@@ -78,7 +83,7 @@ final class Inertia
 
     public static function reset(): void
     {
-        self::$shared = [];
+        self::clearShared();
         self::$version = '';
         self::$renderer = null;
     }
