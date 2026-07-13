@@ -123,6 +123,7 @@ final class AgentExecutor
      * @param array<int, array<string, mixed>> $tools     Tool descriptors to advertise to the provider.
      * @param int $maxIterations Iteration budget (FR-026).
      * @param int $maxTokens Provider per-call token budget.
+     * @param list<string> $allowedToolNames Agent-definition tool names authorized for this run.
      */
     public function executeRun(
         AgentRun $run,
@@ -131,9 +132,9 @@ final class AgentExecutor
         array $messages,
         ?string $system = null,
         array $tools = [],
-        array $allowedToolNames = [],
         int $maxIterations = 10,
         int $maxTokens = 4096,
+        array $allowedToolNames = [],
     ): AgentResult {
         // Scope the acting-account context to the run initiator (research D1
         // writer 3, FR-002) so entity saves made *by agent tools* — including
