@@ -64,10 +64,9 @@ final class ServiceProvider extends BaseServiceProvider implements AcceptsMigrat
     /**
      * @var list<DerivesContentModelInterface> Providers injected by the
      *      kernel's {@see \Waaseyaa\Foundation\Kernel\AbstractKernel::injectContentModelProviders()}
-     *      (G-026, #1940), or directly by tests. Only collected here — never
-     *      invoked here. See {@see ContentModelRegistrar} and
-     *      {@see \Waaseyaa\Migration\Runner\MigrationRunner} for the
-     *      import-time invocation point.
+     *      (G-026, #1940), or directly by tests. Import registration remains
+     *      owned by MigrationRunner; {@see boot()} only rehydrates definitions
+     *      for content types already persisted by an earlier import (#1982).
      */
     private array $contentModelProviders = [];
 
@@ -147,10 +146,9 @@ final class ServiceProvider extends BaseServiceProvider implements AcceptsMigrat
         // supported path for declaring import-derived per-bundle content
         // models (see that class's docblock for the full contract). Lazy
         // like EntityDestinationFactory above: EntityTypeManager is safe to
-        // resolve early, but the registrar itself is only ever INVOKED from
-        // MigrationRunner at the first import command — well after full
-        // kernel boot — so there is no boot-ordering hazard to guard against
-        // here the way there is for EntityDestinationFactory's GateInterface.
+        // resolve early. Full registration is invoked by MigrationRunner at
+        // the first import command; boot() uses only the persisted-config-
+        // guarded rehydration path (#1982).
         $this->singleton(ContentModelRegistrar::class, function () {
             $entityTypeManager = $this->resolve(EntityTypeManager::class);
             \assert($entityTypeManager instanceof EntityTypeManager);
@@ -229,6 +227,20 @@ final class ServiceProvider extends BaseServiceProvider implements AcceptsMigrat
         // fail fast at framework boot; they now surface at the first CLI
         // invocation that touches the registry instead. See
         // docs/specs/migration-platform.md §9 and CHANGELOG.md (G-024).
+
+        if ($this->contentModelProviders === []) {
+            return;
+        }
+
+        $registrar = $this->resolve(ContentModelRegistrar::class);
+        \assert($registrar instanceof ContentModelRegistrar);
+
+        foreach ($this->contentModelProviders as $provider) {
+            $model = $provider->deriveContentModel();
+            if ($model !== null) {
+                $registrar->rehydrate($model);
+            }
+        }
     }
 
     /**
@@ -256,11 +268,10 @@ final class ServiceProvider extends BaseServiceProvider implements AcceptsMigrat
      *
      * Implements {@see AcceptsContentModelProvidersInterface}: the kernel
      * discovers providers that expose an import-derived content model and
-     * hands them here (G-026, #1940). Same shape as
-     * {@see withMigrationProviders()} — collection only, no invocation. The
-     * providers are threaded into the {@see MigrationRunner} binding above
-     * and invoked from there, at the first import command, not from this
-     * provider's `boot()`.
+     * hands them here (G-026, #1940). The providers are threaded into the
+     * {@see MigrationRunner} for import-time registration and are also queried
+     * by {@see boot()} to restore process-local field definitions for already
+     * persisted content types (#1982).
      *
      * @param list<object> $providers
      */

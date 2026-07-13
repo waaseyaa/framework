@@ -1,5 +1,6 @@
 <!-- Spec reviewed 2026-05-13 - migration-platform-v1 mission landed -->
 <!-- Spec reviewed 2026-07-02 - R3 WP1 HtmlSanitizeProcessor nested-case + CDATA-content-model B-4 fix (§3.5, §16) -->
+<!-- Spec reviewed 2026-07-13 - #1982 restores import-derived field definitions on later process boots; full registration remains import-time only (§9.5). -->
 
 # Migration Platform
 
@@ -609,9 +610,10 @@ successfully and only fails when an operator runs `import:status` or
 
 `Waaseyaa\Migration\ContentModel\ContentModelRegistrar` is the **one
 supported path** for an application to declare per-bundle content types and
-fields derived from a migration source, at import time. It is bound as a
-singleton by `Waaseyaa\Migration\ServiceProvider` and invoked from
-`MigrationRunner`, never from a service provider's `boot()`.
+fields derived from a migration source. It is bound as a singleton by
+`Waaseyaa\Migration\ServiceProvider`. Full registration is invoked from
+`MigrationRunner` at import time; later process boots replay only field
+declarations for bundle config entities that a completed import persisted.
 
 **Contract:**
 
@@ -639,10 +641,20 @@ exactly like `HasMigrationsInterface` in §9 step 2:
 `ServiceProvider::withContentModelProviders()`
 (`Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsContentModelProvidersInterface`).
 That step only collects object references — it never calls
-`deriveContentModel()`. Invocation happens later, in
+`deriveContentModel()`. Full registration happens later, in
 `MigrationRunner::ensureContentModelsRegistered()`, guarded to run exactly
 once per `MigrationRunner` instance (a container singleton, i.e. once per CLI
 process), immediately before the first migration of the invocation executes.
+
+**Read-process rehydration (#1982).** The field registry populated above is
+process-local. `Migration\ServiceProvider::boot()` therefore asks the collected
+providers for the same model and calls `ContentModelRegistrar::rehydrate()`.
+Rehydration declares fields only when the destination's bundle config entity
+already exists; it does not create config entities. A clean first-install boot
+before import is consequently still a no-op, while a later HTTP or worker
+process restores the definitions needed by `BundleSubtableGateway` to hydrate
+persisted columns. Replaying declarations is idempotent for upgraded installs
+and does not rewrite their entity rows.
 
 This split matters because of a real production failure. The Sheguiandah
 pass-1 build (`sheg-waaseyaa-pass1`, read-only reference) constructed
@@ -664,8 +676,8 @@ schema they import into exists.
 `ContentModelRegistrar` used to swallow every failure behind a
 `notice`/`error` log line and continue, because it was (on paper) invocable
 during kernel boot, where a hard failure would have crashed boot for reasons
-unrelated to the content model itself. Now that the only invocation point is
-import-time (§9.5 above), `register()` raises
+unrelated to the content model itself. Full `register()` remains an import-time
+operation (§9.5 above), and raises
 `Waaseyaa\Migration\Exception\ContentModelRegistrationException` on any
 structural failure — destination entity type not registered, bundle config
 entity cannot be built/saved, no field registry configured, or

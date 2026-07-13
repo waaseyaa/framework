@@ -21,9 +21,11 @@ namespace Waaseyaa\Migration\ContentModel;
  * `Waaseyaa\Migration\ServiceProvider` accepts the collected providers via
  * {@see \Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsContentModelProvidersInterface}
  * and threads them into {@see \Waaseyaa\Migration\Runner\MigrationRunner},
- * which is where `deriveContentModel()` is actually called — once, before the
- * first migration of the CLI invocation, well after full kernel boot. See
- * docs/specs/migration-platform.md "Content model registration".
+ * where full registration runs once before the first migration of the CLI
+ * invocation. The migration provider also calls this method during later
+ * boots to restore process-local definitions for bundle configs already
+ * persisted by an import (#1982). See docs/specs/migration-platform.md
+ * "Content model registration".
  *
  * @api
  */
