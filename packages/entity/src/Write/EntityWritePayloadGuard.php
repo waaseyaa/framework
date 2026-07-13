@@ -229,6 +229,14 @@ final class EntityWritePayloadGuard
             return $submitted === null && $stored === null;
         }
 
+        // A non-scalar (array/object) submitted value can never echo a
+        // stored scalar bookkeeping column — refuse without the string cast
+        // (casting an array emits a PHP warning; refusing is the same
+        // outcome, minus the log noise).
+        if (!\is_scalar($submitted) || !\is_scalar($stored)) {
+            return false;
+        }
+
         return (string) $submitted === (string) $stored;
     }
 

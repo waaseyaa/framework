@@ -292,9 +292,6 @@ final class EntityResolver
         // AUTHORIZED caller is surfaced accurately and never masked as "not found".
         try {
             $this->guard->assertUpdateAccess($entity);
-            foreach (array_keys($input) as $fieldName) {
-                $this->guard->assertFieldEditAccess($entity, $fieldName);
-            }
         } catch (UserError) {
             throw new UserError("Entity not found: {$entityTypeId}/{$id}");
         }
@@ -305,15 +302,27 @@ final class EntityResolver
         // EntityWritePayloadGuard::evaluateForUpdate() call. Runs only after
         // update access is confirmed above (so it adds no existence oracle:
         // the refusal depends only on the entity TYPE's schema, not this
-        // entity instance or the caller's access) and BEFORE any
-        // set()/save() — nothing is applied on refusal. An allowed echo
-        // (submitted value equals the entity's current stored value for an
-        // identity/bookkeeping column, e.g. `revision_id`/`published_revision_id`
-        // — FR-008 documents these as load-bearing READ attributes a
-        // read-modify-write client legitimately echoes back) is stripped
-        // from `$input` here, before the apply loop below (belt: an allowed
-        // echo must never reach `$entity->set()`).
+        // entity instance or the caller's access), BEFORE the field-access
+        // loop below (so an allowed echo of a bookkeeping column a site
+        // policy happens to field-forbid never 403s spuriously — parity with
+        // JsonApiController::update()'s strip-before-field-access ordering),
+        // and BEFORE any set()/save() — nothing is applied on refusal. An
+        // allowed echo (submitted value equals the entity's current stored
+        // value for an identity/bookkeeping column, e.g.
+        // `revision_id`/`published_revision_id` — FR-008 documents these as
+        // load-bearing READ attributes a read-modify-write client
+        // legitimately echoes back) is stripped from `$input` here, before
+        // the apply loop below (belt: an allowed echo must never reach
+        // `$entity->set()`).
         $input = $this->assertWritableForUpdate($entityTypeId, $entity->bundle(), $input, $entity->toArray());
+
+        try {
+            foreach (array_keys($input) as $fieldName) {
+                $this->guard->assertFieldEditAccess($entity, $fieldName);
+            }
+        } catch (UserError) {
+            throw new UserError("Entity not found: {$entityTypeId}/{$id}");
+        }
 
         if (!$entity instanceof FieldableInterface) {
             throw new UserError("Entity type '{$entityTypeId}' does not support field updates.");
