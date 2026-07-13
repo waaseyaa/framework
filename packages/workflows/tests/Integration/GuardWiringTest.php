@@ -231,6 +231,63 @@ final class GuardWiringTest extends TestCase
     }
 
     /**
+     * CW-v1 option-1 (#1920 PR-2, design §3.1): wiring regression for
+     * {@see \Waaseyaa\Workflows\Listener\WorkflowRepublishListener} — a real
+     * kernel-dispatched, authorized, revision-creating, same-state raw save
+     * of a default-revision (`published`) state must promote the new tip
+     * through `setPublishedRevision()` end to end, proving
+     * `WorkflowServiceProvider::boot()` wires the listener onto the SAME
+     * dispatcher instance the repository saves through — not merely that
+     * the listener class works in isolation.
+     */
+    #[Test]
+    public function a_real_kernel_dispatched_same_state_default_revision_save_fires_the_republish_listener_and_promotes_the_tip(): void
+    {
+        [$entityTypeManager] = $this->bootWiredProvider();
+        $repository = $entityTypeManager->getRepository(self::ENTITY_TYPE_ID);
+
+        $entity = new GuardWiringSubject(
+            ['bundle' => self::ENTITY_TYPE_ID, 'workflow_state' => 'draft', 'title' => 'Original'],
+            self::ENTITY_TYPE_ID,
+            ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
+        );
+        $repository->save($entity);
+
+        // Establish a published pointer (draft -> published, a legal edge,
+        // null account context checks edge-legality only).
+        $draft = $repository->find((string) $entity->id());
+        $this->assertNotNull($draft);
+        $draft->setNewRevision(true);
+        $draft->set('workflow_state', 'published');
+        $repository->save($draft);
+        $firstPublishedRevisionId = (int) $draft->get('revision_id');
+        $repository->setPublishedRevision((string) $entity->id(), $firstPublishedRevisionId);
+
+        // A plain content raw save with NO workflow_state change (same
+        // state, 'published' -> 'published'), forced to create a revision
+        // (mirrors Node's real new_revision:true default — this fixture
+        // type does not carry a revisionDefault:true of its own).
+        $published = $repository->find((string) $entity->id());
+        $this->assertNotNull($published);
+        $published->setNewRevision(true);
+        $published->set('title', 'Edited via raw save');
+        $repository->save($published);
+
+        // Without the wired republish listener, this save is revision-only
+        // (disciplined) — the base row/published pointer would stay on the
+        // FIRST published revision, still carrying 'Original'. The listener
+        // firing is what promotes the new tip through setPublishedRevision().
+        $nowPublished = $repository->loadPublishedRevision((string) $entity->id());
+        $this->assertNotNull($nowPublished);
+        $this->assertSame('Edited via raw save', $nowPublished->get('title'));
+        $this->assertNotSame($firstPublishedRevisionId, (int) $nowPublished->get('revision_id'));
+
+        $base = $repository->find((string) $entity->id());
+        $this->assertNotNull($base);
+        $this->assertSame('Edited via raw save', $base->get('title'), 'The base row must serve the republished content.');
+    }
+
+    /**
      * Companion to the wired tests above — pins the DEGRADED boot path
      * (review amendment, issue #1930): when the kernel-services bus does NOT
      * serve `ConfigFactoryInterface` (the real production bus today),
