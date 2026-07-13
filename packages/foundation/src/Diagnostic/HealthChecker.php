@@ -633,6 +633,9 @@ final class HealthChecker implements HealthCheckerInterface
 
     private function typesCompatible(string $expected, string $actual): bool
     {
+        // SQLite gives VARCHAR, including parameterized VARCHAR(n), TEXT affinity.
+        $actual = preg_replace('/^VARCHAR\s*\(\s*\d+\s*\)$/i', 'VARCHAR', $actual) ?? $actual;
+
         // SQLite normalizes varchar→TEXT, serial→INTEGER, int→INTEGER.
         // DBAL may produce CLOB instead of TEXT for string columns.
         $normalMap = [

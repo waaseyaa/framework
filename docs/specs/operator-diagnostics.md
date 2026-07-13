@@ -110,7 +110,7 @@ For multi-bundle entity types with registered bundle-scoped fields, drift detect
    - Config entities (no `uuid` key): ID column = `TEXT` (varchar)
    - Common columns: bundle, label, langcode, `_data` — all `TEXT`
 5. Compare actual vs expected: check for missing columns, type mismatches
-6. SQLite type normalization: `varchar` → `TEXT`, `serial` → `INTEGER` (affinity rules)
+6. SQLite type normalization: `varchar` / `varchar(n)` → `TEXT`, `serial` → `INTEGER` (affinity rules)
 
 **Reporting the all-skipped case honestly.** If at least one registered entity type exists, no drift was found among the tables that *were* checked, but every single registered table was skipped as lazily-uninitialized (skip count equals the number of registered definitions), `checkSchemaDrift()` does **not** emit a blanket "Schema drift: pass" — that would claim a comparison happened when none did. Instead it emits a single `SCHEMA_DRIFT_CHECK_SKIPPED` **warn** result under the name `Schema drift`, with a message naming the skip count (`"Schema drift not verified: all N registered entity table(s) are not yet materialized (lazy creation)."`) and `context.skipped` / `context.total`. Warn (not fail) because an uninitialized table pre-`waaseyaa install` is a legitimate transitional state, not an error — same severity class as `STORAGE_DIRECTORY_MISSING`. A **partial** skip (some tables exist and match, others are still lazy) is unaffected and continues to report a plain pass — only the all-skipped case is ambiguous enough to require a distinct signal.
 

@@ -23,6 +23,7 @@ use Waaseyaa\Foundation\Migration\SchemaBuilder;
 final class MediaVersionVidUniqueIndexMigrationTest extends TestCase
 {
     private const string MIGRATION_FILE = '2026_07_01_000001_add_media_version_vid_unique_index.php';
+    private const string RECONCILE_MIGRATION_FILE = '2026_07_13_000001_reconcile_media_version_entity_schema.php';
 
     private const string MIGRATION_SHAPED_TABLE_SQL = <<<'SQL'
         CREATE TABLE media_version (
@@ -111,5 +112,31 @@ final class MediaVersionVidUniqueIndexMigrationTest extends TestCase
         $migration = $this->loadMigration();
         $migration->up(new SchemaBuilder($db->getConnection()));
         $this->addToAssertionCount(1);
+    }
+
+    #[Test]
+    public function reconcile_migration_adds_entity_columns_without_disturbing_upgraded_cas_rows(): void
+    {
+        $db = DBALDatabase::createSqlite();
+        $connection = $db->getConnection();
+        $connection->executeStatement(self::MIGRATION_SHAPED_TABLE_SQL);
+        $connection->executeStatement(
+            "INSERT INTO media_version (uuid, media_uuid, vid, sha256) VALUES ('existing', 'media-a', 7, 'hash')",
+        );
+
+        $migrationPath = dirname(__DIR__, 3) . '/migrations/' . self::RECONCILE_MIGRATION_FILE;
+        $migration = require $migrationPath;
+        self::assertInstanceOf(Migration::class, $migration);
+        $migration->up(new SchemaBuilder($connection));
+        $migration->up(new SchemaBuilder($connection));
+
+        $columns = $connection->createSchemaManager()->listTableColumns('media_version');
+        self::assertArrayHasKey('bundle', $columns);
+        self::assertArrayHasKey('label', $columns);
+        self::assertArrayHasKey('langcode', $columns);
+        self::assertSame(
+            ['uuid' => 'existing', 'media_uuid' => 'media-a', 'vid' => 7, 'sha256' => 'hash'],
+            $connection->fetchAssociative('SELECT uuid, media_uuid, vid, sha256 FROM media_version'),
+        );
     }
 }

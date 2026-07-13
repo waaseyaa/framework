@@ -116,6 +116,29 @@ final class HealthCheckerTest extends TestCase
     }
 
     #[Test]
+    public function schemaDriftTreatsParameterizedVarcharAsSqliteTextAffinity(): void
+    {
+        $type = $this->makeContentEntityType('article');
+        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager->method('getDefinitions')->willReturn(['article' => $type]);
+        $this->database->query(<<<'SQL'
+            CREATE TABLE article (
+                nid INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid VARCHAR(36) NOT NULL,
+                type TEXT NOT NULL DEFAULT '',
+                title TEXT NOT NULL DEFAULT '',
+                langcode TEXT NOT NULL DEFAULT 'en',
+                _data TEXT NOT NULL DEFAULT '{}'
+            )
+            SQL, []);
+
+        $results = $this->createCheckerWith($manager)->checkSchemaDrift();
+
+        self::assertCount(1, $results);
+        self::assertSame('pass', $results[0]->status);
+    }
+
+    #[Test]
     public function schemaDriftDetectsTypeMismatch(): void
     {
         // Create a config entity type (expects TEXT PK).
