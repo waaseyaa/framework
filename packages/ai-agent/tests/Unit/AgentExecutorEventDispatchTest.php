@@ -129,6 +129,7 @@ final class AgentExecutorEventDispatchTest extends TestCase
             $this->fakeAccount(1),
             $provider,
             messages: [['role' => 'user', 'content' => 'go']],
+            allowedToolNames: ['echo_tool'],
             maxIterations: 5,
         );
 
@@ -244,6 +245,7 @@ final class AgentExecutorEventDispatchTest extends TestCase
             $this->fakeAccount(1),
             $provider,
             messages: [['role' => 'user', 'content' => 'go']],
+            allowedToolNames: ['noop'],
             maxIterations: 5,
         );
 
@@ -272,6 +274,7 @@ final class AgentExecutorEventDispatchTest extends TestCase
             $this->fakeAccount(42),
             $provider,
             messages: [['role' => 'user', 'content' => 'go']],
+            allowedToolNames: ['ok_tool'],
             maxIterations: 5,
         );
 
@@ -300,6 +303,7 @@ final class AgentExecutorEventDispatchTest extends TestCase
             $this->fakeAccount(42),
             $provider,
             messages: [['role' => 'user', 'content' => 'go']],
+            allowedToolNames: ['boom_tool'],
             maxIterations: 5,
         );
 
@@ -443,6 +447,7 @@ final class AgentExecutorEventDispatchTest extends TestCase
             $this->fakeAccount(1),
             $provider,
             messages: [['role' => 'user', 'content' => 'go']],
+            allowedToolNames: ['list_arg_tool'],
             maxIterations: 5,
         );
 

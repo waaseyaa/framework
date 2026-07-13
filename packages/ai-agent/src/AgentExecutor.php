@@ -131,6 +131,7 @@ final class AgentExecutor
         array $messages,
         ?string $system = null,
         array $tools = [],
+        array $allowedToolNames = [],
         int $maxIterations = 10,
         int $maxTokens = 4096,
     ): AgentResult {
@@ -152,6 +153,7 @@ final class AgentExecutor
                 $messages,
                 $system,
                 $tools,
+                $allowedToolNames,
                 $maxIterations,
                 $maxTokens,
             );
@@ -183,6 +185,7 @@ final class AgentExecutor
         array $messages,
         ?string $system,
         array $tools,
+        array $allowedToolNames,
         int $maxIterations,
         int $maxTokens,
     ): AgentResult {
@@ -313,6 +316,17 @@ final class AgentExecutor
                 $toolName = $toolUseBlock->name;
                 $toolArgs = $toolUseBlock->input;
 
+                if (!\in_array($toolName, $allowedToolNames, true)) {
+                    $message = \sprintf('Tool "%s" is not available.', $toolName);
+                    $this->appendError($runId, $iteration, 'tool_not_found', $message, $toolName, $toolArgs);
+                    $toolResults[] = new ToolResultBlock(
+                        toolUseId: $toolUseBlock->id,
+                        content: json_encode(['error' => $message], JSON_THROW_ON_ERROR),
+                        isError: true,
+                    )->toArray();
+                    continue;
+                }
+
                 try {
                     $tool = $this->toolRegistry->get($toolName);
                 } catch (ToolNotFoundException $e) {
@@ -320,6 +334,17 @@ final class AgentExecutor
                     $toolResults[] = new ToolResultBlock(
                         toolUseId: $toolUseBlock->id,
                         content: json_encode(['error' => $e->getMessage()], JSON_THROW_ON_ERROR),
+                        isError: true,
+                    )->toArray();
+                    continue;
+                }
+
+                if (!$initiatorAccount->hasPermission($tool->capability)) {
+                    $message = \sprintf('Tool "%s" is not authorized.', $toolName);
+                    $this->appendError($runId, $iteration, 'tool_unauthorized', $message, $toolName, $toolArgs);
+                    $toolResults[] = new ToolResultBlock(
+                        toolUseId: $toolUseBlock->id,
+                        content: json_encode(['error' => $message], JSON_THROW_ON_ERROR),
                         isError: true,
                     )->toArray();
                     continue;
@@ -477,7 +502,17 @@ final class AgentExecutor
         AccountInterface $account,
         ?string $runId = null,
         int $iteration = 0,
+        array $allowedToolNames = [],
     ): AgentToolResult {
+        if (!\in_array($toolName, $allowedToolNames, true)) {
+            $message = \sprintf('Tool "%s" is not available.', $toolName);
+            if ($runId !== null) {
+                $this->appendError($runId, $iteration, 'tool_not_found', $message, $toolName, $arguments);
+            }
+
+            return AgentToolResult::error($message);
+        }
+
         try {
             $tool = $this->toolRegistry->get($toolName);
         } catch (ToolNotFoundException $e) {
@@ -486,6 +521,10 @@ final class AgentExecutor
             }
 
             return AgentToolResult::error($e->getMessage());
+        }
+
+        if (!$account->hasPermission($tool->capability)) {
+            return AgentToolResult::error(\sprintf('Tool "%s" is not authorized.', $toolName));
         }
 
         try {

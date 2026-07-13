@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Production agent runs now execute only tools explicitly allowlisted by their agent definition (#1975, R18 M2+M3).** `RunAgentHandler` advertises the allowlisted registry descriptors instead of hardcoding an empty tool list, while `AgentExecutor` independently rejects any model-emitted or direct tool invocation absent from that allowlist and rechecks the tool capability before execution. The tool loop and its security boundary land together so enabling tools can never expose the global catalogue to every agent.
+
+### Security
+
 - **Persistent HTTP workers no longer carry Inertia shared props or the active language into the next request (#1971, R17).** `InertiaMiddleware` clears request-shared props in `finally` on every response path, preventing account-shaped props from surviving in process statics, and SSR routing resets the shared `LanguageManager` before applying the current request's prefix. Two-request/one-process regressions pin both boundaries; companion coverage verifies that the dual static Twig environments are already replaced on every production-order provider boot and require no runtime change.
 
 ### Changed
