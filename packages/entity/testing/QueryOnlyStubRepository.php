@@ -53,6 +53,11 @@ final class QueryOnlyStubRepository implements EntityRepositoryInterface
         throw new \BadMethodCallException('QueryOnlyStubRepository only supports getQuery().');
     }
 
+    public function loadWorkingCopy(string $id): ?EntityInterface
+    {
+        return $this->find($id);
+    }
+
     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array
     {
         throw new \BadMethodCallException('QueryOnlyStubRepository only supports getQuery().');

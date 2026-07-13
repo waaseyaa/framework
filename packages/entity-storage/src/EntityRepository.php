@@ -692,6 +692,40 @@ final class EntityRepository implements EntityRepositoryInterface
             EntityEvents::PRE_SAVE->value,
         );
 
+        // Default-revision discipline (CW-v1 option-1 forward-draft rebuild,
+        // #1920 PR-1). Evaluated AFTER the PRE_SAVE dispatch above — that is
+        // where the workflows save-path guard (wired in the next PR; this
+        // save-path handling ships dormant here) sets the transient flag via
+        // RevisionableEntityTrait::setDefaultRevisionDiscipline(). Duck-checked
+        // (method_exists) the same way #1654 duck-checks getRevisionId() —
+        // an entity carrying revision capability via RevisionableEntityInterface
+        // + RevisionableEntityTrait without declaring the legacy
+        // RevisionableInterface still gets the flag read correctly. Only
+        // meaningful for an existing (non-new) revisionable entity with a
+        // revision driver wired: a new entity has no base pointer to keep
+        // stable, and an undriven/non-revisionable type has nowhere to write
+        // a revision-only save.
+        $disciplined = !$isNew
+            && $this->revisionDriver !== null
+            && $this->entityType->isRevisionable()
+            && method_exists($entity, 'isDefaultRevisionDisciplined')
+            && (bool) $entity->isDefaultRevisionDisciplined();
+
+        if ($disciplined && $expectedRevisionId !== null) {
+            // Rejection matrix extension (docs/specs/revision-system-unified.md
+            // §3b): the guarded optimistic-locking claim is a base-pointer
+            // UPDATE — structurally meaningless when default-revision
+            // discipline forbids the base pointer from moving on this save.
+            // Thrown before any write, same \LogicException convention as
+            // the matrix above.
+            throw new \LogicException(
+                'Cannot state a revision expectation on a default-revision-disciplined save for entity '
+                . "type '{$entityTypeId}' (id '" . (string) ($entity->id() ?? '') . "'): the guarded claim is a "
+                . 'base-pointer UPDATE, which is structurally meaningless when the base pointer must not '
+                . 'move under default-revision discipline.',
+            );
+        }
+
         $createRevision = $this->shouldCreateRevision($entity, $isNew);
 
         if ($expectedRevisionId !== null && (!$createRevision || $resolvedContext->withoutNewRevision)) {
@@ -771,6 +805,23 @@ final class EntityRepository implements EntityRepositoryInterface
         // revision write until after the base insert.
         $deferRevision = $createRevision && $this->revisionDriver !== null && $id === '';
 
+        // Default-revision discipline (continued): whether this save's
+        // base-row write happens at all. Undisciplined saves always write
+        // the base row (today's behavior, byte-identical). A disciplined
+        // revision-creating save never does (revision-only). A disciplined
+        // in-place save writes the base row only when the revision being
+        // updated IS the live published pointer — read from $originalEntity,
+        // already loaded above (zero extra queries), never from the revision
+        // row being (re)written.
+        $writeBase = true;
+        $originalPublishedRevisionId = null;
+        if ($disciplined && $originalEntity !== null) {
+            $rawOriginal = $originalEntity->toArray();
+            $originalPublishedRevisionId = isset($rawOriginal['published_revision_id'])
+                ? (int) $rawOriginal['published_revision_id']
+                : null;
+        }
+
         try {
             if ($createRevision && $this->revisionDriver !== null && !$deferRevision) {
                 $log = ($entity instanceof RevisionableInterface) ? $entity->getRevisionLog() : null;
@@ -825,7 +876,16 @@ final class EntityRepository implements EntityRepositoryInterface
                     }
                 }
 
-                $values['revision_id'] = $revisionId;
+                if ($disciplined) {
+                    // Revision-only save (CW-v1 option-1, §2.1): the base
+                    // row must not advance past the published pointer, so
+                    // $values keeps its PRE-save revision_id and the base
+                    // write below is skipped entirely. The in-memory entity
+                    // still gets its new tip id (next line, unconditional).
+                    $writeBase = false;
+                } else {
+                    $values['revision_id'] = $revisionId;
+                }
                 if ($entity instanceof ContentEntityInterface) {
                     $revisionKey = $this->entityType->getKeys()['revision'] ?? 'revision_id';
                     $entity->set($revisionKey, $revisionId);
@@ -835,6 +895,33 @@ final class EntityRepository implements EntityRepositoryInterface
                 if ($currentRevisionId !== null) {
                     $this->revisionDriver->updateRevision($id, $currentRevisionId, $values);
                 }
+                if ($disciplined) {
+                    // In-place edit under discipline (§2.1): reaches the base
+                    // row only when the revision just updated IS the live
+                    // published pointer (the promote-flow status-flip save,
+                    // or a sanctioned in-place edit of the published
+                    // revision). An in-place edit of a diverged (non-
+                    // published) tip stays revision-only. Compare as ints;
+                    // no base write when the pointer is unset/null.
+                    $writeBase = $originalPublishedRevisionId !== null
+                        && $currentRevisionId !== null
+                        && $originalPublishedRevisionId === $currentRevisionId;
+                }
+            } elseif ($disciplined && !$createRevision) {
+                // Disciplined in-place save the legacy-interface branch above
+                // did not take (a trait-only RevisionableEntityInterface class
+                // — such entities get no in-place revision update today,
+                // pre-existing). Same published-pointer rule, resolved via the
+                // trait's own revisionId(); FAIL CLOSED when unresolvable:
+                // under discipline the base row serves the published revision,
+                // and a revision-side no-op is strictly safer than leaking
+                // draft values into the served row.
+                $traitRevisionId = ($entity instanceof RevisionableEntityInterface && \is_int($entity->revisionId()))
+                    ? $entity->revisionId()
+                    : null;
+                $writeBase = $originalPublishedRevisionId !== null
+                    && $traitRevisionId !== null
+                    && $originalPublishedRevisionId === $traitRevisionId;
             }
 
             // Bundle-aware write: pull this content type's column-stored bundle
@@ -843,25 +930,34 @@ final class EntityRepository implements EntityRepositoryInterface
             // FieldStorage::Data bundle fields stay in the base row. If the
             // subtable is somehow absent, fold the values back into the base row
             // (never a silent drop) and log.
-            $baseValues = $values;
-            $bundleValues = [];
-            $bundleName = null;
-            $gateway = $this->bundleGateway();
-            if ($gateway !== null) {
-                [$baseValues, $bundleValues, $bundleName] = $gateway->partition($entity, $values);
-                if ($bundleValues !== [] && $bundleName !== null && !$gateway->subtableExists($bundleName)) {
-                    $gateway->logMissingSubtableOnSave($bundleName, \count($bundleValues));
-                    $baseValues = $values;
-                    $bundleValues = [];
-                    $bundleName = null;
+            //
+            // Skipped entirely under default-revision discipline when
+            // $writeBase is false (§2.1): the subtable columns are
+            // per-entity, so writing them here would leak draft values into
+            // query joins — the revision row already snapshots the full
+            // pre-partition bag above.
+            $writtenId = $id;
+            if ($writeBase) {
+                $baseValues = $values;
+                $bundleValues = [];
+                $bundleName = null;
+                $gateway = $this->bundleGateway();
+                if ($gateway !== null) {
+                    [$baseValues, $bundleValues, $bundleName] = $gateway->partition($entity, $values);
+                    if ($bundleValues !== [] && $bundleName !== null && !$gateway->subtableExists($bundleName)) {
+                        $gateway->logMissingSubtableOnSave($bundleName, \count($bundleValues));
+                        $baseValues = $values;
+                        $bundleValues = [];
+                        $bundleName = null;
+                    }
                 }
-            }
 
-            $writtenId = $this->driver->write($entityTypeId, $id, $baseValues);
+                $writtenId = $this->driver->write($entityTypeId, $id, $baseValues);
 
-            if ($gateway !== null && $bundleValues !== [] && $bundleName !== null) {
-                $persistId = ($id !== '') ? $id : $writtenId;
-                $gateway->upsert($bundleName, $persistId, $bundleValues);
+                if ($gateway !== null && $bundleValues !== [] && $bundleName !== null) {
+                    $persistId = ($id !== '') ? $id : $writtenId;
+                    $gateway->upsert($bundleName, $persistId, $bundleValues);
+                }
             }
 
             if ($deferRevision && $writtenId !== '') {
@@ -1042,6 +1138,33 @@ final class EntityRepository implements EntityRepositoryInterface
         return $entity;
     }
 
+    /**
+     * Load the entity's working copy: the tip revision when it has diverged
+     * from the base row's `revision_id` pointer, otherwise {@see find()}.
+     *
+     * @see EntityRepositoryInterface::loadWorkingCopy() for the full contract.
+     */
+    public function loadWorkingCopy(string $id): ?EntityInterface
+    {
+        if ($this->revisionDriver === null) {
+            return $this->find($id);
+        }
+
+        $latestRevisionId = $this->revisionDriver->getLatestRevisionId($id);
+        if ($latestRevisionId === null) {
+            return $this->find($id);
+        }
+
+        $baseRow = $this->driver->read($this->entityType->id(), $id);
+        $baseRevisionId = $baseRow !== null ? (int) ($baseRow['revision_id'] ?? 0) : 0;
+
+        if ($latestRevisionId > $baseRevisionId) {
+            return $this->loadRevision($id, $latestRevisionId);
+        }
+
+        return $this->find($id);
+    }
+
     public function rollback(string $entityId, int $targetRevisionId): EntityInterface
     {
         if ($this->revisionDriver === null) {
@@ -1071,18 +1194,16 @@ final class EntityRepository implements EntityRepositoryInterface
         if ($priorBaseRow !== null && (int) ($priorBaseRow['revision_id'] ?? 0) > 0) {
             $fromRevisionId = (int) $priorBaseRow['revision_id'];
         }
-        $this->dispatchEvent(
-            new BeforeRevisionPointerMoveEvent(
-                entityTypeId: $this->entityType->id(),
-                entityId: $entityId,
-                operation: 'rollback',
-                fromRevisionId: $fromRevisionId,
-                toRevisionId: null,
-                actorUid: $actor,
-                revisionValues: $targetRow,
-            ),
-            BeforeRevisionPointerMoveEvent::class,
+        $beforeEvent = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: $this->entityType->id(),
+            entityId: $entityId,
+            operation: 'rollback',
+            fromRevisionId: $fromRevisionId,
+            toRevisionId: null,
+            actorUid: $actor,
+            revisionValues: $targetRow,
         );
+        $this->dispatchEvent($beforeEvent, BeforeRevisionPointerMoveEvent::class);
 
         // Remove revision metadata from the row — we're creating a new revision.
         // revision_author included: the old revision's author must not leak
@@ -1109,12 +1230,20 @@ final class EntityRepository implements EntityRepositoryInterface
             $log = "Reverted to revision {$targetRevisionId}";
             $newRevisionId = $this->revisionDriver->writeRevision($entityId, $targetRow, $log, author: $actor);
 
-            // Update the base table pointer.
-            $keys = $this->entityType->getKeys();
-            $idKey = $keys['id'] ?? 'id';
-            $targetRow[$idKey] = $entityId;
-            $targetRow['revision_id'] = $newRevisionId;
-            $this->driver->write($this->entityType->id(), $entityId, $targetRow);
+            if (!$beforeEvent->defaultRevisionSemantics()) {
+                // Update the base table pointer. Skipped under
+                // default-revision discipline (CW-v1 option-1, §2.3): the
+                // restored content becomes a new tip revision ONLY — the
+                // base row (which holds the PUBLISHED revision under
+                // discipline) is fully untouched. Restoring old content into
+                // the working copy is a draft operation; it goes live via
+                // the normal promotion path (setPublishedRevision()).
+                $keys = $this->entityType->getKeys();
+                $idKey = $keys['id'] ?? 'id';
+                $targetRow[$idKey] = $entityId;
+                $targetRow['revision_id'] = $newRevisionId;
+                $this->driver->write($this->entityType->id(), $entityId, $targetRow);
+            }
 
             $transaction?->commit();
         } catch (\Throwable $e) {
@@ -1336,18 +1465,16 @@ final class EntityRepository implements EntityRepositoryInterface
         if ($earlyBaseRow !== null && (int) ($earlyBaseRow['published_revision_id'] ?? 0) > 0) {
             $earlyFromRevisionId = (int) $earlyBaseRow['published_revision_id'];
         }
-        $this->dispatchEvent(
-            new BeforeRevisionPointerMoveEvent(
-                entityTypeId: $this->entityType->id(),
-                entityId: $entityId,
-                operation: 'publish',
-                fromRevisionId: $earlyFromRevisionId,
-                toRevisionId: $revisionId,
-                actorUid: $actor,
-                revisionValues: $targetRow,
-            ),
-            BeforeRevisionPointerMoveEvent::class,
+        $beforeEvent = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: $this->entityType->id(),
+            entityId: $entityId,
+            operation: 'publish',
+            fromRevisionId: $earlyFromRevisionId,
+            toRevisionId: $revisionId,
+            actorUid: $actor,
+            revisionValues: $targetRow,
         );
+        $this->dispatchEvent($beforeEvent, BeforeRevisionPointerMoveEvent::class);
 
         $fromRevisionId = null;
 
@@ -1360,7 +1487,35 @@ final class EntityRepository implements EntityRepositoryInterface
                 $fromRevisionId = (int) $priorBaseRow['published_revision_id'];
             }
 
-            if ($this->database !== null) {
+            if ($beforeEvent->defaultRevisionSemantics()) {
+                // Default-revision discipline (CW-v1 option-1, §2.2):
+                // promotion becomes a COMPLETE primitive — a subscriber
+                // (the workflows pointer-move guard, next PR) set the flag
+                // on the pre-event above. The base row is written from the
+                // TARGET revision's values (content, workflow_state, and its
+                // own stored status — the whole snapshot, minus bookkeeping)
+                // so it can never diverge from the pointer it claims to
+                // serve, and BOTH pointers move to the target in the same
+                // transaction. Bookkeeping keys stripped exactly like
+                // rollback()/setCurrentRevision() strip them; the target
+                // revision row itself is never mutated. Deliberately writes
+                // the row directly via the driver (bypassing the bundle-
+                // subtable partition doSave() applies) — the same precedent
+                // rollback()/setCurrentRevision() already established for
+                // pointer-move content restores.
+                $outgoingRow = $targetRow;
+                unset(
+                    $outgoingRow['revision_id'],
+                    $outgoingRow['revision_created'],
+                    $outgoingRow['revision_log'],
+                    $outgoingRow['revision_author'],
+                    $outgoingRow['entity_id'],
+                );
+                $outgoingRow[$idKey] = $entityId;
+                $outgoingRow['revision_id'] = $revisionId;
+                $outgoingRow['published_revision_id'] = $revisionId;
+                $this->driver->write($this->entityType->id(), $entityId, $outgoingRow);
+            } elseif ($this->database !== null) {
                 // Targeted single-column update: touch only the published pointer.
                 $this->database->update($this->entityType->id())
                     ->fields(['published_revision_id' => $revisionId])
@@ -1874,6 +2029,17 @@ final class EntityRepository implements EntityRepositoryInterface
         $publishedRevisionId = $baseRow['published_revision_id'] ?? null;
         $publishedRevisionId = $publishedRevisionId !== null ? (int) $publishedRevisionId : null;
 
+        // The LATEST revision is immortal too (CW-v1 option-1 PR-1, #1920).
+        // Under default-revision discipline the base `revision_id` pointer
+        // stops tracking the tip (it stays equal to `published_revision_id`
+        // — see doSave()), so the working copy (the latest revision) is no
+        // longer covered by the current-revision guard above. Without this,
+        // a prune during a review window could destroy an in-progress draft.
+        // `array_slice(..., -1)` on the sorted-ascending id list is cheaper
+        // than a driver round-trip and always agrees with
+        // `getLatestRevisionId()` (both read MAX(revision_id)).
+        $latestRevisionId = $revisionIds !== [] ? $revisionIds[$total - 1] : null;
+
         $keep = $policy->keepLastNFor(RevisionPruningPolicy::DEFAULT_LANGCODE_KEY);
         if ($keep === null) {
             // No keep-count constraint applies to this entity — nothing to prune.
@@ -1894,6 +2060,9 @@ final class EntityRepository implements EntityRepositoryInterface
             }
             if ($publishedRevisionId !== null && $vid === $publishedRevisionId) {
                 continue; // never delete the published revision (FR-038 extension, #1920 task 5)
+            }
+            if ($latestRevisionId !== null && $vid === $latestRevisionId) {
+                continue; // never delete the latest/working-copy revision (CW-v1 option-1, #1920 PR-1)
             }
             $this->revisionDriver->deleteRevision($entityId, $vid);
             ++$pruned;

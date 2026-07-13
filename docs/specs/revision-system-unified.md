@@ -25,10 +25,14 @@ There is **one** revision system: `EntityRepository` + `RevisionableStorageDrive
   count, and vice-versa).
 - **Pruning/deletion immortality (FR-038, extended).** `EntityRepository::pruneRevisions()`
   and `RevisionableStorageDriver::deleteRevision()` never delete the current
-  revision (`revision_id`) OR the published revision (`published_revision_id`)
-  — both pointers are excluded from every deletion candidate set (#1920 WP-2
-  rework). Base tables predating the `published_revision_id` column behave
-  exactly as before: only the current-revision guard applies, no SQL error.
+  revision (`revision_id`), the published revision (`published_revision_id`),
+  OR the latest revision (`getLatestRevisionId()`) — all three are excluded
+  from every deletion candidate set (#1920 WP-2 rework for the current+
+  published pair; #1920 PR-1 / §7e below for the latest-revision extension,
+  needed once default-revision discipline can decouple the current pointer
+  from the tip). Base tables predating the `published_revision_id` column
+  behave exactly as before: only the current-revision guard applies, no SQL
+  error.
 
 A `revisionable`-only entity (FNPI's `page`, `identity_pillar`, `document`,
 `drive_asset` today) is the **zero-translation default** and behaves exactly as
@@ -416,7 +420,153 @@ the M-004 leftovers created:
   by activation" — it would create second, parallel `__revision` tables
   alongside the live `_revision` ones.
 
-## 7. Acceptance
+## 7. Default-revision discipline (CW-v1 option-1)
+
+Mission CW-v1 option-1 forward-draft rebuild (#1920 PR-1). Design:
+`docs/history/plans/` session artifacts + the anchor issue; see
+`docs/specs/content-workflow.md` "Deferred: forward drafts on the shipped
+workflow" for why this exists. **Storage mechanics only** — this section
+describes mechanical primitives that ship dormant in PR-1 (no production
+caller sets the flags yet; the workflows engine wires them in the next PR).
+
+### 7a. The keystone: discipline is a workflow-layer signal, honored mechanically
+
+A naive storage rule ("published pointer present → revision-only saves")
+would break every install that carries a pointered-but-unbound row (Playbook
+H steps 1–4 without binding): their ordinary edits would silently stop
+reaching the base row. Storage (L1) also cannot ask "is this bound?" —
+bindings are L3 (`waaseyaa/workflows`). Therefore **the workflows layer
+decides when discipline applies; storage only supplies the mechanics** —
+two transient flags, honored mechanically wherever they are found:
+
+- **Entity flag** — `Waaseyaa\Entity\RevisionableEntityTrait::$defaultRevisionDiscipline`
+  (private bool, default `false`), with `setDefaultRevisionDiscipline(bool): void`
+  and `isDefaultRevisionDisciplined(): bool`. Transient — never persisted,
+  like the trait's existing `$newRevision`. Set as an **unconditional
+  boolean on every guarded save** (never set-on-true only) by the
+  forthcoming `WorkflowStateGuard`, so a stale `true` from a prior save of a
+  long-lived entity object can never leak into a later, unguarded save.
+- **Event flag** — `Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent::$defaultRevisionSemantics`
+  (private bool, default `false`), with `applyDefaultRevisionSemantics(): void`
+  and `defaultRevisionSemantics(): bool`. Set by a binding-aware subscriber
+  (the forthcoming `WorkflowPointerMoveGuard`) on the pre-write choke point
+  (§4 "Pre-write choke point") for the specific pointer operation in flight.
+- **No workflows package / no binding / no pointer ⇒ byte-identical
+  behavior to today.** This is the hard regression gate, verified by a
+  Playbook-H-shaped test: a pointered-but-unbound entity's ordinary save,
+  `setPublishedRevision()`, and `rollback()` all produce IDENTICAL writes to
+  before this section existed.
+
+Both flags are duck-checked (`method_exists`) at their consumption sites,
+mirroring the `#1654` `method_exists(getRevisionId())` pattern — an entity
+carrying revision capability via `RevisionableEntityInterface` +
+`RevisionableEntityTrait` without declaring the legacy `RevisionableInterface`
+still gets the flag read correctly.
+
+### 7b. Revision-only saves (`EntityRepository::doSave()`)
+
+Evaluated immediately after the `PRE_SAVE` dispatch (that is where the
+guard sets the entity flag) and only when a revision driver exists, the
+entity type is revisionable, and the entity is not new:
+
+- **Stated `expectedRevisionId` on a disciplined save** — new rejection-matrix
+  row (§3b above): `\LogicException`, thrown before any write. The guarded
+  optimistic-locking claim is a base-pointer UPDATE, structurally meaningless
+  when the base pointer must not move under discipline.
+- **Disciplined + revision-creating** (`shouldCreateRevision()` true):
+  `writeRevision()` writes the new revision row exactly as today, and the
+  new revision id is set on the in-memory entity. The base-row write is
+  skipped entirely: no `$values['revision_id']` advance, no base
+  `driver->write()`, no bundle-subtable upsert (subtable columns are
+  per-entity — writing them would leak draft values into query joins; the
+  revision row already snapshots the full pre-partition value bag). All
+  events (`PRE_SAVE`/`POST_SAVE`, `REVISION_CREATED`, `BeforeSaveEvent`/
+  `AfterSaveEvent`) dispatch exactly as today.
+- **Disciplined + non-revision-creating (in-place)**: `updateRevision()` runs
+  exactly as today. The base row is written (full `driver->write()` +
+  subtable upsert) **iff** the revision being updated equals the base row's
+  live `published_revision_id`, read from the already-loaded
+  `$originalEntity` (zero extra queries), compared as ints; no base write
+  when the pointer is unset/null. This is what lets a promote-flow's
+  post-promotion status-flip save, and a sanctioned in-place edit of the
+  published revision, reach the base row — while an in-place edit of a
+  diverged (non-published) tip stays revision-only.
+- **Consequence**: for a disciplined entity the base `revision_id` stops
+  tracking the tip and stays equal to `published_revision_id`; the tip is
+  `getLatestRevisionId()`.
+- **Undisciplined**: byte-identical to today — including for entities that
+  carry a live `published_revision_id` pointer but were never flagged (the
+  Playbook-H shape). This is the hard regression gate (§7a).
+
+### 7c. Promotion becomes a complete primitive (`setPublishedRevision()`)
+
+The pre-write `BeforeRevisionPointerMoveEvent` dispatch is unchanged in
+position; a subscriber may call `applyDefaultRevisionSemantics()` on it.
+When the event reports `defaultRevisionSemantics() === true`, in the SAME
+transaction as the pointer move: the base row is overwritten from the
+TARGET revision's full values (content, `workflow_state`, and the
+revision's own stored `status`) — bookkeeping keys stripped exactly like
+`rollback()` strips them (`revision_id`, `revision_created`, `revision_log`,
+`revision_author`, `entity_id`), id preserved — and BOTH `revision_id` and
+`published_revision_id` are set to the target. The target revision row
+itself is never mutated. Without the flag: today's targeted single-column
+`UPDATE published_revision_id = …`, byte-identical (`EntityRepositoryPublishedRevisionTest`
+stays green, untouched). Post-commit events (`REVISION_REVERTED`,
+`RevisionPointerMovedEvent`) are unchanged either way.
+
+### 7d. Content-restore under discipline (`rollback()`)
+
+When the pre-write event's `defaultRevisionSemantics()` is true: the
+outgoing row is prepared exactly as today (bookkeeping stripped,
+`published_revision_id`/`status` restored from the live base row so the
+target revision's frozen snapshot never leaks those two columns), but ONLY
+the new revision row is written — no base `driver->write()`, no base
+repoint. Restoring old content into the working copy is a draft operation;
+it goes live via the normal promotion path (§7c). Unflagged: unchanged
+(the base row is still repointed and rewritten, exactly as documented in
+"Fixed (final-review fix wave)" in `content-workflow.md`).
+
+`setCurrentRevision()` gets no storage change in PR-1: the next PR's guard
+denies it outright under discipline, before any write (its only effect — a
+bare base-row repoint+rewrite — has no coherent meaning once the base row
+belongs exclusively to the published pointer).
+
+### 7e. Pruning/deletion immortality: the working copy joins the pointers
+
+`EntityRepository::pruneRevisions()` and `RevisionableStorageDriver::deleteRevision()`
+now additionally exclude the **latest** revision (`getLatestRevisionId()`)
+from every deletion candidate set, alongside the pre-existing current
+(`revision_id`) and published (`published_revision_id`) pointer exclusions
+(§1's immortality bullet, updated). Under discipline the base `revision_id`
+pointer stops tracking the tip (§7b), so the current-revision guard alone no
+longer protects the working copy — without this extension, a prune during a
+review window could destroy an in-progress draft. For an undisciplined
+entity the latest revision is normally also the current revision, so the
+guard is usually redundant — with one real (and deliberate) behavior change:
+after a `setCurrentRevision()` revert (reachable in production via the
+`entity.set_current_revision` MCP/AI tool), the abandoned newer tip is the
+latest-but-not-current revision, and it is now un-prunable by keep-last-N
+and un-deletable where it previously was not. Conservative by design: the
+rule is uniform rather than flag-conditional, and it retains data rather
+than risking a working copy.
+
+### 7f. Working-copy load (`loadWorkingCopy()`)
+
+`EntityRepositoryInterface::loadWorkingCopy(string $id): ?EntityInterface`
+(and the `EntityRepository` implementation): when a revision driver exists
+and `getLatestRevisionId($id)` is strictly newer than the base row's
+`revision_id` pointer, returns `loadRevision($id, $latest)`; otherwise
+returns exactly what `find($id)` returns. For every undisciplined entity the
+latest revision always equals the base pointer, so
+`loadWorkingCopy() === find()` there — mechanically safe to call on any
+revisionable (or non-revisionable, or driver-less) entity without first
+knowing whether it is bound to a workflow. Every in-repo implementor of
+`EntityRepositoryInterface` (including test doubles) gained this method in
+the same change so the interface addition does not break any consumer.
+
+<!-- Spec reviewed 2026-07-13 - CW-v1 option-1 forward-draft rebuild, #1920 PR-1: added §7 "Default-revision discipline (CW-v1 option-1)" — the entity + event transient discipline flags, revision-only saves in doSave(), setPublishedRevision() as a complete promotion primitive, rollback() gone revision-only under discipline, the latest-revision immortality extension to pruning/deletion, and loadWorkingCopy(). All dormant in PR-1 (storage mechanics only; the workflows engine wires the flags in the next PR). Undisciplined behavior is byte-identical to before this section, including for pointered-but-unbound (Playbook-H-shaped) entities. -->
+
+## 8. Acceptance
 
 - Framework suite green; the existing single-axis revision tests pass
   **unchanged** (byte-for-byte regression gate).

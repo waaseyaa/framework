@@ -195,6 +195,33 @@ interface EntityRepositoryInterface
     public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface;
 
     /**
+     * Load the entity's WORKING COPY (CW-v1 option-1 forward-draft rebuild,
+     * #1920 PR-1).
+     *
+     * Under default-revision discipline the base row holds the PUBLISHED
+     * revision, not the tip — {@see find()} therefore serves published
+     * content even while a newer draft revision exists. `loadWorkingCopy()`
+     * is the pointer-aware alternative: when a revision driver exists and
+     * the latest revision is newer than the base row's `revision_id`
+     * pointer, it returns {@see loadRevision()} of the latest revision;
+     * otherwise it returns exactly what {@see find()} returns. For every
+     * UNDISCIPLINED entity the latest revision always equals the base
+     * pointer, so `loadWorkingCopy() === find()` there — mechanically safe
+     * to call on any revisionable (or non-revisionable) entity without first
+     * knowing whether it is bound to a workflow.
+     *
+     * This storage primitive ships dormant in PR-1 (no production caller
+     * yet routes through it) — see `docs/specs/revision-system-unified.md`
+     * "Default-revision discipline (CW-v1 option-1)".
+     *
+     * @param string $id The entity ID.
+     * @return EntityInterface|null The working copy, or null if the entity does not exist.
+     * @api
+     */
+    #[\NoDiscard('lookup result must be checked for null')]
+    public function loadWorkingCopy(string $id): ?EntityInterface;
+
+    /**
      * Save multiple entities in a single transaction.
      *
      * Events are buffered during the transaction and dispatched after commit.

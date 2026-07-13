@@ -253,6 +253,11 @@ final class EntityEmbedderTestRepository implements EntityRepositoryInterface
         return $this->entities[$id] ?? null;
     }
 
+    public function loadWorkingCopy(string $id): ?EntityInterface
+    {
+        return $this->find($id);
+    }
+
     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array
     {
         $found = [];

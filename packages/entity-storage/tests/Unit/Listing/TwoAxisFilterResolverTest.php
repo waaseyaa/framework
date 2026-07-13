@@ -117,6 +117,11 @@ final class TwoAxisFilterResolverTest extends TestCase
                 return $this->map[$id][$langcode ?? '__default__'] ?? null;
             }
 
+            public function loadWorkingCopy(string $id): ?EntityInterface
+            {
+                return $this->find($id);
+            }
+
             public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array
             {
                 return [];
