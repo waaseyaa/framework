@@ -16,6 +16,7 @@ use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Node\Node;
 use Waaseyaa\Node\NodeAccessPolicy;
 use Waaseyaa\User\AnonymousUser;
@@ -53,6 +54,14 @@ final class JsonApiAccessIntegrationTest extends TestCase
                 'uuid' => 'uuid',
                 'label' => 'title',
                 'bundle' => 'type',
+            ],
+            // CW-v1 option-1 PR-4 (findings #1/#2): EntityWritePayloadGuard
+            // requires a payload key to be a declared field (or a writable
+            // entity key). Mirrors Node's real #[Field]-declared shape for
+            // the two non-key fields this suite writes via attributes.
+            _fieldDefinitions: [
+                'status' => new FieldDefinition(name: 'status', type: 'boolean'),
+                'uid' => new FieldDefinition(name: 'uid', type: 'entity_reference'),
             ],
         ));
 
@@ -169,7 +178,6 @@ final class JsonApiAccessIntegrationTest extends TestCase
                     'title' => 'New Article',
                     'type' => 'article',
                     'uid' => 5,
-                    'bundle' => 'article',
                 ],
             ],
         ]);
@@ -201,7 +209,6 @@ final class JsonApiAccessIntegrationTest extends TestCase
                     'title' => 'Draft by author',
                     'type' => 'article',
                     'uid' => 5,
-                    'bundle' => 'article',
                     // No 'status' attribute supplied.
                 ],
             ],
@@ -231,7 +238,6 @@ final class JsonApiAccessIntegrationTest extends TestCase
                     'title' => 'Published by editor',
                     'type' => 'article',
                     'uid' => 6,
-                    'bundle' => 'article',
                     // No 'status' attribute supplied.
                 ],
             ],
@@ -260,7 +266,6 @@ final class JsonApiAccessIntegrationTest extends TestCase
                 'attributes' => [
                     'title' => 'Unauthorized Creation',
                     'type' => 'article',
-                    'bundle' => 'article',
                 ],
             ],
         ]);
@@ -398,7 +403,6 @@ final class JsonApiAccessIntegrationTest extends TestCase
                     'type' => 'article',
                     'uid' => 1,
                     'status' => 1,
-                    'bundle' => 'article',
                 ],
             ],
         ]);

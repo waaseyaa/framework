@@ -16,6 +16,7 @@ use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Note\Note;
 use Waaseyaa\Note\NoteAccessPolicy;
 use Waaseyaa\Note\NoteServiceProvider;
@@ -52,6 +53,12 @@ final class NoteApiIntegrationTest extends TestCase
             label: 'Note',
             class: Note::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title'],
+            // CW-v1 option-1 PR-4 (findings #1/#2): EntityWritePayloadGuard
+            // requires a payload key to be a declared field (or a writable
+            // entity key). Mirrors Note's real #[Field]-declared 'body'.
+            _fieldDefinitions: [
+                'body' => new FieldDefinition(name: 'body', type: 'text'),
+            ],
         ));
 
         $this->accessHandler = new EntityAccessHandler([new NoteAccessPolicy()]);

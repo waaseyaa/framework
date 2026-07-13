@@ -86,6 +86,24 @@ final class EntityKeyGuardTest extends TestCase
         self::assertSame(['default_langcode', 'langcode', 'uuid'], $refused);
     }
 
+    /**
+     * CW-v1 option-1 PR-4 (findings #1/#2): `published_revision_id` carries
+     * NO entity-key kind on any shipped entity type (only `revision` =>
+     * `revision_id` is registered) — only the literal floor closes it.
+     */
+    #[Test]
+    public function revision_pointer_columns_are_refused_even_when_unregistered(): void
+    {
+        $definition = $this->definition(['id' => 'id', 'revision' => 'revision_id']);
+
+        $refused = EntityKeyGuard::refusedKeys($definition, [
+            'revision_id' => 2,
+            'published_revision_id' => 5,
+        ]);
+
+        self::assertSame(['published_revision_id', 'revision_id'], $refused);
+    }
+
     #[Test]
     public function label_and_bundle_columns_pass(): void
     {

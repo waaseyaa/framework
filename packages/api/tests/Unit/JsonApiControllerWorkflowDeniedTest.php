@@ -125,8 +125,16 @@ final class JsonApiControllerWorkflowDeniedTest extends TestCase
     {
         $this->denyReason = TransitionDeniedException::REASON_PERMISSION;
 
+        // CW-v1 option-1 PR-4 (findings #1/#2): 'id'/'uuid' are no longer
+        // writable create attributes (EntityWritePayloadGuard) — a real
+        // client never sends its own numeric PK/UUID, and this test only
+        // needs to prove the guard-denial mapping still applies to a
+        // structurally valid create. The entity is assigned an id/uuid by
+        // storage on save, which never happens here (the simulated guard
+        // denies first) so "persists nothing" is asserted via an empty
+        // findBy() scan instead of a fixed id.
         $doc = $this->controller->store('test_revisionable', [
-            'data' => ['type' => 'test_revisionable', 'attributes' => ['title' => 'x', 'id' => '2', 'uuid' => 'wf-2']],
+            'data' => ['type' => 'test_revisionable', 'attributes' => ['title' => 'x']],
         ]);
         $array = $doc->toArray();
 
@@ -142,7 +150,7 @@ final class JsonApiControllerWorkflowDeniedTest extends TestCase
             ],
             $array['errors'][0],
         );
-        $this->assertNull($this->repo->find('2'), 'a denied create persists nothing');
+        $this->assertSame([], $this->repo->findBy([]), 'a denied create persists nothing');
     }
 
     #[Test]
@@ -151,7 +159,7 @@ final class JsonApiControllerWorkflowDeniedTest extends TestCase
         $this->denyReason = TransitionDeniedException::REASON_ILLEGAL_EDGE;
 
         $doc = $this->controller->store('test_revisionable', [
-            'data' => ['type' => 'test_revisionable', 'attributes' => ['title' => 'x', 'id' => '2', 'uuid' => 'wf-2']],
+            'data' => ['type' => 'test_revisionable', 'attributes' => ['title' => 'x']],
         ]);
         $array = $doc->toArray();
 
@@ -167,7 +175,7 @@ final class JsonApiControllerWorkflowDeniedTest extends TestCase
             ],
             $array['errors'][0],
         );
-        $this->assertNull($this->repo->find('2'), 'a denied create persists nothing');
+        $this->assertSame([], $this->repo->findBy([]), 'a denied create persists nothing');
     }
 
     // -----------------------------------------------------------------------

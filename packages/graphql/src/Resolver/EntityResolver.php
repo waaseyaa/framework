@@ -15,6 +15,7 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\EntityValues;
 use Waaseyaa\Entity\FieldableInterface;
+use Waaseyaa\Entity\Write\EntityWritePayloadGuard;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\GraphQL\Access\GraphQlAccessGuard;
@@ -220,6 +221,13 @@ final class EntityResolver
 
         $input = $this->injectAccountContext($entityTypeId, $input);
 
+        // CW-v1 option-1 PR-4 (findings #1/#2), defense-in-depth: the
+        // generated GraphQL input type already bounds this surface, but the
+        // shared guard closes the class of hole by construction rather than
+        // per-schema. Runs BEFORE create()/save() — nothing is persisted on
+        // refusal. Mirrors JsonApiController::store().
+        $this->assertWritable($entityTypeId, $this->resolveBundle($entityTypeId, $input), $input);
+
         // C-22 WP3: create/save now go through the canonical repository.
         $repository = $this->entityTypeManager->getRepository($entityTypeId);
         $entity = $repository->create($input);
@@ -284,6 +292,31 @@ final class EntityResolver
         // AUTHORIZED caller is surfaced accurately and never masked as "not found".
         try {
             $this->guard->assertUpdateAccess($entity);
+        } catch (UserError) {
+            throw new UserError("Entity not found: {$entityTypeId}/{$id}");
+        }
+
+        // CW-v1 option-1 PR-4 (findings #1/#2) rework, defense-in-depth: the
+        // echo-tolerant companion to resolveCreate()'s hard
+        // assertWritable()/JsonApiController::update()'s
+        // EntityWritePayloadGuard::evaluateForUpdate() call. Runs only after
+        // update access is confirmed above (so it adds no existence oracle:
+        // the refusal depends only on the entity TYPE's schema, not this
+        // entity instance or the caller's access), BEFORE the field-access
+        // loop below (so an allowed echo of a bookkeeping column a site
+        // policy happens to field-forbid never 403s spuriously — parity with
+        // JsonApiController::update()'s strip-before-field-access ordering),
+        // and BEFORE any set()/save() — nothing is applied on refusal. An
+        // allowed echo (submitted value equals the entity's current stored
+        // value for an identity/bookkeeping column, e.g.
+        // `revision_id`/`published_revision_id` — FR-008 documents these as
+        // load-bearing READ attributes a read-modify-write client
+        // legitimately echoes back) is stripped from `$input` here, before
+        // the apply loop below (belt: an allowed echo must never reach
+        // `$entity->set()`).
+        $input = $this->assertWritableForUpdate($entityTypeId, $entity->bundle(), $input, $entity->toArray());
+
+        try {
             foreach (array_keys($input) as $fieldName) {
                 $this->guard->assertFieldEditAccess($entity, $fieldName);
             }
@@ -578,6 +611,84 @@ final class EntityResolver
 
         if (isset($fieldDefinitions['account_id']) && !isset($input['account_id'])) {
             $input['account_id'] = (string) $this->account->id();
+        }
+
+        return $input;
+    }
+
+    /**
+     * The bundle value for a create input, resolved from the entity type's
+     * own bundle key (mirrors `JsonApiController::store()`'s bundle
+     * resolution) — used only to scope
+     * {@see EntityWritePayloadGuard::refusedKeys()}'s bundle-aware field
+     * lookup, never to validate the bundle itself.
+     *
+     * @param array<string, mixed> $input
+     */
+    private function resolveBundle(string $entityTypeId, array $input): string
+    {
+        $bundleKey = $this->entityTypeManager->getDefinition($entityTypeId)->getKeys()['bundle'] ?? null;
+
+        return $bundleKey !== null ? (string) ($input[$bundleKey] ?? '') : '';
+    }
+
+    /**
+     * CW-v1 option-1 PR-4 (findings #1/#2): reject (UserError) an input key
+     * that is neither a declared field nor a writable entity key, or that is
+     * an identity/bookkeeping column (`revision_id`, `published_revision_id`,
+     * ...) regardless of declaration. Defense-in-depth alongside the
+     * generated GraphQL input type's own schema bound.
+     *
+     * @param array<string, mixed> $input
+     */
+    private function assertWritable(string $entityTypeId, string $bundle, array $input): void
+    {
+        $refused = EntityWritePayloadGuard::refusedKeys(
+            $this->entityTypeManager->getDefinition($entityTypeId),
+            $bundle,
+            array_keys($input),
+            $this->entityTypeManager,
+        );
+        if ($refused !== []) {
+            throw new UserError(sprintf(
+                'The following input field(s) are not writable: %s.',
+                implode(', ', $refused),
+            ));
+        }
+    }
+
+    /**
+     * The echo-tolerant companion to {@see self::assertWritable()}, used only
+     * by {@see self::resolveUpdate()} (PR-4 rework). An identity/bookkeeping
+     * key whose submitted value equals `$currentValues`' stored value for
+     * that key (type-lenient comparison, see
+     * {@see \Waaseyaa\Entity\Write\EntityWritePayloadGuard::evaluateForUpdate()})
+     * is an allowed echo — not refused, but also stripped from the returned
+     * input so it can never reach `$entity->set()`. A genuinely different
+     * value, or an undeclared/unknown field, is still refused (`UserError`).
+     *
+     * @param array<string, mixed> $input
+     * @param array<string, mixed> $currentValues the target entity's current stored values ({@see \Waaseyaa\Entity\EntityInterface::toArray()})
+     * @return array<string, mixed> $input with every allowed-echo key removed
+     */
+    private function assertWritableForUpdate(string $entityTypeId, string $bundle, array $input, array $currentValues): array
+    {
+        $result = EntityWritePayloadGuard::evaluateForUpdate(
+            $this->entityTypeManager->getDefinition($entityTypeId),
+            $bundle,
+            $input,
+            $this->entityTypeManager,
+            $currentValues,
+        );
+        if ($result->refusedKeys !== []) {
+            throw new UserError(sprintf(
+                'The following input field(s) are not writable: %s.',
+                implode(', ', $result->refusedKeys),
+            ));
+        }
+
+        foreach ($result->echoedKeys as $echoedKey) {
+            unset($input[$echoedKey]);
         }
 
         return $input;

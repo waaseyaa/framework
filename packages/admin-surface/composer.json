@@ -27,6 +27,18 @@
         {
             "type": "path",
             "url": "../workflows"
+        },
+        {
+            "type": "path",
+            "url": "../node"
+        },
+        {
+            "type": "path",
+            "url": "../config"
+        },
+        {
+            "type": "path",
+            "url": "../database-legacy"
         }
     ],
     "require": {
@@ -40,6 +52,9 @@
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
+        "waaseyaa/config": "^0.1.0-alpha.259",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.259",
+        "waaseyaa/node": "^0.1.0-alpha.259",
         "waaseyaa/workflows": "^0.1.0-alpha.259"
     },
     "autoload": {
