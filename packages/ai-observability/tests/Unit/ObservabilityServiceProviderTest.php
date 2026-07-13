@@ -8,9 +8,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\AI\Observability\Analysis\AnomalyDetector;
-use Waaseyaa\AI\Observability\Cost\ModelPricing;
-use Waaseyaa\AI\Observability\Listener\LlmCallListener;
-use Waaseyaa\AI\Observability\Listener\ToolCallListener;
 use Waaseyaa\AI\Observability\ObservabilityServiceProvider;
 use Waaseyaa\AI\Observability\Recorder\NullTraceRecorder;
 use Waaseyaa\AI\Observability\Recorder\TraceRecorderInterface;
@@ -21,17 +18,9 @@ use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 #[CoversClass(ObservabilityServiceProvider::class)]
 final class ObservabilityServiceProviderTest extends TestCase
 {
-    /**
-     * Production-mirroring wiring test (#1852 pattern): the kernel-services
-     * bus serves the dispatcher ONLY under the Symfony-contracts FQCN
-     * (ProviderRegistryKernelServices::get()). boot() previously resolved
-     * the Symfony *Component* FQCN and instanceof-checked the concrete
-     * `EventDispatcher` class — neither of which the served
-     * `SymfonyEventDispatcherAdapter` satisfies — so the LLM-call/tool-call
-     * telemetry subscribers silently never registered in a real kernel boot.
-     */
+    /** The R18 canonical AgentRun telemetry path supersedes this inert chain. */
     #[Test]
-    public function boot_wires_llm_and_tool_call_listeners(): void
+    public function legacyProducerlessTraceListenersAreNotRegistered(): void
     {
         $dispatcher = new SymfonyEventDispatcherAdapter();
 
@@ -44,12 +33,15 @@ final class ObservabilityServiceProviderTest extends TestCase
         $provider->boot();
 
         $llmListeners = $dispatcher->getListeners('Waaseyaa\\AI\\Agent\\Event\\LlmCallCompleted');
-        $this->assertNotEmpty($llmListeners, 'LlmCallListener must subscribe to LlmCallCompleted');
-        $this->assertInstanceOf(LlmCallListener::class, $llmListeners[0][0]);
+        self::assertSame([], $llmListeners);
 
         $toolListeners = $dispatcher->getListeners('Waaseyaa\\AI\\Agent\\Event\\ToolCallStarted');
-        $this->assertNotEmpty($toolListeners, 'ToolCallListener must subscribe to ToolCallStarted');
-        $this->assertInstanceOf(ToolCallListener::class, $toolListeners[0][0]);
+        self::assertSame([], $toolListeners);
+        self::assertFalse(class_exists('Waaseyaa\\AI\\Agent\\Event\\LlmCallCompleted'));
+        self::assertFalse(class_exists('Waaseyaa\\AI\\Agent\\Event\\ToolCallStarted'));
+        self::assertFalse(class_exists('Waaseyaa\\AI\\Agent\\Event\\ToolCallCompleted'));
+        self::assertFalse(class_exists('Waaseyaa\\AI\\Observability\\Listener\\LlmCallListener'));
+        self::assertFalse(class_exists('Waaseyaa\\AI\\Observability\\Listener\\ToolCallListener'));
     }
 
     #[Test]
@@ -100,7 +92,6 @@ final class ObservabilityServiceProviderTest extends TestCase
         $provider->register();
 
         self::assertInstanceOf(TraceContext::class, $provider->resolve(TraceContext::class));
-        self::assertInstanceOf(ModelPricing::class, $provider->resolve(ModelPricing::class));
         self::assertInstanceOf(AnomalyDetector::class, $provider->resolve(AnomalyDetector::class));
     }
 

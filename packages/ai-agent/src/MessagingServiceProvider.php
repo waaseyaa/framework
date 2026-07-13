@@ -21,6 +21,7 @@ use Waaseyaa\AI\Agent\Repository\AgentAuditLogRepository;
 use Waaseyaa\AI\Agent\Repository\AgentRunRepository;
 use Waaseyaa\AI\Agent\Service\AgentRunService;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
+use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -89,6 +90,9 @@ final class MessagingServiceProvider extends ServiceProvider
                 provider: $this->resolve(ProviderInterface::class),
                 accountLoader: $this->resolve(InitiatorAccountLoaderInterface::class),
                 logger: $this->safeResolve(LoggerInterface::class) ?? new NullLogger(),
+                eventDispatcher: ($dispatcher = $this->safeResolve(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class)) instanceof EventDispatcherInterface
+                    ? $dispatcher
+                    : null,
             ),
         );
 
