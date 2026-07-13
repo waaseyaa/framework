@@ -261,6 +261,7 @@ final class AiRunCommandWatchTest extends TestCase
             runRepository: $runRepo,
             executor: $executor,
             definitionRegistry: $registry,
+            toolRegistry: $toolRegistry,
             broadcaster: new InertBroadcasterForWatchTest(),
             provider: new NullLlmProvider(),
             accountLoader: new StubInitiatorAccountLoader(),
