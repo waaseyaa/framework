@@ -282,7 +282,7 @@ final class AgentRunController
         $flipped = $this->runRepository->denyApproval($id, $callId, $now);
 
         if (!$flipped) {
-            return $this->error(409, 'already_terminal', "Run {$id} is already in a terminal state.");
+            return $this->error(409, 'run_status_changed', "Run {$id} changed state; denial was not applied.");
         }
 
         $this->auditRepository->append(AgentAuditLog::for(
