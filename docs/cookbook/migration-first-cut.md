@@ -27,7 +27,7 @@ Then run schema migrations to create the `migration_id_map` and
 `migration_run_state` tables:
 
 ```bash
-bin/waaseyaa migrate:up
+bin/waaseyaa migrate
 ```
 
 Expected output:
