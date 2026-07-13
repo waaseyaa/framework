@@ -8,7 +8,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\AI\Observability\Analysis\AnomalyDetector;
-use Waaseyaa\AI\Observability\Cost\ModelPricing;
 use Waaseyaa\AI\Observability\ObservabilityServiceProvider;
 use Waaseyaa\AI\Observability\Recorder\NullTraceRecorder;
 use Waaseyaa\AI\Observability\Recorder\TraceRecorderInterface;
@@ -93,7 +92,6 @@ final class ObservabilityServiceProviderTest extends TestCase
         $provider->register();
 
         self::assertInstanceOf(TraceContext::class, $provider->resolve(TraceContext::class));
-        self::assertInstanceOf(ModelPricing::class, $provider->resolve(ModelPricing::class));
         self::assertInstanceOf(AnomalyDetector::class, $provider->resolve(AnomalyDetector::class));
     }
 

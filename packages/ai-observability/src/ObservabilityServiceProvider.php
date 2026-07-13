@@ -7,8 +7,6 @@ namespace Waaseyaa\AI\Observability;
 use Waaseyaa\AI\Observability\Analysis\AnomalyDetector;
 use Waaseyaa\AI\Observability\Cost\BudgetManager;
 use Waaseyaa\AI\Observability\Cost\CostTracker;
-use Waaseyaa\AI\Observability\Cost\ModelPricing;
-use Waaseyaa\AI\Observability\Cost\TokenAccountant;
 use Waaseyaa\AI\Observability\Recorder\NullTraceRecorder;
 use Waaseyaa\AI\Observability\Recorder\TraceRecorder;
 use Waaseyaa\AI\Observability\Recorder\TraceRecorderInterface;
@@ -32,9 +30,6 @@ final class ObservabilityServiceProvider extends ServiceProvider
 
         $this->singleton(TraceContext::class, fn(): TraceContext => new TraceContext());
 
-        $overrides = $this->config['observability']['model_pricing_overrides'] ?? [];
-        $this->singleton(ModelPricing::class, fn(): ModelPricing => new ModelPricing(is_array($overrides) ? $overrides : []));
-
         $enabled = (bool) ($this->config['observability']['enabled'] ?? true);
         $this->singleton(TraceRecorderInterface::class, function () use ($enabled): TraceRecorderInterface {
             if (!$enabled) {
@@ -47,11 +42,6 @@ final class ObservabilityServiceProvider extends ServiceProvider
 
             return new TraceRecorder($repo, $database, $context);
         });
-
-        $this->singleton(TokenAccountant::class, fn(): TokenAccountant => new TokenAccountant(
-            $this->resolve(TraceRecorderInterface::class),
-            $this->resolve(ModelPricing::class),
-        ));
 
         $this->singleton(CostTracker::class, fn(): CostTracker => new CostTracker(
             $this->resolve(DatabaseInterface::class),
