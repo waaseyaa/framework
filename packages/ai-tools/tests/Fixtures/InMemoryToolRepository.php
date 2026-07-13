@@ -27,9 +27,22 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
     /** @var list<EntityInterface> */
     public array $revisions = [];
 
+    /** @var array<string, EntityInterface> */
+    private array $workingCopies = [];
+
     public function seed(EntityInterface $entity): void
     {
         $this->store[(string) $entity->id()] = $entity;
+    }
+
+    /**
+     * Seed a diverged working copy (CW-v1 option-1: a draft tip newer than
+     * the served base row) so tests can assert a tool mutates the working
+     * copy rather than the find() entity.
+     */
+    public function seedWorkingCopy(EntityInterface $entity): void
+    {
+        $this->workingCopies[(string) $entity->id()] = $entity;
     }
 
     public function create(array $values = []): EntityInterface
@@ -44,7 +57,7 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
 
     public function loadWorkingCopy(string $id): ?EntityInterface
     {
-        return $this->find($id);
+        return $this->workingCopies[$id] ?? $this->find($id);
     }
 
     public function save(EntityInterface $entity, bool $validate = true): int

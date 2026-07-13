@@ -113,15 +113,27 @@ final class EntityUpdateTool extends AbstractAgentTool
             if ($fieldDenied !== null) {
                 return $fieldDenied;
             }
+            // CW-v1 option-1 PR-3 (working-copy awareness, design §4): the
+            // MUTATION TARGET is the working copy, mirroring the JSON:API
+            // PATCH / GraphQL update / FieldAutoSave surfaces. Under
+            // default-revision discipline `find()` returns the PUBLISHED
+            // revision; applying agent edits to it would fork a new tip from
+            // published content and silently displace an in-flight human
+            // draft (lost-update). All gates above deliberately ran on the
+            // `find()` entity (access is type/id-scoped, and the R8-style
+            // not-found shape must not depend on draft existence); only the
+            // mutation retargets. For every undisciplined entity
+            // `loadWorkingCopy() ≡ find()` — behavior-identical there.
+            $target = $repository->loadWorkingCopy((string) $id) ?? $entity;
             foreach ($values as $field => $value) {
                 if (!is_string($field)) {
                     continue;
                 }
-                $entity->set($field, $value);
+                $target->set($field, $value);
             }
             $revisionLog = $arguments['revision_log'] ?? null;
-            if (is_string($revisionLog) && $revisionLog !== '' && method_exists($entity, 'setRevisionLog')) {
-                $entity->setRevisionLog($revisionLog);
+            if (is_string($revisionLog) && $revisionLog !== '' && method_exists($target, 'setRevisionLog')) {
+                $target->setRevisionLog($revisionLog);
             }
             if ($expectedRevisionId !== null) {
                 // A stated expectation rides SaveContext, which only the
@@ -132,7 +144,7 @@ final class EntityUpdateTool extends AbstractAgentTool
                     return self::unsupportedExpectationError($entityType, 'repository does not support revision expectations');
                 }
                 try {
-                    $result = $repository->save($entity, context: SaveContext::default()->withExpectedRevisionId($expectedRevisionId));
+                    $result = $repository->save($target, context: SaveContext::default()->withExpectedRevisionId($expectedRevisionId));
                 } catch (RevisionConflictException $e) {
                     return self::conflictError($e->entityTypeId, $e->entityId, $e->expectedRevisionId, $e->currentRevisionId);
                 } catch (\LogicException $e) {
@@ -144,7 +156,7 @@ final class EntityUpdateTool extends AbstractAgentTool
                     return self::unsupportedExpectationError($entityType, $e->getMessage());
                 }
             } else {
-                $result = $repository->save($entity);
+                $result = $repository->save($target);
             }
         } catch (EntityValidationException $e) {
             return EntityKeyGuard::validationError('entity.update', $e);
@@ -159,7 +171,7 @@ final class EntityUpdateTool extends AbstractAgentTool
                 'result' => $result,
                 // Post-save readback of the new head (contract §7) so a
                 // chaining agent can state its next expectation re-read-free.
-                'revision_id' => method_exists($entity, 'getRevisionId') ? $entity->getRevisionId() : null,
+                'revision_id' => method_exists($target, 'getRevisionId') ? $target->getRevisionId() : null,
             ]]],
             summary: sprintf('Updated %s/%s', $entityType, (string) $id),
         );
