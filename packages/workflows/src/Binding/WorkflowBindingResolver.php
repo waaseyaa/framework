@@ -70,6 +70,30 @@ final class WorkflowBindingResolver
             ));
         }
 
+        // CW-v1 option-1 (#1920 PR-2, design §1): a revisionable AND
+        // translatable ("two-axis") entity type cannot be bound to a
+        // workflow at all. Default-revision discipline lives on the
+        // single-axis `published_revision_id`/`revision_id` base-row
+        // pointers; a two-axis type's per-language peer rows have no such
+        // pointer pair to discipline. Per-translation workflow state is a
+        // documented post-v1 stage (docs/specs/content-workflow.md, "State
+        // lives on revisions" — "Staged limitation"); silently skipping
+        // discipline for a bound two-axis type would reintroduce the
+        // finding-#11 draft leak the moment an operator binds one. Same loud
+        // failure mode as the non-revisionable throw above.
+        if ($definition->isTranslatable()) {
+            throw new \RuntimeException(\sprintf(
+                "Workflow binding '%s.%s' => '%s' is invalid: entity type '%s' is revisionable AND "
+                . 'translatable (two-axis storage). Workflow bindings require single-axis revisionable '
+                . 'storage — per-translation workflow state is a post-v1 stage '
+                . '(docs/specs/content-workflow.md).',
+                $entityTypeId,
+                $bundle,
+                $workflowId,
+                $entityTypeId,
+            ));
+        }
+
         // Deviation from the plan's literal text (getStorage()->load()):
         // production kernel wiring passes storageFactory: null to
         // EntityTypeManager (EntityTypeManagerFactory::build(), C-22 WP4 —
