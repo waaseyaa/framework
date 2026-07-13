@@ -259,6 +259,60 @@ final class AgentRunTelemetryListenerTest extends TestCase
     }
 
     #[Test]
+    public function startingTheNextRunDropsInterruptedRunStateInTheSameWorker(): void
+    {
+        $this->saveQueuedRun('run-a', accountId: 1, agentDefinitionId: 'first-agent');
+        $this->saveQueuedRun('run-b', accountId: 2, agentDefinitionId: 'second-agent');
+        $telescope = new RecordingTelescopeRecorder();
+        $listener = new AgentRunTelemetryListener(
+            telescope: $telescope,
+            runRepository: $this->runRepository,
+        );
+
+        $listener->onRunStarted(new AgentRunStarted(
+            runId: 'run-a',
+            agentDefinitionId: 'first-agent',
+            accountId: 1,
+            startedAt: new \DateTimeImmutable('2026-05-18T12:00:00+00:00'),
+        ));
+        $listener->onProviderCallCompleted(new AgentRunProviderCallCompleted(
+            runId: 'run-a',
+            provider: 'anthropic',
+            model: 'claude-sonnet-4-6',
+            tokensIn: 100,
+            tokensOut: 50,
+        ));
+
+        $listener->onRunStarted(new AgentRunStarted(
+            runId: 'run-b',
+            agentDefinitionId: 'second-agent',
+            accountId: 2,
+            startedAt: new \DateTimeImmutable('2026-05-18T12:01:00+00:00'),
+        ));
+        $listener->onRunTerminated(new AgentRunTerminated(
+            runId: 'run-b',
+            status: 'completed',
+            errorCode: null,
+            finishedAt: new \DateTimeImmutable('2026-05-18T12:01:01+00:00'),
+        ));
+
+        // A late terminal event for the interrupted request must not recover
+        // aggregates retained from before the next worker message started.
+        $listener->onRunTerminated(new AgentRunTerminated(
+            runId: 'run-a',
+            status: 'failed',
+            errorCode: 'worker_interrupted',
+            finishedAt: new \DateTimeImmutable('2026-05-18T12:02:00+00:00'),
+        ));
+
+        self::assertCount(2, $telescope->records);
+        self::assertSame('run-a', $telescope->records[1]['run_id']);
+        self::assertNull($telescope->records[1]['agent_definition_id']);
+        self::assertSame(0, $telescope->records[1]['tokens_in']);
+        self::assertSame(0, $telescope->records[1]['tokens_out']);
+    }
+
+    #[Test]
     public function getSubscribedEventsCoversFiveEvents(): void
     {
         $map = AgentRunTelemetryListener::getSubscribedEvents();

@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Repository agent rules now pin the mandatory PR, TDD, changelog, spec-drift, worker-safe git, local-gate, release-fan-out, and auto-merge conventions.** `AGENTS.md` remains a terse entry point to the authoritative `CLAUDE.md` and workflow/spec documents while ensuring future agent sessions inherit the process guardrails up front.
 
+### Fixed
+
+- **Persistent workers no longer retain stale state reads or abandoned AI-run telemetry (#1971, R17).** `SqlState` now reads its authoritative database on every `get()`/`getMultiple()` call instead of serving a per-instance cache that could outlive the request, while `AgentRunTelemetryListener` replaces its one-active-run aggregation slot when the next Messenger job starts so a missing terminal event cannot grow memory for the worker lifetime. Two-request/one-process regressions cover both single and multiple state reads and interrupted telemetry aggregation.
+
 ## [0.1.0-alpha.260] - 2026-07-13
 
 ### Security

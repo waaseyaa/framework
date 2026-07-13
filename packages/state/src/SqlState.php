@@ -12,9 +12,6 @@ use Waaseyaa\Database\DatabaseInterface;
  */
 final class SqlState implements StateInterface
 {
-    /** @var array<string, mixed> */
-    private array $cache = [];
-
     /** @var bool Whether the state table has been verified/created. */
     private bool $tableEnsured = false;
 
@@ -24,10 +21,6 @@ final class SqlState implements StateInterface
 
     public function get(string $key, mixed $default = null): mixed
     {
-        if (array_key_exists($key, $this->cache)) {
-            return $this->cache[$key];
-        }
-
         $this->ensureTable();
 
         $result = $this->database->select('state', 's')
@@ -42,9 +35,7 @@ final class SqlState implements StateInterface
             // `allowed_classes => false` cannot be used. Deferred hardening (HMAC
             // integrity signing) is tracked in docs/specs/infrastructure.md
             // "Stored-payload unserialize() trust boundary (D-12)".
-            $value = unserialize($row['value']);
-            $this->cache[$key] = $value;
-            return $value;
+            return unserialize($row['value']);
         }
 
         return $default;
@@ -52,33 +43,22 @@ final class SqlState implements StateInterface
 
     public function getMultiple(array $keys): array
     {
-        $values = [];
-        $keysToLoad = [];
-
-        // Check cache first.
-        foreach ($keys as $key) {
-            if (array_key_exists($key, $this->cache)) {
-                $values[$key] = $this->cache[$key];
-            } else {
-                $keysToLoad[] = $key;
-            }
+        if ($keys === []) {
+            return [];
         }
 
-        if (!empty($keysToLoad)) {
-            $this->ensureTable();
+        $values = [];
+        $this->ensureTable();
 
-            $result = $this->database->select('state', 's')
-                ->fields('s', ['name', 'value'])
-                ->condition('s.name', $keysToLoad, 'IN')
-                ->execute();
+        $result = $this->database->select('state', 's')
+            ->fields('s', ['name', 'value'])
+            ->condition('s.name', $keys, 'IN')
+            ->execute();
 
-            foreach ($result as $row) {
-                // Trust boundary (D-12): see get() — server-controlled `mixed`
-                // state payload; `allowed_classes => false` is not viable.
-                $value = unserialize($row['value']);
-                $this->cache[$row['name']] = $value;
-                $values[$row['name']] = $value;
-            }
+        foreach ($result as $row) {
+            // Trust boundary (D-12): see get() — server-controlled `mixed`
+            // state payload; `allowed_classes => false` is not viable.
+            $values[$row['name']] = unserialize($row['value']);
         }
 
         return $values;
@@ -112,8 +92,6 @@ final class SqlState implements StateInterface
                     ->execute();
             }
         }
-
-        $this->cache[$key] = $value;
     }
 
     public function setMultiple(array $values): void
@@ -130,8 +108,6 @@ final class SqlState implements StateInterface
         $this->database->delete('state')
             ->condition('name', $key)
             ->execute();
-
-        unset($this->cache[$key]);
     }
 
     public function deleteMultiple(array $keys): void
@@ -142,10 +118,6 @@ final class SqlState implements StateInterface
             $this->database->delete('state')
                 ->condition('name', $key)
                 ->execute();
-        }
-
-        foreach ($keys as $key) {
-            unset($this->cache[$key]);
         }
     }
 

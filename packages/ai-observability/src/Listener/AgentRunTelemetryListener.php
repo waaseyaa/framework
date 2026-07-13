@@ -91,7 +91,10 @@ final class AgentRunTelemetryListener implements EventSubscriberInterface
     public function onRunStarted(AgentRunStarted $event): void
     {
         $this->safely(__METHOD__, $event->runId, function () use ($event): void {
-            $this->runs[$event->runId] = [
+            // A Messenger worker executes one AgentRun at a time. Replacing the
+            // map here reclaims an interrupted run whose terminal event never
+            // arrived instead of retaining it for the worker's lifetime.
+            $this->runs = [$event->runId => [
                 'agent_definition_id' => $event->agentDefinitionId,
                 'account_id' => $event->accountId,
                 'tokens_in' => 0,
@@ -101,7 +104,7 @@ final class AgentRunTelemetryListener implements EventSubscriberInterface
                 'tool_call_count' => 0,
                 'iteration_durations_ms' => [],
                 'started_at' => $event->startedAt,
-            ];
+            ]];
         });
     }
 
