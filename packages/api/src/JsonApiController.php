@@ -16,6 +16,7 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\FieldableInterface;
 use Waaseyaa\Entity\Validation\EntityValidationException;
 use Waaseyaa\Entity\Write\EntityWritePayloadGuard;
+use Waaseyaa\Entity\Write\EntityWritePayloadGuardResult;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\EntityStorage\SaveContext;
@@ -663,25 +664,37 @@ final class JsonApiController
             }
         }
 
-        // CW-v1 option-1 design §5 (findings #1/#2): reject-not-strip a
-        // payload key that is neither a declared field nor a writable entity
-        // key, or that is an identity/bookkeeping column (revision_id,
-        // published_revision_id, uuid, ...) regardless of declaration. Runs
-        // BEFORE the per-field access loop and BEFORE any set()/save() —
-        // nothing is applied on refusal. Unconditional (not gated on an
-        // access handler/account being wired): this is a structural
-        // validation, not an access decision, mirroring validateQueryFields()
-        // on the read path.
+        // CW-v1 option-1 design §5 (findings #1/#2), rework: echo-tolerant
+        // rejection (Drupal JSON:API parity). A payload key that is neither a
+        // declared field nor a writable entity key is reject-not-strip as
+        // before (hard 422). An identity/bookkeeping column (revision_id,
+        // published_revision_id, uuid, ...) is refused ONLY when its
+        // submitted value DIFFERS from the entity's current stored value — a
+        // pure echo of a value the client read via GET/serialize (FR-008:
+        // `revision_id` is a documented load-bearing READ attribute) passes,
+        // because a read-modify-write client (the admin SPA's
+        // `SchemaForm.vue`) submits the FULL loaded attribute object on every
+        // save. Runs BEFORE the per-field access loop and BEFORE any
+        // set()/save() — nothing is applied on refusal. Unconditional (not
+        // gated on an access handler/account being wired): this is a
+        // structural validation, not an access decision, mirroring
+        // validateQueryFields() on the read path.
         $attributes = $data['data']['attributes'] ?? [];
-        $refusedKeys = EntityWritePayloadGuard::refusedKeys(
+        $guardResult = EntityWritePayloadGuard::evaluateForUpdate(
             $this->entityTypeManager->getDefinition($entityTypeId),
             $entity->bundle(),
-            array_keys($attributes),
+            $attributes,
             $this->entityTypeManager,
+            $entity->toArray(),
         );
-        if ($refusedKeys !== []) {
-            return $this->errorDocument($this->writeAllowlistError($refusedKeys));
+        if ($guardResult->refusedKeys !== []) {
+            return $this->errorDocument($this->writeAllowlistError($guardResult->refusedKeys));
         }
+        // Belt: an allowed echo must never reach the field-access loop or
+        // $entity->set() — strip it from the working payload before either
+        // runs, so a stale in-memory pointer read before a concurrent
+        // transition can never be written back over the real current value.
+        $attributes = self::stripEchoedKeys($attributes, $guardResult);
 
         // Check field edit access for submitted attributes.
         if ($this->accessHandler !== null && $this->account !== null) {
@@ -816,6 +829,24 @@ final class JsonApiController
         return JsonApiError::conflict(
             sprintf("Updating entity of type '%s' with ID '%s' violated a uniqueness constraint.", $entityTypeId, $entityId),
         );
+    }
+
+    /**
+     * Remove every allowed-echo key ({@see EntityWritePayloadGuardResult::$echoedKeys})
+     * from a working attributes payload before it reaches the field-access
+     * loop or the apply loop (PR-4 rework "belt": even an allowed echo of an
+     * identity/bookkeeping column must never be applied via `$entity->set()`).
+     *
+     * @param array<int|string, mixed> $attributes
+     * @return array<int|string, mixed>
+     */
+    private static function stripEchoedKeys(array $attributes, EntityWritePayloadGuardResult $guardResult): array
+    {
+        foreach ($guardResult->echoedKeys as $echoedKey) {
+            unset($attributes[$echoedKey]);
+        }
+
+        return $attributes;
     }
 
     /**

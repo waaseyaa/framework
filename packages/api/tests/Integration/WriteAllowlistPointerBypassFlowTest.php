@@ -12,6 +12,7 @@ use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\JsonApiController;
+use Waaseyaa\Api\JsonApiResource;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Config\ConfigFactory;
 use Waaseyaa\Config\ConfigFactoryInterface;
@@ -59,6 +60,23 @@ use Waaseyaa\Workflows\WorkflowServiceProvider;
  * the base row is proven byte-unmoved via a raw SQL read (not the
  * repository's own pointer-aware accessor, so the assertion cannot be
  * satisfied by anything the write path itself might get wrong).
+ *
+ * **PR-4 rework (Drupal JSON:API parity — echo-tolerant rejection).** A
+ * fresh-context review found the pre-rework guard's hard, unconditional
+ * refusal was itself a BLOCKER: `ResourceSerializer` emits `revision_id`/
+ * `published_revision_id` as ordinary read attributes (FR-008,
+ * `docs/specs/api-layer.md` "revision_id is a load-bearing read attribute"),
+ * and the admin SPA's `SchemaForm.vue` submits the FULL loaded attribute
+ * object back on save — so the hard reject 422s every ordinary node edit
+ * through the admin UI. {@see \Waaseyaa\Entity\Write\EntityWritePayloadGuard::evaluateForUpdate()}
+ * fixes this: a submitted identity/bookkeeping key is refused ONLY when its
+ * value DIFFERS from the entity's current stored value; a pure echo passes
+ * but is stripped before the apply loop (belt — even an allowed echo must
+ * never reach `$entity->set()`). `eve_cannot_move_the_published_pointer_through_a_patch_body()`
+ * below re-pins the differing-value security core against the new logic (it
+ * still 422s — Eve's submitted `published_revision_id` is a DIFFERENT value
+ * than the live pointer); the round-trip pin and echo-acceptance tests below
+ * it are the new coverage this rework adds.
  */
 #[CoversNothing]
 final class WriteAllowlistPointerBypassFlowTest extends TestCase
@@ -254,6 +272,199 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
             'data' => ['type' => 'node', 'attributes' => ['status' => 0]],
         ]);
         self::assertSame(200, $permittedDoc->statusCode);
+    }
+
+    // --- PR-4 rework: the round-trip pin (the missing test the BLOCKER review found) ---
+
+    #[Test]
+    public function full_attribute_round_trip_patch_persists_the_changed_title_and_leaves_the_published_pointer_untouched(): void
+    {
+        // The admin-SPA-shaped oracle: GET a node via the serializer (real
+        // JsonApiController::show(), not a hand-built fixture), then PATCH the
+        // FULL loaded attribute set back with one field changed — exactly
+        // what SchemaForm.vue does (`formData.value = { ...entityResult.value.attributes }`
+        // then `update(props.entityType, props.entityId, formData.value)`).
+        // Before the PR-4 rework this 422s on `revision_id`/`published_revision_id`
+        // (both real, undeclared bookkeeping columns the serializer emits as
+        // ordinary read attributes — FR-008). After the rework: a pure echo
+        // of those columns passes, is stripped before apply, and the PATCH
+        // 200s with the title change persisted and the published pointer
+        // byte-unmoved (raw SQL, not the pointer-aware repository accessor).
+        [$entityTypeManager, $db, $transitionService, $accountContext] = $this->bootWiredProviders();
+        $nodeRepository = $entityTypeManager->getRepository('node');
+
+        // 'administer nodes' isolates this test to the write-allowlist
+        // guard's own behavior: NodeAccessPolicy's PUBLISH_GATED_FIELDS
+        // (status/workflow_state) and ADMIN_ONLY_EDIT_FIELDS (uid/type/
+        // created/changed) are pre-existing, unrelated field-access gates
+        // that would also reject a non-admin's full-attribute echo — real
+        // friction, but not what this test pins.
+        $admin = $this->account(21, ['administer nodes', 'use editorial transition publish']);
+        $accountContext->set($admin);
+
+        $node = new Node(['title' => 'Original title', 'type' => 'article', 'slug' => 'original-title']);
+        $node->enforceIsNew();
+        $nodeRepository->save($node);
+        $entityId = (string) $node->id();
+        $publishResult = $transitionService->transition($nodeRepository->find($entityId), 'publish', $admin);
+        self::assertSame('published', $publishResult->toState);
+
+        $beforeRow = $this->rawNodeRow($db, $entityId);
+        self::assertGreaterThan(0, (int) $beforeRow['published_revision_id'], 'sanity: the node must carry a real published pointer before the round trip');
+
+        $accessHandler = new EntityAccessHandler([new NodeAccessPolicy()]);
+        $controller = new JsonApiController(
+            $entityTypeManager,
+            new ResourceSerializer($entityTypeManager),
+            $accessHandler,
+            $admin,
+        );
+
+        // The "GET" a real client performs before editing.
+        $getDoc = $controller->show('node', $entityId);
+        self::assertSame([], $getDoc->errors);
+        \assert($getDoc->data instanceof JsonApiResource);
+        $loadedAttributes = $getDoc->data->attributes;
+        self::assertArrayHasKey('revision_id', $loadedAttributes, 'sanity: revision_id must ride the read attributes (FR-008)');
+        self::assertArrayHasKey('published_revision_id', $loadedAttributes, 'sanity: published_revision_id must ride the read attributes (finding #1)');
+
+        // SchemaForm.vue's exact shape: the FULL loaded attribute object,
+        // with one field changed.
+        $patchAttributes = $loadedAttributes;
+        $patchAttributes['title'] = 'Edited via full round trip';
+
+        $patchDoc = $controller->update('node', $entityId, [
+            'data' => ['type' => 'node', 'attributes' => $patchAttributes],
+        ]);
+        $array = $patchDoc->toArray();
+        self::assertSame(200, $patchDoc->statusCode, 'a full-attribute echo PATCH of a real node must not 422: ' . json_encode($array));
+        self::assertSame('Edited via full round trip', $array['data']['attributes']['title']);
+
+        $afterRow = $this->rawNodeRow($db, $entityId);
+        self::assertSame(
+            $beforeRow['published_revision_id'],
+            $afterRow['published_revision_id'],
+            'the published pointer must be byte-unmoved by an accepted echo round trip',
+        );
+    }
+
+    #[Test]
+    public function echo_equal_published_revision_id_is_accepted_and_the_pointer_is_not_rewritten_by_an_ordinary_edit(): void
+    {
+        // Test #3 of the rework brief: an echo of published_revision_id must
+        // 200 (not 422), and the value must provably NOT be rewritten by the
+        // save — the strip-before-apply "belt" proven, not merely asserted.
+        // The scenario is chosen so the save legitimately does mutating work
+        // in the SAME request (title changes AND, per C-22 WP3, a PATCH on a
+        // revisionable type always cuts a new revision): if strip-before-apply
+        // did NOT run and the echoed published_revision_id instead flowed
+        // through `$entity->set()` into the value bag `EntityRepository::doSave()`
+        // writes to the base row (`docs/specs/content-workflow.md`'s
+        // documented gotcha — `find()` hydrates `published_revision_id` into
+        // `toArray()` even though it carries no field definition, so an
+        // ordinary save's base-row write always carries whatever the entity's
+        // in-memory bag holds for that column), the pointer would ride along
+        // on every ordinary edit rather than being a guard-independent,
+        // structural non-write. Pinning the pointer BEFORE/AFTER as
+        // byte-identical proves the strip keeps that column out of the
+        // request's write surface entirely, not merely coincidentally equal.
+        [$entityTypeManager, $db, $transitionService, $accountContext] = $this->bootWiredProviders();
+        $nodeRepository = $entityTypeManager->getRepository('node');
+
+        $editor = $this->account(22, [
+            'create article content',
+            'edit any article content',
+            'use editorial transition publish',
+            'use editorial transition archive',
+        ]);
+        $accountContext->set($editor);
+
+        $node = new Node(['title' => 'Original title', 'type' => 'article', 'slug' => 'original-title']);
+        $node->enforceIsNew();
+        $nodeRepository->save($node);
+        $entityId = (string) $node->id();
+        $transitionService->transition($nodeRepository->find($entityId), 'publish', $editor);
+        $archiveResult = $transitionService->transition($nodeRepository->find($entityId), 'archive', $editor);
+        self::assertSame('archived', $archiveResult->toState);
+
+        $beforeRow = $this->rawNodeRow($db, $entityId);
+        $currentPublishedPointer = (int) $beforeRow['published_revision_id'];
+        self::assertGreaterThan(0, $currentPublishedPointer);
+
+        $accessHandler = new EntityAccessHandler([new NodeAccessPolicy()]);
+        $controller = new JsonApiController(
+            $entityTypeManager,
+            new ResourceSerializer($entityTypeManager),
+            $accessHandler,
+            $editor,
+        );
+
+        // Echo the CURRENT (live) published pointer alongside a genuine
+        // content edit — the ordinary "read, tweak one field, save everything
+        // back" shape.
+        $doc = $controller->update('node', $entityId, [
+            'data' => [
+                'type' => 'node',
+                'attributes' => [
+                    'title' => 'Edited while archived',
+                    'published_revision_id' => $currentPublishedPointer,
+                ],
+            ],
+        ]);
+        $array = $doc->toArray();
+
+        self::assertSame(200, $doc->statusCode, 'an echo of the live published pointer must be accepted, not refused: ' . json_encode($array));
+        self::assertSame('Edited while archived', $array['data']['attributes']['title']);
+
+        $afterRow = $this->rawNodeRow($db, $entityId);
+        self::assertSame(
+            $currentPublishedPointer,
+            (int) $afterRow['published_revision_id'],
+            'the published pointer must be provably unmoved by the accepted echo PATCH',
+        );
+        // The content edit legitimately cut a NEW revision (C-22 WP3): the
+        // tip pointer advances even though the PUBLISHED pointer does not —
+        // proving this is a real, mutating save, not a no-op the assertion
+        // above would pass trivially.
+        self::assertGreaterThan((int) $beforeRow['revision_id'], (int) $afterRow['revision_id'], 'sanity: the edit must have cut a new revision');
+    }
+
+    // --- MINOR (same review): store()'s per-bundle create-access fix ---
+
+    #[Test]
+    public function account_with_only_the_type_level_create_permission_cannot_create_an_article(): void
+    {
+        // MINOR finding from the same review: store()'s pre-existing bundle
+        // resolution bug read the literal attribute key 'bundle' (almost
+        // never node's real bundle key, 'type'), so it silently fell back to
+        // checkCreateAccess('node', 'node', ...) — the TYPE-level permission
+        // 'create node content' — for any real client. The PR-4 rework fixed
+        // the bundle resolution to use the entity type's OWN bundle key,
+        // which means checkCreateAccess('node', 'article', ...) now checks
+        // the BUNDLE-level 'create article content' permission instead. An
+        // account holding only the type-level permission that used to work
+        // via the bug must now be denied (403) for a real bundle create.
+        [$entityTypeManager, , , $accountContext] = $this->bootWiredProviders();
+
+        $typeLevelOnly = $this->account(31, ['create node content']);
+        $accountContext->set($typeLevelOnly);
+        $accessHandler = new EntityAccessHandler([new NodeAccessPolicy()]);
+        $controller = new JsonApiController(
+            $entityTypeManager,
+            new ResourceSerializer($entityTypeManager),
+            $accessHandler,
+            $typeLevelOnly,
+        );
+
+        $doc = $controller->store('node', [
+            'data' => [
+                'type' => 'node',
+                'attributes' => ['title' => 'Should be denied', 'type' => 'article', 'slug' => 'should-be-denied'],
+            ],
+        ]);
+
+        self::assertSame(403, $doc->statusCode);
+        self::assertSame([], $entityTypeManager->getRepository('node')->findBy([]), 'a denied create must persist nothing');
     }
 
     /**

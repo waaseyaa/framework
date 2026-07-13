@@ -487,6 +487,39 @@ final class EntityResolverTest extends TestCase
     }
 
     #[Test]
+    public function resolveUpdateAcceptsAnEchoedPointerColumnAndStripsItBeforeApply(): void
+    {
+        // CW-v1 option-1 PR-4 rework (Drupal JSON:API parity), GraphQL side:
+        // an echo of the entity's CURRENT published_revision_id must not
+        // throw — a genuinely different value (the test above) still does.
+        $entity = $this->storage->create(['title' => 'Old', 'status' => true, 'published_revision_id' => 99]);
+        $entity->enforceIsNew();
+        $this->storage->save($entity);
+        $resolver = $this->createResolver($this->openAccessHandler());
+
+        $result = $resolver->resolveUpdate('article', $entity->id(), ['title' => 'New', 'published_revision_id' => 99]);
+
+        self::assertSame('New', $result['title']);
+        self::assertSame(99, $this->storage->load($entity->id())->get('published_revision_id'));
+    }
+
+    #[Test]
+    public function resolveUpdateThrowsWhenInputContainsADifferingPointerColumnValue(): void
+    {
+        // The security core, GraphQL side: a genuinely different value is
+        // still refused, never silently applied or silently dropped.
+        $entity = $this->storage->create(['title' => 'Old', 'status' => true, 'published_revision_id' => 99]);
+        $entity->enforceIsNew();
+        $this->storage->save($entity);
+        $resolver = $this->createResolver($this->openAccessHandler());
+
+        $this->expectException(UserError::class);
+        $this->expectExceptionMessage('published_revision_id');
+
+        $resolver->resolveUpdate('article', $entity->id(), ['title' => 'New', 'published_revision_id' => 7]);
+    }
+
+    #[Test]
     public function resolveUpdateThrowsForNonexistentEntity(): void
     {
         $resolver = $this->createResolver($this->openAccessHandler());

@@ -299,13 +299,21 @@ final class EntityResolver
             throw new UserError("Entity not found: {$entityTypeId}/{$id}");
         }
 
-        // CW-v1 option-1 PR-4 (findings #1/#2), defense-in-depth: same
-        // structural guard as resolveCreate()/JsonApiController::update().
-        // Runs only after update access is confirmed above (so it adds no
-        // existence oracle: the refusal depends only on the entity TYPE's
-        // schema, not this entity instance or the caller's access) and
-        // BEFORE any set()/save() — nothing is applied on refusal.
-        $this->assertWritable($entityTypeId, $entity->bundle(), $input);
+        // CW-v1 option-1 PR-4 (findings #1/#2) rework, defense-in-depth: the
+        // echo-tolerant companion to resolveCreate()'s hard
+        // assertWritable()/JsonApiController::update()'s
+        // EntityWritePayloadGuard::evaluateForUpdate() call. Runs only after
+        // update access is confirmed above (so it adds no existence oracle:
+        // the refusal depends only on the entity TYPE's schema, not this
+        // entity instance or the caller's access) and BEFORE any
+        // set()/save() — nothing is applied on refusal. An allowed echo
+        // (submitted value equals the entity's current stored value for an
+        // identity/bookkeeping column, e.g. `revision_id`/`published_revision_id`
+        // — FR-008 documents these as load-bearing READ attributes a
+        // read-modify-write client legitimately echoes back) is stripped
+        // from `$input` here, before the apply loop below (belt: an allowed
+        // echo must never reach `$entity->set()`).
+        $input = $this->assertWritableForUpdate($entityTypeId, $entity->bundle(), $input, $entity->toArray());
 
         if (!$entity instanceof FieldableInterface) {
             throw new UserError("Entity type '{$entityTypeId}' does not support field updates.");
@@ -638,5 +646,42 @@ final class EntityResolver
                 implode(', ', $refused),
             ));
         }
+    }
+
+    /**
+     * The echo-tolerant companion to {@see self::assertWritable()}, used only
+     * by {@see self::resolveUpdate()} (PR-4 rework). An identity/bookkeeping
+     * key whose submitted value equals `$currentValues`' stored value for
+     * that key (type-lenient comparison, see
+     * {@see \Waaseyaa\Entity\Write\EntityWritePayloadGuard::evaluateForUpdate()})
+     * is an allowed echo — not refused, but also stripped from the returned
+     * input so it can never reach `$entity->set()`. A genuinely different
+     * value, or an undeclared/unknown field, is still refused (`UserError`).
+     *
+     * @param array<string, mixed> $input
+     * @param array<string, mixed> $currentValues the target entity's current stored values ({@see \Waaseyaa\Entity\EntityInterface::toArray()})
+     * @return array<string, mixed> $input with every allowed-echo key removed
+     */
+    private function assertWritableForUpdate(string $entityTypeId, string $bundle, array $input, array $currentValues): array
+    {
+        $result = EntityWritePayloadGuard::evaluateForUpdate(
+            $this->entityTypeManager->getDefinition($entityTypeId),
+            $bundle,
+            $input,
+            $this->entityTypeManager,
+            $currentValues,
+        );
+        if ($result->refusedKeys !== []) {
+            throw new UserError(sprintf(
+                'The following input field(s) are not writable: %s.',
+                implode(', ', $result->refusedKeys),
+            ));
+        }
+
+        foreach ($result->echoedKeys as $echoedKey) {
+            unset($input[$echoedKey]);
+        }
+
+        return $input;
     }
 }

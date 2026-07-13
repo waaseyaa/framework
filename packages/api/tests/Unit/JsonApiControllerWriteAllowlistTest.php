@@ -235,4 +235,51 @@ final class JsonApiControllerWriteAllowlistTest extends TestCase
         $this->assertSame('Updated', $array['data']['attributes']['title']);
         $this->assertSame('Updated body.', $array['data']['attributes']['body']);
     }
+
+    // --- Echo-tolerant rejection (PR-4 rework) ---
+
+    #[Test]
+    public function updateAcceptsAnEchoedPointerColumnAndStripsItBeforeApply(): void
+    {
+        // TestEntity has no revision key registered, so revision_id is
+        // refused only via EntityWritePayloadGuard's LITERAL_FLOOR, never
+        // populated by storage — its "current stored value" is absent
+        // (treated as null). Echoing null back must pass.
+        $entity = $this->createAndSaveEntity(['title' => 'Original']);
+
+        $doc = $this->controller->update('article', $entity->id(), [
+            'data' => [
+                'type' => 'article',
+                'attributes' => ['title' => 'Updated', 'revision_id' => null],
+            ],
+        ]);
+        $array = $doc->toArray();
+
+        $this->assertSame(200, $doc->statusCode, 'a null-echoed absent bookkeeping column must not 422: ' . json_encode($array));
+        $this->assertSame('Updated', $array['data']['attributes']['title']);
+    }
+
+    #[Test]
+    public function updateRejectsAnUndeclaredFieldEvenWhenItsValueMatchesTheStoredValue(): void
+    {
+        // Echo tolerance applies ONLY to the identity/bookkeeping set — an
+        // undeclared field ('not_a_field' has no FieldDefinition on this
+        // fixture) is hard-refused unconditionally, even when it happens to
+        // equal a stored value under the same key. Undeclared-field storage
+        // is not exercised here (InMemoryEntityStorage has no such key), so
+        // this pins purely the structural branch, matching the guard-level
+        // unit test of the same name.
+        $entity = $this->createAndSaveEntity(['title' => 'Original']);
+
+        $doc = $this->controller->update('article', $entity->id(), [
+            'data' => [
+                'type' => 'article',
+                'attributes' => ['not_a_field' => null],
+            ],
+        ]);
+        $array = $doc->toArray();
+
+        $this->assertSame(422, $doc->statusCode);
+        $this->assertSame(['not_a_field'], $array['errors'][0]['meta']['refused_keys']);
+    }
 }

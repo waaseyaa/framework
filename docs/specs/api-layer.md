@@ -1,5 +1,6 @@
 # API Layer
 
+<!-- Spec reviewed 2026-07-13 - CW-v1 option-1 PR-4 rework (#1920, security): a fresh-context review found the just-shipped write-side allowlist's HARD refusal of `revision_id`/`published_revision_id`/`langcode` was itself a BLOCKER — `ResourceSerializer` emits those as ordinary read attributes (FR-008), and the admin SPA's `SchemaForm.vue` submits the FULL loaded attribute object back on save, so every ordinary node edit through the admin UI 422s. Fix (Drupal JSON:API parity): echo-tolerant rejection on `update()` only — `EntityWritePayloadGuard::evaluateForUpdate()` refuses an identity/bookkeeping key ONLY when its submitted value DIFFERS (type-lenient comparison) from the entity's current stored value; a pure echo passes but is stripped before both the field-access loop and the apply loop (belt: an allowed echo must never reach `$entity->set()`). `store()` (create) is unchanged — hard refuse, no stored value to echo against. Applied to `JsonApiController::update()` and GraphQL `EntityResolver::resolveUpdate()`; `store()`/`resolveCreate()` untouched. New `Waaseyaa\Entity\Write\EntityWritePayloadGuardResult` value object (`refusedKeys`/`echoedKeys`) is the second static method's return shape alongside the unchanged `refusedKeys()`. See "Echo-tolerant rejection on update() (PR-4 rework)" under the "Write-side field allowlist" subsection. -->
 <!-- Spec reviewed 2026-07-13 - CW-v1 option-1 PR-4 (#1920, security): closes the write-side field allowlist / pointer-column write hole (`.superpowers/sdd/final-review-findings.md` findings #1 CRITICAL / #2 IMPORTANT) — store()/update() applied every submitted attribute with only per-field ACCESS as the gate, so an account holding plain entity `update` access (no workflow permission) could move the published pointer or forge the current-revision id directly through a PATCH body attribute, since neither `revision_id` nor `published_revision_id` carries a field definition or a shipped field-access policy. New shared `Waaseyaa\Entity\Write\EntityWritePayloadGuard` (modeled on ai-tools' EntityKeyGuard, adapted for payload-key-presence + bundle-scoped resolveFieldDefinitions()) rejects (422, `code: FIELD_NOT_WRITABLE`, `meta.refused_keys`) any payload key that is neither a declared field nor a writable entity key, or that is an identity/bookkeeping column regardless of declaration — reject, never strip. Applied at JsonApiController::store()/update() (GenericAdminSurfaceHost inherits it for free via delegation), GraphQL EntityResolver::resolveCreate()/resolveUpdate() (defense-in-depth). FieldAutoSaveController verified already-safe, not modified. ai-tools EntityKeyGuard's LITERAL_FLOOR gained `revision_id`/`published_revision_id` (empirically did NOT already cover published_revision_id — a real gap, fixed alongside this PR). See new "Write-side field allowlist (CW-v1 option-1 PR-4)" subsection. -->
 <!-- Spec reviewed 2026-07-10 - CW-v1 WP-4 (#1920): new per-entity-type workflow transition endpoints — GET /api/{type}/{id}/workflow/transitions and POST /api/{type}/{id}/workflow/transition (WorkflowTransitionController + WorkflowTransitionApiRouter, both registered only when resolveOptional(TransitionService::class) resolves). View access enforced in-controller under the R8 oracle standard (view-denied ≡ missing, byte-identical 404 from one factory; fail-closed 404 when no EntityAccessHandler is wired). TransitionDeniedException keeps the WP-2 mapping (permission → 403, all other reasons → 422, code WORKFLOW_TRANSITION_DENIED + meta.reason, duplicated locally — JsonApiController::workflowTransitionDeniedError() stays private). See new "Workflow Transition Endpoints (CW-v1 WP-4)" section. -->
 <!-- Spec reviewed 2026-07-06 - CW-v1 WP-0 (#1920, #1927, security): closes a self-publish gap where an account holding only edit/create permissions (no publish permission) could set a node live — either explicitly via `status`/`workflow_state` in the request body, or implicitly through the entity constructor's born-published default (`Node::__construct` defaults `status = 1`). Two-part fix: (1) `NodeAccessPolicy::fieldAccess()` now edit-Forbids `status`/`workflow_state` for any account lacking the new `NodeAccessPolicy::PUBLISH_PERMISSION` constant (`'use editorial transition publish'`), on BOTH create and update — no `isNew()` carve-out, unlike the `uid`/`type`/`created`/`changed` admin-only-edit gate documented in field-access.md; `promote`/`sticky` remain ungated pending the editorial engine. (2) `JsonApiController::store()` adds an explicit floor: when the client omits `status` from the create payload AND the constructor-defaulted entity already has a non-null `status` AND the acting account is field-edit-Forbidden on `status`, the controller sets `status = 0` before save, so a create cannot silently inherit a published default the account could not have set explicitly. A client-supplied `status` value is unaffected by this floor — it still goes through the existing per-attribute access-check loop above (Forbidden → 403), unchanged. This is the WP-0 slice of the CW-v1 content-workflow initiative; `docs/specs/content-workflow.md` (tracking the full editorial state machine) has not merged yet, so this note is the interim record — the WP-0 status row there should be flipped to reflect this once that spec lands. See CHANGELOG "Security" and #1915/R16 batch context. -->
@@ -509,17 +510,76 @@ declared-field-or-writable-key branch — the same effective protection,
 achieved without special-casing every entity type. `update()` carries no such
 exception (a PATCH never legitimately renames a config entity's own id).
 
+**Echo-tolerant rejection on `update()` (PR-4 rework, Drupal JSON:API
+parity).** A fresh-context review of the guard above found its HARD,
+unconditional refusal was itself a BLOCKER on `update()`: **`revision_id` is
+a documented load-bearing READ attribute** (FR-008, "ID Resolution" /
+optimistic-locking section below — `GET`/`show()` emits it on every
+revisionable type on purpose, and `published_revision_id`/`langcode` ride
+along the same generic `toArray()` path), and the admin SPA's
+`SchemaForm.vue` submits the FULL loaded attribute object back on every save
+(`formData.value = { ...entityResult.value.attributes }` →
+`update(props.entityType, props.entityId, formData.value)`). Hard-refusing
+every one of those on every ordinary edit 422s the admin UI's own
+read-modify-write round trip — CI was green only because no test round-tripped
+a serialized revisionable entity end-to-end.
+
+The fix, `EntityWritePayloadGuard::evaluateForUpdate()` — used ONLY by
+`update()` call sites, never by `store()`/`resolveCreate()` (create has no
+stored value to echo against, and the create surface does not round-trip a
+prior read):
+
+- For the identity/bookkeeping set (LITERAL_FLOOR ∪ registered refused-kind
+  columns) ONLY: a submitted key is refused **only when its value DIFFERS**
+  from the target entity's current stored value (`$currentValues`, the
+  caller's already-loaded `EntityInterface::toArray()`). A pure echo passes.
+- Value comparison is **type-lenient**: `(string)`-normalized, so a
+  JSON-decoded int and a string-hydrated storage column compare equal. `null`
+  and absent (`!array_key_exists`) both count as "stored null" — a submitted
+  `null` is an echo only against a null/absent stored value, never against a
+  non-null one.
+- A passing echo is reported separately (`EntityWritePayloadGuardResult::$echoedKeys`,
+  alongside the unchanged `$refusedKeys`) so the caller can **strip it before
+  the field-access loop AND the apply loop** — belt: even an ALLOWED echo
+  must never reach `$entity->set()`, so a stale in-memory pointer read before
+  a concurrent transition can never be written back over the real current
+  value. `JsonApiController::update()` strips immediately after the guard
+  call, before the field-edit-access loop; GraphQL's `resolveUpdate()` strips
+  after its (unchanged, R11-collapsed) field-access loop, still before the
+  apply loop — both land the strip before `$entity->set()` runs for any
+  attribute.
+- The **undeclared/unknown-field branch is unchanged and hard-refused
+  either way** — echo tolerance applies ONLY to the identity/bookkeeping set.
+  A field that is neither declared nor a writable entity key 422s
+  unconditionally, even when its submitted value happens to equal a
+  same-named key in `$currentValues`.
+- `refusedKeys()` itself is untouched (same signature, same hard-refuse
+  behavior) — it remains what `store()`/`resolveCreate()` call.
+
+**Reconciliation with FR-008.** FR-008 requires `revision_id` to keep riding
+reads (the optimistic-locking client contract: read it, later state it back
+via `data.meta.expected_revision_id` — never as a plain attribute). Nothing
+here weakens that: a **plain-attribute** `revision_id`/`published_revision_id`
+carrying a **different** value than the current stored one still 422s
+exactly as before (the security core, findings #1/#2 stay closed) —
+echo-tolerance only recognizes "the client read this and is handing it back
+unchanged," which is the read contract's own round trip, not a new write
+surface.
+
 **Applied surfaces:**
 
 | Surface | Call site | Notes |
 |---|---|---|
-| JSON:API (primary) | `JsonApiController::store()`/`update()` | Reject-not-strip: 422 `code: FIELD_NOT_WRITABLE`, `meta.refused_keys` names every refused key, applying nothing (mirrors `REVISION_CONFLICT`'s code/meta pattern). Unconditional — runs even with no access handler/account bound (a structural validation, not an access decision, mirroring `validateQueryFields()`). |
-| `GenericAdminSurfaceHost` create/update | `handleCreate()`/`handleUpdate()` | No separate change needed — both fully delegate to `JsonApiController::store()`/`update()`, so the guard applies for free. Pinned by `GenericAdminSurfaceHostWriteAllowlistTest`. |
-| GraphQL mutations | `EntityResolver::resolveCreate()`/`resolveUpdate()` | Defense-in-depth (the generated GraphQL input type already bounds the surface): refusal throws `GraphQL\Error\UserError` naming the refused keys, before `create()`/`set()`/`save()`. |
+| JSON:API create | `JsonApiController::store()` | Unchanged: hard reject via `EntityWritePayloadGuard::refusedKeys()`, no echo tolerance (no stored value exists yet). |
+| JSON:API update (primary) | `JsonApiController::update()` | Echo-tolerant via `EntityWritePayloadGuard::evaluateForUpdate($definition, $bundle, $attributes, $entityTypeManager, $entity->toArray())`. Refused keys → 422 `code: FIELD_NOT_WRITABLE`, `meta.refused_keys` (unchanged shape). Allowed echoes are stripped from `$attributes` before the field-access loop and the apply loop. Unconditional — runs even with no access handler/account bound (a structural validation, not an access decision, mirroring `validateQueryFields()`). |
+| `GenericAdminSurfaceHost` create/update | `handleCreate()`/`handleUpdate()` | No separate change needed — both fully delegate to `JsonApiController::store()`/`update()`, so the (echo-tolerant, for update) guard applies for free. Pinned by `GenericAdminSurfaceHostWriteAllowlistTest` (structural refusal, lightweight fixture) and `GenericAdminSurfaceHostWriteAllowlistFlowTest` (PR-4 rework: full round-trip pin, real Node + workflow wiring). |
+| GraphQL create | `EntityResolver::resolveCreate()` | Unchanged: hard `assertWritable()` (defense-in-depth; the generated GraphQL input type already bounds the surface). |
+| GraphQL update | `EntityResolver::resolveUpdate()` | Echo-tolerant via the new private `assertWritableForUpdate()`, mirroring the JSON:API shape: refusal throws `GraphQL\Error\UserError` naming the refused keys before `set()`/`save()`; an allowed echo is stripped from `$input` before the apply loop. |
 | `FieldAutoSaveController` | unchanged | Already declared-field-allowlisted at step 5 (`$allFields[$key]`, the bundle field registry) — `published_revision_id` 404s (`field_not_registered`) exactly like any other undeclared key. Verified, not modified; regression-pinned. |
-| ai-tools `EntityKeyGuard` | `LITERAL_FLOOR` gains `revision_id`/`published_revision_id` | `EntityKeyGuard` did **not** already cover `published_revision_id` before this PR (empirically confirmed red, then fixed) — no entity-key kind names it, so only a literal-floor addition closes it. `EntityCreateTool`/`EntityUpdateTool` are otherwise unchanged. |
+| ai-tools `EntityKeyGuard` | `LITERAL_FLOOR` gains `revision_id`/`published_revision_id` | `EntityKeyGuard` did **not** already cover `published_revision_id` before this PR (empirically confirmed red, then fixed) — no entity-key kind names it, so only a literal-floor addition closes it. `EntityCreateTool`/`EntityUpdateTool` are otherwise unchanged; this class has no echo-tolerance concept (agent tools do not round-trip a prior serialized read the same way). |
 
-422 body shape (`FIELD_NOT_WRITABLE`):
+422 body shape (`FIELD_NOT_WRITABLE`) — unchanged by the rework, only the
+refusal CONDITION changed on `update()`:
 
 ```json
 { "errors": [ { "status": "422", "title": "Unprocessable Entity",
@@ -530,17 +590,28 @@ exception (a PATCH never legitimately renames a config entity's own id).
 
 Pinned end-to-end (real SQLite, real `NodeServiceProvider` +
 `WorkflowServiceProvider` wiring, real `NodeAccessPolicy`) by
-`packages/api/tests/Integration/WriteAllowlistPointerBypassFlowTest.php` —
-reproduces finding #1's exact scenario (an account holding only `edit any
-article content`, no workflow permission, PATCHing `published_revision_id`
-back to a superseded published revision) and proves the base row's pointer
-columns are byte-unmoved via a raw SQL read, plus the `revision_id`
-generalization on both create and update, plus a pin that the WP-0
-`status`/`workflow_state` field-access gate is unchanged by this guard. Unit
-coverage: `EntityWritePayloadGuardTest` (the guard in isolation),
-`JsonApiControllerWriteAllowlistTest` (undeclared attribute, both pointer
-columns, declared fields still writable), `EntityResolverTest` (GraphQL
-parity), `GenericAdminSurfaceHostWriteAllowlistTest` (admin-surface parity).
+`packages/api/tests/Integration/WriteAllowlistPointerBypassFlowTest.php`:
+`eve_cannot_move_the_published_pointer_through_a_patch_body()` re-pins
+finding #1's exact scenario against the echo-tolerant logic (Eve's submitted
+`published_revision_id` is a DIFFERENT value than the live pointer, so it
+still 422s and the base row is byte-unmoved); the PR-4 rework adds
+`full_attribute_round_trip_patch_persists_the_changed_title_and_leaves_the_published_pointer_untouched()`
+(the admin-SPA-shaped oracle: GET → PATCH the full attribute set back with
+one field changed → 200, title persisted, pointer byte-unmoved),
+`echo_equal_published_revision_id_is_accepted_and_the_pointer_is_not_rewritten_by_an_ordinary_edit()`
+(an echo alongside a genuine content edit that legitimately cuts a new
+revision — proves the PUBLISHED pointer stays put even while the TIP
+revision id legitimately advances), and
+`account_with_only_the_type_level_create_permission_cannot_create_an_article()`
+(the MINOR create-access bundle-key fix, deny path). Unit coverage:
+`EntityWritePayloadGuardTest` (the guard in isolation, including the
+echo-tolerance value-comparison matrix and a translatable-shape `langcode`
+case), `JsonApiControllerWriteAllowlistTest` (undeclared attribute — still
+hard-refused even when its value matches a same-named stored key — both
+pointer columns, declared fields still writable, echoed-null acceptance),
+`EntityResolverTest` (GraphQL parity, including echo acceptance and
+differing-value refusal), `GenericAdminSurfaceHostWriteAllowlistTest` +
+`GenericAdminSurfaceHostWriteAllowlistFlowTest` (admin-surface parity).
 
 ### ID Resolution
 
