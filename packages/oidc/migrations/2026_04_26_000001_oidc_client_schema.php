@@ -10,7 +10,7 @@ use Waaseyaa\Foundation\Migration\SchemaBuilder;
  *
  * Runs on paths that do not boot the full entity storage factory (e.g. db:init)
  * and supplements ensureTable() output (base columns only) on full kernel boots
- * after migrate:up.
+ * after migrate.
  *
  * Idempotent: safe to re-run if columns or table already exist.
  */

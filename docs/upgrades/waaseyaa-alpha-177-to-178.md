@@ -163,7 +163,7 @@ If your app intends to **use** the migration platform:
 2. `composer dump-autoload --optimize`
 3. Apply the new schema migrations:
    ```
-   bin/waaseyaa migrate:up
+   bin/waaseyaa migrate
    ```
    This creates `migration_id_map` and `migration_run_state`.
 4. Optional: `bin/waaseyaa optimize:manifest` to surface any
