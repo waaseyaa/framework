@@ -9,6 +9,7 @@ use Waaseyaa\AI\Agent\Repository\AgentAuditLogRepository;
 use Waaseyaa\AI\Agent\Repository\AgentRunRepository;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
+use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -46,6 +47,7 @@ final class AiAgentServiceProvider extends ServiceProvider
                 // the kernel-services bus when available; absent resolution →
                 // null, behavior-identical to before the context existed.
                 $accountContext = $this->safeResolve(AccountContextInterface::class);
+                $dispatcher = $this->safeResolve(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
 
                 return new AgentExecutor(
                     toolRegistry: $this->resolve(ToolRegistryInterface::class),
@@ -55,6 +57,7 @@ final class AiAgentServiceProvider extends ServiceProvider
                     hitlPollIntervalMs: (int) ($this->config['ai']['hitl_poll_interval_ms'] ?? 1000),
                     hitlTimeoutSeconds: (int) ($this->config['ai']['hitl_timeout_seconds'] ?? 300),
                     logger: $logger,
+                    eventDispatcher: $dispatcher instanceof EventDispatcherInterface ? $dispatcher : null,
                     accountContext: $accountContext instanceof AccountContextInterface ? $accountContext : null,
                 );
             },

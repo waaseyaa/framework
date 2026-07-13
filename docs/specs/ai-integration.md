@@ -1020,25 +1020,24 @@ Pipeline uses `syncStepsToValues()` to maintain a single source of truth. Called
 | `packages/cli/src/Command/SemanticWarmCommand.php` | `SemanticWarmCommand` | Operational CLI entry point for warmer |
 | `packages/cli/src/Command/SemanticRefreshCommand.php` | `SemanticRefreshCommand` | Operational CLI entry point for resumable refresh batches |
 
-## Observability Wiring Status (ai-observability, as of WP4 2026-07-02)
+## Observability Wiring Status (ai-observability, R18)
 
-The WP4 dead-subscriber sweep (audit-remediation batch 2026-07-01/02) found
-that BOTH ai-observability service providers registered their listeners with
-a dispatcher resolved under an FQCN the production kernel-services bus never
-serves (only `Symfony\Contracts\EventDispatcher\EventDispatcherInterface` is
-served — see `ProviderRegistryKernelServices::get()` and the
-`bin/check-dispatcher-keys` CI gate). Both are now re-keyed to the served
-contracts FQCN (#1852 pattern), with production-mirroring wiring tests. The
-resulting state per listener:
+The canonical run telemetry path uses the `AgentRun*` lifecycle events. Both
+production producer factories resolve the kernel dispatcher under the served
+Symfony-contracts FQCN, type-check it against the foundation dispatcher
+contract, and inject it into `AgentExecutor` / `RunAgentHandler`. Provider
+boundary tests pin that wiring.
 
 | Listener | Provider | Events | Status after WP4 |
 |---|---|---|---|
-| `AgentRunTelemetryListener` | `AgentTelemetryServiceProvider` | `Waaseyaa\AI\Observability\Event\AgentRun{Started,IterationCompleted,ProviderCallCompleted,ToolCallObserved,Terminated}` | **Live end-to-end.** Producers actively dispatch these events (`AgentExecutor`, `RunAgentHandler`); the listener now actually receives them in a real kernel boot. Best-effort internally (every handler try-catch wrapped). |
-| `LlmCallListener` / `ToolCallListener` | `ObservabilityServiceProvider` | `Waaseyaa\AI\Agent\Event\{LlmCallCompleted,ToolCallStarted,ToolCallCompleted}` | **Registered but producer-unwired (inert).** The registration mechanism is fixed (previously BOTH the resolution key — Symfony *Component* FQCN — and the instanceof check — concrete `EventDispatcher`, which the served `SymfonyEventDispatcherAdapter` is not — were wrong), but the three producer-side event classes are defined in `packages/ai-agent/src/Event/` and never dispatched anywhere in the codebase. The trace-span cost accounting they feed (`TokenAccountant` → `trace_span` rows) stays inert until a follow-up wires producers into the agent execution path. |
+| `AgentRunTelemetryListener` | `AgentTelemetryServiceProvider` | `Waaseyaa\AI\Observability\Event\AgentRun{Started,IterationCompleted,ProviderCallCompleted,ToolCallObserved,Terminated}` | **Live end-to-end.** Production factories inject the real dispatcher into both producers. Best-effort internally (every handler try-catch wrapped). |
 
-Do not "fix" the inert pair by deleting the registration — the wiring is now
-correct and pinned by `ObservabilityServiceProviderTest::boot_wires_llm_and_tool_call_listeners`;
-the missing half is producer dispatch, tracked as a follow-up issue.
+The legacy `LlmCallListener` / `ToolCallListener` chain and its three ai-agent
+event classes were deleted in R18: repository-wide search proved that no
+production code constructed those events, while the richer `AgentRun*` path
+already represented the same execution boundaries. Historical trace storage
+and the explicit `TraceRecorderInterface` API are retained; no migration drops
+existing trace data.
 
 ## Implementation gotchas
 

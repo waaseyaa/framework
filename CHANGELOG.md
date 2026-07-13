@@ -25,7 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Production agent runs now dispatch the canonical observability lifecycle (#1975, R18 M4; closes #1743).** The `AiAgentServiceProvider` and agent `MessagingServiceProvider` factories inject the kernel's real dispatcher into `AgentExecutor` and `RunAgentHandler`, so the already-live `AgentRun*` producers reach `AgentRunTelemetryListener` outside manually wired tests.
+
 - **Persistent workers no longer retain stale state reads or abandoned AI-run telemetry (#1971, R17).** `SqlState` now reads its authoritative database on every `get()`/`getMultiple()` call instead of serving a per-instance cache that could outlive the request, while `AgentRunTelemetryListener` replaces its one-active-run aggregation slot when the next Messenger job starts so a missing terminal event cannot grow memory for the worker lifetime. Two-request/one-process regressions cover both single and multiple state reads and interrupted telemetry aggregation.
+
+### Removed
+
+- **Deleted the producerless legacy AI trace listener chain (#1975, R18 M4).** `LlmCallListener`, `ToolCallListener`, and the never-constructed `LlmCallCompleted` / `ToolCallStarted` / `ToolCallCompleted` events no longer advertise an inert automatic trace path. Historical trace storage and the explicit recorder API remain available.
 
 ## [0.1.0-alpha.260] - 2026-07-13
 
