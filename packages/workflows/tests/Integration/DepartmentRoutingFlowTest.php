@@ -46,11 +46,13 @@ use Waaseyaa\Workflows\WorkflowTransition;
  * requirements"): the client-driving story — department (group) routing — on
  * the REAL `Node` entity type, bound to a test-local `editorial_dept`
  * workflow persisted directly by this test. `editorial_dept` is the
- * descoped shipped `EDITORIAL` shape verbatim (KEEP `draft` in `publish`'s
- * `from[]` — the "first-publish shape" constraint documented in the spec's
- * "Group constraints (WP-3)" section: a group-routed workflow must keep an
- * initial-state -> published edge until the option-1 forward-draft follow-up
- * lands, or first publish permanently wedges the pointer guard) plus
+ * descoped shipped `EDITORIAL` shape verbatim (`draft` stays in `publish`'s
+ * `from[]`, matching the shipped `editorial` shape — this remains a VALID
+ * shape, just no longer a MANDATORY one: CW-v1 option-1 PR-5 (design §6,
+ * #1920) closed the "first-publish shape" constraint the spec's "Group
+ * constraints (WP-3)" section used to document — see
+ * {@see FirstPublishEstablishmentFlowTest} for the review-required shape
+ * (no `draft -> published` edge at all) this PR unwedged) plus
  * `group_constraint: content_groups` on `submit_for_review`, `publish`, and
  * `reject`.
  *
@@ -436,10 +438,10 @@ final class DepartmentRoutingFlowTest extends TestCase
      * Builds the test-local `editorial_dept` workflow: the exact descoped
      * `DefaultWorkflows::EDITORIAL` shape — states + the
      * submit_for_review/publish/reject/archive/restore/restore_to_published
-     * transitions, `draft` KEPT in `publish`'s `from[]` (the spec's
-     * "first-publish shape" note: a group-routed workflow must keep an
-     * initial-state -> published edge until the option-1 forward-draft
-     * follow-up lands) — plus `group_constraint: content_groups` on
+     * transitions, `draft` kept in `publish`'s `from[]` (matching the
+     * shipped `editorial` shape verbatim — no longer load-bearing for first
+     * publish since CW-v1 option-1 PR-5 closed the "first-publish shape"
+     * constraint, design §6) — plus `group_constraint: content_groups` on
      * `submit_for_review`, `publish`, and `reject` (the three transitions
      * this spine exercises; `archive`/`restore`/`restore_to_published` stay
      * unconstrained, matching the plan's minimal client-story scope).

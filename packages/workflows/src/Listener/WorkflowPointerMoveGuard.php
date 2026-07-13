@@ -50,6 +50,20 @@ use Waaseyaa\Workflows\WorkflowTransition;
  * has no translation-awareness today — this keeps both guards consistent
  * until per-translation state lands as a later stage.
  *
+ * A first publish (`publish` with `fromRevisionId === null` — a genuinely
+ * never-published entity) is pointer ESTABLISHMENT, not a state crossing
+ * (CW-v1 option-1 PR-5, design §6, final-review finding #5): there is no
+ * prior pointer state to compare against, so the strict edge rule below is
+ * bypassed in favor of the same any-of authorization
+ * {@see self::authorizeAnyOfInto()} the same-state branch uses, applied
+ * against the TARGET revision's state — the tip's state was already
+ * validated by the save-path guards when it was written. Without this, any
+ * workflow whose `publish` is reachable only via an intermediate state (no
+ * `initial_state -> default_revision` edge — the CW-v1 department-routing
+ * shape) permanently wedges its first publish against a fabricated
+ * `initial_state -> target` edge that has nothing to do with how the tip
+ * actually got there.
+ *
  * @api
  */
 final class WorkflowPointerMoveGuard
@@ -132,6 +146,36 @@ final class WorkflowPointerMoveGuard
         }
 
         $newState = $this->explicitState($event->revisionValues) ?? $workflow->getInitialState();
+
+        // CW-v1 option-1 PR-5 (design §6, #1920, final-review finding #5): a
+        // first publish (`publish` with NO prior published pointer) is
+        // pointer ESTABLISHMENT, not a state crossing. There is no prior
+        // pointer state to compare against, so the strict different-state
+        // rule below would fabricate an `initial_state -> $newState` edge
+        // check that has nothing to do with how the tip actually got
+        // stamped with $newState — the tip's state was already validated by
+        // the save-path guards (WorkflowStateGuard / TransitionService's
+        // edge+permission checks) when it was written. A review-required
+        // workflow (`publish` reachable only via an intermediate state, no
+        // `initial_state -> default_revision` edge) would otherwise wedge
+        // EVERY first publish with a fictional illegal-edge denial, AFTER
+        // the revision-creating save already committed (finding #5).
+        // Establishment is instead governed by the SAME any-of rule the
+        // same-state branch below uses: an authenticated account must hold
+        // the permission (and satisfy the group constraint, WP-3 semantics)
+        // of AT LEAST ONE transition INTO $newState; a null account context
+        // passes outright (edge-legality only — there is no edge to check).
+        // Deliberately scoped to `fromRevisionId === null` ONLY (a
+        // genuinely never-published entity) — the `currentlyEffectiveState()`
+        // "prior revision could not be loaded" fallback a few lines below
+        // is UNTOUCHED and keeps using the strict different-state rule
+        // against the workflow's initial state, exactly as before this PR.
+        if ($event->operation === 'publish' && $event->fromRevisionId === null) {
+            $this->authorizeAnyOfInto($event, $workflow, $newState);
+
+            return;
+        }
+
         $currentState = $this->currentlyEffectiveState($event, $workflow);
 
         // CW-v1 WP-2 task 2.6 (#1920), two-branch rule — the reconciliation
@@ -172,47 +216,9 @@ final class WorkflowPointerMoveGuard
         //    via a pointer move must be exactly as hard as crossing them
         //    via a transition.
         if ($newState === $currentState) {
-            $account = $this->accountContext?->current();
-            if ($account === null) {
-                return;
-            }
+            $this->authorizeAnyOfInto($event, $workflow, $newState);
 
-            // Known degenerate-graph quirk: for a state with NO incoming
-            // transitions at all (e.g. an initial-only state no edge ever
-            // targets), the any-of loop below is a check over an empty set —
-            // an authenticated account is always DENIED (nothing to hold),
-            // while a null account context (above) is always ALLOWED. That
-            // asymmetry is inherent to the any-of rule, accepted as-is: no
-            // shipped workflow has such a state, and fail-closed for
-            // authenticated actors is the safe default (design invariant 5).
-            //
-            // CW-v1 WP-3 (#1920): the any-of rule tightens from "permission
-            // alone" to "permission AND satisfied group constraint" per
-            // candidate transition — a constraint-less transition into the
-            // state keeps counting on permission alone, so the any-of
-            // semantics are unchanged for workflows with no group
-            // constraints.
-            foreach ($workflow->getTransitions() as $transition) {
-                if ($transition->to === $newState
-                    && $account->hasPermission($workflow->permissionFor($transition))
-                    && $this->satisfiesGroupConstraint($transition, $event, $account)
-                ) {
-                    return;
-                }
-            }
-
-            throw new TransitionDeniedException(
-                TransitionDeniedException::REASON_PERMISSION,
-                \sprintf(
-                    "Pointer-move operation '%s' denied: moving which '%s' revision of entity '%s:%s' serves requires the permission (and, where applicable, satisfied group constraint) of at least one transition into state '%s' in workflow '%s'.",
-                    $event->operation,
-                    $newState,
-                    $event->entityTypeId,
-                    $event->entityId,
-                    $newState,
-                    (string) $workflow->id(),
-                ),
-            );
+            return;
         }
 
         $transition = $this->findTransition($workflow, $currentState, $newState);
@@ -270,6 +276,65 @@ final class WorkflowPointerMoveGuard
     }
 
     /**
+     * The any-of authorization rule shared by SAME-state pointer moves
+     * (WP-2 task 2.6) and first-publish pointer ESTABLISHMENT (CW-v1
+     * option-1 PR-5, design §6): neither case has a real edge to check —
+     * a same-state move is a self-loop (workflows declare edges between
+     * DIFFERENT states) and establishment has no prior pointer state at
+     * all — so both authorize instead by asking whether the account may
+     * reach $targetState by ANY legal route: the permission (and, per
+     * WP-3, satisfied group constraint) of AT LEAST ONE transition
+     * targeting $targetState, checked over ALL such transitions (any-of,
+     * not first-declared) — holding any legal way INTO a state is what
+     * authorizes controlling which of its revisions serves. A null
+     * account context is allowed outright (edge-legality only, and there
+     * is no edge to check in either case).
+     *
+     * Known degenerate-graph quirk: for a state with NO incoming
+     * transitions at all (e.g. an initial-only state no edge ever
+     * targets), the any-of loop below is a check over an empty set — an
+     * authenticated account is always DENIED (nothing to hold), while a
+     * null account context is always ALLOWED. That asymmetry is inherent
+     * to the any-of rule, accepted as-is: no shipped workflow has such a
+     * state, and fail-closed for authenticated actors is the safe default
+     * (design invariant 5).
+     *
+     * @throws TransitionDeniedException REASON_PERMISSION when every
+     *   candidate transition fails, whether by permission, by group
+     *   constraint, or by a mix — the any-of rule was never granular about
+     *   *why* it found nothing, only *that* it did.
+     */
+    private function authorizeAnyOfInto(BeforeRevisionPointerMoveEvent $event, Workflow $workflow, string $targetState): void
+    {
+        $account = $this->accountContext?->current();
+        if ($account === null) {
+            return;
+        }
+
+        foreach ($workflow->getTransitions() as $transition) {
+            if ($transition->to === $targetState
+                && $account->hasPermission($workflow->permissionFor($transition))
+                && $this->satisfiesGroupConstraint($transition, $event, $account)
+            ) {
+                return;
+            }
+        }
+
+        throw new TransitionDeniedException(
+            TransitionDeniedException::REASON_PERMISSION,
+            \sprintf(
+                "Pointer-move operation '%s' denied: moving which '%s' revision of entity '%s:%s' serves requires the permission (and, where applicable, satisfied group constraint) of at least one transition into state '%s' in workflow '%s'.",
+                $event->operation,
+                $targetState,
+                $event->entityTypeId,
+                $event->entityId,
+                $targetState,
+                (string) $workflow->id(),
+            ),
+        );
+    }
+
+    /**
      * CW-v1 WP-3 (#1920, adversarial-review fix): true when `$transition`
      * carries no group constraint, or when a wired checker confirms
      * `$account` satisfies it. A null checker with a NON-null constraint now
@@ -322,9 +387,17 @@ final class WorkflowPointerMoveGuard
      * for `rollback`/`revert` (fromRevisionId is the prior `revision_id`) —
      * `EntityRepository` already resolves the correct prior pointer per
      * operation before dispatching the event, so a single lookup here serves
-     * both cases uniformly. Falls back to the workflow's initial state when
-     * there is no prior revision to compare against (never-published entity,
-     * or the prior revision could not be loaded).
+     * both cases uniformly.
+     *
+     * Falls back to the workflow's initial state when there is no prior
+     * revision to compare against — but as of CW-v1 option-1 PR-5 (design
+     * §6), that fallback is reached only for `rollback`/`revert` on a
+     * never-published entity, or when the prior revision could not be
+     * loaded. A `publish` operation with `fromRevisionId === null` (a
+     * genuinely never-published entity) is pointer ESTABLISHMENT — handled
+     * BEFORE this method is ever called, in {@see self::onBeforePointerMove()},
+     * via {@see self::authorizeAnyOfInto()} against the target revision's own
+     * state, not against this fallback.
      */
     private function currentlyEffectiveState(BeforeRevisionPointerMoveEvent $event, Workflow $workflow): string
     {
