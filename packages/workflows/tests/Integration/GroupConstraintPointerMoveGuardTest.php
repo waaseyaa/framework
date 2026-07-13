@@ -70,7 +70,7 @@ final class GroupConstraintPointerMoveGuardTest extends TestCase
         // Account 8 belongs to a DIFFERENT group, not the content's group.
         $this->addUserToGroup('8', self::OTHER_GROUP_ID);
 
-        $guard = $this->guard([], $this->account(8, ['use dept transition publish']), $checker);
+        $guard = $this->guard([10 => 'draft'], $this->account(8, ['use dept transition publish']), $checker);
         $event = $this->publishEvent();
 
         $denied = null;
@@ -91,7 +91,7 @@ final class GroupConstraintPointerMoveGuardTest extends TestCase
         $this->addContentToGroup('1', self::CONTENT_GROUP_ID);
         $this->addUserToGroup('7', self::CONTENT_GROUP_ID);
 
-        $guard = $this->guard([], $this->account(7, ['use dept transition publish']), $checker);
+        $guard = $this->guard([10 => 'draft'], $this->account(7, ['use dept transition publish']), $checker);
         $event = $this->publishEvent();
 
         $guard->onBeforePointerMove($event);
@@ -216,14 +216,19 @@ final class GroupConstraintPointerMoveGuardTest extends TestCase
 
     private function publishEvent(): BeforeRevisionPointerMoveEvent
     {
-        // fromRevisionId null => currentlyEffectiveState() falls back to the
-        // workflow's initial state ('draft') => different-state move
-        // draft -> published, matched by the group-constrained 'publish' edge.
+        // fromRevisionId 10 resolves (via the revisionStates map) to
+        // 'draft' => a real different-state move, draft -> published,
+        // matched by the group-constrained 'publish' edge. Deliberately
+        // NOT null: as of CW-v1 option-1 PR-5 (design §6), a `publish`
+        // pointer move with `fromRevisionId === null` is pointer
+        // ESTABLISHMENT (see FirstPublishEstablishmentFlowTest), governed
+        // by the any-of rule, not the strict different-state edge rule this
+        // test exists to pin.
         return new BeforeRevisionPointerMoveEvent(
             entityTypeId: self::ENTITY_TYPE_ID,
             entityId: '1',
             operation: 'publish',
-            fromRevisionId: null,
+            fromRevisionId: 10,
             toRevisionId: 20,
             actorUid: 7,
             revisionValues: ['type' => 'article', 'workflow_state' => 'published'],

@@ -360,10 +360,18 @@ final class WorkflowPointerMoveGuardTest extends TestCase
     }
 
     #[Test]
-    public function null_from_revision_id_falls_back_to_the_initial_state(): void
+    public function publish_with_a_null_from_revision_id_is_pointer_establishment_not_the_initial_state_fallback(): void
     {
-        // 'publish' with fromRevisionId null (previously unpublished): the
-        // currently-effective state falls back to the workflow's initial state.
+        // CW-v1 option-1 PR-5 (design §6, #1920): a 'publish' pointer move
+        // with fromRevisionId null (previously unpublished) is pointer
+        // ESTABLISHMENT — governed by the any-of rule against the target
+        // revision's own state, NOT the currentlyEffectiveState() initial-
+        // state fallback + strict different-state edge check this test used
+        // to pin (renamed from null_from_revision_id_falls_back_to_the_initial_state).
+        // The account holds the 'publish' permission, which targets
+        // 'published' — the any-of loop's only candidate — so this still
+        // passes, but for the ESTABLISHMENT reason now, not because
+        // 'draft -> published' happens to be a real edge in this fixture.
         $guard = $this->guard($this->editorialWorkflow(), [], $this->account(['use editorial transition publish']));
         $event = new BeforeRevisionPointerMoveEvent(
             entityTypeId: 'fixture',
@@ -373,6 +381,64 @@ final class WorkflowPointerMoveGuardTest extends TestCase
             toRevisionId: 20,
             actorUid: 7,
             revisionValues: ['type' => 'article', 'workflow_state' => 'published'],
+        );
+
+        $guard->onBeforePointerMove($event);
+        $this->addToAssertionCount(1);
+    }
+
+    #[Test]
+    public function publish_establishment_is_denied_without_any_transition_into_the_target_state_permission(): void
+    {
+        // CW-v1 option-1 PR-5 (design §6, #1920): unlike the pre-fix
+        // strict-edge fallback (which would deny REASON_ILLEGAL_EDGE for
+        // 'draft -> published' when no such edge exists), establishment
+        // denies REASON_PERMISSION — the any-of loop found no satisfied
+        // candidate transition into 'published'.
+        $guard = $this->guard($this->editorialWorkflow(), [], $this->account([]));
+        $event = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: 'fixture',
+            entityId: '1',
+            operation: 'publish',
+            fromRevisionId: null,
+            toRevisionId: 20,
+            actorUid: 7,
+            revisionValues: ['type' => 'article', 'workflow_state' => 'published'],
+        );
+
+        try {
+            $guard->onBeforePointerMove($event);
+            $this->fail('Expected TransitionDeniedException');
+        } catch (TransitionDeniedException $e) {
+            $this->assertSame(TransitionDeniedException::REASON_PERMISSION, $e->reason);
+        }
+    }
+
+    #[Test]
+    public function rollback_with_a_null_from_revision_id_still_falls_back_to_the_initial_state(): void
+    {
+        // The establishment carve-out (design §6) is scoped to
+        // operation === 'publish' ONLY — 'rollback'/'revert' with a null
+        // fromRevisionId (or an unloadable prior revision) keep using
+        // currentlyEffectiveState()'s pre-existing initial-state fallback,
+        // byte-identical to before this PR. 'draft' is this fixture's
+        // initial state, so a 'rollback' targeting 'draft' is a SAME-state
+        // move (draft -> draft) under the untouched fallback, allowed
+        // outright with a null account context.
+        $entityTypeManager = $this->entityTypeManager($this->editorialWorkflow(), [], false);
+        $guard = new WorkflowPointerMoveGuard(
+            $this->bindings($this->editorialWorkflow(), $entityTypeManager),
+            $entityTypeManager,
+            null,
+        );
+        $event = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: 'fixture',
+            entityId: '1',
+            operation: 'rollback',
+            fromRevisionId: null,
+            toRevisionId: 20,
+            actorUid: null,
+            revisionValues: ['type' => 'article', 'workflow_state' => 'draft'],
         );
 
         $guard->onBeforePointerMove($event);
