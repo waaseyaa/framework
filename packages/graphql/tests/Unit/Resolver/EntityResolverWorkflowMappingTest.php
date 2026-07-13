@@ -94,7 +94,12 @@ final class EntityResolverWorkflowMappingTest extends TestCase
 
         $entityTypeManager = new class ($repository) implements EntityTypeManagerInterface {
             public function __construct(private readonly EntityRepositoryInterface $repository) {}
-            public function getDefinition(string $entityTypeId): EntityTypeInterface { return new EntityType(id: 'article', label: 'Article', class: \stdClass::class, keys: ['id' => 'id']); }
+            // 'title' must be a writable entity key (the `label` kind) so
+            // CW-v1 option-1 PR-4's EntityWritePayloadGuard passes it
+            // through — otherwise the write-allowlist's own "not writable"
+            // refusal fires before save() is ever reached, masking the
+            // TransitionDeniedException mapping this test actually pins.
+            public function getDefinition(string $entityTypeId): EntityTypeInterface { return new EntityType(id: 'article', label: 'Article', class: \stdClass::class, keys: ['id' => 'id', 'label' => 'title']); }
             public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array { return []; }
             public function registerEntityType(EntityTypeInterface $type, ?string $registrant = null): void {}
             public function registerCoreEntityType(EntityTypeInterface $type, ?string $registrant = null): void {}

@@ -50,7 +50,7 @@ use Waaseyaa\Workflows\WorkflowServiceProvider;
 final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
 {
     #[Test]
-    public function full_attribute_round_trip_through_the_host_persists_the_changed_title_and_leaves_the_published_pointer_untouched(): void
+    public function full_attribute_round_trip_through_the_host_persists_the_changed_title_and_the_pointer_stays_self_consistent(): void
     {
         [$entityTypeManager, $db, $transitionService, $accountContext] = $this->bootWiredProviders();
         $nodeRepository = $entityTypeManager->getRepository('node');
@@ -72,6 +72,7 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
 
         $beforeRow = $this->rawNodeRow($db, $entityId);
         self::assertGreaterThan(0, (int) $beforeRow['published_revision_id']);
+        self::assertSame($beforeRow['revision_id'], $beforeRow['published_revision_id'], 'sanity: a freshly-published node is self-consistent (tip === published)');
 
         $accessHandler = new EntityAccessHandler([new NodeAccessPolicy()]);
         $host = new GenericAdminSurfaceHost($entityTypeManager, $accessHandler);
@@ -99,10 +100,20 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
         self::assertSame('Edited via the admin surface round trip', $updateResult->data['attributes']['title']);
 
         $afterRow = $this->rawNodeRow($db, $entityId);
+        // Post-rebase note (PR-2, #1920, same anchor issue): once a node
+        // carries a published pointer, an authorized same-state edit
+        // legitimately re-publishes it (same-state republish,
+        // `docs/specs/content-workflow.md` "Default-revision discipline"),
+        // so the pointer is NOT expected to stay byte-unmoved — the
+        // invariant pinned here is that it stays SELF-CONSISTENT with the
+        // new tip (a legitimate engine-driven promotion), never a stray
+        // value. See the sibling JSON:API round-trip pin test for the full
+        // rationale.
+        self::assertGreaterThan((int) $beforeRow['revision_id'], (int) $afterRow['revision_id'], 'sanity: the edit must have cut a new revision');
         self::assertSame(
-            $beforeRow['published_revision_id'],
+            $afterRow['revision_id'],
             $afterRow['published_revision_id'],
-            'the published pointer must be byte-unmoved by an accepted echo round trip through the host',
+            'the published pointer must stay self-consistent with the new tip through the host — never a stray value',
         );
     }
 

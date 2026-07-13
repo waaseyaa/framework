@@ -277,7 +277,7 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
     // --- PR-4 rework: the round-trip pin (the missing test the BLOCKER review found) ---
 
     #[Test]
-    public function full_attribute_round_trip_patch_persists_the_changed_title_and_leaves_the_published_pointer_untouched(): void
+    public function full_attribute_round_trip_patch_persists_the_changed_title_and_the_pointer_stays_self_consistent(): void
     {
         // The admin-SPA-shaped oracle: GET a node via the serializer (real
         // JsonApiController::show(), not a hand-built fixture), then PATCH the
@@ -287,9 +287,25 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
         // Before the PR-4 rework this 422s on `revision_id`/`published_revision_id`
         // (both real, undeclared bookkeeping columns the serializer emits as
         // ordinary read attributes — FR-008). After the rework: a pure echo
-        // of those columns passes, is stripped before apply, and the PATCH
-        // 200s with the title change persisted and the published pointer
-        // byte-unmoved (raw SQL, not the pointer-aware repository accessor).
+        // of those columns passes and is stripped before apply, so the PATCH
+        // 200s with the title change persisted.
+        //
+        // Post-rebase note (PR-2, #1920, same anchor issue): once a node
+        // carries a published pointer it is "default-revision-disciplined"
+        // for every subsequent save (`WorkflowStateGuard::setDiscipline()`) —
+        // an AUTHORIZED same-state edit of already-published content
+        // legitimately RE-PUBLISHES what it just saved (same-state
+        // republish, `docs/specs/content-workflow.md` "Default-revision
+        // discipline"), through the `setPublishedRevision()` choke point,
+        // independent of anything in the PATCH body. So the published
+        // pointer is NOT expected to stay byte-unmoved here (that would
+        // actually be the OLD, pre-option-1 behavior) — the invariant this
+        // test pins is that the pointer ends up SELF-CONSISTENT with the new
+        // tip (a legitimate engine-driven promotion), never diverging from
+        // it, regardless of what the client happened to echo back for
+        // `published_revision_id`/`revision_id`. The DIFFERING-value security
+        // core (an unauthorized or arbitrary pointer value never applies) is
+        // pinned separately by `eve_cannot_move_the_published_pointer_through_a_patch_body()`.
         [$entityTypeManager, $db, $transitionService, $accountContext] = $this->bootWiredProviders();
         $nodeRepository = $entityTypeManager->getRepository('node');
 
@@ -298,7 +314,9 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
         // (status/workflow_state) and ADMIN_ONLY_EDIT_FIELDS (uid/type/
         // created/changed) are pre-existing, unrelated field-access gates
         // that would also reject a non-admin's full-attribute echo — real
-        // friction, but not what this test pins.
+        // friction, but not what this test pins. 'use editorial transition
+        // publish' additionally satisfies the same-state republish any-of
+        // authorization check above.
         $admin = $this->account(21, ['administer nodes', 'use editorial transition publish']);
         $accountContext->set($admin);
 
@@ -311,6 +329,7 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
 
         $beforeRow = $this->rawNodeRow($db, $entityId);
         self::assertGreaterThan(0, (int) $beforeRow['published_revision_id'], 'sanity: the node must carry a real published pointer before the round trip');
+        self::assertSame($beforeRow['revision_id'], $beforeRow['published_revision_id'], 'sanity: a freshly-published node is self-consistent (tip === published)');
 
         $accessHandler = new EntityAccessHandler([new NodeAccessPolicy()]);
         $controller = new JsonApiController(
@@ -327,6 +346,7 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
         $loadedAttributes = $getDoc->data->attributes;
         self::assertArrayHasKey('revision_id', $loadedAttributes, 'sanity: revision_id must ride the read attributes (FR-008)');
         self::assertArrayHasKey('published_revision_id', $loadedAttributes, 'sanity: published_revision_id must ride the read attributes (finding #1)');
+        self::assertSame((int) $beforeRow['revision_id'], (int) $loadedAttributes['revision_id']);
 
         // SchemaForm.vue's exact shape: the FULL loaded attribute object,
         // with one field changed.
@@ -341,10 +361,11 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
         self::assertSame('Edited via full round trip', $array['data']['attributes']['title']);
 
         $afterRow = $this->rawNodeRow($db, $entityId);
+        self::assertGreaterThan((int) $beforeRow['revision_id'], (int) $afterRow['revision_id'], 'sanity: the edit must have cut a new revision');
         self::assertSame(
-            $beforeRow['published_revision_id'],
+            $afterRow['revision_id'],
             $afterRow['published_revision_id'],
-            'the published pointer must be byte-unmoved by an accepted echo round trip',
+            'the published pointer must stay self-consistent with the new tip (legitimate same-state republish) — never a stray value',
         );
     }
 
@@ -354,42 +375,41 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
         // Test #3 of the rework brief: an echo of published_revision_id must
         // 200 (not 422), and the value must provably NOT be rewritten by the
         // save — the strip-before-apply "belt" proven, not merely asserted.
-        // The scenario is chosen so the save legitimately does mutating work
-        // in the SAME request (title changes AND, per C-22 WP3, a PATCH on a
-        // revisionable type always cuts a new revision): if strip-before-apply
-        // did NOT run and the echoed published_revision_id instead flowed
-        // through `$entity->set()` into the value bag `EntityRepository::doSave()`
-        // writes to the base row (`docs/specs/content-workflow.md`'s
-        // documented gotcha — `find()` hydrates `published_revision_id` into
-        // `toArray()` even though it carries no field definition, so an
-        // ordinary save's base-row write always carries whatever the entity's
-        // in-memory bag holds for that column), the pointer would ride along
-        // on every ordinary edit rather than being a guard-independent,
-        // structural non-write. Pinning the pointer BEFORE/AFTER as
-        // byte-identical proves the strip keeps that column out of the
-        // request's write surface entirely, not merely coincidentally equal.
-        [$entityTypeManager, $db, $transitionService, $accountContext] = $this->bootWiredProviders();
+        //
+        // Scenario choice (post-PR-2-rebase finding, empirically verified —
+        // see the round-trip pin test above for the disciplined case): once a
+        // node carries a published pointer it is "default-revision-
+        // disciplined" for every later save, and an authorized same-state
+        // edit of already-published content LEGITIMATELY re-publishes what
+        // it just saved (same-state republish) — the published pointer is
+        // then EXPECTED to advance, not stay put, regardless of the guard.
+        // To pin "the echo is provably not rewritten by THIS save" rather
+        // than by a separate, independent engine mechanism, this test uses a
+        // NEVER-published node: `published_revision_id` is null, discipline
+        // never engages (`WorkflowStateGuard::setDiscipline()` reads
+        // `loadPublishedRevision() !== null` — false here), so
+        // `EntityRepository::doSave()` writes the base row directly from the
+        // entity's value bag with no independent pointer mechanism riding
+        // along. If strip-before-apply did NOT run and the echoed null
+        // instead flowed through `$entity->set()` into that value bag
+        // (`docs/specs/content-workflow.md`'s documented gotcha — `find()`
+        // hydrates `published_revision_id` into `toArray()` even though it
+        // carries no field definition), the column would still ride along on
+        // every ordinary edit rather than being a guard-independent,
+        // structural non-write — this test proves it does not.
+        [$entityTypeManager, $db, , $accountContext] = $this->bootWiredProviders();
         $nodeRepository = $entityTypeManager->getRepository('node');
 
-        $editor = $this->account(22, [
-            'create article content',
-            'edit any article content',
-            'use editorial transition publish',
-            'use editorial transition archive',
-        ]);
+        $editor = $this->account(22, ['create article content', 'edit any article content']);
         $accountContext->set($editor);
 
         $node = new Node(['title' => 'Original title', 'type' => 'article', 'slug' => 'original-title']);
         $node->enforceIsNew();
         $nodeRepository->save($node);
         $entityId = (string) $node->id();
-        $transitionService->transition($nodeRepository->find($entityId), 'publish', $editor);
-        $archiveResult = $transitionService->transition($nodeRepository->find($entityId), 'archive', $editor);
-        self::assertSame('archived', $archiveResult->toState);
 
         $beforeRow = $this->rawNodeRow($db, $entityId);
-        $currentPublishedPointer = (int) $beforeRow['published_revision_id'];
-        self::assertGreaterThan(0, $currentPublishedPointer);
+        self::assertNull($beforeRow['published_revision_id'], 'sanity: a never-published node carries no published pointer');
 
         $accessHandler = new EntityAccessHandler([new NodeAccessPolicy()]);
         $controller = new JsonApiController(
@@ -399,28 +419,27 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
             $editor,
         );
 
-        // Echo the CURRENT (live) published pointer alongside a genuine
+        // Echo the CURRENT (null) published pointer alongside a genuine
         // content edit — the ordinary "read, tweak one field, save everything
         // back" shape.
         $doc = $controller->update('node', $entityId, [
             'data' => [
                 'type' => 'node',
                 'attributes' => [
-                    'title' => 'Edited while archived',
-                    'published_revision_id' => $currentPublishedPointer,
+                    'title' => 'Edited never-published',
+                    'published_revision_id' => null,
                 ],
             ],
         ]);
         $array = $doc->toArray();
 
-        self::assertSame(200, $doc->statusCode, 'an echo of the live published pointer must be accepted, not refused: ' . json_encode($array));
-        self::assertSame('Edited while archived', $array['data']['attributes']['title']);
+        self::assertSame(200, $doc->statusCode, 'a null echo of the (null) published pointer must be accepted, not refused: ' . json_encode($array));
+        self::assertSame('Edited never-published', $array['data']['attributes']['title']);
 
         $afterRow = $this->rawNodeRow($db, $entityId);
-        self::assertSame(
-            $currentPublishedPointer,
-            (int) $afterRow['published_revision_id'],
-            'the published pointer must be provably unmoved by the accepted echo PATCH',
+        self::assertNull(
+            $afterRow['published_revision_id'],
+            'the published pointer must be provably unmoved (still null) by the accepted echo PATCH',
         );
         // The content edit legitimately cut a NEW revision (C-22 WP3): the
         // tip pointer advances even though the PUBLISHED pointer does not —

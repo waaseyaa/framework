@@ -75,7 +75,12 @@ final class GenericAdminSurfaceHostWorkflowMappingTest extends TestCase
 
         $etm = $this->createMock(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
-        $etm->method('getDefinition')->willReturn(new EntityType(id: 'article', label: 'Article', class: \stdClass::class, keys: ['id' => 'id']));
+        // 'title' must be a writable entity key (the `label` kind) so
+        // CW-v1 option-1 PR-4's EntityWritePayloadGuard passes it through —
+        // otherwise the write-allowlist's own "not writable" refusal fires
+        // before save() is ever reached, masking the TransitionDeniedException
+        // mapping this test actually pins.
+        $etm->method('getDefinition')->willReturn(new EntityType(id: 'article', label: 'Article', class: \stdClass::class, keys: ['id' => 'id', 'label' => 'title']));
         $etm->method('getRepository')->willReturn($repository);
 
         $accessHandler = $this->createMock(EntityAccessHandler::class);

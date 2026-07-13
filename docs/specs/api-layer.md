@@ -566,6 +566,29 @@ echo-tolerance only recognizes "the client read this and is handing it back
 unchanged," which is the read contract's own round trip, not a new write
 surface.
 
+**Interaction with PR-2's same-state republish (empirically verified during
+this rework's own rebase).** Once a node carries a published pointer, it is
+"default-revision-disciplined" for every later save
+(`WorkflowStateGuard::setDiscipline()`, `docs/specs/content-workflow.md`
+"Default-revision discipline"): an AUTHORIZED same-state edit of
+already-published content legitimately RE-PUBLISHES what it just saved
+(same-state republish, through the `setPublishedRevision()` choke point),
+independent of anything in the PATCH body or of this guard. Concretely, an
+accepted echo PATCH of a published node's `published_revision_id` does
+**not** leave the base row byte-unmoved — the pointer correctly advances
+together with the newly-cut revision (verified empirically:
+`revision_id === published_revision_id` before AND after such a save). This
+is intended engine behavior, not a regression this guard should fight: the
+guard's job is only to ensure the pointer never moves to an
+UNAUTHORIZED/ARBITRARY value the client supplied (findings #1/#2, still
+closed — see `eve_cannot_move_the_published_pointer_through_a_patch_body()`),
+never to freeze it. The round-trip pin test therefore asserts
+SELF-CONSISTENCY (`published_revision_id === revision_id` after the save),
+not byte-immutability; the dedicated "value provably not rewritten by the
+save" pin (rework brief test #3) uses a NEVER-published node instead, where
+discipline never engages and no independent pointer mechanism can mask
+whether the guard's own strip-before-apply did its job.
+
 **Applied surfaces:**
 
 | Surface | Call site | Notes |
@@ -595,13 +618,16 @@ Pinned end-to-end (real SQLite, real `NodeServiceProvider` +
 finding #1's exact scenario against the echo-tolerant logic (Eve's submitted
 `published_revision_id` is a DIFFERENT value than the live pointer, so it
 still 422s and the base row is byte-unmoved); the PR-4 rework adds
-`full_attribute_round_trip_patch_persists_the_changed_title_and_leaves_the_published_pointer_untouched()`
+`full_attribute_round_trip_patch_persists_the_changed_title_and_the_pointer_stays_self_consistent()`
 (the admin-SPA-shaped oracle: GET → PATCH the full attribute set back with
-one field changed → 200, title persisted, pointer byte-unmoved),
+one field changed → 200, title persisted; the published pointer is proven
+SELF-CONSISTENT with the new tip rather than byte-unmoved — see the
+"Interaction with PR-2's same-state republish" note below),
 `echo_equal_published_revision_id_is_accepted_and_the_pointer_is_not_rewritten_by_an_ordinary_edit()`
-(an echo alongside a genuine content edit that legitimately cuts a new
-revision — proves the PUBLISHED pointer stays put even while the TIP
-revision id legitimately advances), and
+(a NEVER-published node, where no independent pointer mechanism engages: an
+echo of the null pointer alongside a genuine content edit that legitimately
+cuts a new revision proves the PUBLISHED pointer stays put — still null —
+even while the TIP revision id correctly advances), and
 `account_with_only_the_type_level_create_permission_cannot_create_an_article()`
 (the MINOR create-access bundle-key fix, deny path). Unit coverage:
 `EntityWritePayloadGuardTest` (the guard in isolation, including the
