@@ -140,7 +140,6 @@ final class SqlStateTest extends TestCase
         $array = ['nested' => ['data' => [1, 2, 3]], 'key' => 'value'];
         $this->state->set('array_key', $array);
 
-        // Clear the in-memory cache by creating a fresh SqlState on the same database.
         $freshState = new SqlState($this->database);
         $result = $freshState->get('array_key');
 
@@ -155,7 +154,6 @@ final class SqlStateTest extends TestCase
 
         $this->state->set('object_key', $obj);
 
-        // Clear the in-memory cache by creating a fresh SqlState on the same database.
         $freshState = new SqlState($this->database);
         $retrieved = $freshState->get('object_key');
 
@@ -169,7 +167,6 @@ final class SqlStateTest extends TestCase
         $this->state->set('flag_true', true);
         $this->state->set('flag_false', false);
 
-        // Fresh state to bypass cache.
         $freshState = new SqlState($this->database);
 
         $this->assertTrue($freshState->get('flag_true'));
@@ -180,52 +177,43 @@ final class SqlStateTest extends TestCase
     {
         $this->state->set('nullable', null);
 
-        // Fresh state to bypass cache.
         $freshState = new SqlState($this->database);
 
         // Should return null (the stored value), NOT the default.
         $this->assertNull($freshState->get('nullable', 'default'));
     }
 
-    public function testCachingPreventsRedundantQueries(): void
+    public function testGetReadsFreshStateOnTheNextRequestInTheSameProcess(): void
     {
-        $this->state->set('cached_key', 'cached_value');
+        $this->state->set('worker_key', 'first request');
+        $this->assertSame('first request', $this->state->get('worker_key'));
 
-        // First get populates the cache (value was already cached from set).
-        $value1 = $this->state->get('cached_key');
+        $concurrentRequest = new SqlState($this->database);
+        $concurrentRequest->set('worker_key', 'second request');
 
-        // Drop the table entirely to prove second read comes from cache.
-        $this->database->schema()->dropTable('state');
-
-        // This should still work because of the in-memory cache.
-        $value2 = $this->state->get('cached_key');
-
-        $this->assertSame('cached_value', $value1);
-        $this->assertSame('cached_value', $value2);
+        $this->assertSame('second request', $this->state->get('worker_key'));
     }
 
-    public function testDeleteClearsCache(): void
+    public function testDeleteRemovesStoredValue(): void
     {
         $this->state->set('key', 'value');
         $this->assertSame('value', $this->state->get('key'));
 
         $this->state->delete('key');
 
-        // After delete, get should return default, not cached value.
         $this->assertNull($this->state->get('key'));
     }
 
-    public function testGetMultipleUsesCacheForKnownKeys(): void
+    public function testGetMultipleReadsFreshStateOnTheNextRequestInTheSameProcess(): void
     {
         $this->state->set('x', 10);
         $this->state->set('y', 20);
+        $this->assertSame(['x' => 10, 'y' => 20], $this->state->getMultiple(['x', 'y']));
 
-        // Values are now cached. Get multiple for a mix of cached and uncached.
-        $result = $this->state->getMultiple(['x', 'y', 'z']);
+        $concurrentRequest = new SqlState($this->database);
+        $concurrentRequest->setMultiple(['x' => 11, 'y' => 21]);
 
-        $this->assertSame(10, $result['x']);
-        $this->assertSame(20, $result['y']);
-        $this->assertArrayNotHasKey('z', $result);
+        $this->assertSame(['x' => 11, 'y' => 21], $this->state->getMultiple(['x', 'y']));
     }
 
     public function testTableAutoCreatedOnFirstOperation(): void

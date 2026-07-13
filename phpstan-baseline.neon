@@ -1165,12 +1165,6 @@ parameters:
 			path: packages/ssr/src/ThemeServiceProvider.php
 
 		-
-			message: '#^Construct empty\(\) is not allowed\. Use more strict comparison\.$#'
-			identifier: empty.notAllowed
-			count: 1
-			path: packages/state/src/SqlState.php
-
-		-
 			message: '#^Cannot call method bindValue\(\) on PDOStatement\|false\.$#'
 			identifier: method.nonObject
 			count: 15
