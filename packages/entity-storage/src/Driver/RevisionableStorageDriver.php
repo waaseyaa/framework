@@ -285,6 +285,19 @@ final class RevisionableStorageDriver
             }
         }
 
+        // Guard: cannot delete the LATEST revision either (CW-v1 option-1,
+        // #1920 PR-1) — under default-revision discipline the base
+        // `revision_id` pointer checked above stops tracking the tip (it
+        // stays equal to `published_revision_id`), so the working copy is no
+        // longer covered by either guard above. Deleting it during a review
+        // window would destroy an in-progress draft.
+        $latestRevisionId = $this->getLatestRevisionId($entityId);
+        if ($latestRevisionId !== null && $latestRevisionId === $revisionId) {
+            throw new \LogicException(
+                "Cannot delete the latest revision {$revisionId} for entity {$entityId}. It is the current working copy.",
+            );
+        }
+
         $db->delete($this->revisionTable)
             ->condition('entity_id', $entityId)
             ->condition('revision_id', (string) $revisionId)
