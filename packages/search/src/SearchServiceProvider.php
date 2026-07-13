@@ -52,7 +52,16 @@ final class SearchServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $indexer = $this->resolve(SearchIndexerInterface::class);
-        $subscriber = new SearchIndexSubscriber($indexer);
+        // CW-v1 option-1 (#1920 PR-2): resolved optionally, mirroring the
+        // other collaborators' convention elsewhere in the framework — a
+        // missing EntityTypeManagerInterface degrades the subscriber to its
+        // pre-option-1 fallback (index the in-memory event entity directly),
+        // never a boot crash.
+        $entityTypeManager = $this->resolveOptional(EntityTypeManagerInterface::class);
+        $subscriber = new SearchIndexSubscriber(
+            $indexer,
+            entityTypeManager: $entityTypeManager instanceof EntityTypeManagerInterface ? $entityTypeManager : null,
+        );
 
         $dispatcher = $this->resolve(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
         if ($dispatcher instanceof EventDispatcherInterface) {

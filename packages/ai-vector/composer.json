@@ -39,11 +39,16 @@
         {
             "type": "path",
             "url": "../workflows"
+        },
+        {
+            "type": "path",
+            "url": "../entity-storage"
         }
     ],
     "require": {
         "php": ">=8.5",
         "waaseyaa/entity": "^0.1.0-alpha.259",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.259",
         "waaseyaa/queue": "^0.1.0-alpha.259",
         "waaseyaa/api": "^0.1.0-alpha.259",
         "waaseyaa/access": "^0.1.0-alpha.259",

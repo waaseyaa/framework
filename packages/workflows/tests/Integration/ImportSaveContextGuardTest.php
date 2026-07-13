@@ -25,12 +25,16 @@ use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent;
 use Waaseyaa\EntityStorage\SaveContext;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 use Waaseyaa\Workflows\DefaultWorkflows;
+use Waaseyaa\Workflows\Listener\WorkflowPointerMoveGuard;
+use Waaseyaa\Workflows\Listener\WorkflowRepublishListener;
 use Waaseyaa\Workflows\Listener\WorkflowStateGuard;
+use Waaseyaa\Workflows\Republish\RepublishMarker;
 use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 use Waaseyaa\Workflows\Workflow;
 
@@ -72,6 +76,21 @@ use Waaseyaa\Workflows\Workflow;
  *    afterward via {@see \Waaseyaa\Workflows\Transition\TransitionService::transition()},
  *    which takes its `AccountInterface` as an explicit argument rather than
  *    relying on ambient context.
+ *
+ * **CW-v1 option-1 update-path adjacency (#1920 PR-2, design §3.1):** the
+ * contract above is create-path only. Once a row carries a LIVE published
+ * pointer, an import-flagged UPDATE that changes served content (same
+ * `workflow_state`, disciplined, revision-creating) is the exact same-state
+ * republish shape {@see WorkflowStateGuard::guardSameStateRepublish()}
+ * gates — `isImport` still has zero special-case effect on the guard (the
+ * headline finding above), but the underlying rule itself is NEW as of
+ * PR-2: an authenticated ambient account without any-of authorization is
+ * now denied (previously: no gate existed at all — this content-workflow
+ * discipline literally did not exist pre-option-1); a null ambient account
+ * (the common bulk-import shape) still passes AND, per the arm/consume
+ * two-step, promotes the freshly-imported content through the
+ * `setPublishedRevision()` choke point — outcome-equivalent to the direct
+ * base-row write a pre-option-1 import produced.
  */
 #[CoversNothing]
 final class ImportSaveContextGuardTest extends TestCase
@@ -163,6 +182,78 @@ final class ImportSaveContextGuardTest extends TestCase
         $this->assertSame(1, $stored->get('status'));
     }
 
+    #[Test]
+    public function an_import_update_of_an_already_published_bound_row_requires_any_of_authorization_with_an_ambient_account_and_passes_and_promotes_without_one(): void
+    {
+        [$entityTypeManager, $accountContext] = $this->bootWiredGuard();
+        $repository = $entityTypeManager->getRepository(self::ENTITY_TYPE_ID);
+
+        // Establish a live published pointer directly (simulates a
+        // backfill/prior import run — this test does not exercise
+        // TransitionService, so the pointer is set via the storage
+        // primitive itself, exactly as `revision-system-unified.md`'s
+        // backfill procedure does).
+        $importer = $this->account(9, ['use editorial transition publish']);
+        $accountContext->set($importer);
+        $published = new ImportGuardSubject(
+            ['bundle' => self::ENTITY_TYPE_ID, 'workflow_state' => 'published', 'title' => 'Original import'],
+            self::ENTITY_TYPE_ID,
+            $this->entityKeys(),
+        );
+        $repository->save($published, true, SaveContext::default()->asImport());
+        $entityId = (string) $published->id();
+        $repository->setPublishedRevision($entityId, (int) $published->get('revision_id'));
+        $this->assertNotNull($repository->loadPublishedRevision($entityId), 'A live published pointer must exist for this adjacency to be meaningful.');
+
+        // An authenticated ambient account with NO any-of authorization
+        // into 'published': a same-state, revision-creating import UPDATE
+        // is newly denied (CW-v1 option-1) — before PR-2 this content-
+        // workflow discipline did not exist at all.
+        $unauthorizedImporter = $this->account(10, []);
+        $accountContext->set($unauthorizedImporter);
+        $deniedUpdate = new ImportGuardSubject(
+            ['id' => $published->id(), 'bundle' => self::ENTITY_TYPE_ID, 'workflow_state' => 'published', 'title' => 'Unauthorized re-import'],
+            self::ENTITY_TYPE_ID,
+            $this->entityKeys(),
+        );
+        $deniedUpdate->setNewRevision(true);
+
+        $denied = null;
+        try {
+            $repository->save($deniedUpdate, true, SaveContext::default()->asImport());
+        } catch (TransitionDeniedException $e) {
+            $denied = $e;
+        }
+        $this->assertInstanceOf(TransitionDeniedException::class, $denied);
+        $this->assertSame(TransitionDeniedException::REASON_PERMISSION, $denied->reason);
+
+        $afterDenial = $repository->find($entityId);
+        $this->assertNotNull($afterDenial);
+        $this->assertSame('Original import', $afterDenial->get('title'), 'A denied import update must not commit.');
+
+        // A null ambient account (the common bulk-import shape): the same
+        // same-state update passes AND promotes through the choke point —
+        // outcome-equivalent to a pre-option-1 import's direct base-row
+        // write.
+        $accountContext->set(null);
+        $nullContextUpdate = new ImportGuardSubject(
+            ['id' => $published->id(), 'bundle' => self::ENTITY_TYPE_ID, 'workflow_state' => 'published', 'title' => 'Null-context re-import'],
+            self::ENTITY_TYPE_ID,
+            $this->entityKeys(),
+        );
+        $nullContextUpdate->setNewRevision(true);
+        $repository->save($nullContextUpdate, true, SaveContext::default()->asImport());
+
+        $afterNullContextImport = $repository->find($entityId);
+        $this->assertNotNull($afterNullContextImport);
+        $this->assertSame('Null-context re-import', $afterNullContextImport->get('title'), 'A null-context import update must pass AND promote through setPublishedRevision().');
+        $this->assertSame(
+            (string) $repository->loadPublishedRevision($entityId)?->get('revision_id'),
+            (string) $afterNullContextImport->get('revision_id'),
+            'The base row and the published pointer must land on the same revision after the auto-promotion.',
+        );
+    }
+
     /**
      * @return array<string, string>
      */
@@ -239,8 +330,26 @@ final class ImportSaveContextGuardTest extends TestCase
         $bindings = new WorkflowBindingResolver($configFactory, $entityTypeManager);
         $accountContext = new RequestAccountContext();
 
-        $guard = new WorkflowStateGuard($bindings, $entityTypeManager, $accountContext);
+        // CW-v1 option-1 (#1920 PR-2): the shared arm/consume marker, wired
+        // the same way WorkflowServiceProvider wires it in production —
+        // needed for the update-path adjacency test below, which exercises
+        // the same-state republish two-step end to end.
+        $republishMarker = new RepublishMarker();
+        $guard = new WorkflowStateGuard($bindings, $entityTypeManager, $accountContext, republishMarker: $republishMarker);
         $dispatcher->addListener(EntityEvents::PRE_SAVE->value, [$guard, 'onPreSave']);
+
+        // CW-v1 option-1 (#1920 PR-2): the pointer-move guard is what sets
+        // the discipline flag on BeforeRevisionPointerMoveEvent — without
+        // it, WorkflowRepublishListener's setPublishedRevision() call below
+        // takes the UNFLAGGED single-column-pointer-only path and the base
+        // row's OTHER columns (title, revision_id) never get copied
+        // forward, even though the pointer value itself moves. Wiring all
+        // three collaborators together mirrors WorkflowServiceProvider::boot().
+        $pointerGuard = new WorkflowPointerMoveGuard($bindings, $entityTypeManager, $accountContext);
+        $dispatcher->addListener(BeforeRevisionPointerMoveEvent::class, [$pointerGuard, 'onBeforePointerMove']);
+
+        $republishListener = new WorkflowRepublishListener($republishMarker, $entityTypeManager);
+        $dispatcher->addListener(EntityEvents::POST_SAVE->value, [$republishListener, 'onPostSave']);
 
         return [$entityTypeManager, $accountContext];
     }

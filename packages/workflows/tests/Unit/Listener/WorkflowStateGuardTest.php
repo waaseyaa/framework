@@ -17,11 +17,15 @@ use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Entity\RevisionableEntityInterface;
+use Waaseyaa\Entity\RevisionableEntityTrait;
 use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
+use Waaseyaa\Workflows\Group\GroupConstraintChecker;
 use Waaseyaa\Workflows\Listener\WorkflowStateGuard;
+use Waaseyaa\Workflows\Republish\RepublishMarker;
 use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 use Waaseyaa\Workflows\Workflow;
 
@@ -53,17 +57,27 @@ final class WorkflowStateGuardTest extends TestCase
         ]);
     }
 
-    private function entityTypeManager(?Workflow $workflow, ?EntityInterface $publishedRevision = null): EntityTypeManagerInterface
-    {
-        return new class ($workflow, $publishedRevision) implements EntityTypeManagerInterface {
+    /**
+     * @param bool $workingCopyExplicitlyNull true means "loadWorkingCopy() must
+     *   return null" (proving guardUpdate()'s fallback to $originalEntity);
+     *   false (default) means "no override" — loadWorkingCopy() mirrors find(),
+     *   which returns $workingCopy when given, else null.
+     */
+    private function entityTypeManager(
+        ?Workflow $workflow,
+        ?EntityInterface $publishedRevision = null,
+        ?EntityInterface $workingCopy = null,
+    ): EntityTypeManagerInterface {
+        return new class ($workflow, $publishedRevision, $workingCopy) implements EntityTypeManagerInterface {
             public function __construct(
                 private readonly ?Workflow $workflow,
                 private readonly ?EntityInterface $publishedRevision,
+                private readonly ?EntityInterface $workingCopy,
             ) {}
 
             public function getDefinition(string $entityTypeId): EntityTypeInterface
             {
-                return new EntityType(id: 'fixture', label: 'Fixture', class: \stdClass::class, keys: ['id' => 'id', 'revision' => 'vid'], revisionable: true);
+                return new EntityType(id: 'fixture', label: 'Fixture', class: \stdClass::class, keys: ['id' => 'id', 'revision' => 'vid'], revisionable: true, revisionDefault: true);
             }
 
             public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array { return []; }
@@ -76,23 +90,62 @@ final class WorkflowStateGuardTest extends TestCase
 
             public function getRepository(string $entityTypeId): EntityRepositoryInterface
             {
-                $workflow = $this->workflow;
-                $publishedRevision = $this->publishedRevision;
+                // `WorkflowBindingResolver` looks up the bound Workflow
+                // itself via getRepository('workflow')->find($workflowId) —
+                // kept as a distinct branch so that lookup stays independent
+                // of the guard's OWN entity repository (used for
+                // loadPublishedRevision()/loadWorkingCopy() below), which
+                // this fixture previously conflated (both calls hit the
+                // same repository double, so loadWorkingCopy() returned the
+                // bound Workflow object instead of a content-entity stand-in
+                // — CW-v1 option-1 #1920 PR-2 fix).
+                if ($entityTypeId === 'workflow') {
+                    $workflow = $this->workflow;
 
-                return new class ($workflow, $publishedRevision) implements EntityRepositoryInterface {
+                    return new class ($workflow) implements EntityRepositoryInterface {
+                        public function __construct(private readonly ?Workflow $workflow) {}
+                        public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
+                        public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return $this->workflow; }
+                        public function loadWorkingCopy(string $id): ?EntityInterface { return $this->find($id); }
+                        public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
+                        public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
+                        public function getQuery(): EntityQueryInterface { throw new \LogicException('not needed'); }
+                        public function save(EntityInterface $entity, bool $validate = true): int { throw new \LogicException('not needed'); }
+                        public function delete(EntityInterface $entity): void {}
+                        public function exists(string $id): bool { return $this->workflow !== null; }
+                        public function count(array $criteria = []): int { return 0; }
+                        public function loadRevision(string $entityId, int $revisionId): ?EntityInterface { return null; }
+                        public function rollback(string $entityId, int $targetRevisionId): EntityInterface { throw new \LogicException('not needed'); }
+                        public function listRevisions(string $entityId): array { return []; }
+                        public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+                        public function loadPublishedRevision(string $entityId): ?EntityInterface { return null; }
+                        public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+                        public function saveMany(array $entities, bool $validate = true): array { return []; }
+                        public function deleteMany(array $entities): int { return 0; }
+                        public function findTranslations(EntityInterface $entity): array { return []; }
+                        public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int { return 0; }
+                        public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
+                        public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
+                    };
+                }
+
+                $publishedRevision = $this->publishedRevision;
+                $workingCopy = $this->workingCopy;
+
+                return new class ($publishedRevision, $workingCopy) implements EntityRepositoryInterface {
                     public function __construct(
-                        private readonly ?Workflow $workflow,
                         private readonly ?EntityInterface $publishedRevision,
+                        private readonly ?EntityInterface $workingCopy,
                     ) {}
                     public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
-                    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return $this->workflow; }
-                    public function loadWorkingCopy(string $id): ?EntityInterface { return $this->find($id); }
+                    public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return $this->workingCopy; }
+                    public function loadWorkingCopy(string $id): ?EntityInterface { return $this->workingCopy; }
                     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
                     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
                     public function getQuery(): EntityQueryInterface { throw new \LogicException('not needed'); }
                     public function save(EntityInterface $entity, bool $validate = true): int { throw new \LogicException('not needed'); }
                     public function delete(EntityInterface $entity): void {}
-                    public function exists(string $id): bool { return $this->workflow !== null; }
+                    public function exists(string $id): bool { return true; }
                     public function count(array $criteria = []): int { return 0; }
                     public function loadRevision(string $entityId, int $revisionId): ?EntityInterface { return null; }
                     public function rollback(string $entityId, int $targetRevisionId): EntityInterface { throw new \LogicException('not needed'); }
@@ -238,6 +291,42 @@ final class WorkflowStateGuardTest extends TestCase
         };
     }
 
+    /**
+     * A fixture entity built on the REAL {@see RevisionableEntityTrait} —
+     * carries `setDefaultRevisionDiscipline()`/`isDefaultRevisionDisciplined()`
+     * (the actual production discipline-flag storage, not a hand-rolled
+     * stand-in), so discipline-flag tests exercise the exact duck-checked
+     * `method_exists()` gate the guard uses.
+     *
+     * @param array<string, mixed> $values
+     */
+    private function disciplinedEntity(array $values, bool $isNew): EntityInterface&RevisionableEntityInterface
+    {
+        return new class ($values, $isNew) implements EntityInterface, RevisionableEntityInterface {
+            use RevisionableEntityTrait;
+
+            public function __construct(private array $values, private readonly bool $new) {}
+
+            public function id(): int|string|null { return $this->values['id'] ?? null; }
+            public function uuid(): string { return 'u-1'; }
+            public function label(): string { return 'Fixture'; }
+            public function getEntityTypeId(): string { return 'fixture'; }
+            public function bundle(): string { return 'article'; }
+            public function isNew(): bool { return $this->new; }
+            public function get(string $name): mixed { return $this->values[$name] ?? null; }
+
+            public function set(string $name, mixed $value): static
+            {
+                $this->values[$name] = $value;
+
+                return $this;
+            }
+
+            public function toArray(): array { return $this->values; }
+            public function language(): string { return 'en'; }
+        };
+    }
+
     private function guard(Workflow $workflow, ?AccountInterface $account, ?EntityInterface $publishedRevision = null): WorkflowStateGuard
     {
         $entityTypeManager = $this->entityTypeManager($workflow, $publishedRevision);
@@ -246,6 +335,29 @@ final class WorkflowStateGuardTest extends TestCase
             $this->bindings($workflow, $entityTypeManager),
             $entityTypeManager,
             $this->accountContext($account),
+        );
+    }
+
+    /**
+     * Full-collaborator guard for the discipline-flag / working-copy-basis /
+     * same-state-republish tests (CW-v1 option-1, #1920 PR-2).
+     */
+    private function fullGuard(
+        Workflow $workflow,
+        ?AccountInterface $account,
+        ?EntityInterface $publishedRevision,
+        ?EntityInterface $workingCopy,
+        RepublishMarker $republishMarker,
+        ?GroupConstraintChecker $groupConstraintChecker = null,
+    ): WorkflowStateGuard {
+        $entityTypeManager = $this->entityTypeManager($workflow, $publishedRevision, $workingCopy);
+
+        return new WorkflowStateGuard(
+            $this->bindings($workflow, $entityTypeManager),
+            $entityTypeManager,
+            $this->accountContext($account),
+            $groupConstraintChecker,
+            $republishMarker,
         );
     }
 
@@ -666,5 +778,330 @@ final class WorkflowStateGuardTest extends TestCase
         $guard->onPreSave(new EntityEvent($entity, $original));
 
         $this->assertSame(0, $entity->get('status'));
+    }
+
+    // ------------------------------------------------------------------
+    // CW-v1 option-1 (#1920 PR-2): discipline flag, working-copy basis,
+    // same-state republish arming.
+    // ------------------------------------------------------------------
+
+    #[Test]
+    public function the_discipline_flag_is_set_true_when_a_published_pointer_exists(): void
+    {
+        $workflow = $this->editorialWorkflow();
+        $publishedRevision = $this->entity(['id' => 1, 'workflow_state' => 'published', 'status' => 1], isNew: false);
+        $marker = new RepublishMarker();
+        $guard = $this->fullGuard($workflow, null, $publishedRevision, null, $marker);
+
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertTrue($entity->isDefaultRevisionDisciplined());
+    }
+
+    #[Test]
+    public function the_discipline_flag_is_set_false_unconditionally_when_no_published_pointer_exists_even_overriding_a_stale_true(): void
+    {
+        // The flag is set UNCONDITIONALLY on every guarded save — never
+        // set-on-true-only — so a stale `true` from a prior disciplined
+        // save of a long-lived entity object cannot leak into a later,
+        // unpointered save (design §1, verifier finding 6).
+        $workflow = $this->editorialWorkflow();
+        $marker = new RepublishMarker();
+        $guard = $this->fullGuard($workflow, null, null, null, $marker);
+
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'draft'], isNew: false);
+        $entity->setDefaultRevisionDiscipline(true);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'draft'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertFalse($entity->isDefaultRevisionDisciplined());
+    }
+
+    #[Test]
+    public function unbound_entities_leave_the_discipline_flag_untouched(): void
+    {
+        // "unbound -> false" is really "untouched": the guard returns
+        // immediately for an unbound entity type/bundle (class docblock),
+        // before it ever reaches the discipline-flag write.
+        $entityTypeManager = $this->entityTypeManager(null);
+        $guard = new WorkflowStateGuard($this->bindings(null, $entityTypeManager), $entityTypeManager);
+
+        $entity = $this->disciplinedEntity(['id' => 1], isNew: true);
+        $entity->setDefaultRevisionDiscipline(true);
+
+        $guard->onPreSave(new EntityEvent($entity));
+
+        $this->assertTrue($entity->isDefaultRevisionDisciplined());
+    }
+
+    #[Test]
+    public function guard_update_uses_the_working_copy_not_the_base_row_as_the_original_state_basis(): void
+    {
+        // Without the option-1 basis switch, this save would be validated
+        // as published -> draft (the base row/original-entity state) and
+        // would require the 'revise' transition's permission. With the
+        // switch, the basis is the WORKING COPY (already 'draft' — a
+        // forward draft in progress), so this is a same-state,
+        // non-default-revision save: ungated (the forward-draft case
+        // itself). The acting account holds NO permissions — a red proof
+        // that the pre-fix code path (base-row basis) would deny this.
+        $workflow = $this->editorialWorkflow();
+        $workingCopy = $this->entity(['id' => 1, 'workflow_state' => 'draft'], isNew: false);
+        $marker = new RepublishMarker();
+        $guard = $this->fullGuard($workflow, $this->account([]), null, $workingCopy, $marker);
+
+        $entity = $this->entity(['id' => 1, 'workflow_state' => 'draft'], isNew: false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertSame('draft', $entity->get('workflow_state'));
+    }
+
+    #[Test]
+    public function an_authorized_disciplined_revision_creating_same_state_save_into_a_default_revision_state_arms_the_republish_marker(): void
+    {
+        $workflow = $this->editorialWorkflow();
+        $publishedRevision = $this->entity(['id' => 1, 'workflow_state' => 'published', 'status' => 1], isNew: false);
+        $workingCopy = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $marker = new RepublishMarker();
+        $account = $this->account(['use editorial transition publish']);
+        $guard = $this->fullGuard($workflow, $account, $publishedRevision, $workingCopy, $marker);
+
+        // disciplinedEntity()'s bundle default is revisionDefault: true
+        // (this test file's entityTypeManager() fixture) — no explicit
+        // isNewRevision() override, so this save IS revision-creating.
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertTrue($marker->consume($entity), 'An authorized same-state edit of served (default-revision) content must arm the republish marker.');
+    }
+
+    #[Test]
+    public function an_unauthorized_disciplined_revision_creating_same_state_save_into_a_default_revision_state_is_denied_and_not_armed(): void
+    {
+        $workflow = $this->editorialWorkflow();
+        $publishedRevision = $this->entity(['id' => 1, 'workflow_state' => 'published', 'status' => 1], isNew: false);
+        $workingCopy = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $marker = new RepublishMarker();
+        $guard = $this->fullGuard($workflow, $this->account([]), $publishedRevision, $workingCopy, $marker);
+
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+
+        try {
+            $guard->onPreSave(new EntityEvent($entity, $original));
+            $this->fail('Expected TransitionDeniedException');
+        } catch (TransitionDeniedException $e) {
+            $this->assertSame(TransitionDeniedException::REASON_PERMISSION, $e->reason);
+        }
+
+        $this->assertFalse($marker->consume($entity), 'A denied same-state republish must not arm the marker.');
+    }
+
+    #[Test]
+    public function a_same_state_save_with_a_null_account_context_arms_the_republish_marker(): void
+    {
+        // Null account context: edge-legality-only everywhere else in this
+        // class — the same-state republish gate follows the same rule.
+        $workflow = $this->editorialWorkflow();
+        $publishedRevision = $this->entity(['id' => 1, 'workflow_state' => 'published', 'status' => 1], isNew: false);
+        $workingCopy = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $marker = new RepublishMarker();
+        $guard = $this->fullGuard($workflow, null, $publishedRevision, $workingCopy, $marker);
+
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertTrue($marker->consume($entity));
+    }
+
+    #[Test]
+    public function a_state_changing_save_never_arms_the_republish_marker(): void
+    {
+        // Arming only ever happens from the same-state branch — the
+        // promote branch's first (state-changing, revision-creating) save
+        // must never arm: the POST_SAVE listener would otherwise
+        // double-promote inside the SAME repository->save() call
+        // (design §3.1 finding A1).
+        $workflow = $this->editorialWorkflow();
+        $marker = new RepublishMarker();
+        $account = $this->account(['use editorial transition publish']);
+        $guard = $this->fullGuard($workflow, $account, null, null, $marker);
+
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'draft'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertFalse($marker->consume($entity));
+    }
+
+    #[Test]
+    public function an_unauthorized_non_revision_creating_same_state_save_into_a_default_revision_state_is_denied(): void
+    {
+        // Fix-wave correction (#1920 PR-2 adversarial review): the any-of
+        // authorization applies to EVERY disciplined same-state save whose
+        // state is default_revision: true — revision-creating or not. An
+        // opt-out bundle's in-place edit of the already-published tip
+        // reaches the base row directly (the writeBase rule in
+        // EntityRepository::doSave()), i.e. it changes SERVED content —
+        // gating only revision-creating saves let an account with plain
+        // entity update access edit live published content with no
+        // workflow permission checked at all.
+        $workflow = $this->editorialWorkflow();
+        $publishedRevision = $this->entity(['id' => 1, 'workflow_state' => 'published', 'status' => 1], isNew: false);
+        $workingCopy = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $marker = new RepublishMarker();
+        $guard = $this->fullGuard($workflow, $this->account([]), $publishedRevision, $workingCopy, $marker);
+
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $entity->setNewRevision(false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+
+        try {
+            $guard->onPreSave(new EntityEvent($entity, $original));
+            $this->fail('Expected TransitionDeniedException');
+        } catch (TransitionDeniedException $e) {
+            $this->assertSame(TransitionDeniedException::REASON_PERMISSION, $e->reason);
+        }
+
+        $this->assertFalse($marker->consume($entity), 'A denied in-place same-state save must not arm.');
+    }
+
+    #[Test]
+    public function an_authorized_non_revision_creating_same_state_save_passes_and_never_arms(): void
+    {
+        // The authorized counterpart: passes the (now unconditional) any-of
+        // gate but never ARMS — the in-place save reaches the base row
+        // directly via the storage writeBase rule; there is no orphan tip
+        // to promote, so a POST_SAVE promotion would be redundant.
+        $workflow = $this->editorialWorkflow();
+        $publishedRevision = $this->entity(['id' => 1, 'workflow_state' => 'published', 'status' => 1], isNew: false);
+        $workingCopy = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $marker = new RepublishMarker();
+        $account = $this->account(['use editorial transition publish']);
+        $guard = $this->fullGuard($workflow, $account, $publishedRevision, $workingCopy, $marker);
+
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $entity->setNewRevision(false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertFalse($marker->consume($entity), 'An in-place (non-revision-creating) same-state save must never arm.');
+    }
+
+    #[Test]
+    public function the_archive_flows_in_place_status_flip_save_passes_the_gate_with_the_archive_permission(): void
+    {
+        // Fix-wave pin (#1920 PR-2 adversarial review): TransitionService's
+        // second (post-pointer-move, status-flip) save is an in-place,
+        // same-state save of a default_revision: true state — with the gate
+        // now unconditional, it too is authorization-checked. It must PASS,
+        // because the ambient account holds the fired transition's own
+        // permission, which is by definition a transition INTO the target
+        // state (any-of satisfied). The archive flow is the sharpest case:
+        // any-of into 'archived' = the 'archive' permission.
+        $workflow = new Workflow(['id' => 'editorial', 'label' => 'Editorial', 'initial_state' => 'draft',
+            'states' => [
+                'draft' => ['label' => 'Draft'],
+                'published' => ['label' => 'Published', 'published' => true, 'default_revision' => true],
+                'archived' => ['label' => 'Archived', 'published' => false, 'default_revision' => true],
+            ],
+            'transitions' => [
+                'publish' => ['label' => 'Publish', 'from' => ['draft'], 'to' => 'published'],
+                'archive' => ['label' => 'Archive', 'from' => ['published'], 'to' => 'archived'],
+            ],
+        ]);
+        // Post-pointer-move shape: the pointer (and working copy) already
+        // sit on the just-promoted 'archived' revision; the flip save is
+        // in-place (setNewRevision(false)) and same-state on the
+        // working-copy basis.
+        $publishedRevision = $this->entity(['id' => 1, 'workflow_state' => 'archived', 'status' => 1], isNew: false);
+        $workingCopy = $this->entity(['id' => 1, 'workflow_state' => 'archived'], isNew: false);
+        $marker = new RepublishMarker();
+        $account = $this->account(['use editorial transition archive']);
+        $guard = $this->fullGuard($workflow, $account, $publishedRevision, $workingCopy, $marker);
+
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'archived', 'status' => 0], isNew: false);
+        $entity->setNewRevision(false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'archived'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertSame('archived', $entity->get('workflow_state'));
+        $this->assertFalse($marker->consume($entity), 'The flip save is in-place — it must pass the gate but never arm.');
+    }
+
+    #[Test]
+    public function on_pre_save_clears_a_stale_arm_from_a_previous_aborted_save_of_the_same_object(): void
+    {
+        // Fix-wave stale-arm fix (#1920 PR-2 adversarial review, MINOR): a
+        // PRE_SAVE-aborted save (a later listener threw AFTER the guard
+        // armed) must not leave an arm that a later save of the same object
+        // consumes. onPreSave() unconditionally clears the marker at the
+        // start of every guarded save, mirroring the unconditional
+        // discipline-flag reset.
+        $workflow = $this->editorialWorkflow();
+        $marker = new RepublishMarker();
+        $account = $this->account(['use editorial transition publish']);
+        $guard = $this->fullGuard($workflow, $account, null, null, $marker);
+
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'draft'], isNew: false);
+        $marker->arm($entity); // simulated stale arm from an aborted earlier save
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'draft'], isNew: false);
+
+        // A state-preserving draft save (no published pointer — nothing
+        // arms, nothing is gated) must still have CLEARED the stale arm.
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertFalse($marker->consume($entity), 'onPreSave() must clear any stale arm before anything else.');
+    }
+
+    #[Test]
+    public function a_same_state_save_into_a_non_default_revision_state_never_arms(): void
+    {
+        // Same-state saves into a draft-like (default_revision: false)
+        // state ARE the forward-draft case itself — no republish gate
+        // applies.
+        $workflow = $this->editorialWorkflow();
+        $publishedRevision = $this->entity(['id' => 1, 'workflow_state' => 'published', 'status' => 1], isNew: false);
+        $workingCopy = $this->entity(['id' => 1, 'workflow_state' => 'draft'], isNew: false);
+        $marker = new RepublishMarker();
+        $guard = $this->fullGuard($workflow, null, $publishedRevision, $workingCopy, $marker);
+
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'draft'], isNew: false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertFalse($marker->consume($entity));
+    }
+
+    #[Test]
+    public function a_same_state_save_with_no_published_pointer_never_arms(): void
+    {
+        // Never-published (or undisciplined) content: nothing to protect,
+        // nothing to arm.
+        $workflow = $this->editorialWorkflow();
+        $marker = new RepublishMarker();
+        $account = $this->account(['use editorial transition publish']);
+        $guard = $this->fullGuard($workflow, $account, null, null, $marker);
+
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertFalse($marker->consume($entity));
     }
 }

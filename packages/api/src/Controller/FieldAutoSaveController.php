@@ -12,6 +12,7 @@ use Waaseyaa\Api\Http\JsonApiResponse;
 use Waaseyaa\Api\Sanitizer\RichTextSanitizer;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
+use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 
 /**
  * Per-field auto-save endpoint.
@@ -140,7 +141,17 @@ final class FieldAutoSaveController
         //    sanitization (below) is a read/response-boundary concern only,
         //    so the stored value stays byte-for-byte as authored (non-lossy).
         $entity->set($key, $body['value']);
-        $repository->save($entity);
+
+        // CW-v1 option-1 (#1920 PR-2, design §3.1 finding A2): WorkflowStateGuard
+        // denies from PRE_SAVE inside save() for workflow-bound types — this
+        // per-field autosave was previously unguarded here and would surface a
+        // denial as an uncaught 500. Same permission->403 / other->422 policy
+        // as JsonApiController::workflowTransitionDeniedError().
+        try {
+            $repository->save($entity);
+        } catch (TransitionDeniedException $e) {
+            return $this->workflowTransitionDeniedError($e);
+        }
 
         // 10. 200 response per contracts/README.md F3.
         // R13 WP2 (audit A11, SECURITY): this response ECHOES the just-saved
@@ -176,5 +187,19 @@ final class FieldAutoSaveController
             ['errors' => [['status' => (string) $status, 'code' => $code, 'title' => $title]]],
             $status,
         );
+    }
+
+    /**
+     * @see \Waaseyaa\Api\JsonApiController::workflowTransitionDeniedError() —
+     *   same policy (`permission` -> 403, everything else -> 422), expressed
+     *   in this controller's own error-document shape (status/code/title,
+     *   not a JsonApiError object) rather than widening that method's
+     *   visibility.
+     */
+    private function workflowTransitionDeniedError(TransitionDeniedException $e): JsonApiResponse
+    {
+        $status = $e->reason === TransitionDeniedException::REASON_PERMISSION ? 403 : 422;
+
+        return $this->error($status, 'workflow_transition_denied', $e->getMessage());
     }
 }

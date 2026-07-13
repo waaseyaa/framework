@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Workflows\Listener;
 
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -12,6 +13,7 @@ use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 use Waaseyaa\Workflows\Group\GroupConstraintChecker;
+use Waaseyaa\Workflows\Republish\RepublishMarker;
 use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 use Waaseyaa\Workflows\Workflow;
 use Waaseyaa\Workflows\WorkflowTransition;
@@ -32,6 +34,14 @@ use Waaseyaa\Workflows\WorkflowTransition;
  * Entity types/bundles that do not resolve to a bound workflow are untouched
  * (return immediately) — this listener only governs workflow-bound content.
  *
+ * **CW-v1 option-1 (#1920 PR-2) doctrine inversion:** raw saves never enact
+ * STATE-CHANGING pointer moves — see the "Consequence" note on
+ * {@see guardUpdate()}. But an AUTHORIZED same-state edit of a
+ * `default_revision: true` state DOES re-publish served content, through the
+ * `setPublishedRevision()` choke point (see {@see guardSameStateRepublish()}):
+ * once an entity carries a published pointer, changing what serves IS
+ * publishing, whether the edit changes `workflow_state` or not.
+ *
  * @api
  */
 final class WorkflowStateGuard
@@ -49,6 +59,13 @@ final class WorkflowStateGuard
         // always injects a real checker via resolveOptional(), so a wiring
         // regression now denies loudly instead of silently un-gating.
         private readonly ?GroupConstraintChecker $groupConstraintChecker = null,
+        // CW-v1 option-1 (#1920 PR-2): the arm-at-PRE_SAVE half of the
+        // same-state republish two-step (see class docblock). Optional,
+        // same convention as the collaborators above — a missing marker
+        // (wiring regression) degrades to "same-state edits of served
+        // content never re-publish", not a boot crash; production wiring
+        // always injects the shared singleton.
+        private readonly ?RepublishMarker $republishMarker = null,
     ) {}
 
     /**
@@ -62,6 +79,29 @@ final class WorkflowStateGuard
             return;
         }
 
+        // CW-v1 option-1 (#1920 PR-2, design §1): set UNCONDITIONALLY on
+        // every guarded save — never set-on-true-only, so a stale `true`
+        // from a prior save of a long-lived entity object can never leak
+        // into a later, unguarded save. `$workflow !== null` here already
+        // guarantees the entity type is single-axis revisionable (bindings
+        // hard-throw for non-revisionable and revisionable+translatable
+        // types before this point is ever reached), so no further
+        // revisionable/translatable check is needed. Duck-checked
+        // (method_exists) the same way the rest of this class duck-checks
+        // revision capability — an entity class not built on
+        // RevisionableEntityTrait simply has nothing to set.
+        $this->setDiscipline($entity);
+
+        // Fix-wave stale-arm fix (#1920 PR-2 adversarial review): clear any
+        // republish arm left on this entity OBJECT by a previous,
+        // PRE_SAVE-aborted save (a later listener threw AFTER
+        // guardSameStateRepublish() armed). Unconditional at the start of
+        // every guarded save, mirroring the discipline-flag reset above —
+        // without this, a later state-CHANGING save of the same object
+        // would consume the stale arm at POST_SAVE and silently promote its
+        // new draft tip.
+        $this->republishMarker?->clear($entity);
+
         if ($entity->isNew()) {
             $this->guardCreate($entity, $workflow);
 
@@ -69,6 +109,22 @@ final class WorkflowStateGuard
         }
 
         $this->guardUpdate($entity, $event->originalEntity, $workflow);
+    }
+
+    /**
+     * CW-v1 option-1 (#1920 PR-2, design §1): `$pointered` = the live
+     * `published_revision_id` on the base row. For a create (no id yet),
+     * {@see loadPublishedRevision()} returns null and this sets `false` —
+     * harmless either way, since storage additionally requires `!isNew()`
+     * before honoring the flag.
+     */
+    private function setDiscipline(EntityInterface $entity): void
+    {
+        if (!\method_exists($entity, 'setDefaultRevisionDiscipline')) {
+            return;
+        }
+
+        $entity->setDefaultRevisionDiscipline($this->loadPublishedRevision($entity) !== null);
     }
 
     /**
@@ -117,8 +173,10 @@ final class WorkflowStateGuard
     /**
      * Rules 2 + 3 (update): an unchanged `workflow_state` only re-forces
      * `status` consistency (see {@see applyState()}: pointer-derived on
-     * pointered entities, state-derived otherwise). A changed
-     * `workflow_state` is validated exactly like
+     * pointered entities, state-derived otherwise) and, on a disciplined
+     * default-revision-state save, gates + arms the same-state republish
+     * (see {@see guardSameStateRepublish()}). A changed `workflow_state` is
+     * validated exactly like
      * {@see \Waaseyaa\Workflows\Transition\TransitionService::transition()}:
      * the edge must exist, and — when an acting account context exists — the
      * account must hold the transition's permission. A null context (CLI,
@@ -127,15 +185,26 @@ final class WorkflowStateGuard
      * A validated state change into a `default_revision: false` state on a
      * pointered entity additionally forces a new revision (forward drafts
      * always revision — see the inline comment below).
+     *
+     * **CW-v1 option-1 (#1920 PR-2):** the ORIGINAL-state basis is the
+     * entity's stored WORKING COPY ({@see workingCopyBasis()}), not the
+     * base row `$originalEntity` — under discipline the base row stays
+     * 'published' throughout a draft window, so basing this comparison on
+     * it would spuriously re-validate every draft edit as
+     * `published -> draft`. `loadWorkingCopy()` is mechanically safe on any
+     * entity (undisciplined ones have no divergence, so it degenerates to
+     * `$originalEntity`), so this basis switch is unconditional.
      */
     private function guardUpdate(EntityInterface $entity, ?EntityInterface $originalEntity, Workflow $workflow): void
     {
-        $originalState = $originalEntity !== null
-            ? $this->stateOf($originalEntity, $workflow)
+        $basisEntity = $this->workingCopyBasis($entity, $originalEntity);
+        $originalState = $basisEntity !== null
+            ? $this->stateOf($basisEntity, $workflow)
             : $workflow->getInitialState();
         $newState = $this->stateOf($entity, $workflow);
 
         if ($newState === $originalState) {
+            $this->guardSameStateRepublish($entity, $workflow, $newState);
             $this->applyState($entity, $workflow, $newState);
 
             return;
@@ -205,12 +274,19 @@ final class WorkflowStateGuard
         // the pointer-derived status=1.
         //
         // Consequence, documented (spec "Forward drafts always create a
-        // revision"): raw saves NEVER enact pointer moves. A raw save into
-        // a `default_revision: true` state creates an unpromoted tip
-        // carrying that state while the pointer — and the pointer-derived
-        // `status` ({@see applyState()}) — stay truthful; enacting
-        // default-revision states (moving the pointer) is exclusively
+        // revision"), INVERTED by CW-v1 option-1 (#1920 PR-2, design §3.1
+        // finding A3): raw saves never enact STATE-CHANGING pointer moves.
+        // A raw save into a `default_revision: true` state creates an
+        // unpromoted tip carrying that state while the pointer — and the
+        // pointer-derived `status` ({@see applyState()}) — stay truthful;
+        // enacting a STATE CHANGE into a default-revision state (moving the
+        // pointer across an edge) is exclusively
         // {@see \Waaseyaa\Workflows\Transition\TransitionService}'s job.
+        // An AUTHORIZED SAME-state edit of an already-default-revision
+        // state is different: it re-publishes through the
+        // `setPublishedRevision()` choke point via the arm/consume two-step
+        // — see {@see guardSameStateRepublish()} and
+        // {@see \Waaseyaa\Workflows\Listener\WorkflowRepublishListener}.
         //
         // Precedence: the bundle opt-out governs ordinary
         // NON-state-changing edits; state-changing saves on pointered
@@ -226,6 +302,184 @@ final class WorkflowStateGuard
         }
 
         $this->applyState($entity, $workflow, $newState);
+    }
+
+    /**
+     * CW-v1 option-1 (#1920 PR-2, design §3.1 "Same-state republish").
+     *
+     * A SAME-state save whose state is `default_revision: true` (published
+     * AND archived, uniformly) does not change `workflow_state` — but under
+     * discipline, changing what CONTENT serves at that state IS publishing,
+     * because the base row only ever holds the published revision. Gates +
+     * arms exactly the shape that closes the coherence trap: a plain content
+     * PATCH on a bound published node would otherwise fork a revision-only
+     * tip stamped 'published' that nothing can ever promote (`publish.from`
+     * never includes 'published' itself) — the edit silently never goes
+     * live.
+     *
+     * No-op (returns without gating or arming) when:
+     * - the entity has no published pointer (undisciplined / never-published
+     *   — nothing to protect, nothing to arm);
+     * - the target state is not `default_revision: true` (a draft-state
+     *   same-state save IS the forward-draft case itself — no republish).
+     *
+     * Otherwise the any-of authorization applies UNCONDITIONALLY — to
+     * revision-creating AND in-place (non-revision-creating) saves alike
+     * (fix-wave, #1920 PR-2 adversarial review): an in-place save of the
+     * published tip reaches the SERVED base row directly via the writeBase
+     * rule in {@see \Waaseyaa\EntityStorage\EntityRepository::doSave()}, so
+     * gating only revision-creating saves let a `new_revision: false`
+     * bundle's plain content save put unauthorized content live with no
+     * workflow permission checked (in the NodeRevisionDefaultListener-first
+     * PRE_SAVE order the earlier gate short-circuited before the auth
+     * check). This deliberately also gates TransitionService's own second
+     * (post-pointer-move, status-flip) save and any sanctioned in-place
+     * published edit — both pass, because the acting account holds the
+     * fired transition's own permission (by definition a transition INTO
+     * the target state), or the context is null (edge-legality only).
+     *
+     * The any-of rule itself is the same one
+     * {@see \Waaseyaa\Workflows\Listener\WorkflowPointerMoveGuard}'s
+     * same-state branch uses (permission AND satisfied group constraint of
+     * at least one transition INTO the state; a null account context
+     * passes). Denial throws before anything commits.
+     *
+     * ARMING stays scoped to revision-creating saves only
+     * ({@see willCreateRevision()}): an in-place save leaves no orphan tip
+     * to promote, so a POST_SAVE promotion would be redundant — and in the
+     * guard-first PRE_SAVE listener order willCreateRevision() can report a
+     * pre-bundle-default answer, so a spurious arm is still possible; the
+     * republish listener's already-published self-skip is the second half
+     * of that defense (see
+     * {@see \Waaseyaa\Workflows\Listener\WorkflowRepublishListener::onPostSave()}).
+     */
+    private function guardSameStateRepublish(EntityInterface $entity, Workflow $workflow, string $state): void
+    {
+        if ($this->republishMarker === null) {
+            return;
+        }
+
+        if ($this->loadPublishedRevision($entity) === null) {
+            return;
+        }
+
+        $targetState = $workflow->getState($state);
+        if ($targetState === null || $targetState->defaultRevision !== true) {
+            return;
+        }
+
+        $account = $this->accountContext?->current();
+        if ($account !== null && !$this->satisfiesAnyTransitionInto($workflow, $state, $entity, $account)) {
+            throw new TransitionDeniedException(
+                TransitionDeniedException::REASON_PERMISSION,
+                \sprintf(
+                    "Same-state save into default-revision state '%s' denied: re-publishing served content "
+                    . 'requires the permission (and, where applicable, satisfied group constraint) of at '
+                    . "least one transition into state '%s' in workflow '%s'.",
+                    $state,
+                    $state,
+                    (string) $workflow->id(),
+                ),
+            );
+        }
+
+        if ($this->willCreateRevision($entity)) {
+            $this->republishMarker->arm($entity);
+        }
+    }
+
+    /**
+     * @see \Waaseyaa\Workflows\Listener\WorkflowPointerMoveGuard's identical
+     *   any-of rule, applied here to the save-path guard's own same-state
+     *   republish gate.
+     */
+    private function satisfiesAnyTransitionInto(Workflow $workflow, string $state, EntityInterface $entity, AccountInterface $account): bool
+    {
+        foreach ($workflow->getTransitions() as $transition) {
+            if ($transition->to !== $state) {
+                continue;
+            }
+
+            if (!$account->hasPermission($workflow->permissionFor($transition))) {
+                continue;
+            }
+
+            if ($transition->groupConstraint !== null
+                && ($this->groupConstraintChecker === null
+                    || !$this->groupConstraintChecker->satisfies($transition, $entity->getEntityTypeId(), (string) $entity->id(), $account->id()))
+            ) {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Duck-checks whether THIS save will create a revision, the same way
+     * {@see \Waaseyaa\EntityStorage\EntityRepository}'s private
+     * `shouldCreateRevision()` will resolve it: a caller override
+     * (`isNewRevision()`, legacy or WP07 contract) takes precedence; absent
+     * that, the entity type's `revisionDefault`. Called only from the
+     * same-state branch (never from the state-changing branch, which always
+     * forces `true` via {@see forceNewRevision()} first), and only for an
+     * existing (non-new) entity — the two conditions
+     * `EntityRepository::shouldCreateRevision()` special-cases (non-new,
+     * non-revisionable) do not apply here: `guardUpdate()` only runs for
+     * `!isNew()` entities, and this method is only reached once a workflow
+     * bound the entity type, which (per {@see WorkflowBindingResolver})
+     * guarantees `isRevisionable() === true`.
+     */
+    private function willCreateRevision(EntityInterface $entity): bool
+    {
+        if ($entity instanceof RevisionableInterface) {
+            $override = $entity->isNewRevision();
+            if ($override !== null) {
+                return $override;
+            }
+        } elseif ($entity instanceof RevisionableEntityInterface && \method_exists($entity, 'isNewRevision')) {
+            $override = $entity->isNewRevision();
+            if (\is_bool($override)) {
+                return $override;
+            }
+        }
+
+        if ($this->entityTypeManager === null) {
+            return false;
+        }
+
+        return $this->entityTypeManager->getDefinition($entity->getEntityTypeId())->getRevisionDefault();
+    }
+
+    /**
+     * CW-v1 option-1 (#1920 PR-2, design §3.1): the ORIGINAL-state basis for
+     * {@see guardUpdate()}. `loadWorkingCopy()` is mechanically safe on any
+     * entity (undisciplined ones have no divergence between the tip and the
+     * base pointer, so it degenerates to `find()` === `$originalEntity`) —
+     * this basis switch therefore needs no "is this entity disciplined"
+     * check of its own. Falls back to `$originalEntity` when no
+     * entity-type manager is wired, the entity has no id yet, or the
+     * repository reports no working copy (e.g. the row vanished between
+     * `doSave()`'s own `$originalEntity` load and this call).
+     */
+    private function workingCopyBasis(EntityInterface $entity, ?EntityInterface $originalEntity): ?EntityInterface
+    {
+        if ($this->entityTypeManager === null) {
+            return $originalEntity;
+        }
+
+        $id = $entity->id();
+        if ($id === null || $id === '') {
+            return $originalEntity;
+        }
+
+        $workingCopy = $this->entityTypeManager
+            ->getRepository($entity->getEntityTypeId())
+            ->loadWorkingCopy((string) $id);
+
+        return $workingCopy ?? $originalEntity;
     }
 
     /**

@@ -12,6 +12,7 @@ use Waaseyaa\Api\Http\JsonApiResponse;
 use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 use Waaseyaa\Workflows\Transition\TransitionService;
 
@@ -127,6 +128,22 @@ final class WorkflowTransitionController
             $result = $this->transitionService->transition($entity, $body['transition'], $account);
         } catch (TransitionDeniedException $e) {
             return $this->errorResponse($this->workflowTransitionDeniedError($e));
+        } catch (RevisionConflictException $e) {
+            // CW-v1 option-1 (#1920 PR-2, design §3.2 finding A4): the
+            // service's deterministic content rule — a stale passed entity
+            // (revision id mismatch against the working copy) is a
+            // caller-visible Conflict, mirroring JsonApiController's
+            // REVISION_CONFLICT mapping (contract conflict-surfaces.md).
+            return $this->errorResponse(JsonApiError::conflict(
+                "Entity of type '{$entityType}' with ID '{$e->entityId}' was modified: "
+                    . "expected revision {$e->expectedRevisionId}, current revision is "
+                    . ($e->currentRevisionId === null ? 'none' : (string) $e->currentRevisionId) . '.',
+                code: 'REVISION_CONFLICT',
+                meta: [
+                    'expected_revision_id' => $e->expectedRevisionId,
+                    'current_revision_id' => $e->currentRevisionId,
+                ],
+            ));
         }
 
         return new JsonApiResponse([

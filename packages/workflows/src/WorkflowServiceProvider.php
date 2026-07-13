@@ -21,7 +21,9 @@ use Waaseyaa\Groups\Membership\GroupMembershipService;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 use Waaseyaa\Workflows\Group\GroupConstraintChecker;
 use Waaseyaa\Workflows\Listener\WorkflowPointerMoveGuard;
+use Waaseyaa\Workflows\Listener\WorkflowRepublishListener;
 use Waaseyaa\Workflows\Listener\WorkflowStateGuard;
+use Waaseyaa\Workflows\Republish\RepublishMarker;
 use Waaseyaa\Workflows\Transition\TransitionService;
 use Waaseyaa\Workflows\Validation\WorkflowValidator;
 
@@ -129,9 +131,20 @@ final class WorkflowServiceProvider extends ServiceProvider
             );
         });
 
+        // CW-v1 option-1 (#1920 PR-2, design §3.1): the arm-at-PRE_SAVE /
+        // consume-at-POST_SAVE handoff between WorkflowStateGuard and
+        // WorkflowRepublishListener below. A single shared instance —
+        // singleton, not per-request-scoped beyond that — mirrors
+        // WorkflowBindingResolver's own boot-stable-not-process-stable
+        // convention (a new container/request constructs a fresh one).
+        $this->singleton(RepublishMarker::class, static function (): RepublishMarker {
+            return new RepublishMarker();
+        });
+
         $this->singleton(WorkflowStateGuard::class, function (): WorkflowStateGuard {
             $accountContext = $this->resolveOptional(AccountContextInterface::class);
             $groupConstraintChecker = $this->resolveOptional(GroupConstraintChecker::class);
+            $republishMarker = $this->resolveOptional(RepublishMarker::class);
 
             return new WorkflowStateGuard(
                 bindings: $this->resolve(WorkflowBindingResolver::class),
@@ -145,6 +158,17 @@ final class WorkflowServiceProvider extends ServiceProvider
                 // save-path guard — see TransitionService's own binding
                 // above for the shared rationale.
                 groupConstraintChecker: $groupConstraintChecker instanceof GroupConstraintChecker ? $groupConstraintChecker : null,
+                republishMarker: $republishMarker instanceof RepublishMarker ? $republishMarker : null,
+            );
+        });
+
+        // CW-v1 option-1 (#1920 PR-2, design §3.1): the POST_SAVE half of
+        // the same-state republish two-step — wired onto the dispatcher in
+        // boot() below, next to the other two guards.
+        $this->singleton(WorkflowRepublishListener::class, function (): WorkflowRepublishListener {
+            return new WorkflowRepublishListener(
+                marker: $this->resolve(RepublishMarker::class),
+                entityTypeManager: $this->resolve(EntityTypeManagerInterface::class),
             );
         });
 
@@ -225,6 +249,21 @@ final class WorkflowServiceProvider extends ServiceProvider
             $dispatcher->addListener(
                 BeforeRevisionPointerMoveEvent::class,
                 [$pointerGuard, 'onBeforePointerMove'],
+            );
+        }
+
+        // CW-v1 option-1 (#1920 PR-2, design §3.1): same degraded-mode gate
+        // as the two guards above (WorkflowRepublishListener needs
+        // EntityTypeManagerInterface, already guaranteed resolvable at this
+        // point since $guard above resolved successfully — both share the
+        // same dependency chain). Registered on POST_SAVE, the same event
+        // {@see \Waaseyaa\Cache\Listener\EntityCacheSubscriber} and the
+        // search/ai-vector indexers subscribe to.
+        $republishListener = $this->resolveOptional(WorkflowRepublishListener::class);
+        if ($republishListener instanceof WorkflowRepublishListener) {
+            $dispatcher->addListener(
+                EntityEvents::POST_SAVE->value,
+                [$republishListener, 'onPostSave'],
             );
         }
 

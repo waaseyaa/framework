@@ -16,8 +16,31 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\TranslatableInterface;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 use Waaseyaa\Workflows\Workflow;
+
+/**
+ * Minimal two-axis (revisionable + translatable) stub class satisfying
+ * {@see EntityType}'s own translatable-registration guard (a translatable
+ * entity type's registered class must implement {@see TranslatableInterface}) —
+ * exists only so `binding_a_revisionable_and_translatable_type_throws()` can
+ * construct a valid two-axis EntityType fixture. None of its methods are
+ * exercised: the resolver throws before ever instantiating this class.
+ */
+final class WorkflowBindingResolverTwoAxisStub implements TranslatableInterface
+{
+    public function defaultLangcode(): string { return 'en'; }
+    public function activeLangcode(): string { return 'en'; }
+    public function language(): string { return 'en'; }
+    public function hasTranslation(string $langcode): bool { return false; }
+    public function getTranslation(string $langcode): static { return $this; }
+    public function addTranslation(string $langcode): static { return $this; }
+    public function removeTranslation(string $langcode): void {}
+    public function translations(): iterable { return []; }
+    public function getTranslationLanguages(): array { return []; }
+    public function fieldLangcode(string $fieldName): ?string { return null; }
+}
 
 /**
  * @covers \Waaseyaa\Workflows\Binding\WorkflowBindingResolver
@@ -190,6 +213,26 @@ final class WorkflowBindingResolverTest extends TestCase
 
         $this->expectException(\RuntimeException::class);
         $resolver->resolve('note', 'note');
+    }
+
+    #[Test]
+    public function binding_a_revisionable_and_translatable_type_throws(): void
+    {
+        // CW-v1 option-1 (#1920 PR-2, design §1): two-axis (revisionable +
+        // translatable) entity types cannot be bound at all — per-translation
+        // workflow state is a post-v1 stage; silently skipping discipline
+        // would reintroduce the finding-#11 draft leak.
+        $editorial = new Workflow(['id' => 'editorial', 'label' => 'Editorial']);
+        $resolver = new WorkflowBindingResolver(
+            $this->configFactory(['page.page' => 'editorial']),
+            $this->entityTypeManager(
+                ['page' => new EntityType(id: 'page', label: 'Page', class: WorkflowBindingResolverTwoAxisStub::class, keys: ['id' => 'id', 'revision' => 'vid', 'langcode' => 'langcode', 'default_langcode' => 'default_langcode'], revisionable: true, translatable: true)],
+                ['editorial' => $editorial],
+            ),
+        );
+
+        $this->expectException(\RuntimeException::class);
+        $resolver->resolve('page', 'page');
     }
 
     #[Test]

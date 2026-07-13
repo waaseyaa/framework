@@ -18,6 +18,7 @@ use Waaseyaa\Entity\FieldableInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\GraphQL\Access\GraphQlAccessGuard;
+use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 
 /**
  * Resolves GraphQL queries and mutations against entity storage.
@@ -230,7 +231,18 @@ final class EntityResolver
         if ($entity instanceof EntityBase) {
             $entity->enforceIsNew();
         }
-        $repository->save($entity);
+
+        // CW-v1 option-1 (#1920 PR-2, design §3.1 finding A2): WorkflowStateGuard
+        // denies from PRE_SAVE inside save() for workflow-bound types — without
+        // this catch, webonyx/graphql-php masks the denial as a generic
+        // "Internal server error" (TransitionDeniedException is not
+        // ClientAware). Re-thrown as UserError so the real, actionable denial
+        // reason reaches the caller, mirroring JsonApiController's REST mapping.
+        try {
+            $repository->save($entity);
+        } catch (TransitionDeniedException $e) {
+            throw new UserError($e->getMessage());
+        }
 
         $values = EntityValues::toCastAwareMap($entity);
         $values['_graphql_depth'] = 0;
@@ -287,7 +299,16 @@ final class EntityResolver
         }
 
         // C-22 WP3: save path now goes through the canonical repository.
-        $this->entityTypeManager->getRepository($entityTypeId)->save($entity);
+        // CW-v1 option-1 (#1920 PR-2, design §3.1 finding A2): same
+        // TransitionDeniedException -> UserError mapping as resolveCreate()
+        // above — this is exactly the "same-state edit of published
+        // content now requires any-of authorization" surface the design
+        // makes routine.
+        try {
+            $this->entityTypeManager->getRepository($entityTypeId)->save($entity);
+        } catch (TransitionDeniedException $e) {
+            throw new UserError($e->getMessage());
+        }
 
         $values = EntityValues::toCastAwareMap($entity);
         $values['_graphql_depth'] = 0;

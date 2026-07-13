@@ -39,7 +39,18 @@ use Waaseyaa\Workflows\WorkflowServiceProvider;
 /**
  * Required integration test (CW-v1 WP-2 task 2.6, #1920,
  * docs/specs/content-workflow.md "forward draft" / "two-pointer status
- * semantics"): the forward-draft flow end-to-end, through the REAL kernel
+ * semantics"), UPDATED for CW-v1 option-1 (#1920 PR-2, design §1/§3.1):
+ * these fixture entity types are workflow-bound, so once a published
+ * pointer exists they are DISCIPLINED — `find()` serves the BASE ROW
+ * (the published pointer's content), not the tip; `loadWorkingCopy()` is
+ * the pointer-aware alternative that serves the draft. Every assertion
+ * below that reads "the current/tip row" now sources it via
+ * `loadWorkingCopy()`, and `find()` assertions were added/inverted to
+ * prove the base row stays byte-stable during a draft window — the
+ * doctrine inversion this rebuild exists to make (see
+ * `ForwardDraftFlowTest` for the full Node-based spine).
+ *
+ * The forward-draft flow end-to-end, through the REAL kernel
  * wiring — real dispatcher, real SQLite-backed `EntityRepository`, a REAL
  * `WorkflowServiceProvider::boot()` (proving `WorkflowStateGuard` AND
  * `WorkflowPointerMoveGuard` are both live on the same dispatcher the
@@ -135,10 +146,21 @@ final class ForwardDraftIntegrationTest extends TestCase
         $this->assertSame('Original title', $stillLive->get('title'));
         $this->assertSame(1, $stillLive->get('status'));
 
-        // The current/tip row (what an editor sees) is the new draft, and
-        // its own `status` was preserved (copied from the published
-        // pointer), not flipped to the 'draft' state's published flag (0).
-        $currentTip = $repository->find($entityId);
+        // CW-v1 option-1 (#1920 PR-2): find() itself must stay
+        // byte-stable — it keeps serving the PUBLISHED base row, not the
+        // draft tip, because this entity is now DISCIPLINED (bound +
+        // published pointer).
+        $servedRow = $repository->find($entityId);
+        $this->assertNotNull($servedRow);
+        $this->assertSame('published', $servedRow->get('workflow_state'));
+        $this->assertSame('Original title', $servedRow->get('title'));
+        $this->assertSame(1, $servedRow->get('status'));
+
+        // The current/tip row (what an editor sees) — loadWorkingCopy(),
+        // NOT find() — is the new draft, and its own `status` was
+        // preserved (copied from the published pointer), not flipped to
+        // the 'draft' state's published flag (0).
+        $currentTip = $repository->loadWorkingCopy($entityId);
         $this->assertNotNull($currentTip);
         $this->assertSame('draft', $currentTip->get('workflow_state'));
         $this->assertSame('Forward draft title', $currentTip->get('title'));
@@ -252,7 +274,11 @@ final class ForwardDraftIntegrationTest extends TestCase
         // validates draft -> published ('publish'); the pointer move the
         // service then performs is archived -> published, satisfied by
         // 'restore_to_published'.
-        $tip = $repository->find($entityId);
+        //
+        // CW-v1 option-1 (#1920 PR-2): find() still serves the ARCHIVED
+        // base row (byte-stable) — loadWorkingCopy() is what serves the
+        // restored draft.
+        $tip = $repository->loadWorkingCopy($entityId);
         $this->assertNotNull($tip);
         $this->assertSame('draft', $tip->get('workflow_state'));
         $tip->setNewRevision(true);
@@ -326,7 +352,15 @@ final class ForwardDraftIntegrationTest extends TestCase
 
         // The restored draft tip; publishing it needs restore_to_published
         // for the pointer move, which this account lacks.
-        $tip = $repository->find($entityId);
+        //
+        // CW-v1 option-1 (#1920 PR-2): find() serves the ARCHIVED base row
+        // (byte-stable) here, not the restored draft — loadWorkingCopy()
+        // is required to get the real tip. Passing find()'s stale
+        // (archived-pointer) revision id to transition() would now
+        // legitimately trip TransitionService's own deterministic content
+        // rule (RevisionConflictException) before ever reaching the
+        // pointer-guard denial this test is about.
+        $tip = $repository->loadWorkingCopy($entityId);
         $this->assertNotNull($tip);
 
         $denied = null;
@@ -402,7 +436,12 @@ final class ForwardDraftIntegrationTest extends TestCase
         $this->assertNotNull($pointer);
         $this->assertSame($publishedRevisionId, (int) $pointer->get('revision_id'));
         $this->assertSame(1, $repository->find($entityId)?->get('status'));
-        $freshTip = $repository->find($entityId);
+        // CW-v1 option-1 (#1920 PR-2): find() serves the PUBLISHED base
+        // row (byte-stable — still 'Original title') here; loadWorkingCopy()
+        // is what serves the draft tip.
+        $this->assertSame('Original title', $repository->find($entityId)?->get('title'));
+        $this->assertSame('published', $repository->find($entityId)?->get('workflow_state'));
+        $freshTip = $repository->loadWorkingCopy($entityId);
         $this->assertNotNull($freshTip);
         $this->assertSame('Draft title', $freshTip->get('title'));
         $this->assertSame('draft', $freshTip->get('workflow_state'));
@@ -466,13 +505,27 @@ final class ForwardDraftIntegrationTest extends TestCase
         // Pointer unchanged; base status still 1 (rides the pointer, which
         // still serves the published revision); the archived state lives
         // only on the unpromoted tip.
+        //
+        // CW-v1 option-1 (#1920 PR-2): the raw save is now DISCIPLINED
+        // (bound + published pointer) and revision-creating (the guard
+        // always forces a new revision for state-changing saves) — the
+        // base row is therefore BYTE-UNCHANGED (still 'published'/'Live
+        // title'), not merely status/pointer-consistent as the pre-option-1
+        // assertion below claimed. loadWorkingCopy() is what serves the
+        // unpromoted archived tip.
         $pointer = $repository->loadPublishedRevision($entityId);
         $this->assertNotNull($pointer);
         $this->assertSame($publishedRevisionId, (int) $pointer->get('revision_id'));
         $freshBase = $repository->find($entityId);
         $this->assertNotNull($freshBase);
         $this->assertSame(1, $freshBase->get('status'));
-        $this->assertSame('archived', $freshBase->get('workflow_state'));
+        $this->assertSame('published', $freshBase->get('workflow_state'), 'The base row is byte-unchanged under discipline — the archived state lives only on the unpromoted tip.');
+        $this->assertSame('Live title', $freshBase->get('title'));
+
+        $unpromotedTip = $repository->loadWorkingCopy($entityId);
+        $this->assertNotNull($unpromotedTip);
+        $this->assertSame('archived', $unpromotedTip->get('workflow_state'));
+        $this->assertSame((string) $archivedTipRevisionId, (string) $unpromotedTip->get('revision_id'));
     }
 
     #[Test]
@@ -515,10 +568,19 @@ final class ForwardDraftIntegrationTest extends TestCase
         $pointer = $repository->loadPublishedRevision($entityId);
         $this->assertNotNull($pointer);
         $this->assertSame($publishedRevisionId, (int) $pointer->get('revision_id'));
+
+        // CW-v1 option-1 (#1920 PR-2): base row byte-unchanged under
+        // discipline (same as the opt-out parity test above) —
+        // loadWorkingCopy() serves the unpromoted archived tip.
         $freshBase = $repository->find($entityId);
         $this->assertNotNull($freshBase);
         $this->assertSame(1, $freshBase->get('status'));
-        $this->assertSame('archived', $freshBase->get('workflow_state'));
+        $this->assertSame('published', $freshBase->get('workflow_state'));
+        $this->assertSame('Live title', $freshBase->get('title'));
+
+        $unpromotedTip = $repository->loadWorkingCopy($entityId);
+        $this->assertNotNull($unpromotedTip);
+        $this->assertSame('archived', $unpromotedTip->get('workflow_state'));
     }
 
     /**

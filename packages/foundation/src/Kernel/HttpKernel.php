@@ -144,7 +144,11 @@ final class HttpKernel extends AbstractKernel
         $listenerRegistrar->registerDiscoveryCacheListeners($this->discoveryCache);
         $listenerRegistrar->registerMcpReadCacheListeners($this->mcpReadCache);
         if (class_exists(\Waaseyaa\AI\Vector\SqliteEmbeddingStorage::class)) {
-            $listenerRegistrar->registerEmbeddingLifecycleListeners(new \Waaseyaa\AI\Vector\SqliteEmbeddingStorage($pdo), $this->config);
+            // CW-v1 option-1 (#1920 PR-2): threading entityTypeManager
+            // through lets EntityEmbeddingListener re-source served
+            // content via repository->find() instead of trusting the
+            // in-memory event entity (design §3.3).
+            $listenerRegistrar->registerEmbeddingLifecycleListeners(new \Waaseyaa\AI\Vector\SqliteEmbeddingStorage($pdo), $this->config, $this->entityTypeManager);
         }
 
         foreach ($this->providers as $provider) {
