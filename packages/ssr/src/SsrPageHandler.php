@@ -199,6 +199,40 @@ final class SsrPageHandler
                 return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
             }
 
+            // CW-v1 option-1 (#1920 PR-3, design §4): render the WORKING COPY
+            // instead of the find()/published-pointer $entity above ONLY when
+            // BOTH previewRequested AND the requester is GENUINELY authorized
+            // to preview a DRAFT — never merely because the two gates above
+            // passed. Those gates answer "may this request render the entity
+            // AT ALL" and — the load-bearing subtlety — `$visibility` above
+            // short-circuits to Allowed for ANY account (including anonymous)
+            // once `$entity` itself reports 'published' state, which, under
+            // default-revision discipline, the find()-loaded $entity ALWAYS
+            // does while a forward draft is in flight (the base row IS the
+            // published revision). Gating the swap on `$visibility->isAllowed()`
+            // alone would therefore hand the DRAFT to any anonymous visitor
+            // who appends `?preview=1` to a published node's canonical URL.
+            // Re-running `canRender()` against the WORKING COPY re-derives
+            // state from the TIP instead: a tip still mid-review is NOT
+            // 'published', so `canRender()` actually exercises its
+            // PERMISSION-gated preview branch (administer nodes / own
+            // content / moderation-queue permissions) rather than the
+            // publicly-visible short-circuit. When no draft exists,
+            // `loadWorkingCopy() === find()` and this second check trivially
+            // agrees with the first (same content either way, no observable
+            // difference) — the public (non-preview) path never evaluates
+            // this block at all, so it is byte-untouched by construction
+            // (pinned by test).
+            if ($previewRequested) {
+                $workingCopyRepository = $this->entityTypeManager->getRepository($entityTypeId);
+                $workingCopy = $entity->id() !== null ? $workingCopyRepository->loadWorkingCopy((string) $entity->id()) : null;
+                if ($workingCopy !== null
+                    && $visibilityResolver->canRender($workingCopy, $account, $previewRequested)->isAllowed()
+                ) {
+                    $entity = $workingCopy;
+                }
+            }
+
             $formatterRegistry = SsrServiceProvider::getFormatterRegistry()
                 ?? new FieldFormatterRegistry($this->manifest?->formatters ?? []);
             $viewModeConfig = new ArrayViewModeConfig(

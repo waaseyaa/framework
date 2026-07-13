@@ -110,4 +110,34 @@ describe('AdminSurfaceTransportAdapter', () => {
 
     expect(fetchFn).toHaveBeenCalledTimes(2)
   })
+
+  it('the edit-surface GET is the plain admin_surface.get URL, with no working-copy signal — the server decides transparently (CW-v1 option-1 PR-3)', async () => {
+    // GenericAdminSurfaceHost::get() (packages/admin-surface) now serves the
+    // WORKING COPY to accounts with entity update access unconditionally —
+    // "unconditional for editors" rather than a query-param opt-in like
+    // JSON:API's `?workingCopy=1` — because this ONE transport call backs
+    // both the edit page's "view" and "edit" client-side sub-modes with no
+    // per-request signal distinguishing them. This test pins that the SPA
+    // requires NO client-side change to receive draft content: the request
+    // shape is identical to a plain read, and whatever the backend returns
+    // (a draft title here, standing in for a working-copy response) is
+    // surfaced as-is.
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        data: { type: 'node', id: '7', attributes: { title: 'Forward draft title' } },
+      }),
+    })
+    const adapter = new AdminSurfaceTransportAdapter('/admin/', fetchFn as typeof fetch)
+
+    const result = await adapter.get('node', '7')
+
+    expect(fetchFn).toHaveBeenCalledWith(
+      '/admin/_surface/node/7',
+      expect.objectContaining({ method: 'GET', credentials: 'include' }),
+    )
+    expect(result).toEqual({ type: 'node', id: '7', attributes: { title: 'Forward draft title' } })
+  })
 })

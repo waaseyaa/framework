@@ -58,7 +58,17 @@ final class WorkflowTransitionController
             return $this->notFound($entityType, $id);
         }
 
-        $available = $this->transitionService->getAvailableTransitions($entity, $account);
+        // CW-v1 option-1 (#1920 PR-3, design §4): the R8 view gate above
+        // stays pinned to the `find()`-loaded $entity (byte-identical
+        // missing/view-denied shape). Once it passes, the WORKFLOW POSITION
+        // is read from the WORKING COPY — `loadWorkingCopy()` is mechanically
+        // safe on any entity (undisciplined types/entities degrade to
+        // `find()`) — so a bound entity's TIP state (not the served/published
+        // state) drives the available-transitions list and `meta.workflow_state`.
+        $repository = $this->entityTypeManager->getRepository($entityType);
+        $workingCopy = $repository->loadWorkingCopy((string) $entity->id()) ?? $entity;
+
+        $available = $this->transitionService->getAvailableTransitions($workingCopy, $account);
 
         $data = [];
         foreach ($available as $transition) {
@@ -69,7 +79,7 @@ final class WorkflowTransitionController
             ];
         }
 
-        $state = $entity->get('workflow_state');
+        $state = $workingCopy->get('workflow_state');
         $state = is_string($state) && $state !== '' ? $state : null;
 
         // Field-level view gate on the surfaced state (PR #1956 reviewer
@@ -79,9 +89,11 @@ final class WorkflowTransitionController
         // and this endpoint's `meta.workflow_state` was bypassing that.
         // `$this->accessHandler` is guaranteed non-null here — the null case
         // already 404'd inside loadViewableEntity(). Field semantics are
-        // "allow unless Forbidden" (Neutral = accessible).
+        // "allow unless Forbidden" (Neutral = accessible). Checked against
+        // `$workingCopy` — the entity whose field value is actually being
+        // surfaced — not the gate entity.
         if ($state !== null && $this->accessHandler !== null
-            && $this->accessHandler->checkFieldAccess($entity, 'workflow_state', 'view', $account)->isForbidden()
+            && $this->accessHandler->checkFieldAccess($workingCopy, 'workflow_state', 'view', $account)->isForbidden()
         ) {
             $state = null;
         }
@@ -124,8 +136,18 @@ final class WorkflowTransitionController
             return $this->errorResponse(JsonApiError::badRequest('Body must be {"transition": "<string>"}.'));
         }
 
+        // CW-v1 option-1 (#1920 PR-3, design §4): pass the WORKING COPY, not
+        // the `find()`-gated $entity, as the transition target.
+        // `TransitionService` resolves the working copy internally too (its
+        // own working-copy basis, design §3.2) — passing it explicitly here
+        // makes the passed object's revision id trivially agree with what the
+        // service loads, avoiding the `RevisionConflictException` path for
+        // this first-party caller (the passed object IS the working copy).
+        $repository = $this->entityTypeManager->getRepository($entityType);
+        $workingCopy = $repository->loadWorkingCopy((string) $entity->id()) ?? $entity;
+
         try {
-            $result = $this->transitionService->transition($entity, $body['transition'], $account);
+            $result = $this->transitionService->transition($workingCopy, $body['transition'], $account);
         } catch (TransitionDeniedException $e) {
             return $this->errorResponse($this->workflowTransitionDeniedError($e));
         } catch (RevisionConflictException $e) {
