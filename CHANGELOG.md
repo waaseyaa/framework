@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Repository agent rules now pin the mandatory PR, TDD, changelog, spec-drift, worker-safe git, local-gate, release-fan-out, and auto-merge conventions.** `AGENTS.md` remains a terse entry point to the authoritative `CLAUDE.md` and workflow/spec documents while ensuring future agent sessions inherit the process guardrails up front.
+
 ## [0.1.0-alpha.260] - 2026-07-13
 
 ### Security
