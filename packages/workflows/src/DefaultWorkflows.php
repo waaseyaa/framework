@@ -88,6 +88,28 @@ final class DefaultWorkflows
                 'to' => 'published',
                 'permission' => 'use editorial transition restore_to_published',
             ],
+            // CW-v1 option-1 (#1920 PR-6, design §7 "Restore `revise` to the
+            // shipped editorial workflow"): mirrors Drupal editorial's
+            // "Create New Draft" (published -> draft). This edge was pulled
+            // from the shipped workflow during the WP-2 rework because no
+            // read path was pointer-aware for a forward draft (final-review
+            // findings #1/#2/#4/#5/#11) — see the retired deferral note this
+            // PR closes in docs/specs/content-workflow.md. It is sanctioned
+            // again now that the read side is pointer-aware BY CONSTRUCTION
+            // (option-1 PRs 1-3: the base row holds the published revision,
+            // so `find()`/JSON:API/SSR/search-index readers serve it without
+            // patching). DefaultWorkflowsTest's structural pin — which used
+            // to FORBID this exact shape — is inverted in this same PR to
+            // assert this edge exists (see that test for the inversion
+            // rationale). Upgraded installs receive it automatically via
+            // WorkflowServiceProvider's additive top-up (machine-name keyed;
+            // see DefaultWorkflowSeedTopUpTest).
+            'revise' => [
+                'label' => 'Create new draft',
+                'from' => ['published'],
+                'to' => 'draft',
+                'permission' => 'use editorial transition revise',
+            ],
         ],
     ];
 }

@@ -17,50 +17,61 @@ use Waaseyaa\Workflows\Workflow;
 final class DefaultWorkflowsTest extends TestCase
 {
     #[Test]
-    public function the_shipped_editorial_workflow_has_no_published_to_draft_forward_draft_entry_edge(): void
+    public function the_shipped_editorial_workflow_carries_the_revise_forward_draft_entry_edge(): void
     {
-        // WP-2 rework (#1920): the final whole-branch review found no read
-        // path is pointer-aware for a forward draft (findings #1/#4/#11) —
-        // the human chose option 2, deferring forward drafts on the shipped
-        // `editorial` workflow to a follow-up (option 1, true
-        // default-revision semantics). This pins the descope at the data
-        // level: the shipped `EDITORIAL` const must never again carry a
-        // transition whose `from` includes a `published: true` state and
-        // whose `to` is a state with `default_revision: false` — i.e. no
-        // shipped forward-draft entry edge. (The engine itself still
-        // supports this shape for custom workflows — see
-        // ForwardDraftFlowTest / ForwardDraftIntegrationTest, which
-        // re-anchor on a test-local `editorial_forward` workflow.)
+        // INVERSION, DELIBERATE (CW-v1 option-1 #1920 PR-6, design §7
+        // "Restore `revise` to the shipped editorial workflow"): this test
+        // used to be `..._has_no_published_to_draft_forward_draft_entry_edge`
+        // and FORBADE any shipped transition whose `from` includes a
+        // `published: true` state and whose `to` is a `default_revision:
+        // false` state. That pin existed to block exactly this change until
+        // the read side was safe (WP-2 rework, findings #1/#2/#4/#5/#11: no
+        // reader was pointer-aware, so a forward draft's tip content leaked
+        // publicly while status/pointer said "published"). Option-1 PRs 1-3
+        // made the read side pointer-aware BY CONSTRUCTION (the base row
+        // holds the published revision, not the tip — `find()`/JSON:API/SSR/
+        // search-index readers serve it without per-reader patching), which
+        // is exactly the condition the old pin's comment named as the
+        // unblocking event. Per this PR's own instructions: never delete
+        // this test, never work around it — invert it so a future regression
+        // that silently drops the edge is caught immediately, the same way
+        // the old pin caught a silent reintroduction.
+        //
+        // The pin now asserts the OPPOSITE shape: `revise` (published ->
+        // draft, mirroring Drupal editorial's "Create New Draft") exists on
+        // the shipped `EDITORIAL` const with exactly this shape. See
+        // DefaultWorkflowSeedTopUpTest for the additive-top-up proof on
+        // upgraded installs, and ForwardDraftFlowTest / the shipped-workflow
+        // spine for the end-to-end mechanics.
+        $transitions = DefaultWorkflows::EDITORIAL['transitions'];
+        $this->assertArrayHasKey(
+            'revise',
+            $transitions,
+            'The shipped `editorial` workflow must carry the `revise` forward-draft entry edge '
+            . '(CW-v1 option-1 PR-6, #1920, design §7) — the read side has been pointer-aware since '
+            . 'option-1 PRs 1-3, so the WP-2 rework descope this pin used to enforce no longer applies.',
+        );
+
+        $revise = $transitions['revise'];
+        $this->assertSame('Create new draft', $revise['label'] ?? null);
+        $this->assertSame(['published'], $revise['from'] ?? null);
+        $this->assertSame('draft', $revise['to'] ?? null);
+        $this->assertSame(
+            'use editorial transition revise',
+            $revise['permission'] ?? null,
+            "The 'revise' permission must be the auto-derived `use editorial transition revise` shape "
+            . '(Workflow::permissionFor()) — matching the pattern the other six shipped transitions follow.',
+        );
+
+        // The states involved must still carry the shape the forward-draft
+        // mechanic depends on: 'published' is a published, default-revision
+        // state; 'draft' is neither. If either state's flags ever drift, the
+        // edge above stops meaning what this test says it means.
         $states = DefaultWorkflows::EDITORIAL['states'];
-        $publishedStates = array_keys(array_filter(
-            $states,
-            static fn(array $state): bool => ($state['published'] ?? false) === true,
-        ));
-        $nonDefaultRevisionStates = array_keys(array_filter(
-            $states,
-            static fn(array $state): bool => ($state['default_revision'] ?? false) === false,
-        ));
-
-        foreach (DefaultWorkflows::EDITORIAL['transitions'] as $transitionId => $transition) {
-            $from = (array) ($transition['from'] ?? []);
-            $to = (string) ($transition['to'] ?? '');
-
-            $entersFromPublished = array_intersect($from, $publishedStates) !== [];
-            $entersNonDefaultRevisionState = \in_array($to, $nonDefaultRevisionStates, true);
-
-            $this->assertFalse(
-                $entersFromPublished && $entersNonDefaultRevisionState,
-                \sprintf(
-                    "Transition '%s' (from published -> non-default-revision state '%s') is a shipped "
-                    . 'forward-draft entry edge. Forward drafts on the shipped `editorial` workflow are '
-                    . 'deferred (WP-2 rework, #1920, option-1 follow-up — review findings #1/#4/#11): no '
-                    . 'read path is pointer-aware yet. Do not reintroduce this edge on the shipped workflow; '
-                    . 'the engine still supports it via a custom workflow.',
-                    $transitionId,
-                    $to,
-                ),
-            );
-        }
+        $this->assertTrue($states['published']['published'] ?? false);
+        $this->assertTrue($states['published']['default_revision'] ?? false);
+        $this->assertFalse($states['draft']['published'] ?? true);
+        $this->assertFalse($states['draft']['default_revision'] ?? true);
     }
 
     #[Test]

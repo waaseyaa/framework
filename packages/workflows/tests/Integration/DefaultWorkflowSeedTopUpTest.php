@@ -98,9 +98,123 @@ final class DefaultWorkflowSeedTopUpTest extends TestCase
         ],
     ];
 
+    /**
+     * The exact persisted shape of every install between `restore_to_published`
+     * landing and CW-v1 option-1 PR-6 (#1920, design §7): identical states to
+     * the current shipped `EDITORIAL`, and all six pre-option-1 transitions
+     * (the current `STALE_EDITORIAL_ALPHA_256` shape plus `restore_to_published`)
+     * — but NOT `revise`, which PR-6 adds. This is the `restore_to_published`
+     * precedent's exact structure, one step later in the shipped workflow's
+     * history.
+     *
+     * @var array<string, mixed>
+     */
+    private const array STALE_EDITORIAL_PRE_REVISE = [
+        'id' => 'editorial',
+        'label' => 'Editorial',
+        'initial_state' => 'draft',
+        'states' => [
+            'draft' => ['label' => 'Draft', 'published' => false, 'default_revision' => false],
+            'review' => ['label' => 'In review', 'published' => false, 'default_revision' => false],
+            'published' => ['label' => 'Published', 'published' => true, 'default_revision' => true],
+            'archived' => ['label' => 'Archived', 'published' => false, 'default_revision' => true],
+        ],
+        'transitions' => [
+            'submit_for_review' => [
+                'label' => 'Submit for review',
+                'from' => ['draft'],
+                'to' => 'review',
+                'permission' => 'use editorial transition submit_for_review',
+            ],
+            'publish' => [
+                'label' => 'Publish',
+                'from' => ['draft', 'review'],
+                'to' => 'published',
+                'permission' => 'use editorial transition publish',
+            ],
+            'reject' => [
+                'label' => 'Send back',
+                'from' => ['review'],
+                'to' => 'draft',
+                'permission' => 'use editorial transition reject',
+            ],
+            'archive' => [
+                'label' => 'Archive',
+                'from' => ['published'],
+                'to' => 'archived',
+                'permission' => 'use editorial transition archive',
+            ],
+            'restore' => [
+                'label' => 'Restore to draft',
+                'from' => ['archived'],
+                'to' => 'draft',
+                'permission' => 'use editorial transition restore',
+            ],
+            'restore_to_published' => [
+                'label' => 'Restore',
+                'from' => ['archived'],
+                'to' => 'published',
+                'permission' => 'use editorial transition restore_to_published',
+            ],
+        ],
+    ];
+
+    #[Test]
+    public function boot_additively_tops_up_a_pre_option_1_six_transition_editorial_with_revise(): void
+    {
+        // CW-v1 option-1 (#1920 PR-6, design §7): the `restore_to_published`
+        // precedent applied one step later in the shipped workflow's
+        // history — a real pre-PR-6 6-transition `editorial` entity is
+        // persisted BEFORE `boot()` runs, a real `WorkflowServiceProvider::boot()`
+        // performs the additive top-up, and every assertion RELOADS from the
+        // repository rather than trusting the in-memory reference.
+        [$entityTypeManager, $kernelServices, $logger] = $this->buildHarness();
+        $repository = $entityTypeManager->getRepository('workflow');
+
+        $stale = new Workflow(self::STALE_EDITORIAL_PRE_REVISE);
+        $stale->enforceIsNew();
+        $repository->save($stale);
+
+        $this->bootProvider($kernelServices);
+
+        $reloaded = $repository->find('editorial');
+        $this->assertInstanceOf(Workflow::class, $reloaded);
+        $this->assertTrue(
+            $reloaded->hasTransition('revise'),
+            'Upgrade top-up must add the missing revise transition to a pre-option-1 persisted editorial workflow.',
+        );
+
+        $added = $reloaded->getTransition('revise');
+        $this->assertNotNull($added);
+        $this->assertSame(['published'], $added->from);
+        $this->assertSame('draft', $added->to);
+        $this->assertSame('use editorial transition revise', $added->permission);
+
+        // The six pre-existing transitions must be untouched by machine name.
+        foreach (['submit_for_review', 'publish', 'reject', 'archive', 'restore', 'restore_to_published'] as $id) {
+            $this->assertTrue($reloaded->hasTransition($id), "Pre-existing transition '$id' must survive the top-up.");
+        }
+        $this->assertCount(7, $reloaded->getTransitions());
+
+        // All four states were already present — no state should be added.
+        $this->assertCount(4, $reloaded->getStates());
+
+        $this->assertNotEmpty($logger->infos);
+        $topUpLog = $logger->infos[0];
+        $this->assertSame('workflows.default_seed_topup', $topUpLog['message']);
+        $this->assertSame(['revise'], $topUpLog['context']['added_transitions'] ?? null);
+        $this->assertSame([], $topUpLog['context']['added_states'] ?? null);
+    }
+
     #[Test]
     public function boot_additively_tops_up_a_stale_alpha_256_editorial_with_restore_to_published(): void
     {
+        // CW-v1 option-1 (#1920 PR-6, design §7): this fixture predates BOTH
+        // `restore_to_published` and `revise` — a single top-up pass now adds
+        // both, in shipped declaration order (restore_to_published, then
+        // revise). This is intentional: the additive top-up guarantees the
+        // full current shipped SET regardless of how many shipped entries
+        // postdate the stale fixture's original boot.
         [$entityTypeManager, $kernelServices, $logger] = $this->buildHarness();
         $repository = $entityTypeManager->getRepository('workflow');
 
@@ -123,11 +237,21 @@ final class DefaultWorkflowSeedTopUpTest extends TestCase
         $this->assertSame('published', $added->to);
         $this->assertSame('use editorial transition restore_to_published', $added->permission);
 
+        $this->assertTrue(
+            $reloaded->hasTransition('revise'),
+            'The same top-up pass must also add the missing revise transition (also postdates this fixture).',
+        );
+        $addedRevise = $reloaded->getTransition('revise');
+        $this->assertNotNull($addedRevise);
+        $this->assertSame(['published'], $addedRevise->from);
+        $this->assertSame('draft', $addedRevise->to);
+        $this->assertSame('use editorial transition revise', $addedRevise->permission);
+
         // The five pre-existing transitions must be untouched by machine name.
         foreach (['submit_for_review', 'publish', 'reject', 'archive', 'restore'] as $id) {
             $this->assertTrue($reloaded->hasTransition($id), "Pre-existing transition '$id' must survive the top-up.");
         }
-        $this->assertCount(6, $reloaded->getTransitions());
+        $this->assertCount(7, $reloaded->getTransitions());
 
         // All four states were already present — no state should be added.
         $this->assertCount(4, $reloaded->getStates());
@@ -135,7 +259,10 @@ final class DefaultWorkflowSeedTopUpTest extends TestCase
         $this->assertNotEmpty($logger->infos);
         $topUpLog = $logger->infos[0];
         $this->assertSame('workflows.default_seed_topup', $topUpLog['message']);
-        $this->assertSame(['restore_to_published'], $topUpLog['context']['added_transitions'] ?? null);
+        $this->assertSame(
+            ['restore_to_published', 'revise'],
+            $topUpLog['context']['added_transitions'] ?? null,
+        );
         $this->assertSame([], $topUpLog['context']['added_states'] ?? null);
     }
 
@@ -184,7 +311,7 @@ final class DefaultWorkflowSeedTopUpTest extends TestCase
 
         $afterFirstBoot = $repository->find('editorial');
         $this->assertInstanceOf(Workflow::class, $afterFirstBoot);
-        $this->assertCount(6, $afterFirstBoot->getTransitions());
+        $this->assertCount(7, $afterFirstBoot->getTransitions());
 
         // Second boot (fresh provider instance, same repository/backing store):
         // nothing is missing any more, so the seed must write nothing and log
@@ -198,7 +325,7 @@ final class DefaultWorkflowSeedTopUpTest extends TestCase
 
         $afterSecondBoot = $repository->find('editorial');
         $this->assertInstanceOf(Workflow::class, $afterSecondBoot);
-        $this->assertCount(6, $afterSecondBoot->getTransitions());
+        $this->assertCount(7, $afterSecondBoot->getTransitions());
     }
 
     #[Test]
@@ -249,8 +376,13 @@ final class DefaultWorkflowSeedTopUpTest extends TestCase
     }
 
     #[Test]
-    public function a_fresh_install_with_no_persisted_editorial_still_seeds_the_full_descoped_shape(): void
+    public function a_fresh_install_with_no_persisted_editorial_still_seeds_the_full_shipped_shape(): void
     {
+        // Renamed from `..._still_seeds_the_full_descoped_shape` (CW-v1
+        // option-1 #1920 PR-6, design §7): a fresh install seeds
+        // `DefaultWorkflows::EDITORIAL` directly (no top-up merge involved),
+        // so it now carries `revise` too — the shipped shape is no longer
+        // descoped.
         [$entityTypeManager, $kernelServices] = $this->buildHarness();
         $repository = $entityTypeManager->getRepository('workflow');
 
@@ -260,8 +392,9 @@ final class DefaultWorkflowSeedTopUpTest extends TestCase
 
         $seeded = $repository->find('editorial');
         $this->assertInstanceOf(Workflow::class, $seeded);
-        $this->assertCount(6, $seeded->getTransitions());
+        $this->assertCount(7, $seeded->getTransitions());
         $this->assertTrue($seeded->hasTransition('restore_to_published'));
+        $this->assertTrue($seeded->hasTransition('revise'));
     }
 
     /**
