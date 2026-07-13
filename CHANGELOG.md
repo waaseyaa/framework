@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Persistent HTTP workers no longer carry Inertia shared props or the active language into the next request (#1971, R17).** `InertiaMiddleware` clears request-shared props in `finally` on every response path, preventing account-shaped props from surviving in process statics, and SSR routing resets the shared `LanguageManager` before applying the current request's prefix. Two-request/one-process regressions pin both boundaries; companion coverage verifies that the dual static Twig environments are already replaced on every production-order provider boot and require no runtime change.
+
 ### Changed
 
 - **Repository agent rules now pin the mandatory PR, TDD, changelog, spec-drift, worker-safe git, local-gate, release-fan-out, and auto-merge conventions.** `AGENTS.md` remains a terse entry point to the authoritative `CLAUDE.md` and workflow/spec documents while ensuring future agent sessions inherit the process guardrails up front.

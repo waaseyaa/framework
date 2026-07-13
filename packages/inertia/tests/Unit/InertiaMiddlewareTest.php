@@ -9,11 +9,22 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
+use Waaseyaa\Inertia\Inertia;
 use Waaseyaa\Inertia\InertiaMiddleware;
 
 #[CoversClass(InertiaMiddleware::class)]
 final class InertiaMiddlewareTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        Inertia::reset();
+    }
+
+    protected function tearDown(): void
+    {
+        Inertia::reset();
+    }
+
     public function testNonInertiaRequestPassesThrough(): void
     {
         $middleware = new InertiaMiddleware('v1');
@@ -64,6 +75,34 @@ final class InertiaMiddlewareTest extends TestCase
         $response = $middleware->process($request, $handler);
 
         $this->assertSame(200, $response->getStatusCode());
+    }
+
+    public function testSharedPropsDoNotSurviveIntoTheNextRequestInTheSameProcess(): void
+    {
+        $middleware = new InertiaMiddleware('v1');
+        $handler = new class implements HttpHandlerInterface {
+            /** @var list<array<string, mixed>> */
+            public array $pages = [];
+
+            private int $requestCount = 0;
+
+            public function handle(Request $request): Response
+            {
+                if ($this->requestCount++ === 0) {
+                    Inertia::share('auth', ['user' => ['name' => 'Alice']]);
+                }
+
+                $this->pages[] = Inertia::render('Dashboard', [])->toPageObject();
+
+                return new Response('ok');
+            }
+        };
+
+        $middleware->process(Request::create('/first'), $handler);
+        $middleware->process(Request::create('/second'), $handler);
+
+        $this->assertSame(['user' => ['name' => 'Alice']], $handler->pages[0]['props']['auth']);
+        $this->assertArrayNotHasKey('auth', $handler->pages[1]['props']);
     }
 
     private function createMockHandler(Response $response): HttpHandlerInterface

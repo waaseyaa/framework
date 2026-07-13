@@ -77,6 +77,7 @@ final class LanguageResolver
         if ($manager === null) {
             return $path;
         }
+        $manager->resetToDefault();
         $availableLanguages = array_keys($manager->getLanguages());
         $defaultLanguage = $manager->getDefaultLanguage();
 

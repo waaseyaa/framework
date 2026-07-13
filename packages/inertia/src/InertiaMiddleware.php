@@ -19,17 +19,21 @@ final class InertiaMiddleware implements HttpMiddlewareInterface
 
     public function process(Request $request, HttpHandlerInterface $next): Response
     {
-        if ($request->headers->get('X-Inertia') !== 'true') {
+        try {
+            if ($request->headers->get('X-Inertia') !== 'true') {
+                return $next->handle($request);
+            }
+
+            $clientVersion = $request->headers->get('X-Inertia-Version');
+            if ($clientVersion !== null && $clientVersion !== $this->version) {
+                return new Response('', 409, [
+                    'X-Inertia-Location' => $request->getRequestUri(),
+                ]);
+            }
+
             return $next->handle($request);
+        } finally {
+            Inertia::clearShared();
         }
-
-        $clientVersion = $request->headers->get('X-Inertia-Version');
-        if ($clientVersion !== null && $clientVersion !== $this->version) {
-            return new Response('', 409, [
-                'X-Inertia-Location' => $request->getRequestUri(),
-            ]);
-        }
-
-        return $next->handle($request);
     }
 }
